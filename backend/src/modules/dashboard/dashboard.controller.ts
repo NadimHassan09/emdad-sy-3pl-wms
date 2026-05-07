@@ -13,4 +13,9 @@ export class DashboardController {
   openOrdersCharts(@CurrentUser() user: AuthPrincipal) {
     return this.dashboard.openOrdersCharts(user);
   }
+
+  @Get('overview')
+  overview(@CurrentUser() user: AuthPrincipal) {
+    return this.dashboard.overview(user);
+  }
 }

@@ -112,7 +112,7 @@ export function OutboundDetailPage() {
   return (
     <>
       <div className="mb-2 text-sm text-slate-500">
-        <Link to="/outbound" className="hover:underline">
+        <Link to="/orders/outbound" className="hover:underline">
           ← All outbound orders
         </Link>
       </div>

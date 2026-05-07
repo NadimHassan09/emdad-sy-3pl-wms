@@ -13,12 +13,13 @@ import { InventoryProductDetailPage } from './pages/InventoryProductDetailPage';
 import { LocationsPage } from './pages/LocationsPage';
 import { OutboundDetailPage } from './pages/OutboundDetailPage';
 import { OutboundListPage } from './pages/OutboundListPage';
+import { ProductDetailPage } from './pages/ProductDetailPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { TaskDetailPage } from './pages/TaskDetailPage';
 import { TaskExecutePage } from './pages/TaskExecutePage';
 import { TasksListPage } from './pages/TasksListPage';
 import { ClientsPage } from './pages/ClientsPage';
-import { DashboardPage } from './pages/DashboardPage';
+import { DashboardOverviewPage } from './pages/DashboardOverviewPage';
 import { UsersPage } from './pages/UsersPage';
 import { LoginPage } from './pages/LoginPage';
 import { InternalTransferPage } from './pages/InternalTransferPage';
@@ -34,27 +35,33 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
-      { path: 'dashboard', element: <DashboardPage /> },
+      { index: true, element: <Navigate to="/dashboard/overview" replace /> },
+      { path: 'dashboard', element: <Navigate to="/dashboard/overview" replace /> },
+      { path: 'dashboard/overview', element: <DashboardOverviewPage /> },
       { path: 'products', element: <ProductsPage /> },
+      { path: 'products/:sku', element: <ProductDetailPage /> },
       { path: 'locations', element: <LocationsPage /> },
+      { path: 'inventory', element: <Navigate to="/inventory/stock" replace /> },
       { path: 'inventory/ledger/line/:ledgerId/:createdAt', element: <InventoryLedgerEntryPage /> },
       { path: 'inventory/ledger/:referenceType/:referenceId', element: <InventoryLedgerReferencePage /> },
       { path: 'inventory/ledger', element: <InventoryLedgerPage /> },
       { path: 'inventory/product/:productId', element: <InventoryProductDetailPage /> },
-      { path: 'inventory', element: <InventoryPage /> },
-      { path: 'adjustments', element: <AdjustmentsPage /> },
-      { path: 'inbound', element: <InboundListPage /> },
-      { path: 'inbound/:id', element: <InboundDetailPage /> },
-      { path: 'outbound', element: <OutboundListPage /> },
-      { path: 'outbound/:id', element: <OutboundDetailPage /> },
+      { path: 'inventory/stock', element: <InventoryPage /> },
+      { path: 'adjustments', element: <Navigate to="/inventory/adjustments" replace /> },
+      { path: 'inventory/adjustments', element: <AdjustmentsPage /> },
+      { path: 'inbound', element: <Navigate to="/orders/inbound" replace /> },
+      { path: 'outbound', element: <Navigate to="/orders/outbound" replace /> },
+      { path: 'orders/inbound', element: <InboundListPage /> },
+      { path: 'orders/inbound/:id', element: <InboundDetailPage /> },
+      { path: 'orders/outbound', element: <OutboundListPage /> },
+      { path: 'orders/outbound/:id', element: <OutboundDetailPage /> },
       { path: 'tasks', element: <TasksListPage /> },
       { path: 'tasks/:id/execute', element: <TaskExecutePage /> },
       { path: 'tasks/:id', element: <TaskDetailPage /> },
       { path: 'internal', element: <InternalTransferPage /> },
       { path: 'clients', element: <ClientsPage /> },
       { path: 'users', element: <UsersPage /> },
-      { path: '*', element: <Navigate to="/dashboard" replace /> },
+      { path: '*', element: <Navigate to="/dashboard/overview" replace /> },
     ],
   },
 ]);

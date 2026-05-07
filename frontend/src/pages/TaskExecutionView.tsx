@@ -376,11 +376,11 @@ export function TaskExecutionView() {
 
   const orderLink =
     wf?.referenceType === 'inbound_order' && referenceId ? (
-      <Link className="text-primary-700 hover:underline" to={`/inbound/${referenceId}`}>
+      <Link className="text-primary-700 hover:underline" to={`/orders/inbound/${referenceId}`}>
         Inbound order
       </Link>
     ) : wf?.referenceType === 'outbound_order' && referenceId ? (
-      <Link className="text-primary-700 hover:underline" to={`/outbound/${referenceId}`}>
+      <Link className="text-primary-700 hover:underline" to={`/orders/outbound/${referenceId}`}>
         Outbound order
       </Link>
     ) : null;

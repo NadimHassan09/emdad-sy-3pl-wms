@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { CompaniesApi } from '../api/companies';
 import {
@@ -36,12 +37,6 @@ const UOM_OPTIONS = [
 
 function uomLabel(uom: ProductUom) {
   return UOM_OPTIONS.find((o) => o.value === uom)?.label ?? uom;
-}
-
-function dimCell(v: string | number | null | undefined) {
-  if (v === null || v === undefined) return '—';
-  const s = typeof v === 'number' ? String(v) : String(v).trim();
-  return s.length ? s : '—';
 }
 
 function parseOptionalCreateDim(s: string): number | undefined {
@@ -89,6 +84,7 @@ function upsertProductAcrossCaches(qc: ReturnType<typeof useQueryClient>, update
   }
 }
 export function ProductsPage() {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
   const initialProductFilters = useMemo<ProductDraftFilters>(
@@ -236,46 +232,6 @@ export function ProductsPage() {
       header: 'UOM',
       accessor: (p) => <span className="text-slate-800">{uomLabel(p.uom)}</span>,
       width: '110px',
-    },
-    {
-      header: 'L (cm)',
-      accessor: (p) => (
-        <span className="font-mono text-right text-slate-700">{dimCell(p.lengthCm)}</span>
-      ),
-      width: '88px',
-      className: 'text-right',
-    },
-    {
-      header: 'W (cm)',
-      accessor: (p) => (
-        <span className="font-mono text-right text-slate-700">{dimCell(p.widthCm)}</span>
-      ),
-      width: '88px',
-      className: 'text-right',
-    },
-    {
-      header: 'H (cm)',
-      accessor: (p) => (
-        <span className="font-mono text-right text-slate-700">{dimCell(p.heightCm)}</span>
-      ),
-      width: '88px',
-      className: 'text-right',
-    },
-    {
-      header: 'Weight (kg)',
-      accessor: (p) => (
-        <span className="font-mono text-right text-slate-700">{dimCell(p.weightKg)}</span>
-      ),
-      width: '100px',
-      className: 'text-right',
-    },
-    {
-      header: 'Min threshold',
-      accessor: (p) => (
-        <span className="font-mono text-slate-700">{p.minStockThreshold ?? 0}</span>
-      ),
-      width: '110px',
-      className: 'text-right',
     },
     {
       header: 'Status',
@@ -476,6 +432,7 @@ export function ProductsPage() {
         rowKey={(p) => p.id}
         loading={list.isLoading}
         empty="No products match the filters."
+        onRowClick={(p) => navigate(`/products/${encodeURIComponent(p.sku)}`)}
       />
 
       <CreateProductModal
@@ -719,10 +676,6 @@ function CreateProductModal({
           value={weightKg}
           onChange={(e) => setWeightKg(e.target.value)}
         />
-        <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-600">
-          Inventory is always lot-tracked for this product. Use the checkbox above only for whether expiry dates are
-          required on those lots.
-        </div>
       </form>
     </Modal>
   );

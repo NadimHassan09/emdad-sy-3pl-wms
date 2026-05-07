@@ -108,7 +108,7 @@ export function OutboundListPage() {
       toast.success(`Outbound order ${order.orderNumber} created.`);
       qc.invalidateQueries({ queryKey: QK.outboundOrders });
       setOpen(false);
-      navigate(`/outbound/${order.id}`);
+      navigate(`/orders/outbound/${order.id}`);
     },
     onError: (err: Error & { code?: string }) => {
       toast.error(err.message);
@@ -172,7 +172,7 @@ export function OutboundListPage() {
         rows={list.data?.items ?? []}
         rowKey={(o) => o.id}
         loading={list.isLoading || !wid}
-        onRowClick={(o) => navigate(`/outbound/${o.id}`)}
+        onRowClick={(o) => navigate(`/orders/outbound/${o.id}`)}
         empty={wid ? 'No outbound orders match the filters.' : 'Warehouse not resolved yet.'}
       />
 

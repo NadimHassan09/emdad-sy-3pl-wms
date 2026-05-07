@@ -60,7 +60,7 @@ export function InventoryProductDetailPage() {
   return (
     <>
       <div className="mb-2 text-sm text-slate-500">
-        <Link to="/inventory" className="hover:underline">
+        <Link to="/inventory/stock" className="hover:underline">
           ← Back to inventory
         </Link>
       </div>

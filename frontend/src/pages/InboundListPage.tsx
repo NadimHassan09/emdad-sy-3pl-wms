@@ -117,7 +117,7 @@ export function InboundListPage() {
       toast.success(`Inbound order ${order.orderNumber} created.`);
       qc.invalidateQueries({ queryKey: QK.inboundOrders });
       setOpen(false);
-      navigate(`/inbound/${order.id}`);
+      navigate(`/orders/inbound/${order.id}`);
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -178,7 +178,7 @@ export function InboundListPage() {
         rows={list.data?.items ?? []}
         rowKey={(o) => o.id}
         loading={list.isLoading || !wid}
-        onRowClick={(o) => navigate(`/inbound/${o.id}`)}
+        onRowClick={(o) => navigate(`/orders/inbound/${o.id}`)}
         empty={wid ? 'No inbound orders match the filters.' : 'Warehouse not resolved yet.'}
       />
 

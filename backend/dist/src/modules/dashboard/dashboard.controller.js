@@ -24,6 +24,9 @@ let DashboardController = class DashboardController {
     openOrdersCharts(user) {
         return this.dashboard.openOrdersCharts(user);
     }
+    overview(user) {
+        return this.dashboard.overview(user);
+    }
 };
 exports.DashboardController = DashboardController;
 __decorate([
@@ -33,6 +36,13 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], DashboardController.prototype, "openOrdersCharts", null);
+__decorate([
+    (0, common_1.Get)('overview'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], DashboardController.prototype, "overview", null);
 exports.DashboardController = DashboardController = __decorate([
     (0, common_1.Controller)('dashboard'),
     __metadata("design:paramtypes", [dashboard_service_1.DashboardService])

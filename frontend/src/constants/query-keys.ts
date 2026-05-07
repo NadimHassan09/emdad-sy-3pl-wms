@@ -17,6 +17,7 @@ export const QK = {
     ['inventory', 'ledger', 'entry', warehouseId, ledgerId, createdAt] as const,
   inboundOrders: ['inbound-orders'] as const,
   outboundOrders: ['outbound-orders'] as const,
+  dashboardOverview: ['dashboard', 'overview'] as const,
   dashboardOpenOrdersCharts: ['dashboard', 'open-orders-charts'] as const,
   adjustments: ['adjustments'] as const,
   availability: (productId: string, companyId: string) =>

@@ -85,15 +85,21 @@ export function Layout() {
       key: 'dashboard',
       label: 'Dashboard',
       icon: 'M4 5h5v5H4zM11 5h5v5h-5zM4 12h5v5H4zM11 12h5v5h-5z',
-      children: [{ label: 'Overview', to: '/dashboard', active: (p) => p === '/dashboard' }],
+      children: [
+        {
+          label: 'Overview',
+          to: '/dashboard/overview',
+          active: (p) => p === '/dashboard' || p === '/dashboard/overview',
+        },
+      ],
     },
     {
       key: 'orders',
       label: 'Orders',
       icon: 'M4 6h12M4 10h8M4 14h10M4 18h6',
       children: [
-        { label: 'Inbound', to: '/inbound', active: (p) => p.startsWith('/inbound') },
-        { label: 'Outbound', to: '/outbound', active: (p) => p.startsWith('/outbound') },
+        { label: 'Inbound', to: '/orders/inbound', active: (p) => p.startsWith('/orders/inbound') },
+        { label: 'Outbound', to: '/orders/outbound', active: (p) => p.startsWith('/orders/outbound') },
       ],
     },
     {
@@ -110,8 +116,8 @@ export function Layout() {
       label: 'Inventory',
       icon: 'M4 6h12M4 10h12M4 14h8',
       children: [
-        { label: 'Stock', to: '/inventory', active: (p) => p === '/inventory' },
-        { label: 'Adjustments', to: '/adjustments', active: (p) => p.startsWith('/adjustments') },
+        { label: 'Stock', to: '/inventory/stock', active: (p) => p === '/inventory' || p === '/inventory/stock' },
+        { label: 'Adjustments', to: '/inventory/adjustments', active: (p) => p.startsWith('/inventory/adjustments') },
         { label: 'Ledger', to: '/inventory/ledger', active: (p) => p.startsWith('/inventory/ledger') },
       ],
     },
