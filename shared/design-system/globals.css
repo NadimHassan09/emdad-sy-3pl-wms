@@ -1,0 +1,344 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens (client portal + internal WMS)
+ */
+@layer base {
+  :root {
+    --app-page-bg: #f1f5f9;
+    --app-text: #0f172a;
+    --app-topbar-bg: #0f172a;
+    --app-topbar-fg: #f8fafc;
+    --app-primary: #2563eb;
+    --app-primary-hover: #1d4ed8;
+    --app-border: #cbd5e1;
+    --app-muted: #64748b;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply antialiased text-slate-900;
+    margin: 0;
+    min-height: 100vh;
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, Cantarell,
+      'Noto Sans', sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+    background-color: var(--app-page-bg);
+    color: var(--app-text);
+  }
+}
+
+/* Internal WMS — status badges (unchanged class names) */
+@layer components {
+  .badge {
+    @apply inline-flex items-center rounded px-2 py-0.5 text-xs font-medium;
+  }
+  .badge-draft {
+    @apply bg-slate-200 text-slate-700;
+  }
+  .badge-confirmed {
+    @apply bg-blue-100 text-blue-800;
+  }
+  .badge-progress {
+    @apply bg-amber-100 text-amber-800;
+  }
+  .badge-complete {
+    @apply bg-emerald-100 text-emerald-800;
+  }
+  .badge-shipped {
+    @apply bg-emerald-100 text-emerald-800;
+  }
+  .badge-cancelled {
+    @apply bg-rose-100 text-rose-800;
+  }
+}
+
+/*
+ * Match client portal canvas: internal app uses `bg-slate-50` widely for page chrome.
+ * Do not change TSX — map that utility to the same hex as client-frontend body.
+ */
+@layer utilities {
+  .bg-slate-50 {
+    background-color: var(--app-page-bg) !important;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Client portal semantic classes (client-frontend) — same as legacy index.css */
+/* -------------------------------------------------------------------------- */
+
+.page {
+  min-height: 100vh;
+}
+
+.page--centered {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: var(--app-topbar-bg);
+  color: var(--app-topbar-fg);
+}
+
+.topbar__brand {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.topbar__nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  justify-content: center;
+}
+
+.topbar__link {
+  color: #cbd5e1;
+  text-decoration: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.topbar__link:hover {
+  color: #fff;
+  background: #1e293b;
+}
+
+.topbar__link--active {
+  color: #fff;
+  background: #334155;
+}
+
+.card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.75rem;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 8%);
+}
+
+.card--narrow {
+  width: 100%;
+  max-width: 400px;
+}
+
+.card__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+}
+
+.card__subtitle {
+  margin: 0 0 1.25rem;
+  color: var(--app-muted);
+  font-size: 0.95rem;
+}
+
+.card__subtitle--muted {
+  margin-top: -0.75rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.field__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+}
+
+.field__input {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.field__input:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 0;
+  border-color: #3b82f6;
+}
+
+.btn {
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: var(--app-primary);
+  color: #fff;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--app-primary-hover);
+}
+
+.btn--secondary {
+  margin-top: 1rem;
+  background: #e2e8f0;
+  color: var(--app-text);
+}
+
+.btn--secondary:hover:not(:disabled) {
+  background: #cbd5e1;
+}
+
+.btn--ghost {
+  background: transparent;
+  color: #e2e8f0;
+  border: 1px solid #475569;
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.banner {
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.banner--error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.muted {
+  color: var(--app-muted);
+}
+
+.details {
+  margin: 0;
+}
+
+.details__row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.details__row:last-of-type {
+  border-bottom: none;
+}
+
+.details dt {
+  margin: 0;
+  font-weight: 600;
+  color: var(--app-muted);
+  font-size: 0.875rem;
+}
+
+.details dd {
+  margin: 0;
+}
+
+.stock-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.field--inline {
+  flex: 1;
+  min-width: 200px;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  margin: 0 -0.25rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.data-table th {
+  font-weight: 600;
+  color: #475569;
+  background: #f8fafc;
+}
+
+.data-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.pager__meta {
+  font-size: 0.875rem;
+  color: var(--app-muted);
+}
+
+.pager__actions {
+  display: flex;
+  gap: 0.5rem;
+}

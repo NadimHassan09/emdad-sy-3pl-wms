@@ -1,0 +1,832 @@
+// EMDAD 3PL WMS — Phase 1 Prisma schema
+//
+// The full improved_schema.sql is applied as a raw baseline migration
+// (prisma/migrations/0_init/migration.sql). This file therefore only models
+// the subset of tables that Phase 1 operates on. Tables for tasks, qc_*,
+// billing, allocations, reservations, idempotency_keys, etc. exist in the
+// database but are intentionally not surfaced to the application yet.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS (must match improved_schema.sql verbatim)
+// ---------------------------------------------------------------------------
+
+enum CompanyStatus {
+  active
+  paused
+  offboarding
+  closed
+
+  @@map("company_status")
+}
+
+enum BillingCycleType {
+  monthly
+  quarterly
+
+  @@map("billing_cycle_type")
+}
+
+enum UserRole {
+  super_admin
+  wh_manager
+  wh_operator
+  finance
+  client_admin
+  client_staff
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  active
+  inactive
+
+  @@map("user_status")
+}
+
+enum WarehouseStatus {
+  active
+  inactive
+
+  @@map("warehouse_status")
+}
+
+enum LocationType {
+  warehouse
+  view
+  input
+  qc
+  internal
+  packing
+  output
+  quarantine
+  scrap
+  transit
+  iss
+  fridge
+
+  @@map("location_type")
+}
+
+enum LocationStatus {
+  active
+  blocked
+  archived
+
+  @@map("location_status")
+}
+
+enum ProductUom {
+  piece
+  kg
+  litre
+  carton
+  pallet
+  box
+  roll
+
+  @@map("product_uom")
+}
+
+enum ProductTrackingType {
+  none
+  lot
+  package
+
+  @@map("product_tracking_type")
+}
+
+enum ProductStatus {
+  active
+  suspended
+  archived
+
+  @@map("product_status")
+}
+
+enum StockStatus {
+  available
+  quarantined
+
+  @@map("stock_status")
+}
+
+enum MovementType {
+  inbound_receive
+  outbound_pick
+  putaway
+  qc_quarantine
+  qc_release
+  adjustment_positive
+  adjustment_negative
+  scrap
+  internal_transfer
+  return_receive
+  transit_out
+  transit_in
+
+  @@map("movement_type")
+}
+
+enum LedgerRefType {
+  inbound_order
+  outbound_order
+  adjustment
+  transfer
+  qc_alert
+  return_order
+  cycle_count
+
+  @@map("ledger_ref_type")
+}
+
+enum InboundOrderStatus {
+  draft
+  confirmed
+  in_progress
+  partially_received
+  completed
+  cancelled
+
+  @@map("inbound_order_status")
+}
+
+enum DiscrepancyType {
+  none
+  short
+  over
+  wrong_item
+
+  @@map("discrepancy_type")
+}
+
+enum InboundQcStatus {
+  not_required
+  pending
+  passed
+  failed
+
+  @@map("inbound_qc_status")
+}
+
+enum OutboundOrderStatus {
+  draft
+  pending_stock
+  confirmed
+  picking
+  packing
+  ready_to_ship
+  shipped
+  cancelled
+
+  @@map("outbound_order_status")
+}
+
+enum OutboundLineStatus {
+  pending
+  picking
+  done
+  short
+  cancelled
+
+  @@map("outbound_line_status")
+}
+
+enum AdjustmentStatus {
+  draft
+  approved
+  cancelled
+
+  @@map("adjustment_status")
+}
+
+enum WorkerOperationalStatus {
+  active
+  inactive
+
+  @@map("worker_operational_status")
+}
+
+enum WorkerOperationalRole {
+  picker
+  packer
+  qa
+  receiver
+  dispatcher
+
+  @@map("worker_operational_role")
+}
+
+enum WorkflowReferenceType {
+  inbound_order
+  outbound_order
+
+  @@map("workflow_reference_type")
+}
+
+enum WorkflowInstanceStatus {
+  pending
+  in_progress
+  completed
+  cancelled
+  degraded
+
+  @@map("workflow_instance_status")
+}
+
+enum WorkflowNodeStatus {
+  pending
+  in_progress
+  completed
+  skipped
+
+  @@map("workflow_node_status")
+}
+
+enum WorkflowStepKind {
+  receiving
+  qc
+  putaway
+  pick
+  pack
+  dispatch
+  routing
+
+  @@map("workflow_step_kind")
+}
+
+enum WarehouseTaskStatus {
+  pending
+  assigned
+  in_progress
+  completed
+  blocked
+  cancelled
+  failed
+  retry_pending
+
+  @@map("warehouse_task_status")
+}
+
+enum WarehouseTaskType {
+  receiving
+  qc
+  putaway
+  putaway_quarantine
+  pick
+  pack
+  dispatch
+  routing
+
+  @@map("warehouse_task_type")
+}
+
+// ---------------------------------------------------------------------------
+// CORE TABLES
+// ---------------------------------------------------------------------------
+
+model Company {
+  id               String           @id @default(uuid()) @db.Uuid
+  name             String
+  tradeName        String?          @map("trade_name")
+  contactEmail     String           @map("contact_email")
+  contactPhone     String?          @map("contact_phone")
+  address          String?
+  city             String?
+  country          String           @default("SA")
+  vatNumber        String?          @map("vat_number")
+  billingCycle     BillingCycleType @default(monthly) @map("billing_cycle")
+  paymentTermsDays Int              @default(30) @map("payment_terms_days")
+  status           CompanyStatus    @default(active)
+  notes            String?
+  workflowUxSettings Json?            @map("workflow_ux_settings") @db.JsonB
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  users          User[]
+  products       Product[]
+  inboundOrders  InboundOrder[]
+  outboundOrders OutboundOrder[]
+  currentStock   CurrentStock[]
+  ledgerEntries     InventoryLedger[]
+  stockAdjustments  StockAdjustment[]
+  workers           Worker[]
+  workflowInstances WorkflowInstance[]
+
+  @@map("companies")
+}
+
+model User {
+  id            String     @id @default(uuid()) @db.Uuid
+  companyId     String?    @map("company_id") @db.Uuid
+  email         String     @unique
+  passwordHash  String     @map("password_hash")
+  fullName      String     @map("full_name")
+  phone         String?
+  role          UserRole
+  status        UserStatus @default(active)
+  tokenVersion  Int        @default(0) @map("token_version")
+  lastLoginAt    DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  lastActivityAt DateTime? @map("last_activity_at") @db.Timestamptz(6)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime   @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company             Company?         @relation(fields: [companyId], references: [id])
+  inboundOrdersOwned           InboundOrder[]           @relation("InboundCreatedBy")
+  outboundOrdersOwned          OutboundOrder[]          @relation("OutboundCreatedBy")
+  ledgerEntries                InventoryLedger[]
+  stockAdjustmentsCreated      StockAdjustment[]        @relation("AdjustmentCreatedBy")
+  stockAdjustmentsApproved     StockAdjustment[]        @relation("AdjustmentApprovedBy")
+  worker                  Worker?
+  taskAssignmentsAssigned TaskAssignment[]           @relation("TaskAssignedBy")
+  taskEvents              TaskEvent[]                @relation("TaskEventActor")
+  warehouseTasksCompleted WarehouseTask[]            @relation("WarehouseTaskCompleter")
+
+  @@map("users")
+}
+
+model Warehouse {
+  id        String          @id @default(uuid()) @db.Uuid
+  name      String
+  code      String          @unique
+  address   String?
+  city      String?
+  country   String          @default("SA")
+  status    WarehouseStatus @default(active)
+  workflowUxSettings Json?            @map("workflow_ux_settings") @db.JsonB
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  locations           Location[]
+  currentStock        CurrentStock[]
+  stockAdjustments    StockAdjustment[]
+  workers             Worker[]
+  workflowInstances   WorkflowInstance[]
+
+  @@map("warehouses")
+}
+
+model Location {
+  id                 String         @id @default(uuid()) @db.Uuid
+  warehouseId        String         @map("warehouse_id") @db.Uuid
+  parentId           String?        @map("parent_id") @db.Uuid
+  name               String
+  fullPath           String         @map("full_path")
+  type               LocationType   @default(internal)
+  barcode            String         @unique
+  sortOrder          Int            @default(0) @map("sort_order")
+  status             LocationStatus @default(active)
+  maxWeightKg        Decimal?       @map("max_weight_kg") @db.Decimal(10, 2)
+  maxCbm             Decimal?       @map("max_cbm") @db.Decimal(10, 4)
+  maxPalletPositions Int?           @map("max_pallet_positions")
+  aisle              String?
+  rack               String?
+  bin                String?
+  coordX             Decimal?       @map("coord_x") @db.Decimal(10, 3)
+  coordY             Decimal?       @map("coord_y") @db.Decimal(10, 3)
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime       @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  warehouse    Warehouse    @relation(fields: [warehouseId], references: [id])
+  parent       Location?    @relation("LocationParent", fields: [parentId], references: [id])
+  children     Location[]   @relation("LocationParent")
+  currentStock           CurrentStock[]
+  stockAdjustmentLines   StockAdjustmentLine[]
+
+  @@map("locations")
+}
+
+model Product {
+  id                 String              @id @default(uuid()) @db.Uuid
+  companyId          String              @map("company_id") @db.Uuid
+  categoryId         String?             @map("category_id") @db.Uuid
+  name               String
+  sku                String
+  barcode            String?
+  description        String?
+  trackingType       ProductTrackingType @default(none) @map("tracking_type")
+  uom                ProductUom          @default(piece)
+  weightKg           Decimal?            @map("weight_kg") @db.Decimal(10, 4)
+  volumeCbm          Decimal?            @map("volume_cbm") @db.Decimal(10, 6)
+  lengthCm           Decimal?            @map("length_cm") @db.Decimal(8, 2)
+  widthCm            Decimal?            @map("width_cm") @db.Decimal(8, 2)
+  heightCm           Decimal?            @map("height_cm") @db.Decimal(8, 2)
+  expiryTracking     Boolean             @default(false) @map("expiry_tracking")
+  minStockThreshold  Int                 @default(0) @map("min_stock_threshold")
+  status             ProductStatus       @default(active)
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company           Company            @relation(fields: [companyId], references: [id])
+  lots              Lot[]
+  currentStock      CurrentStock[]
+  inboundLines         InboundOrderLine[]
+  outboundLines        OutboundOrderLine[]
+  ledgerEntries        InventoryLedger[]
+  stockAdjustmentLines StockAdjustmentLine[]
+
+  @@unique([companyId, sku], map: "uq_product_sku_per_company")
+  @@map("products")
+}
+
+model Lot {
+  id              String   @id @default(uuid()) @db.Uuid
+  productId       String   @map("product_id") @db.Uuid
+  lotNumber       String   @map("lot_number")
+  expiryDate      DateTime? @map("expiry_date") @db.Date
+  manufactureDate DateTime? @map("manufacture_date") @db.Date
+  receivedAt      DateTime @default(now()) @map("received_at") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product       Product        @relation(fields: [productId], references: [id])
+  currentStock  CurrentStock[]
+  ledgerEntries          InventoryLedger[]
+  stockAdjustmentLines   StockAdjustmentLine[]
+
+  @@unique([productId, lotNumber], map: "uq_lot_per_product")
+  @@map("lots")
+}
+
+model CurrentStock {
+  id                String      @id @default(uuid()) @db.Uuid
+  companyId         String      @map("company_id") @db.Uuid
+  productId         String      @map("product_id") @db.Uuid
+  locationId        String      @map("location_id") @db.Uuid
+  warehouseId       String      @map("warehouse_id") @db.Uuid
+  lotId             String?     @map("lot_id") @db.Uuid
+  packageId         String?     @map("package_id") @db.Uuid
+  quantityOnHand    Decimal     @default(0) @map("quantity_on_hand") @db.Decimal(15, 4)
+  quantityReserved  Decimal     @default(0) @map("quantity_reserved") @db.Decimal(15, 4)
+  /// Generated column in PostgreSQL: quantityOnHand - quantityReserved
+  quantityAvailable Decimal     @map("quantity_available") @db.Decimal(15, 4)
+  status            StockStatus @default(available)
+  version           Int         @default(0)
+  lastMovementAt    DateTime?   @map("last_movement_at") @db.Timestamptz(6)
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+  location  Location  @relation(fields: [locationId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  lot       Lot?      @relation(fields: [lotId], references: [id])
+
+  @@map("current_stock")
+}
+
+/// `inventory_ledger` is partitioned by month in PostgreSQL. Prisma sees it as
+/// a regular table — partitioning is transparent. The composite primary key
+/// (id, created_at) is required by Postgres for partitioning but Prisma still
+/// only needs `id` to address rows.
+model InventoryLedger {
+  id              String        @default(uuid()) @db.Uuid
+  companyId       String        @map("company_id") @db.Uuid
+  productId       String        @map("product_id") @db.Uuid
+  lotId           String?       @map("lot_id") @db.Uuid
+  packageId       String?       @map("package_id") @db.Uuid
+  fromLocationId  String?       @map("from_location_id") @db.Uuid
+  toLocationId    String?       @map("to_location_id") @db.Uuid
+  movementType    MovementType  @map("movement_type")
+  quantity        Decimal       @db.Decimal(15, 4)
+  quantityBefore  Decimal?      @map("quantity_before") @db.Decimal(15, 4)
+  quantityAfter   Decimal?      @map("quantity_after") @db.Decimal(15, 4)
+  referenceType   LedgerRefType @map("reference_type")
+  referenceId     String        @map("reference_id") @db.Uuid
+  operatorId      String        @map("operator_id") @db.Uuid
+  idempotencyKey  String?       @map("idempotency_key")
+  notes           String?
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company  Company @relation(fields: [companyId], references: [id])
+  product  Product @relation(fields: [productId], references: [id])
+  lot      Lot?    @relation(fields: [lotId], references: [id])
+  operator User    @relation(fields: [operatorId], references: [id])
+
+  @@id([id, createdAt])
+  @@map("inventory_ledger")
+}
+
+model StockAdjustment {
+  id         String           @id @default(uuid()) @db.Uuid
+  companyId  String           @map("company_id") @db.Uuid
+  warehouseId String          @map("warehouse_id") @db.Uuid
+  reason     String
+  status     AdjustmentStatus @default(draft)
+  approvedBy String?        @map("approved_by") @db.Uuid
+  approvedAt DateTime?       @map("approved_at") @db.Timestamptz(6)
+  createdBy  String           @map("created_by") @db.Uuid
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company   Company              @relation(fields: [companyId], references: [id])
+  warehouse Warehouse            @relation(fields: [warehouseId], references: [id])
+  creator   User                 @relation("AdjustmentCreatedBy", fields: [createdBy], references: [id])
+  approver  User?                @relation("AdjustmentApprovedBy", fields: [approvedBy], references: [id])
+  lines     StockAdjustmentLine[]
+
+  @@map("stock_adjustments")
+}
+
+model StockAdjustmentLine {
+  id              String   @id @default(uuid()) @db.Uuid
+  adjustmentId    String   @map("adjustment_id") @db.Uuid
+  productId       String   @map("product_id") @db.Uuid
+  locationId      String   @map("location_id") @db.Uuid
+  lotId           String?  @map("lot_id") @db.Uuid
+  quantityBefore  Decimal  @map("quantity_before") @db.Decimal(15, 4)
+  quantityAfter   Decimal  @map("quantity_after") @db.Decimal(15, 4)
+  reasonNote      String?  @map("reason_note")
+
+  adjustment StockAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  product    Product          @relation(fields: [productId], references: [id])
+  location   Location         @relation(fields: [locationId], references: [id])
+  lot        Lot?             @relation(fields: [lotId], references: [id])
+
+  @@map("stock_adjustment_lines")
+}
+
+// ---------------------------------------------------------------------------
+// INBOUND
+// ---------------------------------------------------------------------------
+
+model InboundOrder {
+  id                  String             @id @default(uuid()) @db.Uuid
+  companyId           String             @map("company_id") @db.Uuid
+  /// DEFAULT '' — populated by trigger fn_inbound_order_number on INSERT
+  orderNumber         String             @unique @default("") @map("order_number")
+  status              InboundOrderStatus @default(draft)
+  expectedArrivalDate DateTime           @map("expected_arrival_date") @db.Date
+  clientReference     String?            @map("client_reference")
+  notes               String?
+  confirmedAt         DateTime?          @map("confirmed_at") @db.Timestamptz(6)
+  completedAt         DateTime?          @map("completed_at") @db.Timestamptz(6)
+  cancelledAt         DateTime?          @map("cancelled_at") @db.Timestamptz(6)
+  cancelledBy         String?            @map("cancelled_by") @db.Uuid
+  createdBy           String             @map("created_by") @db.Uuid
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company Company            @relation(fields: [companyId], references: [id])
+  creator User               @relation("InboundCreatedBy", fields: [createdBy], references: [id])
+  lines   InboundOrderLine[]
+
+  @@map("inbound_orders")
+}
+
+model InboundOrderLine {
+  id                  String          @id @default(uuid()) @db.Uuid
+  inboundOrderId      String          @map("inbound_order_id") @db.Uuid
+  productId           String          @map("product_id") @db.Uuid
+  expectedQuantity    Decimal         @map("expected_quantity") @db.Decimal(15, 4)
+  receivedQuantity    Decimal         @default(0) @map("received_quantity") @db.Decimal(15, 4)
+  expectedLotNumber   String?         @map("expected_lot_number")
+  expectedExpiryDate  DateTime?       @map("expected_expiry_date") @db.Date
+  discrepancyType     DiscrepancyType @default(none) @map("discrepancy_type")
+  discrepancyNotes    String?         @map("discrepancy_notes")
+  qcStatus            InboundQcStatus @default(not_required) @map("qc_status")
+  lineNumber          Int             @map("line_number")
+  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  order   InboundOrder @relation(fields: [inboundOrderId], references: [id], onDelete: Cascade)
+  product Product      @relation(fields: [productId], references: [id])
+
+  @@map("inbound_order_lines")
+}
+
+// ---------------------------------------------------------------------------
+// OUTBOUND
+// ---------------------------------------------------------------------------
+
+model OutboundOrder {
+  id                 String              @id @default(uuid()) @db.Uuid
+  companyId          String              @map("company_id") @db.Uuid
+  /// DEFAULT '' — populated by trigger fn_outbound_order_number on INSERT
+  orderNumber        String              @unique @default("") @map("order_number")
+  status             OutboundOrderStatus @default(draft)
+  destinationAddress String              @map("destination_address")
+  requiredShipDate   DateTime            @map("required_ship_date") @db.Date
+  carrier            String?
+  trackingNumber     String?             @map("tracking_number")
+  clientReference    String?             @map("client_reference")
+  notes              String?
+  confirmedAt        DateTime?           @map("confirmed_at") @db.Timestamptz(6)
+  pickingStartedAt   DateTime?           @map("picking_started_at") @db.Timestamptz(6)
+  shippedAt          DateTime?           @map("shipped_at") @db.Timestamptz(6)
+  cancelledAt        DateTime?           @map("cancelled_at") @db.Timestamptz(6)
+  cancelledBy        String?             @map("cancelled_by") @db.Uuid
+  createdBy          String              @map("created_by") @db.Uuid
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company Company             @relation(fields: [companyId], references: [id])
+  creator User                @relation("OutboundCreatedBy", fields: [createdBy], references: [id])
+  lines   OutboundOrderLine[]
+
+  @@map("outbound_orders")
+}
+
+model OutboundOrderLine {
+  id                 String             @id @default(uuid()) @db.Uuid
+  outboundOrderId    String             @map("outbound_order_id") @db.Uuid
+  productId          String             @map("product_id") @db.Uuid
+  requestedQuantity  Decimal            @map("requested_quantity") @db.Decimal(15, 4)
+  pickedQuantity     Decimal            @default(0) @map("picked_quantity") @db.Decimal(15, 4)
+  specificLotId      String?            @map("specific_lot_id") @db.Uuid
+  status             OutboundLineStatus @default(pending)
+  lineNumber         Int                @map("line_number")
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  order   OutboundOrder @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
+  product Product       @relation(fields: [productId], references: [id])
+
+  @@map("outbound_order_lines")
+}
+
+// ---------------------------------------------------------------------------
+// WORKFLOW — TASK ENGINE (additive; does not alter ledger partitioning)
+// ---------------------------------------------------------------------------
+
+model LedgerIdempotency {
+  /// Deterministic ledger write key; duplicate inserts short-circuit to prior row.
+  idempotencyKey String   @id @map("idempotency_key") @db.VarChar(512)
+  /// `inventory_ledger.id` UUID (composite PK `(id, created_at)` unchanged in DB).
+  ledgerId String @map("ledger_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("ledger_idempotency")
+}
+
+model Worker {
+  id          String                   @id @default(uuid()) @db.Uuid
+  companyId   String                   @map("company_id") @db.Uuid
+  warehouseId String?                  @map("warehouse_id") @db.Uuid
+  displayName String                   @map("display_name")
+  userId      String?                  @unique @map("user_id") @db.Uuid
+  status      WorkerOperationalStatus  @default(active)
+  createdAt   DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company         Company               @relation(fields: [companyId], references: [id])
+  warehouse       Warehouse?            @relation(fields: [warehouseId], references: [id])
+  user            User?                 @relation(fields: [userId], references: [id])
+  roles           WorkerRoleAssignment[]
+  taskAssignments TaskAssignment[]
+  skills          WorkerSkill[]
+
+  @@index([companyId])
+  @@index([warehouseId])
+  @@map("workers")
+}
+
+model WorkerRoleAssignment {
+  workerId String                @map("worker_id") @db.Uuid
+  role     WorkerOperationalRole
+
+  worker Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@id([workerId, role])
+  @@map("worker_role_assignments")
+}
+
+model WorkerSkill {
+  id             String    @id @default(uuid()) @db.Uuid
+  workerId       String    @map("worker_id") @db.Uuid
+  skillCode      String    @map("skill_code")
+  proficiency    Int       @default(1)
+  certifiedUntil DateTime? @map("certified_until") @db.Timestamptz(6)
+
+  worker Worker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+
+  @@unique([workerId, skillCode])
+  @@map("worker_skills")
+}
+
+model WarehouseTaskRequiredSkill {
+  taskId            String @map("task_id") @db.Uuid
+  skillCode         String @map("skill_code")
+  minimumProficiency Int    @default(1) @map("minimum_proficiency")
+
+  task WarehouseTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, skillCode])
+  @@map("warehouse_task_required_skills")
+}
+
+model WorkflowInstance {
+  id             String                   @id @default(uuid()) @db.Uuid
+  companyId      String                   @map("company_id") @db.Uuid
+  warehouseId    String                   @map("warehouse_id") @db.Uuid
+  referenceType  WorkflowReferenceType    @map("reference_type")
+  referenceId    String                   @map("reference_id") @db.Uuid
+  definitionCode String                   @map("definition_code")
+  status         WorkflowInstanceStatus   @default(pending)
+  metadata       Json?                    @db.JsonB
+  createdAt      DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company   Company         @relation(fields: [companyId], references: [id])
+  warehouse Warehouse       @relation(fields: [warehouseId], references: [id])
+  nodes     WorkflowNode[]
+  tasks     WarehouseTask[]
+
+  @@index([companyId])
+  @@index([referenceType, referenceId])
+  @@map("workflow_instances")
+}
+
+model WorkflowNode {
+  id          String               @id @default(uuid()) @db.Uuid
+  instanceId  String               @map("instance_id") @db.Uuid
+  stepKind    WorkflowStepKind     @map("step_kind")
+  status      WorkflowNodeStatus   @default(pending)
+  sequence    Int
+  parentNodeId String?             @map("parent_node_id") @db.Uuid
+  metadata    Json?                @db.JsonB
+  createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  instance   WorkflowInstance  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  parent     WorkflowNode?     @relation("WorkflowNodeHierarchy", fields: [parentNodeId], references: [id])
+  children   WorkflowNode[]    @relation("WorkflowNodeHierarchy")
+  tasks      WarehouseTask[]
+
+  @@index([instanceId])
+  @@map("workflow_nodes")
+}
+
+model WarehouseTask {
+  id                     String               @id @default(uuid()) @db.Uuid
+  workflowInstanceId     String               @map("workflow_instance_id") @db.Uuid
+  workflowNodeId        String?              @map("workflow_node_id") @db.Uuid
+  taskType              WarehouseTaskType    @map("task_type")
+  status                WarehouseTaskStatus  @default(pending)
+  priority              Int                  @default(0)
+  dueAt                 DateTime?            @map("due_at") @db.Timestamptz(6)
+  payload               Json                 @db.JsonB
+  payloadSchemaVersion  Int                  @default(1) @map("payload_schema_version")
+  lockVersion           Int                  @default(0) @map("lock_version")
+  correlationId        String?              @map("correlation_id")
+  leaseExpiresAt        DateTime?            @map("lease_expires_at") @db.Timestamptz(6)
+  slaMinutes            Int?                  @map("sla_minutes")
+  escalationLevel       Int                  @default(0) @map("escalation_level")
+  startedAt             DateTime?           @map("started_at") @db.Timestamptz(6)
+  completedAt           DateTime?            @map("completed_at") @db.Timestamptz(6)
+  completedById         String?              @map("completed_by") @db.Uuid
+  failureReason         String?             @map("failure_reason")
+  executionState       Json?                @map("execution_state") @db.JsonB
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  workflowInstance WorkflowInstance @relation(fields: [workflowInstanceId], references: [id], onDelete: Cascade)
+  workflowNode    WorkflowNode?    @relation(fields: [workflowNodeId], references: [id])
+  assignments     TaskAssignment[]
+  events           TaskEvent[]
+  requiredSkills  WarehouseTaskRequiredSkill[]
+  completedBy     User?            @relation("WarehouseTaskCompleter", fields: [completedById], references: [id])
+
+  @@index([workflowInstanceId])
+  @@index([status, taskType])
+  @@map("warehouse_tasks")
+}
+
+model TaskAssignment {
+  id           String    @id @default(uuid()) @db.Uuid
+  taskId       String    @map("task_id") @db.Uuid
+  workerId     String    @map("worker_id") @db.Uuid
+  assignedAt   DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  assignedById String?   @map("assigned_by") @db.Uuid
+  unassignedAt DateTime? @map("unassigned_at") @db.Timestamptz(6)
+
+  task       WarehouseTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  worker     Worker       @relation(fields: [workerId], references: [id])
+  assignedBy User?        @relation("TaskAssignedBy", fields: [assignedById], references: [id])
+
+  @@index([workerId])
+  @@index([taskId])
+  @@map("task_assignments")
+}
+
+model TaskEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  taskId    String   @map("task_id") @db.Uuid
+  event     String
+  actorId   String?  @map("actor_id") @db.Uuid
+  payload   Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  task WarehouseTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor User?        @relation("TaskEventActor", fields: [actorId], references: [id])
+
+  @@index([taskId])
+  @@map("task_events")
+}

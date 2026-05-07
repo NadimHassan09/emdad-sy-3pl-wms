@@ -1,0 +1,8 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.LOCATIONS_TREE_CACHE_TTL_SEC_DEFAULT = exports.PRODUCTS_LIST_CACHE_TTL_SEC_DEFAULT = exports.INVENTORY_SUMMARY_CACHE_TTL_SEC_DEFAULT = exports.BARCODE_CACHE_TTL_SEC_DEFAULT = void 0;
+exports.BARCODE_CACHE_TTL_SEC_DEFAULT = 3600;
+exports.INVENTORY_SUMMARY_CACHE_TTL_SEC_DEFAULT = 90;
+exports.PRODUCTS_LIST_CACHE_TTL_SEC_DEFAULT = 300;
+exports.LOCATIONS_TREE_CACHE_TTL_SEC_DEFAULT = 600;
+//# sourceMappingURL=cache-ttl.constants.js.map
