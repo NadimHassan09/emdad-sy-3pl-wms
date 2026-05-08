@@ -9,6 +9,7 @@ import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { FilterActions } from '../components/FilterActions';
+import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { TextField } from '../components/TextField';
@@ -310,6 +311,7 @@ export function LocationsPage() {
         }
       />
 
+      <FilterPanel showLabel="Show filters" hideLabel="Hide filters">
       <div className="mb-4 space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <p className="pb-2 text-sm text-slate-600">
@@ -361,6 +363,7 @@ export function LocationsPage() {
           loading={tree.isFetching || flat.isFetching}
         />
       </div>
+      </FilterPanel>
 
       <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
         {!warehouseId ? (

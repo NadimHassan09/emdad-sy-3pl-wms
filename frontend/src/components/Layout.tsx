@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
@@ -71,23 +71,60 @@ function nestedLinkClass(active: boolean) {
   }`;
 }
 
+function sidebarLabel(label: string, isArabic: boolean): string {
+  if (!isArabic) return label;
+  const ar: Record<string, string> = {
+    Dashboard: 'لوحة التحكم',
+    Overview: 'نظرة عامة',
+    Orders: 'الطلبات',
+    Inbound: 'الوارد',
+    Outbound: 'الصادر',
+    Catalog: 'الكتالوج',
+    Products: 'المنتجات',
+    Locations: 'المواقع التخزينية',
+    Inventory: 'المخزون',
+    Stock: 'المخزون الحالي',
+    Adjustments: 'تعديلات المخزون',
+    Ledger: 'سجل المخزون',
+    Tasks: 'المهام',
+    'All tasks': 'جميع المهام',
+    'Internal transfer': 'نقل داخلي',
+    Receive: 'استلام',
+    Putaway: 'تخزين',
+    Pick: 'التقاط',
+    Pack: 'تغليف',
+    Delivery: 'تسليم',
+    Manage: 'الإدارة',
+    Customers: 'العملاء',
+    Users: 'المستخدمون',
+    Logout: 'تسجيل الخروج',
+  };
+  return ar[label] ?? label;
+}
+
 export function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
 
   const [openSection, setOpenSection] = useState<SidebarSectionKey | null>('orders');
+  const [language, setLanguage] = useState<'EN' | 'AR'>(() => {
+    const saved = typeof window !== 'undefined' ? window.localStorage.getItem('wms-ui-language') : null;
+    return saved === 'AR' ? 'AR' : 'EN';
+  });
+  const isRtl = language === 'AR';
+  const t = (label: string) => sidebarLabel(label, isRtl);
 
   const showUsers = !user || user.authGroup === 'ADMIN';
 
   const sections: SidebarSection[] = [
     {
       key: 'dashboard',
-      label: 'Dashboard',
+      label: t('Dashboard'),
       icon: 'M4 5h5v5H4zM11 5h5v5h-5zM4 12h5v5H4zM11 12h5v5h-5z',
       children: [
         {
-          label: 'Overview',
+          label: t('Overview'),
           to: '/dashboard/overview',
           active: (p) => p === '/dashboard' || p === '/dashboard/overview',
         },
@@ -95,41 +132,45 @@ export function Layout() {
     },
     {
       key: 'orders',
-      label: 'Orders',
+      label: t('Orders'),
       icon: 'M4 6h12M4 10h8M4 14h10M4 18h6',
       children: [
-        { label: 'Inbound', to: '/orders/inbound', active: (p) => p.startsWith('/orders/inbound') },
-        { label: 'Outbound', to: '/orders/outbound', active: (p) => p.startsWith('/orders/outbound') },
+        { label: t('Inbound'), to: '/orders/inbound', active: (p) => p.startsWith('/orders/inbound') },
+        { label: t('Outbound'), to: '/orders/outbound', active: (p) => p.startsWith('/orders/outbound') },
       ],
     },
     {
       key: 'catalog',
-      label: 'Catalog',
+      label: t('Catalog'),
       icon: 'M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM11 11h5v5h-5z',
       children: [
-        { label: 'Products', to: '/products', active: (p) => p.startsWith('/products') },
-        { label: 'Locations', to: '/locations', active: (p) => p.startsWith('/locations') },
+        { label: t('Products'), to: '/products', active: (p) => p.startsWith('/products') },
+        { label: t('Locations'), to: '/locations', active: (p) => p.startsWith('/locations') },
       ],
     },
     {
       key: 'inventory',
-      label: 'Inventory',
+      label: t('Inventory'),
       icon: 'M4 6h12M4 10h12M4 14h8',
       children: [
-        { label: 'Stock', to: '/inventory/stock', active: (p) => p === '/inventory' || p === '/inventory/stock' },
-        { label: 'Adjustments', to: '/inventory/adjustments', active: (p) => p.startsWith('/inventory/adjustments') },
-        { label: 'Ledger', to: '/inventory/ledger', active: (p) => p.startsWith('/inventory/ledger') },
+        { label: t('Stock'), to: '/inventory/stock', active: (p) => p === '/inventory' || p === '/inventory/stock' },
+        { label: t('Adjustments'), to: '/inventory/adjustments', active: (p) => p.startsWith('/inventory/adjustments') },
+        { label: t('Ledger'), to: '/inventory/ledger', active: (p) => p.startsWith('/inventory/ledger') },
       ],
     },
     {
       key: 'tasks',
-      label: 'Tasks',
+      label: t('Tasks'),
       icon: 'M4 6h12M4 10h12M4 14h8',
       children: [
-        { label: 'All tasks', to: '/tasks', active: (p, s) => p === '/tasks' && !(new URLSearchParams(s).get('taskType') ?? '').trim() },
-        { label: 'Internal transfer', to: '/internal', active: (p) => p === '/internal' },
+        {
+          label: t('All tasks'),
+          to: '/tasks',
+          active: (p, s) => p === '/tasks' && !(new URLSearchParams(s).get('taskType') ?? '').trim(),
+        },
+        { label: t('Internal transfer'), to: '/internal', active: (p) => p === '/internal' },
         ...TASK_NAV.map((t) => ({
-          label: t.label,
+          label: sidebarLabel(t.label, isRtl),
           to: `/tasks?taskType=${encodeURIComponent(t.taskType)}`,
           active: (p: string, s: string) => p === '/tasks' && useTaskSubtypeActiveFromSearch(t.taskType, s),
         })),
@@ -137,11 +178,11 @@ export function Layout() {
     },
     {
       key: 'management',
-      label: 'Manage',
+      label: t('Manage'),
       icon: 'M10 8a3 3 0 100 6 3 3 0 000-6zM4 17a6 6 0 0112 0',
       children: [
-        { label: 'Customers', to: '/clients', active: (p) => p.startsWith('/clients') },
-        ...(showUsers ? [{ label: 'Users', to: '/users', active: (p: string) => p.startsWith('/users') }] : []),
+        { label: t('Customers'), to: '/clients', active: (p) => p.startsWith('/clients') },
+        ...(showUsers ? [{ label: t('Users'), to: '/users', active: (p: string) => p.startsWith('/users') }] : []),
       ],
     },
   ];
@@ -149,43 +190,66 @@ export function Layout() {
   const visibleSection = openSection;
   const visibleChildren = sections.find((section) => section.key === visibleSection)?.children ?? [];
 
+  useEffect(() => {
+    const isArabicUi = language === 'AR';
+    document.documentElement.dir = isArabicUi ? 'rtl' : 'ltr';
+    document.documentElement.lang = 'en';
+    window.localStorage.setItem('wms-ui-language', language);
+    window.dispatchEvent(new CustomEvent('wms-ui-language-changed', { detail: { language } }));
+  }, [language]);
+
   async function handleLogout() {
     await logout();
     navigate('/login', { replace: true });
   }
 
   return (
-    <div className="flex min-h-screen w-full flex-col">
+    <div key={language} className="flex min-h-screen w-full flex-col">
       <header className="sticky top-0 z-20 flex h-24 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 md:px-6">
         <img src="/emdad-logo.png" alt="EMDAD Logistics & Warehousing" className="h-20 w-auto object-contain" />
-        {user ? (
-          <div className="flex items-center gap-3">
-            <div className="relative" title={displayName(user)}>
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 transition-all duration-300 ease-in-out hover:bg-slate-50">
-                <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
-                  <path d="M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 16a6 6 0 0 1 12 0" />
-                </svg>
+        <div className="flex items-center gap-3">
+          <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600">
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value === 'AR' ? 'AR' : 'EN')}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 outline-none ring-emerald-500 focus:border-emerald-500 focus:ring-1"
+              aria-label="Language direction selector"
+            >
+              <option value="EN">EN</option>
+              <option value="AR">AR</option>
+            </select>
+          </label>
+          {user ? (
+            <div className="flex items-center gap-3">
+              <div className="relative" title={displayName(user)}>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-600 transition-all duration-300 ease-in-out hover:bg-slate-50">
+                  <svg viewBox="0 0 20 20" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+                    <path d="M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 16a6 6 0 0 1 12 0" />
+                  </svg>
+                </div>
+                <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border border-white bg-emerald-500" aria-hidden />
               </div>
-              <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border border-white bg-emerald-500" aria-hidden />
+              <div className="min-w-0 text-right">
+                <div className="truncate text-sm font-medium text-slate-900">{displayName(user)}</div>
+                <div className="truncate text-xs text-slate-500">{friendlyRole(user.role)}</div>
+              </div>
             </div>
-            <div className="min-w-0 text-right">
-              <div className="truncate text-sm font-medium text-slate-900">{displayName(user)}</div>
-              <div className="truncate text-xs text-slate-500">{friendlyRole(user.role)}</div>
-            </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <aside
-          className={`relative flex max-h-[40vh] w-full shrink-0 overflow-hidden border-b border-slate-200 bg-white transition-[width] duration-300 md:max-h-none md:border-b-0 md:border-r ${
+          className={`relative flex max-h-[40vh] w-full shrink-0 overflow-hidden border-b border-slate-200 bg-white transition-[width] duration-300 md:max-h-none md:border-b-0 ${
+            isRtl ? 'md:border-l' : 'md:border-r'
+          } ${
             visibleSection ? 'md:w-72' : 'md:w-36'
           }`}
         >
           <div
             className={`z-10 flex min-w-[120px] flex-col bg-white p-2 transition-[width] duration-300 ${
-              visibleSection ? 'w-1/2 border-r border-slate-200' : 'w-full'
-            }`}
+              visibleSection ? 'w-1/2' : 'w-full'
+            } ${isRtl ? 'border-l' : 'border-r'} border-slate-200`}
           >
             <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
               {sections.map((section) => {
@@ -210,12 +274,14 @@ export function Layout() {
               className="mt-2 flex w-full flex-col items-center justify-center gap-1 rounded-md px-2 py-3 text-xs font-medium text-rose-700 transition-all duration-300 ease-in-out hover:bg-rose-50 hover:text-rose-800"
             >
               <Icon path="M13 4h3v12h-3M8 10l4 4m0-4l-4 4M4 16V4" />
-              <span>Logout</span>
+              <span>{t('Logout')}</span>
             </button>
           </div>
 
           <div
-            className={`absolute right-0 top-0 z-0 flex h-full w-1/2 min-w-[120px] flex-col bg-white p-2 transition-transform duration-300 ${
+            className={`absolute top-0 z-0 flex h-full w-1/2 min-w-[120px] flex-col bg-white p-2 transition-transform duration-300 ${
+              isRtl ? 'left-0' : 'right-0'
+            } ${
               visibleSection ? 'translate-x-0' : '-translate-x-full'
             }`}
           >
@@ -254,7 +320,7 @@ export function Layout() {
           </div>
         </aside>
 
-        <main className="min-h-0 flex-1 overflow-auto px-4 py-5 transition-all duration-300 md:px-6 md:py-6">
+        <main key={language} className="min-h-0 flex-1 overflow-auto px-4 py-5 transition-all duration-300 md:px-6 md:py-6">
           <WorkflowUxProvider>
             <Outlet />
           </WorkflowUxProvider>

@@ -14,11 +14,20 @@ interface DataTableProps<T> {
   empty?: ReactNode;
   loading?: boolean;
   onRowClick?: (row: T) => void;
+  labels?: {
+    rowsSuffix?: string;
+    resultsSuffix?: string;
+    ofWord?: string;
+    previous?: string;
+    next?: string;
+    rowsPerPageAria?: string;
+  };
 }
 
-export function DataTable<T>({ columns, rows, rowKey, empty, loading, onRowClick }: DataTableProps<T>) {
+export function DataTable<T>({ columns, rows, rowKey, empty, loading, onRowClick, labels }: DataTableProps<T>) {
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [page, setPage] = useState(1);
+  const isRtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
 
   const totalRows = rows.length;
   const totalPages = Math.max(1, Math.ceil(totalRows / rowsPerPage));
@@ -44,7 +53,7 @@ export function DataTable<T>({ columns, rows, rowKey, empty, loading, onRowClick
               <th
                 key={c.header}
                 scope="col"
-                className={`px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 ${c.className ?? ''}`}
+                className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 ${isRtl ? 'text-right' : 'text-left'} ${c.className ?? ''}`}
                 style={c.width ? { width: c.width } : undefined}
               >
                 {c.header}
@@ -85,7 +94,7 @@ export function DataTable<T>({ columns, rows, rowKey, empty, loading, onRowClick
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-3 py-2">
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
           <select
-            aria-label="Rows per page"
+            aria-label={labels?.rowsPerPageAria ?? 'Rows per page'}
             className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 outline-none transition focus:border-[#1a7a44] focus:ring-2 focus:ring-[#1a7a44]/20"
             value={rowsPerPage}
             onChange={(e) => {
@@ -95,12 +104,12 @@ export function DataTable<T>({ columns, rows, rowKey, empty, loading, onRowClick
           >
             {[10, 20, 50, 100].map((n) => (
               <option key={n} value={n}>
-                {n} rows
+                {n} {labels?.rowsSuffix ?? 'rows'}
               </option>
             ))}
           </select>
           <span className="text-xs text-slate-600">
-            {startDisplay}-{endDisplay} of {totalRows} results
+            {startDisplay}-{endDisplay} {labels?.ofWord ?? 'of'} {totalRows} {labels?.resultsSuffix ?? 'results'}
           </span>
         </div>
 
@@ -111,7 +120,7 @@ export function DataTable<T>({ columns, rows, rowKey, empty, loading, onRowClick
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1 || loading || totalRows === 0}
           >
-            Previous
+            {labels?.previous ?? 'Previous'}
           </button>
           <button
             type="button"
@@ -119,7 +128,7 @@ export function DataTable<T>({ columns, rows, rowKey, empty, loading, onRowClick
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages || loading || totalRows === 0}
           >
-            Next
+            {labels?.next ?? 'Next'}
           </button>
         </div>
       </div>

@@ -10,6 +10,7 @@ import {
 } from '../api/companies';
 import { Button } from '../components/Button';
 import { DataTable, type Column } from '../components/DataTable';
+import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { SelectField } from '../components/SelectField';
@@ -65,11 +66,15 @@ function FieldTextarea({
 }
 
 export function ClientsPage() {
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (en: string, ar: string) => (isArabic ? ar : en);
   const qc = useQueryClient();
   const toast = useToast();
   const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<CompanyListRow | null>(null);
   const [openActionId, setOpenActionId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const [createForm, setCreateForm] = useState<CreateCompanyPayload>(emptyCreate);
   const [editForm, setEditForm] = useState<UpdateCompanyPayload>({});
 
@@ -199,14 +204,14 @@ export function ClientsPage() {
 
   const columns: Column<CompanyListRow>[] = useMemo(
     () => [
-      { header: 'Name', accessor: (r) => <span className="text-slate-800">{r.name}</span> },
-      { header: 'Trade name', accessor: (r) => <span className="text-slate-600">{r.tradeName ?? '—'}</span> },
-      { header: 'Email', accessor: (r) => <span className="text-slate-700">{r.contactEmail}</span> },
-      { header: 'Phone', accessor: (r) => <span className="text-slate-600">{r.contactPhone ?? '—'}</span> },
-      { header: 'City', accessor: (r) => <span className="text-slate-600">{r.city ?? '—'}</span> },
-      { header: 'Country', accessor: (r) => <span className="text-slate-600">{r.country ?? '—'}</span> },
+      { header: t('Name', 'الاسم'), accessor: (r) => <span className="text-slate-800">{r.name}</span> },
+      { header: t('Trade name', 'الاسم التجاري'), accessor: (r) => <span className="text-slate-600">{r.tradeName ?? '—'}</span> },
+      { header: t('Email', 'البريد الإلكتروني'), accessor: (r) => <span className="text-slate-700">{r.contactEmail}</span> },
+      { header: t('Phone', 'الهاتف'), accessor: (r) => <span className="text-slate-600">{r.contactPhone ?? '—'}</span> },
+      { header: t('City', 'المدينة'), accessor: (r) => <span className="text-slate-600">{r.city ?? '—'}</span> },
+      { header: t('Country', 'الدولة'), accessor: (r) => <span className="text-slate-600">{r.country ?? '—'}</span> },
       {
-        header: 'Billing',
+        header: t('Billing', 'الفوترة'),
         accessor: (r) => (
           <span className="text-slate-600">
             {r.billingCycle} · {r.paymentTermsDays}d
@@ -214,11 +219,11 @@ export function ClientsPage() {
         ),
       },
       {
-        header: 'Status',
+        header: t('Status', 'الحالة'),
         accessor: (r) => <StatusBadge status={r.status} />,
       },
       {
-        header: 'Actions',
+        header: t('Actions', 'الإجراءات'),
         className: 'min-w-[120px] text-right',
         accessor: (r) => {
           const busy =
@@ -293,45 +298,72 @@ export function ClientsPage() {
         },
       },
     ],
-    [suspendMut.isPending, removeMut.isPending, updateMut.isPending, createMut.isPending, openActionId],
+    [suspendMut.isPending, removeMut.isPending, updateMut.isPending, createMut.isPending, openActionId, isArabic],
   );
 
   const errMsg = error instanceof Error ? error.message : null;
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => {
+      const name = r.name?.toLowerCase() ?? '';
+      const trade = r.tradeName?.toLowerCase() ?? '';
+      const email = r.contactEmail?.toLowerCase() ?? '';
+      return name.includes(q) || trade.includes(q) || email.includes(q);
+    });
+  }, [rows, search]);
 
   return (
     <>
       <PageHeader
-        title="Clients"
+        title={t('Clients', 'العملاء')}
         actions={
           <Button
             type="button"
             className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
             onClick={() => setCreateOpen(true)}
           >
-            + New company
+            {t('+ New company', '+ شركة جديدة')}
           </Button>
         }
       />
 
       {errMsg ? <p className="mb-4 text-sm text-rose-600">{errMsg}</p> : null}
 
+      <FilterPanel showLabel={t('Show filters', 'إظهار الفلاتر')} hideLabel={t('Hide filters', 'إخفاء الفلاتر')}>
+        <TextField
+          label={t('Search', 'بحث')}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('Search by company name, trade name, or email', 'ابحث باسم الشركة أو الاسم التجاري أو البريد الإلكتروني')}
+        />
+      </FilterPanel>
+
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={filteredRows}
         rowKey={(r) => r.id}
         loading={isLoading}
-        empty="No companies yet."
+        empty={t('No companies yet.', 'لا توجد شركات بعد.')}
+        labels={{
+          rowsSuffix: t('rows', 'صف'),
+          resultsSuffix: t('results', 'نتيجة'),
+          ofWord: t('of', 'من'),
+          previous: t('Previous', 'السابق'),
+          next: t('Next', 'التالي'),
+          rowsPerPageAria: t('Rows per page', 'عدد الصفوف لكل صفحة'),
+        }}
       />
 
       <Modal
         open={createOpen}
         onClose={closeCreate}
-        title="New company"
+        title={t('New company', 'شركة جديدة')}
         widthClass="max-w-xl"
         footer={
           <>
             <Button variant="secondary" type="button" onClick={closeCreate} disabled={createMut.isPending}>
-              Cancel
+              {t('Cancel', 'إلغاء')}
             </Button>
             <Button
               type="submit"
@@ -339,27 +371,27 @@ export function ClientsPage() {
               loading={createMut.isPending}
               className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
             >
-              Create
+              {t('Create', 'إنشاء')}
             </Button>
           </>
         }
       >
         <form id="create-company" onSubmit={submitCreate} className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1">
           <TextField
-            label="Name"
+            label={t('Name', 'الاسم')}
             required
             name="name"
             value={createForm.name}
             onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
           />
           <TextField
-            label="Trade name (optional)"
+            label={t('Trade name (optional)', 'الاسم التجاري (اختياري)')}
             name="tradeName"
             value={createForm.tradeName ?? ''}
             onChange={(e) => setCreateForm((f) => ({ ...f, tradeName: e.target.value }))}
           />
           <TextField
-            label="Contact email"
+            label={t('Contact email', 'البريد الإلكتروني للتواصل')}
             type="email"
             required
             name="contactEmail"
@@ -368,33 +400,33 @@ export function ClientsPage() {
           />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <TextField
-              label="Country"
+              label={t('Country', 'الدولة')}
               name="country"
               value={createForm.country ?? ''}
               onChange={(e) => setCreateForm((f) => ({ ...f, country: e.target.value }))}
             />
             <TextField
-              label="City"
+              label={t('City', 'المدينة')}
               name="city"
               value={createForm.city ?? ''}
               onChange={(e) => setCreateForm((f) => ({ ...f, city: e.target.value }))}
             />
           </div>
           <TextField
-            label="Phone (optional)"
+            label={t('Phone (optional)', 'الهاتف (اختياري)')}
             name="contactPhone"
             value={createForm.contactPhone ?? ''}
             onChange={(e) => setCreateForm((f) => ({ ...f, contactPhone: e.target.value }))}
           />
           <FieldTextarea
             id="create-address"
-            label="Address (optional)"
+            label={t('Address (optional)', 'العنوان (اختياري)')}
             value={createForm.address ?? ''}
             onChange={(v) => setCreateForm((f) => ({ ...f, address: v }))}
           />
           <FieldTextarea
             id="create-notes"
-            label="Notes (optional)"
+            label={t('Notes (optional)', 'ملاحظات (اختياري)')}
             value={createForm.notes ?? ''}
             onChange={(v) => setCreateForm((f) => ({ ...f, notes: v }))}
           />
@@ -404,22 +436,22 @@ export function ClientsPage() {
       <Modal
         open={!!editRow}
         onClose={closeEdit}
-        title={editRow ? `Edit ${editRow.name}` : 'Edit company'}
+        title={editRow ? `${t('Edit', 'تعديل')} ${editRow.name}` : t('Edit company', 'تعديل شركة')}
         widthClass="max-w-xl"
         footer={
           <>
             <Button variant="secondary" type="button" onClick={closeEdit} disabled={updateMut.isPending}>
-              Cancel
+              {t('Cancel', 'إلغاء')}
             </Button>
             <Button type="submit" form="edit-company" loading={updateMut.isPending}>
-              Save
+              {t('Save', 'حفظ')}
             </Button>
           </>
         }
       >
         <form id="edit-company" onSubmit={submitEdit} className="space-y-3">
           <SelectField
-            label="Status"
+            label={t('Status', 'الحالة')}
             name="status"
             value={editForm.status ?? editRow?.status ?? 'active'}
             onChange={(e) =>
@@ -428,19 +460,19 @@ export function ClientsPage() {
             options={STATUS_OPTIONS}
           />
           <TextField
-            label="Name"
+            label={t('Name', 'الاسم')}
             name="edit-name"
             value={editForm.name ?? ''}
             onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
           />
           <TextField
-            label="Trade name"
+            label={t('Trade name', 'الاسم التجاري')}
             name="edit-tradeName"
             value={editForm.tradeName ?? ''}
             onChange={(e) => setEditForm((f) => ({ ...f, tradeName: e.target.value }))}
           />
           <TextField
-            label="Contact email"
+            label={t('Contact email', 'البريد الإلكتروني للتواصل')}
             type="email"
             name="edit-contactEmail"
             value={editForm.contactEmail ?? ''}
@@ -448,33 +480,33 @@ export function ClientsPage() {
           />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <TextField
-              label="Country"
+              label={t('Country', 'الدولة')}
               name="edit-country"
               value={editForm.country ?? ''}
               onChange={(e) => setEditForm((f) => ({ ...f, country: e.target.value }))}
             />
             <TextField
-              label="City"
+              label={t('City', 'المدينة')}
               name="edit-city"
               value={editForm.city ?? ''}
               onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))}
             />
           </div>
           <TextField
-            label="Phone"
+            label={t('Phone', 'الهاتف')}
             name="edit-phone"
             value={editForm.contactPhone ?? ''}
             onChange={(e) => setEditForm((f) => ({ ...f, contactPhone: e.target.value }))}
           />
           <FieldTextarea
             id="edit-address"
-            label="Address"
+            label={t('Address', 'العنوان')}
             value={editForm.address ?? ''}
             onChange={(v) => setEditForm((f) => ({ ...f, address: v }))}
           />
           <FieldTextarea
             id="edit-notes"
-            label="Notes"
+            label={t('Notes', 'ملاحظات')}
             value={editForm.notes ?? ''}
             onChange={(v) => setEditForm((f) => ({ ...f, notes: v }))}
           />

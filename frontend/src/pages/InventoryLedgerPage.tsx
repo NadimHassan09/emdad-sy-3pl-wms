@@ -8,6 +8,7 @@ import { ProductsApi } from '../api/products';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterActions } from '../components/FilterActions';
+import { FilterPanel } from '../components/FilterPanel';
 import { PageHeader } from '../components/PageHeader';
 import { TextField } from '../components/TextField';
 import { QK } from '../constants/query-keys';
@@ -37,6 +38,9 @@ function ledgerRowKey(r: LedgerRow): string {
 }
 
 export function InventoryLedgerPage() {
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (en: string, ar: string) => (isArabic ? ar : en);
   const navigate = useNavigate();
   const { warehouseId: wid } = useDefaultWarehouseId();
   const initial = useMemo<LedgerDraft>(
@@ -92,7 +96,7 @@ export function InventoryLedgerPage() {
   const columns: Column<LedgerRow>[] = useMemo(
     () => [
       {
-        header: 'Product',
+        header: t('Product', 'المنتج'),
         accessor: (r) => (
           <div>
             <div className="font-medium text-slate-900">{r.product.name}</div>
@@ -101,12 +105,12 @@ export function InventoryLedgerPage() {
         ),
       },
       {
-        header: 'Client',
+        header: t('Client', 'العميل'),
         accessor: (r) => r.company.name,
         width: '140px',
       },
       {
-        header: 'Movement',
+        header: t('Movement', 'الحركة'),
         accessor: (r) => {
           const cat = ledgerMovementCategory(r.movementType);
           const tone =
@@ -131,7 +135,7 @@ export function InventoryLedgerPage() {
         width: '130px',
       },
       {
-        header: 'Δ Qty',
+        header: t('Δ Qty', 'فرق الكمية'),
         accessor: (r) => {
           const { delta } = ledgerQuantityDisplay(r);
           const pos = delta > 0;
@@ -148,7 +152,7 @@ export function InventoryLedgerPage() {
         className: 'text-right',
       },
       {
-        header: 'Before',
+        header: t('Before', 'قبل'),
         accessor: (r) => {
           const { before } = ledgerQuantityDisplay(r);
           return <span className="font-mono text-slate-700">{fmtLedgerQty(before)}</span>;
@@ -157,7 +161,7 @@ export function InventoryLedgerPage() {
         className: 'text-right',
       },
       {
-        header: 'After',
+        header: t('After', 'بعد'),
         accessor: (r) => {
           const { after } = ledgerQuantityDisplay(r);
           return <span className="font-mono text-slate-700">{fmtLedgerQty(after)}</span>;
@@ -166,7 +170,7 @@ export function InventoryLedgerPage() {
         className: 'text-right',
       },
       {
-        header: 'Ref',
+        header: t('Ref', 'المرجع'),
         accessor: (r) => (
           <span className="text-xs font-mono text-slate-500">
             {ledgerGroupRefLabel(r.referenceType, r.referenceId)}
@@ -175,7 +179,7 @@ export function InventoryLedgerPage() {
         width: '200px',
       },
       {
-        header: 'When',
+        header: t('When', 'الوقت'),
         accessor: (r) => new Date(r.createdAt).toLocaleString(),
         width: '160px',
       },
@@ -186,68 +190,79 @@ export function InventoryLedgerPage() {
   return (
     <>
       <PageHeader
-        title="Inventory ledger"
-        description="Each row is one stock movement. Δ = after − before for that lot/location. Open a row for lot/location breakdown (deduplicated)."
+        title={t('Inventory ledger', 'سجل المخزون')}
+        description={t(
+          'Each row is one stock movement. Δ = after − before for that lot/location. Open a row for lot/location breakdown (deduplicated).',
+          'كل صف يمثل حركة مخزون واحدة. Δ = بعد - قبل لنفس الدفعة/الموقع. افتح الصف لعرض التفاصيل.',
+        )}
       />
 
       {!wid ? (
         <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>
       ) : null}
 
-      <div className="mb-4 flex flex-wrap gap-3">
+      <FilterPanel showLabel={t('Show filters', 'إظهار الفلاتر')} hideLabel={t('Hide filters', 'إخفاء الفلاتر')}>
+      <div className="flex flex-wrap gap-3">
         <Combobox
-          label="Client"
+          label={t('Client', 'العميل')}
           value={draftFilters.companyId}
           onChange={(v) => setDraft({ companyId: v })}
           options={(companies.data ?? []).map((c) => ({
             value: c.id,
             label: c.name,
           }))}
-          placeholder="All clients"
+          placeholder={t('All clients', 'كل العملاء')}
           className="min-w-[240px]"
         />
         <Combobox
-          label="Product"
+          label={t('Product', 'المنتج')}
           value={draftFilters.productId}
           onChange={(v) => setDraft({ productId: v })}
           options={(products.data?.items ?? []).map((p) => ({
             value: p.id,
             label: `${p.sku} — ${p.name}`,
           }))}
-          placeholder="All products"
+          placeholder={t('All products', 'كل المنتجات')}
           className="min-w-[280px]"
         />
         <Combobox
-          label="Movement"
+          label={t('Movement', 'الحركة')}
           value={draftFilters.movementCategory}
           onChange={(v) =>
             setDraft({ movementCategory: (v || '') as LedgerDraft['movementCategory'] })
           }
           options={[
-            { value: '', label: 'All movements' },
-            { value: 'inbound', label: 'Inbound' },
-            { value: 'outbound', label: 'Outbound' },
-            { value: 'adjustment', label: 'Adjustment' },
+            { value: '', label: t('All movements', 'كل الحركات') },
+            { value: 'inbound', label: t('Inbound', 'وارد') },
+            { value: 'outbound', label: t('Outbound', 'صادر') },
+            { value: 'adjustment', label: t('Adjustment', 'تعديل') },
           ]}
-          placeholder="Category…"
+          placeholder={t('Category…', 'الفئة…')}
           className="min-w-[200px]"
         />
         <TextField
-          label="Created from"
+          label={t('Created from', 'تاريخ الإنشاء من')}
           type="date"
           value={draftFilters.createdFrom}
           onChange={(e) => setDraft({ createdFrom: e.target.value })}
           className="min-w-[180px]"
         />
         <TextField
-          label="Created to"
+          label={t('Created to', 'تاريخ الإنشاء إلى')}
           type="date"
           value={draftFilters.createdTo}
           onChange={(e) => setDraft({ createdTo: e.target.value })}
           className="min-w-[180px]"
         />
       </div>
-      <FilterActions onApply={applyFilters} onReset={resetFilters} loading={ledger.isFetching} />
+      <FilterActions
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={ledger.isFetching}
+        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
+        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
+      />
+      </FilterPanel>
 
       <DataTable
         columns={columns}
@@ -256,6 +271,14 @@ export function InventoryLedgerPage() {
         loading={ledger.isLoading || !wid}
         empty={wid ? 'No ledger rows for the current filters.' : 'Warehouse not resolved yet.'}
         onRowClick={(r) => navigate(ledgerEntryDetailPath(r.id, r.createdAt))}
+        labels={{
+          rowsSuffix: t('rows', 'صف'),
+          resultsSuffix: t('results', 'نتيجة'),
+          ofWord: t('of', 'من'),
+          previous: t('Previous', 'السابق'),
+          next: t('Next', 'التالي'),
+          rowsPerPageAria: t('Rows per page', 'عدد الصفوف لكل صفحة'),
+        }}
       />
       <p className="mt-2 text-xs text-slate-500">
         {ledger.data

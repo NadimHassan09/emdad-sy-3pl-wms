@@ -9,7 +9,6 @@ import { Combobox } from '../components/Combobox';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { useToast } from '../components/ToastProvider';
-import { WorkflowNextRunnableCard } from '../components/WorkflowNextRunnableCard';
 import { WorkflowOrderTimeline } from '../components/WorkflowOrderTimeline';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
@@ -17,6 +16,30 @@ import { useTaskOnlyMode } from '../hooks/useTaskOnlyMode';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
 
 const fmtQty = (s: string) => Number(s).toLocaleString(undefined, { maximumFractionDigits: 4 });
+function outboundDetailLabel(label: string, isArabic: boolean): string {
+  if (!isArabic) return label;
+  const ar: Record<string, string> = {
+    'All outbound orders': 'جميع طلبات الصادر',
+    'Outbound order': 'طلب صادر',
+    Client: 'العميل',
+    Created: 'تاريخ الإنشاء',
+    'Cancel order': 'إلغاء الطلب',
+    'Confirm & start workflow': 'تأكيد وبدء سير العمل',
+    'Confirm & deduct stock': 'تأكيد وخصم المخزون',
+    'Order #': 'رقم الطلب #',
+    Status: 'الحالة',
+    'Required ship': 'الشحن المطلوب',
+    Carrier: 'الناقل',
+    'Shipped at': 'تم الشحن في',
+    Destination: 'الوجهة',
+    SKU: 'رمز الصنف',
+    Product: 'المنتج',
+    Tracking: 'التتبع',
+    Requested: 'المطلوب',
+    Picked: 'تم التقاطه',
+  };
+  return ar[label] ?? label;
+}
 
 export function OutboundDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
@@ -26,6 +49,9 @@ export function OutboundDetailPage() {
   const taskOnlyMode = useTaskOnlyMode();
   const { warehouseId, warehouses } = useDefaultWarehouseId();
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (label: string) => outboundDetailLabel(label, isArabic);
 
   const effectiveWarehouseId =
     (selectedWarehouseId && warehouses.some((w) => w.id === selectedWarehouseId)
@@ -88,37 +114,36 @@ export function OutboundDetailPage() {
   const lineColumns: Column<OutboundOrderLine>[] = [
     { header: '#', accessor: (l) => l.lineNumber, width: '50px' },
     {
-      header: 'SKU',
+      header: t('SKU'),
       accessor: (l) => <span className="font-mono">{l.product?.sku ?? '—'}</span>,
       width: '200px',
     },
-    { header: 'Product', accessor: (l) => l.product?.name ?? '—' },
-    { header: 'Tracking', accessor: (l) => l.product?.trackingType ?? '—', width: '110px' },
+    { header: t('Product'), accessor: (l) => l.product?.name ?? '—' },
+    { header: t('Tracking'), accessor: (l) => l.product?.trackingType ?? '—', width: '110px' },
     {
-      header: 'Requested',
+      header: t('Requested'),
       accessor: (l) => <span className="font-mono">{fmtQty(l.requestedQuantity)}</span>,
       width: '120px',
       className: 'text-right',
     },
     {
-      header: 'Picked',
+      header: t('Picked'),
       accessor: (l) => <span className="font-mono">{fmtQty(l.pickedQuantity)}</span>,
       width: '120px',
       className: 'text-right',
     },
-    { header: 'Status', accessor: (l) => <StatusBadge status={l.status} />, width: '110px' },
+    { header: t('Status'), accessor: (l) => <StatusBadge status={l.status} />, width: '110px' },
   ];
 
   return (
     <>
       <div className="mb-2 text-sm text-slate-500">
         <Link to="/orders/outbound" className="hover:underline">
-          ← All outbound orders
+          ← {t('All outbound orders')}
         </Link>
       </div>
       <PageHeader
-        title={o.orderNumber || 'Outbound order'}
-        description={`Client: ${o.company?.name ?? '—'} • Created ${new Date(o.createdAt).toLocaleString()}`}
+        title={o.orderNumber || t('Outbound order')}
         actions={
           <>
             {canCancel && (
@@ -127,7 +152,7 @@ export function OutboundDetailPage() {
                 onClick={() => cancelMut.mutate()}
                 loading={cancelMut.isPending}
               >
-                Cancel order
+                {t('Cancel order')}
               </Button>
             )}
             {canConfirm && (
@@ -140,7 +165,7 @@ export function OutboundDetailPage() {
                 loading={confirmMut.isPending}
                 disabled={outboundConfirmBlocked}
               >
-                {taskOnlyMode ? 'Confirm & start workflow' : 'Confirm & deduct stock'}
+                {taskOnlyMode ? t('Confirm & start workflow') : t('Confirm & deduct stock')}
               </Button>
             )}
           </>
@@ -148,13 +173,13 @@ export function OutboundDetailPage() {
       />
 
       <div className="mb-4 grid grid-cols-2 gap-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4">
-        <Field label="Order #" value={<span className="font-mono">{o.orderNumber || '—'}</span>} />
-        <Field label="Status" value={<StatusBadge status={o.status} />} />
-        <Field label="Client" value={o.company?.name ?? '—'} />
-        <Field label="Required ship" value={new Date(o.requiredShipDate).toLocaleDateString()} />
-        <Field label="Carrier" value={o.carrier ?? '—'} />
-        <Field label="Shipped at" value={o.shippedAt ? new Date(o.shippedAt).toLocaleString() : '—'} />
-        <Field label="Destination" value={o.destinationAddress} />
+        <Field label={t('Order #')} value={<span className="font-mono">{o.orderNumber || '—'}</span>} />
+        <Field label={t('Status')} value={<StatusBadge status={o.status} />} />
+        <Field label={t('Client')} value={o.company?.name ?? '—'} />
+        <Field label={t('Required ship')} value={new Date(o.requiredShipDate).toLocaleDateString()} />
+        <Field label={t('Carrier')} value={o.carrier ?? '—'} />
+        <Field label={t('Shipped at')} value={o.shippedAt ? new Date(o.shippedAt).toLocaleString() : '—'} />
+        <Field label={t('Destination')} value={o.destinationAddress} />
       </div>
 
       {taskOnlyMode && canConfirm ? (
@@ -184,28 +209,17 @@ export function OutboundDetailPage() {
         </div>
       ) : null}
 
-      {taskOnlyMode ? (
-        <WorkflowNextRunnableCard
-          referenceType="outbound_order"
-          referenceId={id}
-          enabled={!!id}
-          isDraftOrder={o.status === 'draft'}
-        />
-      ) : (
-        <WorkflowOrderTimeline
-          referenceType="outbound_order"
-          referenceId={id}
-          enabled={!!id && o.status !== 'draft'}
-        />
-      )}
+      <WorkflowOrderTimeline
+        referenceType="outbound_order"
+        referenceId={id}
+        enabled={!!id && o.status !== 'draft'}
+      />
 
       <DataTable columns={lineColumns} rows={o.lines} rowKey={(l) => l.id} />
 
-      {o.status === 'draft' ? (
+      {o.status === 'draft' && !taskOnlyMode ? (
         <p className="mt-3 text-xs text-slate-500">
-          {taskOnlyMode
-            ? 'Order page is view-only; execution is on warehouse task pages.'
-            : 'Confirming atomically allocates stock FEFO and ships in one legacy transaction unless stock is insufficient.'}
+          Confirming atomically allocates stock FEFO and ships in one legacy transaction unless stock is insufficient.
         </p>
       ) : null}
     </>

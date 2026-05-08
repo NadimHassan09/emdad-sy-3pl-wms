@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   ADJUSTMENT_REASON_PENDING,
@@ -19,6 +19,7 @@ import { Combobox } from '../components/Combobox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterActions } from '../components/FilterActions';
+import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { TextField } from '../components/TextField';
@@ -42,6 +43,9 @@ type AdjustmentDrawerState =
   | { mode: 'edit'; adjustment: StockAdjustment };
 
 export function AdjustmentsPage() {
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (en: string, ar: string) => (isArabic ? ar : en);
   const qc = useQueryClient();
   const toast = useToast();
   const [adjDrawer, setAdjDrawer] = useState<AdjustmentDrawerState | null>(null);
@@ -145,30 +149,30 @@ export function AdjustmentsPage() {
 
   const adjustmentCols: Column<StockAdjustment>[] = useMemo(
     () => [
-      { header: 'Client name', accessor: (a) => a.company?.name ?? '—', width: '160px' },
+      { header: t('Client name', 'اسم العميل'), accessor: (a) => a.company?.name ?? '—', width: '160px' },
       {
-        header: 'Status',
+        header: t('Status', 'الحالة'),
         accessor: (a) => <StatusBadge status={a.status} />,
         width: '120px',
       },
       {
-        header: 'Adjustment id',
+        header: t('Adjustment id', 'معرف التعديل'),
         accessor: (a) => <span className="font-mono text-[11px]">{a.id}</span>,
         width: '280px',
       },
       {
-        header: 'Lines',
+        header: t('Lines', 'البنود'),
         accessor: (a) => <span className="font-mono text-xs">{a.lines?.length ?? 0}</span>,
         width: '72px',
         className: 'text-right',
       },
       {
-        header: 'Date',
+        header: t('Date', 'التاريخ'),
         accessor: (a) => new Date(a.createdAt).toLocaleString(),
         width: '168px',
       },
       {
-        header: 'Actions',
+        header: t('Actions', 'الإجراءات'),
         accessor: (a) => (
           <div className="relative inline-flex" onClick={(e) => e.stopPropagation()}>
             <button
@@ -216,7 +220,7 @@ export function AdjustmentsPage() {
         width: '120px',
       },
     ],
-    [],
+    [isArabic, openActionId],
   );
 
   const adjustmentLineDetailCols: Column<StockAdjustmentLine>[] = useMemo(
@@ -271,15 +275,14 @@ export function AdjustmentsPage() {
   return (
     <>
       <PageHeader
-        title="Stock adjustments"
-        description="One row per adjustment — click a row to see line details (product, quantities, lot). Same warehouse scope as before."
+        title={t('Stock adjustments', 'تعديلات المخزون')}
         actions={
           <Button
             disabled={!wid}
             onClick={() => wid && setAdjDrawer({ mode: 'new' })}
             className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
           >
-            + New adjustment
+            {t('+ New adjustment', '+ تعديل جديد')}
           </Button>
         }
       />
@@ -288,55 +291,62 @@ export function AdjustmentsPage() {
         <p className="mb-3 text-sm text-slate-600">Resolve warehouse configuration…</p>
       ) : null}
 
-      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+      <FilterPanel showLabel={t('Show filters', 'إظهار الفلاتر')} hideLabel={t('Hide filters', 'إخفاء الفلاتر')}>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         <TextField
-          label="Adjustment id (uuid)"
+          label={t('Adjustment id', 'معرف التعديل')}
           value={draftFilters.adjustmentId}
           onChange={(e) => setDraft({ adjustmentId: e.target.value })}
           className="font-mono text-xs"
         />
         <Combobox
-          label="Client"
+          label={t('Client', 'العميل')}
           value={draftFilters.clientId}
           onChange={(v) => setDraft({ clientId: v })}
           options={(companies.data ?? []).map((c) => ({
             value: c.id,
             label: c.name,
           }))}
-          placeholder="All clients"
+          placeholder={t('All clients', 'كل العملاء')}
         />
         <Combobox
-          label="Product"
+          label={t('Product', 'المنتج')}
           value={draftFilters.productId}
           onChange={(v) => setDraft({ productId: v })}
           options={(productDraftOptions.data?.items ?? []).map((p) => ({
             value: p.id,
             label: `${p.sku} — ${p.name}`,
           }))}
-          placeholder={draftFilters.clientId ? 'Pick product…' : 'Pick client first'}
-          hint="Product list scopes to draft client selection."
+          placeholder={draftFilters.clientId ? t('Pick product…', 'اختر المنتج…') : t('Pick client first', 'اختر العميل أولاً')}
           disabled={!draftFilters.clientId}
         />
         <TextField
-          label="Lot id (uuid)"
+          label={t('Lot id', 'معرف الدفعة')}
           value={draftFilters.lotId}
           onChange={(e) => setDraft({ lotId: e.target.value })}
           className="font-mono text-xs"
         />
         <TextField
-          label="Created from"
+          label={t('Created from', 'تاريخ الإنشاء من')}
           type="date"
           value={draftFilters.createdFrom}
           onChange={(e) => setDraft({ createdFrom: e.target.value })}
         />
         <TextField
-          label="Created to"
+          label={t('Created to', 'تاريخ الإنشاء إلى')}
           type="date"
           value={draftFilters.createdTo}
           onChange={(e) => setDraft({ createdTo: e.target.value })}
         />
       </div>
-      <FilterActions onApply={applyFilters} onReset={resetFilters} loading={list.isFetching} />
+      <FilterActions
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={list.isFetching}
+        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
+        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
+      />
+      </FilterPanel>
 
       <DataTable
         columns={adjustmentCols}
@@ -345,6 +355,14 @@ export function AdjustmentsPage() {
         loading={list.isLoading || !wid}
         empty={wid ? 'No adjustments match the filters.' : 'Warehouse not resolved yet.'}
         onRowClick={(a) => setDetailAdjustment(a)}
+        labels={{
+          rowsSuffix: t('rows', 'صف'),
+          resultsSuffix: t('results', 'نتيجة'),
+          ofWord: t('of', 'من'),
+          previous: t('Previous', 'السابق'),
+          next: t('Next', 'التالي'),
+          rowsPerPageAria: t('Rows per page', 'عدد الصفوف لكل صفحة'),
+        }}
       />
 
       <Modal
@@ -354,7 +372,7 @@ export function AdjustmentsPage() {
         widthClass="max-w-5xl"
         footer={
           <Button type="button" variant="secondary" onClick={() => setDetailAdjustment(null)}>
-            Close
+            {t('Close', 'إغلاق')}
           </Button>
         }
       >
@@ -362,15 +380,15 @@ export function AdjustmentsPage() {
           <div className="space-y-3 text-sm">
             <div className="rounded-md bg-slate-50 px-3 py-2 text-slate-700">
               <div>
-                <span className="text-slate-500">Client:</span> {detailAdjustment.company?.name ?? '—'}
+                <span className="text-slate-500">{t('Client:', 'العميل:')}</span> {detailAdjustment.company?.name ?? '—'}
               </div>
               <div className="mt-1">
-                <span className="text-slate-500">Status:</span> <StatusBadge status={detailAdjustment.status} />
+                <span className="text-slate-500">{t('Status:', 'الحالة:')}</span> <StatusBadge status={detailAdjustment.status} />
               </div>
               <div className="mt-1 max-w-full truncate text-xs" title={detailAdjustment.reason}>
-                <span className="text-slate-500">Reason:</span>{' '}
+                <span className="text-slate-500">{t('Reason:', 'السبب:')}</span>{' '}
                 {detailAdjustment.reason === ADJUSTMENT_REASON_PENDING ? (
-                  <span className="text-slate-400 italic">(pending)</span>
+                  <span className="text-slate-400 italic">{t('(pending)', '(قيد الانتظار)')}</span>
                 ) : (
                   detailAdjustment.reason
                 )}
@@ -380,7 +398,7 @@ export function AdjustmentsPage() {
               columns={adjustmentLineDetailCols}
               rows={detailAdjustment.lines ?? []}
               rowKey={(l) => l.id}
-              empty="No lines on this adjustment."
+              empty={t('No lines on this adjustment.', 'لا توجد بنود في هذا التعديل.')}
             />
           </div>
         ) : null}
@@ -399,8 +417,8 @@ export function AdjustmentsPage() {
 
       <ConfirmModal
         open={!!draftDeleteTarget}
-        title="Delete this draft?"
-        confirmLabel="Delete"
+        title={t('Delete this draft?', 'حذف هذه المسودة؟')}
+        confirmLabel={t('Delete', 'حذف')}
         danger
         loading={discardDraftMut.isPending}
         onClose={() => !discardDraftMut.isPending && setDraftDeleteTarget(null)}
@@ -430,12 +448,18 @@ function AdjustmentDetailDrawer({
   onCreateDraft: (input: CreateAdjustmentInput) => void;
   createDraftPending: boolean;
 }) {
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (en: string, ar: string) => (isArabic ? ar : en);
   const qc = useQueryClient();
   const toast = useToast();
   const isNew = drawerState.mode === 'new';
   const id = isNew ? '' : drawerState.adjustment.id;
 
   const [newCompanyId, setNewCompanyId] = useState('');
+  const [newReason, setNewReason] = useState('');
+  const [isNewClientComboboxActive, setIsNewClientComboboxActive] = useState(false);
+  const newClientComboboxWrapRef = useRef<HTMLDivElement>(null);
   const companiesForNew = useQuery({
     queryKey: QK.companies,
     queryFn: () => CompaniesApi.list(),
@@ -503,20 +527,11 @@ function AdjustmentDetailDrawer({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const patchReasonMut = useMutation({
-    mutationFn: (reason: string) => AdjustmentsApi.patch(id, { reason }),
-    onSuccess: (updated) => {
-      toast.success('Reason saved.');
-      qc.setQueryData([...QK.adjustments, id], updated);
-      qc.invalidateQueries({ queryKey: QK.adjustments });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const createDraftSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!warehouseId || !newCompanyId.trim()) return;
-    onCreateDraft({ warehouseId, companyId: newCompanyId.trim() });
+    const reason = newReason.trim();
+    if (!warehouseId || !newCompanyId.trim() || !reason) return;
+    onCreateDraft({ warehouseId, companyId: newCompanyId.trim(), reason });
   };
 
   if (isNew) {
@@ -524,21 +539,21 @@ function AdjustmentDetailDrawer({
       <Modal
         open
         onClose={() => !createDraftPending && onClose()}
-        title="Adjustment · draft"
+        title={t('Adjustment · draft', 'تعديل · مسودة')}
         widthClass="max-w-lg"
         footer={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={onClose} disabled={createDraftPending}>
-              Close
+              {t('Close', 'إغلاق')}
             </Button>
             <Button
               type="submit"
               form="adj-new-draft"
               loading={createDraftPending}
-              disabled={!warehouseId || !newCompanyId.trim()}
+              disabled={!warehouseId || !newCompanyId.trim() || !newReason.trim()}
               className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
             >
-              Create draft
+              {t('Create draft', 'إنشاء مسودة')}
             </Button>
           </div>
         }
@@ -546,26 +561,43 @@ function AdjustmentDetailDrawer({
         <form
           id="adj-new-draft"
           onSubmit={createDraftSubmit}
-          className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1 text-sm"
+          className={`space-y-3 overflow-visible pr-1 text-sm transition-[max-height] duration-300 ease-in-out ${
+            isNewClientComboboxActive ? 'max-h-[100vh]' : 'max-h-[calc(100vh-220px)]'
+          }`}
         >
           {!warehouseId ? (
-            <p className="text-sm text-rose-600">Cannot create — default warehouse not resolved.</p>
-          ) : (
-            <p className="text-xs text-slate-600">
-              Warehouse is fixed to the default for this UI. Choose the client, then add the reason and
-              lines in this same form after the draft is created.
-            </p>
-          )}
-          <Combobox
-            label="Client"
+            <p className="text-sm text-rose-600">{t('Cannot create — default warehouse not resolved.', 'لا يمكن الإنشاء — المستودع الافتراضي غير محدد.')}</p>
+          ) : null}
+          <div
+            ref={newClientComboboxWrapRef}
+            onFocusCapture={() => setIsNewClientComboboxActive(true)}
+            onBlurCapture={() => {
+              window.setTimeout(() => {
+                if (!newClientComboboxWrapRef.current?.contains(document.activeElement)) {
+                  setIsNewClientComboboxActive(false);
+                }
+              }, 0);
+            }}
+          >
+            <Combobox
+              label={t('Client', 'العميل')}
+              required
+              value={newCompanyId}
+              onChange={setNewCompanyId}
+              dropdownInFlow
+              options={(companiesForNew.data ?? []).map((c) => ({
+                value: c.id,
+                label: c.name,
+              }))}
+              placeholder={t('Select client…', 'اختر العميل…')}
+            />
+          </div>
+          <TextField
+            label={t('Reason', 'السبب')}
             required
-            value={newCompanyId}
-            onChange={setNewCompanyId}
-            options={(companiesForNew.data ?? []).map((c) => ({
-              value: c.id,
-              label: c.name,
-            }))}
-            placeholder="Select client…"
+            value={newReason}
+            onChange={(e) => setNewReason(e.target.value)}
+            placeholder={t('Why is inventory changing?', 'لماذا يتغير المخزون؟')}
           />
         </form>
       </Modal>
@@ -599,50 +631,51 @@ function AdjustmentDetailDrawer({
       <Modal
         open
         onClose={onClose}
-        title={`Adjustment · ${adj.status}`}
+        title={`${t('Adjustment', 'تعديل')} · ${adj.status}`}
         widthClass="max-w-3xl"
         footer={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={onClose}>
-              Close
+              {t('Close', 'إغلاق')}
             </Button>
             {adj.status === 'draft' && (
               <>
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="danger"
                   onClick={() => setCancelConfirmOpen(true)}
                   disabled={cancelMut.isPending}
                 >
-                  Delete draft
+                  {t('Delete draft', 'حذف المسودة')}
                 </Button>
                 <Button
                   type="button"
                   loading={approveMut.isPending}
+                  className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
                   onClick={() => {
                     const r = adj.reason?.trim() ?? '';
                     if (!r || r === ADJUSTMENT_REASON_PENDING) {
-                      toast.error('Enter and save an adjustment reason before approving.');
+                      toast.error(t('Enter and save an adjustment reason before approving.', 'أدخل واحفظ سبب التعديل قبل الاعتماد.'));
                       return;
                     }
                     approveMut.mutate(adj.id);
                   }}
                 >
-                  Approve
+                  {t('Approve', 'اعتماد')}
                 </Button>
               </>
             )}
           </div>
         }
       >
-        <div className="space-y-4 text-sm">
+        <div className="max-h-[calc(100vh-220px)] space-y-4 overflow-y-auto pr-1 text-sm">
           <div className="rounded-md bg-slate-50 p-3 text-slate-700">
             <div>
-              <span className="text-slate-500">Warehouse:</span> {adj.warehouse.code} —{' '}
+              <span className="text-slate-500">{t('Warehouse:', 'المستودع:')}</span> {adj.warehouse.code} —{' '}
               {adj.warehouse.name}
             </div>
             <div className="mt-1">
-              <span className="text-slate-500">Client:</span> {adj.company.name}
+              <span className="text-slate-500">{t('Client:', 'العميل:')}</span> {adj.company.name}
             </div>
           </div>
 
@@ -650,16 +683,14 @@ function AdjustmentDetailDrawer({
             columns={lineCols}
             rows={linesForTable}
             rowKey={(l) => l.id}
-            empty="No lines — add targets below."
+            empty={t('No lines — add targets below.', 'لا توجد بنود — أضف البنود بالأسفل.')}
           />
 
           {adj.status === 'draft' && (
             <AddAdjustmentLineForm
               adjustment={adj}
               loading={addLineMut.isPending}
-              patchReasonLoading={patchReasonMut.isPending}
               onSubmit={(body) => addLineMut.mutate({ adjustmentId: adj.id, body })}
-              onSaveReason={(reason) => patchReasonMut.mutate(reason)}
             />
           )}
         </div>
@@ -667,8 +698,8 @@ function AdjustmentDetailDrawer({
 
       <ConfirmModal
         open={cancelConfirmOpen}
-        title="Delete this draft?"
-        confirmLabel="Delete"
+        title={t('Delete this draft?', 'حذف هذه المسودة؟')}
+        confirmLabel={t('Delete', 'حذف')}
         danger
         loading={cancelMut.isPending}
         onClose={() => !cancelMut.isPending && setCancelConfirmOpen(false)}
@@ -685,18 +716,16 @@ function AdjustmentDetailDrawer({
 function AddAdjustmentLineForm({
   adjustment,
   loading,
-  patchReasonLoading,
   onSubmit,
-  onSaveReason,
 }: {
   adjustment: StockAdjustment;
   loading: boolean;
-  patchReasonLoading: boolean;
   onSubmit: (b: Parameters<typeof AdjustmentsApi.addLine>[1]) => void;
-  onSaveReason: (reason: string) => void;
 }) {
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (en: string, ar: string) => (isArabic ? ar : en);
   const toast = useToast();
-  const [reasonDraft, setReasonDraft] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [debouncedProductSearch, setDebouncedProductSearch] = useState('');
   const [scanOpen, setScanOpen] = useState(false);
@@ -709,12 +738,6 @@ function AddAdjustmentLineForm({
     const t = window.setTimeout(() => setDebouncedProductSearch(productSearch.trim()), 350);
     return () => window.clearTimeout(t);
   }, [productSearch]);
-
-  useEffect(() => {
-    setReasonDraft(
-      adjustment.reason === ADJUSTMENT_REASON_PENDING ? '' : adjustment.reason,
-    );
-  }, [adjustment.id, adjustment.reason]);
 
   const products = useQuery({
     queryKey: [...QK.products, adjustment.companyId, 'adj-form', debouncedProductSearch],
@@ -832,19 +855,6 @@ function AddAdjustmentLineForm({
 
   const quantityUom = productMeta?.uom ?? stockRow?.product?.uom ?? '—';
 
-  const saveReason = () => {
-    const r = reasonDraft.trim();
-    if (r.length < 1) {
-      toast.error('Reason is required before approve (min 1 character).');
-      return;
-    }
-    if (r.length > 500) {
-      toast.error('Reason must be at most 500 characters.');
-      return;
-    }
-    onSaveReason(r);
-  };
-
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!productMeta) return;
@@ -858,7 +868,7 @@ function AddAdjustmentLineForm({
 
     if (productMeta.trackingType === 'lot') {
       if (!lotId) {
-        toast.error('Select an existing lot (lot-tracked product).');
+        toast.error(t('Select an existing lot (lot-tracked product).', 'اختر دفعة موجودة (للمنتج المتتبع بالدفعات).'));
         return;
       }
       body.lotId = lotId;
@@ -871,59 +881,23 @@ function AddAdjustmentLineForm({
 
   return (
     <div className="space-y-3 rounded-md border border-slate-200 p-3">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        Adjustment details & add line
-      </div>
-
-      <div className="rounded-md bg-slate-50/80 p-3">
-        <TextField
-          label="Client"
-          value={adjustment.company.name}
-          readOnly
-          disabled
-          className="bg-white text-slate-700"
-        />
-        <div className="mt-3 flex flex-wrap items-end gap-2">
-          <TextField
-            label="Reason"
-            required
-            value={reasonDraft}
-            onChange={(e) => setReasonDraft(e.target.value)}
-            placeholder="Why is inventory changing?"
-            className="min-w-[240px] flex-1"
-          />
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            loading={patchReasonLoading}
-            onClick={saveReason}
-          >
-            Save reason
-          </Button>
-        </div>
-        <p className="mt-1 text-[11px] text-slate-500">
-          Save a real reason before approving (drafts start with a placeholder).
-        </p>
-      </div>
-
       <form onSubmit={submit} className="space-y-2 border-t border-slate-100 pt-3">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Add line</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('Add line', 'إضافة بند')}</div>
         <div className="flex flex-wrap items-end gap-2">
           <TextField
-            label="Search product (name, SKU, barcode)"
+            label={t('Search product (name, SKU, barcode)', 'بحث عن منتج (اسم، SKU، باركود)')}
             value={productSearch}
             onChange={(e) => setProductSearch(e.target.value)}
-            placeholder="Type to filter…"
+            placeholder={t('Type to filter…', 'اكتب للتصفية…')}
             className="min-w-[200px] flex-1"
           />
           <Button type="button" size="sm" variant="secondary" onClick={() => setScanOpen(true)}>
-            Scan barcode
+            {t('Scan barcode', 'مسح الباركود')}
           </Button>
         </div>
         <div className="grid gap-2 md:grid-cols-2">
           <Combobox
-            label="Product"
+            label={t('Product', 'المنتج')}
             required
             value={productId}
             onChange={setProductId}
@@ -932,11 +906,11 @@ function AddAdjustmentLineForm({
               label: `${p.sku} — ${p.name}`,
               hint: p.barcode ?? undefined,
             }))}
-            placeholder={products.isLoading ? 'Loading…' : 'Select product…'}
-            emptyMessage="No products for this client match the search."
+            placeholder={products.isLoading ? t('Loading…', 'جاري التحميل…') : t('Select product…', 'اختر المنتج…')}
+            emptyMessage={t('No products for this client match the search.', 'لا توجد منتجات مطابقة لهذا العميل.')}
           />
           <Combobox
-            label="Location (storage, fridge, quarantine, scrap)"
+            label={t('Location (storage, fridge, quarantine, scrap)', 'الموقع (تخزين، ثلاجة، حجر، هالك)')}
             required
             value={locationId}
             onChange={setLocationId}
@@ -948,21 +922,21 @@ function AddAdjustmentLineForm({
             }))}
             placeholder={
               !productId
-                ? 'Select product first…'
+                ? t('Select product first…', 'اختر المنتج أولاً…')
                 : stockByProduct.isPending
-                  ? 'Loading locations…'
-                  : 'Pick location…'
+                  ? t('Loading locations…', 'جاري تحميل المواقع…')
+                  : t('Pick location…', 'اختر الموقع…')
             }
             emptyMessage={
               !productId
-                ? 'Choose a product to see locations.'
-                : 'No eligible locations hold this product (on-hand > 0). Receive stock first or pick another product.'
+                ? t('Choose a product to see locations.', 'اختر منتجاً لعرض المواقع.')
+                : t('No eligible locations hold this product (on-hand > 0). Receive stock first or pick another product.', 'لا توجد مواقع مؤهلة تحتوي هذا المنتج (كمية > 0). استلم مخزوناً أولاً أو اختر منتجاً آخر.')
             }
           />
         </div>
         {productMeta?.trackingType === 'lot' && (
           <Combobox
-            label="Lot (required)"
+            label={t('Lot (required)', 'الدفعة (مطلوب)')}
             required
             value={lotId}
             onChange={setLotId}
@@ -971,15 +945,15 @@ function AddAdjustmentLineForm({
               label: lot.lotNumber,
               hint: lot.expiryDate ? `Exp ${lot.expiryDate.slice(0, 10)}` : undefined,
             }))}
-            placeholder={lots.isLoading ? 'Loading lots…' : 'Pick lot by number'}
+            placeholder={lots.isLoading ? t('Loading lots…', 'جاري تحميل الدفعات…') : t('Pick lot by number', 'اختر الدفعة بالرقم')}
             disabled={lots.isLoading}
-            emptyMessage="No lots for this product yet — receive or create inventory first."
+            emptyMessage={t('No lots for this product yet — receive or create inventory first.', 'لا توجد دفعات لهذا المنتج بعد — استلم أو أنشئ مخزوناً أولاً.')}
           />
         )}
 
         {showOnHandPanel ? (
           <div className="rounded border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
-            <span className="font-medium text-slate-600">Quantity:</span>{' '}
+            <span className="font-medium text-slate-600">{t('Quantity:', 'الكمية:')}</span>{' '}
             {stockQtyPending ? (
               <span className="text-slate-400">…</span>
             ) : stockRow ? (
@@ -995,17 +969,17 @@ function AddAdjustmentLineForm({
               <span className="font-mono text-slate-500">—</span>
             )}
             <span className="text-slate-500"> · </span>
-            <span className="font-medium text-slate-600">UOM:</span>{' '}
+            <span className="font-medium text-slate-600">{t('UOM:', 'وحدة القياس:')}</span>{' '}
             <span className="uppercase text-slate-800">{quantityUom}</span>
           </div>
         ) : productId && locationId && isLotTracked && !lotId ? (
           <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-            Select a lot to see current on-hand for this location.
+            {t('Select a lot to see current on-hand for this location.', 'اختر دفعة لعرض الرصيد الحالي لهذا الموقع.')}
           </div>
         ) : null}
 
         <TextField
-          label="Qty after approve"
+          label={t('Qty after approve', 'الكمية بعد الاعتماد')}
           type="number"
           min={0}
           step={0.0001}
@@ -1013,8 +987,13 @@ function AddAdjustmentLineForm({
           value={qtyAfter}
           onChange={(e) => setQtyAfter(e.target.value)}
         />
-        <Button type="submit" size="sm" loading={loading}>
-          Add line
+        <Button
+          type="submit"
+          size="sm"
+          loading={loading}
+          className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
+        >
+          {t('Add line', 'إضافة بند')}
         </Button>
       </form>
 

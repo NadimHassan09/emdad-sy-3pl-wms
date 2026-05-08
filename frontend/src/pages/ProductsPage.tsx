@@ -16,6 +16,7 @@ import { Column, DataTable } from '../components/DataTable';
 import { BarcodeImageModal } from '../components/BarcodeImageModal';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { FilterActions } from '../components/FilterActions';
+import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { SelectField } from '../components/SelectField';
@@ -368,7 +369,8 @@ export function ProductsPage() {
         }
       />
 
-      <div className="mb-4 space-y-3">
+      <FilterPanel showLabel="Show filters" hideLabel="Hide filters">
+      <div className="space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           <Combobox
             label="Client filter"
@@ -425,6 +427,7 @@ export function ProductsPage() {
           loading={list.isFetching}
         />
       </div>
+      </FilterPanel>
 
       <DataTable
         columns={columns}

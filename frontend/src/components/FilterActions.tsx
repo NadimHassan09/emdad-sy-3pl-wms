@@ -5,11 +5,15 @@ export function FilterActions({
   onReset,
   applyDisabled,
   loading,
+  applyLabel = 'Apply filters',
+  resetLabel = 'Reset filters',
 }: {
   onApply: () => void;
   onReset: () => void;
   applyDisabled?: boolean;
   loading?: boolean;
+  applyLabel?: string;
+  resetLabel?: string;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 py-3 mt-1">
@@ -21,7 +25,7 @@ export function FilterActions({
         loading={loading}
         className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
       >
-        Apply filters
+        {applyLabel}
       </Button>
       <Button
         type="button"
@@ -30,7 +34,7 @@ export function FilterActions({
         disabled={loading}
         className="border border-rose-600 bg-rose-600 text-white hover:bg-rose-700"
       >
-        Reset filters
+        {resetLabel}
       </Button>
     </div>
   );

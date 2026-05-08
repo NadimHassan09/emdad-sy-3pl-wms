@@ -44,8 +44,8 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="text-lg font-semibold text-slate-900">Sign in</h1>
-        <p className="mt-1 text-sm text-slate-500">Internal warehouse users only.</p>
+        <h1 className="text-center text-lg font-semibold text-slate-900">Sign in</h1>
+        <p className="mt-1 text-center text-sm text-slate-500">Internal warehouse users only.</p>
 
         <form className="mt-6 space-y-4" onSubmit={onSubmit}>
           <div>
@@ -83,7 +83,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-md bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-60"
+            className="w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
           >
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>

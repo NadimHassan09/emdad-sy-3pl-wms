@@ -39,6 +39,9 @@ type ProductListParams = {
 };
 
 export function InternalTransferPage() {
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (en: string, ar: string) => (isArabic ? ar : en);
   const [createOpen, setCreateOpen] = useState(false);
   const { warehouseId } = useDefaultWarehouseId();
 
@@ -117,20 +120,20 @@ export function InternalTransferPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Internal transfer"
-        description="View transfer history and create a new internal transfer."
+        title={t('Internal transfer', 'نقل داخلي')}
+        description={t('View transfer history and create a new internal transfer.', 'عرض سجل النقل وإنشاء نقل داخلي جديد.')}
         actions={
           <Button
             onClick={() => setCreateOpen(true)}
             className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
           >
-            Create Internal Transfer
+            {t('Create Internal Transfer', 'إنشاء نقل داخلي')}
           </Button>
         }
       />
 
       {!warehouseId ? (
-        <p className="text-sm text-slate-600">Resolve warehouse configuration first.</p>
+        <p className="text-sm text-slate-600">{t('Resolve warehouse configuration first.', 'قم بحل إعدادات المستودع أولاً.')}</p>
       ) : (
         <DataTable
           columns={columns}

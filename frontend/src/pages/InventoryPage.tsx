@@ -9,6 +9,7 @@ import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterActions } from '../components/FilterActions';
+import { FilterPanel } from '../components/FilterPanel';
 import { PageHeader } from '../components/PageHeader';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
@@ -86,6 +87,9 @@ type InvDraftFilters = {
 };
 
 export function InventoryPage() {
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (en: string, ar: string) => (isArabic ? ar : en);
   const navigate = useNavigate();
   const toast = useToast();
   const { warehouseId: warehouseIdForced } = useDefaultWarehouseId();
@@ -134,92 +138,108 @@ export function InventoryPage() {
     enabled: !!warehouseIdForced,
   });
 
+  const summaryColumns: Column<ProductStockSummaryRow>[] = useMemo(
+    () => [
+      { ...SUMMARY_COLUMNS[0], header: t('Product', 'المنتج') },
+      { ...SUMMARY_COLUMNS[1], header: t('Client', 'العميل') },
+      { ...SUMMARY_COLUMNS[2], header: t('SKU', 'رمز الصنف') },
+      { ...SUMMARY_COLUMNS[3], header: t('Barcode', 'الباركود') },
+      { ...SUMMARY_COLUMNS[4], header: t('Total quantity', 'إجمالي الكمية') },
+      { ...SUMMARY_COLUMNS[5], header: t('UOM', 'وحدة القياس') },
+    ],
+    [isArabic],
+  );
+
   return (
     <>
       <PageHeader
-        title="Inventory"
-        description="Totals for the configured default warehouse — click a row for lot/location detail."
+        title={t('Inventory', 'المخزون')}
+        description={t('Totals for the configured default warehouse — click a row for lot/location detail.', 'إجماليات المستودع الافتراضي المحدد — اضغط على أي صف لعرض تفاصيل الدفعة/الموقع.')}
       />
 
       {!warehouseIdForced ? (
         <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>
       ) : null}
 
-      <div className="mb-4 space-y-3">
+      <FilterPanel showLabel={t('Show filters', 'إظهار الفلاتر')} hideLabel={t('Hide filters', 'إخفاء الفلاتر')}>
+      <div className="space-y-3">
         <div className="flex flex-wrap items-end gap-3">
           <Combobox
-            label="Client filter"
+            label={t('Client filter', 'فلتر العميل')}
             value={draftFilters.companyId}
             onChange={(v) => setDraft({ companyId: v })}
             options={[
-              { value: '', label: 'All clients' },
+              { value: '', label: t('All clients', 'كل العملاء') },
               ...(companies.data ?? []).map((c) => ({
                 value: c.id,
                 label: c.name,
                 hint: c.contactEmail,
               })),
             ]}
-            placeholder="All clients"
+            placeholder={t('All clients', 'كل العملاء')}
             className="min-w-[220px] max-w-xs"
           />
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <TextField
-            label="Product name"
+            label={t('Product name', 'اسم المنتج')}
             value={draftFilters.name}
             onChange={(e) => setDraft({ name: e.target.value })}
-            placeholder="Contains…"
+            placeholder={t('Contains…', 'يحتوي على…')}
           />
           <TextField
-            label="SKU"
+            label={t('SKU', 'رمز الصنف')}
             className="font-mono"
             value={draftFilters.sku}
             onChange={(e) => setDraft({ sku: e.target.value })}
-            placeholder="Contains…"
+            placeholder={t('Contains…', 'يحتوي على…')}
           />
           <div className="flex items-end gap-2">
             <TextField
-              label="Barcode"
+              label={t('Barcode', 'الباركود')}
               className="min-w-0 flex-1 font-mono"
               value={draftFilters.barcode}
               onChange={(e) => setDraft({ barcode: e.target.value })}
-              placeholder="Contains…"
+              placeholder={t('Contains…', 'يحتوي على…')}
             />
             <Button
               type="button"
               variant="secondary"
               className="shrink-0"
-              title="Scan a barcode with the device camera"
+              title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
               onClick={() => setScanOpen(true)}
             >
-              Scan
+              {t('Scan', 'مسح')}
             </Button>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <TextField
-            label="Lot number"
+            label={t('Lot number', 'رقم الدفعة')}
             value={draftFilters.lotNumber}
             onChange={(e) => setDraft({ lotNumber: e.target.value })}
-            placeholder="Contains…"
+            placeholder={t('Contains…', 'يحتوي على…')}
           />
           <TextField
-            label="Inbound order number"
+            label={t('Inbound order number', 'رقم طلب الوارد')}
             value={draftFilters.inboundOrderNumber}
             onChange={(e) => setDraft({ inboundOrderNumber: e.target.value })}
-            placeholder="Contains…"
-            hint="Matches inbound order number; narrows stock that was received on matching orders."
+            placeholder={t('Contains…', 'يحتوي على…')}
+            hint={t('Matches inbound order number; narrows stock that was received on matching orders.', 'يطابق رقم طلب الوارد؛ يضيّق المخزون المستلم على الطلبات المطابقة.')}
           />
         </div>
         <FilterActions
           onApply={applyFilters}
           onReset={resetFilters}
           loading={summary.isFetching}
+          applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
+          resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
         />
       </div>
+      </FilterPanel>
 
       <DataTable
-        columns={SUMMARY_COLUMNS}
+        columns={summaryColumns}
         rows={summary.data?.items ?? []}
         rowKey={(r) => r.productId}
         loading={summary.isLoading || !warehouseIdForced}
@@ -229,6 +249,14 @@ export function InventoryPage() {
             : 'Warehouse not resolved yet.'
         }
         onRowClick={(r) => navigate(`/inventory/product/${r.productId}`)}
+        labels={{
+          rowsSuffix: t('rows', 'صف'),
+          resultsSuffix: t('results', 'نتيجة'),
+          ofWord: t('of', 'من'),
+          previous: t('Previous', 'السابق'),
+          next: t('Next', 'التالي'),
+          rowsPerPageAria: t('Rows per page', 'عدد الصفوف لكل صفحة'),
+        }}
       />
 
       <p className="mt-3 text-xs text-slate-500">

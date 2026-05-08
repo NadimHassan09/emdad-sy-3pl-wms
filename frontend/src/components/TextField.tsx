@@ -18,7 +18,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
           className={`mt-1 block w-full rounded-md border px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 ${
             error
               ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
-              : 'border-slate-300 focus:border-primary-500 focus:ring-primary-200'
+              : 'border-slate-300 focus:border-emerald-500 focus:ring-emerald-200'
           } ${className}`}
           {...rest}
         />

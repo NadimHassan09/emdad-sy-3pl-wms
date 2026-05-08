@@ -6,6 +6,36 @@ import { DashboardApi } from '../api/dashboard';
 import { PageHeader } from '../components/PageHeader';
 import { QK } from '../constants/query-keys';
 
+function dashboardLabel(label: string, isArabic: boolean): string {
+  if (!isArabic) return label;
+  const ar: Record<string, string> = {
+    'Items in catalog': 'العناصر في الكتالوج',
+    'Total items in stock': 'إجمالي العناصر في المخزون',
+    'Total customers (companies)': 'إجمالي العملاء (الشركات)',
+    'Open inbound orders': 'طلبات الوارد المفتوحة',
+    'Open outbound orders': 'طلبات الصادر المفتوحة',
+    Receive: 'استلام',
+    Putaway: 'تخزين',
+    Pick: 'التقاط',
+    Pack: 'تغليف',
+    Delivery: 'تسليم',
+    Internal: 'داخلي',
+    'Open tasks by type': 'المهام المفتوحة حسب النوع',
+    'Warehouse capacity consumption': 'استهلاك سعة المستودع',
+    'occupied of': 'مشغول من',
+    'storage locations': 'مواقع تخزين',
+    consumed: 'مستهلك',
+    'Soon expiry lots (next 6 months)': 'الدفعات القريبة من الانتهاء (خلال 6 أشهر)',
+    'No lots expiring soon.': 'لا توجد دفعات تنتهي قريبًا.',
+    'Recent 5 open inbound orders': 'آخر 5 طلبات وارد مفتوحة',
+    'Go to inbound orders': 'الانتقال إلى طلبات الوارد',
+    'Recent 5 open outbound orders': 'آخر 5 طلبات صادر مفتوحة',
+    'Go to outbound orders': 'الانتقال إلى طلبات الصادر',
+    Overview: 'نظرة عامة',
+  };
+  return ar[label] ?? label;
+}
+
 function numberFmt(value: number): string {
   return new Intl.NumberFormat().format(value);
 }
@@ -43,6 +73,10 @@ function StatCard({
 }
 
 export function DashboardOverviewPage() {
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (label: string) => dashboardLabel(label, isArabic);
+
   const query = useQuery({
     queryKey: QK.dashboardOverview,
     queryFn: () => DashboardApi.overview(),
@@ -53,7 +87,7 @@ export function DashboardOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Dashboard Overview" description="Warehouse health and latest operational activity" />
+      <PageHeader title={t('Overview')} />
 
       {query.isPending ? <p className="text-sm text-slate-500">Loading dashboard overview...</p> : null}
       {query.isError ? (
@@ -65,7 +99,7 @@ export function DashboardOverviewPage() {
           <section className="grid gap-4 md:grid-cols-3">
             <StatCard
               value={numberFmt(data.counters.totalItemsInStock)}
-              title="Total items in stock"
+              title={t('Total items in stock')}
               iconBgClass="bg-sky-100"
               iconColorClass="text-sky-700"
               icon={
@@ -78,7 +112,7 @@ export function DashboardOverviewPage() {
             />
             <StatCard
               value={numberFmt(data.counters.itemsInCatalog)}
-              title="Items in catalog"
+              title={t('Items in catalog')}
               iconBgClass="bg-emerald-100"
               iconColorClass="text-emerald-700"
               icon={
@@ -90,7 +124,7 @@ export function DashboardOverviewPage() {
             />
             <StatCard
               value={numberFmt(data.counters.totalCustomers)}
-              title="Total customers (companies)"
+              title={t('Total customers (companies)')}
               iconBgClass="bg-violet-100"
               iconColorClass="text-violet-700"
               icon={
@@ -105,7 +139,7 @@ export function DashboardOverviewPage() {
           <section className="grid gap-4 md:grid-cols-2">
             <StatCard
               value={numberFmt(data.openOrders.inbound)}
-              title="Open inbound orders"
+              title={t('Open inbound orders')}
               iconBgClass="bg-amber-100"
               iconColorClass="text-amber-700"
               icon={
@@ -118,7 +152,7 @@ export function DashboardOverviewPage() {
             />
             <StatCard
               value={numberFmt(data.openOrders.outbound)}
-              title="Open outbound orders"
+              title={t('Open outbound orders')}
               iconBgClass="bg-fuchsia-100"
               iconColorClass="text-fuchsia-700"
               icon={
@@ -132,13 +166,13 @@ export function DashboardOverviewPage() {
           </section>
 
           <section>
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">Open tasks by type</h2>
+            <h2 className="mb-3 text-sm font-semibold text-slate-700">{t('Open tasks by type')}</h2>
             <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
               {data.openTasksByType.map((task) => (
                 <StatCard
                   key={task.key}
                   value={numberFmt(task.count)}
-                  title={task.label}
+                  title={t(task.label)}
                   iconBgClass="bg-slate-100"
                   iconColorClass="text-slate-700"
                   icon={
@@ -152,9 +186,9 @@ export function DashboardOverviewPage() {
           </section>
 
           <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-slate-900">Warehouse capacity consumption</h2>
+            <h2 className="text-sm font-semibold text-slate-900">{t('Warehouse capacity consumption')}</h2>
             <p className="mt-1 text-xs text-slate-500">
-              {data.capacity.occupiedLocations} occupied of {data.capacity.totalStorageLocations} storage locations
+              {data.capacity.occupiedLocations} {t('occupied of')} {data.capacity.totalStorageLocations} {t('storage locations')}
             </p>
             <div className="mt-4 h-3 w-full rounded-full bg-slate-200">
               <div
@@ -162,13 +196,15 @@ export function DashboardOverviewPage() {
                 style={{ width: `${Math.min(100, Math.max(0, data.capacity.consumedPercent))}%` }}
               />
             </div>
-            <p className="mt-2 text-sm font-medium text-slate-900">{data.capacity.consumedPercent}% consumed</p>
+            <p className="mt-2 text-sm font-medium text-slate-900">
+              {data.capacity.consumedPercent}% {t('consumed')}
+            </p>
           </section>
 
           <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-slate-900">Soon expiry lots (next 6 months)</h2>
+            <h2 className="text-sm font-semibold text-slate-900">{t('Soon expiry lots (next 6 months)')}</h2>
             {data.soonExpiryLots.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">No lots expiring soon.</p>
+              <p className="mt-3 text-sm text-slate-500">{t('No lots expiring soon.')}</p>
             ) : (
               <div className="mt-3 overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
@@ -202,9 +238,9 @@ export function DashboardOverviewPage() {
           <section className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-900">Recent 5 open inbound orders</h2>
+                <h2 className="text-sm font-semibold text-slate-900">{t('Recent 5 open inbound orders')}</h2>
                 <Link to="/orders/inbound" className="text-xs font-medium text-[#1a7a44] hover:underline">
-                  Go to inbound orders
+                  {t('Go to inbound orders')}
                 </Link>
               </div>
               <ul className="space-y-2">
@@ -230,9 +266,9 @@ export function DashboardOverviewPage() {
 
             <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-slate-900">Recent 5 open outbound orders</h2>
+                <h2 className="text-sm font-semibold text-slate-900">{t('Recent 5 open outbound orders')}</h2>
                 <Link to="/orders/outbound" className="text-xs font-medium text-[#1a7a44] hover:underline">
-                  Go to outbound orders
+                  {t('Go to outbound orders')}
                 </Link>
               </div>
               <ul className="space-y-2">

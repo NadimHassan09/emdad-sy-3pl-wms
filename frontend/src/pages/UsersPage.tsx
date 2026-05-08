@@ -14,6 +14,7 @@ import {
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { DataTable, type Column } from '../components/DataTable';
+import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { SelectField } from '../components/SelectField';
@@ -121,6 +122,9 @@ function statusPill(status: string) {
 }
 
 export function UsersPage() {
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (en: string, ar: string) => (isArabic ? ar : en);
   const qc = useQueryClient();
   const toast = useToast();
   const [createOpen, setCreateOpen] = useState(false);
@@ -143,6 +147,10 @@ export function UsersPage() {
   const [editRole, setEditRole] = useState<UserRole>('wh_operator');
   const [editStatus, setEditStatus] = useState<UserStatus>('active');
   const [editCompanyId, setEditCompanyId] = useState('');
+  const [systemSearch, setSystemSearch] = useState('');
+  const [clientSearch, setClientSearch] = useState('');
+  const [systemRoleFilter, setSystemRoleFilter] = useState('');
+  const [clientRoleFilter, setClientRoleFilter] = useState('');
 
   useEffect(() => {
     if (!openActionId) return;
@@ -263,33 +271,33 @@ export function UsersPage() {
 
   const { systemColumns, clientColumns } = useMemo(() => {
     const lead: Column<UserListRow>[] = [
-      { header: 'Email', accessor: (u) => <span className="text-slate-800">{u.email}</span> },
-      { header: 'Name', accessor: (u) => <span className="text-slate-700">{u.fullName}</span> },
-      { header: 'Phone', accessor: (u) => <span className="text-slate-600">{u.phone ?? '—'}</span> },
+      { header: t('Email', 'البريد الإلكتروني'), accessor: (u) => <span className="text-slate-800">{u.email}</span> },
+      { header: t('Name', 'الاسم'), accessor: (u) => <span className="text-slate-700">{u.fullName}</span> },
+      { header: t('Phone', 'الهاتف'), accessor: (u) => <span className="text-slate-600">{u.phone ?? '—'}</span> },
       {
-        header: 'Role',
+        header: t('Role', 'الدور'),
         accessor: (u) => <span className="text-slate-700">{roleLabel(u.role)}</span>,
       },
       {
-        header: 'Status',
+        header: t('Status', 'الحالة'),
         accessor: (u) => statusPill(u.status),
       },
     ];
     const companyCol: Column<UserListRow> = {
-      header: 'Company',
+      header: t('Company', 'الشركة'),
       accessor: (u) => <span className="text-slate-600">{u.companyName ?? '—'}</span>,
     };
     const tail: Column<UserListRow>[] = [
       {
-        header: 'Last login',
+        header: t('Last login', 'آخر تسجيل دخول'),
         accessor: (u) => <span className="text-slate-500">{formatLastLogin(u.lastLoginAt)}</span>,
       },
       {
-        header: 'Activity',
+        header: t('Activity', 'النشاط'),
         accessor: (u) => activityPill(u),
       },
       {
-        header: 'Actions',
+        header: t('Actions', 'الإجراءات'),
         className: 'min-w-[120px] text-right',
         accessor: (u) => {
           const menuOpen = openActionId === u.id;
@@ -372,7 +380,7 @@ export function UsersPage() {
       systemColumns: [...lead, ...tail],
       clientColumns: [...lead, companyCol, ...tail],
     };
-  }, [busy, openEdit, suspendMut.isPending, removeMut.isPending, openActionId]);
+  }, [busy, openEdit, suspendMut.isPending, removeMut.isPending, openActionId, isArabic]);
 
   const closeCreate = () => {
     if (!createMut.isPending) {
@@ -382,12 +390,36 @@ export function UsersPage() {
   };
 
   const systemUsers = useMemo(
-    () => (usersQuery.data ?? []).filter((u) => u.kind === 'system'),
-    [usersQuery.data],
+    () =>
+      (usersQuery.data ?? [])
+        .filter((u) => u.kind === 'system')
+        .filter((u) => {
+          const q = systemSearch.trim().toLowerCase();
+          if (q) {
+            const name = u.fullName?.toLowerCase() ?? '';
+            const email = u.email?.toLowerCase() ?? '';
+            if (!name.includes(q) && !email.includes(q)) return false;
+          }
+          if (systemRoleFilter && u.role !== systemRoleFilter) return false;
+          return true;
+        }),
+    [usersQuery.data, systemSearch, systemRoleFilter],
   );
   const clientUsers = useMemo(
-    () => (usersQuery.data ?? []).filter((u) => u.kind === 'client'),
-    [usersQuery.data],
+    () =>
+      (usersQuery.data ?? [])
+        .filter((u) => u.kind === 'client')
+        .filter((u) => {
+          const q = clientSearch.trim().toLowerCase();
+          if (q) {
+            const name = u.fullName?.toLowerCase() ?? '';
+            const email = u.email?.toLowerCase() ?? '';
+            if (!name.includes(q) && !email.includes(q)) return false;
+          }
+          if (clientRoleFilter && u.role !== clientRoleFilter) return false;
+          return true;
+        }),
+    [usersQuery.data, clientSearch, clientRoleFilter],
   );
 
   const submitCreate = (e: FormEvent) => {
@@ -448,14 +480,14 @@ export function UsersPage() {
   return (
     <>
       <PageHeader
-        title="Users"
+        title={t('Users', 'المستخدمون')}
         actions={
           <Button
             type="button"
             className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
             onClick={() => setCreateOpen(true)}
           >
-            + New user
+            {t('+ New user', '+ مستخدم جديد')}
           </Button>
         }
       />
@@ -464,24 +496,80 @@ export function UsersPage() {
 
       <div className="space-y-8">
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">System users</h2>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{t('System users', 'مستخدمو النظام')}</h2>
+          <FilterPanel showLabel={t('Show filters', 'إظهار الفلاتر')} hideLabel={t('Hide filters', 'إخفاء الفلاتر')}>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <TextField
+                label={t('Search', 'بحث')}
+                value={systemSearch}
+                onChange={(e) => setSystemSearch(e.target.value)}
+                placeholder={t('Search by name or email', 'ابحث بالاسم أو البريد الإلكتروني')}
+              />
+              <SelectField
+                label={t('Role', 'الدور')}
+                name="systemRoleFilter"
+                value={systemRoleFilter}
+                onChange={(e) => setSystemRoleFilter(e.target.value)}
+                options={[
+                  { value: '', label: t('All roles', 'كل الأدوار') },
+                  ...SYSTEM_ROLE_EDIT.map((r) => ({ value: r.value, label: r.label })),
+                ]}
+              />
+            </div>
+          </FilterPanel>
           <DataTable
             columns={systemColumns}
             rows={systemUsers}
             rowKey={(u) => u.id}
             loading={usersQuery.isLoading}
-            empty="No system users yet."
+            empty={t('No system users yet.', 'لا يوجد مستخدمو نظام بعد.')}
+            labels={{
+              rowsSuffix: t('rows', 'صف'),
+              resultsSuffix: t('results', 'نتيجة'),
+              ofWord: t('of', 'من'),
+              previous: t('Previous', 'السابق'),
+              next: t('Next', 'التالي'),
+              rowsPerPageAria: t('Rows per page', 'عدد الصفوف لكل صفحة'),
+            }}
           />
         </section>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Client users</h2>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{t('Client users', 'مستخدمو العملاء')}</h2>
+          <FilterPanel showLabel={t('Show filters', 'إظهار الفلاتر')} hideLabel={t('Hide filters', 'إخفاء الفلاتر')}>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <TextField
+                label={t('Search', 'بحث')}
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                placeholder={t('Search by name or email', 'ابحث بالاسم أو البريد الإلكتروني')}
+              />
+              <SelectField
+                label={t('Role', 'الدور')}
+                name="clientRoleFilter"
+                value={clientRoleFilter}
+                onChange={(e) => setClientRoleFilter(e.target.value)}
+                options={[
+                  { value: '', label: t('All roles', 'كل الأدوار') },
+                  ...CLIENT_ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label })),
+                ]}
+              />
+            </div>
+          </FilterPanel>
           <DataTable
             columns={clientColumns}
             rows={clientUsers}
             rowKey={(u) => u.id}
             loading={usersQuery.isLoading}
-            empty="No client users yet."
+            empty={t('No client users yet.', 'لا يوجد مستخدمو عملاء بعد.')}
+            labels={{
+              rowsSuffix: t('rows', 'صف'),
+              resultsSuffix: t('results', 'نتيجة'),
+              ofWord: t('of', 'من'),
+              previous: t('Previous', 'السابق'),
+              next: t('Next', 'التالي'),
+              rowsPerPageAria: t('Rows per page', 'عدد الصفوف لكل صفحة'),
+            }}
           />
         </section>
       </div>
@@ -489,12 +577,12 @@ export function UsersPage() {
       <Modal
         open={createOpen}
         onClose={closeCreate}
-        title="New user"
+        title={t('New user', 'مستخدم جديد')}
         widthClass="max-w-lg"
         footer={
           <>
             <Button type="button" variant="secondary" onClick={closeCreate} disabled={createMut.isPending}>
-              Cancel
+              {t('Cancel', 'إلغاء')}
             </Button>
             <Button
               type="submit"
@@ -502,7 +590,7 @@ export function UsersPage() {
               loading={createMut.isPending}
               className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
             >
-              Create
+              {t('Create', 'إنشاء')}
             </Button>
           </>
         }
@@ -513,14 +601,14 @@ export function UsersPage() {
           className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1"
         >
           <SelectField
-            label="User type"
+            label={t('User type', 'نوع المستخدم')}
             name="kind"
             value={kind}
             onChange={(e) => setKind(e.target.value as 'system' | 'client')}
             options={KIND_OPTIONS}
           />
           <TextField
-            label="Email"
+            label={t('Email', 'البريد الإلكتروني')}
             type="email"
             name="email"
             required
@@ -529,20 +617,20 @@ export function UsersPage() {
             onChange={(e) => setEmail(e.target.value)}
           />
           <TextField
-            label="Full name"
+            label={t('Full name', 'الاسم الكامل')}
             name="fullName"
             required
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
           />
           <TextField
-            label="Phone (optional)"
+            label={t('Phone (optional)', 'الهاتف (اختياري)')}
             name="phone"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
           <TextField
-            label="Password"
+            label={t('Password', 'كلمة المرور')}
             type="password"
             name="password"
             required
@@ -550,12 +638,12 @@ export function UsersPage() {
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            hint="Minimum 8 characters. Stored hashed on the server."
+            hint={t('Minimum 8 characters. Stored hashed on the server.', '8 أحرف على الأقل. تُخزن مشفرة على الخادم.')}
           />
           {kind === 'system' ? (
             <>
               <SelectField
-                label="System role"
+                label={t('System role', 'دور النظام')}
                 name="systemRole"
                 value={systemRole}
                 onChange={(e) => {
@@ -567,7 +655,7 @@ export function UsersPage() {
               />
               {systemRole === 'worker' ? (
                 <Combobox
-                  label="Default warehouse (optional)"
+                  label={t('Default warehouse (optional)', 'المستودع الافتراضي (اختياري)')}
                   value={workerWarehouseId}
                   onChange={setWorkerWarehouseId}
                   options={(warehousesQuery.data ?? []).map((w) => ({
@@ -575,16 +663,16 @@ export function UsersPage() {
                     label: w.name,
                     hint: w.code,
                   }))}
-                  placeholder="Any warehouse…"
-                  emptyMessage="No warehouses loaded."
-                  hint="Stored on the worker profile. Requires a tenant session (X-Company-Id)."
+                  placeholder={t('Any warehouse…', 'أي مستودع…')}
+                  emptyMessage={t('No warehouses loaded.', 'لا توجد مستودعات محملة.')}
+                  hint={t('Stored on the worker profile. Requires a tenant session (X-Company-Id).', 'يُخزن في ملف العامل. يتطلب جلسة مستأجر (X-Company-Id).')}
                 />
               ) : null}
             </>
           ) : (
             <>
               <Combobox
-                label="Company"
+                label={t('Company', 'الشركة')}
                 required
                 value={companyId}
                 onChange={setCompanyId}
@@ -593,11 +681,11 @@ export function UsersPage() {
                   label: c.name,
                   hint: c.contactEmail,
                 }))}
-                placeholder="Search company…"
-                emptyMessage="No companies match."
+                placeholder={t('Search company…', 'ابحث عن شركة…')}
+                emptyMessage={t('No companies match.', 'لا توجد شركات مطابقة.')}
               />
               <SelectField
-                label="Client role"
+                label={t('Client role', 'دور العميل')}
                 name="clientRole"
                 value={clientRole}
                 onChange={(e) => setClientRole(e.target.value as typeof clientRole)}
@@ -612,22 +700,22 @@ export function UsersPage() {
         <Modal
           open
           onClose={() => !updateMut.isPending && closeEdit()}
-          title={`Edit ${editUser.email}`}
+          title={`${t('Edit', 'تعديل')} ${editUser.email}`}
           widthClass="max-w-lg"
           footer={
             <>
               <Button type="button" variant="secondary" onClick={closeEdit} disabled={updateMut.isPending}>
-                Cancel
+                {t('Cancel', 'إلغاء')}
               </Button>
               <Button type="submit" form="edit-user" loading={updateMut.isPending}>
-                Save
+                {t('Save', 'حفظ')}
               </Button>
             </>
           }
         >
           <form id="edit-user" onSubmit={submitEdit} className="space-y-3">
             <TextField
-              label="Email"
+              label={t('Email', 'البريد الإلكتروني')}
               type="email"
               name="edit-email"
               required
@@ -635,27 +723,27 @@ export function UsersPage() {
               onChange={(e) => setEditEmail(e.target.value)}
             />
             <TextField
-              label="Full name"
+              label={t('Full name', 'الاسم الكامل')}
               name="edit-fullName"
               required
               value={editFullName}
               onChange={(e) => setEditFullName(e.target.value)}
             />
             <TextField
-              label="Phone"
+              label={t('Phone', 'الهاتف')}
               name="edit-phone"
               value={editPhone}
               onChange={(e) => setEditPhone(e.target.value)}
             />
             <SelectField
-              label="Status"
+              label={t('Status', 'الحالة')}
               name="edit-status"
               value={editStatus}
               onChange={(e) => setEditStatus(e.target.value as UserStatus)}
               options={STATUS_OPTIONS}
             />
             <SelectField
-              label={editUser.kind === 'system' ? 'System role' : 'Client role'}
+              label={editUser.kind === 'system' ? t('System role', 'دور النظام') : t('Client role', 'دور العميل')}
               name="edit-role"
               value={editRole}
               onChange={(e) => setEditRole(e.target.value as UserRole)}
@@ -672,18 +760,18 @@ export function UsersPage() {
                   label: c.name,
                   hint: c.contactEmail,
                 }))}
-                placeholder="Search company…"
-                emptyMessage="No companies match."
+                placeholder={t('Search company…', 'ابحث عن شركة…')}
+                emptyMessage={t('No companies match.', 'لا توجد شركات مطابقة.')}
               />
             ) : null}
             <TextField
-              label="New password (optional)"
+              label={t('New password (optional)', 'كلمة مرور جديدة (اختياري)')}
               type="password"
               name="edit-password"
               autoComplete="new-password"
               value={editPassword}
               onChange={(e) => setEditPassword(e.target.value)}
-              hint="Leave blank to keep the current password."
+              hint={t('Leave blank to keep the current password.', 'اتركه فارغا للاحتفاظ بكلمة المرور الحالية.')}
             />
           </form>
         </Modal>

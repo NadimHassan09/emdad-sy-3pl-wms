@@ -151,6 +151,10 @@ async function decodeCanvasWithHtml5(elementId: string, canvas: HTMLCanvasElemen
 }
 
 export function BarcodeScanModal({ open, onClose, onScan, onCameraError }: BarcodeScanModalProps) {
+  const isArabic =
+    typeof document !== 'undefined' &&
+    (document.documentElement.dir === 'rtl' || window.localStorage.getItem('wms-ui-language') === 'AR');
+  const t = (en: string, ar: string) => (isArabic ? ar : en);
   const photoHostId = useId().replace(/:/g, '');
   const liveHostId = useId().replace(/:/g, '');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -270,7 +274,12 @@ export function BarcodeScanModal({ open, onClose, onScan, onCameraError }: Barco
     const host = document.getElementById(liveHostId);
     const video = host?.querySelector('video') as HTMLVideoElement | null;
     if (!video || video.readyState < 2 || video.videoWidth < 8) {
-      setHint('Camera is still starting — wait a moment, then tap Scan now again.');
+      setHint(
+        t(
+          'Camera is still starting — wait a moment, then tap Scan now again.',
+          'الكاميرا ما زالت تبدأ التشغيل — انتظر لحظة ثم اضغط "امسح الآن" مرة أخرى.',
+        ),
+      );
       return;
     }
     setBusy(true);
@@ -288,7 +297,10 @@ export function BarcodeScanModal({ open, onClose, onScan, onCameraError }: Barco
       finishSuccess(text);
     } catch {
       setHint(
-        'No barcode read. Move closer so bars are sharp, add light, avoid glare, then tap Scan now. You can also use Take photo for a still capture.',
+        t(
+          'No barcode read. Move closer so bars are sharp, add light, avoid glare, then tap Scan now. You can also use Take photo for a still capture.',
+          'لم يتم قراءة الباركود. اقترب أكثر لتصبح الخطوط واضحة، زد الإضاءة، وتجنب الوهج، ثم اضغط "امسح الآن". يمكنك أيضا استخدام "التقاط صورة للباركود".',
+        ),
       );
     } finally {
       setBusy(false);
@@ -307,7 +319,10 @@ export function BarcodeScanModal({ open, onClose, onScan, onCameraError }: Barco
       finishSuccess(text);
     } catch {
       setHint(
-        'No barcode was read from this photo. Try again with better light, hold steadier, or move closer so the code is sharp.',
+        t(
+          'No barcode was read from this photo. Try again with better light, hold steadier, or move closer so the code is sharp.',
+          'لم تتم قراءة باركود من هذه الصورة. حاول مجددا بإضاءة أفضل، وثبات أكثر، أو بالاقتراب ليصبح الرمز واضحا.',
+        ),
       );
     } finally {
       setBusy(false);
@@ -318,19 +333,28 @@ export function BarcodeScanModal({ open, onClose, onScan, onCameraError }: Barco
     <Modal
       open={open}
       onClose={handleUserClose}
-      title="Scan barcode"
+      title={t('Scan barcode', 'مسح الباركود')}
       widthClass="max-w-lg"
       footer={
         <>
           <Button type="button" variant="secondary" onClick={handleUserClose} disabled={busy}>
-            Cancel
+            {t('Cancel', 'إلغاء')}
           </Button>
         </>
       }
     >
       <p className="mb-3 text-sm text-slate-600">
-        <strong>Take a photo</strong> of the label (surrounding scene is fine). Or open <strong>live camera</strong>,
-        aim at the barcode, then tap <strong>Scan now</strong> to read the current frame.
+        {t(
+          'Take a photo',
+          'التقط صورة',
+        )}{' '}
+        {t(
+          'of the label (surrounding scene is fine). Or open',
+          'للملصق (لا مشكلة في ظهور المشهد المحيط). أو افتح',
+        )}{' '}
+        <strong>{t('live camera', 'الكاميرا المباشرة')}</strong>,{' '}
+        {t('aim at the barcode, then tap', 'وجه الكاميرا إلى الباركود، ثم اضغط')}{' '}
+        <strong>{t('Scan now', 'امسح الآن')}</strong> {t('to read the current frame.', 'لقراءة الإطار الحالي.')}.
       </p>
 
       <input
@@ -358,7 +382,7 @@ export function BarcodeScanModal({ open, onClose, onScan, onCameraError }: Barco
           disabled={busy}
           onClick={() => fileInputRef.current?.click()}
         >
-          Take photo of barcode
+          {t('Take photo of barcode', 'التقط صورة للباركود')}
         </Button>
         <Button
           type="button"
@@ -369,7 +393,7 @@ export function BarcodeScanModal({ open, onClose, onScan, onCameraError }: Barco
             setLiveMode((v) => !v);
           }}
         >
-          {liveMode ? 'Stop live camera' : 'Use live camera'}
+          {liveMode ? t('Stop live camera', 'إيقاف الكاميرا المباشرة') : t('Use live camera', 'استخدام الكاميرا المباشرة')}
         </Button>
       </div>
 
@@ -381,7 +405,7 @@ export function BarcodeScanModal({ open, onClose, onScan, onCameraError }: Barco
           />
           <div className="flex justify-center">
             <Button type="button" onClick={() => void scanLiveCameraFrame()} disabled={busy} loading={busy}>
-              Scan now
+              {t('Scan now', 'امسح الآن')}
             </Button>
           </div>
         </div>
@@ -389,7 +413,7 @@ export function BarcodeScanModal({ open, onClose, onScan, onCameraError }: Barco
 
       {busy ? (
         <p className="mt-3 text-center text-sm text-slate-600">
-          {liveMode ? 'Reading frame…' : 'Reading image…'}
+          {liveMode ? t('Reading frame…', 'جاري قراءة الإطار…') : t('Reading image…', 'جاري قراءة الصورة…')}
         </p>
       ) : null}
       {hint ? <p className="mt-3 text-center text-sm text-rose-600">{hint}</p> : null}

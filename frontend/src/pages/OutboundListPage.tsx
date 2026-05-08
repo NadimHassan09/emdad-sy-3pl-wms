@@ -12,6 +12,7 @@ import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterActions } from '../components/FilterActions';
+import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
@@ -37,32 +38,44 @@ type OutListDraft = {
   createdTo: string;
 };
 
-const COLUMNS: Column<OutboundOrder>[] = [
-  {
-    header: 'Order #',
-    accessor: (o) => <span className="font-mono">{o.orderNumber || '—'}</span>,
-    width: '170px',
-  },
-  {
-    header: 'Client',
-    accessor: (o) => o.company?.name ?? '—',
-    width: '200px',
-  },
-  { header: 'Status', accessor: (o) => <StatusBadge status={o.status} />, width: '160px' },
-  {
-    header: 'Required ship',
-    accessor: (o) => new Date(o.requiredShipDate).toLocaleDateString(),
-    width: '140px',
-  },
-  { header: 'Lines', accessor: (o) => o._count?.lines ?? 0, width: '70px' },
-  { header: 'Destination', accessor: (o) => o.destinationAddress },
-];
+function outboundLabel(label: string, isArabic: boolean): string {
+  if (!isArabic) return label;
+  const ar: Record<string, string> = {
+    'Outbound orders': 'طلبات الصادر',
+    '+ New outbound': '+ صادر جديد',
+    'Order id / number': 'معرف / رقم الطلب',
+    'UUID or contains order #': 'UUID أو يحتوي على رقم الطلب #',
+    Client: 'العميل',
+    'Created from': 'تاريخ الإنشاء من',
+    'Created to': 'تاريخ الإنشاء إلى',
+    'Apply filters': 'تطبيق الفلاتر',
+    'Reset filters': 'إعادة تعيين الفلاتر',
+    'Order #': 'رقم الطلب #',
+    Status: 'الحالة',
+    'Required ship': 'الشحن المطلوب',
+    Lines: 'البنود',
+    Destination: 'الوجهة',
+    rows: 'صف',
+    results: 'نتيجة',
+    of: 'من',
+    Previous: 'السابق',
+    Next: 'التالي',
+    'Rows per page': 'عدد الصفوف لكل صفحة',
+    'New outbound order': 'طلب صادر جديد',
+    Cancel: 'إلغاء',
+    Create: 'إنشاء',
+  };
+  return ar[label] ?? label;
+}
 
 export function OutboundListPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (label: string) => outboundLabel(label, isArabic);
   const { warehouseId: wid } = useDefaultWarehouseId();
 
   const initialList = useMemo<OutListDraft>(
@@ -115,17 +128,36 @@ export function OutboundListPage() {
     },
   });
 
+  const columns: Column<OutboundOrder>[] = useMemo(
+    () => [
+      {
+        header: t('Order #'),
+        accessor: (o) => <span className="font-mono">{o.orderNumber || '—'}</span>,
+        width: '170px',
+      },
+      { header: t('Client'), accessor: (o) => o.company?.name ?? '—', width: '200px' },
+      { header: t('Status'), accessor: (o) => <StatusBadge status={o.status} />, width: '160px' },
+      {
+        header: t('Required ship'),
+        accessor: (o) => new Date(o.requiredShipDate).toLocaleDateString(),
+        width: '140px',
+      },
+      { header: t('Lines'), accessor: (o) => o._count?.lines ?? 0, width: '70px' },
+      { header: t('Destination'), accessor: (o) => o.destinationAddress },
+    ],
+    [isArabic],
+  );
+
   return (
     <>
       <PageHeader
-        title="Outbound orders"
-        description="Shipments out — lists are scoped to the default warehouse when configured."
+        title={t('Outbound orders')}
         actions={
           <Button
             onClick={() => setOpen(true)}
             className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
           >
-            + New outbound
+            {t('+ New outbound')}
           </Button>
         }
       />
@@ -134,16 +166,17 @@ export function OutboundListPage() {
         <p className="mb-3 text-sm text-slate-600">Resolve warehouse configuration…</p>
       ) : null}
 
-      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+      <FilterPanel showLabel={t('Show filters')} hideLabel={t('Hide filters')}>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
         <TextField
-          label="Order id / number"
+          label={t('Order id / number')}
           value={draftFilters.orderSearch}
           onChange={(e) => setDraft({ orderSearch: e.target.value })}
-          placeholder="UUID or contains order #"
+          placeholder={t('UUID or contains order #')}
           className="font-mono text-xs"
         />
         <Combobox
-          label="Client"
+          label={t('Client')}
           value={draftFilters.companyId}
           onChange={(v) => setDraft({ companyId: v })}
           options={(companies.data ?? []).map((c) => ({
@@ -153,27 +186,42 @@ export function OutboundListPage() {
           placeholder="All clients"
         />
         <TextField
-          label="Created from"
+          label={t('Created from')}
           type="date"
           value={draftFilters.createdFrom}
           onChange={(e) => setDraft({ createdFrom: e.target.value })}
         />
         <TextField
-          label="Created to"
+          label={t('Created to')}
           type="date"
           value={draftFilters.createdTo}
           onChange={(e) => setDraft({ createdTo: e.target.value })}
         />
       </div>
-      <FilterActions onApply={applyFilters} onReset={resetFilters} loading={list.isFetching} />
+      <FilterActions
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={list.isFetching}
+        applyLabel={t('Apply filters')}
+        resetLabel={t('Reset filters')}
+      />
+      </FilterPanel>
 
       <DataTable
-        columns={COLUMNS}
+        columns={columns}
         rows={list.data?.items ?? []}
         rowKey={(o) => o.id}
         loading={list.isLoading || !wid}
         onRowClick={(o) => navigate(`/orders/outbound/${o.id}`)}
         empty={wid ? 'No outbound orders match the filters.' : 'Warehouse not resolved yet.'}
+        labels={{
+          rowsSuffix: t('rows'),
+          resultsSuffix: t('results'),
+          ofWord: t('of'),
+          previous: t('Previous'),
+          next: t('Next'),
+          rowsPerPageAria: t('Rows per page'),
+        }}
       />
 
       <CreateOutboundModal
@@ -403,6 +451,7 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
             required
             value={companyId}
             onChange={setCompanyId}
+            dropdownInFlow
             options={(companies.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
             placeholder="Pick a client…"
           />

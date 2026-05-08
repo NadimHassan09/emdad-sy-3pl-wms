@@ -14,6 +14,7 @@ import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterActions } from '../components/FilterActions';
+import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
@@ -32,46 +33,54 @@ type ListDraft = {
   createdTo: string;
 };
 
-const COLUMNS: Column<InboundOrder>[] = [
-  {
-    header: 'Order #',
-    accessor: (o) => <span className="font-mono">{o.orderNumber || '—'}</span>,
-    width: '170px',
-  },
-  {
-    header: 'Client',
-    accessor: (o) => o.company?.name ?? '—',
-    width: '200px',
-  },
-  {
-    header: 'Status',
-    accessor: (o) => (
-      <div className="flex flex-col gap-0.5">
-        <StatusBadge status={o.status} />
-        {inboundHasQuantityShortfall(o) && (o.status === 'completed' || o.status === 'partially_received') ? (
-          <span className="text-[10px] leading-tight text-amber-800">Missing quantities</span>
-        ) : null}
-      </div>
-    ),
-    width: '160px',
-  },
-  {
-    header: 'Expected arrival',
-    accessor: (o) => new Date(o.expectedArrivalDate).toLocaleDateString(),
-    width: '160px',
-  },
-  { header: 'Lines', accessor: (o) => o._count?.lines ?? 0, width: '70px' },
-  {
-    header: 'Created',
-    accessor: (o) => new Date(o.createdAt).toLocaleString(),
-  },
-];
+function inboundLabel(label: string, isArabic: boolean): string {
+  if (!isArabic) return label;
+  const ar: Record<string, string> = {
+    'Inbound orders': 'طلبات الوارد',
+    '+ New inbound': '+ وارد جديد',
+    'Order id / number': 'معرف / رقم الطلب',
+    'UUID or contains order #': 'UUID أو يحتوي على رقم الطلب #',
+    Client: 'العميل',
+    'Created from': 'تاريخ الإنشاء من',
+    'Created to': 'تاريخ الإنشاء إلى',
+    'Apply filters': 'تطبيق الفلاتر',
+    'Reset filters': 'إعادة تعيين الفلاتر',
+    'Order #': 'رقم الطلب #',
+    Status: 'الحالة',
+    'Expected arrival': 'تاريخ الوصول المتوقع',
+    Lines: 'البنود',
+    Created: 'تاريخ الإنشاء',
+    rows: 'صف',
+    results: 'نتيجة',
+    of: 'من',
+    Previous: 'السابق',
+    Next: 'التالي',
+    'Rows per page': 'عدد الصفوف لكل صفحة',
+    'New inbound order': 'طلب وارد جديد',
+    'Expected arrival date': 'تاريخ الوصول المتوقع',
+    Notes: 'ملاحظات',
+    Barcode: 'الباركود',
+    'Scan or type…': 'امسح أو اكتب…',
+    'Add by barcode': 'إضافة بالباركود',
+    'Scan barcode': 'مسح الباركود',
+    '+ Add line': '+ إضافة بند',
+    Product: 'المنتج',
+    'Pick product…': 'اختر المنتج…',
+    Quantity: 'الكمية',
+    Cancel: 'إلغاء',
+    Create: 'إنشاء',
+  };
+  return ar[label] ?? label;
+}
 
 export function InboundListPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (label: string) => inboundLabel(label, isArabic);
   const { warehouseId: wid } = useDefaultWarehouseId();
 
   const initialList = useMemo<ListDraft>(
@@ -122,16 +131,54 @@ export function InboundListPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const columns: Column<InboundOrder>[] = useMemo(
+    () => [
+      {
+        header: t('Order #'),
+        accessor: (o) => <span className="font-mono">{o.orderNumber || '—'}</span>,
+        width: '170px',
+      },
+      {
+        header: t('Client'),
+        accessor: (o) => o.company?.name ?? '—',
+        width: '200px',
+      },
+      {
+        header: t('Status'),
+        accessor: (o) => (
+          <div className="flex flex-col gap-0.5">
+            <StatusBadge status={o.status} />
+            {inboundHasQuantityShortfall(o) && (o.status === 'completed' || o.status === 'partially_received') ? (
+              <span className="text-[10px] leading-tight text-amber-800">Missing quantities</span>
+            ) : null}
+          </div>
+        ),
+        width: '160px',
+      },
+      {
+        header: t('Expected arrival'),
+        accessor: (o) => new Date(o.expectedArrivalDate).toLocaleDateString(),
+        width: '160px',
+      },
+      { header: t('Lines'), accessor: (o) => o._count?.lines ?? 0, width: '70px' },
+      {
+        header: t('Created'),
+        accessor: (o) => new Date(o.createdAt).toLocaleString(),
+      },
+    ],
+    [isArabic],
+  );
+
   return (
     <>
       <PageHeader
-        title="Inbound orders"
+        title={t('Inbound orders')}
         actions={
           <Button
             onClick={() => setOpen(true)}
             className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
           >
-            + New inbound
+            {t('+ New inbound')}
           </Button>
         }
       />
@@ -140,46 +187,56 @@ export function InboundListPage() {
         <p className="mb-3 text-sm text-slate-600">Resolve warehouse configuration…</p>
       ) : null}
 
-      <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <TextField
-          label="Order id / number"
-          value={draftFilters.orderSearch}
-          onChange={(e) => setDraft({ orderSearch: e.target.value })}
-          placeholder="UUID or contains order #"
-          className="font-mono text-xs"
-        />
-        <Combobox
-          label="Client"
-          value={draftFilters.companyId}
-          onChange={(v) => setDraft({ companyId: v })}
-          options={(companies.data ?? []).map((c) => ({
-            value: c.id,
-            label: c.name,
-          }))}
-          placeholder="All clients"
-        />
-        <TextField
-          label="Created from"
-          type="date"
-          value={draftFilters.createdFrom}
-          onChange={(e) => setDraft({ createdFrom: e.target.value })}
-        />
-        <TextField
-          label="Created to"
-          type="date"
-          value={draftFilters.createdTo}
-          onChange={(e) => setDraft({ createdTo: e.target.value })}
-        />
-      </div>
-      <FilterActions onApply={applyFilters} onReset={resetFilters} loading={list.isFetching} />
+      <FilterPanel showLabel={t('Show filters')} hideLabel={t('Hide filters')}>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+          <TextField
+            label={t('Order id / number')}
+            value={draftFilters.orderSearch}
+            onChange={(e) => setDraft({ orderSearch: e.target.value })}
+            placeholder={t('UUID or contains order #')}
+            className="font-mono text-xs"
+          />
+          <Combobox
+            label={t('Client')}
+            value={draftFilters.companyId}
+            onChange={(v) => setDraft({ companyId: v })}
+            options={(companies.data ?? []).map((c) => ({
+              value: c.id,
+              label: c.name,
+            }))}
+            placeholder="All clients"
+          />
+          <TextField
+            label={t('Created from')}
+            type="date"
+            value={draftFilters.createdFrom}
+            onChange={(e) => setDraft({ createdFrom: e.target.value })}
+          />
+          <TextField
+            label={t('Created to')}
+            type="date"
+            value={draftFilters.createdTo}
+            onChange={(e) => setDraft({ createdTo: e.target.value })}
+          />
+        </div>
+        <FilterActions onApply={applyFilters} onReset={resetFilters} loading={list.isFetching} applyLabel={t('Apply filters')} resetLabel={t('Reset filters')} />
+      </FilterPanel>
 
       <DataTable
-        columns={COLUMNS}
+        columns={columns}
         rows={list.data?.items ?? []}
         rowKey={(o) => o.id}
         loading={list.isLoading || !wid}
         onRowClick={(o) => navigate(`/orders/inbound/${o.id}`)}
         empty={wid ? 'No inbound orders match the filters.' : 'Warehouse not resolved yet.'}
+        labels={{
+          rowsSuffix: t('rows'),
+          resultsSuffix: t('results'),
+          ofWord: t('of'),
+          previous: t('Previous'),
+          next: t('Next'),
+          rowsPerPageAria: t('Rows per page'),
+        }}
       />
 
       <CreateInboundModal
@@ -187,6 +244,7 @@ export function InboundListPage() {
         onClose={() => setOpen(false)}
         loading={createMut.isPending}
         onSubmit={(input) => createMut.mutate(input)}
+        isArabic={isArabic}
       />
     </>
   );
@@ -209,10 +267,12 @@ interface CreateInboundModalProps {
   onClose: () => void;
   loading: boolean;
   onSubmit: (input: CreateInboundOrderInput) => void;
+  isArabic: boolean;
 }
 
-function CreateInboundModal({ open, onClose, loading, onSubmit }: CreateInboundModalProps) {
+function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: CreateInboundModalProps) {
   const toast = useToast();
+  const t = (label: string) => inboundLabel(label, isArabic);
   const [companyId, setCompanyId] = useState(DEFAULT_COMPANY_ID);
   const [arrival, setArrival] = useState(() => new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState('');
@@ -335,12 +395,12 @@ function CreateInboundModal({ open, onClose, loading, onSubmit }: CreateInboundM
     <Modal
       open={open}
       onClose={handleClose}
-      title="New inbound order"
+      title={t('New inbound order')}
       widthClass="max-w-3xl"
       footer={
         <>
           <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button
             form="create-inbound"
@@ -348,7 +408,7 @@ function CreateInboundModal({ open, onClose, loading, onSubmit }: CreateInboundM
             loading={loading}
             className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
           >
-            Create
+            {t('Create')}
           </Button>
         </>
       }
@@ -356,32 +416,33 @@ function CreateInboundModal({ open, onClose, loading, onSubmit }: CreateInboundM
       <form id="create-inbound" onSubmit={submit} className="max-h-[calc(100vh-220px)] space-y-4 overflow-y-auto pr-1">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Combobox
-            label="Client"
+            label={t('Client')}
             required
             value={companyId}
             onChange={setCompanyId}
+            dropdownInFlow
             options={(companies.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-            placeholder="Pick a client…"
+            placeholder={isArabic ? 'اختر عميلاً…' : 'Pick a client…'}
           />
           <TextField
-            label="Expected arrival date"
+            label={t('Expected arrival date')}
             type="date"
             required
             value={arrival}
             onChange={(e) => setArrival(e.target.value)}
           />
         </div>
-        <TextField label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <TextField label={t('Notes')} value={notes} onChange={(e) => setNotes(e.target.value)} />
 
         <div>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-sm font-medium text-slate-700">Lines</span>
+            <span className="text-sm font-medium text-slate-700">{t('Lines')}</span>
             <div className="flex flex-wrap items-end gap-2">
               <TextField
-                label="Barcode"
+                label={t('Barcode')}
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
-                placeholder="Scan or type…"
+                placeholder={t('Scan or type…')}
                 className="min-w-[160px]"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -397,7 +458,7 @@ function CreateInboundModal({ open, onClose, loading, onSubmit }: CreateInboundM
                 disabled={!companyId || loading}
                 onClick={() => void applyProductByBarcode(barcodeInput)}
               >
-                Add by barcode
+                {t('Add by barcode')}
               </Button>
               <Button
                 type="button"
@@ -406,7 +467,7 @@ function CreateInboundModal({ open, onClose, loading, onSubmit }: CreateInboundM
                 disabled={!companyId || loading}
                 onClick={() => setScanOpen(true)}
               >
-                Scan barcode
+                {t('Scan barcode')}
               </Button>
               <Button
                 type="button"
@@ -414,7 +475,7 @@ function CreateInboundModal({ open, onClose, loading, onSubmit }: CreateInboundM
                 variant="secondary"
                 onClick={() => setLines((prev) => [...prev, { productId: '', expectedQuantity: '' }])}
               >
-                + Add line
+                {t('+ Add line')}
               </Button>
             </div>
           </div>
@@ -428,11 +489,11 @@ function CreateInboundModal({ open, onClose, loading, onSubmit }: CreateInboundM
                 >
                   <div className="col-span-8">
                     <Combobox
-                      label={idx === 0 ? 'Product' : ''}
+                      label={idx === 0 ? t('Product') : ''}
                       value={l.productId}
                       onChange={(v) => updateLine(idx, { productId: v })}
                       options={productOptions}
-                      placeholder={!companyId ? 'Pick a client first' : 'Pick product…'}
+                      placeholder={!companyId ? (isArabic ? 'اختر عميلاً أولاً' : 'Pick a client first') : t('Pick product…')}
                       disabled={!companyId}
                     />
                     {selectedProduct ? (
@@ -447,7 +508,7 @@ function CreateInboundModal({ open, onClose, loading, onSubmit }: CreateInboundM
                   </div>
                   <div className="col-span-3">
                     <TextField
-                      label={idx === 0 ? 'Quantity' : ''}
+                      label={idx === 0 ? t('Quantity') : ''}
                       type="number"
                       min={0}
                       step="0.0001"

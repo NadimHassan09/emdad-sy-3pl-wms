@@ -5,18 +5,21 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { WarehouseTaskListItem } from '../api/tasks';
 import { TasksApi } from '../api/tasks';
 import { Column, DataTable } from '../components/DataTable';
+import { FilterPanel } from '../components/FilterPanel';
 import { PageHeader } from '../components/PageHeader';
+import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { QK } from '../constants/query-keys';
 
 export function TasksListPage() {
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (en: string, ar: string) => (isArabic ? ar : en);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [taskTypeFilter, setTaskTypeFilter] = useState(() => searchParams.get('taskType') ?? '');
-  const [referenceFilter, setReferenceFilter] = useState('');
-  const [workerFilter, setWorkerFilter] = useState('');
-  const [referenceTypeClient, setReferenceTypeClient] = useState('');
+  const [searchFilter, setSearchFilter] = useState('');
 
   useEffect(() => {
     setTaskTypeFilter(searchParams.get('taskType') ?? '');
@@ -28,45 +31,51 @@ export function TasksListPage() {
     f.offset = '0';
     const tt = taskTypeFilter.trim();
     if (tt) f.taskType = tt;
-    const refTrim = referenceFilter.trim();
-    if (refTrim) f.referenceId = refTrim;
-    const wTrim = workerFilter.trim();
-    if (wTrim) f.workerId = wTrim;
+    const q = searchFilter.trim();
+    if (q) {
+      // Server-side assist: typically matches related order reference ids.
+      f.referenceId = q;
+    }
     return f;
-  }, [taskTypeFilter, referenceFilter, workerFilter]);
+  }, [taskTypeFilter, searchFilter]);
 
   const query = useQuery({
     queryKey: QK.tasks.list(filters),
     queryFn: () => TasksApi.list(filters),
   });
-
-  const refTypeLower = referenceTypeClient.trim().toLowerCase();
   const rows = useMemo(() => {
     const items = query.data?.items ?? [];
-    if (!refTypeLower) return items;
-    return items.filter((t) => {
-      const rt = t.workflowInstance?.referenceType?.toLowerCase() ?? '';
-      if (refTypeLower === 'inbound') return rt.includes('inbound');
-      if (refTypeLower === 'outbound') return rt.includes('outbound');
-      return rt === refTypeLower;
+    const q = searchFilter.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((r) => {
+      const taskId = r.id?.toLowerCase() ?? '';
+      const refId = r.workflowInstance?.referenceId?.toLowerCase() ?? '';
+      const workerId = r.assignments?.[0]?.worker?.id?.toLowerCase() ?? '';
+      const workerName = r.assignments?.[0]?.worker?.displayName?.toLowerCase() ?? '';
+      return taskId.includes(q) || refId.includes(q) || workerId.includes(q) || workerName.includes(q);
     });
-  }, [query.data?.items, refTypeLower]);
+  }, [query.data?.items, searchFilter]);
+
+  const taskTypeOptions = [
+    { value: '', label: t('All task types', 'كل أنواع المهام') },
+    { value: 'receiving', label: 'receiving' },
+    { value: 'qc', label: 'qc' },
+    { value: 'putaway', label: 'putaway' },
+    { value: 'putaway_quarantine', label: 'putaway_quarantine' },
+    { value: 'pick', label: 'pick' },
+    { value: 'pack', label: 'pack' },
+    { value: 'dispatch', label: 'dispatch' },
+    { value: 'routing', label: 'routing' },
+  ];
 
   const columns: Column<WarehouseTaskListItem>[] = [
     {
-      header: 'task_type',
+      header: t('task_type', 'نوع_المهمة'),
       accessor: (r) => <span className="font-mono text-sm">{r.taskType}</span>,
       width: '120px',
     },
     {
-      header: 'reference_type',
-      accessor: (r) => (
-        <span className="text-xs text-slate-700">{r.workflowInstance?.referenceType ?? '—'}</span>
-      ),
-      width: '140px',
-    },
-    {
-      header: 'reference_id',
+      header: t('reference_id', 'معرف_المرجع'),
       accessor: (r) => (
         <span className="font-mono text-xs" title={r.workflowInstance?.referenceId}>
           {r.workflowInstance?.referenceId
@@ -76,9 +85,9 @@ export function TasksListPage() {
       ),
       width: '120px',
     },
-    { header: 'status', accessor: (r) => <StatusBadge status={r.status} />, width: '140px' },
+    { header: t('status', 'الحالة'), accessor: (r) => <StatusBadge status={r.status} />, width: '140px' },
     {
-      header: 'assigned_worker',
+      header: t('assigned_worker', 'العامل_المعين'),
       accessor: (r) => r.assignments?.[0]?.worker?.displayName ?? '—',
       width: '160px',
     },
@@ -86,33 +95,27 @@ export function TasksListPage() {
 
   return (
     <div>
-      <PageHeader title="Warehouse tasks" description="Workflow-driven operational tasks" />
-      <div className="mb-3 flex flex-wrap gap-3">
-        <TextField
-          label="task_type"
-          value={taskTypeFilter}
-          onChange={(e) => setTaskTypeFilter(e.target.value)}
-          placeholder="e.g. receiving, pick"
-        />
-        <TextField
-          label="reference_id (API)"
-          value={referenceFilter}
-          onChange={(e) => setReferenceFilter(e.target.value)}
-          placeholder="Order UUID"
-        />
-        <TextField
-          label="reference_type (client filter)"
-          value={referenceTypeClient}
-          onChange={(e) => setReferenceTypeClient(e.target.value)}
-          placeholder="inbound / outbound"
-        />
-        <TextField
-          label="workerId"
-          value={workerFilter}
-          onChange={(e) => setWorkerFilter(e.target.value)}
-          placeholder="Worker UUID"
-        />
-      </div>
+      <PageHeader title={t('Warehouse tasks', 'مهام المستودع')} description={t('Workflow-driven operational tasks', 'مهام تشغيلية حسب سير العمل')} />
+      <FilterPanel showLabel={t('Show filters', 'إظهار الفلاتر')} hideLabel={t('Hide filters', 'إخفاء الفلاتر')}>
+        <div className="flex flex-wrap gap-3">
+          <SelectField
+            label={t('task_type', 'نوع_المهمة')}
+            name="taskTypeFilter"
+            value={taskTypeFilter}
+            onChange={(e) => setTaskTypeFilter(e.target.value)}
+            options={taskTypeOptions}
+          />
+          <TextField
+            label={t('Search', 'بحث')}
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            placeholder={t(
+              'Search by order id, task id, or worker id',
+              'ابحث بمعرف الطلب أو معرف المهمة أو معرف العامل',
+            )}
+          />
+        </div>
+      </FilterPanel>
       <DataTable
         columns={columns}
         rows={rows}

@@ -13,7 +13,6 @@ import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
-import { WorkflowNextRunnableCard } from '../components/WorkflowNextRunnableCard';
 import { WorkflowOrderTimeline } from '../components/WorkflowOrderTimeline';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
@@ -24,6 +23,30 @@ import { inboundHasQuantityShortfall } from '../lib/inbound-shortfall';
 import { isReceivingDockLocationType, isStorageLocationType } from '../lib/location-types';
 
 const fmtQty = (s: string) => Number(s).toLocaleString(undefined, { maximumFractionDigits: 4 });
+function inboundDetailLabel(label: string, isArabic: boolean): string {
+  if (!isArabic) return label;
+  const ar: Record<string, string> = {
+    'All inbound orders': 'جميع طلبات الوارد',
+    'Inbound order': 'طلب وارد',
+    Client: 'العميل',
+    Created: 'تاريخ الإنشاء',
+    'Cancel order': 'إلغاء الطلب',
+    'Confirm order': 'تأكيد الطلب',
+    'Order #': 'رقم الطلب #',
+    Status: 'الحالة',
+    'Expected arrival': 'تاريخ الوصول المتوقع',
+    'Confirmed at': 'تم التأكيد في',
+    'Completed at': 'تم الإكمال في',
+    Warehouse: 'المستودع',
+    SKU: 'رمز الصنف',
+    Product: 'المنتج',
+    Lot: 'الدفعة',
+    Expected: 'المتوقع',
+    Action: 'الإجراء',
+    Receive: 'استلام',
+  };
+  return ar[label] ?? label;
+}
 
 export function InboundDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
@@ -36,6 +59,9 @@ export function InboundDetailPage() {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   /** Single receiving dock applied to every line when confirming (task-only workflow). */
   const [receivingDockId, setReceivingDockId] = useState('');
+  const isArabic =
+    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (label: string) => inboundDetailLabel(label, isArabic);
 
   const effectiveWarehouseId =
     (selectedWarehouseId && warehouses.some((w) => w.id === selectedWarehouseId)
@@ -117,18 +143,18 @@ export function InboundDetailPage() {
   const lineColumns: Column<InboundOrderLine>[] = [
     { header: '#', accessor: (l) => l.lineNumber, width: '50px' },
     {
-      header: 'SKU',
+      header: t('SKU'),
       accessor: (l) => <span className="font-mono">{l.product?.sku ?? '—'}</span>,
       width: '200px',
     },
-    { header: 'Product', accessor: (l) => l.product?.name ?? '—' },
+    { header: t('Product'), accessor: (l) => l.product?.name ?? '—' },
     {
-      header: 'Lot',
+      header: t('Lot'),
       accessor: (l) => (l.expectedLotNumber ? <span className="font-mono">{l.expectedLotNumber}</span> : '—'),
       width: '180px',
     },
     {
-      header: 'Expected',
+      header: t('Expected'),
       accessor: (l) => <span className="font-mono">{fmtQty(l.expectedQuantity)}</span>,
       width: '100px',
       className: 'text-right',
@@ -137,13 +163,13 @@ export function InboundDetailPage() {
 
   if (!taskOnlyMode) {
     lineColumns.push({
-      header: 'Action',
+      header: t('Action'),
       accessor: (l) => {
         const rem = Number(l.expectedQuantity) - Number(l.receivedQuantity);
         if (rem <= 0) return <span className="text-xs text-emerald-700">complete</span>;
         return (
           <Button size="sm" disabled={!canReceive} onClick={() => setReceivingLine(l)}>
-            Receive
+            {t('Receive')}
           </Button>
         );
       },
@@ -155,12 +181,11 @@ export function InboundDetailPage() {
     <>
       <div className="mb-2 text-sm text-slate-500">
         <Link to="/orders/inbound" className="hover:underline">
-          ← All inbound orders
+          ← {t('All inbound orders')}
         </Link>
       </div>
       <PageHeader
-        title={o.orderNumber || 'Inbound order'}
-        description={`Client: ${o.company?.name ?? '—'} • Created ${new Date(o.createdAt).toLocaleString()}`}
+        title={o.orderNumber || t('Inbound order')}
         actions={
           <>
             {canCancel && (
@@ -169,7 +194,7 @@ export function InboundDetailPage() {
                 onClick={() => cancelMut.mutate()}
                 loading={cancelMut.isPending}
               >
-                Cancel order
+                {t('Cancel order')}
               </Button>
             )}
             {canConfirm && (
@@ -190,7 +215,7 @@ export function InboundDetailPage() {
                 loading={confirmMut.isPending}
                 disabled={confirmDisabledTaskOnly}
               >
-                Confirm order
+                {t('Confirm order')}
               </Button>
             )}
           </>
@@ -198,9 +223,9 @@ export function InboundDetailPage() {
       />
 
       <div className="mb-4 grid grid-cols-2 gap-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4">
-        <Field label="Order #" value={<span className="font-mono">{o.orderNumber || '—'}</span>} />
+        <Field label={t('Order #')} value={<span className="font-mono">{o.orderNumber || '—'}</span>} />
         <Field
-          label="Status"
+          label={t('Status')}
           value={
             <div className="space-y-1">
               <StatusBadge status={o.status} />
@@ -213,10 +238,10 @@ export function InboundDetailPage() {
             </div>
           }
         />
-        <Field label="Client" value={o.company?.name ?? '—'} />
-        <Field label="Expected arrival" value={new Date(o.expectedArrivalDate).toLocaleDateString()} />
-        <Field label="Confirmed at" value={o.confirmedAt ? new Date(o.confirmedAt).toLocaleString() : '—'} />
-        <Field label="Completed at" value={o.completedAt ? new Date(o.completedAt).toLocaleString() : '—'} />
+        <Field label={t('Client')} value={o.company?.name ?? '—'} />
+        <Field label={t('Expected arrival')} value={new Date(o.expectedArrivalDate).toLocaleDateString()} />
+        <Field label={t('Confirmed at')} value={o.confirmedAt ? new Date(o.confirmedAt).toLocaleString() : '—'} />
+        <Field label={t('Completed at')} value={o.completedAt ? new Date(o.completedAt).toLocaleString() : '—'} />
       </div>
 
       {taskOnlyMode && canConfirm ? (
@@ -257,28 +282,15 @@ export function InboundDetailPage() {
         </div>
       ) : null}
 
-      {taskOnlyMode ? (
-        <WorkflowNextRunnableCard
-          referenceType="inbound_order"
-          referenceId={id}
-          enabled={!!id}
-          isDraftOrder={o.status === 'draft'}
-        />
-      ) : (
-        <WorkflowOrderTimeline
-          referenceType="inbound_order"
-          referenceId={id}
-          enabled={!!id && o.status !== 'draft'}
-        />
-      )}
+      <WorkflowOrderTimeline
+        referenceType="inbound_order"
+        referenceId={id}
+        enabled={!!id && o.status !== 'draft'}
+      />
 
       <DataTable columns={lineColumns} rows={o.lines} rowKey={(l) => l.id} />
 
-      {taskOnlyMode ? (
-        <p className="mt-3 text-xs text-slate-500">
-          Order page is view-only; complete receiving and putaway from warehouse tasks linked above.
-        </p>
-      ) : o.status !== 'completed' ? (
+      {o.status !== 'completed' ? (
         <p className="mt-3 text-xs text-slate-500">
           Confirm moves the order to received status; Receive posts stock to internal storage locations.
         </p>

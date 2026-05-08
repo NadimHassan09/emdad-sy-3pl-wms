@@ -21,6 +21,8 @@ interface ComboboxProps {
   className?: string;
   /** Fires while the user types in the search box — use with debounced server fetch. */
   onSearchQueryChange?: (query: string) => void;
+  /** Render dropdown in normal flow so parent containers can grow/shrink with it. */
+  dropdownInFlow?: boolean;
 }
 
 /**
@@ -42,6 +44,7 @@ export function Combobox({
   emptyMessage = 'No matches',
   className = '',
   onSearchQueryChange,
+  dropdownInFlow = false,
 }: ComboboxProps) {
   const inputId = useId();
   const [open, setOpen] = useState(false);
@@ -104,7 +107,7 @@ export function Combobox({
   return (
     <label htmlFor={inputId} className={`block ${className}`}>
       {label && <span className="text-sm font-medium text-slate-700">{label}</span>}
-      <div ref={wrapperRef} className="relative mt-1">
+      <div ref={wrapperRef} className={`mt-1 ${dropdownInFlow ? '' : 'relative'}`}>
         <input
           ref={inputRef}
           id={inputId}
@@ -125,7 +128,7 @@ export function Combobox({
           className={`block w-full rounded-md border px-3 py-1.5 pr-7 text-sm shadow-sm focus:outline-none focus:ring-2 ${
             error
               ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
-              : 'border-slate-300 focus:border-primary-500 focus:ring-primary-200'
+              : 'border-slate-300 focus:border-emerald-500 focus:ring-emerald-200'
           } ${disabled ? 'cursor-not-allowed bg-slate-50 text-slate-500' : 'bg-white'}`}
         />
         {value && !disabled && (
@@ -144,43 +147,88 @@ export function Combobox({
             ×
           </button>
         )}
-        {open && (
-          <ul
-            className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg"
-            role="listbox"
+        {dropdownInFlow ? (
+          <div
+            className={`grid transition-[grid-template-rows,opacity,margin] duration-200 ease-in-out ${
+              open ? 'mt-1 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+            }`}
           >
-            {filtered.length === 0 ? (
-              <li className="px-3 py-2 text-slate-500">{emptyMessage}</li>
-            ) : (
-              filtered.map((o, idx) => {
-                const isActive = idx === activeIdx;
-                const isSelected = o.value === value;
-                return (
-                  <li
-                    key={o.value}
-                    role="option"
-                    aria-selected={isSelected}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      onChange(o.value);
-                      setOpen(false);
-                      setQuery('');
-                      onSearchQueryChange?.('');
-                    }}
-                    onMouseEnter={() => setActiveIdx(idx)}
-                    className={`cursor-pointer px-3 py-1.5 ${
-                      isActive ? 'bg-primary-50 text-primary-800' : 'text-slate-800'
-                    } ${isSelected ? 'font-semibold' : ''}`}
-                  >
-                    <div>{o.label}</div>
-                    {o.hint && (
-                      <div className="text-xs text-slate-500">{o.hint}</div>
-                    )}
-                  </li>
-                );
-              })
-            )}
-          </ul>
+            <ul
+              className="min-h-0 max-h-60 overflow-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg"
+              role="listbox"
+            >
+              {filtered.length === 0 ? (
+                <li className="px-3 py-2 text-slate-500">{emptyMessage}</li>
+              ) : (
+                filtered.map((o, idx) => {
+                  const isActive = idx === activeIdx;
+                  const isSelected = o.value === value;
+                  return (
+                    <li
+                      key={o.value}
+                      role="option"
+                      aria-selected={isSelected}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        onChange(o.value);
+                        setOpen(false);
+                        setQuery('');
+                        onSearchQueryChange?.('');
+                      }}
+                      onMouseEnter={() => setActiveIdx(idx)}
+                      className={`cursor-pointer px-3 py-1.5 ${
+                        isActive ? 'bg-primary-50 text-primary-800' : 'text-slate-800'
+                      } ${isSelected ? 'font-semibold' : ''}`}
+                    >
+                      <div>{o.label}</div>
+                      {o.hint && (
+                        <div className="text-xs text-slate-500">{o.hint}</div>
+                      )}
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          </div>
+        ) : (
+          open && (
+            <ul
+              className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white py-1 text-sm shadow-lg"
+              role="listbox"
+            >
+              {filtered.length === 0 ? (
+                <li className="px-3 py-2 text-slate-500">{emptyMessage}</li>
+              ) : (
+                filtered.map((o, idx) => {
+                  const isActive = idx === activeIdx;
+                  const isSelected = o.value === value;
+                  return (
+                    <li
+                      key={o.value}
+                      role="option"
+                      aria-selected={isSelected}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        onChange(o.value);
+                        setOpen(false);
+                        setQuery('');
+                        onSearchQueryChange?.('');
+                      }}
+                      onMouseEnter={() => setActiveIdx(idx)}
+                      className={`cursor-pointer px-3 py-1.5 ${
+                        isActive ? 'bg-primary-50 text-primary-800' : 'text-slate-800'
+                      } ${isSelected ? 'font-semibold' : ''}`}
+                    >
+                      <div>{o.label}</div>
+                      {o.hint && (
+                        <div className="text-xs text-slate-500">{o.hint}</div>
+                      )}
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          )
         )}
       </div>
       {error ? (
