@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, ComponentPropsWithoutRef, useEffect, useMemo, useRef, useState } from 'react';
 
 import { InventoryApi, StockRow } from '../api/inventory';
 import { CreateLocationInput, Location, LocationTreeNode, LocationsApi, LocationType } from '../api/locations';
@@ -19,7 +19,6 @@ import { useFilters } from '../hooks/useFilters';
 import {
   LOCATION_TYPE_OPTIONS,
   locationTypeLabel,
-  locationTypePillClass,
   locationTypeShowsStockContents,
   locationTypeSupportsCapacityFields,
   managedTypeOptionsForEdit,
@@ -63,6 +62,89 @@ function collectSubtreeIdsFromFlat(flat: Location[], rootId: string): string[] {
 function subtreeTouchesBlocker(flat: Location[], rootId: string, block: Set<string>): boolean {
   if (!flat.length) return false;
   return collectSubtreeIdsFromFlat(flat, rootId).some((id) => block.has(id));
+}
+
+/** Rounded-square icon styling per location type (matches pill semantics). */
+function locationTypeIconBoxClass(type: string): string {
+  switch (type) {
+    case 'iss':
+      return 'bg-slate-100 text-slate-700 ring-1 ring-slate-200/80';
+    case 'internal':
+      return 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200/80';
+    case 'fridge':
+      return 'bg-sky-100 text-sky-800 ring-1 ring-sky-200/80';
+    case 'packing':
+      return 'bg-violet-100 text-violet-800 ring-1 ring-violet-200/80';
+    case 'output':
+      return 'bg-blue-100 text-blue-800 ring-1 ring-blue-200/80';
+    case 'quarantine':
+      return 'bg-amber-100 text-amber-900 ring-1 ring-amber-200/80';
+    case 'scrap':
+      return 'bg-rose-100 text-rose-800 ring-1 ring-rose-200/80';
+    default:
+      return 'bg-slate-50 text-slate-600 ring-1 ring-slate-200/80';
+  }
+}
+
+function LocationTypeGlyph({ type }: { type: string }) {
+  switch (type) {
+    case 'iss':
+      return (
+        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <path d="M4 14V6l6-3 6 3v8l-6 3-6-3Z" />
+          <path d="M10 11V3.5M4 6v8M16 6v8" />
+        </svg>
+      );
+    case 'internal':
+      return (
+        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <path d="M4 7h12v10H4V7ZM7 7V5a3 3 0 016 0v2" />
+        </svg>
+      );
+    case 'fridge':
+      return (
+        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <path d="M7 4h8v13H7V4Z" />
+          <path d="M9 7v8M13 9v5" />
+        </svg>
+      );
+    case 'packing':
+      return (
+        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <path d="m4 7 8-4 8 4-8 4-8-4Z" />
+          <path d="M4 10l8 4 8-4M7 14l5 3 5-3" strokeLinecap="round" />
+        </svg>
+      );
+    case 'output':
+      return (
+        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <path d="M13 17H4V7h12v5" />
+          <path d="M15 13h4l-4-4v8l4-4h-4" />
+        </svg>
+      );
+    case 'quarantine':
+      return (
+        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <path d="M10 4 4 17h12L10 4Z" />
+          <path d="M10 9v5M10 15h0" strokeLinecap="round" />
+        </svg>
+      );
+    case 'scrap':
+      return (
+        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <path d="M8 8V6h4v2" />
+          <path d="M6 8h8l1 11H5L6 8Z" />
+          <path d="M7 11h6M10 13v5" strokeLinecap="round" />
+        </svg>
+      );
+    default:
+      return (
+        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <path d="M10 4a6 6 0 0 1 6 6c0 4-6 8-6 8S4 14 4 10a6 6 0 0 1 6-6Z" />
+          <circle cx="10" cy="10" r="2.25" />
+        </svg>
+      );
+  }
 }
 
 function pruneLocationTree(nodes: LocationTreeNode[], nameQ: string, barcodeQ: string): LocationTreeNode[] {
@@ -286,12 +368,11 @@ export function LocationsPage() {
         ) : tree.isLoading ? (
           <p className="text-sm text-slate-500">Loading…</p>
         ) : filteredTree.length ? (
-          <ul className="space-y-0">
+          <ul className="space-y-2">
             {filteredTree.map((node) => (
               <TreeNode
                 key={node.id}
                 node={node}
-                depth={0}
                 flatList={flat.data ?? []}
                 purgeReady={purgeCtx.isSuccess}
                 blockDeleteSet={blockDeleteSet}
@@ -387,9 +468,19 @@ export function LocationsPage() {
   );
 }
 
+function LocationRowMenuItem({
+  className = '',
+  danger,
+  ...rest
+}: ComponentPropsWithoutRef<'button'> & { danger?: boolean }) {
+  const base =
+    'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50';
+  const dc = danger ? 'text-rose-800 hover:bg-rose-50' : '';
+  return <button type="button" className={`${base} ${dc} ${className}`.trim()} {...rest} />;
+}
+
 function TreeNode({
   node,
-  depth,
   flatList,
   purgeReady,
   blockDeleteSet,
@@ -405,7 +496,6 @@ function TreeNode({
   onRequestPermanentDelete,
 }: {
   node: LocationTreeNode;
-  depth: number;
   flatList: Location[];
   purgeReady: boolean;
   blockDeleteSet: Set<string>;
@@ -435,108 +525,238 @@ function TreeNode({
     flatList.length > 0 &&
     !subtreeTouchesBlocker(flatList, node.id, blockDeleteSet);
 
-  const typePillClass = `inline-flex max-w-full items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${locationTypePillClass(node.type)}`;
+  const typeIconTitle = `${locationTypeLabel(node.type)} · ${typeHint}`;
+
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = () => setMenuOpen(false);
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) close();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  const closeMenu = () => setMenuOpen(false);
 
   return (
     <li className="list-none">
-      <div className="rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2.5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="text-base font-semibold text-slate-900">{node.name}</div>
+      <div className="rounded-lg border border-slate-200 bg-slate-50/50 px-2 py-2 shadow-sm sm:px-3">
+        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+          {/* Expand / spacer */}
+          {hasChildren ? (
+            <button
+              type="button"
+              aria-expanded={expanded}
+              aria-label={expanded ? 'Collapse branch' : 'Expand branch'}
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-200/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500`}
+              onClick={() => onToggleBranch(node.id)}
+            >
+              <svg
+                viewBox="0 0 20 20"
+                className={`h-5 w-5 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M7 4 13 10 7 16" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          ) : (
+            <div className="w-9 shrink-0" aria-hidden />
+          )}
+
+          <span
+            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg shadow-sm ${locationTypeIconBoxClass(node.type)}`}
+            title={typeIconTitle}
+          >
+            <LocationTypeGlyph type={node.type} />
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="truncate text-base font-semibold text-slate-900">{node.name}</span>
               {full?.status === 'blocked' ? (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-900 ring-1 ring-amber-200">
+                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-900 ring-1 ring-amber-200">
                   Suspended
                 </span>
               ) : null}
             </div>
-            <div className="text-xs text-slate-500">{node.fullPath}</div>
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              {stockInteractive ? (
-                <button
-                  type="button"
-                  className={`${typePillClass} cursor-pointer hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-1`}
-                  title={`${typeHint} — click to view stock`}
-                  onClick={() => onStockTypeClick(node)}
-                >
-                  {locationTypeLabel(node.type)}
-                </button>
-              ) : (
-                <span className={typePillClass} title={typeHint}>
-                  {locationTypeLabel(node.type)}
-                </span>
-              )}
-              <button
-                type="button"
-                className="max-w-full truncate rounded bg-white px-2 py-0.5 text-left font-mono text-xs text-primary-700 underline decoration-primary-300 underline-offset-2 ring-1 ring-slate-200 hover:bg-primary-50 hover:text-primary-900"
-                title="View barcode image"
-                onClick={() => onBarcodeClick(node.barcode, node.fullPath)}
-              >
-                {node.barcode}
-              </button>
+            <div className="truncate font-mono text-[11px] text-slate-500" title={`${node.fullPath} · ${node.barcode}`}>
+              <span className="text-slate-400">{node.fullPath}</span>
+              <span className="text-slate-300"> · </span>
+              <span>{node.barcode}</span>
             </div>
-            {hasChildren ? (
-              <div className="pt-2">
-                <button
-                  type="button"
-                  className="text-xs font-medium text-primary-700 underline decoration-primary-300 underline-offset-2 hover:text-primary-900"
-                  onClick={() => onToggleBranch(node.id)}
+          </div>
+
+          <div className="relative shrink-0" ref={menuRef}>
+            <button
+              type="button"
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              aria-label="Location actions"
+              disabled={actionBusy}
+              className={`flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-200/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-40`}
+              onClick={() => setMenuOpen((o) => !o)}
+            >
+              <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor">
+                <circle cx="10" cy="4" r="1.85" />
+                <circle cx="10" cy="10" r="1.85" />
+                <circle cx="10" cy="16" r="1.85" />
+              </svg>
+            </button>
+
+            {menuOpen ? (
+              <div
+                role="menu"
+                className="absolute right-0 top-full z-50 mt-1 min-w-[13.5rem] overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+              >
+                <LocationRowMenuItem
+                  role="menuitem"
+                  className="bg-indigo-50/80 text-indigo-900 hover:bg-indigo-100"
+                  disabled={actionBusy}
+                  onClick={() => {
+                    closeMenu();
+                    onBarcodeClick(node.barcode, node.fullPath);
+                  }}
                 >
-                  {expanded ? 'Show less' : 'Show more'} ({children.length}{' '}
-                  {children.length === 1 ? 'child' : 'children'})
-                </button>
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-indigo-200/80 text-indigo-950">
+                    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M4 14V6l2 .5 2-.5 2 .5 2-.5 2 .5 2-.5v8l-2-.5-2 .5-2-.5-2 .5-2-.5L4 14Z" />
+                      <path d="M9 17V3M13 17V7" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                  Barcode image
+                </LocationRowMenuItem>
+
+                {stockInteractive ? (
+                  <LocationRowMenuItem
+                    role="menuitem"
+                    className="bg-emerald-50/80 text-emerald-950 hover:bg-emerald-100"
+                    disabled={actionBusy}
+                    onClick={() => {
+                      closeMenu();
+                      onStockTypeClick(node);
+                    }}
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-200/80 text-emerald-950">
+                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.75">
+                        <path d="M10 15V5m-6 9V6l6-4 6 4v8" />
+                        <path d="M4 13l6 3 6-3" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                    Current stock
+                  </LocationRowMenuItem>
+                ) : null}
+
+                {full ? (
+                  <LocationRowMenuItem
+                    role="menuitem"
+                    className="bg-sky-50/85 text-sky-950 hover:bg-sky-100"
+                    disabled={actionBusy}
+                    onClick={() => {
+                      closeMenu();
+                      onEdit(full);
+                    }}
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-200/80 text-sky-950">
+                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.85">
+                        <path d="M14 5 15 15H5m7-13H7a2 2 0 0 0-2 2v9" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="m11 3 6 6" strokeLinecap="round" />
+                      </svg>
+                    </span>
+                    Edit location
+                  </LocationRowMenuItem>
+                ) : null}
+
+                {(full?.status === 'active' ||
+                  full?.status === 'blocked' ||
+                  canPermanentDelete) && (
+                  <div className="my-1 border-t border-slate-100" role="presentation" />
+                )}
+
+                {full?.status === 'active' ? (
+                  <LocationRowMenuItem
+                    role="menuitem"
+                    className="bg-amber-50/80 text-amber-950 hover:bg-amber-100"
+                    disabled={actionBusy}
+                    onClick={() => {
+                      closeMenu();
+                      onSuspend(full.id);
+                    }}
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-amber-200/80 text-amber-950">
+                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+                        <rect x="5" y="4" width="3.5" height="12" rx="1" />
+                        <rect x="11.5" y="4" width="3.5" height="12" rx="1" />
+                      </svg>
+                    </span>
+                    Suspend
+                  </LocationRowMenuItem>
+                ) : null}
+
+                {full?.status === 'blocked' ? (
+                  <LocationRowMenuItem
+                    role="menuitem"
+                    className="bg-teal-50/85 text-teal-950 hover:bg-teal-100"
+                    disabled={actionBusy}
+                    onClick={() => {
+                      closeMenu();
+                      onUnsuspend(full.id);
+                    }}
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-teal-200/80 text-teal-950">
+                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
+                        <path d="M9 14V6l8 4-8 4Z" />
+                      </svg>
+                    </span>
+                    Unsuspend
+                  </LocationRowMenuItem>
+                ) : null}
+
+                {canPermanentDelete ? (
+                  <LocationRowMenuItem
+                    danger
+                    role="menuitem"
+                    className="text-rose-800 hover:bg-rose-50"
+                    disabled={actionBusy}
+                    title="Permanently delete this location and all descendants"
+                    onClick={() => {
+                      closeMenu();
+                      onRequestPermanentDelete(node.id, node.fullPath, subtreeIds.length);
+                    }}
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-rose-200/85 text-rose-950">
+                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.85">
+                        <path d="M8 9v5m4-5v5M6 16h8l1-13H5l1 13Z" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M8 6V4h8v2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                    Delete permanently
+                  </LocationRowMenuItem>
+                ) : null}
               </div>
             ) : null}
           </div>
-          {full ? (
-            <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
-              <Button size="sm" variant="secondary" disabled={actionBusy} onClick={() => onEdit(full)}>
-                Edit
-              </Button>
-              {full.status === 'active' ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={actionBusy}
-                  onClick={() => onSuspend(full.id)}
-                >
-                  Suspend
-                </Button>
-              ) : null}
-              {full.status === 'blocked' ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={actionBusy}
-                  onClick={() => onUnsuspend(full.id)}
-                >
-                  Unsuspend
-                </Button>
-              ) : null}
-              {canPermanentDelete ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="text-rose-700 ring-rose-200 hover:bg-rose-50"
-                  disabled={actionBusy}
-                  title="Permanently delete this location and all descendants"
-                  onClick={() => onRequestPermanentDelete(node.id, node.fullPath, subtreeIds.length)}
-                >
-                  Delete
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
         </div>
       </div>
 
       {hasChildren && expanded ? (
-        <ul className="mt-3 space-y-3 border-l-2 border-slate-200 pl-4">
+        <ul className="mt-2 space-y-2 border-l border-slate-200/90 pl-2 sm:mt-3 sm:space-y-3 sm:border-l-2 sm:pl-4">
           {children.map((c) => (
             <TreeNode
               key={c.id}
               node={c}
-              depth={depth + 1}
               flatList={flatList}
               purgeReady={purgeReady}
               blockDeleteSet={blockDeleteSet}
