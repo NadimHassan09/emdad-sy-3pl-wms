@@ -1824,25 +1824,32 @@ GROUP  BY bt.company_id, c.name, bt.charge_type;
 ALTER TABLE current_stock       SET (autovacuum_vacuum_scale_factor=0.02, autovacuum_analyze_scale_factor=0.01);
 ALTER TABLE task_step_logs      SET (autovacuum_vacuum_scale_factor=0.05);
 
--- Partitioned table roots: table-level autovacuum reloptions are supported from PostgreSQL 15+
--- onward; skip silently on older servers (e.g. local PG 14).
+-- Partitioned tables: parent reloptions are rejected on many PostgreSQL versions (SQLSTATE 42809).
+-- Apply the same autovacuum tuning to each leaf partition (see PostgreSQL hint on 42809).
 DO $perf$
+DECLARE
+    parent_name TEXT;
+    parents     TEXT[] := ARRAY['inventory_ledger', 'billing_transactions', 'audit_logs'];
+    r           RECORD;
 BEGIN
-    BEGIN
-        ALTER TABLE inventory_ledger SET (autovacuum_vacuum_scale_factor=0.01, autovacuum_analyze_scale_factor=0.005);
-    EXCEPTION
-        WHEN SQLSTATE '22023' THEN NULL;
-    END;
-    BEGIN
-        ALTER TABLE billing_transactions SET (autovacuum_vacuum_scale_factor=0.01, autovacuum_analyze_scale_factor=0.005);
-    EXCEPTION
-        WHEN SQLSTATE '22023' THEN NULL;
-    END;
-    BEGIN
-        ALTER TABLE audit_logs SET (autovacuum_vacuum_scale_factor=0.01, autovacuum_analyze_scale_factor=0.005);
-    EXCEPTION
-        WHEN SQLSTATE '22023' THEN NULL;
-    END;
+    FOREACH parent_name IN ARRAY parents LOOP
+        FOR r IN
+            SELECT ns_child.nspname AS ns, child.relname AS rel
+            FROM pg_inherits i
+            JOIN pg_class parent ON parent.oid = i.inhparent
+            JOIN pg_namespace ns_parent ON ns_parent.oid = parent.relnamespace
+            JOIN pg_class child ON child.oid = i.inhrelid
+            JOIN pg_namespace ns_child ON ns_child.oid = child.relnamespace
+            WHERE parent.relname = parent_name
+              AND ns_parent.nspname = 'public'
+        LOOP
+            EXECUTE format(
+                'ALTER TABLE %I.%I SET (autovacuum_vacuum_scale_factor=0.01, autovacuum_analyze_scale_factor=0.005)',
+                r.ns,
+                r.rel
+            );
+        END LOOP;
+    END LOOP;
 END;
 $perf$;
 
