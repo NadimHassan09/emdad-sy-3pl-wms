@@ -20,6 +20,7 @@ exports.OutboundModule = OutboundModule = __decorate([
         imports: [inventory_module_1.InventoryModule, warehouse_workflow_module_1.WarehouseWorkflowModule],
         controllers: [outbound_controller_1.OutboundController],
         providers: [outbound_service_1.OutboundService],
+        exports: [outbound_service_1.OutboundService],
     })
 ], OutboundModule);
 //# sourceMappingURL=outbound.module.js.map

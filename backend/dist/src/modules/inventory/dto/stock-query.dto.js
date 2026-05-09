@@ -16,6 +16,7 @@ const pagination_dto_1 = require("../../../common/dto/pagination.dto");
 const query_transform_1 = require("../../../common/transformers/query-transform");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
 const MOVEMENT_TYPES = Object.values(client_1.MovementType);
+const MOVEMENT_FILTERS = [...MOVEMENT_TYPES, 'inbound', 'outbound', 'adjustment'];
 const REF_TYPES = Object.values(client_1.LedgerRefType);
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 class StockQueryDto extends pagination_dto_1.PaginationDto {
@@ -144,7 +145,7 @@ __decorate([
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsIn)(MOVEMENT_TYPES),
+    (0, class_validator_1.IsIn)(MOVEMENT_FILTERS),
     __metadata("design:type", String)
 ], LedgerQueryDto.prototype, "movementType", void 0);
 __decorate([

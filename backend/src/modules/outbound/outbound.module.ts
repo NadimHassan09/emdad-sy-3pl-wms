@@ -9,5 +9,6 @@ import { OutboundService } from './outbound.service';
   imports: [InventoryModule, WarehouseWorkflowModule],
   controllers: [OutboundController],
   providers: [OutboundService],
+  exports: [OutboundService],
 })
 export class OutboundModule {}

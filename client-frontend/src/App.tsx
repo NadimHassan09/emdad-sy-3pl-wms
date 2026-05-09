@@ -7,6 +7,11 @@ import { RequireAuth } from './auth/RequireAuth';
 import { PortalLayout } from './components/PortalLayout';
 import { RealtimeProvider } from './realtime/RealtimeProvider';
 import { LoginPage } from './pages/LoginPage';
+import { InboundOrdersPage } from './pages/InboundOrdersPage';
+import { InboundOrderDetailPage } from './pages/InboundOrderDetailPage';
+import { OutboundOrdersPage } from './pages/OutboundOrdersPage';
+import { OutboundOrderDetailPage } from './pages/OutboundOrderDetailPage';
+import { ProductsPage } from './pages/ProductsPage';
 import { StockPage } from './pages/StockPage';
 import { WelcomePage } from './pages/WelcomePage';
 
@@ -31,6 +36,11 @@ function AppRoutes(): ReactElement {
           }
         >
           <Route index element={<WelcomePage />} />
+          <Route path="products" element={<ProductsPage />} />
+          <Route path="inbound-orders" element={<InboundOrdersPage />} />
+          <Route path="inbound-orders/:id" element={<InboundOrderDetailPage />} />
+          <Route path="outbound-orders" element={<OutboundOrdersPage />} />
+          <Route path="outbound-orders/:id" element={<OutboundOrderDetailPage />} />
           <Route path="stock" element={<StockPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

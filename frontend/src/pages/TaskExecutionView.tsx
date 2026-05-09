@@ -1,6 +1,6 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { InboundApi, type InboundOrderLine } from '../api/inbound';
 import { LocationsApi } from '../api/locations';
@@ -158,6 +158,8 @@ const MOCK_WORKER_ID = (import.meta.env.VITE_MOCK_WORKER_ID as string | undefine
 
 export function TaskExecutionView() {
   const { id = '' } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const companyIdOverride = searchParams.get('companyId')?.trim() || undefined;
   const toast = useToast();
   const qc = useQueryClient();
   const { effective } = useWorkflowUx();
@@ -172,7 +174,7 @@ export function TaskExecutionView() {
 
   const task = useQuery({
     queryKey: id ? QK.tasks.detail(id) : [],
-    queryFn: () => TasksApi.get(id!),
+    queryFn: () => TasksApi.get(id!, companyIdOverride),
     enabled: !!id,
   });
 
@@ -226,7 +228,7 @@ export function TaskExecutionView() {
   }, [workers.data, workerLoad.data]);
 
   const mutateAssign = useMutation({
-    mutationFn: () => TasksApi.assign(id, workerId.trim()),
+    mutationFn: () => TasksApi.assign(id, workerId.trim(), companyIdOverride),
     onSuccess: (env) => {
       toast.success('Assigned');
       envelopeTouch(qc, id, env, warehouseId);
@@ -235,7 +237,7 @@ export function TaskExecutionView() {
   });
 
   const mutateStart = useMutation({
-    mutationFn: () => TasksApi.start(id, workerId.trim() || undefined),
+    mutationFn: () => TasksApi.start(id, workerId.trim() || undefined, companyIdOverride),
     onSuccess: (env) => {
       toast.success('Started');
       envelopeTouch(qc, id, env, warehouseId);
@@ -244,7 +246,7 @@ export function TaskExecutionView() {
   });
 
   const mutateComplete = useMutation({
-    mutationFn: (body: unknown) => TasksApi.complete(id, body),
+    mutationFn: (body: unknown) => TasksApi.complete(id, body, companyIdOverride),
     onSuccess: (env) => {
       toast.success('Completed');
       envelopeTouch(qc, id, env, warehouseId);
@@ -253,7 +255,12 @@ export function TaskExecutionView() {
   });
 
   const mutateRetry = useMutation({
-    mutationFn: () => TasksApi.retry(id, retryReason.trim() ? { reason: retryReason.trim() } : {}),
+    mutationFn: () =>
+      TasksApi.retry(
+        id,
+        retryReason.trim() ? { reason: retryReason.trim() } : {},
+        companyIdOverride,
+      ),
     onSuccess: (env) => {
       toast.success('Retry acknowledged');
       envelopeTouch(qc, id, env, warehouseId);
@@ -263,11 +270,15 @@ export function TaskExecutionView() {
 
   const mutateResolve = useMutation({
     mutationFn: () =>
-      TasksApi.resolve(id, {
-        resolution: resolveResolution,
-        reason: resolveReason.trim(),
-        ...(resolveForkHint.trim() ? { fork_hint: resolveForkHint.trim() } : {}),
-      }),
+      TasksApi.resolve(
+        id,
+        {
+          resolution: resolveResolution,
+          reason: resolveReason.trim(),
+          ...(resolveForkHint.trim() ? { fork_hint: resolveForkHint.trim() } : {}),
+        },
+        companyIdOverride,
+      ),
     onSuccess: (env) => {
       toast.success('Resolve applied');
       envelopeTouch(qc, id, env, warehouseId);
@@ -321,7 +332,7 @@ export function TaskExecutionView() {
   }, [task.data?.id]);
 
   const mutateSaveOperatorNotes = useMutation({
-    mutationFn: () => TasksApi.patchProgress(id, { operator_notes: operatorNotes }),
+    mutationFn: () => TasksApi.patchProgress(id, { operator_notes: operatorNotes }, companyIdOverride),
     onSuccess: (env) => {
       setSyncedOperatorNotes(operatorNotes);
       envelopeTouch(qc, id, env, warehouseId || undefined);

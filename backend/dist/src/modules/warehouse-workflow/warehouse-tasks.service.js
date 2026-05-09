@@ -88,6 +88,7 @@ let WarehouseTasksService = class WarehouseTasksService {
                     workflowInstance: {
                         select: {
                             id: true,
+                            companyId: true,
                             referenceType: true,
                             referenceId: true,
                             warehouseId: true,
@@ -485,10 +486,7 @@ let WarehouseTasksService = class WarehouseTasksService {
                 case 'putaway_quarantine': {
                     const put = task.payload;
                     const srcMap = sourceMapFromPutawayPayload(put);
-                    await this.effects.applyPutaway(tx, user.id, taskId, put.inbound_order_id, companyId, body, srcMap, {
-                        movementType: client_1.MovementType.qc_quarantine,
-                        quarantineBinsOnly: true,
-                    });
+                    await this.effects.applyPutaway(tx, user.id, taskId, put.inbound_order_id, companyId, body, srcMap, { quarantineBinsOnly: true });
                     break;
                 }
                 case 'qc': {
@@ -978,9 +976,6 @@ let WarehouseTasksService = class WarehouseTasksService {
         });
         if (!w) {
             throw new common_1.BadRequestException('Worker not found. Create a system user with Worker role on Users (with X-Company-Id set), then assign again.');
-        }
-        if (user.companyId && w.companyId !== user.companyId) {
-            throw new common_1.BadRequestException('Worker belongs to a different company than your session (check MOCK_COMPANY_ID / X-Company-Id matches the worker tenant).');
         }
         if (!w.userId ||
             !w.user ||

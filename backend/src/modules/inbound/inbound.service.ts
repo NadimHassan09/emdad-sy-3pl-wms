@@ -420,6 +420,7 @@ export class InboundService {
           referenceType: 'inbound_order',
           referenceId: orderId,
           operatorId: user.id,
+          idempotencyKey: `bm:inbound:${orderId}:${line.productId}:line:${line.id}:loc:${dto.locationId}:lot:${lotId ?? 'null'}`,
         },
       });
 

@@ -71,7 +71,7 @@ export function OutboundDetailPage() {
   });
 
   const confirmMut = useMutation({
-    mutationFn: (body: ConfirmOutboundBody) => OutboundApi.confirm(id, body),
+    mutationFn: (body: ConfirmOutboundBody) => OutboundApi.confirm(id, body, order.data?.companyId),
     onSuccess: () => {
       toast.success(
         taskOnlyMode
@@ -213,6 +213,7 @@ export function OutboundDetailPage() {
         referenceType="outbound_order"
         referenceId={id}
         enabled={!!id && o.status !== 'draft'}
+        companyIdOverride={o.companyId}
       />
 
       <DataTable columns={lineColumns} rows={o.lines} rowKey={(l) => l.id} />

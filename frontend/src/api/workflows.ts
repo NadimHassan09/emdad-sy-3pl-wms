@@ -53,9 +53,13 @@ export const WorkflowsApi = {
   async getTimeline(
     referenceType: 'inbound_order' | 'outbound_order',
     referenceId: string,
+    companyIdOverride?: string,
   ): Promise<WorkflowTimelineResponse> {
     const { data } = await api.get<WorkflowTimelineResponse>(
       `/workflows/references/${referenceType}/${referenceId}`,
+      {
+        headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined,
+      },
     );
     return data;
   },

@@ -89,7 +89,7 @@ export interface LedgerQuery {
   productId?: string;
   companyId?: string;
   warehouseId?: string;
-  movementType?: string;
+  movementType?: 'inbound' | 'outbound' | 'adjustment' | string;
   referenceType?: string;
   referenceId?: string;
   createdFrom?: string;
@@ -110,6 +110,10 @@ export interface InternalTransferInput {
 export interface InternalTransferResult {
   referenceId: string;
   ledger: LedgerRow;
+}
+
+function companyHeaders(companyIdOverride?: string) {
+  return companyIdOverride ? { headers: { 'X-Company-Id': companyIdOverride } } : undefined;
 }
 
 export const InventoryApi = {
@@ -148,20 +152,26 @@ export const InventoryApi = {
     ledgerId: string;
     createdAt: string;
     warehouseId?: string;
+    companyIdOverride?: string;
   }): Promise<LedgerEntryResponse> {
-    const { data } = await api.get<LedgerEntryResponse>('/inventory/ledger/entry', {
-      params: {
-        ledgerId: params.ledgerId,
-        createdAt: params.createdAt,
-        warehouseId: params.warehouseId,
+    const { data } = await api.get<LedgerEntryResponse>(
+      '/inventory/ledger/entry',
+      {
+        params: {
+          ledgerId: params.ledgerId,
+          createdAt: params.createdAt,
+          warehouseId: params.warehouseId,
+        },
+      ...(companyHeaders(params.companyIdOverride) ?? {}),
       },
-    });
+    );
     return data;
   },
 
-  async availability(productId: string): Promise<AvailabilityResult> {
+  async availability(productId: string, companyIdOverride?: string): Promise<AvailabilityResult> {
     const { data } = await api.get<AvailabilityResult>('/inventory/availability', {
-      params: { productId },
+      params: { productId, ...(companyIdOverride ? { companyId: companyIdOverride } : {}) },
+      ...(companyHeaders(companyIdOverride) ?? {}),
     });
     return data;
   },

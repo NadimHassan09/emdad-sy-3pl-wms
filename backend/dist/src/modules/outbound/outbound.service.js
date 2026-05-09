@@ -354,6 +354,7 @@ let OutboundService = class OutboundService {
                             referenceType: 'outbound_order',
                             referenceId: orderId,
                             operatorId: user.id,
+                            idempotencyKey: `bm:outbound:${orderId}:${line.productId}:line:${line.id}:loc:${row.locationId}:lot:${row.lotId ?? 'null'}:${take.toString()}`,
                         },
                     });
                     remaining = remaining.minus(take);

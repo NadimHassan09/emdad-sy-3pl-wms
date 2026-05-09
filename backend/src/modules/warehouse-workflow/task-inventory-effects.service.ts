@@ -167,7 +167,7 @@ export class TaskInventoryEffectsService {
         quantity: qty.toString(),
       });
 
-      const idemKey = `${taskId}:receiving:${line.id}:inbound_receive`;
+      const idemKey = `bm:inbound:${inboundOrderId}:${line.productId}:task:${taskId}:line:${line.id}`;
       await this.ledgerDedup.appendIfAbsent(tx, idemKey, {
         companyId,
         productId: line.productId,
@@ -202,8 +202,8 @@ export class TaskInventoryEffectsService {
 
   async applyPutaway(
     tx: Prisma.TransactionClient,
-    operatorId: string,
-    taskId: string,
+    _operatorId: string,
+    _taskId: string,
     inboundOrderId: string,
     companyId: string,
     body:
@@ -211,11 +211,9 @@ export class TaskInventoryEffectsService {
       | Extract<TaskCompleteBody, { task_type: 'putaway_quarantine' }>,
     sourceByLineId: Map<string, { locationId: string; productId: string; lotId: string | null }>,
     opts?: {
-      movementType?: MovementType;
       quarantineBinsOnly?: boolean;
     },
   ): Promise<void> {
-    const movementType = opts?.movementType ?? MovementType.putaway;
     const quarantineBinsOnly = opts?.quarantineBinsOnly ?? false;
     const order = await tx.inboundOrder.findUnique({
       where: { id: inboundOrderId },
@@ -279,7 +277,7 @@ export class TaskInventoryEffectsService {
         lotId = resolved;
       }
 
-      const dec = await this.stock.decrementWithMeta(tx, {
+      await this.stock.decrementWithMeta(tx, {
         companyId,
         productId: src.productId,
         locationId: src.locationId,
@@ -287,29 +285,13 @@ export class TaskInventoryEffectsService {
         quantity: qty.toString(),
       });
 
-      const inc = await this.stock.upsertPositiveWithMeta(tx, {
+      await this.stock.upsertPositiveWithMeta(tx, {
         companyId,
         productId: src.productId,
         locationId: l.destination_location_id,
         warehouseId: dest.warehouseId,
         lotId,
         quantity: qty.toString(),
-      });
-
-      const idemKey = `${taskId}:${movementType}:${l.inbound_order_line_id}:${l.destination_location_id}`;
-      await this.ledgerDedup.appendIfAbsent(tx, idemKey, {
-        companyId,
-        productId: src.productId,
-        lotId,
-        fromLocationId: src.locationId,
-        toLocationId: l.destination_location_id,
-        movementType,
-        quantity: qty,
-        quantityBefore: dec.before,
-        quantityAfter: inc.after,
-        referenceType: 'inbound_order',
-        referenceId: inboundOrderId,
-        operatorId,
       });
     }
   }
@@ -392,7 +374,7 @@ export class TaskInventoryEffectsService {
         lotId: r.lotId,
         quantity: r.quantity,
       });
-      const idemKey = `${taskId}:dispatch:${r.outboundOrderLineId}:${r.locationId}:${r.lotId ?? 'null'}:${r.quantity}`;
+      const idemKey = `bm:outbound:${outboundOrderId}:${r.productId}:task:${taskId}:line:${r.outboundOrderLineId}:loc:${r.locationId}:lot:${r.lotId ?? 'null'}:${r.quantity}`;
       await this.ledgerDedup.appendIfAbsent(tx, idemKey, {
         companyId: r.companyId,
         productId: r.productId,

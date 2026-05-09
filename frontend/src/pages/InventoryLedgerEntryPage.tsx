@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { InventoryApi } from '../api/inventory';
 import { Column, DataTable } from '../components/DataTable';
@@ -21,6 +21,8 @@ export function InventoryLedgerEntryPage() {
     ledgerId: string;
     createdAt: string;
   }>();
+  const [searchParams] = useSearchParams();
+  const companyIdOverride = searchParams.get('companyId')?.trim() || undefined;
 
   const ledgerId = useMemo(() => {
     try {
@@ -41,12 +43,15 @@ export function InventoryLedgerEntryPage() {
   const { warehouseId: wid } = useDefaultWarehouseId();
 
   const query = useQuery({
-    queryKey: wid ? QK.ledgerEntry(wid, ledgerId, createdAt) : ['inventory', 'ledger', 'entry', 'pending'],
+    queryKey: wid
+      ? [...QK.ledgerEntry(wid, ledgerId, createdAt), companyIdOverride ?? 'default-company']
+      : ['inventory', 'ledger', 'entry', 'pending'],
     queryFn: () =>
       InventoryApi.ledgerEntry({
         ledgerId,
         createdAt,
         warehouseId: wid || undefined,
+        companyIdOverride,
       }),
     enabled: !!wid && !!ledgerId && !!createdAt,
   });

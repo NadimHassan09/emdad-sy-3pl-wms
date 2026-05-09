@@ -329,6 +329,7 @@ export class AdjustmentsService {
                 referenceType: 'adjustment',
                 referenceId: id,
                 operatorId: user.id,
+                idempotencyKey: `bm:adjustment:${id}:${line.productId}:line:${line.id}:loc:${line.locationId}:lot:${line.lotId ?? 'null'}:positive`,
               },
             });
           } else {
@@ -353,6 +354,7 @@ export class AdjustmentsService {
                 referenceType: 'adjustment',
                 referenceId: id,
                 operatorId: user.id,
+                idempotencyKey: `bm:adjustment:${id}:${line.productId}:line:${line.id}:loc:${line.locationId}:lot:${line.lotId ?? 'null'}:negative`,
               },
             });
           }

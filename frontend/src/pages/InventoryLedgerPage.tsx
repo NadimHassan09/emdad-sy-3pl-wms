@@ -19,15 +19,12 @@ import {
   fmtSignedDelta,
   ledgerEntryDetailPath,
   ledgerGroupRefLabel,
-  ledgerMovementCategory,
-  ledgerMovementLabel,
   ledgerQuantityDisplay,
-  type LedgerMovementCategory,
 } from '../lib/ledger-display';
 
 type LedgerDraft = {
   productId: string;
-  movementCategory: '' | LedgerMovementCategory;
+  movementType: '' | 'inbound' | 'outbound' | 'adjustment';
   companyId: string;
   createdFrom: string;
   createdTo: string;
@@ -46,7 +43,7 @@ export function InventoryLedgerPage() {
   const initial = useMemo<LedgerDraft>(
     () => ({
       productId: '',
-      movementCategory: '',
+      movementType: '',
       companyId: '',
       createdFrom: '',
       createdTo: '',
@@ -74,6 +71,7 @@ export function InventoryLedgerPage() {
       warehouseId: wid || undefined,
       productId: appliedFilters.productId || undefined,
       companyId: appliedFilters.companyId || undefined,
+      movementType: appliedFilters.movementType || undefined,
       createdFrom: appliedFilters.createdFrom.trim() || undefined,
       createdTo: appliedFilters.createdTo.trim() || undefined,
     }),
@@ -86,12 +84,7 @@ export function InventoryLedgerPage() {
     enabled: !!wid,
   });
 
-  const ledgerRows = useMemo(() => {
-    const items = ledger.data?.items ?? [];
-    const cat = appliedFilters.movementCategory;
-    if (!cat) return items;
-    return items.filter((r) => ledgerMovementCategory(r.movementType) === cat);
-  }, [ledger.data?.items, appliedFilters.movementCategory]);
+  const ledgerRows = useMemo(() => ledger.data?.items ?? [], [ledger.data?.items]);
 
   const columns: Column<LedgerRow>[] = useMemo(
     () => [
@@ -110,29 +103,32 @@ export function InventoryLedgerPage() {
         width: '140px',
       },
       {
-        header: t('Movement', 'الحركة'),
-        accessor: (r) => {
-          const cat = ledgerMovementCategory(r.movementType);
-          const tone =
-            cat === 'inbound'
-              ? 'bg-emerald-50 text-emerald-900 ring-emerald-200'
-              : cat === 'outbound'
-                ? 'bg-rose-50 text-rose-900 ring-rose-200'
-                : 'bg-slate-100 text-slate-800 ring-slate-200';
-          return (
-            <div className="space-y-0.5">
-              <span
-                className={`inline-block rounded px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tone}`}
-              >
-                {ledgerMovementLabel(cat)}
-              </span>
-              <div className="font-mono text-[11px] text-slate-500" title={r.movementType}>
-                {r.movementType}
-              </div>
-            </div>
-          );
-        },
+        header: t('Movement type', 'نوع الحركة'),
+        accessor: (r) => <span className="font-mono text-xs text-slate-700">{r.movementType}</span>,
         width: '130px',
+      },
+      {
+        header: t('When', 'الوقت'),
+        accessor: (r) => new Date(r.createdAt).toLocaleString(),
+        width: '160px',
+      },
+      {
+        header: t('Reference', 'المرجع'),
+        accessor: (r) => (
+          <span className="text-xs font-mono text-slate-500">
+            {ledgerGroupRefLabel(r.referenceType, r.referenceId)}
+          </span>
+        ),
+        width: '200px',
+      },
+      {
+        header: t('Before quantity', 'الكمية قبل'),
+        accessor: (r) => {
+          const { before } = ledgerQuantityDisplay(r);
+          return <span className="font-mono text-slate-700">{fmtLedgerQty(before)}</span>;
+        },
+        width: '110px',
+        className: 'text-right',
       },
       {
         header: t('Δ Qty', 'فرق الكمية'),
@@ -152,36 +148,13 @@ export function InventoryLedgerPage() {
         className: 'text-right',
       },
       {
-        header: t('Before', 'قبل'),
-        accessor: (r) => {
-          const { before } = ledgerQuantityDisplay(r);
-          return <span className="font-mono text-slate-700">{fmtLedgerQty(before)}</span>;
-        },
-        width: '90px',
-        className: 'text-right',
-      },
-      {
-        header: t('After', 'بعد'),
+        header: t('After quantity', 'الكمية بعد'),
         accessor: (r) => {
           const { after } = ledgerQuantityDisplay(r);
           return <span className="font-mono text-slate-700">{fmtLedgerQty(after)}</span>;
         },
-        width: '90px',
+        width: '110px',
         className: 'text-right',
-      },
-      {
-        header: t('Ref', 'المرجع'),
-        accessor: (r) => (
-          <span className="text-xs font-mono text-slate-500">
-            {ledgerGroupRefLabel(r.referenceType, r.referenceId)}
-          </span>
-        ),
-        width: '200px',
-      },
-      {
-        header: t('When', 'الوقت'),
-        accessor: (r) => new Date(r.createdAt).toLocaleString(),
-        width: '160px',
       },
     ],
     [],
@@ -226,18 +199,18 @@ export function InventoryLedgerPage() {
           className="min-w-[280px]"
         />
         <Combobox
-          label={t('Movement', 'الحركة')}
-          value={draftFilters.movementCategory}
+          label={t('Movement type', 'نوع الحركة')}
+          value={draftFilters.movementType}
           onChange={(v) =>
-            setDraft({ movementCategory: (v || '') as LedgerDraft['movementCategory'] })
+            setDraft({ movementType: (v || '') as LedgerDraft['movementType'] })
           }
           options={[
-            { value: '', label: t('All movements', 'كل الحركات') },
+            { value: '', label: t('All movement types', 'كل أنواع الحركات') },
             { value: 'inbound', label: t('Inbound', 'وارد') },
             { value: 'outbound', label: t('Outbound', 'صادر') },
             { value: 'adjustment', label: t('Adjustment', 'تعديل') },
           ]}
-          placeholder={t('Category…', 'الفئة…')}
+          placeholder={t('Movement type…', 'نوع الحركة…')}
           className="min-w-[200px]"
         />
         <TextField
@@ -270,7 +243,7 @@ export function InventoryLedgerPage() {
         rowKey={ledgerRowKey}
         loading={ledger.isLoading || !wid}
         empty={wid ? 'No ledger rows for the current filters.' : 'Warehouse not resolved yet.'}
-        onRowClick={(r) => navigate(ledgerEntryDetailPath(r.id, r.createdAt))}
+        onRowClick={(r) => navigate(ledgerEntryDetailPath(r.id, r.createdAt, r.companyId))}
         labels={{
           rowsSuffix: t('rows', 'صف'),
           resultsSuffix: t('results', 'نتيجة'),
@@ -282,9 +255,7 @@ export function InventoryLedgerPage() {
       />
       <p className="mt-2 text-xs text-slate-500">
         {ledger.data
-          ? appliedFilters.movementCategory
-            ? `Showing ${ledgerRows.length} movement(s) · ${ledger.data.total} line(s) from server`
-            : `${ledgerRows.length} movement(s) · ${ledger.data.total} line(s) from server`
+          ? `${ledgerRows.length} movement(s) · ${ledger.data.total} row(s) from server`
           : ''}
       </p>
     </>

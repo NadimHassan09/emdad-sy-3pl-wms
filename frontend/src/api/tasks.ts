@@ -16,6 +16,7 @@ export interface WarehouseTaskListItem {
   runnability_blocked_reason?: string | null;
   workflowInstance?: {
     id: string;
+    companyId?: string;
     referenceType: string;
     referenceId: string;
     warehouseId: string;
@@ -30,66 +31,100 @@ export interface TaskMutationEnvelope {
   orderSummary?: unknown;
 }
 
+function companyHeaders(companyIdOverride?: string) {
+  return companyIdOverride ? { headers: { 'X-Company-Id': companyIdOverride } } : undefined;
+}
+
 export const TasksApi = {
-  async list(filters: Record<string, string | undefined>) {
+  async list(filters: Record<string, string | undefined>, companyIdOverride?: string) {
     const { data } = await api.get<PageResult<WarehouseTaskListItem>>('/tasks', {
       params: filters,
+      ...(companyHeaders(companyIdOverride) ?? {}),
     });
     return data;
   },
 
-  async get(id: string) {
-    const { data } = await api.get<WarehouseTaskListItem & Record<string, unknown>>(`/tasks/${id}`);
+  async get(id: string, companyIdOverride?: string) {
+    const { data } = await api.get<WarehouseTaskListItem & Record<string, unknown>>(
+      `/tasks/${id}`,
+      companyHeaders(companyIdOverride),
+    );
     return data;
   },
 
-  assign(id: string, workerId: string) {
-    return api.post<TaskMutationEnvelope>(`/tasks/${id}/assign`, { workerId }).then((r) => r.data);
-  },
-
-  start(id: string, workerId?: string) {
-    return api.post<TaskMutationEnvelope>(`/tasks/${id}/start`, { workerId }).then((r) => r.data);
-  },
-
-  complete(id: string, body: unknown) {
-    return api.post<TaskMutationEnvelope>(`/tasks/${id}/complete`, body).then((r) => r.data);
-  },
-
-  cancel(id: string, reason?: string) {
-    return api.post<TaskMutationEnvelope>(`/tasks/${id}/cancel`, { reason }).then((r) => r.data);
-  },
-
-  patchProgress(id: string, execution_state_patch: Record<string, unknown>) {
+  assign(id: string, workerId: string, companyIdOverride?: string) {
     return api
-      .put<TaskMutationEnvelope>(`/tasks/${id}/progress`, { execution_state_patch })
+      .post<TaskMutationEnvelope>(`/tasks/${id}/assign`, { workerId }, companyHeaders(companyIdOverride))
       .then((r) => r.data);
   },
 
-  leaseAcquire(id: string, body?: { minutes?: number }) {
-    return api.post<TaskMutationEnvelope>(`/tasks/${id}/lease`, body ?? {}).then((r) => r.data);
+  start(id: string, workerId?: string, companyIdOverride?: string) {
+    return api
+      .post<TaskMutationEnvelope>(`/tasks/${id}/start`, { workerId }, companyHeaders(companyIdOverride))
+      .then((r) => r.data);
   },
 
-  leaseRelease(id: string) {
-    return api.post<TaskMutationEnvelope>(`/tasks/${id}/lease/release`, {}).then((r) => r.data);
+  complete(id: string, body: unknown, companyIdOverride?: string) {
+    return api
+      .post<TaskMutationEnvelope>(`/tasks/${id}/complete`, body, companyHeaders(companyIdOverride))
+      .then((r) => r.data);
   },
 
-  async getPathOrder(id: string): Promise<{ orderedIds: string[]; source: string }> {
-    const { data } = await api.get<{ orderedIds: string[]; source: string }>(`/tasks/${id}/path-order`);
+  cancel(id: string, reason?: string, companyIdOverride?: string) {
+    return api
+      .post<TaskMutationEnvelope>(`/tasks/${id}/cancel`, { reason }, companyHeaders(companyIdOverride))
+      .then((r) => r.data);
+  },
+
+  patchProgress(id: string, execution_state_patch: Record<string, unknown>, companyIdOverride?: string) {
+    return api
+      .put<TaskMutationEnvelope>(
+        `/tasks/${id}/progress`,
+        { execution_state_patch },
+        companyHeaders(companyIdOverride),
+      )
+      .then((r) => r.data);
+  },
+
+  leaseAcquire(id: string, body?: { minutes?: number }, companyIdOverride?: string) {
+    return api
+      .post<TaskMutationEnvelope>(`/tasks/${id}/lease`, body ?? {}, companyHeaders(companyIdOverride))
+      .then((r) => r.data);
+  },
+
+  leaseRelease(id: string, companyIdOverride?: string) {
+    return api
+      .post<TaskMutationEnvelope>(`/tasks/${id}/lease/release`, {}, companyHeaders(companyIdOverride))
+      .then((r) => r.data);
+  },
+
+  async getPathOrder(id: string, companyIdOverride?: string): Promise<{ orderedIds: string[]; source: string }> {
+    const { data } = await api.get<{ orderedIds: string[]; source: string }>(
+      `/tasks/${id}/path-order`,
+      companyHeaders(companyIdOverride),
+    );
     return data;
   },
 
-  skip(id: string, body: { skip_target: 'qc' | 'pack'; reason: string }) {
-    return api.post<TaskMutationEnvelope>(`/tasks/${id}/skip`, body).then((r) => r.data);
+  skip(id: string, body: { skip_target: 'qc' | 'pack'; reason: string }, companyIdOverride?: string) {
+    return api
+      .post<TaskMutationEnvelope>(`/tasks/${id}/skip`, body, companyHeaders(companyIdOverride))
+      .then((r) => r.data);
   },
 
-  retry(id: string, body?: { reason?: string }) {
-    return api.post<TaskMutationEnvelope>(`/tasks/${id}/retry`, body ?? {}).then((r) => r.data);
+  retry(id: string, body?: { reason?: string }, companyIdOverride?: string) {
+    return api
+      .post<TaskMutationEnvelope>(`/tasks/${id}/retry`, body ?? {}, companyHeaders(companyIdOverride))
+      .then((r) => r.data);
   },
 
   resolve(
     id: string,
     body: { resolution: ResolveTaskResolution; reason: string; fork_hint?: string },
+    companyIdOverride?: string,
   ) {
-    return api.post<TaskMutationEnvelope>(`/tasks/${id}/resolve`, body).then((r) => r.data);
+    return api
+      .post<TaskMutationEnvelope>(`/tasks/${id}/resolve`, body, companyHeaders(companyIdOverride))
+      .then((r) => r.data);
   },
 };

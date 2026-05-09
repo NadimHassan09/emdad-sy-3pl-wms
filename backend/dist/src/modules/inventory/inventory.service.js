@@ -26,6 +26,38 @@ const LEDGER_ROW_INCLUDE = {
     lot: { select: { id: true, lotNumber: true } },
     operator: { select: { id: true, fullName: true } },
 };
+const BUSINESS_LEDGER_MOVEMENTS = [
+    client_1.MovementType.inbound_receive,
+    client_1.MovementType.outbound_pick,
+    client_1.MovementType.adjustment_positive,
+    client_1.MovementType.adjustment_negative,
+];
+function expandMovementFilter(movementType) {
+    if (!movementType)
+        return BUSINESS_LEDGER_MOVEMENTS;
+    if (movementType === 'inbound')
+        return [client_1.MovementType.inbound_receive];
+    if (movementType === 'outbound')
+        return [client_1.MovementType.outbound_pick];
+    if (movementType === 'adjustment') {
+        return [client_1.MovementType.adjustment_positive, client_1.MovementType.adjustment_negative];
+    }
+    return [movementType];
+}
+function toBusinessMovementType(movementType) {
+    if (movementType === client_1.MovementType.inbound_receive)
+        return 'inbound';
+    if (movementType === client_1.MovementType.outbound_pick)
+        return 'outbound';
+    return 'adjustment';
+}
+function businessGroupKey(row) {
+    const parts = row.idempotencyKey?.split(':') ?? [];
+    if (parts.length >= 4 && parts[0] === 'bm') {
+        return `${parts[0]}:${parts[1]}:${parts[2]}:${parts[3]}`;
+    }
+    return `${row.referenceType}:${row.referenceId}:${row.productId}:${toBusinessMovementType(row.movementType)}:${row.id}`;
+}
 let InventoryService = class InventoryService {
     prisma;
     stockHelpers;
@@ -229,8 +261,7 @@ let InventoryService = class InventoryService {
             andParts.push({ companyId });
         if (query.productId)
             andParts.push({ productId: query.productId });
-        if (query.movementType)
-            andParts.push({ movementType: query.movementType });
+        andParts.push({ movementType: { in: expandMovementFilter(query.movementType) } });
         if (query.referenceType)
             andParts.push({ referenceType: query.referenceType });
         if (query.referenceId)
@@ -260,19 +291,30 @@ let InventoryService = class InventoryService {
             andParts.push(whPiece);
         }
         const where = andParts.length === 0 ? {} : andParts.length === 1 ? andParts[0] : { AND: andParts };
-        const [rows, total] = await this.prisma.$transaction([
+        const [rows, totalRows] = await this.prisma.$transaction([
             this.prisma.inventoryLedger.findMany({
                 where,
                 include: LEDGER_ROW_INCLUDE,
-                orderBy: { createdAt: 'desc' },
-                take: query.limit,
+                orderBy: { createdAt: 'asc' },
+                take: Math.max(query.limit * 5, query.limit),
                 skip: query.offset,
             }),
             this.prisma.inventoryLedger.count({ where }),
         ]);
-        const locMap = await this.buildLedgerLocationMap(rows);
-        const items = rows.map((row) => this.formatLedgerRow(row, locMap));
-        return { items, total, limit: query.limit, offset: query.offset };
+        const grouped = new Map();
+        for (const row of rows) {
+            const k = businessGroupKey(row);
+            const cur = grouped.get(k) ?? [];
+            cur.push(row);
+            grouped.set(k, cur);
+        }
+        const totalsCache = new Map();
+        const groupedRows = [...grouped.values()];
+        const groupedItems = await Promise.all(groupedRows.map((group) => this.formatBusinessMovementGroup(group, totalsCache)));
+        const items = groupedItems
+            .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+            .slice(0, query.limit);
+        return { items, total: totalRows, limit: query.limit, offset: query.offset };
     }
     async ledgerEntry(user, query) {
         const createdAt = new Date(query.createdAt);
@@ -289,27 +331,83 @@ let InventoryService = class InventoryService {
         if (user.companyId && head.companyId !== user.companyId) {
             throw new common_1.NotFoundException('Ledger entry not found.');
         }
-        let rows = head.idempotencyKey
-            ? await this.prisma.inventoryLedger.findMany({
-                where: { companyId: head.companyId, idempotencyKey: head.idempotencyKey },
-                include: LEDGER_ROW_INCLUDE,
-                orderBy: { createdAt: 'asc' },
-            })
-            : [head];
+        const groupKey = businessGroupKey(head);
+        const rows = await this.prisma.inventoryLedger.findMany({
+            where: {
+                companyId: head.companyId,
+                referenceType: head.referenceType,
+                referenceId: head.referenceId,
+                productId: head.productId,
+                movementType: { in: BUSINESS_LEDGER_MOVEMENTS },
+            },
+            include: LEDGER_ROW_INCLUDE,
+            orderBy: { createdAt: 'asc' },
+        });
+        let scopedRows = rows.filter((row) => businessGroupKey(row) === groupKey);
         if (query.warehouseId) {
             const warehouseLocs = await this.prisma.location.findMany({
                 where: { warehouseId: query.warehouseId, status: 'active' },
                 select: { id: true },
             });
             const locSet = new Set(warehouseLocs.map((l) => l.id));
-            rows = rows.filter((r) => (r.fromLocationId != null && locSet.has(r.fromLocationId)) ||
+            scopedRows = scopedRows.filter((r) => (r.fromLocationId != null && locSet.has(r.fromLocationId)) ||
                 (r.toLocationId != null && locSet.has(r.toLocationId)));
         }
-        if (rows.length === 0) {
+        if (scopedRows.length === 0) {
             throw new common_1.NotFoundException('Ledger entry not found in this warehouse.');
         }
-        const locMap = await this.buildLedgerLocationMap(rows);
-        return { lines: rows.map((row) => this.formatLedgerRow(row, locMap)) };
+        if (query.warehouseId && head.movementType === client_1.MovementType.inbound_receive) {
+            const stockSlices = await this.prisma.currentStock.findMany({
+                where: {
+                    companyId: head.companyId,
+                    warehouseId: query.warehouseId,
+                    productId: head.productId,
+                    lotId: head.lotId,
+                    quantityOnHand: { gt: new client_1.Prisma.Decimal(0) },
+                },
+                select: { locationId: true, quantityOnHand: true },
+                orderBy: { quantityOnHand: 'desc' },
+            });
+            if (stockSlices.length > 0) {
+                const locs = await this.prisma.location.findMany({
+                    where: { id: { in: [...new Set(stockSlices.map((s) => s.locationId))] } },
+                    select: { id: true, name: true, fullPath: true, barcode: true },
+                });
+                const locMap = new Map(locs.map((l) => [l.id, l]));
+                return {
+                    lines: stockSlices.map((slice, idx) => {
+                        const loc = locMap.get(slice.locationId);
+                        const qty = slice.quantityOnHand.toString();
+                        return {
+                            id: `${head.id}:${idx}`,
+                            createdAt: head.createdAt,
+                            companyId: head.companyId,
+                            productId: head.productId,
+                            lotId: head.lotId,
+                            idempotencyKey: head.idempotencyKey,
+                            company: head.company,
+                            product: head.product,
+                            lot: head.lot,
+                            operator: head.operator,
+                            movementType: head.movementType,
+                            referenceType: head.referenceType,
+                            referenceId: head.referenceId,
+                            quantity: qty,
+                            quantityChange: qty,
+                            quantityBefore: null,
+                            quantityAfter: qty,
+                            fromLocationId: null,
+                            toLocationId: slice.locationId,
+                            locationId: slice.locationId,
+                            locationLabel: loc ? loc.fullPath || loc.name || loc.barcode : null,
+                            notes: head.notes,
+                        };
+                    }),
+                };
+            }
+        }
+        const locMap = await this.buildLedgerLocationMap(scopedRows);
+        return { lines: scopedRows.map((row) => this.formatLedgerRow(row, locMap)) };
     }
     async buildLedgerLocationMap(rows) {
         const locIds = new Set();
@@ -328,7 +426,7 @@ let InventoryService = class InventoryService {
         return new Map(locs.map((l) => [l.id, l]));
     }
     formatLedgerRow(row, locMap) {
-        const locationId = row.fromLocationId ?? row.toLocationId;
+        const locationId = row.toLocationId ?? row.fromLocationId;
         const loc = locationId ? locMap.get(locationId) : undefined;
         const locationLabel = loc != null ? loc.fullPath || loc.name || loc.barcode : null;
         return {
@@ -354,6 +452,73 @@ let InventoryService = class InventoryService {
             locationId,
             locationLabel,
             notes: row.notes,
+        };
+    }
+    async productTotalAfterAt(companyId, productId, at, cache) {
+        const key = `${companyId}:${productId}:${at.toISOString()}`;
+        const hit = cache.get(key);
+        if (hit)
+            return hit;
+        const rows = await this.prisma.inventoryLedger.findMany({
+            where: {
+                companyId,
+                productId,
+                movementType: { in: BUSINESS_LEDGER_MOVEMENTS },
+                createdAt: { lte: at },
+            },
+            select: { movementType: true, quantity: true },
+        });
+        const total = rows.reduce((acc, row) => acc.plus(new client_1.Prisma.Decimal((0, ledger_mapper_1.ledgerSignedQuantity)(row.movementType, row.quantity))), new client_1.Prisma.Decimal(0));
+        cache.set(key, total);
+        return total;
+    }
+    async formatBusinessMovementGroup(group, totalsCache) {
+        const ordered = [...group].sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+        const first = ordered[0];
+        const last = ordered[ordered.length - 1];
+        const signedDelta = ordered.reduce((sum, row) => {
+            const v = Number((0, ledger_mapper_1.ledgerSignedQuantity)(row.movementType, row.quantity));
+            return sum + (Number.isFinite(v) ? v : 0);
+        }, 0);
+        const afterTotal = await this.productTotalAfterAt(first.companyId, first.productId, last.createdAt, totalsCache);
+        const beforeTotal = afterTotal.minus(new client_1.Prisma.Decimal(signedDelta));
+        const before = beforeTotal.toString();
+        const after = afterTotal.toString();
+        const locationIds = new Set();
+        for (const row of ordered) {
+            if (row.fromLocationId)
+                locationIds.add(row.fromLocationId);
+            if (row.toLocationId)
+                locationIds.add(row.toLocationId);
+        }
+        const movementType = toBusinessMovementType(first.movementType);
+        return {
+            id: first.id,
+            createdAt: first.createdAt,
+            companyId: first.companyId,
+            productId: first.productId,
+            lotId: first.lotId,
+            idempotencyKey: first.idempotencyKey,
+            company: first.company,
+            product: first.product,
+            lot: first.lot,
+            operator: first.operator,
+            movementType,
+            referenceType: first.referenceType,
+            referenceId: first.referenceId,
+            quantity: new client_1.Prisma.Decimal(Math.abs(signedDelta)).toString(),
+            quantityChange: signedDelta.toString(),
+            quantityBefore: before,
+            quantityAfter: after,
+            fromLocationId: null,
+            toLocationId: null,
+            locationId: null,
+            locationLabel: locationIds.size > 1
+                ? `${locationIds.size} affected locations`
+                : locationIds.size === 1
+                    ? '1 affected location'
+                    : null,
+            notes: first.notes,
         };
     }
     async internalTransfer(user, dto) {

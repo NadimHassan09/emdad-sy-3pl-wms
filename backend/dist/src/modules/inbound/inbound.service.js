@@ -366,6 +366,7 @@ let InboundService = class InboundService {
                     referenceType: 'inbound_order',
                     referenceId: orderId,
                     operatorId: user.id,
+                    idempotencyKey: `bm:inbound:${orderId}:${line.productId}:line:${line.id}:loc:${dto.locationId}:lot:${lotId ?? 'null'}`,
                 },
             });
             const newReceived = line.receivedQuantity.plus(new client_1.Prisma.Decimal(dto.quantity));

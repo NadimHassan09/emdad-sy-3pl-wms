@@ -94,7 +94,7 @@ export function InboundDetailPage() {
 
   const confirmMut = useMutation({
     mutationFn: (body?: ConfirmInboundBody | null) =>
-      InboundApi.confirm(id, body === null ? {} : body ?? {}),
+      InboundApi.confirm(id, body === null ? {} : body ?? {}, order.data?.companyId),
     onSuccess: () => {
       toast.success(taskOnlyMode ? 'Order confirmed / workflow started.' : 'Order confirmed.');
       qc.invalidateQueries({ queryKey: [...QK.inboundOrders, id] });
@@ -199,6 +199,7 @@ export function InboundDetailPage() {
             )}
             {canConfirm && (
               <Button
+                className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
                 onClick={() => {
                   if (taskOnlyMode) {
                     const stagingByLineId = Object.fromEntries(
@@ -286,15 +287,10 @@ export function InboundDetailPage() {
         referenceType="inbound_order"
         referenceId={id}
         enabled={!!id && o.status !== 'draft'}
+        companyIdOverride={o.companyId}
       />
 
       <DataTable columns={lineColumns} rows={o.lines} rowKey={(l) => l.id} />
-
-      {o.status !== 'completed' ? (
-        <p className="mt-3 text-xs text-slate-500">
-          Confirm moves the order to received status; Receive posts stock to internal storage locations.
-        </p>
-      ) : null}
 
       {!taskOnlyMode && (
         <ReceiveModal

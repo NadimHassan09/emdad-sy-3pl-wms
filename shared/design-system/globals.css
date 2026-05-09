@@ -83,6 +83,11 @@
   min-height: 100vh;
 }
 
+.page--app {
+  display: flex;
+  flex-direction: column;
+}
+
 .page--centered {
   display: flex;
   align-items: center;
@@ -91,8 +96,7 @@
 }
 
 .main {
-  max-width: 720px;
-  margin: 0 auto;
+  width: 100%;
   padding: 1.5rem;
 }
 
@@ -103,6 +107,17 @@
   padding: 0.75rem 1.25rem;
   background: var(--app-topbar-bg);
   color: var(--app-topbar-fg);
+}
+
+.topbar--app {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 5rem;
+  padding: 0 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+  color: #0f172a;
 }
 
 .topbar__brand {
@@ -136,11 +151,57 @@
   background: #334155;
 }
 
+.app-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 0.75rem;
+}
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sidebar__link {
+  display: block;
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  text-decoration: none;
+  color: #334155;
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.sidebar__link:hover {
+  background: #f1f5f9;
+}
+
+.sidebar__link--active {
+  background: #1a7a44;
+  color: #fff;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+}
+
 .card {
   background: #fff;
   border-radius: 12px;
-  padding: 1.75rem;
-  box-shadow: 0 1px 3px rgb(15 23 42 / 8%);
+  border: 1px solid #e2e8f0;
+  padding: 1.25rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
 }
 
 .card--narrow {
@@ -209,22 +270,23 @@
 }
 
 .btn--primary {
-  background: var(--app-primary);
+  background: #1a7a44;
   color: #fff;
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: var(--app-primary-hover);
+  background: #146135;
 }
 
 .btn--secondary {
   margin-top: 1rem;
-  background: #e2e8f0;
+  background: #fff;
+  border: 1px solid #cbd5e1;
   color: var(--app-text);
 }
 
 .btn--secondary:hover:not(:disabled) {
-  background: #cbd5e1;
+  background: #f8fafc;
 }
 
 .btn--ghost {
@@ -302,6 +364,9 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .data-table th,
@@ -313,6 +378,9 @@
 
 .data-table th {
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 0.75rem;
   color: #475569;
   background: #f8fafc;
 }

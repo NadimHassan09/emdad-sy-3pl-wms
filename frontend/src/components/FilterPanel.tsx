@@ -15,7 +15,7 @@ export function FilterPanel({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="mb-3">
+    <div className={`mb-3 ${open ? 'relative z-40' : ''}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -36,7 +36,7 @@ export function FilterPanel({
       <div
         className={`grid transition-all duration-300 ease-in-out ${open ? 'mt-3 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
       >
-        <div className="overflow-hidden">{children}</div>
+        <div className={open ? 'overflow-visible' : 'overflow-hidden'}>{children}</div>
       </div>
     </div>
   );

@@ -91,14 +91,16 @@ export function WorkflowOrderTimeline({
   referenceType,
   referenceId,
   enabled,
+  companyIdOverride,
 }: {
   referenceType: 'inbound_order' | 'outbound_order';
   referenceId: string;
   enabled: boolean;
+  companyIdOverride?: string;
 }) {
   const q = useQuery({
     queryKey: QK.workflows.workflowTimelineByRef(referenceId),
-    queryFn: () => WorkflowsApi.getTimeline(referenceType, referenceId),
+    queryFn: () => WorkflowsApi.getTimeline(referenceType, referenceId, companyIdOverride),
     enabled: enabled && !!referenceId,
   });
 
@@ -110,13 +112,7 @@ export function WorkflowOrderTimeline({
 
   const wf = q.data.workflowInstance;
   const tasksRaw = q.data.tasks ?? [];
-  if (!wf && tasksRaw.length === 0)
-    return (
-      <p className="mt-4 text-xs text-slate-500">
-        No active workflow linked to this order yet (timeline appears after confirmation when tasks are
-        created).
-      </p>
-    );
+  if (!wf && tasksRaw.length === 0) return null;
 
   const seq = taskSequence(referenceType);
   const tasks = [...tasksRaw].sort((a, b) => {
@@ -179,7 +175,14 @@ export function WorkflowOrderTimeline({
                       </span>
                     </div>
                     <div className="mt-2 flex items-center justify-center gap-3">
-                      <Link to={`/tasks/${t.id}`} className="font-medium text-primary-700 hover:underline">
+                      <Link
+                        to={
+                          companyIdOverride
+                            ? `/tasks/${t.id}?companyId=${encodeURIComponent(companyIdOverride)}`
+                            : `/tasks/${t.id}`
+                        }
+                        className="font-medium text-primary-700 hover:underline"
+                      >
                         Open task
                       </Link>
                       {!t.is_current_runnable && state === 'pending' ? (

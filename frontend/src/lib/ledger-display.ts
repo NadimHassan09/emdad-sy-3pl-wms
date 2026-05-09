@@ -68,14 +68,16 @@ export function fmtSignedDelta(n: number): string {
 export type LedgerMovementCategory = 'inbound' | 'outbound' | 'adjustment';
 
 const MOVEMENT_INBOUND = new Set([
+  'inbound',
   'inbound_receive',
   'return_receive',
   'transit_in',
 ]);
 
-const MOVEMENT_OUTBOUND = new Set(['outbound_pick', 'transit_out']);
+const MOVEMENT_OUTBOUND = new Set(['outbound', 'outbound_pick', 'transit_out']);
 
 const MOVEMENT_ADJUSTMENT = new Set([
+  'adjustment',
   'putaway',
   'qc_quarantine',
   'qc_release',
@@ -109,7 +111,7 @@ export function ledgerMovementLabel(cat: LedgerMovementCategory): string {
 /** Dedupe key: same lot + same from/to endpoints (one stock bucket movement). */
 export function ledgerLotLocationBucketKey(r: LedgerRow): string {
   const lot = r.lotId ?? r.lot?.id ?? '';
-  return `${lot}:${r.fromLocationId ?? ''}:${r.toLocationId ?? ''}`;
+  return `${r.productId}:${lot}:${r.fromLocationId ?? ''}:${r.toLocationId ?? ''}`;
 }
 
 export type MergedLotLocationLine = {
@@ -151,10 +153,10 @@ export function mergeLedgerLinesByLotAndLocation(lines: LedgerRow[]): MergedLotL
 }
 
 export function describeLedgerLocations(r: LedgerRow): string {
-  if (r.fromLocationId && r.toLocationId && r.fromLocationId !== r.toLocationId) {
-    return `${r.fromLocationId.slice(0, 8)}… → ${r.toLocationId.slice(0, 8)}…`;
-  }
   if (r.locationLabel) return r.locationLabel;
+  if (r.fromLocationId && r.toLocationId && r.fromLocationId !== r.toLocationId) {
+    return `${r.toLocationId.slice(0, 8)}…`;
+  }
   if (r.fromLocationId && !r.toLocationId) return `From ${r.fromLocationId.slice(0, 8)}…`;
   if (r.toLocationId && !r.fromLocationId) return `To ${r.toLocationId.slice(0, 8)}…`;
   return '—';
@@ -164,8 +166,9 @@ export function ledgerGroupRefLabel(refType: string, refId: string): string {
   return `${refType} · ${refId.slice(0, 8)}…`;
 }
 
-export function ledgerEntryDetailPath(ledgerId: string, createdAt: string): string {
-  return `/inventory/ledger/line/${encodeURIComponent(ledgerId)}/${encodeURIComponent(createdAt)}`;
+export function ledgerEntryDetailPath(ledgerId: string, createdAt: string, companyId?: string): string {
+  const base = `/inventory/ledger/line/${encodeURIComponent(ledgerId)}/${encodeURIComponent(createdAt)}`;
+  return companyId ? `${base}?companyId=${encodeURIComponent(companyId)}` : base;
 }
 
 /** @deprecated Use ledgerEntryDetailPath; kept for deep links to order-wide ledger views. */

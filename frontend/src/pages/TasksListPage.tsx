@@ -121,7 +121,13 @@ export function TasksListPage() {
         rows={rows}
         rowKey={(r) => r.id}
         loading={query.isLoading}
-        onRowClick={(r) => navigate(`/tasks/${r.id}`)}
+        onRowClick={(r) =>
+          navigate(
+            r.workflowInstance?.companyId
+              ? `/tasks/${r.id}?companyId=${encodeURIComponent(r.workflowInstance.companyId)}`
+              : `/tasks/${r.id}`,
+          )
+        }
       />
       {query.isError ? (
         <p className="mt-2 text-sm text-rose-600">{(query.error as Error).message}</p>

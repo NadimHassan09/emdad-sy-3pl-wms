@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthContext';
 
 function navLinkClass({ isActive }: { isActive: boolean }): string {
-  return 'topbar__link' + (isActive ? ' topbar__link--active' : '');
+  return 'sidebar__link' + (isActive ? ' sidebar__link--active' : '');
 }
 
 export function PortalLayout(): ReactElement {
@@ -32,17 +32,9 @@ export function PortalLayout(): ReactElement {
   }
 
   return (
-    <div key={language} className="page">
-      <header className="topbar">
+    <div key={language} className="page page--app">
+      <header className="topbar topbar--app">
         <span className="topbar__brand">Client portal</span>
-        <nav className="topbar__nav" aria-label="Main">
-          <NavLink className={navLinkClass} to="/" end>
-            Home
-          </NavLink>
-          <NavLink className={navLinkClass} to="/stock">
-            Stock
-          </NavLink>
-        </nav>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem' }}>
             <span>Language</span>
@@ -67,8 +59,30 @@ export function PortalLayout(): ReactElement {
           </button>
         </div>
       </header>
-
-      <Outlet />
+      <div className="app-shell">
+        <aside className="sidebar" aria-label="Main">
+          <nav className="sidebar__nav">
+            <NavLink className={navLinkClass} to="/" end>
+              Home
+            </NavLink>
+            <NavLink className={navLinkClass} to="/products">
+              Products
+            </NavLink>
+            <NavLink className={navLinkClass} to="/inbound-orders">
+              Inbound
+            </NavLink>
+            <NavLink className={navLinkClass} to="/outbound-orders">
+              Outbound
+            </NavLink>
+            <NavLink className={navLinkClass} to="/stock">
+              Stock
+            </NavLink>
+          </nav>
+        </aside>
+        <section className="app-main">
+          <Outlet />
+        </section>
+      </div>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { EmptyToUndefined } from '../../../common/transformers/query-transform';
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 
 const MOVEMENT_TYPES = Object.values(MovementType) as MovementType[];
+const MOVEMENT_FILTERS = [...MOVEMENT_TYPES, 'inbound', 'outbound', 'adjustment'] as const;
 const REF_TYPES = Object.values(LedgerRefType) as LedgerRefType[];
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -98,8 +99,8 @@ export class LedgerQueryDto extends PaginationDto {
 
   @EmptyToUndefined()
   @IsOptional()
-  @IsIn(MOVEMENT_TYPES)
-  movementType?: MovementType;
+  @IsIn(MOVEMENT_FILTERS)
+  movementType?: MovementType | 'inbound' | 'outbound' | 'adjustment';
 
   @EmptyToUndefined()
   @IsOptional()

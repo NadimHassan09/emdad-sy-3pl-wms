@@ -90,8 +90,10 @@ export const OutboundApi = {
     const { data } = await api.post<OutboundOrder>('/outbound-orders', input);
     return data;
   },
-  async confirm(id: string, body?: ConfirmOutboundBody): Promise<OutboundOrder> {
-    const { data } = await api.post<OutboundOrder>(`/outbound-orders/${id}/confirm`, body ?? {});
+  async confirm(id: string, body?: ConfirmOutboundBody, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(`/outbound-orders/${id}/confirm`, body ?? {}, {
+      headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined,
+    });
     return data;
   },
   async cancel(id: string): Promise<OutboundOrder> {

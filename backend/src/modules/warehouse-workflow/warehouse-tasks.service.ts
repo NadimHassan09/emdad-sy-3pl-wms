@@ -6,7 +6,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
-  MovementType,
   Prisma,
   UserRole,
   UserStatus,
@@ -111,6 +110,7 @@ export class WarehouseTasksService {
           workflowInstance: {
             select: {
               id: true,
+              companyId: true,
               referenceType: true,
               referenceId: true,
               warehouseId: true,
@@ -612,10 +612,7 @@ export class WarehouseTasksService {
             companyId,
             body,
             srcMap,
-            {
-              movementType: MovementType.qc_quarantine,
-              quarantineBinsOnly: true,
-            },
+            { quarantineBinsOnly: true },
           );
           break;
         }
@@ -1172,11 +1169,6 @@ export class WarehouseTasksService {
     if (!w) {
       throw new BadRequestException(
         'Worker not found. Create a system user with Worker role on Users (with X-Company-Id set), then assign again.',
-      );
-    }
-    if (user.companyId && w.companyId !== user.companyId) {
-      throw new BadRequestException(
-        'Worker belongs to a different company than your session (check MOCK_COMPANY_ID / X-Company-Id matches the worker tenant).',
       );
     }
     if (

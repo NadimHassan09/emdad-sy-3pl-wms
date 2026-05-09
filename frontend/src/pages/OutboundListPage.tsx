@@ -302,8 +302,8 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
   const availabilityResults = useQueries({
     queries: distinctProductIds.map((pid) => ({
       queryKey: QK.availability(pid, companyId),
-      queryFn: () => InventoryApi.availability(pid),
-      enabled: open && !!pid,
+      queryFn: () => InventoryApi.availability(pid, companyId),
+      enabled: open && !!pid && !!companyId,
       staleTime: 10_000,
     })),
   });
