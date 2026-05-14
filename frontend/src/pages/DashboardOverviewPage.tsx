@@ -52,15 +52,23 @@ function StatCard({
   icon,
   iconBgClass,
   iconColorClass,
+  to,
 }: {
   value: string;
   title: string;
   icon: ReactNode;
   iconBgClass: string;
   iconColorClass: string;
+  /** When set, the whole card navigates (keyboard-accessible link). */
+  to?: string;
 }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+  const baseClass =
+    'rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300';
+  const interactiveClass =
+    'hover:border-[#1a7a44]/40 hover:shadow-md focus-visible:outline focus-visible:ring-2 focus-visible:ring-[#1a7a44] focus-visible:ring-offset-2';
+
+  const body = (
+    <>
       <div className="flex items-start justify-between gap-3">
         <p className="text-2xl font-semibold text-slate-900">{value}</p>
         <div className={`inline-flex h-10 w-10 items-center justify-center rounded-lg ${iconBgClass}`}>
@@ -68,8 +76,18 @@ function StatCard({
         </div>
       </div>
       <p className="mt-2 text-xs text-slate-500">{title}</p>
-    </div>
+    </>
   );
+
+  if (to) {
+    return (
+      <Link to={to} className={`${baseClass} ${interactiveClass} block`}>
+        {body}
+      </Link>
+    );
+  }
+
+  return <div className={baseClass}>{body}</div>;
 }
 
 export function DashboardOverviewPage() {
@@ -100,6 +118,7 @@ export function DashboardOverviewPage() {
             <StatCard
               value={numberFmt(data.counters.totalItemsInStock)}
               title={t('Total items in stock')}
+              to="/inventory/stock"
               iconBgClass="bg-sky-100"
               iconColorClass="text-sky-700"
               icon={
@@ -113,6 +132,7 @@ export function DashboardOverviewPage() {
             <StatCard
               value={numberFmt(data.counters.itemsInCatalog)}
               title={t('Items in catalog')}
+              to="/products"
               iconBgClass="bg-emerald-100"
               iconColorClass="text-emerald-700"
               icon={
@@ -125,6 +145,7 @@ export function DashboardOverviewPage() {
             <StatCard
               value={numberFmt(data.counters.totalCustomers)}
               title={t('Total customers (companies)')}
+              to="/clients"
               iconBgClass="bg-violet-100"
               iconColorClass="text-violet-700"
               icon={
@@ -140,6 +161,7 @@ export function DashboardOverviewPage() {
             <StatCard
               value={numberFmt(data.openOrders.inbound)}
               title={t('Open inbound orders')}
+              to="/orders/inbound"
               iconBgClass="bg-amber-100"
               iconColorClass="text-amber-700"
               icon={
@@ -153,6 +175,7 @@ export function DashboardOverviewPage() {
             <StatCard
               value={numberFmt(data.openOrders.outbound)}
               title={t('Open outbound orders')}
+              to="/orders/outbound"
               iconBgClass="bg-fuchsia-100"
               iconColorClass="text-fuchsia-700"
               icon={
@@ -173,6 +196,7 @@ export function DashboardOverviewPage() {
                   key={task.key}
                   value={numberFmt(task.count)}
                   title={t(task.label)}
+                  to={`/tasks?taskType=${encodeURIComponent(task.key)}`}
                   iconBgClass="bg-slate-100"
                   iconColorClass="text-slate-700"
                   icon={
@@ -185,7 +209,10 @@ export function DashboardOverviewPage() {
             </div>
           </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <Link
+            to="/locations"
+            className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-[#1a7a44]/40 hover:shadow-md focus-visible:outline focus-visible:ring-2 focus-visible:ring-[#1a7a44] focus-visible:ring-offset-2"
+          >
             <h2 className="text-sm font-semibold text-slate-900">{t('Warehouse capacity consumption')}</h2>
             <p className="mt-1 text-xs text-slate-500">
               {data.capacity.occupiedLocations} {t('occupied of')} {data.capacity.totalStorageLocations} {t('storage locations')}
@@ -199,9 +226,12 @@ export function DashboardOverviewPage() {
             <p className="mt-2 text-sm font-medium text-slate-900">
               {data.capacity.consumedPercent}% {t('consumed')}
             </p>
-          </section>
+          </Link>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <Link
+            to="/inventory/ledger"
+            className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-[#1a7a44]/40 hover:shadow-md focus-visible:outline focus-visible:ring-2 focus-visible:ring-[#1a7a44] focus-visible:ring-offset-2"
+          >
             <h2 className="text-sm font-semibold text-slate-900">{t('Soon expiry lots (next 6 months)')}</h2>
             {data.soonExpiryLots.length === 0 ? (
               <p className="mt-3 text-sm text-slate-500">{t('No lots expiring soon.')}</p>
@@ -233,7 +263,7 @@ export function DashboardOverviewPage() {
                 </table>
               </div>
             )}
-          </section>
+          </Link>
 
           <section className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
