@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ADJUSTMENT_REASON_PENDING,
   AdjustmentsApi,
-  CreateAdjustmentInput,
+  AddAdjustmentLineInput,
   StockAdjustment,
   StockAdjustmentLine,
 } from '../api/adjustments';
@@ -42,6 +42,15 @@ type AdjListDraft = {
 type AdjustmentDrawerState =
   | { mode: 'new' }
   | { mode: 'edit'; adjustment: StockAdjustment };
+
+type PendingAdjustmentRow = {
+  key: string;
+  body: AddAdjustmentLineInput;
+  sku: string;
+  productName: string;
+  locationPath: string;
+  lotLabel?: string;
+};
 
 export function AdjustmentsPage() {
   const isArabic =
@@ -128,16 +137,6 @@ export function AdjustmentsPage() {
       }),
     enabled: !!wid,
     staleTime: 5 * 60_000,
-  });
-
-  const createMut = useMutation({
-    mutationFn: AdjustmentsApi.create,
-    onSuccess: (adj) => {
-      toast.success('Adjustment draft created.');
-      qc.invalidateQueries({ queryKey: QK.adjustments });
-      setAdjDrawer({ mode: 'edit', adjustment: adj });
-    },
-    onError: (e: Error) => toast.error(e.message),
   });
 
   const discardDraftMut = useMutation({
@@ -414,8 +413,6 @@ export function AdjustmentsPage() {
           drawerState={adjDrawer}
           warehouseId={wid}
           onClose={() => setAdjDrawer(null)}
-          onCreateDraft={(input) => createMut.mutate(input)}
-          createDraftPending={createMut.isPending}
         />
       ) : null}
 
@@ -443,14 +440,10 @@ function AdjustmentDetailDrawer({
   drawerState,
   warehouseId,
   onClose,
-  onCreateDraft,
-  createDraftPending,
 }: {
   drawerState: AdjustmentDrawerState;
   warehouseId: string;
   onClose: () => void;
-  onCreateDraft: (input: CreateAdjustmentInput) => void;
-  createDraftPending: boolean;
 }) {
   const isArabic =
     typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
@@ -458,12 +451,14 @@ function AdjustmentDetailDrawer({
   const qc = useQueryClient();
   const toast = useToast();
   const isNew = drawerState.mode === 'new';
-  const id = isNew ? '' : drawerState.adjustment.id;
 
   const [newCompanyId, setNewCompanyId] = useState('');
   const [newReason, setNewReason] = useState('');
+  const [composerSavedAdj, setComposerSavedAdj] = useState<StockAdjustment | null>(null);
+  const [pendingRows, setPendingRows] = useState<PendingAdjustmentRow[]>([]);
   const [isNewClientComboboxActive, setIsNewClientComboboxActive] = useState(false);
   const newClientComboboxWrapRef = useRef<HTMLDivElement>(null);
+
   const companiesForNew = useQuery({
     queryKey: QK.companies,
     queryFn: () => CompaniesApi.list(),
@@ -471,13 +466,19 @@ function AdjustmentDetailDrawer({
     staleTime: 10 * 60_000,
   });
 
+  const adjustmentId = !isNew ? drawerState.adjustment.id : composerSavedAdj?.id ?? '';
+
   const detail = useQuery({
-    queryKey: [...QK.adjustments, id],
-    queryFn: () => AdjustmentsApi.get(id),
-    enabled: !isNew && !!id && id.length === 36,
+    queryKey: [...QK.adjustments, adjustmentId],
+    queryFn: () => AdjustmentsApi.get(adjustmentId),
+    enabled: !!adjustmentId && adjustmentId.length === 36,
   });
 
-  const adj = isNew ? null : (detail.data ?? drawerState.adjustment);
+  const adj = !isNew
+    ? (detail.data ?? drawerState.adjustment)
+    : composerSavedAdj
+      ? (detail.data ?? composerSavedAdj)
+      : null;
 
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
@@ -485,18 +486,22 @@ function AdjustmentDetailDrawer({
     setCancelConfirmOpen(false);
   }, [drawerState]);
 
+  useEffect(() => {
+    setPendingRows([]);
+  }, [newCompanyId]);
+
   const addLineMut = useMutation({
     mutationFn: ({
-      adjustmentId,
+      adjustmentId: aid,
       body,
     }: {
       adjustmentId: string;
       body: Parameters<typeof AdjustmentsApi.addLine>[1];
-    }) => AdjustmentsApi.addLine(adjustmentId, body),
+    }) => AdjustmentsApi.addLine(aid, body),
     onSuccess: () => {
       toast.success('Line added.');
       qc.invalidateQueries({ queryKey: QK.adjustments });
-      qc.invalidateQueries({ queryKey: [...QK.adjustments, id] });
+      qc.invalidateQueries({ queryKey: [...QK.adjustments, adjustmentId] });
       qc.invalidateQueries({ queryKey: QK.inventoryStock });
       qc.invalidateQueries({ queryKey: QK.inventoryStockByProduct });
     },
@@ -506,9 +511,9 @@ function AdjustmentDetailDrawer({
   const approveMut = useMutation({
     mutationFn: AdjustmentsApi.approve,
     onSuccess: () => {
-      toast.success('Adjustment approved; stock updated.');
+      toast.success(t('Adjustment confirmed; stock updated.', 'تم تأكيد التعديل وتحديث المخزون.'));
       qc.invalidateQueries({ queryKey: QK.adjustments });
-      qc.invalidateQueries({ queryKey: [...QK.adjustments, id] });
+      qc.invalidateQueries({ queryKey: [...QK.adjustments, adjustmentId] });
       qc.invalidateQueries({ queryKey: QK.inventoryStock });
       qc.invalidateQueries({ queryKey: QK.inventoryStockByProduct });
       qc.invalidateQueries({ queryKey: QK.ledger });
@@ -531,46 +536,175 @@ function AdjustmentDetailDrawer({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const createDraftSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const reason = newReason.trim();
-    if (!warehouseId || !newCompanyId.trim() || !reason) return;
-    onCreateDraft({ warehouseId, companyId: newCompanyId.trim(), reason });
-  };
+  const composeSaveMut = useMutation({
+    mutationFn: async () => {
+      const companyId = newCompanyId.trim();
+      const reason = newReason.trim();
+      if (!warehouseId || !companyId || !reason) {
+        throw new Error(t('Select client and enter a reason.', 'اختر العميل وأدخل السبب.'));
+      }
+      if (pendingRows.length === 0) {
+        throw new Error(
+          t('Add at least one product line before saving.', 'أضف بنداً واحداً على الأقل قبل الحفظ.'),
+        );
+      }
+      const created = await AdjustmentsApi.create({ warehouseId, companyId, reason });
+      let last = created;
+      for (const row of pendingRows) {
+        last = await AdjustmentsApi.addLine(created.id, row.body);
+      }
+      return last;
+    },
+    onSuccess: (last) => {
+      toast.success(t('Draft saved.', 'تم حفظ المسودة.'));
+      setComposerSavedAdj(last);
+      setPendingRows([]);
+      qc.invalidateQueries({ queryKey: QK.adjustments });
+      qc.invalidateQueries({ queryKey: [...QK.adjustments, last.id] });
+      qc.invalidateQueries({ queryKey: QK.inventoryStock });
+      qc.invalidateQueries({ queryKey: QK.inventoryStockByProduct });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
-  if (isNew) {
+  const composeConfirmMut = useMutation({
+    mutationFn: async () => {
+      const companyId = newCompanyId.trim();
+      const reason = newReason.trim();
+      if (!warehouseId || !companyId || !reason) {
+        throw new Error(t('Select client and enter a reason.', 'اختر العميل وأدخل السبب.'));
+      }
+      if (pendingRows.length === 0) {
+        throw new Error(
+          t('Add at least one product line before confirming.', 'أضف بنداً واحداً على الأقل قبل التأكيد.'),
+        );
+      }
+      const created = await AdjustmentsApi.create({ warehouseId, companyId, reason });
+      let last = created;
+      for (const row of pendingRows) {
+        last = await AdjustmentsApi.addLine(created.id, row.body);
+      }
+      return AdjustmentsApi.approve(last.id);
+    },
+    onSuccess: () => {
+      toast.success(t('Adjustment confirmed; stock updated.', 'تم تأكيد التعديل وتحديث المخزون.'));
+      qc.invalidateQueries({ queryKey: QK.adjustments });
+      qc.invalidateQueries({ queryKey: QK.inventoryStock });
+      qc.invalidateQueries({ queryKey: QK.inventoryStockByProduct });
+      qc.invalidateQueries({ queryKey: QK.ledger });
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const composerPending = composeSaveMut.isPending || composeConfirmMut.isPending;
+
+  const pendingCols: Column<PendingAdjustmentRow>[] = useMemo(
+    () => [
+      {
+        header: t('SKU', 'SKU'),
+        accessor: (r) => <span className="font-mono text-xs">{r.sku}</span>,
+        width: '120px',
+      },
+      {
+        header: t('Product', 'المنتج'),
+        accessor: (r) => r.productName,
+        width: '180px',
+      },
+      {
+        header: t('Location', 'الموقع'),
+        accessor: (r) => r.locationPath,
+        width: '200px',
+      },
+      {
+        header: t('Lot', 'الدفعة'),
+        accessor: (r) =>
+          r.lotLabel ? <span className="font-mono text-xs">{r.lotLabel}</span> : '—',
+        width: '100px',
+      },
+      {
+        header: t('Before → After', 'قبل → بعد'),
+        accessor: (r) => (
+          <span className="font-mono text-xs">
+            — →{' '}
+            {Number(r.body.quantityAfter).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+          </span>
+        ),
+        width: '140px',
+      },
+      {
+        header: '',
+        accessor: (r) => (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={composerPending}
+            onClick={() => setPendingRows((rows) => rows.filter((x) => x.key !== r.key))}
+          >
+            {t('Remove', 'إزالة')}
+          </Button>
+        ),
+        width: '100px',
+      },
+    ],
+    [composerPending, isArabic],
+  );
+
+  if (isNew && !adj) {
     return (
       <Modal
         open
-        onClose={() => !createDraftPending && onClose()}
-        title={t('Adjustment · draft', 'تعديل · مسودة')}
-        widthClass="max-w-lg"
+        onClose={() => !composerPending && onClose()}
+        title={t('New adjustment', 'تعديل جديد')}
+        widthClass="max-w-3xl"
         footer={
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={createDraftPending}>
-              {t('Close', 'إغلاق')}
+            <Button type="button" variant="secondary" onClick={onClose} disabled={composerPending}>
+              {t('Cancel', 'إلغاء')}
             </Button>
             <Button
-              type="submit"
-              form="adj-new-draft"
-              loading={createDraftPending}
-              disabled={!warehouseId || !newCompanyId.trim() || !newReason.trim()}
-              className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
+              type="button"
+              variant="secondary"
+              loading={composeSaveMut.isPending}
+              disabled={
+                composerPending ||
+                !warehouseId ||
+                !newCompanyId.trim() ||
+                !newReason.trim() ||
+                pendingRows.length === 0
+              }
+              onClick={() => composeSaveMut.mutate()}
             >
-              {t('Create draft', 'إنشاء مسودة')}
+              {t('Save draft', 'حفظ المسودة')}
+            </Button>
+            <Button
+              type="button"
+              loading={composeConfirmMut.isPending}
+              disabled={
+                composerPending ||
+                !warehouseId ||
+                !newCompanyId.trim() ||
+                !newReason.trim() ||
+                pendingRows.length === 0
+              }
+              className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
+              onClick={() => composeConfirmMut.mutate()}
+            >
+              {t('Confirm', 'تأكيد')}
             </Button>
           </div>
         }
       >
-        <form
-          id="adj-new-draft"
-          onSubmit={createDraftSubmit}
-          className={`space-y-3 overflow-visible pr-1 text-sm transition-[max-height] duration-300 ease-in-out ${
+        <div
+          className={`space-y-4 overflow-y-auto pr-1 text-sm transition-[max-height] duration-300 ease-in-out ${
             isNewClientComboboxActive ? 'max-h-[100vh]' : 'max-h-[calc(100vh-220px)]'
           }`}
         >
           {!warehouseId ? (
-            <p className="text-sm text-rose-600">{t('Cannot create — default warehouse not resolved.', 'لا يمكن الإنشاء — المستودع الافتراضي غير محدد.')}</p>
+            <p className="text-sm text-rose-600">
+              {t('Cannot create — default warehouse not resolved.', 'لا يمكن الإنشاء — المستودع الافتراضي غير محدد.')}
+            </p>
           ) : null}
           <div
             ref={newClientComboboxWrapRef}
@@ -603,7 +737,46 @@ function AdjustmentDetailDrawer({
             onChange={(e) => setNewReason(e.target.value)}
             placeholder={t('Why is inventory changing?', 'لماذا يتغير المخزون؟')}
           />
-        </form>
+
+          <DataTable
+            columns={pendingCols}
+            rows={pendingRows}
+            rowKey={(r) => r.key}
+            empty={t('No lines yet — add products below.', 'لا توجد بنود بعد — أضف المنتجات بالأسفل.')}
+            labels={{
+              rowsSuffix: t('rows', 'صف'),
+              resultsSuffix: t('results', 'نتيجة'),
+              ofWord: t('of', 'من'),
+              previous: t('Previous', 'السابق'),
+              next: t('Next', 'التالي'),
+              rowsPerPageAria: t('Rows per page', 'عدد الصفوف لكل صفحة'),
+            }}
+          />
+
+          {newCompanyId.trim() ? (
+            <AddAdjustmentLineForm
+              scope={{ warehouseId, companyId: newCompanyId.trim() }}
+              loading={false}
+              onAdd={(payload) =>
+                setPendingRows((rows) => [
+                  ...rows,
+                  {
+                    key: crypto.randomUUID(),
+                    body: payload.body,
+                    sku: payload.display.sku,
+                    productName: payload.display.productName,
+                    locationPath: payload.display.locationPath,
+                    lotLabel: payload.display.lotLabel,
+                  },
+                ])
+              }
+            />
+          ) : (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              {t('Select a client to add product lines.', 'اختر عميلاً لإضافة بنود المنتج.')}
+            </p>
+          )}
+        </div>
       </Modal>
     );
   }
@@ -630,6 +803,8 @@ function AdjustmentDetailDrawer({
     },
   ];
 
+  const dismissLabel = isNew ? t('Cancel', 'إلغاء') : t('Close', 'إغلاق');
+
   return (
     <>
       <Modal
@@ -640,7 +815,7 @@ function AdjustmentDetailDrawer({
         footer={
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" onClick={onClose}>
-              {t('Close', 'إغلاق')}
+              {dismissLabel}
             </Button>
             {adj.status === 'draft' && (
               <>
@@ -659,13 +834,15 @@ function AdjustmentDetailDrawer({
                   onClick={() => {
                     const r = adj.reason?.trim() ?? '';
                     if (!r || r === ADJUSTMENT_REASON_PENDING) {
-                      toast.error(t('Enter and save an adjustment reason before approving.', 'أدخل واحفظ سبب التعديل قبل الاعتماد.'));
+                      toast.error(
+                        t('Enter an adjustment reason before confirming.', 'أدخل سبب التعديل قبل التأكيد.'),
+                      );
                       return;
                     }
                     approveMut.mutate(adj.id);
                   }}
                 >
-                  {t('Approve', 'اعتماد')}
+                  {t('Confirm', 'تأكيد')}
                 </Button>
               </>
             )}
@@ -681,6 +858,14 @@ function AdjustmentDetailDrawer({
             <div className="mt-1">
               <span className="text-slate-500">{t('Client:', 'العميل:')}</span> {adj.company.name}
             </div>
+            <div className="mt-1 max-w-full truncate text-xs" title={adj.reason}>
+              <span className="text-slate-500">{t('Reason:', 'السبب:')}</span>{' '}
+              {adj.reason === ADJUSTMENT_REASON_PENDING ? (
+                <span className="italic text-slate-400">{t('(pending)', '(قيد الانتظار)')}</span>
+              ) : (
+                adj.reason
+              )}
+            </div>
           </div>
 
           <DataTable
@@ -692,9 +877,9 @@ function AdjustmentDetailDrawer({
 
           {adj.status === 'draft' && (
             <AddAdjustmentLineForm
-              adjustment={adj}
+              scope={{ warehouseId: adj.warehouseId, companyId: adj.companyId }}
               loading={addLineMut.isPending}
-              onSubmit={(body) => addLineMut.mutate({ adjustmentId: adj.id, body })}
+              onAdd={(payload) => addLineMut.mutate({ adjustmentId: adj.id, body: payload.body })}
             />
           )}
         </div>
@@ -718,13 +903,16 @@ function AdjustmentDetailDrawer({
 }
 
 function AddAdjustmentLineForm({
-  adjustment,
+  scope,
   loading,
-  onSubmit,
+  onAdd,
 }: {
-  adjustment: StockAdjustment;
+  scope: { warehouseId: string; companyId: string };
   loading: boolean;
-  onSubmit: (b: Parameters<typeof AdjustmentsApi.addLine>[1]) => void;
+  onAdd: (payload: {
+    body: AddAdjustmentLineInput;
+    display: { sku: string; productName: string; locationPath: string; lotLabel?: string };
+  }) => void;
 }) {
   const isArabic =
     typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
@@ -739,19 +927,19 @@ function AddAdjustmentLineForm({
   const [qtyAfter, setQtyAfter] = useState('');
 
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedProductSearch(productSearch.trim()), 350);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setDebouncedProductSearch(productSearch.trim()), 350);
+    return () => window.clearTimeout(timer);
   }, [productSearch]);
 
   const products = useQuery({
-    queryKey: [...QK.products, adjustment.companyId, 'adj-form', debouncedProductSearch],
+    queryKey: [...QK.products, scope.companyId, 'adj-form', debouncedProductSearch],
     queryFn: () =>
       ProductsApi.list({
-        companyId: adjustment.companyId,
+        companyId: scope.companyId,
         limit: 200,
         ...(debouncedProductSearch ? { search: debouncedProductSearch } : {}),
       }),
-    enabled: !!adjustment.companyId,
+    enabled: !!scope.companyId,
     staleTime: 60_000,
   });
 
@@ -777,8 +965,8 @@ function AddAdjustmentLineForm({
   });
 
   const locs = useQuery({
-    queryKey: QK.locationsFlat(adjustment.warehouseId, false),
-    queryFn: () => LocationsApi.list(adjustment.warehouseId),
+    queryKey: QK.locationsFlat(scope.warehouseId, false),
+    queryFn: () => LocationsApi.list(scope.warehouseId),
     staleTime: 5 * 60_000,
   });
 
@@ -792,14 +980,14 @@ function AddAdjustmentLineForm({
     queryKey: [
       ...QK.inventoryStock,
       'adj-line-form-stock',
-      adjustment.warehouseId,
-      adjustment.companyId,
+      scope.warehouseId,
+      scope.companyId,
       productId,
     ],
     queryFn: () =>
       InventoryApi.stock({
-        warehouseId: adjustment.warehouseId,
-        companyId: adjustment.companyId,
+        warehouseId: scope.warehouseId,
+        companyId: scope.companyId,
         productId,
         limit: 500,
         offset: 0,
@@ -864,7 +1052,7 @@ function AddAdjustmentLineForm({
     if (!productMeta) return;
 
     const qty = Number(qtyAfter);
-    const body: Parameters<typeof AdjustmentsApi.addLine>[1] = {
+    const body: AddAdjustmentLineInput = {
       productId,
       locationId,
       quantityAfter: qty,
@@ -878,7 +1066,21 @@ function AddAdjustmentLineForm({
       body.lotId = lotId;
     }
 
-    onSubmit(body);
+    const loc = adjustmentLocations.find((l) => l.id === locationId);
+    const lotLabel =
+      productMeta.trackingType === 'lot' && lotId
+        ? (lots.data ?? []).find((lot) => lot.id === lotId)?.lotNumber
+        : undefined;
+
+    onAdd({
+      body,
+      display: {
+        sku: productMeta.sku,
+        productName: productMeta.name,
+        locationPath: loc?.fullPath ?? locationId,
+        lotLabel,
+      },
+    });
     setQtyAfter('');
     setLotId('');
   };
