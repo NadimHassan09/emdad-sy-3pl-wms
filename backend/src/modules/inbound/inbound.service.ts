@@ -202,6 +202,9 @@ export class InboundService {
         `Only draft orders can be confirmed (current status: ${order.status}).`,
       );
     }
+    if (order.lines.length === 0) {
+      throw new BadRequestException('Add at least one line before confirming this order.');
+    }
     if (taskOnlyFlows(this.config)) {
       if (!body?.warehouseId || !body.stagingByLineId) {
         throw new BadRequestException(

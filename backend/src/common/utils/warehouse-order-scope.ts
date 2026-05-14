@@ -67,6 +67,14 @@ export async function inboundIdsVisibleForWarehouse(
   const idSet = new Set<string>(
     [...receivedHere.map((r) => r.referenceId), ...neverReceivedOrders.map((o) => o.id)].filter(Boolean),
   );
+  // Always include draft orders matching the same tenant filters. Drafts have no receive
+  // ledger rows yet; edge cases in the ledger-derived set must not hide them from list UIs.
+  const draftRows = await prisma.inboundOrder.findMany({
+    where: { ...baseWhere, status: 'draft' },
+    select: { id: true },
+  });
+  for (const o of draftRows) idSet.add(o.id);
+
   return idSet.size ? { id: { in: [...idSet] } } : { id: { in: [] } };
 }
 
@@ -119,5 +127,11 @@ export async function outboundIdsVisibleForWarehouse(
   const idSet = new Set<string>(
     [...pickedHere.map((r) => r.referenceId), ...neverPickedOrders.map((o) => o.id)].filter(Boolean),
   );
+  const draftOutRows = await prisma.outboundOrder.findMany({
+    where: { ...baseWhere, status: 'draft' },
+    select: { id: true },
+  });
+  for (const o of draftOutRows) idSet.add(o.id);
+
   return idSet.size ? { id: { in: [...idSet] } } : { id: { in: [] } };
 }
