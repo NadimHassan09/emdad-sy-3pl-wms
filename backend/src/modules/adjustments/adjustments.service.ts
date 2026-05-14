@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
+import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import {
   isAdjustmentStockLocationType,
@@ -90,7 +91,7 @@ export class AdjustmentsService {
 
   list(user: AuthPrincipal, query: ListAdjustmentsQueryDto) {
     const where: Prisma.StockAdjustmentWhereInput = {};
-    const companyId = query.companyId ?? user.companyId ?? undefined;
+    const companyId = readCompanyIdFilter(user, query.companyId);
     if (companyId) where.companyId = companyId;
     if (query.status) where.status = query.status;
     if (query.warehouseId) where.warehouseId = query.warehouseId;

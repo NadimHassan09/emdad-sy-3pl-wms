@@ -6,6 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 
+import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { outboundIdsVisibleForWarehouse } from '../../common/utils/warehouse-order-scope';
 import {
@@ -188,7 +189,7 @@ export class OutboundService {
     const baseAnd: Prisma.OutboundOrderWhereInput[] = [];
     const where: Prisma.OutboundOrderWhereInput = {};
 
-    const companyId = query.companyId ?? user.companyId ?? undefined;
+    const companyId = readCompanyIdFilter(user, query.companyId);
     if (companyId) where.companyId = companyId;
     if (query.status) where.status = query.status;
 

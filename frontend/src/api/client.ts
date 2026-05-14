@@ -15,7 +15,8 @@ api.interceptors.request.use((cfg) => {
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
   const url = typeof cfg.url === 'string' ? cfg.url : '';
   const isDashboard = url.includes('/dashboard/');
-  if (mockCompanyId && !isDashboard && !cfg.headers['X-Company-Id']) {
+  const isCompaniesList = url.includes('/companies');
+  if (mockCompanyId && !isDashboard && !isCompaniesList && !cfg.headers['X-Company-Id']) {
     cfg.headers['X-Company-Id'] = mockCompanyId;
   }
   return cfg;

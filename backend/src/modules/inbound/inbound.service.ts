@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 
+import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { inboundIdsVisibleForWarehouse } from '../../common/utils/warehouse-order-scope';
 import { isStorageLocationType } from '../../common/constants/storage-location-types';
@@ -136,7 +137,7 @@ export class InboundService {
     const baseAnd: Prisma.InboundOrderWhereInput[] = [];
     const where: Prisma.InboundOrderWhereInput = {};
 
-    const companyId = query.companyId ?? user.companyId ?? undefined;
+    const companyId = readCompanyIdFilter(user, query.companyId);
     if (companyId) where.companyId = companyId;
     if (query.status) where.status = query.status;
 

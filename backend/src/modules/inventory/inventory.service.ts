@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { MovementType, Prisma, ProductTrackingType } from '@prisma/client';
 
+import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { isAdjustmentStockLocationType } from '../../common/constants/storage-location-types';
 import { InsufficientStockException } from '../../common/errors/domain-exceptions';
@@ -141,7 +142,7 @@ export class InventoryService {
     user: AuthPrincipal,
     query: StockQueryDto,
   ): Promise<Prisma.CurrentStockWhereInput> {
-    const companyId = query.companyId ?? user.companyId ?? undefined;
+    const companyId = readCompanyIdFilter(user, query.companyId);
 
     const and: Prisma.CurrentStockWhereInput[] = [
       { quantityOnHand: { gt: 0 } },
@@ -321,7 +322,7 @@ export class InventoryService {
   async ledger(user: AuthPrincipal, query: LedgerQueryDto) {
     const andParts: Prisma.InventoryLedgerWhereInput[] = [];
 
-    const companyId = query.companyId ?? user.companyId ?? undefined;
+    const companyId = readCompanyIdFilter(user, query.companyId);
     if (companyId) andParts.push({ companyId });
     if (query.productId) andParts.push({ productId: query.productId });
     andParts.push({ movementType: { in: expandMovementFilter(query.movementType) } });

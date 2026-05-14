@@ -93,9 +93,6 @@ export function InventoryPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const { warehouseId: warehouseIdForced } = useDefaultWarehouseId();
-  const [companyId] = useState<string | ''>(
-    () => (import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined) ?? '',
-  );
   const [scanOpen, setScanOpen] = useState(false);
 
   const initialInvFilters = useMemo<InvDraftFilters>(
@@ -122,14 +119,14 @@ export function InventoryPage() {
   const summaryParams = useMemo(
     () => ({
       warehouseId: warehouseIdForced || undefined,
-      companyId: appliedFilters.companyId.trim() || companyId || undefined,
+      companyId: appliedFilters.companyId.trim() || undefined,
       productName: appliedFilters.name.trim() || undefined,
       sku: appliedFilters.sku.trim() || undefined,
       productBarcode: appliedFilters.barcode.trim() || undefined,
       lotNumber: appliedFilters.lotNumber.trim() || undefined,
       inboundOrderNumber: appliedFilters.inboundOrderNumber.trim() || undefined,
     }),
-    [appliedFilters, warehouseIdForced, companyId],
+    [appliedFilters, warehouseIdForced],
   );
 
   const summary = useQuery({
