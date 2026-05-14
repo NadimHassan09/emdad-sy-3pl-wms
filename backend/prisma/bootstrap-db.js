@@ -87,10 +87,26 @@ const STATEMENTS = [
   // -------------------------------------------------------------------------
   // current_stock: generated column + partial unique indexes
   // -------------------------------------------------------------------------
-  `ALTER TABLE current_stock DROP COLUMN IF EXISTS quantity_available`,
-  `ALTER TABLE current_stock
-       ADD COLUMN quantity_available DECIMAL(15,4)
-       GENERATED ALWAYS AS (quantity_on_hand - quantity_reserved) STORED`,
+  // Ensure quantity_available is the expected STORED generated column. Skip the
+  // DROP+ADD when a matching generated column already exists (dependent views
+  // such as v_stock_summary in later migrations would otherwise block the DROP).
+  `DO $qa$
+   DECLARE
+       v_is_generated TEXT;
+   BEGIN
+       SELECT is_generated INTO v_is_generated
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name   = 'current_stock'
+         AND column_name  = 'quantity_available';
+       IF v_is_generated IS DISTINCT FROM 'ALWAYS' THEN
+           ALTER TABLE current_stock DROP COLUMN IF EXISTS quantity_available;
+           ALTER TABLE current_stock
+               ADD COLUMN quantity_available DECIMAL(15,4)
+               GENERATED ALWAYS AS (quantity_on_hand - quantity_reserved) STORED;
+       END IF;
+   END
+   $qa$`,
 
   `DROP INDEX IF EXISTS uq_stock_lot_position`,
   `DROP INDEX IF EXISTS uq_stock_bare_position`,

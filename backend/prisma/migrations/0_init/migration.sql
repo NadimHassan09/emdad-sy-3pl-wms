@@ -1842,6 +1842,9 @@ BEGIN
             JOIN pg_namespace ns_child ON ns_child.oid = child.relnamespace
             WHERE parent.relname = parent_name
               AND ns_parent.nspname = 'public'
+              -- Never target the partitioned parent (relkind 'p'); only real leaf tables.
+              AND child.relkind <> 'p'
+              AND child.oid <> parent.oid
         LOOP
             EXECUTE format(
                 'ALTER TABLE %I.%I SET (autovacuum_vacuum_scale_factor=0.01, autovacuum_analyze_scale_factor=0.005)',

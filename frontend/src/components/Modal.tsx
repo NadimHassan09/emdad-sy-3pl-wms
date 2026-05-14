@@ -22,17 +22,20 @@ export function Modal({ open, onClose, title, children, footer, widthClass = 'ma
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/50 px-4 py-12">
+    <div
+      className="fixed inset-0 z-50 flex items-stretch justify-center overflow-y-auto bg-slate-900/50 sm:items-start sm:px-4 sm:py-12"
+      onClick={onClose}
+    >
       <div
-        className={`relative w-full ${widthClass} rounded-lg bg-white shadow-xl`}
+        className={`relative flex w-full flex-col bg-white shadow-xl sm:my-0 sm:max-h-[calc(100vh-6rem)] sm:rounded-lg ${widthClass}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b px-5 py-3">
-          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-white px-4 py-3 sm:rounded-t-lg sm:px-5">
+          <h2 className="min-w-0 truncate text-base font-semibold text-slate-900">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-slate-500 hover:bg-slate-100"
+            className="shrink-0 rounded p-1 text-slate-500 hover:bg-slate-100"
             aria-label="Close"
           >
             <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor">
@@ -40,8 +43,12 @@ export function Modal({ open, onClose, title, children, footer, widthClass = 'ma
             </svg>
           </button>
         </div>
-        <div className="px-5 py-4">{children}</div>
-        {footer && <div className="flex justify-end gap-2 border-t bg-white px-5 py-3">{footer}</div>}
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
+        {footer && (
+          <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t bg-white px-4 py-3 sm:flex-row sm:flex-wrap sm:justify-end sm:px-5">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

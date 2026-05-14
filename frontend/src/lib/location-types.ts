@@ -2,13 +2,14 @@ import type { LocationType } from '../api/locations';
 
 /**
  * API `location_type` values the /locations UI allows for create (maps to business names).
- * Legacy DB values (warehouse, view, input, transit) stay valid on existing rows only. `qc` is deprecated.
+ * Legacy DB values (warehouse, view, transit) stay valid on existing rows only. `qc` is deprecated.
  */
 export const MANAGED_LOCATION_API_TYPES = [
   'iss',
   'internal',
   'fridge',
   'packing',
+  'input',
   'output',
   'quarantine',
   'scrap',
@@ -47,6 +48,11 @@ export const LOCATION_TYPE_OPTIONS: { value: LocationType; label: string; hint: 
     value: 'packing',
     label: 'Packing',
     hint: 'Used in packing tasks.',
+  },
+  {
+    value: 'input',
+    label: 'Receiving dock',
+    hint: 'Used in inbound receiving tasks (deferred-putaway dock).',
   },
   {
     value: 'output',
@@ -118,6 +124,8 @@ export function locationTypePillClass(type: string | null | undefined): string {
       return 'bg-sky-50 text-sky-900 ring-1 ring-inset ring-sky-200';
     case 'packing':
       return 'bg-violet-50 text-violet-900 ring-1 ring-inset ring-violet-200';
+    case 'input':
+      return 'bg-indigo-50 text-indigo-900 ring-1 ring-inset ring-indigo-200';
     case 'output':
       return 'bg-blue-50 text-blue-900 ring-1 ring-inset ring-blue-200';
     case 'quarantine':

@@ -46,52 +46,54 @@ export function DataTable<T>({ columns, rows, rowKey, empty, loading, onRowClick
 
   return (
     <div className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
-      <table className="min-w-full divide-y divide-slate-200 text-sm">
-        <thead className="bg-slate-50">
-          <tr>
-            {columns.map((c) => (
-              <th
-                key={c.header}
-                scope="col"
-                className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 ${isRtl ? 'text-right' : 'text-left'} ${c.className ?? ''}`}
-                style={c.width ? { width: c.width } : undefined}
-              >
-                {c.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {loading ? (
+      <div className="w-full overflow-x-auto">
+        <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <thead className="bg-slate-50">
             <tr>
-              <td colSpan={columns.length} className="px-3 py-6 text-center text-sm text-slate-500">
-                Loading…
-              </td>
+              {columns.map((c) => (
+                <th
+                  key={c.header}
+                  scope="col"
+                  className={`whitespace-nowrap px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 ${isRtl ? 'text-right' : 'text-left'} ${c.className ?? ''}`}
+                  style={c.width ? { width: c.width } : undefined}
+                >
+                  {c.header}
+                </th>
+              ))}
             </tr>
-          ) : pagedRows.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length} className="px-3 py-6 text-center text-sm text-slate-500">
-                {empty ?? 'No data.'}
-              </td>
-            </tr>
-          ) : (
-            pagedRows.map((row) => (
-              <tr
-                key={rowKey(row)}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={onRowClick ? 'cursor-pointer transition hover:bg-slate-50' : 'transition hover:bg-slate-50'}
-              >
-                {columns.map((c) => (
-                  <td key={c.header} className={`px-3 py-2 align-middle ${c.className ?? ''}`}>
-                    {c.accessor(row)}
-                  </td>
-                ))}
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {loading ? (
+              <tr>
+                <td colSpan={columns.length} className="px-3 py-6 text-center text-sm text-slate-500">
+                  Loading…
+                </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-3 py-2">
+            ) : pagedRows.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} className="px-3 py-6 text-center text-sm text-slate-500">
+                  {empty ?? 'No data.'}
+                </td>
+              </tr>
+            ) : (
+              pagedRows.map((row) => (
+                <tr
+                  key={rowKey(row)}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  className={onRowClick ? 'cursor-pointer transition hover:bg-slate-50' : 'transition hover:bg-slate-50'}
+                >
+                  {columns.map((c) => (
+                    <td key={c.header} className={`px-3 py-2 align-middle ${c.className ?? ''}`}>
+                      {c.accessor(row)}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex flex-col gap-2 border-t border-slate-200 px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
           <select
             aria-label={labels?.rowsPerPageAria ?? 'Rows per page'}
@@ -113,10 +115,10 @@ export function DataTable<T>({ columns, rows, rowKey, empty, loading, onRowClick
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
           <button
             type="button"
-            className="rounded-md border border-[#1a7a44] bg-white px-3 py-1.5 text-sm font-medium text-[#1a7a44] transition hover:bg-[#e9f5ee] disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400 disabled:hover:bg-white"
+            className="flex-1 rounded-md border border-[#1a7a44] bg-white px-3 py-1.5 text-sm font-medium text-[#1a7a44] transition hover:bg-[#e9f5ee] disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400 disabled:hover:bg-white sm:flex-none"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1 || loading || totalRows === 0}
           >
@@ -124,7 +126,7 @@ export function DataTable<T>({ columns, rows, rowKey, empty, loading, onRowClick
           </button>
           <button
             type="button"
-            className="rounded-md border border-[#1a7a44] bg-[#1a7a44] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#146135] disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-300 disabled:text-slate-500 disabled:hover:bg-slate-300"
+            className="flex-1 rounded-md border border-[#1a7a44] bg-[#1a7a44] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#146135] disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-300 disabled:text-slate-500 disabled:hover:bg-slate-300 sm:flex-none"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages || loading || totalRows === 0}
           >

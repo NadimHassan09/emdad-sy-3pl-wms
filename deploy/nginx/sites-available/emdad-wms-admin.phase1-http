@@ -1,0 +1,34 @@
+# PHASE 1 ONLY — HTTP for ACME + app. Replace with emdad-wms-admin after certbot.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name admin.emdadsy.com;
+
+    client_max_body_size 25m;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type "text/plain";
+        allow all;
+    }
+
+    include snippets/emdad-wms-backend-locations.conf;
+
+    root /var/www/emdad-sy-3pl-wms/frontend/dist;
+    index index.html;
+
+    location /assets/ {
+        access_log off;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    access_log /var/log/nginx/emdad-admin.access.log;
+    error_log  /var/log/nginx/emdad-admin.error.log;
+}

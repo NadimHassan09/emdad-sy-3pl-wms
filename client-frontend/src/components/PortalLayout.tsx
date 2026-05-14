@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '../auth/AuthContext';
@@ -12,6 +12,8 @@ export function PortalLayout(): ReactElement {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { pathname } = useLocation();
+  const [navOpen, setNavOpen] = useState(false);
   const [language, setLanguage] = useState<'EN' | 'AR'>(() => {
     const saved = typeof window !== 'undefined' ? window.localStorage.getItem('client-ui-language') : null;
     return saved === 'AR' ? 'AR' : 'EN';
@@ -25,30 +27,60 @@ export function PortalLayout(): ReactElement {
     window.dispatchEvent(new CustomEvent('client-ui-language-changed', { detail: { language } }));
   }, [language]);
 
+  useEffect(() => {
+    setNavOpen(false);
+  }, [pathname]);
+
   async function onLogout(): Promise<void> {
     await logout();
     queryClient.clear();
     navigate('/login', { replace: true });
   }
 
+  const sidebarNav = (
+    <nav className="sidebar__nav">
+      <NavLink className={navLinkClass} to="/" end>
+        Home
+      </NavLink>
+      <NavLink className={navLinkClass} to="/products">
+        Products
+      </NavLink>
+      <NavLink className={navLinkClass} to="/inbound-orders">
+        Inbound
+      </NavLink>
+      <NavLink className={navLinkClass} to="/outbound-orders">
+        Outbound
+      </NavLink>
+      <NavLink className={navLinkClass} to="/stock">
+        Stock
+      </NavLink>
+    </nav>
+  );
+
   return (
     <div key={language} className="page page--app">
       <header className="topbar topbar--app">
-        <span className="topbar__brand">Client portal</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem' }}>
-            <span>Language</span>
+        <div className="topbar__lead">
+          <button
+            type="button"
+            className="topbar__menu-button"
+            aria-label="Open menu"
+            onClick={() => setNavOpen(true)}
+          >
+            <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M3 5h14M3 10h14M3 15h14" strokeLinecap="round" />
+            </svg>
+          </button>
+          <span className="topbar__brand">Client portal</span>
+        </div>
+        <div className="topbar__actions">
+          <label className="topbar__lang">
+            <span className="topbar__lang-label">Language</span>
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value === 'AR' ? 'AR' : 'EN')}
               aria-label="Language direction selector"
-              style={{
-                border: '1px solid var(--app-border)',
-                background: 'var(--app-input-bg)',
-                color: 'var(--app-input-fg)',
-                borderRadius: '0.375rem',
-                padding: '0.25rem 0.5rem',
-              }}
+              className="topbar__lang-select"
             >
               <option value="EN">EN</option>
               <option value="AR">AR</option>
@@ -60,25 +92,24 @@ export function PortalLayout(): ReactElement {
         </div>
       </header>
       <div className="app-shell">
-        <aside className="sidebar" aria-label="Main">
-          <nav className="sidebar__nav">
-            <NavLink className={navLinkClass} to="/" end>
-              Home
-            </NavLink>
-            <NavLink className={navLinkClass} to="/products">
-              Products
-            </NavLink>
-            <NavLink className={navLinkClass} to="/inbound-orders">
-              Inbound
-            </NavLink>
-            <NavLink className={navLinkClass} to="/outbound-orders">
-              Outbound
-            </NavLink>
-            <NavLink className={navLinkClass} to="/stock">
-              Stock
-            </NavLink>
-          </nav>
+        <aside className="sidebar sidebar--desktop" aria-label="Main">
+          {sidebarNav}
         </aside>
+
+        {navOpen ? (
+          <div className="sidebar-overlay" role="dialog" aria-modal="true">
+            <button
+              type="button"
+              className="sidebar-overlay__backdrop"
+              aria-label="Close menu"
+              onClick={() => setNavOpen(false)}
+            />
+            <aside className="sidebar sidebar--mobile" aria-label="Main">
+              {sidebarNav}
+            </aside>
+          </div>
+        ) : null}
+
         <section className="app-main">
           <Outlet />
         </section>
