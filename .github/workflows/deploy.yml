@@ -37,7 +37,6 @@ jobs:
           port: 22
           timeout: 2m
           command_timeout: 30m
-          script_stop: true
           script: |
             set -eo pipefail
             # Non-interactive SSH often skips login files; load them for Node/npm/pm2 (nvm, fnm, etc.)
