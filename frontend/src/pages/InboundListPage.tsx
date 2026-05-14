@@ -25,6 +25,7 @@ import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { inboundHasQuantityShortfall } from '../lib/inbound-shortfall';
+import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../lib/order-planning-dates';
 
 const DEFAULT_COMPANY_ID = (import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined) ?? '';
 
@@ -72,6 +73,8 @@ function inboundLabel(label: string, isArabic: boolean): string {
     Cancel: 'إلغاء',
     Create: 'إنشاء',
     'All clients': 'كل العملاء',
+    'Expected arrival date cannot be before today.':
+      'لا يمكن أن يكون تاريخ الوصول المتوقع قبل اليوم.',
   };
   return ar[label] ?? label;
 }
@@ -279,7 +282,7 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
   const toast = useToast();
   const t = (label: string) => inboundLabel(label, isArabic);
   const [companyId, setCompanyId] = useState(DEFAULT_COMPANY_ID);
-  const [arrival, setArrival] = useState(() => new Date().toISOString().slice(0, 10));
+  const [arrival, setArrival] = useState(() => localCalendarDateYmd());
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([{ productId: '', expectedQuantity: '' }]);
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -322,7 +325,7 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
 
   const reset = () => {
     setCompanyId(DEFAULT_COMPANY_ID);
-    setArrival(new Date().toISOString().slice(0, 10));
+    setArrival(localCalendarDateYmd());
     setNotes('');
     setLines([{ productId: '', expectedQuantity: '' }]);
     setBarcodeInput('');
@@ -383,6 +386,10 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (!isYmdOnOrAfterLocalToday(arrival)) {
+      toast.error(t('Expected arrival date cannot be before today.'));
+      return;
+    }
     onSubmit({
       companyId,
       expectedArrivalDate: arrival,
@@ -433,6 +440,7 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
             label={t('Expected arrival date')}
             type="date"
             required
+            min={localCalendarDateYmd()}
             value={arrival}
             onChange={(e) => setArrival(e.target.value)}
           />

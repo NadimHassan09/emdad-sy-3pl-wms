@@ -18,6 +18,7 @@ import {
   LotLockedException,
   LotRequiredException,
 } from '../../common/errors/domain-exceptions';
+import { assertCalendarDateNotBeforeToday } from '../../common/utils/order-planning-date';
 import { assertLocationUsableForInventoryMove } from '../../common/utils/location-operational';
 import { generateLotCandidate } from '../../common/generators/identifiers';
 import { assertProductOrderableForOrders } from '../../common/utils/assert-product-orderable';
@@ -94,6 +95,8 @@ export class InboundService {
     for (const p of products) {
       assertProductOrderableForOrders(p.status);
     }
+
+    assertCalendarDateNotBeforeToday(dto.expectedArrivalDate, 'Expected arrival date');
 
     const productById = new Map(products.map((p) => [p.id, p]));
     const lineCreates: Prisma.InboundOrderLineCreateWithoutOrderInput[] = [];

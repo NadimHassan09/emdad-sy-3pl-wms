@@ -15,6 +15,7 @@ import {
   StockShortage,
 } from '../../common/errors/domain-exceptions';
 import { assertProductOrderableForOrders } from '../../common/utils/assert-product-orderable';
+import { assertCalendarDateNotBeforeToday } from '../../common/utils/order-planning-date';
 import { assertDiscreteUomPositiveIntegerQuantity } from '../../common/utils/discrete-uom-quantity';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StockHelpers } from '../inventory/stock.helpers';
@@ -114,6 +115,8 @@ export class OutboundService {
     for (const p of products) {
       assertProductOrderableForOrders(p.status);
     }
+
+    assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
 
     const productById = new Map(products.map((p) => [p.id, p]));
     for (const l of dto.lines) {

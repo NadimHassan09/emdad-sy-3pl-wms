@@ -22,6 +22,7 @@ import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
+import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../lib/order-planning-dates';
 
 const DEFAULT_COMPANY_ID = (import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined) ?? '';
 
@@ -253,9 +254,7 @@ interface CreateOutboundModalProps {
 function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboundModalProps) {
   const toast = useToast();
   const [companyId, setCompanyId] = useState(DEFAULT_COMPANY_ID);
-  const [shipDate, setShipDate] = useState(() =>
-    new Date(Date.now() + 86400_000).toISOString().slice(0, 10),
-  );
+  const [shipDate, setShipDate] = useState(() => localCalendarDateYmd());
   const [destination, setDestination] = useState('');
   const [carrier, setCarrier] = useState('');
   const [notes, setNotes] = useState('');
@@ -344,7 +343,7 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
 
   const reset = () => {
     setCompanyId(DEFAULT_COMPANY_ID);
-    setShipDate(new Date(Date.now() + 86400_000).toISOString().slice(0, 10));
+    setShipDate(localCalendarDateYmd());
     setDestination('');
     setCarrier('');
     setNotes('');
@@ -407,6 +406,17 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (!isYmdOnOrAfterLocalToday(shipDate)) {
+      const isAr =
+        typeof window !== 'undefined' &&
+        (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+      toast.error(
+        isAr
+          ? 'لا يمكن أن يكون تاريخ الشحن المطلوب قبل اليوم.'
+          : 'Required ship date cannot be before today.',
+      );
+      return;
+    }
     onSubmit({
       companyId,
       destinationAddress: destination,
@@ -463,6 +473,7 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
             label="Required ship date"
             type="date"
             required
+            min={localCalendarDateYmd()}
             value={shipDate}
             onChange={(e) => setShipDate(e.target.value)}
           />
