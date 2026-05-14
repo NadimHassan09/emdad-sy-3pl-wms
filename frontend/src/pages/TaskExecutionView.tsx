@@ -20,6 +20,7 @@ import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
+import { taskAssignedWorkerLabel } from '../lib/task-worker-label';
 import { useExecutionExitBlocker } from '../hooks/useExecutionExitBlocker';
 import type { Location } from '../api/locations';
 import { isPutawayDestinationLocationType, locationTypeLabel } from '../lib/location-types';
@@ -133,7 +134,14 @@ function envelopeTouch(
   env: TaskMutationEnvelope,
   warehouseId: string | undefined,
 ) {
-  if (id) qc.setQueryData(QK.tasks.detail(id), env.task);
+  if (id) {
+    const task = env.task as Record<string, unknown> | null | undefined;
+    const merged =
+      Array.isArray(env.assignments) && task && typeof task === 'object'
+        ? { ...task, assignments: env.assignments }
+        : env.task;
+    qc.setQueryData(QK.tasks.detail(id), merged);
+  }
   if (env.workflowInstance?.id) {
     qc.setQueryData(QK.workflows.instance(env.workflowInstance.id as string), env.workflowInstance);
   }
@@ -369,19 +377,15 @@ export function TaskExecutionView() {
   const canOperate = ['pending', 'assigned', 'in_progress'].includes(sts);
 
   const assignedWorkerId = t.assignments?.[0]?.worker?.id as string | undefined;
-  /** Prod / explicit mock: env wins. Dev without env: treat server assignment as operator (no .env friction). */
-  const effectiveOperatorWorkerId =
-    MOCK_WORKER_ID || (import.meta.env.DEV ? assignedWorkerId : undefined);
+  /**
+   * Optional dev override: VITE_MOCK_WORKER_ID impersonates that worker; if set and it
+   * does not match the task assignee, block execution. Production uses the real assignment only.
+   */
   const assignmentBlocked =
-    !!assignedWorkerId &&
-    !!effectiveOperatorWorkerId &&
-    effectiveOperatorWorkerId !== assignedWorkerId;
-  const assignmentNeedsMock = !!assignedWorkerId && !effectiveOperatorWorkerId;
+    !!MOCK_WORKER_ID && !!assignedWorkerId && MOCK_WORKER_ID !== assignedWorkerId;
   const assigneeGateMessage = assignmentBlocked
-    ? 'This task is not assigned to you (VITE_MOCK_WORKER_ID must match the assigned worker UUID).'
-    : assignmentNeedsMock
-      ? 'Set VITE_MOCK_WORKER_ID in frontend/.env to the assigned worker UUID (Users → system user with Worker role, or GET /workers), then restart Vite.'
-      : null;
+    ? 'This task is not assigned to the worker in VITE_MOCK_WORKER_ID — clear or update that env value.'
+    : null;
 
   const executionAllowed = assigneeGateMessage === null;
 
@@ -524,6 +528,10 @@ export function TaskExecutionView() {
 
       {showAssignBar ? (
         <div className="flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-white p-3">
+          <div className="w-full text-sm text-slate-700">
+            <span className="text-slate-500">Assigned worker:</span>{' '}
+            <span className="font-medium text-slate-900">{taskAssignedWorkerLabel(t.assignments)}</span>
+          </div>
           <div className="min-w-[260px] flex-[2]">
             <Combobox
               label="Assign worker"

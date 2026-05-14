@@ -21,7 +21,13 @@ export interface WarehouseTaskListItem {
     referenceId: string;
     warehouseId: string;
   };
-  assignments?: Array<{ worker?: { id: string; displayName: string } }>;
+  assignments?: Array<{
+    worker?: {
+      id: string;
+      displayName: string;
+      user?: { fullName?: string | null; email?: string | null } | null;
+    };
+  }>;
 }
 
 export interface TaskMutationEnvelope {

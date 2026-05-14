@@ -11,6 +11,7 @@ import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { QK } from '../constants/query-keys';
+import { taskAssignedWorkerLabel } from '../lib/task-worker-label';
 
 export function TasksListPage() {
   const isArabic =
@@ -51,7 +52,7 @@ export function TasksListPage() {
       const taskId = r.id?.toLowerCase() ?? '';
       const refId = r.workflowInstance?.referenceId?.toLowerCase() ?? '';
       const workerId = r.assignments?.[0]?.worker?.id?.toLowerCase() ?? '';
-      const workerName = r.assignments?.[0]?.worker?.displayName?.toLowerCase() ?? '';
+      const workerName = taskAssignedWorkerLabel(r.assignments).toLowerCase();
       return taskId.includes(q) || refId.includes(q) || workerId.includes(q) || workerName.includes(q);
     });
   }, [query.data?.items, searchFilter]);
@@ -88,7 +89,7 @@ export function TasksListPage() {
     { header: t('status', 'الحالة'), accessor: (r) => <StatusBadge status={r.status} />, width: '140px' },
     {
       header: t('assigned_worker', 'العامل_المعين'),
-      accessor: (r) => r.assignments?.[0]?.worker?.displayName ?? '—',
+      accessor: (r) => taskAssignedWorkerLabel(r.assignments),
       width: '160px',
     },
   ];

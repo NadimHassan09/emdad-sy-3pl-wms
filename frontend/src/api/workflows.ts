@@ -15,7 +15,13 @@ export interface WorkflowTimelineTask {
   status: string;
   is_current_runnable?: boolean;
   runnability_blocked_reason?: string | null;
-  assignments?: Array<{ worker?: { id: string; displayName: string } }>;
+  assignments?: Array<{
+    worker?: {
+      id: string;
+      displayName: string;
+      user?: { fullName?: string | null; email?: string | null } | null;
+    };
+  }>;
 }
 
 export interface WorkflowTimelineStep {

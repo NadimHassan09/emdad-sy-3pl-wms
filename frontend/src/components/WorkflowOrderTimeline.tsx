@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { WorkflowsApi, type WorkflowTimelineTask } from '../api/workflows';
 import { QK } from '../constants/query-keys';
+import { taskAssignedWorkerLabel } from '../lib/task-worker-label';
 
 function blockedTitle(code: string | null | undefined): string {
   switch (code?.trim()) {
@@ -139,6 +140,7 @@ export function WorkflowOrderTimeline({
         <ol className="flex min-w-max items-start gap-0">
           {tasks.map((t, idx) => {
             const state = workflowState(t);
+            const assigneeLabel = taskAssignedWorkerLabel(t.assignments);
             const done = state === 'completed';
             const active = state === 'active';
             const toneNode = done
@@ -171,7 +173,7 @@ export function WorkflowOrderTimeline({
                     <div className="text-slate-600">
                       Assigned:{' '}
                       <span className="font-medium text-slate-800">
-                        {t.assignments?.[0]?.worker?.displayName ?? 'Unassigned'}
+                        {assigneeLabel === '—' ? 'Unassigned' : assigneeLabel}
                       </span>
                     </div>
                     <div className="mt-2 flex items-center justify-center gap-3">

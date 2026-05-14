@@ -119,8 +119,15 @@ export class WarehouseTasksService {
           requiredSkills: true,
           assignments: {
             where: { unassignedAt: null },
+            orderBy: { assignedAt: 'desc' },
             take: 1,
-            include: { worker: true },
+            include: {
+              worker: {
+                include: {
+                  user: { select: { fullName: true, email: true } },
+                },
+              },
+            },
           },
         },
       }),
@@ -150,7 +157,17 @@ export class WarehouseTasksService {
       where: { id: taskId },
       include: {
         workflowInstance: true,
-        assignments: { orderBy: { assignedAt: 'desc' }, include: { worker: true } },
+        assignments: {
+          where: { unassignedAt: null },
+          orderBy: { assignedAt: 'desc' },
+          include: {
+            worker: {
+              include: {
+                user: { select: { fullName: true, email: true } },
+              },
+            },
+          },
+        },
         events: { orderBy: { createdAt: 'desc' }, take: 80 },
         requiredSkills: true,
       },
@@ -1220,8 +1237,9 @@ export class WarehouseTasksService {
     }
 
     const { assignments, workflowInstance: _wf, ...rest } = enriched;
+    const taskForClient = { ...rest, assignments };
     return {
-      task: rest,
+      task: taskForClient,
       workflowInstance: wf as Record<string, unknown> | null,
       assignments,
       orderSummary,
