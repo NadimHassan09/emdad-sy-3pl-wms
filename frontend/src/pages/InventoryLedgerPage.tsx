@@ -14,6 +14,7 @@ import { TextField } from '../components/TextField';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
+import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import {
   fmtLedgerQty,
   fmtSignedDelta,
@@ -59,6 +60,11 @@ export function InventoryLedgerPage() {
     queryFn: () => CompaniesApi.list(),
     staleTime: 10 * 60_000,
   });
+
+  const clientFilterOptions = useMemo(
+    () => companyFilterComboboxOptions(companies.data, t('All clients', 'كل العملاء')),
+    [companies.data, isArabic],
+  );
 
   const products = useQuery({
     queryKey: [...QK.products, 'ledger-dropdown'],
@@ -180,10 +186,7 @@ export function InventoryLedgerPage() {
           label={t('Client', 'العميل')}
           value={draftFilters.companyId}
           onChange={(v) => setDraft({ companyId: v })}
-          options={(companies.data ?? []).map((c) => ({
-            value: c.id,
-            label: c.name,
-          }))}
+          options={clientFilterOptions}
           placeholder={t('All clients', 'كل العملاء')}
           className="min-w-[240px]"
         />

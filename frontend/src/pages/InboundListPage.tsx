@@ -23,7 +23,9 @@ import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
+import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { inboundHasQuantityShortfall } from '../lib/inbound-shortfall';
+
 const DEFAULT_COMPANY_ID = (import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined) ?? '';
 
 type ListDraft = {
@@ -69,6 +71,7 @@ function inboundLabel(label: string, isArabic: boolean): string {
     Quantity: 'الكمية',
     Cancel: 'إلغاء',
     Create: 'إنشاء',
+    'All clients': 'كل العملاء',
   };
   return ar[label] ?? label;
 }
@@ -86,7 +89,7 @@ export function InboundListPage() {
   const initialList = useMemo<ListDraft>(
     () => ({
       orderSearch: '',
-      companyId: DEFAULT_COMPANY_ID || '',
+      companyId: '',
       createdFrom: '',
       createdTo: '',
     }),
@@ -119,6 +122,11 @@ export function InboundListPage() {
     queryFn: () => CompaniesApi.list(),
     staleTime: 10 * 60_000,
   });
+
+  const clientFilterOptions = useMemo(
+    () => companyFilterComboboxOptions(companies.data, t('All clients')),
+    [companies.data, isArabic],
+  );
 
   const createMut = useMutation({
     mutationFn: InboundApi.create,
@@ -200,11 +208,8 @@ export function InboundListPage() {
             label={t('Client')}
             value={draftFilters.companyId}
             onChange={(v) => setDraft({ companyId: v })}
-            options={(companies.data ?? []).map((c) => ({
-              value: c.id,
-              label: c.name,
-            }))}
-            placeholder="All clients"
+            options={clientFilterOptions}
+            placeholder={t('All clients')}
           />
           <TextField
             label={t('Created from')}

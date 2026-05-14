@@ -27,6 +27,7 @@ import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
+import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { isAdjustmentStockLocationType } from '../lib/location-types';
 
 type AdjListDraft = {
@@ -113,14 +114,19 @@ export function AdjustmentsPage() {
     staleTime: 10 * 60_000,
   });
 
+  const clientListFilterOptions = useMemo(
+    () => companyFilterComboboxOptions(companies.data, t('All clients', 'كل العملاء')),
+    [companies.data, isArabic],
+  );
+
   const productDraftOptions = useQuery({
-    queryKey: [...QK.products, 'adjustments-draft-products', draftFilters.clientId],
+    queryKey: [...QK.products, 'adjustments-draft-products', draftFilters.clientId || '__all__'],
     queryFn: () =>
       ProductsApi.list({
         companyId: draftFilters.clientId || undefined,
         limit: 300,
       }),
-    enabled: !!draftFilters.clientId,
+    enabled: !!wid,
     staleTime: 5 * 60_000,
   });
 
@@ -303,10 +309,7 @@ export function AdjustmentsPage() {
           label={t('Client', 'العميل')}
           value={draftFilters.clientId}
           onChange={(v) => setDraft({ clientId: v })}
-          options={(companies.data ?? []).map((c) => ({
-            value: c.id,
-            label: c.name,
-          }))}
+          options={clientListFilterOptions}
           placeholder={t('All clients', 'كل العملاء')}
         />
         <Combobox
@@ -315,10 +318,11 @@ export function AdjustmentsPage() {
           onChange={(v) => setDraft({ productId: v })}
           options={(productDraftOptions.data?.items ?? []).map((p) => ({
             value: p.id,
-            label: `${p.sku} — ${p.name}`,
+            label: draftFilters.clientId
+              ? `${p.sku} — ${p.name}`
+              : `${p.sku} — ${p.name}${p.company?.name ? ` (${p.company.name})` : ''}`,
           }))}
-          placeholder={draftFilters.clientId ? t('Pick product…', 'اختر المنتج…') : t('Pick client first', 'اختر العميل أولاً')}
-          disabled={!draftFilters.clientId}
+          placeholder={t('All products', 'كل المنتجات')}
         />
         <TextField
           label={t('Lot id', 'معرف الدفعة')}

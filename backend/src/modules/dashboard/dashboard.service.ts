@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { InboundOrderStatus, OutboundOrderStatus, Prisma, WarehouseTaskStatus } from '@prisma/client';
+import { InboundOrderStatus, OutboundOrderStatus, WarehouseTaskStatus } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -81,19 +81,12 @@ const TASK_CARD_MAP = [
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async openOrdersCharts(user: AuthPrincipal): Promise<OpenOrdersChartsDto> {
-    const companyWhereInbound: Prisma.InboundOrderWhereInput = user.companyId
-      ? { companyId: user.companyId }
-      : {};
-    const companyWhereOutbound: Prisma.OutboundOrderWhereInput = user.companyId
-      ? { companyId: user.companyId }
-      : {};
-
+  async openOrdersCharts(_user: AuthPrincipal): Promise<OpenOrdersChartsDto> {
+    // Warehouse KPIs: all customers (ignore request-scoped X-Company-Id).
     const [inboundGroups, outboundGroups] = await Promise.all([
       this.prisma.inboundOrder.groupBy({
         by: ['status'],
         where: {
-          ...companyWhereInbound,
           status: { in: INBOUND_OPEN },
         },
         _count: { _all: true },
@@ -101,7 +94,6 @@ export class DashboardService {
       this.prisma.outboundOrder.groupBy({
         by: ['status'],
         where: {
-          ...companyWhereOutbound,
           status: { in: OUTBOUND_OPEN },
         },
         _count: { _all: true },
@@ -157,9 +149,8 @@ export class DashboardService {
     return { inbound, outbound };
   }
 
-  async overview(user: AuthPrincipal): Promise<DashboardOverviewDto> {
-    const companyId = user.companyId ?? undefined;
-    const companyFilter = companyId ? { companyId } : {};
+  async overview(_user: AuthPrincipal): Promise<DashboardOverviewDto> {
+    // Warehouse KPIs: all customers (ignore request-scoped X-Company-Id).
     const now = new Date();
     const sixMonthsFromNow = new Date(now);
     sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
@@ -178,22 +169,21 @@ export class DashboardService {
       recentOutbound,
     ] = await Promise.all([
       this.prisma.currentStock.aggregate({
-        where: { ...companyFilter },
+        where: {},
         _sum: { quantityOnHand: true },
       }),
-      this.prisma.product.count({ where: { ...companyFilter } }),
-      this.prisma.company.count(companyId ? { where: { id: companyId } } : undefined),
+      this.prisma.product.count(),
+      this.prisma.company.count(),
       this.prisma.inboundOrder.count({
-        where: { ...companyFilter, status: { in: INBOUND_OPEN } },
+        where: { status: { in: INBOUND_OPEN } },
       }),
       this.prisma.outboundOrder.count({
-        where: { ...companyFilter, status: { in: OUTBOUND_OPEN } },
+        where: { status: { in: OUTBOUND_OPEN } },
       }),
       this.prisma.warehouseTask.groupBy({
         by: ['taskType'],
         where: {
           status: { in: OPEN_TASK_STATUSES },
-          workflowInstance: companyId ? { companyId } : undefined,
         },
         _count: true,
       }),
@@ -204,7 +194,6 @@ export class DashboardService {
           currentStock: {
             some: {
               quantityOnHand: { gt: 0 },
-              ...(companyId ? { companyId } : {}),
             },
           },
         },
@@ -217,7 +206,6 @@ export class DashboardService {
       }),
       this.prisma.currentStock.findMany({
         where: {
-          ...companyFilter,
           quantityOnHand: { gt: 0 },
           lot: {
             is: {
@@ -239,7 +227,7 @@ export class DashboardService {
         take: 200,
       }),
       this.prisma.inboundOrder.findMany({
-        where: { ...companyFilter, status: { in: INBOUND_OPEN } },
+        where: { status: { in: INBOUND_OPEN } },
         orderBy: { createdAt: 'desc' },
         take: 5,
         select: {
@@ -251,7 +239,7 @@ export class DashboardService {
         },
       }),
       this.prisma.outboundOrder.findMany({
-        where: { ...companyFilter, status: { in: OUTBOUND_OPEN } },
+        where: { status: { in: OUTBOUND_OPEN } },
         orderBy: { createdAt: 'desc' },
         take: 5,
         select: {
@@ -275,7 +263,6 @@ export class DashboardService {
     const totalsByProduct = await this.prisma.currentStock.groupBy({
       by: ['productId'],
       where: {
-        ...companyFilter,
         productId: { in: productIds },
       },
       _sum: { quantityOnHand: true },

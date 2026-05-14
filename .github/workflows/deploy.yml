@@ -1,0 +1,86 @@
+# Deploy to production VPS on every push to main.
+#
+# GitHub Actions secrets (Settings → Secrets and variables → Actions):
+#   VPS_SSH_KEY — private SSH key (full PEM, including BEGIN/END lines)
+#   VPS_HOST    — VPS hostname or IP
+#   VPS_USER    — SSH user with rights to git pull, npm, and pm2 in /var/www/emdad-sy-3pl-wms
+#
+# Typical failure when logs were unavailable to paste:
+#   - "npm: not found" / "pm2: not found" → non-interactive SSH skips ~/.bashrc (nvm/fnm).
+#   - "Environment variable not found: DATABASE_URL" on prisma generate → .env not loaded.
+# This workflow sources profile/bashrc (best-effort) and loads backend/.env before generate/build.
+
+name: Deploy to VPS
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH — pull, npm ci, build, PM2 restart
+        uses: appleboy/ssh-action@v1.2.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          timeout: 2m
+          command_timeout: 30m
+          script_stop: true
+          script: |
+            set -eo pipefail
+            # Non-interactive SSH often skips login files; load them for Node/npm/pm2 (nvm, fnm, etc.)
+            set +u
+            [ -f "$HOME/.profile" ] && . "$HOME/.profile" || true
+            [ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc" || true
+            set -u
+            PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+            echo "PATH=$PATH"
+            command -v git && command -v npm && command -v pm2
+
+            DEPLOY_PATH=/var/www/emdad-sy-3pl-wms
+            cd "$DEPLOY_PATH"
+            git config --global --add safe.directory "$DEPLOY_PATH" 2>/dev/null || true
+
+            echo "=== git pull ==="
+            git fetch origin
+            git checkout main
+            git pull --ff-only origin main
+
+            echo "=== backend: npm ci ==="
+            cd "$DEPLOY_PATH/backend"
+            npm ci
+
+            echo "=== backend: build (Prisma generate + Nest) ==="
+            if [ -f .env ]; then
+              set -a
+              set +u
+              # shellcheck disable=SC1091
+              . ./.env
+              set +a
+              set -u
+            fi
+            npm run db:generate
+            npm run build
+
+            echo "=== frontend: npm ci ==="
+            cd "$DEPLOY_PATH/frontend"
+            npm ci
+
+            echo "=== frontend: build ==="
+            npm run build
+
+            echo "=== pm2 restart (ecosystem.config.js) ==="
+            cd "$DEPLOY_PATH"
+            pm2 restart ecosystem.config.js

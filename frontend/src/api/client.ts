@@ -13,7 +13,11 @@ export const api: AxiosInstance = axios.create({
 api.interceptors.request.use((cfg) => {
   const token = getAccessToken();
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
-  if (mockCompanyId && !cfg.headers['X-Company-Id']) cfg.headers['X-Company-Id'] = mockCompanyId;
+  const url = typeof cfg.url === 'string' ? cfg.url : '';
+  const isDashboard = url.includes('/dashboard/');
+  if (mockCompanyId && !isDashboard && !cfg.headers['X-Company-Id']) {
+    cfg.headers['X-Company-Id'] = mockCompanyId;
+  }
   return cfg;
 });
 
