@@ -11,6 +11,7 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import {
   isAdjustmentStockLocationType,
 } from '../../common/constants/storage-location-types';
+import { assertDiscreteUomPositiveIntegerQuantity } from '../../common/utils/discrete-uom-quantity';
 import { assertLocationUsableForInventoryMove } from '../../common/utils/location-operational';
 import { InvalidStateException } from '../../common/errors/domain-exceptions';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -147,7 +148,15 @@ export class AdjustmentsService {
         throw new InvalidStateException('Lines can only be added while adjustment is draft.');
       }
 
-      const product = await tx.product.findUnique({ where: { id: dto.productId } });
+      const product = await tx.product.findUnique({
+        where: { id: dto.productId },
+        select: {
+          id: true,
+          companyId: true,
+          trackingType: true,
+          uom: true,
+        },
+      });
       if (!product || product.companyId !== adj.companyId) {
         throw new BadRequestException('Product must belong to the adjustment company.');
       }
@@ -187,6 +196,12 @@ export class AdjustmentsService {
         throw new BadRequestException('lotId must not be set for non-lot-tracked products.');
       }
 
+      assertDiscreteUomPositiveIntegerQuantity(
+        product.uom,
+        dto.quantityAfter,
+        'Quantity after',
+      );
+
       const before = await this.stock.readOnHandForUpdate(tx, {
         companyId: adj.companyId,
         productId: dto.productId,
@@ -220,13 +235,21 @@ export class AdjustmentsService {
         throw new InvalidStateException('Lines can only be edited while adjustment is draft.');
       }
 
-      const line = await tx.stockAdjustmentLine.findUnique({ where: { id: lineId } });
+      const line = await tx.stockAdjustmentLine.findUnique({
+        where: { id: lineId },
+        include: { product: { select: { uom: true } } },
+      });
       if (!line || line.adjustmentId !== adjustmentId) {
         throw new NotFoundException('Adjustment line not found.');
       }
 
       const data: Prisma.StockAdjustmentLineUpdateInput = {};
       if (dto.quantityAfter !== undefined) {
+        assertDiscreteUomPositiveIntegerQuantity(
+          line.product.uom,
+          dto.quantityAfter,
+          'Quantity after',
+        );
         data.quantityAfter = dto.quantityAfter;
       }
       if (dto.reasonNote !== undefined) {

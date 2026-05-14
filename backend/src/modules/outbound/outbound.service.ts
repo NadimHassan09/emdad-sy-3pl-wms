@@ -15,6 +15,7 @@ import {
   StockShortage,
 } from '../../common/errors/domain-exceptions';
 import { assertProductOrderableForOrders } from '../../common/utils/assert-product-orderable';
+import { assertDiscreteUomPositiveIntegerQuantity } from '../../common/utils/discrete-uom-quantity';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StockHelpers } from '../inventory/stock.helpers';
 import {
@@ -92,7 +93,14 @@ export class OutboundService {
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, companyId: true, sku: true, name: true, status: true },
+      select: {
+        id: true,
+        companyId: true,
+        sku: true,
+        name: true,
+        status: true,
+        uom: true,
+      },
     });
     if (products.length !== productIds.length) {
       throw new NotFoundException('One or more products not found.');
@@ -105,6 +113,12 @@ export class OutboundService {
     }
     for (const p of products) {
       assertProductOrderableForOrders(p.status);
+    }
+
+    const productById = new Map(products.map((p) => [p.id, p]));
+    for (const l of dto.lines) {
+      const p = productById.get(l.productId)!;
+      assertDiscreteUomPositiveIntegerQuantity(p.uom, l.requestedQuantity, 'Requested quantity');
     }
 
     const requestedByProduct = new Map<string, Prisma.Decimal>();

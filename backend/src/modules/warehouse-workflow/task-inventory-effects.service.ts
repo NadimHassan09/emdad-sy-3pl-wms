@@ -7,6 +7,10 @@ import {
   LotRequiredException,
 } from '../../common/errors/domain-exceptions';
 import { assertLocationUsableForInventoryMove } from '../../common/utils/location-operational';
+import {
+  assertDiscreteUomNonNegativeIntegerDecimal,
+  assertDiscreteUomPositiveIntegerDecimal,
+} from '../../common/utils/discrete-uom-quantity';
 import { LedgerIdempotencyService } from '../inventory/ledger-idempotency.service';
 import { StockHelpers } from '../inventory/stock.helpers';
 import { TaskCompleteBody } from './task-payload.schema';
@@ -130,6 +134,7 @@ export class TaskInventoryEffectsService {
       assertLocationUsableForInventoryMove(location.status);
 
       const qty = new Prisma.Decimal(l.received_qty);
+      assertDiscreteUomPositiveIntegerDecimal(line.product.uom, qty, 'Received quantity');
       const expected = line.expectedQuantity;
       if (qty.greaterThan(expected) && !body.allow_short_close) {
         throw new BadRequestException(
@@ -233,6 +238,7 @@ export class TaskInventoryEffectsService {
         throw new BadRequestException(`Unknown inbound line ${l.inbound_order_line_id} for putaway.`);
       }
       const qty = new Prisma.Decimal(l.putaway_quantity);
+      assertDiscreteUomPositiveIntegerDecimal(inboundLine.product.uom, qty, 'Putaway quantity');
       const dest = await tx.location.findUnique({
         where: { id: l.destination_location_id },
         select: { warehouseId: true, type: true, status: true },
@@ -304,6 +310,12 @@ export class TaskInventoryEffectsService {
   ): Promise<void> {
     this.assertPickCompletionMatchesReservations(reservations, body);
 
+    const lineUoms = await tx.outboundOrderLine.findMany({
+      where: { outboundOrderId: orderId },
+      select: { id: true, product: { select: { uom: true } } },
+    });
+    const uomByLineId = new Map(lineUoms.map((row) => [row.id, row.product.uom]));
+
     const byLineId = new Map<string, ReservationSnapshot[]>();
     for (const r of reservations) {
       const cur = byLineId.get(r.outboundOrderLineId) ?? [];
@@ -312,6 +324,17 @@ export class TaskInventoryEffectsService {
     }
 
     for (const grp of body.picks) {
+      const uom = uomByLineId.get(grp.outbound_order_line_id);
+      if (!uom) {
+        throw new BadRequestException(`Unknown outbound line ${grp.outbound_order_line_id}.`);
+      }
+      for (const pl of grp.lines) {
+        assertDiscreteUomPositiveIntegerDecimal(
+          uom,
+          new Prisma.Decimal(String(pl.quantity)),
+          'Pick quantity',
+        );
+      }
       const pickedTotal = grp.lines.reduce(
         (acc, p) => acc.plus(new Prisma.Decimal(String(p.quantity))),
         new Prisma.Decimal(0),
@@ -344,7 +367,13 @@ export class TaskInventoryEffectsService {
   ): Promise<void> {
     const order = await tx.outboundOrder.findUnique({
       where: { id: outboundOrderId },
-      include: { lines: true },
+      include: {
+        lines: {
+          include: {
+            product: { select: { uom: true } },
+          },
+        },
+      },
     });
     if (!order || order.companyId !== companyId) throw new BadRequestException('Outbound order invalid.');
 
@@ -361,6 +390,7 @@ export class TaskInventoryEffectsService {
       const line = order.lines.find((x) => x.id === l.outbound_order_line_id);
       if (!line) throw new BadRequestException(`Unknown outbound line ${l.outbound_order_line_id}`);
       const ship = new Prisma.Decimal(l.ship_qty);
+      assertDiscreteUomPositiveIntegerDecimal(line.product.uom, ship, 'Ship quantity');
       if (!ship.equals(line.pickedQuantity)) {
         throw new BadRequestException(`Ship qty must match picked qty for line ${line.id}.`);
       }
@@ -410,9 +440,11 @@ export class TaskInventoryEffectsService {
     for (const row of body.lines) {
       const line = await tx.inboundOrderLine.findFirst({
         where: { id: row.inbound_order_line_id, inboundOrderId },
+        include: { product: { select: { uom: true } } },
       });
       if (!line) throw new BadRequestException(`QC line not found: ${row.inbound_order_line_id}.`);
       const failed = new Prisma.Decimal(String(row.failed_qty));
+      assertDiscreteUomNonNegativeIntegerDecimal(line.product.uom, failed, 'QC failed quantity');
       const status: InboundQcStatus =
         failed.greaterThan(0) ? InboundQcStatus.failed : InboundQcStatus.passed;
       await tx.inboundOrderLine.update({
@@ -430,9 +462,11 @@ export class TaskInventoryEffectsService {
     for (const l of body.lines) {
       const line = await tx.outboundOrderLine.findFirst({
         where: { id: l.outbound_order_line_id, outboundOrderId },
+        include: { product: { select: { uom: true } } },
       });
       if (!line) throw new BadRequestException(`Unknown line ${l.outbound_order_line_id}`);
       const packed = new Prisma.Decimal(l.packed_qty);
+      assertDiscreteUomPositiveIntegerDecimal(line.product.uom, packed, 'Packed quantity');
       if (packed.greaterThan(line.pickedQuantity)) {
         throw new BadRequestException('Packed qty cannot exceed picked qty.');
       }

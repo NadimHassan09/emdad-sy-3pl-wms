@@ -21,6 +21,10 @@ import {
 import { assertLocationUsableForInventoryMove } from '../../common/utils/location-operational';
 import { generateLotCandidate } from '../../common/generators/identifiers';
 import { assertProductOrderableForOrders } from '../../common/utils/assert-product-orderable';
+import {
+  assertDiscreteUomPositiveIntegerDecimal,
+  assertDiscreteUomPositiveIntegerQuantity,
+} from '../../common/utils/discrete-uom-quantity';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StockHelpers } from '../inventory/stock.helpers';
 import { inboundReceiveDefersPutaway, taskOnlyFlows } from '../warehouse-workflow/feature-flags';
@@ -76,7 +80,7 @@ export class InboundService {
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, companyId: true, status: true, trackingType: true },
+      select: { id: true, companyId: true, status: true, trackingType: true, uom: true },
     });
     if (products.length !== productIds.length) {
       throw new NotFoundException('One or more products not found.');
@@ -96,6 +100,7 @@ export class InboundService {
     for (let idx = 0; idx < dto.lines.length; idx++) {
       const l = dto.lines[idx];
       const p = productById.get(l.productId)!;
+      assertDiscreteUomPositiveIntegerQuantity(p.uom, l.expectedQuantity, 'Expected quantity');
       let expectedLotNumber = l.expectedLotNumber?.trim() ?? null;
       if (p.trackingType === 'lot') {
         if (!expectedLotNumber) {
@@ -310,13 +315,26 @@ export class InboundService {
       const line = await tx.inboundOrderLine.findUnique({
         where: { id: lineId },
         include: {
-          product: { select: { id: true, status: true, trackingType: true, expiryTracking: true } },
+          product: {
+            select: {
+              id: true,
+              status: true,
+              trackingType: true,
+              expiryTracking: true,
+              uom: true,
+            },
+          },
         },
       });
       if (!line || line.inboundOrderId !== orderId) {
         throw new NotFoundException('Inbound line not found on this order.');
       }
       assertProductOrderableForOrders(line.product.status);
+      assertDiscreteUomPositiveIntegerQuantity(
+        line.product.uom,
+        dto.quantity,
+        'Receive quantity',
+      );
 
       const location = await tx.location.findUnique({
         where: { id: dto.locationId },
