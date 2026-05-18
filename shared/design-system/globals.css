@@ -1,68 +1,127 @@
+/* =============================================================================
+ * Design token foundation — single source of truth for both apps.
+ * `tokens.css` exposes spacing/radius/shadow/z-index/typography/colors
+ * (including the operational color system) on :root.
+ *
+ * Must come before @tailwind directives — PostCSS requires @import first.
+ * ============================================================================= */
+@import './tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/*
- * Design tokens (client portal + internal WMS)
- */
 @layer base {
-  :root {
-    --app-page-bg: #f1f5f9;
-    --app-text: #0f172a;
-    --app-topbar-bg: #0f172a;
-    --app-topbar-fg: #f8fafc;
-    --app-primary: #2563eb;
-    --app-primary-hover: #1d4ed8;
-    --app-border: #cbd5e1;
-    --app-muted: #64748b;
-  }
-
   html,
   body,
   #root {
     height: 100%;
   }
 
-  * {
+  *,
+  *::before,
+  *::after {
     box-sizing: border-box;
   }
 
   body {
-    @apply antialiased text-slate-900;
+    @apply antialiased;
     margin: 0;
     min-height: 100vh;
-    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, Cantarell,
-      'Noto Sans', sans-serif;
-    line-height: 1.5;
+    font-family: var(--font-sans);
+    line-height: var(--leading-normal);
     font-weight: 400;
-    background-color: var(--app-page-bg);
-    color: var(--app-text);
+    background-color: var(--surface-app-bg);
+    color: var(--text-strong);
+    /* Prevent layout shift from system font fallback in RTL */
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Uniform focus ring for the entire app. Component primitives may extend
+     it but should not redefine the visual treatment. */
+  :focus { outline: none; }
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--shadow-focus);
+    border-radius: var(--radius-md);
+  }
+
+  /* Reduced motion — disable transitions for users that ask for it. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Screen-reader-only helper (used by LiveRegion in future phases). */
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+
+  /* Shimmer animation for Skeleton primitive. */
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Overlay / dialog enter animations (Modal + Drawer). */
+  @keyframes fadein {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes modalEnter {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes drawerInRight {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(0); }
+  }
+  @keyframes drawerInLeft {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(0); }
   }
 }
 
-/* Internal WMS — status badges (unchanged class names) */
+/* =============================================================================
+ * Status badge system — operational color map (Section B.3 of WMS spec).
+ * Legacy class names below (badge-draft, badge-confirmed, etc.) are kept for
+ * backward compatibility — new components should use the canonical
+ * `.ds-badge--<status>` variants exposed by the Badge primitive.
+ * ============================================================================= */
 @layer components {
   .badge {
-    @apply inline-flex items-center rounded px-2 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center text-xs font-medium;
+    gap: var(--space-1);
+    padding-inline: var(--space-2);
+    padding-block: 2px;
+    border-radius: var(--radius-pill);
+    border: 1px solid transparent;
+    line-height: 1.2;
   }
-  .badge-draft {
-    @apply bg-slate-200 text-slate-700;
-  }
-  .badge-confirmed {
-    @apply bg-blue-100 text-blue-800;
-  }
-  .badge-progress {
-    @apply bg-amber-100 text-amber-800;
-  }
-  .badge-complete {
-    @apply bg-emerald-100 text-emerald-800;
-  }
-  .badge-shipped {
-    @apply bg-emerald-100 text-emerald-800;
-  }
-  .badge-cancelled {
-    @apply bg-rose-100 text-rose-800;
-  }
+
+  /* Legacy variants — preserved for existing pages. */
+  .badge-draft     { background: var(--color-neutral-100); color: var(--color-neutral-600); border-color: var(--color-neutral-300); }
+  .badge-confirmed { background: var(--color-accent-50);   color: var(--color-accent-700);  border-color: var(--color-accent-200); }
+  .badge-progress  { background: var(--color-warning-50);  color: var(--color-warning-700); border-color: var(--color-warning-200); }
+  .badge-complete  { background: var(--color-success-50);  color: var(--color-success-700); border-color: var(--color-success-200); }
+  .badge-shipped   { background: var(--color-success-50);  color: var(--color-success-700); border-color: var(--color-success-200); }
+  .badge-cancelled { background: var(--color-danger-50);   color: var(--color-danger-700);  border-color: var(--color-danger-200); }
 }
 
 /*

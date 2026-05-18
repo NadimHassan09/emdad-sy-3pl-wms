@@ -5,6 +5,7 @@ export default {
     './index.html',
     './src/**/*.{ts,tsx}',
     '../shared/design-system/**/*.css',
+    '../shared/design-system/ui/**/*.{ts,tsx}',
   ],
   theme: {
     extend: {},

@@ -15,6 +15,7 @@ const client_1 = require("@prisma/client");
 const storage_location_types_1 = require("../../common/constants/storage-location-types");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const location_operational_1 = require("../../common/utils/location-operational");
+const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantity");
 const ledger_idempotency_service_1 = require("../inventory/ledger-idempotency.service");
 const stock_helpers_1 = require("../inventory/stock.helpers");
 const task_allocation_helper_1 = require("./task-allocation.helper");
@@ -97,6 +98,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 throw new common_1.BadRequestException('Staging location not found.');
             (0, location_operational_1.assertLocationUsableForInventoryMove)(location.status);
             const qty = new client_1.Prisma.Decimal(l.received_qty);
+            (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerDecimal)(line.product.uom, qty, 'Received quantity');
             const expected = line.expectedQuantity;
             if (qty.greaterThan(expected) && !body.allow_short_close) {
                 throw new common_1.BadRequestException(`Received qty exceeds expected for line ${line.id} (${qty.toString()} > ${expected.toString()}).`);
@@ -177,6 +179,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 throw new common_1.BadRequestException(`Unknown inbound line ${l.inbound_order_line_id} for putaway.`);
             }
             const qty = new client_1.Prisma.Decimal(l.putaway_quantity);
+            (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerDecimal)(inboundLine.product.uom, qty, 'Putaway quantity');
             const dest = await tx.location.findUnique({
                 where: { id: l.destination_location_id },
                 select: { warehouseId: true, type: true, status: true },
@@ -229,6 +232,11 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
     }
     async applyPickRecord(tx, orderId, reservations, body) {
         this.assertPickCompletionMatchesReservations(reservations, body);
+        const lineUoms = await tx.outboundOrderLine.findMany({
+            where: { outboundOrderId: orderId },
+            select: { id: true, product: { select: { uom: true } } },
+        });
+        const uomByLineId = new Map(lineUoms.map((row) => [row.id, row.product.uom]));
         const byLineId = new Map();
         for (const r of reservations) {
             const cur = byLineId.get(r.outboundOrderLineId) ?? [];
@@ -236,6 +244,13 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
             byLineId.set(r.outboundOrderLineId, cur);
         }
         for (const grp of body.picks) {
+            const uom = uomByLineId.get(grp.outbound_order_line_id);
+            if (!uom) {
+                throw new common_1.BadRequestException(`Unknown outbound line ${grp.outbound_order_line_id}.`);
+            }
+            for (const pl of grp.lines) {
+                (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerDecimal)(uom, new client_1.Prisma.Decimal(String(pl.quantity)), 'Pick quantity');
+            }
             const pickedTotal = grp.lines.reduce((acc, p) => acc.plus(new client_1.Prisma.Decimal(String(p.quantity))), new client_1.Prisma.Decimal(0));
             await tx.outboundOrderLine.update({
                 where: { id: grp.outbound_order_line_id },
@@ -255,7 +270,13 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
     async applyDispatchShip(tx, operatorId, taskId, outboundOrderId, companyId, reservations, body) {
         const order = await tx.outboundOrder.findUnique({
             where: { id: outboundOrderId },
-            include: { lines: true },
+            include: {
+                lines: {
+                    include: {
+                        product: { select: { uom: true } },
+                    },
+                },
+            },
         });
         if (!order || order.companyId !== companyId)
             throw new common_1.BadRequestException('Outbound order invalid.');
@@ -272,6 +293,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
             if (!line)
                 throw new common_1.BadRequestException(`Unknown outbound line ${l.outbound_order_line_id}`);
             const ship = new client_1.Prisma.Decimal(l.ship_qty);
+            (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerDecimal)(line.product.uom, ship, 'Ship quantity');
             if (!ship.equals(line.pickedQuantity)) {
                 throw new common_1.BadRequestException(`Ship qty must match picked qty for line ${line.id}.`);
             }
@@ -314,10 +336,12 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
         for (const row of body.lines) {
             const line = await tx.inboundOrderLine.findFirst({
                 where: { id: row.inbound_order_line_id, inboundOrderId },
+                include: { product: { select: { uom: true } } },
             });
             if (!line)
                 throw new common_1.BadRequestException(`QC line not found: ${row.inbound_order_line_id}.`);
             const failed = new client_1.Prisma.Decimal(String(row.failed_qty));
+            (0, discrete_uom_quantity_1.assertDiscreteUomNonNegativeIntegerDecimal)(line.product.uom, failed, 'QC failed quantity');
             const status = failed.greaterThan(0) ? client_1.InboundQcStatus.failed : client_1.InboundQcStatus.passed;
             await tx.inboundOrderLine.update({
                 where: { id: line.id },
@@ -329,10 +353,12 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
         for (const l of body.lines) {
             const line = await tx.outboundOrderLine.findFirst({
                 where: { id: l.outbound_order_line_id, outboundOrderId },
+                include: { product: { select: { uom: true } } },
             });
             if (!line)
                 throw new common_1.BadRequestException(`Unknown line ${l.outbound_order_line_id}`);
             const packed = new client_1.Prisma.Decimal(l.packed_qty);
+            (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerDecimal)(line.product.uom, packed, 'Packed quantity');
             if (packed.greaterThan(line.pickedQuantity)) {
                 throw new common_1.BadRequestException('Packed qty cannot exceed picked qty.');
             }

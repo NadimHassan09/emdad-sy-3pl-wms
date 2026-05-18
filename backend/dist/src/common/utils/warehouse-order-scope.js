@@ -44,6 +44,12 @@ async function inboundIdsVisibleForWarehouse(prisma, warehouseId, baseWhere) {
         select: { id: true },
     });
     const idSet = new Set([...receivedHere.map((r) => r.referenceId), ...neverReceivedOrders.map((o) => o.id)].filter(Boolean));
+    const draftRows = await prisma.inboundOrder.findMany({
+        where: { ...baseWhere, status: 'draft' },
+        select: { id: true },
+    });
+    for (const o of draftRows)
+        idSet.add(o.id);
     return idSet.size ? { id: { in: [...idSet] } } : { id: { in: [] } };
 }
 async function outboundIdsVisibleForWarehouse(prisma, warehouseId, baseWhere) {
@@ -81,6 +87,12 @@ async function outboundIdsVisibleForWarehouse(prisma, warehouseId, baseWhere) {
         select: { id: true },
     });
     const idSet = new Set([...pickedHere.map((r) => r.referenceId), ...neverPickedOrders.map((o) => o.id)].filter(Boolean));
+    const draftOutRows = await prisma.outboundOrder.findMany({
+        where: { ...baseWhere, status: 'draft' },
+        select: { id: true },
+    });
+    for (const o of draftOutRows)
+        idSet.add(o.id);
     return idSet.size ? { id: { in: [...idSet] } } : { id: { in: [] } };
 }
 //# sourceMappingURL=warehouse-order-scope.js.map

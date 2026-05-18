@@ -13,9 +13,12 @@ exports.OutboundService = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const client_1 = require("@prisma/client");
+const company_read_scope_1 = require("../../common/auth/company-read-scope");
 const warehouse_order_scope_1 = require("../../common/utils/warehouse-order-scope");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const assert_product_orderable_1 = require("../../common/utils/assert-product-orderable");
+const order_planning_date_1 = require("../../common/utils/order-planning-date");
+const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantity");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const stock_helpers_1 = require("../inventory/stock.helpers");
 const feature_flags_1 = require("../warehouse-workflow/feature-flags");
@@ -62,7 +65,14 @@ let OutboundService = class OutboundService {
         const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
         const products = await this.prisma.product.findMany({
             where: { id: { in: productIds } },
-            select: { id: true, companyId: true, sku: true, name: true, status: true },
+            select: {
+                id: true,
+                companyId: true,
+                sku: true,
+                name: true,
+                status: true,
+                uom: true,
+            },
         });
         if (products.length !== productIds.length) {
             throw new common_1.NotFoundException('One or more products not found.');
@@ -73,6 +83,12 @@ let OutboundService = class OutboundService {
         }
         for (const p of products) {
             (0, assert_product_orderable_1.assertProductOrderableForOrders)(p.status);
+        }
+        (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(dto.requiredShipDate, 'Required ship date');
+        const productById = new Map(products.map((p) => [p.id, p]));
+        for (const l of dto.lines) {
+            const p = productById.get(l.productId);
+            (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(p.uom, l.requestedQuantity, 'Requested quantity');
         }
         const requestedByProduct = new Map();
         for (const l of dto.lines) {
@@ -143,7 +159,7 @@ let OutboundService = class OutboundService {
     async list(user, query) {
         const baseAnd = [];
         const where = {};
-        const companyId = query.companyId ?? user.companyId ?? undefined;
+        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(user, query.companyId);
         if (companyId)
             where.companyId = companyId;
         if (query.status)

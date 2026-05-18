@@ -9,6 +9,10 @@ export default defineConfig({
       '@emdad/wms-task-execution': fileURLToPath(
         new NodeURL('./src/vendor/wms-task-execution/index.ts', import.meta.url),
       ),
+      /** Shared WMS design-system primitive barrel — see shared/design-system/ui. */
+      '@ds': fileURLToPath(
+        new NodeURL('../shared/design-system/ui/index.ts', import.meta.url),
+      ),
     },
   },
   server: {

@@ -61,7 +61,18 @@ let WorkflowBootstrapService = class WorkflowBootstrapService {
             where: { workflowInstanceId: wf.id },
             orderBy: { createdAt: 'asc' },
             include: {
-                assignments: { where: { unassignedAt: null }, take: 1, include: { worker: true } },
+                assignments: {
+                    where: { unassignedAt: null },
+                    orderBy: { assignedAt: 'desc' },
+                    take: 1,
+                    include: {
+                        worker: {
+                            include: {
+                                user: { select: { fullName: true, email: true } },
+                            },
+                        },
+                    },
+                },
             },
         });
         const light = tasks.map((t) => ({
@@ -104,7 +115,18 @@ let WorkflowBootstrapService = class WorkflowBootstrapService {
                 where: { workflowInstanceId: instanceId },
                 orderBy: { createdAt: 'asc' },
                 include: {
-                    assignments: { where: { unassignedAt: null }, take: 1, include: { worker: true } },
+                    assignments: {
+                        where: { unassignedAt: null },
+                        orderBy: { assignedAt: 'desc' },
+                        take: 1,
+                        include: {
+                            worker: {
+                                include: {
+                                    user: { select: { fullName: true, email: true } },
+                                },
+                            },
+                        },
+                    },
                 },
             }),
         ]);
