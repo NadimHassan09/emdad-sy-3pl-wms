@@ -62,6 +62,18 @@ module.exports = {
           900: 'var(--color-accent-900)',
         },
 
+        /* Surface layer aliases — use these in components, not raw neutral ramp. */
+        surface: {
+          page:    'var(--surface-page)',
+          card:    'var(--surface-card)',
+          raised:  'var(--surface-raised)',
+          panel:   'var(--surface-panel)',
+          /* --surface-overlay is the DARK BACKDROP rgba — avoid using as bg- class */
+          hover:   'var(--surface-hover)',
+          active:  'var(--surface-active)',
+          sunken:  'var(--surface-sunken)',
+        },
+
         /* Legacy alias — keep `primary-*` working for existing class users. */
         primary: {
           50:  'var(--color-accent-50)',
@@ -202,9 +214,12 @@ module.exports = {
       },
 
       transitionTimingFunction: {
-        standard: 'var(--ease-standard)',
-        emphasis: 'var(--ease-emphasis)',
-        exit:     'var(--ease-exit)',
+        standard:   'var(--ease-standard)',
+        emphasis:   'var(--ease-emphasis)',
+        exit:       'var(--ease-exit)',
+        spring:     'var(--ease-spring)',
+        decelerate: 'var(--ease-decelerate)',
+        accelerate: 'var(--ease-accelerate)',
       },
 
       maxWidth: {

@@ -20,6 +20,15 @@ let ClientStockService = class ClientStockService {
         this.inventory = inventory;
         this.prisma = prisma;
     }
+    async availability(client, productId) {
+        const principal = {
+            id: client.id,
+            companyId: client.companyId,
+            role: client.role,
+            email: client.email ?? undefined,
+        };
+        return this.inventory.availability(principal, productId, client.companyId);
+    }
     async list(client, query) {
         const principal = {
             id: client.id,

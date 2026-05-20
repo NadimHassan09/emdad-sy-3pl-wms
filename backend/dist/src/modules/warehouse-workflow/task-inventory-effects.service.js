@@ -19,6 +19,22 @@ const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantit
 const ledger_idempotency_service_1 = require("../inventory/ledger-idempotency.service");
 const stock_helpers_1 = require("../inventory/stock.helpers");
 const task_allocation_helper_1 = require("./task-allocation.helper");
+function parseExpiryFromDiscrepancyNotes(notes) {
+    if (!notes)
+        return null;
+    const m = /expiry:(\d{4}-\d{2}-\d{2})/i.exec(notes);
+    if (!m)
+        return null;
+    const d = new Date(`${m[1]}T00:00:00.000Z`);
+    return Number.isNaN(d.getTime()) ? null : d;
+}
+function resolveReceivingLotExpiry(product, line, taskLine) {
+    if (product.trackingType !== client_1.ProductTrackingType.lot || !product.expiryTracking) {
+        return null;
+    }
+    return (parseExpiryFromDiscrepancyNotes(taskLine.discrepancy_notes) ??
+        (line.expectedExpiryDate ? new Date(line.expectedExpiryDate) : null));
+}
 let TaskInventoryEffectsService = class TaskInventoryEffectsService {
     stock;
     ledgerDedup;
@@ -112,14 +128,28 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 if (!lotId && !ln)
                     throw new domain_exceptions_1.LotRequiredException();
                 if (!lotId && ln) {
+                    const expiryDate = resolveReceivingLotExpiry(line.product, line, l);
                     const found = await tx.lot.findUnique({
                         where: { productId_lotNumber: { productId: line.productId, lotNumber: ln } },
                     });
-                    lotId =
-                        found?.id ??
-                            (await tx.lot.create({
-                                data: { productId: line.productId, lotNumber: ln },
-                            })).id;
+                    if (found) {
+                        lotId = found.id;
+                        if (expiryDate && !found.expiryDate) {
+                            await tx.lot.update({
+                                where: { id: found.id },
+                                data: { expiryDate },
+                            });
+                        }
+                    }
+                    else {
+                        lotId = (await tx.lot.create({
+                            data: {
+                                productId: line.productId,
+                                lotNumber: ln,
+                                expiryDate,
+                            },
+                        })).id;
+                    }
                 }
             }
             const stockMeta = await this.stock.upsertPositiveWithMeta(tx, {
@@ -331,6 +361,11 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 trackingNumber: body.tracking ?? order.trackingNumber,
             },
         });
+        return {
+            companyId: order.companyId,
+            orderId: outboundOrderId,
+            orderNumber: order.orderNumber,
+        };
     }
     async applyQcLines(tx, inboundOrderId, body) {
         for (const row of body.lines) {

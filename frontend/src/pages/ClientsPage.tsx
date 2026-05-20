@@ -12,7 +12,6 @@ import { Button } from '../components/Button';
 import { DataTable, type Column } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
-import { PageHeader } from '../components/PageHeader';
 import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
@@ -315,7 +314,18 @@ export function ClientsPage() {
 
   return (
     <>
-      <PageHeader
+      {errMsg ? <p className="mb-4 text-sm text-rose-600">{errMsg}</p> : null}
+
+      <FilterPanel title={t('Client filters', 'فلاتر العملاء')}>
+        <TextField
+          label={t('Search', 'بحث')}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('Search by company name, trade name, or email', 'ابحث باسم الشركة أو الاسم التجاري أو البريد الإلكتروني')}
+        />
+      </FilterPanel>
+
+      <DataTable
         title={t('Clients', 'العملاء')}
         actions={
           <Button
@@ -326,20 +336,6 @@ export function ClientsPage() {
             {t('+ New company', '+ شركة جديدة')}
           </Button>
         }
-      />
-
-      {errMsg ? <p className="mb-4 text-sm text-rose-600">{errMsg}</p> : null}
-
-      <FilterPanel showLabel={t('Show filters', 'إظهار الفلاتر')} hideLabel={t('Hide filters', 'إخفاء الفلاتر')}>
-        <TextField
-          label={t('Search', 'بحث')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('Search by company name, trade name, or email', 'ابحث باسم الشركة أو الاسم التجاري أو البريد الإلكتروني')}
-        />
-      </FilterPanel>
-
-      <DataTable
         columns={columns}
         rows={filteredRows}
         rowKey={(r) => r.id}

@@ -25,6 +25,7 @@ const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantit
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const stock_helpers_1 = require("../inventory/stock.helpers");
 const feature_flags_1 = require("../warehouse-workflow/feature-flags");
+const notifications_service_1 = require("../notifications/notifications.service");
 const realtime_service_1 = require("../realtime/realtime.service");
 const workflow_bootstrap_service_1 = require("../warehouse-workflow/workflow-bootstrap.service");
 const ORDER_INCLUDE = {
@@ -48,20 +49,29 @@ const ORDER_INCLUDE = {
     },
 };
 const FULL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const INBOUND_CONFIRMABLE = [
+    client_1.InboundOrderStatus.draft,
+    client_1.InboundOrderStatus.pending_approval,
+];
+function isInboundConfirmable(status) {
+    return INBOUND_CONFIRMABLE.includes(status);
+}
 let InboundService = class InboundService {
     prisma;
     stock;
     config;
     workflowBootstrap;
     realtime;
-    constructor(prisma, stock, config, workflowBootstrap, realtime) {
+    notifications;
+    constructor(prisma, stock, config, workflowBootstrap, realtime, notifications) {
         this.prisma = prisma;
         this.stock = stock;
         this.config = config;
         this.workflowBootstrap = workflowBootstrap;
         this.realtime = realtime;
+        this.notifications = notifications;
     }
-    async create(user, dto) {
+    async create(user, dto, opts) {
         const companyId = dto.companyId ?? user.companyId;
         if (!companyId) {
             throw new common_1.BadRequestException('companyId is required (no default company on current user).');
@@ -108,6 +118,7 @@ let InboundService = class InboundService {
         const order = await this.prisma.inboundOrder.create({
             data: {
                 companyId,
+                status: opts?.pendingClientApproval ? client_1.InboundOrderStatus.pending_approval : undefined,
                 expectedArrivalDate: new Date(dto.expectedArrivalDate),
                 clientReference: dto.clientReference,
                 notes: dto.notes,
@@ -122,6 +133,15 @@ let InboundService = class InboundService {
             orderId: order.id,
             status: order.status,
         });
+        if (opts?.pendingClientApproval) {
+            await this.notifications.notifyAdminsPendingApproval({
+                companyId: order.companyId,
+                companyName: order.company.name,
+                orderType: 'inbound',
+                orderId: order.id,
+                orderNumber: order.orderNumber,
+            });
+        }
         return order;
     }
     async list(user, query) {
@@ -185,11 +205,12 @@ let InboundService = class InboundService {
     }
     async confirm(user, id, body) {
         const order = await this.findById(id);
+        const wasPendingApproval = order.status === client_1.InboundOrderStatus.pending_approval;
         for (const line of order.lines) {
             (0, assert_product_orderable_1.assertProductOrderableForOrders)(line.product.status);
         }
-        if (order.status !== 'draft') {
-            throw new domain_exceptions_1.InvalidStateException(`Only draft orders can be confirmed (current status: ${order.status}).`);
+        if (!isInboundConfirmable(order.status)) {
+            throw new domain_exceptions_1.InvalidStateException(`Only draft or pending-approval orders can be confirmed (current status: ${order.status}).`);
         }
         if (order.lines.length === 0) {
             throw new common_1.BadRequestException('Add at least one line before confirming this order.');
@@ -206,8 +227,8 @@ let InboundService = class InboundService {
                 if (user.companyId && cur.companyId !== user.companyId) {
                     throw new common_1.NotFoundException('Inbound order not found.');
                 }
-                if (cur.status !== 'draft') {
-                    throw new domain_exceptions_1.InvalidStateException(`Only draft orders can be confirmed (current status: ${cur.status}).`);
+                if (!isInboundConfirmable(cur.status)) {
+                    throw new domain_exceptions_1.InvalidStateException(`Only draft or pending-approval orders can be confirmed (current status: ${cur.status}).`);
                 }
                 await tx.inboundOrder.update({
                     where: { id },
@@ -221,6 +242,15 @@ let InboundService = class InboundService {
                 status: updated.status,
                 reason: 'confirm',
             });
+            if (wasPendingApproval) {
+                await this.notifications.notifyClientOrderConfirmed({
+                    companyId: updated.companyId,
+                    orderType: 'inbound',
+                    orderId: updated.id,
+                    orderNumber: updated.orderNumber,
+                });
+                await this.notifications.dismissPendingAdminNotifications('inbound_order', updated.id);
+            }
             return updated;
         }
         await this.prisma.inboundOrder.update({
@@ -233,12 +263,21 @@ let InboundService = class InboundService {
             status: confirmed.status,
             reason: 'confirm',
         });
+        if (wasPendingApproval) {
+            await this.notifications.notifyClientOrderConfirmed({
+                companyId: confirmed.companyId,
+                orderType: 'inbound',
+                orderId: confirmed.id,
+                orderNumber: confirmed.orderNumber,
+            });
+            await this.notifications.dismissPendingAdminNotifications('inbound_order', confirmed.id);
+        }
         return confirmed;
     }
     async cancel(id, user) {
         const order = await this.findById(id);
-        if (!['draft', 'confirmed'].includes(order.status)) {
-            throw new domain_exceptions_1.InvalidStateException(`Inbound orders can only be cancelled while in draft/confirmed (current: ${order.status}).`);
+        if (!['draft', 'pending_approval', 'confirmed'].includes(order.status)) {
+            throw new domain_exceptions_1.InvalidStateException(`Inbound orders can only be cancelled while in draft, pending approval, or confirmed (current: ${order.status}).`);
         }
         const cancelled = await this.prisma.inboundOrder.update({
             where: { id },
@@ -350,6 +389,12 @@ let InboundService = class InboundService {
                 });
                 if (existing) {
                     lotId = existing.id;
+                    if (expiryForLot && !existing.expiryDate) {
+                        await tx.lot.update({
+                            where: { id: existing.id },
+                            data: { expiryDate: expiryForLot },
+                        });
+                    }
                 }
                 else {
                     const created = await tx.lot.create({
@@ -456,6 +501,7 @@ exports.InboundService = InboundService = __decorate([
         stock_helpers_1.StockHelpers,
         config_1.ConfigService,
         workflow_bootstrap_service_1.WorkflowBootstrapService,
-        realtime_service_1.RealtimeService])
+        realtime_service_1.RealtimeService,
+        notifications_service_1.NotificationsService])
 ], InboundService);
 //# sourceMappingURL=inbound.service.js.map

@@ -47,6 +47,15 @@ export function InboundOrderDetailPage(): ReactElement {
               <span className={orderStatusBadge(data.status)}>{humanizeStatus(data.status)}</span>
             </div>
 
+            {data.status === 'pending_approval' ? (
+              <p
+                className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                role="status"
+              >
+                This order is waiting for warehouse approval. Processing will begin after approval.
+              </p>
+            ) : null}
+
             <dl className="details">
               <div className="details__row">
                 <dt>Order #</dt>
@@ -149,6 +158,7 @@ function humanizeStatus(status: string): string {
 }
 
 function orderStatusBadge(status: string): string {
+  if (status === 'pending_approval') return 'badge badge-progress';
   if (status === 'draft') return 'badge badge-draft';
   if (status === 'cancelled') return 'badge badge-cancelled';
   if (status === 'completed') return 'badge badge-complete';

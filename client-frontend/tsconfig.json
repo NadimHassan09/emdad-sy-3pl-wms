@@ -23,6 +23,8 @@
     "paths": {
       "@ds": ["../shared/design-system/ui/index.ts"],
       "@ds/*": ["../shared/design-system/ui/*"],
+      "@wms/components/*": ["../frontend/src/components/*"],
+      "@wms/hooks/*": ["../frontend/src/hooks/*"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
       "react-dom": ["./node_modules/@types/react-dom"],

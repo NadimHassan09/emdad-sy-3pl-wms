@@ -2,16 +2,27 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
-const INBOUND_ACTIVE: Array<'draft' | 'confirmed' | 'in_progress' | 'partially_received'> = [
-  'draft',
-  'confirmed',
-  'in_progress',
-  'partially_received',
-];
+const INBOUND_ACTIVE: Array<
+  'draft' | 'pending_approval' | 'confirmed' | 'in_progress' | 'partially_received'
+> = ['draft', 'pending_approval', 'confirmed', 'in_progress', 'partially_received'];
 
 const OUTBOUND_ACTIVE: Array<
-  'draft' | 'pending_stock' | 'confirmed' | 'picking' | 'packing' | 'ready_to_ship'
-> = ['draft', 'pending_stock', 'confirmed', 'picking', 'packing', 'ready_to_ship'];
+  | 'draft'
+  | 'pending_approval'
+  | 'pending_stock'
+  | 'confirmed'
+  | 'picking'
+  | 'packing'
+  | 'ready_to_ship'
+> = [
+  'draft',
+  'pending_approval',
+  'pending_stock',
+  'confirmed',
+  'picking',
+  'packing',
+  'ready_to_ship',
+];
 
 /**
  * Orders are not persisted with `warehouse_id`. We scope lists by ledger rows
@@ -69,11 +80,11 @@ export async function inboundIdsVisibleForWarehouse(
   );
   // Always include draft orders matching the same tenant filters. Drafts have no receive
   // ledger rows yet; edge cases in the ledger-derived set must not hide them from list UIs.
-  const draftRows = await prisma.inboundOrder.findMany({
-    where: { ...baseWhere, status: 'draft' },
+  const preWorkflowRows = await prisma.inboundOrder.findMany({
+    where: { ...baseWhere, status: { in: ['draft', 'pending_approval'] } },
     select: { id: true },
   });
-  for (const o of draftRows) idSet.add(o.id);
+  for (const o of preWorkflowRows) idSet.add(o.id);
 
   return idSet.size ? { id: { in: [...idSet] } } : { id: { in: [] } };
 }
@@ -127,11 +138,11 @@ export async function outboundIdsVisibleForWarehouse(
   const idSet = new Set<string>(
     [...pickedHere.map((r) => r.referenceId), ...neverPickedOrders.map((o) => o.id)].filter(Boolean),
   );
-  const draftOutRows = await prisma.outboundOrder.findMany({
-    where: { ...baseWhere, status: 'draft' },
+  const preWorkflowOutRows = await prisma.outboundOrder.findMany({
+    where: { ...baseWhere, status: { in: ['draft', 'pending_approval'] } },
     select: { id: true },
   });
-  for (const o of draftOutRows) idSet.add(o.id);
+  for (const o of preWorkflowOutRows) idSet.add(o.id);
 
   return idSet.size ? { id: { in: [...idSet] } } : { id: { in: [] } };
 }

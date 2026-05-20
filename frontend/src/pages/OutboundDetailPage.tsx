@@ -26,6 +26,7 @@ function outboundDetailLabel(label: string, isArabic: boolean): string {
     'Cancel order': 'إلغاء الطلب',
     'Confirm & start workflow': 'تأكيد وبدء سير العمل',
     'Confirm & deduct stock': 'تأكيد وخصم المخزون',
+    'Approve order': 'اعتماد الطلب',
     'Order #': 'رقم الطلب #',
     Status: 'الحالة',
     'Required ship': 'الشحن المطلوب',
@@ -107,8 +108,8 @@ export function OutboundDetailPage() {
     return <p className="text-sm text-rose-600">Failed to load outbound order.</p>;
 
   const o = order.data;
-  const canConfirm = o.status === 'draft';
-  const canCancel = o.status === 'draft';
+  const canConfirm = o.status === 'draft' || o.status === 'pending_approval';
+  const canCancel = o.status === 'draft' || o.status === 'pending_approval';
   const outboundConfirmBlocked = taskOnlyMode && canConfirm && !effectiveWarehouseId;
 
   const lineColumns: Column<OutboundOrderLine>[] = [
@@ -165,7 +166,11 @@ export function OutboundDetailPage() {
                 loading={confirmMut.isPending}
                 disabled={outboundConfirmBlocked}
               >
-                {taskOnlyMode ? t('Confirm & start workflow') : t('Confirm & deduct stock')}
+                {o.status === 'pending_approval'
+                  ? t('Approve order')
+                  : taskOnlyMode
+                    ? t('Confirm & start workflow')
+                    : t('Confirm & deduct stock')}
               </Button>
             )}
           </>

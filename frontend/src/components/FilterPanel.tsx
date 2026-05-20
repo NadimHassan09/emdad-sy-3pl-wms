@@ -1,43 +1,72 @@
+import { Button } from '@ds';
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+
+/** Matches the Apply filters primary action in filter panels. */
+export const FILTER_PRIMARY_BUTTON_CLASS =
+  'rounded-xl border-emerald-500 bg-emerald-500 px-4 py-2 shadow hover:border-emerald-600 hover:bg-emerald-600';
+
+/** Shared white panel shell (filters, order details, workflow timeline, etc.). */
+export const PANEL_CARD_CLASS =
+  'mb-6 space-y-5 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm';
+
+export const PANEL_TITLE_CLASS = 'text-xl font-semibold text-slate-900';
 
 export function FilterPanel({
   children,
-  defaultOpen = false,
-  showLabel = 'Show filters',
-  hideLabel = 'Hide filters',
+  title = 'Filters',
+  onApply,
+  onReset,
+  applyDisabled,
+  loading,
+  applyLabel = 'Apply filters',
+  resetLabel = 'Reset',
+  className,
 }: {
   children: ReactNode;
-  defaultOpen?: boolean;
-  showLabel?: string;
-  hideLabel?: string;
+  title?: ReactNode;
+  onApply?: () => void;
+  onReset?: () => void;
+  applyDisabled?: boolean;
+  loading?: boolean;
+  applyLabel?: string;
+  resetLabel?: string;
+  className?: string;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const showActions = onApply != null && onReset != null;
 
   return (
-    <div className={`mb-3 ${open ? 'relative z-40' : ''}`}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-        aria-expanded={open}
-      >
-        <span>{open ? hideLabel : showLabel}</span>
-        <svg
-          viewBox="0 0 20 20"
-          className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-        >
-          <path d="m5 8 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      <div
-        className={`grid transition-all duration-300 ease-in-out ${open ? 'mt-3 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
-      >
-        <div className={open ? 'overflow-visible' : 'overflow-hidden'}>{children}</div>
+    <div
+      className={[PANEL_CARD_CLASS, className].filter(Boolean).join(' ')}
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className={PANEL_TITLE_CLASS}>{title}</h2>
+        {showActions && (
+          <div className="flex flex-wrap gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              onClick={onReset}
+              disabled={loading}
+              className="rounded-xl border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50"
+            >
+              {resetLabel}
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={onApply}
+              disabled={applyDisabled || loading}
+              loading={loading}
+              className={FILTER_PRIMARY_BUTTON_CLASS}
+            >
+              {applyLabel}
+            </Button>
+          </div>
+        )}
       </div>
+      <div>{children}</div>
     </div>
   );
 }

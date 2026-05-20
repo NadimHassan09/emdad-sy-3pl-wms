@@ -1,4 +1,6 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+
+import { CreateOutboundOrderDto } from '../../outbound/dto/create-outbound.dto';
 
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
@@ -24,5 +26,12 @@ export class ClientOutboundOrdersController {
   @UseGuards(JwtClientAuthGuard)
   findOne(@ClientUser() client: ClientPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.outbound.findOne(client, id);
+  }
+
+  @Public()
+  @Post()
+  @UseGuards(JwtClientAuthGuard)
+  create(@ClientUser() client: ClientPrincipal, @Body() body: CreateOutboundOrderDto) {
+    return this.outbound.create(client, body);
   }
 }

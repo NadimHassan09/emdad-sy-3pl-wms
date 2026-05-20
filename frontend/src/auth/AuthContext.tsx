@@ -17,7 +17,7 @@ const AUTH_FULL_NAME_KEY = 'auth.fullName';
 type AuthContextValue = {
   user: AuthUser | null;
   booting: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -61,7 +61,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     const me = await AuthApi.me();
     const resolvedFullName = me.fullName?.trim() || res.user.fullName.trim() || undefined;
-    setUser({ ...me, fullName: resolvedFullName });
+    const authUser: AuthUser = { ...me, fullName: resolvedFullName };
+    setUser(authUser);
+    return authUser;
   }, []);
 
   const logout = useCallback(async () => {

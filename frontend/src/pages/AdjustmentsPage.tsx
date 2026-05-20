@@ -18,10 +18,8 @@ import { StatusBadge } from '../components/StatusBadge';
 import { Combobox } from '../components/Combobox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
-import { FilterActions } from '../components/FilterActions';
 import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
-import { PageHeader } from '../components/PageHeader';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
@@ -279,25 +277,19 @@ export function AdjustmentsPage() {
 
   return (
     <>
-      <PageHeader
-        title={t('Stock adjustments', 'تعديلات المخزون')}
-        actions={
-          <Button
-            disabled={!wid}
-            onClick={() => wid && setAdjDrawer({ mode: 'new' })}
-            className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
-          >
-            {t('+ New adjustment', '+ تعديل جديد')}
-          </Button>
-        }
-      />
-
       {!wid ? (
         <p className="mb-3 text-sm text-slate-600">Resolve warehouse configuration…</p>
       ) : null}
 
-      <FilterPanel showLabel={t('Show filters', 'إظهار الفلاتر')} hideLabel={t('Hide filters', 'إخفاء الفلاتر')}>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+      <FilterPanel
+        title={t('Adjustment filters', 'فلاتر التعديلات')}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={list.isFetching}
+        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
+        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
+      >
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
         <TextField
           label={t('Adjustment id', 'معرف التعديل')}
           value={draftFilters.adjustmentId}
@@ -342,16 +334,19 @@ export function AdjustmentsPage() {
           onChange={(e) => setDraft({ createdTo: e.target.value })}
         />
       </div>
-      <FilterActions
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={list.isFetching}
-        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
-        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
-      />
       </FilterPanel>
 
       <DataTable
+        title={t('Stock adjustments', 'تعديلات المخزون')}
+        actions={
+          <Button
+            disabled={!wid}
+            onClick={() => wid && setAdjDrawer({ mode: 'new' })}
+            className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
+          >
+            {t('+ New adjustment', '+ تعديل جديد')}
+          </Button>
+        }
         columns={adjustmentCols}
         rows={list.data?.items ?? []}
         rowKey={(a) => a.id}

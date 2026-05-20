@@ -1,4 +1,6 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+
+import { CreateInboundOrderDto } from '../../inbound/dto/create-inbound.dto';
 
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
@@ -24,5 +26,12 @@ export class ClientInboundOrdersController {
   @UseGuards(JwtClientAuthGuard)
   findOne(@ClientUser() client: ClientPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.inbound.findOne(client, id);
+  }
+
+  @Public()
+  @Post()
+  @UseGuards(JwtClientAuthGuard)
+  create(@ClientUser() client: ClientPrincipal, @Body() body: CreateInboundOrderDto) {
+    return this.inbound.create(client, body);
   }
 }

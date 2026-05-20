@@ -2,12 +2,13 @@ import { FormEvent, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
+import { canAccessPath, defaultHomePath } from '../lib/rbac';
 
 export function LoginPage() {
   const { user, booting, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
+  const fromState = (location.state as { from?: string } | null)?.from;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,7 +24,10 @@ export function LoginPage() {
   }
 
   if (user) {
-    return <Navigate to={from} replace />;
+    const home = defaultHomePath(user.role);
+    const target =
+      fromState && canAccessPath(user.role, fromState) ? fromState : home;
+    return <Navigate to={target} replace />;
   }
 
   async function onSubmit(e: FormEvent) {
@@ -31,8 +35,11 @@ export function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await login(email.trim(), password);
-      navigate(from, { replace: true });
+      const loggedIn = await login(email.trim(), password);
+      const home = defaultHomePath(loggedIn.role);
+      const target =
+        fromState && canAccessPath(loggedIn.role, fromState) ? fromState : home;
+      navigate(target, { replace: true });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed.';
       setError(msg);

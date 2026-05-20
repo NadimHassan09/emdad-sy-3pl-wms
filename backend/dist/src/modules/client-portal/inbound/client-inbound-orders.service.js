@@ -17,6 +17,14 @@ let ClientInboundOrdersService = class ClientInboundOrdersService {
     constructor(inbound) {
         this.inbound = inbound;
     }
+    principal(client) {
+        return {
+            id: client.id,
+            companyId: client.companyId,
+            role: client.role,
+            email: client.email ?? undefined,
+        };
+    }
     async findOne(client, id) {
         const order = await this.inbound.findById(id);
         if (order.companyId !== client.companyId) {
@@ -25,15 +33,14 @@ let ClientInboundOrdersService = class ClientInboundOrdersService {
         return order;
     }
     async list(client, query) {
-        const principal = {
-            id: client.id,
-            companyId: client.companyId,
-            role: client.role,
-            email: client.email ?? undefined,
-        };
-        return this.inbound.list(principal, {
+        return this.inbound.list(this.principal(client), {
             ...query,
             companyId: client.companyId,
+        });
+    }
+    async create(client, dto) {
+        return this.inbound.create(this.principal(client), dto, {
+            pendingClientApproval: true,
         });
     }
 };

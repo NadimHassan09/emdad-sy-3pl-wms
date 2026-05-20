@@ -19,6 +19,8 @@ import { ClientOutboundOrdersController } from './outbound/client-outbound-order
 import { ClientOutboundOrdersService } from './outbound/client-outbound-orders.service';
 import { ClientProductsController } from './products/client-products.controller';
 import { ClientProductsService } from './products/client-products.service';
+import { ClientNotificationsController } from './notifications/client-notifications.controller';
+import { ClientNotificationsService } from './notifications/client-notifications.service';
 import { ClientStockController } from './stock/client-stock.controller';
 import { ClientStockService } from './stock/client-stock.service';
 
@@ -50,6 +52,7 @@ import { ClientStockService } from './stock/client-stock.service';
     ClientProductsController,
     ClientInboundOrdersController,
     ClientOutboundOrdersController,
+    ClientNotificationsController,
   ],
   providers: [
     ClientAuthService,
@@ -57,6 +60,7 @@ import { ClientStockService } from './stock/client-stock.service';
     ClientProductsService,
     ClientInboundOrdersService,
     ClientOutboundOrdersService,
+    ClientNotificationsService,
     JwtClientStrategy,
     JwtClientAuthGuard,
   ],

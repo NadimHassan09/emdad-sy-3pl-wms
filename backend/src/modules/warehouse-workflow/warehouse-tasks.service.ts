@@ -16,6 +16,10 @@ import {
 } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import {
+  NotificationsService,
+  OrderNotificationTarget,
+} from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { CacheInvalidationService } from '../../common/redis/cache-invalidation.service';
 import { TaskReadCacheService } from '../../common/redis/task-read-cache.service';
@@ -50,6 +54,7 @@ export class WarehouseTasksService {
     private readonly orchestration: WorkflowOrchestrationService,
     private readonly taskReadCache: TaskReadCacheService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(
@@ -66,9 +71,6 @@ export class WarehouseTasksService {
       offset: number;
     },
   ) {
-    if (!user.companyId) {
-      throw new BadRequestException('companyId is required to list warehouse tasks.');
-    }
     const where: Prisma.WarehouseTaskWhereInput = {};
     if (query.status) where.status = query.status;
     if (query.taskType) where.taskType = query.taskType as never;
@@ -78,7 +80,15 @@ export class WarehouseTasksService {
         workflowInstance: { warehouseId: query.warehouseId },
       });
     }
-    if (query.workerId) {
+    if (user.role === UserRole.wh_operator) {
+      const operatorWorkerId = await this.workerIdForUser(user.id);
+      if (!operatorWorkerId) {
+        return { items: [], total: 0, limit: query.limit, offset: query.offset };
+      }
+      and.push({
+        assignments: { some: { workerId: operatorWorkerId, unassignedAt: null } },
+      });
+    } else if (query.workerId) {
       and.push({
         assignments: { some: { workerId: query.workerId, unassignedAt: null } },
       });
@@ -176,7 +186,30 @@ export class WarehouseTasksService {
     if (user.companyId && task.workflowInstance.companyId !== user.companyId) {
       throw new NotFoundException('Task not found.');
     }
+    await this.assertOperatorAssignedToTask(user, task);
     return task;
+  }
+
+  private async workerIdForUser(userId: string): Promise<string | null> {
+    const worker = await this.prisma.worker.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+    return worker?.id ?? null;
+  }
+
+  /** Warehouse operators may only read or mutate tasks assigned to their worker profile. */
+  private async assertOperatorAssignedToTask(
+    user: AuthPrincipal,
+    task: { assignments?: Array<{ workerId: string; unassignedAt: Date | null }> },
+  ): Promise<void> {
+    if (user.role !== UserRole.wh_operator) return;
+    const workerId = await this.workerIdForUser(user.id);
+    if (!workerId) throw new NotFoundException('Task not found.');
+    const assigned = task.assignments?.some(
+      (a) => a.workerId === workerId && a.unassignedAt == null,
+    );
+    if (!assigned) throw new NotFoundException('Task not found.');
   }
 
   /** UX guard flags (Parts II & IV): workflow frontier plus optional worker skills gate. */
@@ -384,6 +417,7 @@ export class WarehouseTasksService {
     if (user.companyId && task.workflowInstance.companyId !== user.companyId) {
       throw new NotFoundException('Task not found.');
     }
+    await this.assertOperatorAssignedToTask(user, task);
 
     const wfAll = await this.prisma.warehouseTask.findMany({
       where: { workflowInstanceId: task.workflowInstanceId },
@@ -565,6 +599,9 @@ export class WarehouseTasksService {
     }
     const body = parsed.body as TaskCompleteBody;
 
+    let inboundCompleted: OrderNotificationTarget | undefined;
+    let outboundCompleted: OrderNotificationTarget | undefined;
+
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await tx.warehouseTask.findUnique({
@@ -662,7 +699,7 @@ export class WarehouseTasksService {
           if (!pickExec.reservations.length) {
             throw new BadRequestException('No pick reservations found for dispatch.');
           }
-          await this.effects.applyDispatchShip(
+          outboundCompleted = await this.effects.applyDispatchShip(
             tx,
             user.id,
             taskId,
@@ -691,10 +728,28 @@ export class WarehouseTasksService {
         where: { id: taskId },
         include: { workflowInstance: true },
       });
-      await this.orchestration.onTaskCompleted(tx, finalized, body, user.id);
+      const hooks = await this.orchestration.onTaskCompleted(tx, finalized, body, user.id);
+      inboundCompleted = hooks.inboundCompleted;
 
       await this.refreshWorkflowInstanceHealth(tx, finalized.workflowInstanceId);
     });
+
+    if (inboundCompleted) {
+      await this.notifications.notifyClientOrderCompleted({
+        companyId: inboundCompleted.companyId,
+        orderType: 'inbound',
+        orderId: inboundCompleted.orderId,
+        orderNumber: inboundCompleted.orderNumber,
+      });
+    }
+    if (outboundCompleted) {
+      await this.notifications.notifyClientOrderCompleted({
+        companyId: outboundCompleted.companyId,
+        orderType: 'outbound',
+        orderId: outboundCompleted.orderId,
+        orderNumber: outboundCompleted.orderNumber,
+      });
+    }
 
     await this.cacheInv.afterTaskAndStockMutation();
     void this.realtime.emitTaskUpdatedByTaskId(taskId, { inventorySource: 'task_complete' });

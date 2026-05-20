@@ -17,6 +17,14 @@ let ClientOutboundOrdersService = class ClientOutboundOrdersService {
     constructor(outbound) {
         this.outbound = outbound;
     }
+    principal(client) {
+        return {
+            id: client.id,
+            companyId: client.companyId,
+            role: client.role,
+            email: client.email ?? undefined,
+        };
+    }
     async findOne(client, id) {
         const order = await this.outbound.findById(id);
         if (order.companyId !== client.companyId) {
@@ -25,15 +33,14 @@ let ClientOutboundOrdersService = class ClientOutboundOrdersService {
         return order;
     }
     async list(client, query) {
-        const principal = {
-            id: client.id,
-            companyId: client.companyId,
-            role: client.role,
-            email: client.email ?? undefined,
-        };
-        return this.outbound.list(principal, {
+        return this.outbound.list(this.principal(client), {
             ...query,
             companyId: client.companyId,
+        });
+    }
+    async create(client, dto) {
+        return this.outbound.create(this.principal(client), dto, {
+            pendingClientApproval: true,
         });
     }
 };

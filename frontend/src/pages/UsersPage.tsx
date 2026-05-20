@@ -16,16 +16,16 @@ import { Combobox } from '../components/Combobox';
 import { DataTable, type Column } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
-import { PageHeader } from '../components/PageHeader';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 
-const KIND_OPTIONS = [
-  { value: 'system', label: 'System user' },
-  { value: 'client', label: 'Client user' },
-];
+export type UsersPageVariant = 'warehouse' | 'client';
+
+function variantToApiKind(variant: UsersPageVariant): 'system' | 'client' {
+  return variant === 'warehouse' ? 'system' : 'client';
+}
 
 const SYSTEM_ROLE_OPTIONS = [
   { value: 'super_admin', label: 'Super admin' },
@@ -121,7 +121,8 @@ function statusPill(status: string) {
   );
 }
 
-export function UsersPage() {
+function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
+  const apiKind = variantToApiKind(variant);
   const isArabic =
     typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (en: string, ar: string) => (isArabic ? ar : en);
@@ -130,7 +131,7 @@ export function UsersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editUser, setEditUser] = useState<UserListRow | null>(null);
   const [openActionId, setOpenActionId] = useState<string | null>(null);
-  const [kind, setKind] = useState<'system' | 'client'>('system');
+  const [kind, setKind] = useState<'system' | 'client'>(apiKind);
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -147,10 +148,8 @@ export function UsersPage() {
   const [editRole, setEditRole] = useState<UserRole>('wh_operator');
   const [editStatus, setEditStatus] = useState<UserStatus>('active');
   const [editCompanyId, setEditCompanyId] = useState('');
-  const [systemSearch, setSystemSearch] = useState('');
-  const [clientSearch, setClientSearch] = useState('');
-  const [systemRoleFilter, setSystemRoleFilter] = useState('');
-  const [clientRoleFilter, setClientRoleFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
 
   useEffect(() => {
     if (!openActionId) return;
@@ -184,11 +183,11 @@ export function UsersPage() {
   const warehousesQuery = useQuery({
     queryKey: [...QK.warehouses, false, 'users-modal'],
     queryFn: () => WarehousesApi.list(false),
-    enabled: createOpen && kind === 'system' && systemRole === 'worker',
+    enabled: createOpen && apiKind === 'system' && systemRole === 'worker',
   });
 
   const resetCreateForm = useCallback(() => {
-    setKind('system');
+    setKind(apiKind);
     setEmail('');
     setFullName('');
     setPhone('');
@@ -197,7 +196,7 @@ export function UsersPage() {
     setClientRole('client_staff');
     setCompanyId('');
     setWorkerWarehouseId('');
-  }, []);
+  }, [apiKind]);
 
   const openEdit = useCallback((u: UserListRow) => {
     setEditUser(u);
@@ -389,38 +388,36 @@ export function UsersPage() {
     }
   };
 
-  const systemUsers = useMemo(
+  const filteredUsers = useMemo(
     () =>
       (usersQuery.data ?? [])
-        .filter((u) => u.kind === 'system')
+        .filter((u) => u.kind === apiKind)
         .filter((u) => {
-          const q = systemSearch.trim().toLowerCase();
+          const q = search.trim().toLowerCase();
           if (q) {
             const name = u.fullName?.toLowerCase() ?? '';
             const email = u.email?.toLowerCase() ?? '';
             if (!name.includes(q) && !email.includes(q)) return false;
           }
-          if (systemRoleFilter && u.role !== systemRoleFilter) return false;
+          if (roleFilter && u.role !== roleFilter) return false;
           return true;
         }),
-    [usersQuery.data, systemSearch, systemRoleFilter],
+    [usersQuery.data, apiKind, search, roleFilter],
   );
-  const clientUsers = useMemo(
-    () =>
-      (usersQuery.data ?? [])
-        .filter((u) => u.kind === 'client')
-        .filter((u) => {
-          const q = clientSearch.trim().toLowerCase();
-          if (q) {
-            const name = u.fullName?.toLowerCase() ?? '';
-            const email = u.email?.toLowerCase() ?? '';
-            if (!name.includes(q) && !email.includes(q)) return false;
-          }
-          if (clientRoleFilter && u.role !== clientRoleFilter) return false;
-          return true;
-        }),
-    [usersQuery.data, clientSearch, clientRoleFilter],
-  );
+
+  const tableColumns = variant === 'warehouse' ? systemColumns : clientColumns;
+  const pageTitle =
+    variant === 'warehouse'
+      ? t('Warehouse users', 'مستخدمو المستودع')
+      : t('Client users', 'مستخدمو العملاء');
+  const filterTitle =
+    variant === 'warehouse'
+      ? t('Warehouse user filters', 'فلاتر مستخدمي المستودع')
+      : t('Client user filters', 'فلاتر مستخدمي العملاء');
+  const emptyMessage =
+    variant === 'warehouse'
+      ? t('No warehouse users yet.', 'لا يوجد مستخدمو مستودع بعد.')
+      : t('No client users yet.', 'لا يوجد مستخدمو عملاء بعد.');
 
   const submitCreate = (e: FormEvent) => {
     e.preventDefault();
@@ -479,100 +476,59 @@ export function UsersPage() {
 
   return (
     <>
-      <PageHeader
-        title={t('Users', 'المستخدمون')}
+      {errMsg ? <p className="mb-4 text-sm text-rose-600">{errMsg}</p> : null}
+
+      <FilterPanel title={filterTitle}>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <TextField
+            label={t('Search', 'بحث')}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('Search by name or email', 'ابحث بالاسم أو البريد الإلكتروني')}
+          />
+          <SelectField
+            label={t('Role', 'الدور')}
+            name="roleFilter"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            options={[
+              { value: '', label: t('All roles', 'كل الأدوار') },
+              ...(variant === 'warehouse'
+                ? SYSTEM_ROLE_EDIT.map((r) => ({ value: r.value, label: r.label }))
+                : CLIENT_ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label }))),
+            ]}
+          />
+        </div>
+      </FilterPanel>
+
+      <DataTable
+        title={pageTitle}
         actions={
           <Button
             type="button"
             className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
-            onClick={() => setCreateOpen(true)}
+            onClick={() => {
+              resetCreateForm();
+              setCreateOpen(true);
+            }}
           >
             {t('+ New user', '+ مستخدم جديد')}
           </Button>
         }
+        columns={tableColumns}
+        rows={filteredUsers}
+        rowKey={(u) => u.id}
+        loading={usersQuery.isLoading}
+        empty={emptyMessage}
+        labels={{
+          rowsSuffix: t('rows', 'صف'),
+          resultsSuffix: t('results', 'نتيجة'),
+          ofWord: t('of', 'من'),
+          previous: t('Previous', 'السابق'),
+          next: t('Next', 'التالي'),
+          rowsPerPageAria: t('Rows per page', 'عدد الصفوف لكل صفحة'),
+        }}
       />
-
-      {errMsg ? <p className="mb-4 text-sm text-rose-600">{errMsg}</p> : null}
-
-      <div className="space-y-8">
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{t('System users', 'مستخدمو النظام')}</h2>
-          <FilterPanel showLabel={t('Show filters', 'إظهار الفلاتر')} hideLabel={t('Hide filters', 'إخفاء الفلاتر')}>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <TextField
-                label={t('Search', 'بحث')}
-                value={systemSearch}
-                onChange={(e) => setSystemSearch(e.target.value)}
-                placeholder={t('Search by name or email', 'ابحث بالاسم أو البريد الإلكتروني')}
-              />
-              <SelectField
-                label={t('Role', 'الدور')}
-                name="systemRoleFilter"
-                value={systemRoleFilter}
-                onChange={(e) => setSystemRoleFilter(e.target.value)}
-                options={[
-                  { value: '', label: t('All roles', 'كل الأدوار') },
-                  ...SYSTEM_ROLE_EDIT.map((r) => ({ value: r.value, label: r.label })),
-                ]}
-              />
-            </div>
-          </FilterPanel>
-          <DataTable
-            columns={systemColumns}
-            rows={systemUsers}
-            rowKey={(u) => u.id}
-            loading={usersQuery.isLoading}
-            empty={t('No system users yet.', 'لا يوجد مستخدمو نظام بعد.')}
-            labels={{
-              rowsSuffix: t('rows', 'صف'),
-              resultsSuffix: t('results', 'نتيجة'),
-              ofWord: t('of', 'من'),
-              previous: t('Previous', 'السابق'),
-              next: t('Next', 'التالي'),
-              rowsPerPageAria: t('Rows per page', 'عدد الصفوف لكل صفحة'),
-            }}
-          />
-        </section>
-
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">{t('Client users', 'مستخدمو العملاء')}</h2>
-          <FilterPanel showLabel={t('Show filters', 'إظهار الفلاتر')} hideLabel={t('Hide filters', 'إخفاء الفلاتر')}>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <TextField
-                label={t('Search', 'بحث')}
-                value={clientSearch}
-                onChange={(e) => setClientSearch(e.target.value)}
-                placeholder={t('Search by name or email', 'ابحث بالاسم أو البريد الإلكتروني')}
-              />
-              <SelectField
-                label={t('Role', 'الدور')}
-                name="clientRoleFilter"
-                value={clientRoleFilter}
-                onChange={(e) => setClientRoleFilter(e.target.value)}
-                options={[
-                  { value: '', label: t('All roles', 'كل الأدوار') },
-                  ...CLIENT_ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label })),
-                ]}
-              />
-            </div>
-          </FilterPanel>
-          <DataTable
-            columns={clientColumns}
-            rows={clientUsers}
-            rowKey={(u) => u.id}
-            loading={usersQuery.isLoading}
-            empty={t('No client users yet.', 'لا يوجد مستخدمو عملاء بعد.')}
-            labels={{
-              rowsSuffix: t('rows', 'صف'),
-              resultsSuffix: t('results', 'نتيجة'),
-              ofWord: t('of', 'من'),
-              previous: t('Previous', 'السابق'),
-              next: t('Next', 'التالي'),
-              rowsPerPageAria: t('Rows per page', 'عدد الصفوف لكل صفحة'),
-            }}
-          />
-        </section>
-      </div>
 
       <Modal
         open={createOpen}
@@ -600,13 +556,6 @@ export function UsersPage() {
           onSubmit={submitCreate}
           className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1"
         >
-          <SelectField
-            label={t('User type', 'نوع المستخدم')}
-            name="kind"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as 'system' | 'client')}
-            options={KIND_OPTIONS}
-          />
           <TextField
             label={t('Email', 'البريد الإلكتروني')}
             type="email"
@@ -778,4 +727,12 @@ export function UsersPage() {
       )}
     </>
   );
+}
+
+export function WarehouseUsersPage() {
+  return <UsersPageContent variant="warehouse" />;
+}
+
+export function ClientUsersPage() {
+  return <UsersPageContent variant="client" />;
 }

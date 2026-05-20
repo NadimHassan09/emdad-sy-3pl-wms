@@ -2,8 +2,11 @@ import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nest
 
 import type { WarehouseTaskStatus } from '@prisma/client';
 
+import { AuthGroup } from '../../common/auth/auth-groups';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
+import { Roles } from '../../common/auth/roles.decorator';
+import { RolesGuard } from '../../common/auth/roles.guard';
 import { WarehouseTasksService } from './warehouse-tasks.service';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { ResolveTaskDto } from './dto/resolve-task.dto';
@@ -69,6 +72,8 @@ export class WarehouseTasksController {
   }
 
   @Post(':id/assign')
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
   assign(
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
@@ -78,6 +83,8 @@ export class WarehouseTasksController {
   }
 
   @Post(':id/unassign')
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
   unassign(@CurrentUser() user: AuthPrincipal, @Param('id') id: string) {
     return this.tasks.unassign(id, user);
   }
@@ -103,6 +110,8 @@ export class WarehouseTasksController {
   }
 
   @Post(':id/cancel')
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
   cancel(
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
@@ -112,6 +121,8 @@ export class WarehouseTasksController {
   }
 
   @Post(':id/skip')
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
   skip(
     @CurrentUser() user: AuthPrincipal,
     @Param('id') id: string,
@@ -121,16 +132,22 @@ export class WarehouseTasksController {
   }
 
   @Post(':id/retry')
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
   retry(@CurrentUser() user: AuthPrincipal, @Param('id') id: string, @Body() body: RetryTaskDto) {
     return this.tasks.retry(id, user, body);
   }
 
   @Post(':id/resolve')
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
   resolve(@CurrentUser() user: AuthPrincipal, @Param('id') id: string, @Body() body: ResolveTaskDto) {
     return this.tasks.resolveBlocked(id, user, body);
   }
 
   @Post(':id/reopen')
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
   reopen(@CurrentUser() user: AuthPrincipal, @Param('id') id: string) {
     return this.tasks.reopen(id, user);
   }

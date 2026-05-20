@@ -7,14 +7,15 @@ import { InventoryApi } from '../api/inventory';
 import { CreateOutboundOrderInput, OutboundApi, OutboundOrder } from '../api/outbound';
 import type { Product } from '../api/products';
 import { ProductsApi } from '../api/products';
+import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
+import { OrderDraftLinesTable } from '../components/OrderDraftLinesTable';
+import { Alert, Button as DsButton } from '@ds';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
-import { FilterActions } from '../components/FilterActions';
-import { FilterPanel } from '../components/FilterPanel';
+import { FILTER_PRIMARY_BUTTON_CLASS, FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
-import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
@@ -45,11 +46,11 @@ function outboundLabel(label: string, isArabic: boolean): string {
   const ar: Record<string, string> = {
     'Outbound orders': 'طلبات الصادر',
     '+ New outbound': '+ صادر جديد',
-    'Order id / number': 'معرف / رقم الطلب',
-    'UUID or contains order #': 'UUID أو يحتوي على رقم الطلب #',
+    'Search order...': 'ابحث عن الطلب...',
     Client: 'العميل',
     'Created from': 'تاريخ الإنشاء من',
     'Created to': 'تاريخ الإنشاء إلى',
+    'Order filters': 'فلاتر الطلبات',
     'Apply filters': 'تطبيق الفلاتر',
     'Reset filters': 'إعادة تعيين الفلاتر',
     'Order #': 'رقم الطلب #',
@@ -144,7 +145,11 @@ export function OutboundListPage() {
         width: '170px',
       },
       { header: t('Client'), accessor: (o) => o.company?.name ?? '—', width: '200px' },
-      { header: t('Status'), accessor: (o) => <StatusBadge status={o.status} />, width: '160px' },
+      {
+        header: t('Status'),
+        accessor: (o) => <StatusBadge status={o.status} />,
+        className: 'w-1 whitespace-nowrap',
+      },
       {
         header: t('Required ship'),
         accessor: (o) => new Date(o.requiredShipDate).toLocaleDateString(),
@@ -158,29 +163,41 @@ export function OutboundListPage() {
 
   return (
     <>
-      <PageHeader
-        title={t('Outbound orders')}
-        actions={
-          <Button
-            onClick={() => setOpen(true)}
-            className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
-          >
-            {t('+ New outbound')}
-          </Button>
-        }
-      />
+      {!wid && (
+        <Alert
+          variant="warning"
+          title="Warehouse not configured"
+          description="No default warehouse is set. Contact your administrator to configure warehouse settings before creating outbound orders."
+          className="mb-4"
+        />
+      )}
 
-      {!wid ? (
-        <p className="mb-3 text-sm text-slate-600">Resolve warehouse configuration…</p>
-      ) : null}
+      {list.isError && (
+        <Alert
+          variant="error"
+          title="Failed to load outbound orders"
+          description="There was a problem retrieving your orders. Check your connection and try again."
+          className="mb-4"
+          onDismiss={() => list.refetch()}
+        >
+          <Alert.Action onClick={() => list.refetch()}>Retry</Alert.Action>
+        </Alert>
+      )}
 
-      <FilterPanel showLabel={t('Show filters')} hideLabel={t('Hide filters')}>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+      <FilterPanel
+        title={t('Order filters')}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={list.isFetching}
+        applyLabel={t('Apply filters')}
+        resetLabel={t('Reset filters')}
+      >
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
         <TextField
-          label={t('Order id / number')}
+          label={t('Order #')}
           value={draftFilters.orderSearch}
           onChange={(e) => setDraft({ orderSearch: e.target.value })}
-          placeholder={t('UUID or contains order #')}
+          placeholder={t('Search order...')}
           className="font-mono text-xs"
         />
         <Combobox
@@ -203,16 +220,20 @@ export function OutboundListPage() {
           onChange={(e) => setDraft({ createdTo: e.target.value })}
         />
       </div>
-      <FilterActions
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={list.isFetching}
-        applyLabel={t('Apply filters')}
-        resetLabel={t('Reset filters')}
-      />
       </FilterPanel>
 
       <DataTable
+        title={t('Outbound orders')}
+        actions={
+          <DsButton
+            variant="primary"
+            size="md"
+            onClick={() => setOpen(true)}
+            className={FILTER_PRIMARY_BUTTON_CLASS}
+          >
+            {t('+ New outbound')}
+          </DsButton>
+        }
         columns={columns}
         rows={list.data?.items ?? []}
         rowKey={(o) => o.id}
@@ -259,7 +280,6 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
   const [carrier, setCarrier] = useState('');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([{ productId: '', requestedQuantity: '' }]);
-  const [barcodeInput, setBarcodeInput] = useState('');
   const [scanOpen, setScanOpen] = useState(false);
 
   const companies = useQuery({
@@ -295,6 +315,22 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
         hint: `${p.uom} · on hand ${formatProductOnHand(p)}`,
       })),
     [products.data],
+  );
+
+  const productsById = useMemo(() => {
+    const m = new Map<string, Product>();
+    for (const p of products.data?.items ?? []) m.set(p.id, p);
+    return m;
+  }, [products.data]);
+
+  const tableLines = useMemo(
+    () =>
+      lines.map((l, idx) => ({
+        lineKey: String(idx),
+        productId: l.productId,
+        quantity: l.requestedQuantity,
+      })),
+    [lines],
   );
 
   const distinctProductIds = useMemo(
@@ -348,7 +384,6 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
     setCarrier('');
     setNotes('');
     setLines([{ productId: '', requestedQuantity: '' }]);
-    setBarcodeInput('');
     setScanOpen(false);
   };
 
@@ -397,7 +432,6 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
         }
         return [...prev, { productId: product.id, requestedQuantity: '' }];
       });
-      setBarcodeInput('');
       toast.success(`${product.sku} added from barcode.`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Lookup failed.');
@@ -406,6 +440,10 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (shortages.length > 0) {
+      toast.error('Insufficient stock for one or more products.');
+      return;
+    }
     if (!isYmdOnOrAfterLocalToday(shipDate)) {
       const isAr =
         typeof window !== 'undefined' &&
@@ -442,22 +480,24 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
           <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
             Cancel
           </Button>
-          <Button
+          <DsButton
             form="create-outbound"
             type="submit"
+            variant="primary"
+            size="md"
             loading={loading}
             disabled={submitDisabled}
-            className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
+            className={FILTER_PRIMARY_BUTTON_CLASS}
           >
             Create
-          </Button>
+          </DsButton>
         </>
       }
     >
       <form
         id="create-outbound"
         onSubmit={submit}
-        className="max-h-[calc(100vh-220px)] space-y-4 overflow-y-auto pr-1"
+        className="space-y-4"
       >
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <Combobox
@@ -465,6 +505,7 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
             required
             value={companyId}
             onChange={setCompanyId}
+            clearable={false}
             dropdownInFlow
             options={(companies.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
             placeholder="Pick a client…"
@@ -489,111 +530,83 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
           onChange={(e) => setDestination(e.target.value)}
         />
 
-        <div>
-          <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
-            <span className="text-sm font-medium text-slate-700">Lines</span>
-            <div className="flex flex-wrap items-end gap-2">
-              <TextField
-                label="Barcode"
-                value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
-                placeholder="Scan or type…"
-                className="min-w-[160px]"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    void applyProductByBarcode(barcodeInput);
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!companyId || loading}
-                onClick={() => void applyProductByBarcode(barcodeInput)}
-              >
-                Add by barcode
-              </Button>
+        <OrderDraftLinesTable
+          title="Lines"
+          productHeader="Product"
+          lines={tableLines}
+          productOptions={productOptions}
+          productsById={productsById}
+          companyId={companyId}
+          companyDisabledMessage="Pick a client first"
+          pickProductPlaceholder="Pick product…"
+          quantityHeader="Quantity"
+          emptyMessage="No lines yet — add a product below."
+          removeLabel="Remove"
+          loading={loading}
+          showProductOnHand={false}
+          formatOnHand={formatProductOnHand}
+          onHandLabel=""
+          renderProductFooter={(productId) => {
+            const avail = availabilityByProduct.get(productId);
+            const summed = requestedByProduct.get(productId) ?? 0;
+            if (avail === undefined) return null;
+            const isShort = summed > avail;
+            return (
+              <div className={`mt-1 text-xs ${isShort ? 'text-rose-600' : 'text-emerald-700'}`}>
+                Available: {avail.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                {summed > 0 && (
+                  <>
+                    {' '}
+                    • Requested across lines:{' '}
+                    {summed.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                  </>
+                )}
+              </div>
+            );
+          }}
+          quantityError={(row) => {
+            if (!row.productId) return undefined;
+            const avail = availabilityByProduct.get(row.productId);
+            const summed = requestedByProduct.get(row.productId) ?? 0;
+            if (avail !== undefined && summed > avail) return 'Exceeds available stock';
+            return undefined;
+          }}
+          onUpdateLine={(lineKey, patch) => {
+            const idx = Number(lineKey);
+            updateLine(idx, {
+              ...(patch.productId !== undefined ? { productId: patch.productId } : {}),
+              ...(patch.quantity !== undefined ? { requestedQuantity: patch.quantity } : {}),
+            });
+          }}
+          onRemoveLine={(lineKey) => {
+            setLines((prev) => prev.filter((_, i) => i !== Number(lineKey)));
+          }}
+          toolbar={
+            <>
               <Button
                 type="button"
                 size="sm"
                 variant="secondary"
                 disabled={!companyId || loading}
                 onClick={() => setScanOpen(true)}
+                aria-label="Scan barcode"
+                title="Scan a barcode with the device camera"
+                className="px-2.5"
               >
-                Scan barcode
+                <BarcodeScanIcon className="h-5 w-5" />
               </Button>
               <Button
                 type="button"
                 size="sm"
                 variant="secondary"
+                disabled={loading}
                 onClick={() => setLines((prev) => [...prev, { productId: '', requestedQuantity: '' }])}
               >
                 + Add line
               </Button>
-            </div>
-          </div>
-          <div className="space-y-2">
-            {lines.map((l, idx) => {
-              const avail = l.productId ? availabilityByProduct.get(l.productId) : undefined;
-              const summed = l.productId ? requestedByProduct.get(l.productId) ?? 0 : 0;
-              const isShort = avail !== undefined && summed > avail;
-              return (
-                <div key={idx} className="grid grid-cols-12 gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <div className="col-span-7">
-                    <Combobox
-                      label={idx === 0 ? 'Product' : ''}
-                      value={l.productId}
-                      onChange={(v) => updateLine(idx, { productId: v })}
-                      options={productOptions}
-                      placeholder={!companyId ? 'Pick a client first' : 'Pick product…'}
-                      disabled={!companyId}
-                    />
-                    {l.productId && avail !== undefined && (
-                      <div
-                        className={`mt-1 text-xs ${isShort ? 'text-rose-600' : 'text-emerald-700'}`}
-                      >
-                        Available: {avail.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                        {summed > 0 && (
-                          <>
-                            {' '}
-                            • Requested across lines:{' '}
-                            {summed.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="col-span-4">
-                    <TextField
-                      label={idx === 0 ? 'Quantity' : ''}
-                      type="number"
-                      min={0}
-                      step="0.0001"
-                      required
-                      value={l.requestedQuantity}
-                      onChange={(e) => updateLine(idx, { requestedQuantity: e.target.value })}
-                      error={isShort ? 'Exceeds available stock' : undefined}
-                    />
-                  </div>
-                  <div className="col-span-1 flex items-end">
-                    {lines.length > 1 && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setLines((prev) => prev.filter((_, i) => i !== idx))}
-                        title="Remove line"
-                      >
-                        ×
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+            </>
+          }
+        />
           {shortages.length > 0 && (
             <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
               <strong className="block">Order cannot be created — insufficient stock:</strong>
@@ -610,7 +623,6 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
               </ul>
             </div>
           )}
-        </div>
 
         <BarcodeScanModal
           open={scanOpen}

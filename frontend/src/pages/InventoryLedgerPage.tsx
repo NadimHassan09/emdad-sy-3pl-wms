@@ -7,9 +7,7 @@ import { InventoryApi, LedgerRow } from '../api/inventory';
 import { ProductsApi } from '../api/products';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
-import { FilterActions } from '../components/FilterActions';
 import { FilterPanel } from '../components/FilterPanel';
-import { PageHeader } from '../components/PageHeader';
 import { TextField } from '../components/TextField';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
@@ -168,20 +166,19 @@ export function InventoryLedgerPage() {
 
   return (
     <>
-      <PageHeader
-        title={t('Inventory ledger', 'سجل المخزون')}
-        description={t(
-          'Each row is one stock movement. Δ = after − before for that lot/location. Open a row for lot/location breakdown (deduplicated).',
-          'كل صف يمثل حركة مخزون واحدة. Δ = بعد - قبل لنفس الدفعة/الموقع. افتح الصف لعرض التفاصيل.',
-        )}
-      />
-
       {!wid ? (
         <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>
       ) : null}
 
-      <FilterPanel showLabel={t('Show filters', 'إظهار الفلاتر')} hideLabel={t('Hide filters', 'إخفاء الفلاتر')}>
-      <div className="flex flex-wrap gap-3">
+      <FilterPanel
+        title={t('Ledger filters', 'فلاتر السجل')}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={ledger.isFetching}
+        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
+        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
+      >
+      <div className="flex flex-wrap gap-5">
         <Combobox
           label={t('Client', 'العميل')}
           value={draftFilters.companyId}
@@ -231,16 +228,14 @@ export function InventoryLedgerPage() {
           className="min-w-[180px]"
         />
       </div>
-      <FilterActions
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={ledger.isFetching}
-        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
-        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
-      />
       </FilterPanel>
 
       <DataTable
+        title={t('Inventory ledger', 'سجل المخزون')}
+        description={t(
+          'Each row is one stock movement. Δ = after − before for that lot/location. Open a row for lot/location breakdown (deduplicated).',
+          'كل صف يمثل حركة مخزون واحدة. Δ = بعد - قبل لنفس الدفعة/الموقع. افتح الصف لعرض التفاصيل.',
+        )}
         columns={columns}
         rows={ledgerRows}
         rowKey={ledgerRowKey}

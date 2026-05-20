@@ -8,7 +8,6 @@ import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { FilterActions } from '../components/FilterActions';
 import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
@@ -311,8 +310,13 @@ export function LocationsPage() {
         }
       />
 
-      <FilterPanel showLabel="Show filters" hideLabel="Hide filters">
-      <div className="mb-4 space-y-3">
+      <FilterPanel
+        title="Location filters"
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={tree.isFetching || flat.isFetching}
+      >
+      <div className="space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <p className="pb-2 text-sm text-slate-600">
             {whLoading
@@ -357,11 +361,6 @@ export function LocationsPage() {
             </Button>
           </div>
         </div>
-        <FilterActions
-          onApply={applyFilters}
-          onReset={resetFilters}
-          loading={tree.isFetching || flat.isFetching}
-        />
       </div>
       </FilterPanel>
 

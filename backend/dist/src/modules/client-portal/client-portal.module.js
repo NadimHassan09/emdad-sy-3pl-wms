@@ -27,6 +27,8 @@ const client_outbound_orders_controller_1 = require("./outbound/client-outbound-
 const client_outbound_orders_service_1 = require("./outbound/client-outbound-orders.service");
 const client_products_controller_1 = require("./products/client-products.controller");
 const client_products_service_1 = require("./products/client-products.service");
+const client_notifications_controller_1 = require("./notifications/client-notifications.controller");
+const client_notifications_service_1 = require("./notifications/client-notifications.service");
 const client_stock_controller_1 = require("./stock/client-stock.controller");
 const client_stock_service_1 = require("./stock/client-stock.service");
 let ClientPortalModule = class ClientPortalModule {
@@ -60,6 +62,7 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             client_products_controller_1.ClientProductsController,
             client_inbound_orders_controller_1.ClientInboundOrdersController,
             client_outbound_orders_controller_1.ClientOutboundOrdersController,
+            client_notifications_controller_1.ClientNotificationsController,
         ],
         providers: [
             client_auth_service_1.ClientAuthService,
@@ -67,6 +70,7 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             client_products_service_1.ClientProductsService,
             client_inbound_orders_service_1.ClientInboundOrdersService,
             client_outbound_orders_service_1.ClientOutboundOrdersService,
+            client_notifications_service_1.ClientNotificationsService,
             jwt_client_strategy_1.JwtClientStrategy,
             jwt_client_auth_guard_1.JwtClientAuthGuard,
         ],

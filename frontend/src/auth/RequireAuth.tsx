@@ -17,7 +17,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   if (!user) {
     const from = `${location.pathname}${location.search}`;
-    return <Navigate to="/login" replace state={{ from: from === '/' ? '/dashboard' : from }} />;
+    return <Navigate to="/login" replace state={{ from }} />;
   }
 
   return <>{children}</>;

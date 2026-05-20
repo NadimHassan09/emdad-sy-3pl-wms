@@ -45,3 +45,69 @@ export { useFocusTrap } from './useFocusTrap';
 // Layout
 export { PageContainer } from './PageContainer';
 export { SectionContainer } from './SectionContainer';
+
+// ─── Phase 3: Layout / AppShell architecture ─────────────────────────────────
+export { AppShell } from './AppShell';
+
+export {
+  Sidebar,
+  SidebarBrand,
+  SidebarNav,
+  SidebarSection,
+  SidebarLink,
+  SidebarDivider,
+  SidebarFooter,
+  SidebarCollapseButton,
+  MobileSidebarOverlay,
+} from './Sidebar';
+
+export {
+  Topbar,
+  TopbarMobileMenuButton,
+  TopbarUserMenu,
+  TopbarLanguageToggle,
+} from './Topbar';
+export type { TopbarUserMenuProps } from './Topbar';
+
+export { TopbarNotifications } from './TopbarNotifications';
+export type { TopbarNotificationItem, TopbarNotificationsProps } from './TopbarNotifications';
+
+export { AppPageHeader } from './AppPageHeader';
+
+export { Breadcrumb } from './Breadcrumb';
+export type { BreadcrumbItem } from './Breadcrumb';
+
+// ─── Phase 5: Production polish ─────────────────────────────────────────────
+export { PageLoadFallback } from './PageLoadFallback';
+
+// ─── Phase 4: Premium UX primitives ─────────────────────────────────────────
+export { Alert } from './Alert';
+export type { AlertVariant } from './Alert';
+
+export { WorkflowStatus } from './WorkflowStatus';
+export type { WorkflowStep, WorkflowStatusProps } from './WorkflowStatus';
+
+// ─── Phase 2: DataTable architecture ────────────────────────────────────────
+export { DataTable, DataTableContainer } from './DataTable';
+export type { Column, DataTableProps, RowState, SortDir } from './DataTable';
+
+export { Pagination } from './Pagination';
+export type { PaginationProps } from './Pagination';
+
+export { SearchInput } from './SearchInput';
+
+export {
+  TableToolbar,
+  DensityToggle,
+  RefreshButton,
+} from './TableToolbar';
+
+export { TableCardHeader } from './TableCardHeader';
+export type { TableCardHeaderProps } from './TableCardHeader';
+
+export {
+  FilterBar,
+  FilterBarToggle,
+  FilterBarActions,
+  StatusFilter,
+} from './FilterBar';

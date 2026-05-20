@@ -15,6 +15,7 @@ import type {
   InboundQcTaskPayload,
   InboundReceivingPayload,
 } from './workflow-payload.contracts';
+import { OrderNotificationTarget } from '../notifications/notifications.service';
 import type { TaskCompleteBody } from './task-payload.schema';
 
 @Injectable()
@@ -29,16 +30,17 @@ export class WorkflowOrchestrationService {
     task: Prisma.WarehouseTaskGetPayload<{ include: { workflowInstance: true } }>,
     body: TaskCompleteBody,
     actorUserId: string,
-  ): Promise<void> {
+  ): Promise<{ inboundCompleted?: OrderNotificationTarget }> {
     const wf = task.workflowInstance;
     if (wf.referenceType === 'inbound_order') {
       await this.afterInboundTask(tx, wf, task.taskType, body, actorUserId);
-      await this.maybeCloseInboundWorkflow(tx, wf.id);
-      return;
+      const inboundCompleted = await this.maybeCloseInboundWorkflow(tx, wf.id);
+      return inboundCompleted ? { inboundCompleted } : {};
     }
     if (wf.referenceType === 'outbound_order') {
       await this.afterOutboundTask(tx, wf, task.taskType, body);
     }
+    return {};
   }
 
   /**
@@ -297,16 +299,24 @@ export class WorkflowOrchestrationService {
     });
   }
 
-  private async maybeCloseInboundWorkflow(tx: Prisma.TransactionClient, instanceId: string) {
+  private async maybeCloseInboundWorkflow(
+    tx: Prisma.TransactionClient,
+    instanceId: string,
+  ): Promise<OrderNotificationTarget | null> {
     const wf = await tx.workflowInstance.findUnique({
       where: { id: instanceId },
     });
-    if (!wf || wf.referenceType !== 'inbound_order') return;
+    if (!wf || wf.referenceType !== 'inbound_order') return null;
 
     const open = await this.countOpenTasks(tx, instanceId);
-    if (open > 0) return;
+    if (open > 0) return null;
 
     const inboundOrderId = wf.referenceId;
+    const order = await tx.inboundOrder.findUnique({
+      where: { id: inboundOrderId },
+      select: { companyId: true, id: true, orderNumber: true },
+    });
+    if (!order) return null;
 
     await tx.workflowInstance.update({
       where: { id: instanceId },
@@ -320,6 +330,12 @@ export class WorkflowOrchestrationService {
         completedAt: new Date(),
       },
     });
+
+    return {
+      companyId: order.companyId,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+    };
   }
 
   private async afterOutboundTask(

@@ -5,6 +5,7 @@ import { io, type Socket } from 'socket.io-client';
 
 import { useAuth } from '../auth/AuthContext';
 import { getStoredBearer } from '../services/authStorage';
+import { CLIENT_NOTIFICATIONS_QUERY_KEY } from '../hooks/useClientNotifications';
 import { RealtimeEvents } from './constants';
 import { socketHttpOrigin } from './socketBaseUrl';
 
@@ -39,18 +40,23 @@ export function RealtimeProvider({ children }: Props): ReactElement {
       void qc.invalidateQueries({ queryKey: ['client', 'stock'] });
     };
 
-    socket.on(RealtimeEvents.INBOUND_ORDER_CREATED, onOrdersOrInventory);
-    socket.on(RealtimeEvents.INBOUND_ORDER_UPDATED, onOrdersOrInventory);
-    socket.on(RealtimeEvents.OUTBOUND_ORDER_CREATED, onOrdersOrInventory);
-    socket.on(RealtimeEvents.OUTBOUND_ORDER_UPDATED, onOrdersOrInventory);
+    const onOrdersOrNotifications = (): void => {
+      onOrdersOrInventory();
+      void qc.invalidateQueries({ queryKey: CLIENT_NOTIFICATIONS_QUERY_KEY });
+    };
+
+    socket.on(RealtimeEvents.INBOUND_ORDER_CREATED, onOrdersOrNotifications);
+    socket.on(RealtimeEvents.INBOUND_ORDER_UPDATED, onOrdersOrNotifications);
+    socket.on(RealtimeEvents.OUTBOUND_ORDER_CREATED, onOrdersOrNotifications);
+    socket.on(RealtimeEvents.OUTBOUND_ORDER_UPDATED, onOrdersOrNotifications);
     socket.on(RealtimeEvents.TASK_UPDATED, onOrdersOrInventory);
     socket.on(RealtimeEvents.INVENTORY_CHANGED, onOrdersOrInventory);
 
     return () => {
-      socket.off(RealtimeEvents.INBOUND_ORDER_CREATED, onOrdersOrInventory);
-      socket.off(RealtimeEvents.INBOUND_ORDER_UPDATED, onOrdersOrInventory);
-      socket.off(RealtimeEvents.OUTBOUND_ORDER_CREATED, onOrdersOrInventory);
-      socket.off(RealtimeEvents.OUTBOUND_ORDER_UPDATED, onOrdersOrInventory);
+      socket.off(RealtimeEvents.INBOUND_ORDER_CREATED, onOrdersOrNotifications);
+      socket.off(RealtimeEvents.INBOUND_ORDER_UPDATED, onOrdersOrNotifications);
+      socket.off(RealtimeEvents.OUTBOUND_ORDER_CREATED, onOrdersOrNotifications);
+      socket.off(RealtimeEvents.OUTBOUND_ORDER_UPDATED, onOrdersOrNotifications);
       socket.off(RealtimeEvents.TASK_UPDATED, onOrdersOrInventory);
       socket.off(RealtimeEvents.INVENTORY_CHANGED, onOrdersOrInventory);
       socket.disconnect();

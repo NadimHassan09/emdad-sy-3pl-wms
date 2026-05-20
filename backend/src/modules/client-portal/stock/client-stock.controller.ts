@@ -4,6 +4,7 @@ import { Public } from '../../../common/auth/public.decorator';
 import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
+import { AvailabilityQueryDto } from '../../inventory/dto/availability-query.dto';
 import { StockQueryDto } from '../../inventory/dto/stock-query.dto';
 import { ClientStockService } from './client-stock.service';
 
@@ -14,6 +15,13 @@ import { ClientStockService } from './client-stock.service';
 @Controller('client/stock')
 export class ClientStockController {
   constructor(private readonly stock: ClientStockService) {}
+
+  @Public()
+  @Get('availability')
+  @UseGuards(JwtClientAuthGuard)
+  availability(@ClientUser() client: ClientPrincipal, @Query() query: AvailabilityQueryDto) {
+    return this.stock.availability(client, query.productId);
+  }
 
   @Public()
   @Get()

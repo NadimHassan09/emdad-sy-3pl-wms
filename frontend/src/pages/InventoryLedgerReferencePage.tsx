@@ -4,7 +4,6 @@ import { Link, useParams } from 'react-router-dom';
 
 import { InventoryApi, LedgerRow } from '../api/inventory';
 import { Column, DataTable } from '../components/DataTable';
-import { PageHeader } from '../components/PageHeader';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import {
@@ -179,11 +178,6 @@ export function InventoryLedgerReferencePage() {
           ← Back to ledger
         </Link>
       </div>
-      <PageHeader
-        title="Ledger movement detail"
-        description={`${referenceType} · ${referenceId}${ledger.data?.total != null ? ` · ${rows.length} line(s)` : ''}`}
-      />
-
       {!wid ? (
         <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>
       ) : null}
@@ -193,6 +187,8 @@ export function InventoryLedgerReferencePage() {
       ) : null}
 
       <DataTable
+        title="Ledger movement detail"
+        description={`${referenceType} · ${referenceId}${ledger.data?.total != null ? ` · ${rows.length} line(s)` : ''}`}
         columns={columns}
         rows={rows}
         rowKey={(r) => r.id}

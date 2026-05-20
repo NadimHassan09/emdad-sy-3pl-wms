@@ -18,6 +18,21 @@
     height: 100%;
   }
 
+  /* App shell pages scroll inside <main>, not the document. */
+  html:has([data-app-shell]),
+  html:has([data-app-shell]) body,
+  html:has([data-app-shell]) #root {
+    overflow: hidden;
+    height: 100%;
+  }
+
+  html {
+    /* Smooth anchor scrolling — overridden by reduced-motion guard below. */
+    scroll-behavior: smooth;
+    /* Ensure native UI elements (scrollbars, inputs) match light theme. */
+    color-scheme: light;
+  }
+
   *,
   *::before,
   *::after {
@@ -37,6 +52,33 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Brand-tinted text selection across the app. */
+  ::selection {
+    background-color: var(--color-brand-100);
+    color: var(--color-brand-900);
+  }
+
+  /* Premium custom scrollbar — WebKit (Chrome/Edge/Safari). */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-neutral-300);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-neutral-400);
+  }
+  /* Thinner scrollbars inside modals/drawers */
+  .overflow-y-auto::-webkit-scrollbar,
+  .overflow-auto::-webkit-scrollbar {
+    width: 4px;
   }
 
   /* Uniform focus ring for the entire app. Component primitives may extend
@@ -60,7 +102,7 @@
     }
   }
 
-  /* Screen-reader-only helper (used by LiveRegion in future phases). */
+  /* Screen-reader-only helper. */
   .sr-only {
     position: absolute;
     width: 1px;
@@ -77,6 +119,12 @@
   @keyframes shimmer {
     0%   { background-position: 200% 0; }
     100% { background-position: -200% 0; }
+  }
+
+  /* DataTable: "new row" flash — brand bg fades to transparent over 2s. */
+  @keyframes rowFlash {
+    0%   { background-color: var(--color-brand-50); }
+    100% { background-color: transparent; }
   }
 
   /* Overlay / dialog enter animations (Modal + Drawer). */
@@ -96,6 +144,37 @@
     from { transform: translateX(-100%); }
     to   { transform: translateX(0); }
   }
+}
+
+/* =============================================================================
+ * Print styles — hide navigation chrome, keep content clean on paper.
+ * ============================================================================= */
+@media print {
+  /* Hide all navigation/chrome elements. */
+  nav,
+  aside,
+  header,
+  [data-topbar],
+  [data-sidebar],
+  .no-print {
+    display: none !important;
+  }
+
+  /* Remove shadows and borders for clean print. */
+  * {
+    box-shadow: none !important;
+    border-color: #ccc !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+  }
+
+  /* Ensure tables don't break awkwardly. */
+  table { page-break-inside: avoid; }
+  tr    { page-break-inside: avoid; }
 }
 
 /* =============================================================================
@@ -131,6 +210,80 @@
 @layer utilities {
   .bg-slate-50 {
     background-color: var(--app-page-bg) !important;
+  }
+}
+
+/* =============================================================================
+ * Phase 4.5 — Premium UX utility classes.
+ * These compose on top of Tailwind utilities and design tokens to express
+ * common premium interaction patterns without custom component coupling.
+ * ============================================================================= */
+@layer utilities {
+  /**
+   * .hover-lift — subtle upward translation on hover for interactive cards.
+   * Use on <Link> and <button> card wrappers.
+   * Matches StatCard's `hover:-translate-y-px` pattern.
+   */
+  .hover-lift {
+    transition:
+      border-color var(--duration-fast) var(--ease-standard),
+      box-shadow   var(--duration-fast) var(--ease-standard),
+      transform    var(--duration-fast) var(--ease-standard);
+  }
+  .hover-lift:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+  .hover-lift:focus-visible {
+    box-shadow: var(--shadow-focus);
+    outline: none;
+  }
+
+  /**
+   * .card-elevated — the canonical premium card surface.
+   * Provides border + shadow-sm + white bg + card radius.
+   */
+  .card-elevated {
+    background-color: var(--color-neutral-0);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /**
+   * .card-interactive — extends .card-elevated with hover interactions.
+   * Use on clickable card containers (dashboard widgets, etc.).
+   */
+  .card-interactive {
+    background-color: var(--color-neutral-0);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-sm);
+    transition:
+      border-color var(--duration-fast) var(--ease-standard),
+      box-shadow   var(--duration-fast) var(--ease-standard),
+      transform    var(--duration-fast) var(--ease-standard);
+  }
+  .card-interactive:hover {
+    border-color: var(--color-brand-200);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+  .card-interactive:focus-visible {
+    box-shadow: var(--shadow-focus);
+    outline: none;
+  }
+
+  /**
+   * .text-op — operational text: monospace, numeric, precise.
+   * Use on order IDs, SKU codes, quantities, barcodes.
+   */
+  .text-op {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: 500;
+    direction: ltr;
+    unicode-bidi: embed;
   }
 }
 

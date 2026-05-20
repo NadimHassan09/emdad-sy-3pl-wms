@@ -2,13 +2,16 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.inboundIdsVisibleForWarehouse = inboundIdsVisibleForWarehouse;
 exports.outboundIdsVisibleForWarehouse = outboundIdsVisibleForWarehouse;
-const INBOUND_ACTIVE = [
+const INBOUND_ACTIVE = ['draft', 'pending_approval', 'confirmed', 'in_progress', 'partially_received'];
+const OUTBOUND_ACTIVE = [
     'draft',
+    'pending_approval',
+    'pending_stock',
     'confirmed',
-    'in_progress',
-    'partially_received',
+    'picking',
+    'packing',
+    'ready_to_ship',
 ];
-const OUTBOUND_ACTIVE = ['draft', 'pending_stock', 'confirmed', 'picking', 'packing', 'ready_to_ship'];
 async function inboundIdsVisibleForWarehouse(prisma, warehouseId, baseWhere) {
     const locIds = (await prisma.location.findMany({
         where: { warehouseId, status: 'active' },
@@ -44,11 +47,11 @@ async function inboundIdsVisibleForWarehouse(prisma, warehouseId, baseWhere) {
         select: { id: true },
     });
     const idSet = new Set([...receivedHere.map((r) => r.referenceId), ...neverReceivedOrders.map((o) => o.id)].filter(Boolean));
-    const draftRows = await prisma.inboundOrder.findMany({
-        where: { ...baseWhere, status: 'draft' },
+    const preWorkflowRows = await prisma.inboundOrder.findMany({
+        where: { ...baseWhere, status: { in: ['draft', 'pending_approval'] } },
         select: { id: true },
     });
-    for (const o of draftRows)
+    for (const o of preWorkflowRows)
         idSet.add(o.id);
     return idSet.size ? { id: { in: [...idSet] } } : { id: { in: [] } };
 }
@@ -87,11 +90,11 @@ async function outboundIdsVisibleForWarehouse(prisma, warehouseId, baseWhere) {
         select: { id: true },
     });
     const idSet = new Set([...pickedHere.map((r) => r.referenceId), ...neverPickedOrders.map((o) => o.id)].filter(Boolean));
-    const draftOutRows = await prisma.outboundOrder.findMany({
-        where: { ...baseWhere, status: 'draft' },
+    const preWorkflowOutRows = await prisma.outboundOrder.findMany({
+        where: { ...baseWhere, status: { in: ['draft', 'pending_approval'] } },
         select: { id: true },
     });
-    for (const o of draftOutRows)
+    for (const o of preWorkflowOutRows)
         idSet.add(o.id);
     return idSet.size ? { id: { in: [...idSet] } } : { id: { in: [] } };
 }

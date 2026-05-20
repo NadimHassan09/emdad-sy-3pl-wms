@@ -4,6 +4,7 @@ interface StatusBadgeProps {
 
 const STATUS_CLASS: Record<string, string> = {
   draft: 'badge-draft',
+  pending_approval: 'badge-progress',
   approved: 'badge-complete',
   confirmed: 'badge-confirmed',
   in_progress: 'badge-progress',
@@ -36,6 +37,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
   const key = status.replace(/_/g, ' ');
   const ar: Record<string, string> = {
     draft: 'مسودة',
+    'pending approval': 'بانتظار الموافقة',
     approved: 'معتمد',
     confirmed: 'مؤكد',
     'in progress': 'قيد التنفيذ',
@@ -59,5 +61,5 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     offboarding: 'إنهاء الخدمة',
     closed: 'مغلق',
   };
-  return <span className={`badge ${cls}`}>{isArabic ? ar[key] ?? key : key}</span>;
+  return <span className={`badge w-fit ${cls}`}>{isArabic ? ar[key] ?? key : key}</span>;
 }

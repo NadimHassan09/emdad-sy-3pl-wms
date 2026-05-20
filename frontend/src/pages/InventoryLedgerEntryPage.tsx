@@ -4,7 +4,6 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { InventoryApi } from '../api/inventory';
 import { Column, DataTable } from '../components/DataTable';
-import { PageHeader } from '../components/PageHeader';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import {
@@ -126,15 +125,6 @@ export function InventoryLedgerEntryPage() {
           ← Back to ledger
         </Link>
       </div>
-      <PageHeader
-        title="Movement detail"
-        description={
-          headLine
-            ? `${headLine.product.name} (${headLine.product.sku}) · ${movementSummary} · ${headLine.referenceType} · ${headLine.referenceId.slice(0, 8)}…`
-            : '—'
-        }
-      />
-
       {!wid ? (
         <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>
       ) : null}
@@ -166,8 +156,13 @@ export function InventoryLedgerEntryPage() {
         </div>
       ) : null}
 
-      <h3 className="mb-2 text-sm font-semibold text-slate-800">By lot & location</h3>
       <DataTable
+        title="Movement detail"
+        description={
+          headLine
+            ? `${headLine.product.name} (${headLine.product.sku}) · ${movementSummary} · ${headLine.referenceType} · ${headLine.referenceId.slice(0, 8)}…`
+            : '—'
+        }
         columns={columns}
         rows={mergedRows}
         rowKey={(r) => r.key}
