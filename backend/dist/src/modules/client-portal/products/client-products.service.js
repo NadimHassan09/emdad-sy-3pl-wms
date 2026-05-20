@@ -11,28 +11,56 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientProductsService = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
+const notifications_service_1 = require("../../notifications/notifications.service");
 const products_service_1 = require("../../products/products.service");
 let ClientProductsService = class ClientProductsService {
     products;
-    constructor(products) {
+    notifications;
+    constructor(products, notifications) {
         this.products = products;
+        this.notifications = notifications;
     }
-    async list(client, query) {
-        const principal = {
+    principal(client) {
+        return {
             id: client.id,
             companyId: client.companyId,
             role: client.role,
             email: client.email ?? undefined,
         };
-        return this.products.list(principal, {
+    }
+    async list(client, query) {
+        return this.products.list(this.principal(client), {
             ...query,
             companyId: client.companyId,
         });
+    }
+    async create(client, dto) {
+        if (client.role === client_1.UserRole.client_staff) {
+            throw new common_1.ForbiddenException('Only client administrators can create products.');
+        }
+        const product = await this.products.create(this.principal(client), {
+            ...dto,
+            companyId: client.companyId,
+        });
+        try {
+            await this.notifications.notifyAdminsClientProductAdded({
+                companyId: client.companyId,
+                companyName: product.company?.name ?? 'Client',
+                productId: product.id,
+                productSku: product.sku,
+                productName: product.name,
+            });
+        }
+        catch {
+        }
+        return product;
     }
 };
 exports.ClientProductsService = ClientProductsService;
 exports.ClientProductsService = ClientProductsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [products_service_1.ProductsService])
+    __metadata("design:paramtypes", [products_service_1.ProductsService,
+        notifications_service_1.NotificationsService])
 ], ClientProductsService);
 //# sourceMappingURL=client-products.service.js.map

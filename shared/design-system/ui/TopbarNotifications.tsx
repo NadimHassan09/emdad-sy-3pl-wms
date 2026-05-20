@@ -1,0 +1,306 @@
+/**
+ * TopbarNotifications — bell trigger + portaled dropdown list.
+ */
+
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import { createPortal } from 'react-dom';
+import { unlockNotificationAudio } from '../lib/notification-sound';
+import { cn } from './cn';
+
+const MENU_WIDTH = 360;
+const MENU_TOP = 100;
+const VIEWPORT_PAD = 16;
+
+export interface TopbarNotificationItem {
+  id: string;
+  title: string;
+  body: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface TopbarNotificationsProps {
+  items: TopbarNotificationItem[];
+  unreadCount: number;
+  loading?: boolean;
+  title?: string;
+  emptyLabel?: string;
+  markAllReadLabel?: string;
+  onItemClick?: (item: TopbarNotificationItem) => void;
+  onMarkAllRead?: () => void;
+  formatTime?: (iso: string) => string;
+}
+
+function clampMenuLeft(triggerRect: DOMRect, menuWidth: number): number {
+  const isRtl = document.documentElement.dir === 'rtl';
+  let left: number;
+
+  if (isRtl) {
+    left = triggerRect.left;
+  } else {
+    left = triggerRect.right - menuWidth;
+  }
+
+  const maxLeft = window.innerWidth - menuWidth - VIEWPORT_PAD;
+  return Math.max(VIEWPORT_PAD, Math.min(left, maxLeft));
+}
+
+function defaultFormatTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+function BellIcon(): ReactNode {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      className="h-4.5 w-4.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      aria-hidden="true"
+    >
+      <path
+        d="M10 2.5a4.5 4.5 0 0 0-4.5 4.5v2.1c0 .5-.2 1-.5 1.4L3.5 13.2A1 1 0 0 0 4.4 15h11.2a1 1 0 0 0 .9-1.5l-1.5-2.7a2 2 0 0 1-.5-1.4V7a4.5 4.5 0 0 0-4.5-4.5z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M8 15a2 2 0 0 0 4 0" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function NotificationsDropdown({
+  menuId,
+  title,
+  items,
+  loading,
+  emptyLabel,
+  markAllReadLabel,
+  unreadCount,
+  position,
+  onClose,
+  onItemClick,
+  onMarkAllRead,
+  formatTime,
+}: {
+  menuId: string;
+  title: string;
+  items: TopbarNotificationItem[];
+  loading?: boolean;
+  emptyLabel: string;
+  markAllReadLabel: string;
+  unreadCount: number;
+  position: { top: number; left: number };
+  onClose: () => void;
+  onItemClick?: (item: TopbarNotificationItem) => void;
+  onMarkAllRead?: () => void;
+  formatTime: (iso: string) => string;
+}) {
+  const showMarkAll = unreadCount > 0 && onMarkAllRead !== undefined;
+
+  return createPortal(
+    <>
+      <button
+        type="button"
+        className="fixed inset-0 z-[calc(var(--z-dropdown)-1)] cursor-default bg-transparent"
+        aria-label="Close notifications"
+        tabIndex={-1}
+        onClick={onClose}
+      />
+      <div
+        id={menuId}
+        role="menu"
+        className={cn(
+          'fixed z-[var(--z-dropdown)]',
+          'w-[360px] max-w-[calc(100vw-2rem)]',
+          'overflow-hidden rounded-2xl',
+          'border border-neutral-200/90 bg-white',
+          'shadow-xl shadow-neutral-900/10',
+          'animate-[fadein_120ms_ease-out]',
+        )}
+        style={{ top: position.top, left: position.left }}
+      >
+        <div className="flex items-center justify-between gap-2 border-b border-neutral-100 bg-neutral-50/80 px-4 py-3">
+          <p className="text-sm font-semibold text-neutral-900">{title}</p>
+          {showMarkAll && (
+            <button
+              type="button"
+              className="shrink-0 text-xs font-semibold text-brand-700 hover:text-brand-800"
+              onClick={() => {
+                onMarkAllRead();
+              }}
+            >
+              {markAllReadLabel}
+            </button>
+          )}
+        </div>
+
+        <div className="max-h-[min(24rem,70vh)] overflow-y-auto">
+          {loading && items.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-neutral-500">…</p>
+          ) : items.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-neutral-500">{emptyLabel}</p>
+          ) : (
+            <ul className="divide-y divide-neutral-100">
+              {items.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className={cn(
+                      'flex w-full flex-col gap-0.5 px-4 py-3 text-start',
+                      'transition-colors duration-fast hover:bg-neutral-50',
+                      !item.isRead && 'bg-brand-50/40',
+                    )}
+                    onClick={() => {
+                      onItemClick?.(item);
+                      onClose();
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span
+                        className={cn(
+                          'text-sm leading-snug',
+                          item.isRead ? 'font-medium text-neutral-800' : 'font-semibold text-neutral-900',
+                        )}
+                      >
+                        {item.title}
+                      </span>
+                      <span className="shrink-0 text-[10px] text-neutral-400 tabular-nums">
+                        {formatTime(item.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-xs leading-relaxed text-neutral-600 line-clamp-2">{item.body}</p>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </>,
+    document.body,
+  );
+}
+
+export function TopbarNotifications({
+  items,
+  unreadCount,
+  loading,
+  title = 'Notifications',
+  emptyLabel = 'No notifications yet',
+  markAllReadLabel = 'Mark all read',
+  onItemClick,
+  onMarkAllRead,
+  formatTime = defaultFormatTime,
+}: TopbarNotificationsProps) {
+  const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
+
+  const close = () => setOpen(false);
+  const badge = unreadCount > 99 ? '99+' : String(unreadCount);
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+
+    function updatePosition() {
+      const rect = triggerRef.current!.getBoundingClientRect();
+      setMenuPos({
+        top: MENU_TOP,
+        left: clampMenuLeft(rect, MENU_WIDTH),
+      });
+    }
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') close();
+    }
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        ref={triggerRef}
+        type="button"
+        className={cn(
+          'relative inline-flex h-9 w-9 items-center justify-center rounded-lg',
+          'transition-colors duration-fast',
+          'hover:bg-white/10',
+          'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30',
+          open && 'bg-white/10',
+        )}
+        style={{
+          color: 'var(--sidebar-text)',
+          border: '1px solid var(--sidebar-border)',
+          backgroundColor: 'var(--sidebar-hover-bg)',
+        }}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        aria-label={unreadCount > 0 ? `${title}, ${unreadCount} unread` : title}
+        onClick={() => {
+          unlockNotificationAudio();
+          setOpen((v) => !v);
+        }}
+      >
+        <BellIcon />
+        {unreadCount > 0 && (
+          <span
+            className="absolute -top-1 -end-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white"
+            style={{ backgroundColor: '#ef4444' }}
+          >
+            {badge}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <NotificationsDropdown
+          menuId={menuId}
+          title={title}
+          items={items}
+          loading={loading}
+          emptyLabel={emptyLabel}
+          markAllReadLabel={markAllReadLabel}
+          unreadCount={unreadCount}
+          position={menuPos}
+          onClose={close}
+          onItemClick={onItemClick}
+          onMarkAllRead={onMarkAllRead}
+          formatTime={formatTime}
+        />
+      )}
+    </div>
+  );
+}

@@ -12,7 +12,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdjustmentsService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const company_read_scope_1 = require("../../common/auth/company-read-scope");
 const storage_location_types_1 = require("../../common/constants/storage-location-types");
+const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantity");
 const location_operational_1 = require("../../common/utils/location-operational");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
@@ -80,7 +82,7 @@ let AdjustmentsService = class AdjustmentsService {
     }
     list(user, query) {
         const where = {};
-        const companyId = query.companyId ?? user.companyId ?? undefined;
+        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(user, query.companyId);
         if (companyId)
             where.companyId = companyId;
         if (query.status)
@@ -138,7 +140,15 @@ let AdjustmentsService = class AdjustmentsService {
             if (adj.status !== 'draft') {
                 throw new domain_exceptions_1.InvalidStateException('Lines can only be added while adjustment is draft.');
             }
-            const product = await tx.product.findUnique({ where: { id: dto.productId } });
+            const product = await tx.product.findUnique({
+                where: { id: dto.productId },
+                select: {
+                    id: true,
+                    companyId: true,
+                    trackingType: true,
+                    uom: true,
+                },
+            });
             if (!product || product.companyId !== adj.companyId) {
                 throw new common_1.BadRequestException('Product must belong to the adjustment company.');
             }
@@ -172,6 +182,7 @@ let AdjustmentsService = class AdjustmentsService {
             else if (dto.lotId) {
                 throw new common_1.BadRequestException('lotId must not be set for non-lot-tracked products.');
             }
+            (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(product.uom, dto.quantityAfter, 'Quantity after');
             const before = await this.stock.readOnHandForUpdate(tx, {
                 companyId: adj.companyId,
                 productId: dto.productId,
@@ -202,12 +213,16 @@ let AdjustmentsService = class AdjustmentsService {
             if (adj.status !== 'draft') {
                 throw new domain_exceptions_1.InvalidStateException('Lines can only be edited while adjustment is draft.');
             }
-            const line = await tx.stockAdjustmentLine.findUnique({ where: { id: lineId } });
+            const line = await tx.stockAdjustmentLine.findUnique({
+                where: { id: lineId },
+                include: { product: { select: { uom: true } } },
+            });
             if (!line || line.adjustmentId !== adjustmentId) {
                 throw new common_1.NotFoundException('Adjustment line not found.');
             }
             const data = {};
             if (dto.quantityAfter !== undefined) {
+                (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(line.product.uom, dto.quantityAfter, 'Quantity after');
                 data.quantityAfter = dto.quantityAfter;
             }
             if (dto.reasonNote !== undefined) {

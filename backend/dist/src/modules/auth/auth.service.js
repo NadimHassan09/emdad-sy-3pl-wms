@@ -98,13 +98,25 @@ let AuthService = class AuthService {
             },
         };
     }
-    getProfile(user) {
+    async getProfile(user) {
+        const [dbUser, worker] = await Promise.all([
+            this.prisma.user.findUnique({
+                where: { id: user.id },
+                select: { fullName: true },
+            }),
+            this.prisma.worker.findUnique({
+                where: { userId: user.id },
+                select: { id: true },
+            }),
+        ]);
         return {
             id: user.id,
             email: user.email ?? null,
+            fullName: dbUser?.fullName ?? null,
             role: user.role,
             authGroup: (0, auth_groups_1.userRoleToAuthGroup)(user.role),
             tenantCompanyId: user.companyId,
+            workerId: worker?.id ?? null,
         };
     }
     expiresInToMs(expiresIn) {

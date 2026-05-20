@@ -1,4 +1,4 @@
-import { Button } from './Button';
+import { Button } from '@ds';
 
 export function FilterActions({
   onApply,
@@ -6,7 +6,7 @@ export function FilterActions({
   applyDisabled,
   loading,
   applyLabel = 'Apply filters',
-  resetLabel = 'Reset filters',
+  resetLabel = 'Reset',
 }: {
   onApply: () => void;
   onReset: () => void;
@@ -16,23 +16,23 @@ export function FilterActions({
   resetLabel?: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 py-3 mt-1">
+    <div className="flex flex-wrap items-center gap-2 border-t border-neutral-100 py-3 mt-1">
       <Button
         type="button"
+        variant="primary"
         size="sm"
         onClick={onApply}
         disabled={applyDisabled || loading}
         loading={loading}
-        className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
       >
         {applyLabel}
       </Button>
       <Button
         type="button"
+        variant="secondary"
         size="sm"
         onClick={onReset}
         disabled={loading}
-        className="border border-rose-600 bg-rose-600 text-white hover:bg-rose-700"
       >
         {resetLabel}
       </Button>

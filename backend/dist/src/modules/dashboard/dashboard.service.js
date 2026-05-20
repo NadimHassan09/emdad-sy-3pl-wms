@@ -15,12 +15,14 @@ const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const INBOUND_OPEN = [
     client_1.InboundOrderStatus.draft,
+    client_1.InboundOrderStatus.pending_approval,
     client_1.InboundOrderStatus.confirmed,
     client_1.InboundOrderStatus.in_progress,
     client_1.InboundOrderStatus.partially_received,
 ];
 const OUTBOUND_OPEN = [
     client_1.OutboundOrderStatus.draft,
+    client_1.OutboundOrderStatus.pending_approval,
     client_1.OutboundOrderStatus.pending_stock,
     client_1.OutboundOrderStatus.confirmed,
     client_1.OutboundOrderStatus.picking,
@@ -42,23 +44,24 @@ const TASK_CARD_MAP = [
     { key: 'dispatch', label: 'Delivery' },
     { key: 'routing', label: 'Internal' },
 ];
+function startOfUtcDay(d) {
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+function addUtcMonths(day, months) {
+    const x = new Date(day);
+    x.setUTCMonth(x.getUTCMonth() + months);
+    return x;
+}
 let DashboardService = class DashboardService {
     prisma;
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async openOrdersCharts(user) {
-        const companyWhereInbound = user.companyId
-            ? { companyId: user.companyId }
-            : {};
-        const companyWhereOutbound = user.companyId
-            ? { companyId: user.companyId }
-            : {};
+    async openOrdersCharts(_user) {
         const [inboundGroups, outboundGroups] = await Promise.all([
             this.prisma.inboundOrder.groupBy({
                 by: ['status'],
                 where: {
-                    ...companyWhereInbound,
                     status: { in: INBOUND_OPEN },
                 },
                 _count: { _all: true },
@@ -66,7 +69,6 @@ let DashboardService = class DashboardService {
             this.prisma.outboundOrder.groupBy({
                 by: ['status'],
                 where: {
-                    ...companyWhereOutbound,
                     status: { in: OUTBOUND_OPEN },
                 },
                 _count: { _all: true },
@@ -77,7 +79,9 @@ let DashboardService = class DashboardService {
             {
                 key: 'new',
                 label: 'New',
-                count: inCount(client_1.InboundOrderStatus.draft) + inCount(client_1.InboundOrderStatus.confirmed),
+                count: inCount(client_1.InboundOrderStatus.draft) +
+                    inCount(client_1.InboundOrderStatus.pending_approval) +
+                    inCount(client_1.InboundOrderStatus.confirmed),
             },
             {
                 key: 'receive',
@@ -96,6 +100,7 @@ let DashboardService = class DashboardService {
                 key: 'picking',
                 label: 'Picking',
                 count: outCount(client_1.OutboundOrderStatus.draft) +
+                    outCount(client_1.OutboundOrderStatus.pending_approval) +
                     outCount(client_1.OutboundOrderStatus.pending_stock) +
                     outCount(client_1.OutboundOrderStatus.confirmed) +
                     outCount(client_1.OutboundOrderStatus.picking),
@@ -113,30 +118,26 @@ let DashboardService = class DashboardService {
         ];
         return { inbound, outbound };
     }
-    async overview(user) {
-        const companyId = user.companyId ?? undefined;
-        const companyFilter = companyId ? { companyId } : {};
-        const now = new Date();
-        const sixMonthsFromNow = new Date(now);
-        sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
-        const [stockAgg, productsCount, companiesCount, openInboundCount, openOutboundCount, openTasksGrouped, occupiedLocationsCount, totalStorageLocationsCount, soonExpiryRows, recentInbound, recentOutbound,] = await Promise.all([
+    async overview(_user) {
+        const today = startOfUtcDay(new Date());
+        const sixMonthsEnd = addUtcMonths(today, 6);
+        const [stockAgg, productsCount, companiesCount, openInboundCount, openOutboundCount, openTasksGrouped, occupiedLocationsCount, totalStorageLocationsCount, soonExpiryRows, missingExpiryRows, recentInbound, recentOutbound,] = await Promise.all([
             this.prisma.currentStock.aggregate({
-                where: { ...companyFilter },
+                where: {},
                 _sum: { quantityOnHand: true },
             }),
-            this.prisma.product.count({ where: { ...companyFilter } }),
-            this.prisma.company.count(companyId ? { where: { id: companyId } } : undefined),
+            this.prisma.product.count(),
+            this.prisma.company.count(),
             this.prisma.inboundOrder.count({
-                where: { ...companyFilter, status: { in: INBOUND_OPEN } },
+                where: { status: { in: INBOUND_OPEN } },
             }),
             this.prisma.outboundOrder.count({
-                where: { ...companyFilter, status: { in: OUTBOUND_OPEN } },
+                where: { status: { in: OUTBOUND_OPEN } },
             }),
             this.prisma.warehouseTask.groupBy({
                 by: ['taskType'],
                 where: {
                     status: { in: OPEN_TASK_STATUSES },
-                    workflowInstance: companyId ? { companyId } : undefined,
                 },
                 _count: true,
             }),
@@ -147,7 +148,6 @@ let DashboardService = class DashboardService {
                     currentStock: {
                         some: {
                             quantityOnHand: { gt: 0 },
-                            ...(companyId ? { companyId } : {}),
                         },
                     },
                 },
@@ -160,15 +160,10 @@ let DashboardService = class DashboardService {
             }),
             this.prisma.currentStock.findMany({
                 where: {
-                    ...companyFilter,
                     quantityOnHand: { gt: 0 },
+                    lotId: { not: null },
                     lot: {
-                        is: {
-                            expiryDate: {
-                                gte: now,
-                                lte: sixMonthsFromNow,
-                            },
-                        },
+                        expiryDate: { not: null, lte: sixMonthsEnd },
                     },
                 },
                 select: {
@@ -181,8 +176,25 @@ let DashboardService = class DashboardService {
                 orderBy: [{ lot: { expiryDate: 'asc' } }],
                 take: 200,
             }),
+            this.prisma.currentStock.findMany({
+                where: {
+                    quantityOnHand: { gt: 0 },
+                    lotId: { not: null },
+                    product: { expiryTracking: true, trackingType: 'lot' },
+                    lot: { expiryDate: null },
+                },
+                select: {
+                    lotId: true,
+                    quantityOnHand: true,
+                    lot: { select: { id: true, lotNumber: true, expiryDate: true } },
+                    product: { select: { id: true, name: true } },
+                    location: { select: { id: true, name: true } },
+                },
+                orderBy: [{ product: { name: 'asc' } }],
+                take: 100,
+            }),
             this.prisma.inboundOrder.findMany({
-                where: { ...companyFilter, status: { in: INBOUND_OPEN } },
+                where: { status: { in: INBOUND_OPEN } },
                 orderBy: { createdAt: 'desc' },
                 take: 5,
                 select: {
@@ -194,7 +206,7 @@ let DashboardService = class DashboardService {
                 },
             }),
             this.prisma.outboundOrder.findMany({
-                where: { ...companyFilter, status: { in: OUTBOUND_OPEN } },
+                where: { status: { in: OUTBOUND_OPEN } },
                 orderBy: { createdAt: 'desc' },
                 take: 5,
                 select: {
@@ -212,18 +224,18 @@ let DashboardService = class DashboardService {
             label: t.label,
             count: taskCounts.get(t.key) ?? 0,
         }));
-        const productIds = Array.from(new Set(soonExpiryRows.map((r) => r.product.id)));
+        const allExpiryAlertRows = [...missingExpiryRows, ...soonExpiryRows];
+        const productIds = Array.from(new Set(allExpiryAlertRows.map((r) => r.product.id)));
         const totalsByProduct = await this.prisma.currentStock.groupBy({
             by: ['productId'],
             where: {
-                ...companyFilter,
                 productId: { in: productIds },
             },
             _sum: { quantityOnHand: true },
         });
         const productTotalMap = new Map(totalsByProduct.map((r) => [r.productId, Number(r._sum.quantityOnHand ?? 0)]));
         const byLot = new Map();
-        for (const row of soonExpiryRows) {
+        for (const row of allExpiryAlertRows) {
             if (!row.lot)
                 continue;
             const cur = byLot.get(row.lot.id);
@@ -244,8 +256,21 @@ let DashboardService = class DashboardService {
                 });
             }
         }
+        const todayMs = today.getTime();
         const soonExpiryLots = Array.from(byLot.values())
             .sort((a, b) => {
+            const rank = (expiryDate) => {
+                if (!expiryDate)
+                    return 0;
+                const ms = new Date(expiryDate).getTime();
+                if (ms < todayMs)
+                    return 1;
+                return 2;
+            };
+            const ra = rank(a.expiryDate);
+            const rb = rank(b.expiryDate);
+            if (ra !== rb)
+                return ra - rb;
             const da = a.expiryDate ? new Date(a.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
             const db = b.expiryDate ? new Date(b.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
             return da - db;

@@ -13,8 +13,31 @@ import {
 } from '../../common/utils/discrete-uom-quantity';
 import { LedgerIdempotencyService } from '../inventory/ledger-idempotency.service';
 import { StockHelpers } from '../inventory/stock.helpers';
+import { OrderNotificationTarget } from '../notifications/notifications.service';
 import { TaskCompleteBody } from './task-payload.schema';
 import { findWarehouseStockFefo } from './task-allocation.helper';
+
+function parseExpiryFromDiscrepancyNotes(notes?: string | null): Date | null {
+  if (!notes) return null;
+  const m = /expiry:(\d{4}-\d{2}-\d{2})/i.exec(notes);
+  if (!m) return null;
+  const d = new Date(`${m[1]}T00:00:00.000Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function resolveReceivingLotExpiry(
+  product: { expiryTracking: boolean; trackingType: ProductTrackingType },
+  line: { expectedExpiryDate: Date | null },
+  taskLine: { discrepancy_notes?: string },
+): Date | null {
+  if (product.trackingType !== ProductTrackingType.lot || !product.expiryTracking) {
+    return null;
+  }
+  return (
+    parseExpiryFromDiscrepancyNotes(taskLine.discrepancy_notes) ??
+    (line.expectedExpiryDate ? new Date(line.expectedExpiryDate) : null)
+  );
+}
 
 export interface ReservationSnapshot {
   outboundOrderLineId: string;
@@ -150,16 +173,29 @@ export class TaskInventoryEffectsService {
         }
         if (!lotId && !ln) throw new LotRequiredException();
         if (!lotId && ln) {
+          const expiryDate = resolveReceivingLotExpiry(line.product, line, l);
           const found = await tx.lot.findUnique({
             where: { productId_lotNumber: { productId: line.productId, lotNumber: ln } },
           });
-          lotId =
-            found?.id ??
-            (
+          if (found) {
+            lotId = found.id;
+            if (expiryDate && !found.expiryDate) {
+              await tx.lot.update({
+                where: { id: found.id },
+                data: { expiryDate },
+              });
+            }
+          } else {
+            lotId = (
               await tx.lot.create({
-                data: { productId: line.productId, lotNumber: ln },
+                data: {
+                  productId: line.productId,
+                  lotNumber: ln,
+                  expiryDate,
+                },
               })
             ).id;
+          }
         }
       }
 
@@ -364,7 +400,7 @@ export class TaskInventoryEffectsService {
     companyId: string,
     reservations: ReservationSnapshot[],
     body: Extract<TaskCompleteBody, { task_type: 'dispatch' }>,
-  ): Promise<void> {
+  ): Promise<OrderNotificationTarget> {
     const order = await tx.outboundOrder.findUnique({
       where: { id: outboundOrderId },
       include: {
@@ -430,6 +466,12 @@ export class TaskInventoryEffectsService {
         trackingNumber: body.tracking ?? order.trackingNumber,
       },
     });
+
+    return {
+      companyId: order.companyId,
+      orderId: outboundOrderId,
+      orderNumber: order.orderNumber,
+    };
   }
 
   async applyQcLines(

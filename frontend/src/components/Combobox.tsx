@@ -23,6 +23,8 @@ interface ComboboxProps {
   onSearchQueryChange?: (query: string) => void;
   /** Render dropdown in normal flow so parent containers can grow/shrink with it. */
   dropdownInFlow?: boolean;
+  /** Show the × control to clear the current selection. */
+  clearable?: boolean;
 }
 
 /**
@@ -45,6 +47,7 @@ export function Combobox({
   className = '',
   onSearchQueryChange,
   dropdownInFlow = false,
+  clearable = true,
 }: ComboboxProps) {
   const inputId = useId();
   const [open, setOpen] = useState(false);
@@ -125,13 +128,15 @@ export function Combobox({
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
-          className={`block w-full rounded-md border px-3 py-1.5 pr-7 text-sm shadow-sm focus:outline-none focus:ring-2 ${
+          className={`block w-full rounded-md border px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 ${
+            clearable && value && !disabled ? 'pr-7' : ''
+          } ${
             error
               ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
               : 'border-slate-300 focus:border-emerald-500 focus:ring-emerald-200'
           } ${disabled ? 'cursor-not-allowed bg-slate-50 text-slate-500' : 'bg-white'}`}
         />
-        {value && !disabled && (
+        {clearable && value && !disabled && (
           <button
             type="button"
             tabIndex={-1}

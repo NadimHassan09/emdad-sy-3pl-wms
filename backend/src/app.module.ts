@@ -20,6 +20,7 @@ import { ProductsModule } from './modules/products/products.module';
 import { UsersModule } from './modules/users/users.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { WarehouseWorkflowModule } from './modules/warehouse-workflow/warehouse-workflow.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     AuthModule,
     PrismaModule,
     RedisModule,
+    NotificationsModule,
     CompaniesModule,
     DashboardModule,
     ClientPortalModule,

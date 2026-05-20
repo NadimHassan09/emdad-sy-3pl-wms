@@ -1,0 +1,918 @@
+Enterprise 3PL WMS — AI-Assisted Progressive Frontend Refactor Blueprint
+Document Version: 1.0
+Scope: Frontend modernization via progressive layer-by-layer refactor
+Constraint: Zero backend contract changes. Preserve all API envelopes, routes, realtime events, workflows, and business logic.
+Target: Dual-app system (frontend/ Admin + client-frontend/ Portal)
+Table of Contents
+Executive Summary
+Frontend Issues Analysis
+Enterprise Design System / UI Catalog
+Progressive Refactor Strategy
+Shared Component Architecture Plan
+Layout Modernization Plan
+Workflow Visualization Upgrade Plan
+Enterprise SaaS Polish Layer
+Refactor Priorities Roadmap
+Implementation Guardrails
+1. Executive Summary
+The current dual-frontend WMS suffers from visual fragmentation, inconsistent interaction patterns, and missing enterprise SaaS affordances rather than structural defects. The backend integration, realtime Socket.IO plumbing, TanStack Query caching, and workflow logic are production-grade. The refactor mission is to modernize the perception and operability of the system without touching API contracts, route definitions, or business rules.
+Core thesis: Because ~70% of the UI surface is data-dense tables, filters, and cards, modernizing the DataTable ecosystem first will yield disproportionate visual and UX impact across both applications. We proceed layer-by-layer (Design Tokens → Shared Primitives → Layout Shell → Table System → Workflow Visualization → Polish) rather than page-by-page to avoid partial-state inconsistency during rollout.
+2. Frontend Issues Analysis
+2.1 Cross-Application Inconsistencies
+Table
+Area	Admin (frontend)	Client (client-frontend)	Severity	Impact
+Table System	DataTable component (client-side pagination, 20-row default)	Hand-rolled data-table + custom pager (25-row default)	High	Operators experience different pagination mechanics, column alignment, and row interactions between admin and portal.
+Status Display	StatusBadge React component	Raw text or manual .badge-* CSS classes	High	Scanability gap; client lists require cognitive parsing where admin uses instant color recognition.
+Primary Color	Emerald buttons (emerald-600) + Green sidebar (#1a7a44) + Blue Tailwind primary (#2563eb)	Green buttons only (#1a7a44)	Medium	Three competing primaries destroy brand trust and hierarchy.
+Shared Components	18 reusable components	1 (PortalLayout)	High	Massive duplication of date formatting, badge mapping, pagination logic, and empty states.
+Realtime Scope	Broad invalidation (orders, tasks, inventory, ledger, workflows, dashboard)	Stock only	High	Client portal shows stale order data after warehouse operations.
+i18n	Partial AR translation maps + RTL	EN-only copy + RTL toggle	Medium	AR users receive inconsistent localization depth.
+Routing Guard	Data router with useBlocker	Simple BrowserRouter	Low	Feature parity gap for exit guards; no immediate UX impact.
+API Folder Naming	api/	services/	Low	Cognitive friction for developers, not operators.
+2.2 Admin Dashboard UX Problems
+Navigation & Information Architecture
+No breadcrumbs — Deep ledger drill-down (/inventory/ledger/:referenceType/:referenceId → line entry) relies on inline back links. Warehouse operators lose spatial context when jumping between orders, tasks, and ledger references.
+WarehousesPage orphan — Full CRUD UI exists but is unregistered in router.tsx. Dead code or hidden capability creates maintenance liability.
+Users route nav-gated but not route-gated — Sidebar hides Users for non-ADMIN, yet router allows direct navigation. API 403 is the only guard.
+Legacy redirects (/inbound, /outbound, /dashboard) — Useful for bookmarks but increase mental model complexity without a redirect notice pattern.
+Warehouse & Tenant Model
+Single-warehouse bias — VITE_DEFAULT_WAREHOUSE_ID and useDefaultWarehouseId() assume single-warehouse UI. Multi-warehouse operators lack a global warehouse switcher in the shell.
+Realtime dev-gated — VITE_MOCK_COMPANY_ID required for Socket.IO connection. Production must either use the same env hack or socket never connects, indicating a configuration-not-UI problem that surfaces as "stale data."
+X-Company-Id header injection — Dev tenant injection pattern leaks into production mental model; no UI-level tenant scoping or indicator.
+Task Execution
+Monolithic TaskExecutionView (~2,500 lines) — High cognitive load for onboarding, testing, and bug isolation. Task-type-specific UI sections (receive, putaway, pick, pack, dispatch) are colocated rather than composed.
+Task-only vs legacy receive split — VITE_TASK_ONLY_FLOWS flag bifurcates inbound confirm behavior. Operators may encounter different UX paths for the same business object depending on deployment config.
+Exit blocker surprise — useBlocker prevents navigation with unsaved draft progress, but no persistent "unsaved changes" banner precedes the browser-level confirmation, creating jarring interruptions.
+Lists & Filters
+Client-side pagination in DataTable — Large datasets load entirely into memory before pagination. This creates a performance ceiling on product catalogs, inventory ledgers, and order histories.
+Apply vs draft filter pattern — Consistent across pages but requires an extra click. Live/debounced filtering is standard SaaS expectation; current pattern slows operator scanning.
+Visual Design
+Triple primary color collision — Sidebar active states use #1a7a44, buttons use emerald-600, and Tailwind config defines primary as blue #2563eb. No semantic hierarchy exists (e.g., "action" vs "navigation" vs "accent").
+No dark mode — Despite CSS variable architecture suggesting extensibility, no prefers-color-scheme or toggle implementation exists.
+Mixed styling systems — Tailwind utilities + shared globals.css semantic classes + inline style={{}} on detail pages (client portal headers, admin metadata grids). This trifurcation makes global density adjustments impossible.
+Accessibility
+Table row keyboard patterns inconsistent — Client portal adds role="link" with Enter/Space handlers; admin uses onRowClick on <tr> without equivalent keyboard support.
+Modal focus trap undocumented — No verified focus management in Modal/ConfirmModal component code.
+Language attribute mismatch — Admin sets lang attribute when AR selected, but systematic icon mirroring for RTL not reviewed.
+2.3 Client Portal UX Problems
+Feature Gaps (Intentional but Visually Unpolished)
+Read-only order surface — No creation, confirmation, or cancellation. By design, but the "view-only" state lacks visual affordance (e.g., read-only badges, disabled-action tooltips) that would clarify the portal's role to users.
+No exports — PDF/CSV absent from all lists. Standard enterprise expectation for audit and reporting.
+No operational dashboard — Welcome page shows profile metadata only. No KPI cards, open order counts, or stock alerts.
+Stale Data
+Realtime scope too narrow — All six socket events invalidate only ['client', 'stock']. Inbound/outbound order lists and detail pages do not auto-refresh when warehouse operators confirm or ship orders.
+Visual Parity
+Status as plain text on lists — Detail pages use .badge-* classes; lists show raw status strings. Inconsistent scanability forces users to read rather than recognize.
+Inline styles on detail pages — Flex headers and back links use style={{}}, diverging from shared semantic classes and creating spacing drift.
+Mobile & Density
+Horizontal scroll only — table-wrap scroll containers on client; admin uses overflow-x-auto. Neither implements column prioritization, sticky first-column, or card-flip patterns for dense tables on small viewports.
+Task execution density — Forms in TaskExecutionView may overflow on mobile without responsive field reordering.
+2.4 Responsiveness Matrix
+Table
+Surface	Breakpoint Issue	Operator Impact
+Admin DataTable	Horizontal scroll on inbound/outbound (many columns)	Scanning line items requires horizontal panning; column headers detach from context
+Admin sidebar	Two-column nav collapses to drawer correctly	Acceptable, but active state visibility reduced in drawer mode
+Client tables	table-wrap scroll only	Same as admin; no column toggle or priority system
+Task execution	Dense forms overflow mobile	Pick/putaway tasks become unusable on handheld devices
+Dashboard charts	Grid stacks awkwardly on narrow viewports	Capacity pie chart and stat cards lose visual hierarchy
+2.5 Scalability & Architecture Issues
+Table
+Issue	Impact	Refactor Layer
+Monolithic TaskExecutionView	Cannot split by task type for team ownership; testing surface area too large	Step 3 (Workflow)
+No shared package between admin/client	Duplicate date formatting, badge mapping, API type definitions, pagination math	Step 1 (Shared Components)
+Ad-hoc i18n maps per file	Translation drift, missing keys, no extraction tooling	Step 4 (Polish)
+Client-side table pagination	Performance ceiling on large catalogs; memory bloat	Step 1 (DataTable)
+Vendored SDK (@emdad/wms-task-execution) in admin only	Client portal cannot share task types if scope expands	Step 1 (Shared Lib)
+3. Enterprise Design System / UI Catalog
+3.1 Design Token Architecture
+Goal: Replace the triple-primary collision with a semantic, single-source-of-truth token system. Both apps import from shared/design-system/, making this the highest-leverage starting point.
+Color System
+Table
+Token	Light Mode	Dark Mode (Future)	Usage Rule
+--color-brand	#0f766e (teal-700)	#14b8a6 (teal-500)	Sidebar active, primary buttons, key actions. Single primary.
+--color-brand-hover	#115e59 (teal-800)	#2dd4bf (teal-400)	Button hover, link hover
+--color-accent-blue	#2563eb (blue-600)	#3b82f6 (blue-500)	Informational highlights, workflow progress, links
+--color-accent-amber	#d97706 (amber-600)	#f59e0b (amber-500)	Warnings, in-progress states, pending tasks
+--color-accent-rose	#e11d48 (rose-600)	#fb7185 (rose-400)	Errors, cancellations, destructive actions
+--color-accent-emerald	#059669 (emerald-600)	#34d399 (emerald-400)	Success, completions, positive ledger deltas
+--color-surface-page	#f8fafc (slate-50)	#0f172a (slate-900)	Page background
+--color-surface-card	#ffffff	#1e293b (slate-800)	Cards, modals, panels
+--color-surface-elevated	#ffffff	#334155 (slate-700)	Dropdowns, popovers, toasts
+--color-border-default	#e2e8f0 (slate-200)	#475569 (slate-600)	Card borders, table dividers
+--color-border-strong	#cbd5e1 (slate-300)	#64748b (slate-500)	Focus rings, active filters
+--color-text-primary	#0f172a (slate-900)	#f1f5f9 (slate-100)	Headings, body
+--color-text-secondary	#475569 (slate-600)	#94a3b8 (slate-400)	Labels, metadata, placeholders
+--color-text-muted	#94a3b8 (slate-400)	#64748b (slate-500)	Disabled, timestamps
+Migration Rule: Deprecate #1a7a44 and emerald-600 as primaries. Map all existing "green" usages to --color-brand teal. This unifies admin sidebar, admin buttons, and client buttons into one recognizable brand voice.
+Typography Scale
+Table
+Token	Size	Weight	Line Height	Letter Spacing	Usage
+--text-page-title	1.25rem (20px)	600	1.4	-0.01em	PageHeader title
+--text-section-title	1rem (16px)	600	1.5	0	Card titles, modal headers
+--text-body	0.875rem (14px)	400	1.5	0	Form labels, table cells, descriptions
+--text-caption	0.75rem (12px)	500	1.4	0.01em	Badges, timestamps, metadata
+--text-data	0.875rem (14px)	500	1.5	0	Quantities, SKUs, order numbers
+--text-mono	0.8125rem (13px)	500	1.4	0	Lot numbers, barcodes, IDs
+Enterprise Rule: All table data, SKUs, and quantities use --text-data (medium weight) to improve scannability at arm's length (warehouse kiosk distance). Body text remains 400 weight for readability.
+Spacing System
+Table
+Token	Value	Usage
+--space-page	1.5rem (24px)	Page padding
+--space-section	1rem (16px)	Gap between cards/sections
+--space-card	1rem (16px)	Internal card padding
+--space-dense	0.75rem (12px)	Compact table rows, filter bars
+--space-tight	0.5rem (8px)	Inline form gaps, badge padding
+--space-micro	0.25rem (4px)	Icon-text gaps, border radius micro-adjustments
+Shadow System
+Table
+Token	Value	Usage
+--shadow-card	0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.05)	Cards, static panels
+--shadow-elevated	0 4px 6px -1px rgba(0,0,0,0.08), 0 2px 4px -2px rgba(0,0,0,0.04)	Modals, dropdowns, toasts
+--shadow-sticky	0 4px 6px -1px rgba(0,0,0,0.05)	Sticky table headers, sticky filter bars
+Border Radius System
+Table
+Token	Value	Usage
+--radius-sm	0.375rem (6px)	Buttons, inputs, badges
+--radius-md	0.5rem (8px)	Cards, small modals
+--radius-lg	0.75rem (12px)	Large modals, drawers
+--radius-pill	9999px	Status badges, filter chips
+3.2 Component Catalog
+Buttons
+Purpose: Drive action hierarchy in a high-density operational UI.
+Table
+Variant	Background	Text	Border	Usage Rule
+Primary	--color-brand	White	None	Create, confirm, save, execute task. Max 1 per page header.
+Secondary	--color-surface-card	--color-text-primary	--color-border-default	Cancel, back, apply filters, secondary actions
+Tertiary / Ghost	Transparent	--color-text-secondary	None	Table row actions, icon buttons, low-priority toggles
+Danger	--color-accent-rose	White	None	Delete, cancel order, destructive confirmations
+Link	Transparent	--color-brand	None	Inline text links, breadcrumb navigation
+Interaction Behavior:
+Hover: background darkens 10%, transform: translateY(-1px), transition: all 150ms ease
+Active/Press: transform: translateY(0), shadow reduces
+Loading: Spinner replaces text, button maintains width to prevent layout shift, opacity: 0.8
+Disabled: opacity: 0.5, cursor: not-allowed, no hover lift
+Consistency Rule: All buttons use --radius-sm. Height standards: sm (32px) for table inline actions, md (40px) for page headers and forms.
+Inputs & Selects
+Purpose: Fast, error-resistant data entry for warehouse operators.
+Table
+State	Border	Background	Shadow
+Default	--color-border-default	--color-surface-card	None
+Hover	--color-border-strong	--color-surface-card	None
+Focus	--color-brand	--color-surface-card	0 0 0 3px rgba(15,118,110,0.15)
+Error	--color-accent-rose	rgba(225,29,72,0.05)	0 0 0 3px rgba(225,29,72,0.1)
+Disabled	--color-border-default	--color-surface-page	None
+Usage Rules:
+Labels always above inputs (never inline) for scanability at distance
+Error text appears below input in --text-caption --color-accent-rose
+Numeric inputs (quantities) use --text-mono right-aligned
+Search inputs in filter bars get a magnifying glass icon left-aligned, clear button right-aligned
+Comboboxes
+Purpose: Product, client, warehouse, and location selection with large datasets.
+Visual Hierarchy:
+Trigger: Button-like input with selected value + chevron
+Dropdown: --shadow-elevated, --radius-md, max-height 320px with scroll
+Search field inside dropdown (sticky top) with autofocus on open
+Options: text-body, hover --color-surface-page, selected --color-brand background + white text
+Empty state: "No matches" in --text-caption centered
+Loading: 3 skeleton rows in dropdown
+Interaction Behavior:
+Keyboard: Arrow navigation, Enter to select, Escape to close, Tab to move
+Async: Debounce 300ms on search, show loading spinner in search field
+Multi-select (future): Checkbox left of option, chip stack in trigger
+Tables (DataTable System)
+Purpose: The dominant UI surface (~70% of app). Must support high-density operational scanning.
+Structure:
+plain
+Copy
+┌─ Card Container (rounded-md, shadow-sm) ──────────────┐
+│  ┌─ Sticky Filter Bar ──────────────────────────────┐ │
+│  │  Search | Filters | Active Chip Pills | Actions    │ │
+│  └──────────────────────────────────────────────────┘ │
+│  ┌─ Table Wrapper (overflow-x-auto) ─────────────────┐ │
+│  │  ┌─ Header Row (sticky top, bg-surface-page) ────┐ │ │
+│  │  │ Column | Column | Column ...                   │ │ │
+│  │  └────────────────────────────────────────────────┘ │ │
+│  │  ┌─ Body ──────────────────────────────────────────┐ │
+│  │  │ Row | Row | Row ...                             │ │
+│  │  └─────────────────────────────────────────────────┘ │
+│  └─────────────────────────────────────────────────────┘ │
+│  ┌─ Pagination Bar ───────────────────────────────────┐ │
+│  │  Results meta | Rows-per-page | Prev/Next | Jumper │ │
+│  └────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+Row Density Modes:
+Table
+Mode	Padding	Usage
+Comfortable	16px vertical	Dashboards, detail sub-tables
+Compact	12px vertical	Standard lists (default)
+Dense	8px vertical	Ledger, inventory, high-volume scanning
+Column Alignment Rules:
+Text left: Names, descriptions, status
+Text right: Quantities, currency, IDs (when numeric comparison matters)
+Center: Badges, icons, boolean toggles
+Monospace: SKUs, lot numbers, barcodes, timestamps
+Row Interaction:
+Hover: bg-slate-50 (light) / bg-slate-800/50 (dark future)
+Clickable rows: cursor-pointer, hover indicator line (2px left border --color-brand)
+Selected row: bg-brand/5 + left border --color-brand
+Keyboard: role="row" with tabindex, Enter/Space to activate
+Pagination:
+Server-side first (replace client-side memory loading)
+Default 25 rows (unify admin/client divergence)
+Rows-per-page selector: 25, 50, 100
+Jumper input for large datasets (e.g., ledger)
+"Showing X–Y of Z results" in --text-caption
+Cards
+Purpose: Contain related information and actions. Universal container across both apps.
+Table
+Variant	Padding	Shadow	Usage
+Default	--space-card	--shadow-card	Standard content sections
+Flat	--space-card	None	Nested forms, filter panels
+Elevated	--space-card	--shadow-elevated	Modals, dropdowns, floating panels
+Interactive	--space-card	--shadow-card	Hover: shadow-elevated, translateY(-2px)
+Card Header Pattern:
+Title: --text-section-title
+Optional subtitle: --text-caption --color-text-secondary
+Actions: right-aligned, tertiary button style
+Border bottom if card contains table: 1px solid --color-border-default
+Badges
+Purpose: Instant status recognition at a glance. Critical for warehouse operational speed.
+Table
+Status	Background	Text	Border	Icon
+Draft	Slate-100	Slate-700	Slate-200	Circle dashed
+Confirmed	Blue-50	Blue-700	Blue-200	Check circle
+In Progress	Amber-50	Amber-700	Amber-200	Clock
+Complete / Shipped	Emerald-50	Emerald-700	Emerald-200	Check
+Cancelled	Rose-50	Rose-700	Rose-200	X circle
+Pending	Slate-50	Slate-600	Slate-200	Minus
+On Hold	Violet-50	Violet-700	Violet-200	Pause
+Rules:
+Pill shape (--radius-pill)
+text-caption uppercase, font-semibold, letter-spacing: 0.05em
+Always include an icon for accessibility and faster recognition
+Never use color alone (icon + text + background)
+Alerts & Banners
+Purpose: System-level feedback, error recovery, and contextual warnings.
+Table
+Severity	Background	Border	Icon	Usage
+Info	Blue-50	Blue-200	Info	Neutral context, tips
+Success	Emerald-50	Emerald-200	Check	Action completed
+Warning	Amber-50	Amber-200	Alert	Requires attention, not blocking
+Error	Rose-50	Rose-200	X	Blocking error, requires action
+Rules:
+Banners sit above page content, full width within main area
+Alerts inline within forms/cards
+Dismissible with X button (except blocking errors)
+Error banners include a "Retry" or "Contact support" action where applicable
+Toasts
+Purpose: Non-blocking confirmation of background actions (mutations, realtime updates).
+Table
+Type	Position	Duration	Animation
+Success	Top-right	4s	Slide in from right + fade
+Error	Top-right	Persistent until dismissed	Slide in + shake
+Info	Top-right	6s	Slide in
+Rules:
+Stacked with 8px gap, max 5 visible
+Realtime toast: "Inventory updated" with subtle pulse dot
+Mutation toast: "Order #1234 confirmed" with undo action (where API supports)
+Filters
+Purpose: Rapid dataset narrowing without cognitive overload.
+Filter Bar Pattern:
+Collapsible panel (default collapsed if >3 filters)
+Active filters shown as Chip Pills below bar
+Chip: Label + Value + X to remove
+"Apply" button (primary sm) + "Reset" (tertiary)
+Live vs Draft: Keep draft/apply pattern for complex multi-field filters, but add live search on text fields (debounced 300ms)
+Filter Inputs:
+Text: Instant debounced search
+Select: Native for <10 options, Combobox for >10
+Date range: Preset chips (Today, Last 7 days, This month) + custom picker
+Boolean: Toggle switch, not checkbox, for operator speed
+Modals & Drawers
+Purpose: Focused task completion without losing parent context.
+Modal:
+Centered, max-width 640px (standard), 960px (wide for tables)
+Backdrop: bg-slate-900/50 with blur-sm
+Enter animation: scale 0.95→1 + opacity
+Exit animation: reverse
+Focus trap: first focusable element on open, return on close
+Close: X button, backdrop click, Escape key
+Drawer (Mobile / Side Panel):
+Right side for forms, left side for navigation/filters
+Width: 100% mobile, 480px tablet, 640px desktop
+Swipe to dismiss on mobile
+Used for: Task execution side panel (future), filter panel on mobile, detail quick-view
+Tabs
+Purpose: Sub-navigation within detail pages and settings.
+Style:
+Horizontal list, border-bottom container
+Active tab: --color-brand bottom border (2px) + --color-brand text
+Inactive: --color-text-secondary
+Hover: --color-text-primary + subtle background
+Transition: border-color 150ms ease
+Rules:
+Max 6 tabs visible; overflow becomes dropdown on mobile
+Badges allowed on tabs for counts (e.g., "Lines (4)")
+Page Headers
+Purpose: Anchor every page with identity, context, and primary action.
+Structure:
+plain
+Copy
+┌─ Page Header (sticky optional) ─────────────────────────┐
+│  ┌─ Breadcrumbs ──────────────────────────────────────┐ │
+│  │  Home > Orders > Inbound > Order #1234             │ │
+│  └───────────────────────────────────────────────────┘ │
+│  Title (page-title) + Optional Subtitle/Status        │
+│  [Primary Action] [Secondary Action]                   │
+└─────────────────────────────────────────────────────────┘
+Rules:
+Breadcrumbs replace inline back links on all detail pages
+Primary action right-aligned, max 2 actions in header
+Sticky on scroll for long pages (task execution, ledger)
+Workflow Sections & Timeline
+Purpose: Visualize order and task lifecycle for operational clarity.
+Timeline System:
+Vertical line connecting steps
+Step states: Pending (hollow), Active (pulsing dot), Complete (check), Error (X)
+Step label: Task type + assignee + timestamp
+Connector line: --color-border-default pending, --color-brand complete
+Clickable steps navigate to task detail
+Workflow Card:
+Horizontal stepper for short flows (inbound: Confirm → Receive → Putaway)
+Vertical timeline for complex flows with sub-tasks
+Current step highlighted with --shadow-elevated card
+Navigation
+Sidebar (Admin):
+Collapsible icon rail (64px) + expandable section panel (240px)
+Section headers: --text-caption uppercase, muted
+Active item: --color-brand background pill, white text, left 3px indicator
+Hover: bg-slate-100 (light)
+Badge counts on task shortcuts ("Pick (12)")
+Collapse toggle at bottom
+Topbar (Client Portal):
+Sticky, 64px height, white, bottom border
+Brand left, language toggle center-right, user menu right
+Mobile: hamburger opens drawer overlay
+Breadcrumbs (New):
+Replace all inline back links
+Chevron-separated, clickable ancestors
+Current page non-clickable, --color-text-primary
+Truncate with ellipsis on mobile
+3.3 Animation & Motion Principles
+Enterprise Rule: Motion must be functional, not decorative. Operators need feedback, not entertainment.
+Table
+Pattern	Duration	Easing	Purpose
+Button hover	150ms	ease-out	Affordance
+Card hover lift	200ms	cubic-bezier(0.4, 0, 0.2, 1)	Depth cue
+Modal enter	200ms	cubic-bezier(0.16, 1, 0.3, 1)	Focus shift
+Modal exit	150ms	ease-in	Fast dismissal
+Toast slide	300ms	cubic-bezier(0.16, 1, 0.3, 1)	Attention without obstruction
+Table row hover	100ms	ease	Spatial tracking
+Skeleton shimmer	1.5s	linear infinite	Loading expectancy
+Realtime pulse	2s	ease-in-out infinite	Background update indicator
+Page transition	150ms	ease	Context switch (optional)
+3.4 Loading & Empty States
+Skeleton Loaders
+Usage: Initial page load, table data fetch, card content loading.
+Patterns:
+Table: 8 rows of gray blocks matching column widths. Header row solid, body rows shimmer.
+Card: Title bar (60% width), 3 lines of text (100%, 80%, 40% width), action bar.
+Stat cards: Square block + 2 lines.
+Detail page: Header block + metadata grid (6 blocks) + table skeleton.
+Rules:
+Shimmer animation: background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent) sliding across
+Never use skeleton for >3s without progress indication
+Replace skeleton with content simultaneously (no partial flicker)
+Empty States
+Structure:
+Icon (48px, muted color, relevant metaphor: box, clipboard, search)
+Title: --text-section-title "No inbound orders found"
+Description: --text-body --color-text-secondary Contextual explanation
+Action: Primary or secondary button to create/reset/change filters
+Contextual Empty States:
+Search no results: "Try adjusting filters" + "Clear all" button
+New account: "Welcome! Create your first product" + illustration
+Permission denied: "You don't have access" + contact admin link
+4. Progressive Refactor Strategy
+Core Principle: Layer-by-layer horizontal refactor. Each layer touches all pages simultaneously via shared components, avoiding the "half-old half-new" page problem.
+Step 0 — Design Token Foundation (Week 1)
+Goal: Establish the single source of truth before any UI changes.
+Actions:
+Expand shared/design-system/globals.css with full token set (colors, spacing, typography, shadows, radius)
+Update tailwind.preset.cjs to map all utilities to CSS variables
+Create shared/design-system/tokens.ts for JS/TS runtime access (badge colors, animation durations)
+Zero UI changes yet — only map existing values to new tokens
+Validation: Both apps compile. Visual output identical to before (tokens match current colors).
+Step 1 — Shared Primitives & DataTable System (Weeks 2–4)
+Goal: Unify the 70% of UI that is tables, filters, pagination, cards, and headers.
+Actions:
+1.1 Shared Component Package
+Create shared/ui-components/ (or publish as internal package) containing:
+Button (all variants, loading state, sizes)
+TextField, SelectField, Combobox (with async search)
+Card, CardHeader, CardContent
+Badge (unified status mapping)
+Modal, ConfirmModal, Drawer
+ToastProvider, useToast
+PageHeader (with breadcrumb slot)
+FilterBar, FilterChip, FilterActions
+EmptyState, Skeleton (table, card, text variants)
+Breadcrumb (new)
+Admin/Client Migration:
+Admin: Replace Button, TextField, Modal, ToastProvider, PageHeader, StatusBadge
+Client: Replace all inline styles and hand-rolled patterns with shared primitives
+1.2 Unified DataTable Architecture
+New DataTable Specification:
+Server-side pagination first (unify 20/25 divergence to 25)
+Density toggle (comfortable/compact/dense)
+Column visibility toggle (for responsive overflow)
+Sticky header + sticky first column (mobile optimization)
+Row selection (checkbox) for bulk actions
+Sort indicators (click header)
+Empty state and skeleton integration
+Keyboard navigation (arrow keys, enter to open)
+Implementation:
+Refactor admin DataTable to new spec
+Replace client hand-rolled tables with shared DataTable
+Update all list pages simultaneously: ProductsPage, InventoryPage, InboundListPage, OutboundListPage, TasksListPage, ClientProductsPage, ClientStockPage, ClientInboundOrdersPage, ClientOutboundOrdersPage
+1.3 Unified Pagination
+Component: Pagination (shared)
+Server-side integration: Update API hooks to pass limit/offset (or page/pageSize)
+Client-side fallback: Only for small datasets (<100 rows) where server pagination unavailable
+Step 2 — Layout Modernization (Weeks 5–6)
+Goal: Modernize the app shell without changing route logic or page composition.
+Actions:
+2.1 Admin Layout (Layout.tsx)
+Sidebar: Modern icon rail with tooltip on hover. Expandable section panel with accordion animation. Active state uses --color-brand pill. Add warehouse switcher dropdown at top if multi-warehouse.
+Topbar: Add global search (command palette pattern), realtime connection status indicator (green dot), user menu with avatar placeholder.
+Main area: Consistent p-6 page padding, max-width none (full width for tables), background --color-surface-page.
+Breadcrumbs: Replace all inline back links with Breadcrumb component in PageHeader.
+2.2 Client Portal Layout (PortalLayout.tsx)
+Topbar: Sticky, 64px, white, bottom border --color-border-default. Brand left, global search center (future), language toggle + user menu right.
+Sidebar: 240px width, same navigation structure, active state matches admin (--color-brand pill).
+Mobile: Drawer overlay with swipe-to-close, same styling as admin mobile nav.
+2.3 Page Shell Standardization
+Every protected route gets:
+tsx
+Copy
+<<PageShell>
+  <Breadcrumb items={[...]} />
+  <PageHeader title="..." actions={[...]} />
+  <FilterBar {...filters} />
+  <DataTable {...tableProps} />
+</PageShell>
+Migration: Update Layout.tsx and PortalLayout.tsx once. All pages inherit.
+Step 3 — Workflow Visualization Upgrade (Weeks 7–8)
+Goal: Make order and task lifetimes visually scannable for warehouse operators.
+Actions:
+3.1 WorkflowOrderTimeline Refactor
+Replace current implementation with vertical stepper using new design tokens
+States: Pending → Confirmed → In Progress → Complete (with error branches)
+Each step shows: Icon, task type, assignee avatar/initials, timestamp, link to task
+Current active step gets --shadow-elevated card treatment
+Realtime updates animate step completion (checkmark draw animation)
+3.2 Task Execution View Decomposition
+Break TaskExecutionView (~2,500 lines) into composed sub-components:
+TaskExecutionShell — Layout, header, worker assignment, lease controls
+TaskProgressPanel — Type-specific form (receive/putaway/pick/pack/dispatch)
+TaskActionBar — Complete, cancel, skip, retry buttons
+TaskContextPanel — Related order details, advanced JSON toggle
+BarcodeScanPanel — Shared across all task types
+Rules: No business logic change. Only UI decomposition. Each sub-component uses shared primitives.
+3.3 Inbound/Outbound Lifecycle Cards
+On detail pages (InboundDetailPage, OutboundDetailPage):
+Add lifecycle summary card at top: Order state + next action + responsible party
+Use timeline component for workflow history
+Highlight blocking issues (quantity shortfall, expired lots) with inline warning banners
+3.4 Dashboard Overview Upgrade
+Stat cards: Icon + big number + trend arrow + link
+Open tasks by type: Horizontal bar chart or progress segments instead of plain text
+Recent orders: Mini table with status badges and quick actions
+Capacity pie chart: Add legend labels, use --color-brand palette
+Step 4 — Enterprise SaaS Polish Layer (Weeks 9–10)
+Goal: Add motion, feedback, and resilience patterns.
+Actions:
+4.1 Motion System Implementation
+Apply animation tokens from Design System §3.3
+Button hover lifts, card transitions, modal enter/exit
+Table row hover indicator lines
+No page transition animations (operators need instant context switching)
+4.2 Skeleton & Loading States
+Replace all "Loading…" text with contextual skeletons
+Table skeleton: 8 rows matching column structure
+Detail page skeleton: Header + metadata grid + table
+Button loading: Spinner + maintained width
+4.3 Empty States
+Replace "No products found." plain text with full EmptyState component
+Contextual icons and actions per page type
+4.4 Realtime Feedback UX
+Toast on socket event: "Stock updated" with subtle pulse
+Table row flash: Brief highlight (bg-brand/10) on row update via realtime
+Connection status: Dot indicator in topbar (green=connected, amber=reconnecting, red=disconnected with retry button)
+4.5 Optimistic UI Patterns
+Order confirm: Button goes to loading state immediately, row status updates to "confirmed" before API response, reverts on error
+Task assignment: Worker name appears instantly in assignee column
+Filter apply: Table skeleton shows while fetching, but filter chips appear immediately
+4.6 Accessibility Pass
+All interactive table rows: role="button", tabindex="0", Enter/Space handlers
+Modal focus traps with focus-trap library or custom hook
+Color-blind safe status badges (icon + text + shape, never color alone)
+Language toggle updates lang and dir attributes; review all margin-left/right for logical properties (margin-inline-start)
+Step 5 — Client Portal Parity & Realtime Fix (Week 11)
+Goal: Bring client portal to visual and functional parity with admin standards.
+Actions:
+Replace all client inline styles with shared primitives
+Add StatusBadge to client order lists (currently raw text)
+Fix realtime invalidation: Expand client Socket.IO handlers to invalidate:
+['client', 'inbound-orders'] on order.inbound.*
+['client', 'outbound-orders'] on order.outbound.*
+['client', 'products'] on inventory.changed (if product catalog affected)
+Add empty states, skeletons, and pagination to all client lists
+Unify page shell with PageHeader + Breadcrumb
+5. Shared Component Architecture Plan
+5.1 Directory Structure
+plain
+Copy
+shared/
+├── design-system/
+│   ├── globals.css          # CSS variables (tokens)
+│   ├── tailwind.preset.cjs  # Tailwind mapping
+│   └── tokens.ts            # Runtime token access
+├── ui-components/           # React components (both apps)
+│   ├── primitives/
+│   │   ├── Button.tsx
+│   │   ├── TextField.tsx
+│   │   ├── SelectField.tsx
+│   │   ├── Combobox.tsx
+│   │   ├── Badge.tsx
+│   │   └── Icon.tsx
+│   ├── layout/
+│   │   ├── Card.tsx
+│   │   ├── PageHeader.tsx
+│   │   ├── Breadcrumb.tsx
+│   │   └── EmptyState.tsx
+│   ├── feedback/
+│   │   ├── ToastProvider.tsx
+│   │   ├── Alert.tsx
+│   │   ├── Banner.tsx
+│   │   └── Skeleton.tsx
+│   ├── data/
+│   │   ├── DataTable.tsx
+│   │   ├── Pagination.tsx
+│   │   ├── FilterBar.tsx
+│   │   └── FilterChip.tsx
+│   └── overlays/
+│       ├── Modal.tsx
+│       ├── ConfirmModal.tsx
+│       └── Drawer.tsx
+├── hooks/                   # Shared custom hooks
+│   ├── useToast.ts
+│   ├── useFilters.ts        # Enhanced with live search
+│   └── useMediaQuery.ts
+└── utils/
+    ├── formatDate.ts          # Unify date formatting
+    ├── formatQty.ts           # Decimal quantity strings
+    ├── statusMap.ts           # Unified status→badge mapping
+    └── classNames.ts          # cn() utility
+5.2 Component API Contracts
+Design Principle: Components are data-agnostic. They receive props, not fetch data.
+DataTable<T>
+tsx
+Copy
+interface DataTableProps<T> {
+  columns: ColumnDef<T>[];
+  data: T[];
+  rowKey: keyof T | ((row: T) => string);
+  loading?: boolean;
+  emptyState?: ReactNode;
+  pagination?: PaginationConfig; // server or client
+  density?: 'comfortable' | 'compact' | 'dense';
+  stickyHeader?: boolean;
+  stickyFirstColumn?: boolean;
+  selectable?: boolean;
+  selectedRows?: Set<string>;
+  onRowClick?: (row: T) => void;
+  onSelectionChange?: (keys: Set<string>) => void;
+  sortable?: boolean;
+  sortState?: SortState;
+  onSortChange?: (state: SortState) => void;
+}
+FilterBar
+tsx
+Copy
+interface FilterBarProps {
+  filters: FilterConfig[];
+  activeFilters: ActiveFilter[];
+  onApply: (filters: FilterValues) => void;
+  onReset: () => void;
+  onRemoveFilter: (key: string) => void;
+  liveSearch?: boolean; // debounced text fields
+  collapsed?: boolean;
+}
+PageHeader
+tsx
+Copy
+interface PageHeaderProps {
+  title: string;
+  subtitle?: string;
+  breadcrumbs?: BreadcrumbItem[];
+  status?: BadgeProps; // e.g., order status
+  actions?: ReactNode;
+  sticky?: boolean;
+}
+5.3 Shared Hook Architecture
+useFilters (Enhanced)
+Keep draft/applied pattern for complex filters
+Add liveSearch mode: text filters apply debounced without explicit Apply button
+Add presets support: "Today", "This week", "My tasks"
+useToast (Unified)
+Both apps use same ToastProvider
+Client portal currently lacks toast system; this adds it
+useRealtimeIndicator
+Returns connection status: connected | connecting | disconnected
+Auto-retry countdown display
+Use in topbar status dot
+6. Layout Modernization Plan
+6.1 Admin Dashboard Layout
+Current: Fixed left sidebar (icon rail + nested panel) + main content. No topbar. Brand in sidebar footer.
+New:
+plain
+Copy
+┌─ App Shell ─────────────────────────────────────────────┐
+│  ┌─ Topbar (64px, sticky) ────────────────────────────┐ │
+│  │  [Logo] [Global Search] [Warehouse Switcher]       │ │
+│  │  [Connection Status] [Lang] [User Menu]            │ │
+│  └────────────────────────────────────────────────────┘ │
+│  ┌─ Sidebar (240px, collapsible to 64px rail) ───────┐ │
+│  │  Section: Dashboard                                  │ │
+│  │    → Overview                                        │ │
+│  │  Section: Orders (expanded)                          │ │
+│  │    → Inbound ● (active)                              │ │
+│  │    → Outbound                                        │ │
+│  │  Section: Tasks                                      │ │
+│  │    → All Tasks (12)  ← count badge                   │ │
+│  │    → Pick (4)                                       │ │
+│  │    → Pack (3)                                       │ │
+│  └──────────────────────────────────────────────────────┘ │
+│  ┌─ Main Content (flex-1, scrollable) ────────────────┐ │
+│  │  ┌─ Breadcrumb ─────────────────────────────────────┐ │
+│  │  │  Home > Orders > Inbound                         │ │
+│  │  └─────────────────────────────────────────────────┘ │
+│  │  ┌─ Page Header ────────────────────────────────────┐ │
+│  │  │  Inbound Orders              [+ New Inbound]    │ │
+│  │  └─────────────────────────────────────────────────┘ │
+│  │  ┌─ Card ───────────────────────────────────────────┐ │
+│  │  │  [FilterBar]                                     │ │
+│  │  │  [DataTable]                                     │ │
+│  │  └─────────────────────────────────────────────────┘ │
+│  └──────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────┘
+Key Changes:
+Topbar addition: Global command search (Ctrl+K), warehouse switcher, connection status, user avatar
+Sidebar: Collapsible to icon rail (64px) with tooltips. Hover-expand optional.
+Breadcrumbs: Global component, replaces all inline back links
+PageHeader: Sticky optional, standardized actions slot
+Main padding: p-6 consistent, background --color-surface-page
+6.2 Client Portal Layout
+Current: Topbar + sidebar (220px) + main scrollable.
+New:
+Match admin topbar height (64px)
+Sidebar width 240px (unify with admin)
+Active link: --color-brand pill (unify with admin)
+Add breadcrumbs to detail pages
+Mobile drawer: Same interaction model as admin
+6.3 Responsive Behavior
+Table
+Breakpoint	Layout Change
+Desktop (>1280px)	Full sidebar expanded, 3-column metadata grids, all table columns visible
+Tablet (768–1280px)	Sidebar collapses to rail, table column toggle appears, metadata 2-column
+Mobile (<768px)	Sidebar hidden (hamburger), topbar condensed, tables scroll horizontally with sticky first column, filters in drawer
+6.4 Table Responsiveness Strategy
+Problem: Horizontal scroll on dense tables is unavoidable for enterprise data, but can be managed.
+Solutions:
+Column Priority System: Mark columns as primary (always visible), secondary (hidden on tablet), tertiary (hidden on mobile). Primary = ID, Status, Key quantity. Tertiary = timestamps, metadata.
+Sticky First Column: Order # / SKU stays visible while scrolling horizontally.
+Card Flip (Mobile extreme): On <480px, optional card view instead of table (future enhancement, not required for refactor).
+Density Auto-Reduce: Switch to dense mode automatically on mobile.
+7. Workflow Visualization Upgrade Plan
+7.1 Order Lifecycle Visualization
+Current: WorkflowOrderTimeline loads workflow by reference. Steps shown as basic list.
+Upgrade:
+Visual Design
+Vertical stepper for detail pages
+Horizontal stepper for list page quick-preview (future)
+Each step is a card:
+Icon (left): 40px circle with status icon
+Content (right): Task type label, assignee name + avatar placeholder, timestamp, duration
+Connector: 2px line between steps, colored if completed
+States
+Table
+State	Visual
+Pending	Gray hollow circle, gray text, dimmed card
+Ready / Runnable	--color-brand solid circle, pulsing ring animation, elevated card
+In Progress	--color-accent-amber solid circle, spinner icon, highlighted card
+Complete	--color-accent-emerald check circle, solid connector line to next
+Blocked	--color-accent-rose X circle, error message inline, dashed connector
+Skipped	Gray strikethrough, "Skipped" badge
+Interactions
+Click step → Navigate to task detail (/tasks/:id)
+Hover step → Tooltip with full timestamp and worker notes
+Realtime update → Step animates from current to complete, next step pulses
+7.2 Task Execution View Decomposition
+Architecture:
+plain
+Copy
+TaskExecutionShell
+├── TaskHeader (type, status, reference link)
+├── WorkerAssignmentPanel (combobox, lease controls)
+├── TaskContextPanel (order summary, collapsible)
+├── TaskProgressPanel (type-specific via matrix)
+│   ├── ReceiveProgressForm
+│   ├── PutawayProgressForm
+│   ├── PickProgressForm
+│   ├── PackProgressForm
+│   └── DispatchProgressForm
+├── TaskActionPanel (complete, cancel, skip, retry)
+├── BarcodeScanPanel (shared overlay)
+└── AdvancedJsonPanel (collapsible, conditional)
+Rules:
+Each form component receives task and onProgressChange props
+No internal API calls in sub-components (parent handles all mutations)
+TaskExecutionShell manages useBlocker and dirty state
+All use shared TextField, Combobox, Button, Badge
+7.3 Task List Enhancements
+Current: TasksListPage shows type, status, reference, assignee, priority, dates.
+Upgrade:
+Add progress bar column for in-progress tasks (e.g., "3 of 5 lines received")
+Priority: Icon + color (not just text). Urgent = red dot + flag.
+Assignee: Avatar circle with initials (fallback to full name)
+Type icon: Receive (arrow-in), Putaway (arrow-down-to-line), Pick (shopping-cart), Pack (box), Dispatch (truck)
+7.4 Dashboard Workflow Summary
+Current: Open tasks by type shown as text counts.
+Upgrade:
+Task type cards: Icon + count + "Start" action button. Clicking starts the next available task.
+Capacity chart: Add color-coded zones (green <70%, amber 70-90%, red >90%). Tooltip on hover with exact numbers.
+Expiry alert table: Red/amber row highlighting for soon-expiry lots. Add "View" action.
+8. Enterprise SaaS Polish Layer
+8.1 Motion & Micro-Interactions
+Table
+Element	Trigger	Effect	Duration
+Button primary	Hover	translateY(-1px), shadow increase	150ms
+Button primary	Active/Click	translateY(0), shadow decrease	100ms
+Card	Hover	translateY(-2px), shadow-elevated	200ms
+Table row	Hover	Left border accent appears, bg subtle	100ms
+Table row	Realtime update	Brief bg-brand/10 flash	800ms
+Modal	Open	Scale 0.95→1, backdrop fade	200ms
+Toast	Enter	Slide from right, opacity 0→1	300ms
+Toast	Exit	Fade + slide right	200ms
+Badge status change	Update	Scale pulse 1→1.1→1	300ms
+Filter chip	Add	Scale 0→1, fade	150ms
+Filter chip	Remove	Fade + shrink	150ms
+Skeleton	Loading	Shimmer slide	1.5s loop
+Stepper step	Complete	Checkmark SVG draw	400ms
+Stepper step	Active	Pulse ring infinite	2s loop
+Performance Rule: All animations use transform and opacity only. No width, height, margin, or top animations to prevent layout thrashing.
+8.2 Loading UX Patterns
+Initial Load
+Page shell renders immediately (sidebar, header)
+Content area shows contextual skeleton
+After 1s delay, show skeleton if still loading (prevents flash)
+Table Refresh
+Keep existing table rows visible with opacity: 0.5 overlay
+Show subtle spinner in header
+Replace rows only when new data arrives (prevents blank flash)
+Mutation Feedback
+Button enters loading state immediately
+Optimistic update on UI where safe
+Toast confirmation on success
+Error reverts optimistic update, shows banner
+8.3 Empty State Patterns
+Table
+Context	Icon	Title	Description	Action
+No orders	Clipboard	No inbound orders	Create your first inbound order to start receiving	+ New Inbound
+No products	Package	No products	Add products to your catalog	+ New Product
+No search results	Search	No matches	Try adjusting your filters or search terms	Clear Filters
+No tasks	CheckCircle	All caught up	No pending tasks in this queue	Refresh
+No stock	Box	No inventory	This location has no stock recorded	Transfer Stock
+Access denied	Lock	Access denied	You don't have permission to view this page	Contact Admin
+Error	AlertTriangle	Something went wrong	We couldn't load this data	Retry
+8.4 Realtime Visibility
+Connection Status Indicator (Topbar):
+Green dot: Connected
+Amber dot + spinner: Reconnecting
+Red dot: Disconnected + "Reconnect" button + "Working offline" banner
+Data Update Feedback:
+Table row flash on socket invalidation (brief highlight)
+Toast: "3 inventory items updated" (collapsible, auto-dismiss 4s)
+Stat card pulse on dashboard update
+Order detail badge updates with scale animation when status changes via socket
+8.5 Optimistic UI Guidelines
+Safe Optimistic Patterns:
+Status changes: Update badge immediately, revert on error
+Assignment: Show worker name immediately in assignee field
+Filter application: Show filter chips immediately, table updates after fetch
+Toggle switches: Flip immediately, sync in background
+Unsafe (Avoid):
+Quantities: Never optimistic-update inventory quantities (risk of negative stock display)
+Deletions: Never remove row until confirmed (accidental data loss)
+Financial values: Always server-confirm
+8.6 Accessibility Polish
+Focus rings: All interactive elements get ring-2 ring-brand ring-offset-2 on focus
+Keyboard shortcuts: ? key opens shortcuts modal (future), Ctrl+K global search
+Screen reader: Table row actions announced as "Row 1, Inbound Order 1234, status confirmed, clickable"
+Color contrast: All text meets WCAG AA (4.5:1). Badges meet AA against background.
+Motion respect: prefers-reduced-motion disables all animations except opacity fades
+9. Refactor Priorities Roadmap
+Phase 1: Foundation (Weeks 1–2) — CRITICAL
+Table
+Priority	Task	Impact	Effort
+P0	Design tokens in shared/design-system/	Unifies both apps	Low
+P0	Shared Button, Badge, Card primitives	Immediate visual consistency	Low
+P0	Server-side pagination + unified DataTable	Performance + UX parity	High
+P1	Shared PageHeader + Breadcrumb	Navigation clarity	Medium
+P1	Client portal StatusBadge integration	Scanability fix	Low
+Deliverable: Both apps compile. Tables render with new system. No visual regressions on untouched pages.
+Phase 2: Layout & Shell (Weeks 3–4) — HIGH
+Table
+Priority	Task	Impact	Effort
+P0	Admin Layout.tsx modernization (topbar, sidebar, warehouse switcher)	Operational efficiency	Medium
+P0	Client PortalLayout.tsx parity	Brand trust	Medium
+P1	Remove all inline styles from client detail pages	Maintainability	Medium
+P1	Sticky filters + sticky table headers	Workflow speed	Low
+P2	Responsive column priority system	Mobile usability	Medium
+Deliverable: Both apps have modern shells. Breadcrumbs on all detail pages.
+Phase 3: Data & Feedback (Weeks 5–6) — HIGH
+Table
+Priority	Task	Impact	Effort
+P0	Skeleton loaders on all list + detail pages	Perceived performance	Medium
+P0	Empty states on all tables	Operator guidance	Low
+P1	Toast system in client portal	Feedback parity	Low
+P1	Unified FilterBar with live search	Operator speed	Medium
+P2	Realtime connection indicator	Trust + debugging	Low
+Deliverable: No plain-text loading states remain. All tables have empty states.
+Phase 4: Workflow & Tasks (Weeks 7–8) — MEDIUM-HIGH
+Table
+Priority	Task	Impact	Effort
+P0	WorkflowOrderTimeline visual upgrade	Operational clarity	High
+P0	Decompose TaskExecutionView	Maintainability, testability	High
+P1	Task list enhancements (icons, progress, avatars)	Scanability	Medium
+P1	Dashboard overview upgrade	Landing page value	Medium
+P2	Task execution mobile responsiveness	Handheld usability	Medium
+Deliverable: Task execution is composable. Workflow timelines are scannable.
+Phase 5: Polish & Parity (Weeks 9–10) — MEDIUM
+Table
+Priority	Task	Impact	Effort
+P0	Client portal realtime invalidation fix	Data accuracy	Low
+P1	Motion system implementation	Enterprise SaaS feel	Medium
+P1	Optimistic UI on safe mutations	Speed perception	Medium
+P2	Accessibility audit + keyboard pass	Compliance	Medium
+P2	Dark mode token readiness (not full implementation)	Future-proofing	Low
+Deliverable: Client portal realtime works correctly. Animations applied. Accessibility baseline met.
+Phase 6: Cleanup & Orphans (Week 11) — LOW
+Table
+Priority	Task	Impact	Effort
+P1	Register or remove WarehousesPage orphan	Dead code elimination	Low
+P1	Route-level guard for /users	Security UX	Low
+P2	i18n extraction tooling setup	Translation maintenance	Medium
+P2	Playwright e2e critical paths	Regression safety	High
+10. Implementation Guardrails
+10.1 Must Preserve (Backend Compatibility)
+[ ] REST envelope shape: { success: true, data: T }
+[ ] JWT bearer in Authorization header
+[ ] Admin: optional X-Company-Id header for dev/single-tenant
+[ ] Client: company scoping server-side (no client-sent company ID)
+[ ] Socket.IO path /realtime with auth: { token, companyId }
+[ ] Event names: order.inbound.*, order.outbound.*, task.updated, inventory.changed
+[ ] Task execution API contracts (/tasks/:id/progress, /complete, lease endpoints)
+[ ] Workflow timeline API GET /workflows/references/:type/:id
+[ ] Ledger drill-down routes (reference type/id + entry id + createdAt)
+[ ] Inbound confirm body shape when task-only (warehouseId, stagingByLineId)
+[ ] Decimal quantities as strings in JSON
+[ ] All 23 admin routes + 8 client routes preserved
+[ ] Legacy redirects preserved or documented
+10.2 Must Not Change
+Route definitions and URL structures
+API module function signatures (internal refactoring OK, external contracts frozen)
+TanStack Query key prefixes (can enhance, not rename existing cached data)
+WebSocket event constants and handler logic (can expand invalidation scope, not change events)
+Task execution business logic and state machines
+Auth flow: sessionStorage keys, login/logout/me endpoints
+Role strings: ADMIN, OPERATOR, client_admin, client_staff
+10.3 Migration Safety Rules
+Feature flags: Use VITE_UI_V2 env flag to toggle between old and new components during transition. Allows rollback per page if issues arise.
+Component shadowing: Create new shared components alongside old ones. Migrate pages in batches, not individually.
+No page-by-page rewrites: If a page uses new DataTable, it must also use new PageHeader, FilterBar, and Card to avoid visual fragmentation.
+Commit granularity: One layer per PR (tokens PR, DataTable PR, Layout PR, Workflow PR, Polish PR).
+Testing gate: Each phase requires visual regression check on: Login → Dashboard → Inbound List → Inbound Detail → Task Execution → Client Stock.
+10.4 Success Metrics
+Table
+Metric	Baseline	Target
+Table render performance (1000 rows)	Client-side load, ~2s	Server-side paginated, <300ms
+Visual primary color count	3 greens + 1 blue	1 brand teal
+Shared components (both apps)	18 admin, 1 client	35+ shared
+Inline style instances	~40+	0
+Loading text instances	~20+	0 (all skeletons)
+Client realtime stale pages	4 (orders, products)	0
+Accessibility keyboard nav	Partial	Full table/modal coverage
+End of Blueprint
+This document is a living specification. As implementation progresses, update component APIs and token values in shared/design-system/ and propagate to both applications. Do not begin page-level changes until shared primitives and tokens are stable.

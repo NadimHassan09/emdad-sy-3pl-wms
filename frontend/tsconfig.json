@@ -18,7 +18,15 @@
     "noFallthroughCasesInSwitch": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "paths": {
+      "@ds": ["../shared/design-system/ui/index.ts"],
+      "@ds/*": ["../shared/design-system/ui/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/client": ["./node_modules/@types/react-dom/client"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "../shared/design-system/ui/**/*.ts", "../shared/design-system/ui/**/*.tsx"]
 }

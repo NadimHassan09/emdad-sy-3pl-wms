@@ -34,8 +34,12 @@ apiClient.interceptors.response.use(
     }
     return response;
   },
-  (error: AxiosError) => {
+  (error: AxiosError<{ success?: false; error?: { message?: string } }>) => {
     const status = error.response?.status;
+    const apiMessage = error.response?.data?.error?.message;
+    if (apiMessage) {
+      return Promise.reject(new Error(apiMessage));
+    }
     const url = String(error.config?.url ?? '');
     const isLoginAttempt = url.includes('/auth/login');
     const authHeader = error.config?.headers?.Authorization;

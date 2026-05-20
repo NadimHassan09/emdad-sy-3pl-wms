@@ -1,34 +1,60 @@
-import { useEffect, useState, type ReactElement } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+/**
+ * Client Portal Layout — premium shell (matches admin reference design).
+ */
+
+import { Suspense, useEffect, useState, type ReactElement } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '../auth/AuthContext';
+import { clientNavForRole } from '../lib/rbac';
+import { SectionSubNavCard } from './SectionSubNavCard';
+import {
+  AppShell,
+  MobileSidebarOverlay,
+  PageLoadFallback,
+  Sidebar,
+  SidebarLink,
+  SidebarNav,
+  Topbar,
+  TopbarMobileMenuButton,
+  TopbarNotifications,
+  TopbarUserMenu,
+  type TopbarNotificationItem,
+} from '@ds';
+import { useClientNotifications } from '../hooks/useClientNotifications';
+import { clientNotificationHref } from '../services/clientNotificationsService';
 
-function navLinkClass({ isActive }: { isActive: boolean }): string {
-  return 'sidebar__link' + (isActive ? ' sidebar__link--active' : '');
+interface NavItem {
+  label: string;
+  labelAr: string;
+  to: string;
+  exact?: boolean;
 }
 
 export function PortalLayout(): ReactElement {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { pathname } = useLocation();
-  const [navOpen, setNavOpen] = useState(false);
+
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [language, setLanguage] = useState<'EN' | 'AR'>(() => {
     const saved = typeof window !== 'undefined' ? window.localStorage.getItem('client-ui-language') : null;
     return saved === 'AR' ? 'AR' : 'EN';
   });
 
+  const isArabic = language === 'AR';
+
   useEffect(() => {
-    const isArabicUi = language === 'AR';
-    document.documentElement.dir = isArabicUi ? 'rtl' : 'ltr';
+    document.documentElement.dir = isArabic ? 'rtl' : 'ltr';
     document.documentElement.lang = 'en';
     window.localStorage.setItem('client-ui-language', language);
     window.dispatchEvent(new CustomEvent('client-ui-language-changed', { detail: { language } }));
-  }, [language]);
+  }, [language, isArabic]);
 
   useEffect(() => {
-    setNavOpen(false);
+    setMobileNavOpen(false);
   }, [pathname]);
 
   async function onLogout(): Promise<void> {
@@ -37,83 +63,121 @@ export function PortalLayout(): ReactElement {
     navigate('/login', { replace: true });
   }
 
-  const sidebarNav = (
-    <nav className="sidebar__nav">
-      <NavLink className={navLinkClass} to="/" end>
-        Home
-      </NavLink>
-      <NavLink className={navLinkClass} to="/products">
-        Products
-      </NavLink>
-      <NavLink className={navLinkClass} to="/inbound-orders">
-        Inbound
-      </NavLink>
-      <NavLink className={navLinkClass} to="/outbound-orders">
-        Outbound
-      </NavLink>
-      <NavLink className={navLinkClass} to="/stock">
-        Stock
-      </NavLink>
-    </nav>
+  function isActive(item: NavItem): boolean {
+    if (item.exact) return pathname === item.to;
+    return pathname.startsWith(item.to);
+  }
+
+  const navItems = clientNavForRole(user?.role);
+
+  const navContent = (
+    <SidebarNav>
+      {navItems.map((item) => (
+        <SidebarLink
+          key={item.to}
+          href={item.to}
+          isActive={isActive(item)}
+          onClick={(e) => {
+            e.preventDefault();
+            navigate(item.to);
+          }}
+        >
+          {isArabic ? item.labelAr : item.label}
+        </SidebarLink>
+      ))}
+    </SidebarNav>
   );
 
+  const displayName = (user as { fullName?: string; email?: string } | null)?.fullName
+    || (user as { fullName?: string; email?: string } | null)?.email
+    || 'Account';
+
+  const portalTitle = isArabic ? 'بوابة العميل' : 'Client Portal';
+
+  const notifications = useClientNotifications();
+
+  function formatNotificationTime(iso: string): string {
+    const diff = Date.now() - new Date(iso).getTime();
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 1) return isArabic ? 'الآن' : 'Just now';
+    if (mins < 60) return isArabic ? `منذ ${mins} د` : `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return isArabic ? `منذ ${hours} س` : `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return isArabic ? `منذ ${days} ي` : `${days}d ago`;
+    return new Date(iso).toLocaleDateString();
+  }
+
+  async function onNotificationClick(item: TopbarNotificationItem): Promise<void> {
+    if (!item.isRead) {
+      await notifications.markRead(item.id);
+    }
+    const full = notifications.items.find((n) => n.id === item.id);
+    const href = full ? clientNotificationHref(full) : undefined;
+    if (href) navigate(href);
+  }
+
   return (
-    <div key={language} className="page page--app">
-      <header className="topbar topbar--app">
-        <div className="topbar__lead">
-          <button
-            type="button"
-            className="topbar__menu-button"
-            aria-label="Open menu"
-            onClick={() => setNavOpen(true)}
-          >
-            <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M3 5h14M3 10h14M3 15h14" strokeLinecap="round" />
-            </svg>
-          </button>
-          <span className="topbar__brand">Client portal</span>
-        </div>
-        <div className="topbar__actions">
-          <label className="topbar__lang">
-            <span className="topbar__lang-label">Language</span>
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value === 'AR' ? 'AR' : 'EN')}
-              aria-label="Language direction selector"
-              className="topbar__lang-select"
-            >
-              <option value="EN">EN</option>
-              <option value="AR">AR</option>
-            </select>
-          </label>
-          <button className="btn btn--ghost" type="button" onClick={() => void onLogout()}>
-            Sign out
-          </button>
-        </div>
-      </header>
-      <div className="app-shell">
-        <aside className="sidebar sidebar--desktop" aria-label="Main">
-          {sidebarNav}
-        </aside>
+    <div key={language} className="h-dvh max-h-dvh overflow-hidden">
+      <AppShell>
+        <AppShell.SkipNav />
 
-        {navOpen ? (
-          <div className="sidebar-overlay" role="dialog" aria-modal="true">
-            <button
-              type="button"
-              className="sidebar-overlay__backdrop"
-              aria-label="Close menu"
-              onClick={() => setNavOpen(false)}
-            />
-            <aside className="sidebar sidebar--mobile" aria-label="Main">
-              {sidebarNav}
-            </aside>
-          </div>
-        ) : null}
+        <AppShell.Body>
+          <Sidebar>{navContent}</Sidebar>
 
-        <section className="app-main">
-          <Outlet />
-        </section>
-      </div>
+          <MobileSidebarOverlay open={mobileNavOpen} onClose={() => setMobileNavOpen(false)}>
+            {navContent}
+          </MobileSidebarOverlay>
+
+          <AppShell.Column>
+            <Topbar>
+              <Topbar.Start>
+                <TopbarMobileMenuButton onClick={() => setMobileNavOpen(true)} />
+                <h1
+                  className="text-lg sm:text-xl font-semibold tracking-tight truncate"
+                  style={{ color: 'var(--sidebar-text)' }}
+                >
+                  {portalTitle}
+                </h1>
+              </Topbar.Start>
+
+              <Topbar.End>
+                {user && (
+                  <>
+                    <TopbarNotifications
+                      items={notifications.items}
+                      unreadCount={notifications.unreadCount}
+                      loading={notifications.isLoading}
+                      title={isArabic ? 'الإشعارات' : 'Notifications'}
+                      emptyLabel={isArabic ? 'لا توجد إشعارات' : 'No notifications yet'}
+                      markAllReadLabel={isArabic ? 'تعليم الكل كمقروء' : 'Mark all read'}
+                      formatTime={formatNotificationTime}
+                      onMarkAllRead={() => void notifications.markAllRead()}
+                      onItemClick={(item) => void onNotificationClick(item)}
+                    />
+                    <TopbarUserMenu
+                    name={displayName}
+                    connected
+                    language={language}
+                    onLanguageChange={setLanguage}
+                    onSignOut={() => void onLogout()}
+                    signOutLabel={isArabic ? 'تسجيل الخروج' : 'Sign out'}
+                    languageLabel={isArabic ? 'اللغة' : 'Language'}
+                  />
+                  </>
+                )}
+              </Topbar.End>
+            </Topbar>
+
+            <AppShell.Main>
+              <SectionSubNavCard isArabic={isArabic} />
+              <Suspense fallback={<PageLoadFallback />}>
+                <Outlet />
+              </Suspense>
+            </AppShell.Main>
+          </AppShell.Column>
+        </AppShell.Body>
+      </AppShell>
     </div>
   );
 }

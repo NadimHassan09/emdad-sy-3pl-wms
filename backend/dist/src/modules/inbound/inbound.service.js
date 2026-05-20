@@ -13,15 +13,19 @@ exports.InboundService = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const client_1 = require("@prisma/client");
+const company_read_scope_1 = require("../../common/auth/company-read-scope");
 const warehouse_order_scope_1 = require("../../common/utils/warehouse-order-scope");
 const storage_location_types_1 = require("../../common/constants/storage-location-types");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
+const order_planning_date_1 = require("../../common/utils/order-planning-date");
 const location_operational_1 = require("../../common/utils/location-operational");
 const identifiers_1 = require("../../common/generators/identifiers");
 const assert_product_orderable_1 = require("../../common/utils/assert-product-orderable");
+const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantity");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const stock_helpers_1 = require("../inventory/stock.helpers");
 const feature_flags_1 = require("../warehouse-workflow/feature-flags");
+const notifications_service_1 = require("../notifications/notifications.service");
 const realtime_service_1 = require("../realtime/realtime.service");
 const workflow_bootstrap_service_1 = require("../warehouse-workflow/workflow-bootstrap.service");
 const ORDER_INCLUDE = {
@@ -45,20 +49,29 @@ const ORDER_INCLUDE = {
     },
 };
 const FULL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const INBOUND_CONFIRMABLE = [
+    client_1.InboundOrderStatus.draft,
+    client_1.InboundOrderStatus.pending_approval,
+];
+function isInboundConfirmable(status) {
+    return INBOUND_CONFIRMABLE.includes(status);
+}
 let InboundService = class InboundService {
     prisma;
     stock;
     config;
     workflowBootstrap;
     realtime;
-    constructor(prisma, stock, config, workflowBootstrap, realtime) {
+    notifications;
+    constructor(prisma, stock, config, workflowBootstrap, realtime, notifications) {
         this.prisma = prisma;
         this.stock = stock;
         this.config = config;
         this.workflowBootstrap = workflowBootstrap;
         this.realtime = realtime;
+        this.notifications = notifications;
     }
-    async create(user, dto) {
+    async create(user, dto, opts) {
         const companyId = dto.companyId ?? user.companyId;
         if (!companyId) {
             throw new common_1.BadRequestException('companyId is required (no default company on current user).');
@@ -66,7 +79,7 @@ let InboundService = class InboundService {
         const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
         const products = await this.prisma.product.findMany({
             where: { id: { in: productIds } },
-            select: { id: true, companyId: true, status: true, trackingType: true },
+            select: { id: true, companyId: true, status: true, trackingType: true, uom: true },
         });
         if (products.length !== productIds.length) {
             throw new common_1.NotFoundException('One or more products not found.');
@@ -78,11 +91,13 @@ let InboundService = class InboundService {
         for (const p of products) {
             (0, assert_product_orderable_1.assertProductOrderableForOrders)(p.status);
         }
+        (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(dto.expectedArrivalDate, 'Expected arrival date');
         const productById = new Map(products.map((p) => [p.id, p]));
         const lineCreates = [];
         for (let idx = 0; idx < dto.lines.length; idx++) {
             const l = dto.lines[idx];
             const p = productById.get(l.productId);
+            (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(p.uom, l.expectedQuantity, 'Expected quantity');
             let expectedLotNumber = l.expectedLotNumber?.trim() ?? null;
             if (p.trackingType === 'lot') {
                 if (!expectedLotNumber) {
@@ -103,6 +118,7 @@ let InboundService = class InboundService {
         const order = await this.prisma.inboundOrder.create({
             data: {
                 companyId,
+                status: opts?.pendingClientApproval ? client_1.InboundOrderStatus.pending_approval : undefined,
                 expectedArrivalDate: new Date(dto.expectedArrivalDate),
                 clientReference: dto.clientReference,
                 notes: dto.notes,
@@ -117,12 +133,21 @@ let InboundService = class InboundService {
             orderId: order.id,
             status: order.status,
         });
+        if (opts?.pendingClientApproval) {
+            await this.notifications.notifyAdminsPendingApproval({
+                companyId: order.companyId,
+                companyName: order.company.name,
+                orderType: 'inbound',
+                orderId: order.id,
+                orderNumber: order.orderNumber,
+            });
+        }
         return order;
     }
     async list(user, query) {
         const baseAnd = [];
         const where = {};
-        const companyId = query.companyId ?? user.companyId ?? undefined;
+        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(user, query.companyId);
         if (companyId)
             where.companyId = companyId;
         if (query.status)
@@ -180,11 +205,15 @@ let InboundService = class InboundService {
     }
     async confirm(user, id, body) {
         const order = await this.findById(id);
+        const wasPendingApproval = order.status === client_1.InboundOrderStatus.pending_approval;
         for (const line of order.lines) {
             (0, assert_product_orderable_1.assertProductOrderableForOrders)(line.product.status);
         }
-        if (order.status !== 'draft') {
-            throw new domain_exceptions_1.InvalidStateException(`Only draft orders can be confirmed (current status: ${order.status}).`);
+        if (!isInboundConfirmable(order.status)) {
+            throw new domain_exceptions_1.InvalidStateException(`Only draft or pending-approval orders can be confirmed (current status: ${order.status}).`);
+        }
+        if (order.lines.length === 0) {
+            throw new common_1.BadRequestException('Add at least one line before confirming this order.');
         }
         if ((0, feature_flags_1.taskOnlyFlows)(this.config)) {
             if (!body?.warehouseId || !body.stagingByLineId) {
@@ -198,8 +227,8 @@ let InboundService = class InboundService {
                 if (user.companyId && cur.companyId !== user.companyId) {
                     throw new common_1.NotFoundException('Inbound order not found.');
                 }
-                if (cur.status !== 'draft') {
-                    throw new domain_exceptions_1.InvalidStateException(`Only draft orders can be confirmed (current status: ${cur.status}).`);
+                if (!isInboundConfirmable(cur.status)) {
+                    throw new domain_exceptions_1.InvalidStateException(`Only draft or pending-approval orders can be confirmed (current status: ${cur.status}).`);
                 }
                 await tx.inboundOrder.update({
                     where: { id },
@@ -213,6 +242,15 @@ let InboundService = class InboundService {
                 status: updated.status,
                 reason: 'confirm',
             });
+            if (wasPendingApproval) {
+                await this.notifications.notifyClientOrderConfirmed({
+                    companyId: updated.companyId,
+                    orderType: 'inbound',
+                    orderId: updated.id,
+                    orderNumber: updated.orderNumber,
+                });
+                await this.notifications.dismissPendingAdminNotifications('inbound_order', updated.id);
+            }
             return updated;
         }
         await this.prisma.inboundOrder.update({
@@ -225,12 +263,21 @@ let InboundService = class InboundService {
             status: confirmed.status,
             reason: 'confirm',
         });
+        if (wasPendingApproval) {
+            await this.notifications.notifyClientOrderConfirmed({
+                companyId: confirmed.companyId,
+                orderType: 'inbound',
+                orderId: confirmed.id,
+                orderNumber: confirmed.orderNumber,
+            });
+            await this.notifications.dismissPendingAdminNotifications('inbound_order', confirmed.id);
+        }
         return confirmed;
     }
     async cancel(id, user) {
         const order = await this.findById(id);
-        if (!['draft', 'confirmed'].includes(order.status)) {
-            throw new domain_exceptions_1.InvalidStateException(`Inbound orders can only be cancelled while in draft/confirmed (current: ${order.status}).`);
+        if (!['draft', 'pending_approval', 'confirmed'].includes(order.status)) {
+            throw new domain_exceptions_1.InvalidStateException(`Inbound orders can only be cancelled while in draft, pending approval, or confirmed (current: ${order.status}).`);
         }
         const cancelled = await this.prisma.inboundOrder.update({
             where: { id },
@@ -262,13 +309,22 @@ let InboundService = class InboundService {
             const line = await tx.inboundOrderLine.findUnique({
                 where: { id: lineId },
                 include: {
-                    product: { select: { id: true, status: true, trackingType: true, expiryTracking: true } },
+                    product: {
+                        select: {
+                            id: true,
+                            status: true,
+                            trackingType: true,
+                            expiryTracking: true,
+                            uom: true,
+                        },
+                    },
                 },
             });
             if (!line || line.inboundOrderId !== orderId) {
                 throw new common_1.NotFoundException('Inbound line not found on this order.');
             }
             (0, assert_product_orderable_1.assertProductOrderableForOrders)(line.product.status);
+            (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(line.product.uom, dto.quantity, 'Receive quantity');
             const location = await tx.location.findUnique({
                 where: { id: dto.locationId },
                 select: { id: true, warehouseId: true, type: true, status: true },
@@ -333,6 +389,12 @@ let InboundService = class InboundService {
                 });
                 if (existing) {
                     lotId = existing.id;
+                    if (expiryForLot && !existing.expiryDate) {
+                        await tx.lot.update({
+                            where: { id: existing.id },
+                            data: { expiryDate: expiryForLot },
+                        });
+                    }
                 }
                 else {
                     const created = await tx.lot.create({
@@ -439,6 +501,7 @@ exports.InboundService = InboundService = __decorate([
         stock_helpers_1.StockHelpers,
         config_1.ConfigService,
         workflow_bootstrap_service_1.WorkflowBootstrapService,
-        realtime_service_1.RealtimeService])
+        realtime_service_1.RealtimeService,
+        notifications_service_1.NotificationsService])
 ], InboundService);
 //# sourceMappingURL=inbound.service.js.map

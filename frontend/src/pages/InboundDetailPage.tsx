@@ -8,8 +8,8 @@ import { LocationsApi } from '../api/locations';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
+import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
-import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
@@ -28,10 +28,14 @@ function inboundDetailLabel(label: string, isArabic: boolean): string {
   const ar: Record<string, string> = {
     'All inbound orders': 'جميع طلبات الوارد',
     'Inbound order': 'طلب وارد',
+    'Order details': 'تفاصيل الطلب',
+    'Receiving setup': 'إعداد الاستلام',
+    Lines: 'البنود',
     Client: 'العميل',
     Created: 'تاريخ الإنشاء',
     'Cancel order': 'إلغاء الطلب',
     'Confirm order': 'تأكيد الطلب',
+    'Approve order': 'اعتماد الطلب',
     'Order #': 'رقم الطلب #',
     Status: 'الحالة',
     'Expected arrival': 'تاريخ الوصول المتوقع',
@@ -132,8 +136,9 @@ export function InboundDetailPage() {
     return <p className="text-sm text-rose-600">Failed to load inbound order.</p>;
 
   const o = order.data;
-  const canConfirm = o.status === 'draft';
-  const canCancel = o.status === 'draft' || o.status === 'confirmed';
+  const canConfirm = o.status === 'draft' || o.status === 'pending_approval';
+  const canCancel =
+    o.status === 'draft' || o.status === 'pending_approval' || o.status === 'confirmed';
   const canReceive =
     !taskOnlyMode && ['confirmed', 'in_progress', 'partially_received'].includes(o.status);
 
@@ -184,7 +189,78 @@ export function InboundDetailPage() {
           ← {t('All inbound orders')}
         </Link>
       </div>
-      <PageHeader
+      <FilterPanel title={t('Order details')}>
+        <div className="grid grid-cols-2 gap-5 md:grid-cols-4">
+        <Field label={t('Order #')} value={<span className="font-mono">{o.orderNumber || '—'}</span>} />
+        <Field
+          label={t('Status')}
+          value={
+            <div className="space-y-1">
+              <StatusBadge status={o.status} />
+              {inboundHasQuantityShortfall(o) && o.status === 'partially_received' ? (
+                <div className="text-xs text-amber-800">Some lines received below expected quantity.</div>
+              ) : null}
+              {inboundHasQuantityShortfall(o) && o.status === 'completed' ? (
+                <div className="text-xs text-amber-800">Completed with missing quantities on one or more lines.</div>
+              ) : null}
+            </div>
+          }
+        />
+        <Field label={t('Client')} value={o.company?.name ?? '—'} />
+        <Field label={t('Expected arrival')} value={new Date(o.expectedArrivalDate).toLocaleDateString()} />
+        <Field label={t('Confirmed at')} value={o.confirmedAt ? new Date(o.confirmedAt).toLocaleString() : '—'} />
+        <Field label={t('Completed at')} value={o.completedAt ? new Date(o.completedAt).toLocaleString() : '—'} />
+        </div>
+      </FilterPanel>
+
+      {taskOnlyMode && canConfirm ? (
+        <FilterPanel title={t('Receiving setup')}>
+          <div className="space-y-3 text-sm">
+            {warehouses.length > 1 ? (
+              <Combobox
+                label="Warehouse for workflow"
+                required
+                value={selectedWarehouseId || warehouseId}
+                onChange={setSelectedWarehouseId}
+                options={warehouses
+                  .filter((w) => w.status === 'active')
+                  .map((w) => ({ value: w.id, label: `${w.name} (${w.code})` }))}
+                placeholder="Select warehouse…"
+              />
+            ) : null}
+            {!effectiveWarehouseId ? (
+              <p className="text-xs text-rose-700">Set default warehouse or VITE_DEFAULT_WAREHOUSE_ID.</p>
+            ) : (
+              <Combobox
+                label="Receiving dock"
+                required
+                value={receivingDockId}
+                onChange={setReceivingDockId}
+                options={stagingOptions.map((loc) => ({
+                  value: loc.id,
+                  label: loc.fullPath,
+                  hint: loc.barcode,
+                }))}
+                placeholder="Select receiving dock…"
+                emptyMessage={
+                  stagingOptions.length === 0
+                    ? 'No receiving dock locations (type input). Create one under Locations.'
+                    : 'No locations.'
+                }
+              />
+            )}
+          </div>
+        </FilterPanel>
+      ) : null}
+
+      <WorkflowOrderTimeline
+        referenceType="inbound_order"
+        referenceId={id}
+        enabled={!!id && o.status !== 'draft'}
+        companyIdOverride={o.companyId}
+      />
+
+      <DataTable
         title={o.orderNumber || t('Inbound order')}
         actions={
           <>
@@ -216,81 +292,15 @@ export function InboundDetailPage() {
                 loading={confirmMut.isPending}
                 disabled={confirmDisabledTaskOnly}
               >
-                {t('Confirm order')}
+                {o.status === 'pending_approval' ? t('Approve order') : t('Confirm order')}
               </Button>
             )}
           </>
         }
+        columns={lineColumns}
+        rows={o.lines}
+        rowKey={(l) => l.id}
       />
-
-      <div className="mb-4 grid grid-cols-2 gap-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4">
-        <Field label={t('Order #')} value={<span className="font-mono">{o.orderNumber || '—'}</span>} />
-        <Field
-          label={t('Status')}
-          value={
-            <div className="space-y-1">
-              <StatusBadge status={o.status} />
-              {inboundHasQuantityShortfall(o) && o.status === 'partially_received' ? (
-                <div className="text-xs text-amber-800">Some lines received below expected quantity.</div>
-              ) : null}
-              {inboundHasQuantityShortfall(o) && o.status === 'completed' ? (
-                <div className="text-xs text-amber-800">Completed with missing quantities on one or more lines.</div>
-              ) : null}
-            </div>
-          }
-        />
-        <Field label={t('Client')} value={o.company?.name ?? '—'} />
-        <Field label={t('Expected arrival')} value={new Date(o.expectedArrivalDate).toLocaleDateString()} />
-        <Field label={t('Confirmed at')} value={o.confirmedAt ? new Date(o.confirmedAt).toLocaleString() : '—'} />
-        <Field label={t('Completed at')} value={o.completedAt ? new Date(o.completedAt).toLocaleString() : '—'} />
-      </div>
-
-      {taskOnlyMode && canConfirm ? (
-        <div className="mb-4 space-y-3 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm">
-          {warehouses.length > 1 ? (
-            <Combobox
-              label="Warehouse for workflow"
-              required
-              value={selectedWarehouseId || warehouseId}
-              onChange={setSelectedWarehouseId}
-              options={warehouses
-                .filter((w) => w.status === 'active')
-                .map((w) => ({ value: w.id, label: `${w.name} (${w.code})` }))}
-              placeholder="Select warehouse…"
-            />
-          ) : null}
-          {!effectiveWarehouseId ? (
-            <p className="text-xs text-rose-700">Set default warehouse or VITE_DEFAULT_WAREHOUSE_ID.</p>
-          ) : (
-            <Combobox
-              label="Receiving dock"
-              required
-              value={receivingDockId}
-              onChange={setReceivingDockId}
-              options={stagingOptions.map((loc) => ({
-                value: loc.id,
-                label: loc.fullPath,
-                hint: loc.barcode,
-              }))}
-              placeholder="Select receiving dock…"
-              emptyMessage={
-                stagingOptions.length === 0
-                  ? 'No receiving dock locations (type input). Create one under Locations.'
-                  : 'No locations.'
-              }
-            />
-          )}
-        </div>
-      ) : null}
-
-      <WorkflowOrderTimeline
-        referenceType="inbound_order"
-        referenceId={id}
-        enabled={!!id && o.status !== 'draft'}
-        companyIdOverride={o.companyId}
-      />
-
-      <DataTable columns={lineColumns} rows={o.lines} rowKey={(l) => l.id} />
 
       {!taskOnlyMode && (
         <ReceiveModal

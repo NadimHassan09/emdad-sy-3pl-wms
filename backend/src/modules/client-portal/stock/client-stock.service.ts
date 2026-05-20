@@ -28,6 +28,16 @@ export class ClientStockService {
    * Per-product on-hand totals for the authenticated client tenant only.
    * Ignores any `companyId` on the query string — always scoped to `client.companyId`.
    */
+  async availability(client: ClientPrincipal, productId: string) {
+    const principal: AuthPrincipal = {
+      id: client.id,
+      companyId: client.companyId,
+      role: client.role,
+      email: client.email ?? undefined,
+    };
+    return this.inventory.availability(principal, productId, client.companyId);
+  }
+
   async list(client: ClientPrincipal, query: StockQueryDto): Promise<{
     items: ClientStockProductRow[];
     total: number;

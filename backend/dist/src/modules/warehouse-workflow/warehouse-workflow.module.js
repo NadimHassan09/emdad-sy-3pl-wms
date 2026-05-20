@@ -10,6 +10,7 @@ exports.WarehouseWorkflowModule = void 0;
 const common_1 = require("@nestjs/common");
 const redis_module_1 = require("../../common/redis/redis.module");
 const prisma_module_1 = require("../../common/prisma/prisma.module");
+const auth_module_1 = require("../auth/auth.module");
 const inventory_module_1 = require("../inventory/inventory.module");
 const workflow_bootstrap_service_1 = require("./workflow-bootstrap.service");
 const workflow_orchestration_service_1 = require("./workflow-orchestration.service");
@@ -29,7 +30,7 @@ let WarehouseWorkflowModule = class WarehouseWorkflowModule {
 exports.WarehouseWorkflowModule = WarehouseWorkflowModule;
 exports.WarehouseWorkflowModule = WarehouseWorkflowModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, inventory_module_1.InventoryModule, redis_module_1.RedisModule],
+        imports: [prisma_module_1.PrismaModule, inventory_module_1.InventoryModule, redis_module_1.RedisModule, auth_module_1.AuthModule],
         controllers: [
             workflow_controller_1.WorkflowController,
             warehouse_tasks_controller_1.WarehouseTasksController,

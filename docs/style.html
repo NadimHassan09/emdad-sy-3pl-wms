@@ -1,0 +1,128 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EMDAD WMS UI Style Comparison</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+  </style>
+</head>
+<body class="antialiased bg-slate-100">
+  <div class="min-h-screen p-8 space-y-10">
+    
+
+    <section class="rounded-3xl overflow-hidden border border-slate-200 shadow-2xl bg-[#f4f8f5]">
+      <div class="bg-[#0f3d2e] text-white px-8 py-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 class="text-3xl font-semibold">EMDAD WMS</h2>
+        </div>
+        <button class="bg-emerald-500 hover:bg-emerald-400 transition px-5 py-3 rounded-2xl font-medium shadow-lg text-sm">+ New Order</button>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-[260px_1fr] min-h-[650px]">
+        <aside class="bg-[#163f32] text-white p-6 space-y-4">
+          <div class="space-y-3">
+            <div class="px-4 py-3 rounded-2xl bg-emerald-500 text-white shadow-lg">Dashboard</div>
+            <div class="px-4 py-3 rounded-2xl hover:bg-white/10 text-emerald-50 cursor-pointer">Inbound Orders</div>
+            <div class="px-4 py-3 rounded-2xl bg-emerald-500 text-white shadow-lg">Outbound Orders</div>
+            <div class="px-4 py-3 rounded-2xl hover:bg-white/10 text-emerald-50 cursor-pointer">Inventory</div>
+            <div class="px-4 py-3 rounded-2xl hover:bg-white/10 text-emerald-50 cursor-pointer">Tasks</div>
+            <div class="px-4 py-3 rounded-2xl hover:bg-white/10 text-emerald-50 cursor-pointer">Analytics</div>
+          </div>
+        </aside>
+
+        <main class="p-8 space-y-8 bg-slate-50">
+          <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+              <div class="text-slate-500 text-sm">Active Orders</div>
+              <div class="text-3xl font-bold text-slate-900 mt-2">128</div>
+            </div>
+            <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+              <div class="text-slate-500 text-sm">Pending Tasks</div>
+              <div class="text-3xl font-bold text-slate-900 mt-2">43</div>
+            </div>
+            <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+              <div class="text-slate-500 text-sm">Inventory Value</div>
+              <div class="text-3xl font-bold text-slate-900 mt-2">$1.2M</div>
+            </div>
+            <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+              <div class="text-slate-500 text-sm">Workers Online</div>
+              <div class="text-3xl font-bold text-slate-900 mt-2">17</div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-5">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <h3 class="text-xl font-semibold text-slate-900">Order Filters</h3>
+              <div class="flex gap-3 flex-wrap">
+                <button class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition">Reset</button>
+                <button class="px-4 py-2 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition shadow">Apply Filters</button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <input placeholder="Search order..." class="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:ring-4 focus:ring-emerald-100" />
+              <select class="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:ring-4 focus:ring-emerald-100">
+                <option>Status</option>
+              </select>
+              <select class="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:ring-4 focus:ring-emerald-100">
+                <option>Warehouse</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="px-6 py-5 border-b border-slate-100 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 class="text-xl font-semibold text-slate-900">Outbound Orders</h3>
+                <p class="text-slate-500 mt-1">Operational fulfillment queue</p>
+              </div>
+              <div class="flex gap-3 flex-wrap">
+                <button class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition">Export</button>
+                <button class="px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-black transition">View Analytics</button>
+              </div>
+            </div>
+
+            <table class="w-full">
+              <thead class="bg-slate-50 text-slate-500 text-sm uppercase tracking-wide">
+                <tr>
+                  <th class="text-left px-6 py-4">Order</th>
+                  <th class="text-left px-6 py-4">Client</th>
+                  <th class="text-left px-6 py-4">Status</th>
+                  <th class="text-right px-6 py-4">Quantity</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="border-t border-slate-100 hover:bg-emerald-50/50 transition cursor-pointer">
+                  <td class="px-6 py-5 font-semibold text-slate-900">ORD-001</td>
+                  <td class="px-6 py-5 text-slate-600">Acme Logistics</td>
+                  <td class="px-6 py-5"><span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-sm font-medium">Picked</span></td>
+                  <td class="px-6 py-5 text-right font-mono text-slate-800">24</td>
+                </tr>
+                <tr class="border-t border-slate-100 hover:bg-emerald-50/50 transition cursor-pointer">
+                  <td class="px-6 py-5 font-semibold text-slate-900">ORD-002</td>
+                  <td class="px-6 py-5 text-slate-600">NexGen Supply</td>
+                  <td class="px-6 py-5"><span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-sm font-medium">Picking</span></td>
+                  <td class="px-6 py-5 text-right font-mono text-slate-800">18</td>
+                </tr>
+                <tr class="border-t border-slate-100 hover:bg-emerald-50/50 transition cursor-pointer">
+                  <td class="px-6 py-5 font-semibold text-slate-900">ORD-003</td>
+                  <td class="px-6 py-5 text-slate-600">Regal Freight</td>
+                  <td class="px-6 py-5"><span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-sm font-medium">Shipped</span></td>
+                  <td class="px-6 py-5 text-right font-mono text-slate-800">39</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </main>
+      </div>
+    </section>
+
+    
+  </div>
+</body>
+</html>

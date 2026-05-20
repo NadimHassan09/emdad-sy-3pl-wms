@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { InboundOrderStatus, Prisma } from '@prisma/client';
 
 import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
@@ -29,6 +29,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StockHelpers } from '../inventory/stock.helpers';
 import { inboundReceiveDefersPutaway, taskOnlyFlows } from '../warehouse-workflow/feature-flags';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { WorkflowBootstrapService } from '../warehouse-workflow/workflow-bootstrap.service';
 import { ConfirmInboundBodyDto } from './dto/confirm-inbound-body.dto';
@@ -60,6 +61,15 @@ const ORDER_INCLUDE = {
 const FULL_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const INBOUND_CONFIRMABLE: InboundOrderStatus[] = [
+  InboundOrderStatus.draft,
+  InboundOrderStatus.pending_approval,
+];
+
+function isInboundConfirmable(status: InboundOrderStatus): boolean {
+  return INBOUND_CONFIRMABLE.includes(status);
+}
+
 @Injectable()
 export class InboundService {
   constructor(
@@ -68,9 +78,14 @@ export class InboundService {
     private readonly config: ConfigService,
     private readonly workflowBootstrap: WorkflowBootstrapService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
-  async create(user: AuthPrincipal, dto: CreateInboundOrderDto) {
+  async create(
+    user: AuthPrincipal,
+    dto: CreateInboundOrderDto,
+    opts?: { pendingClientApproval?: boolean },
+  ) {
     const companyId = dto.companyId ?? user.companyId;
     if (!companyId) {
       throw new BadRequestException(
@@ -124,6 +139,7 @@ export class InboundService {
     const order = await this.prisma.inboundOrder.create({
       data: {
         companyId,
+        status: opts?.pendingClientApproval ? InboundOrderStatus.pending_approval : undefined,
         expectedArrivalDate: new Date(dto.expectedArrivalDate),
         clientReference: dto.clientReference,
         notes: dto.notes,
@@ -138,6 +154,15 @@ export class InboundService {
       orderId: order.id,
       status: order.status,
     });
+    if (opts?.pendingClientApproval) {
+      await this.notifications.notifyAdminsPendingApproval({
+        companyId: order.companyId,
+        companyName: order.company.name,
+        orderType: 'inbound',
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+      });
+    }
     return order;
   }
 
@@ -203,12 +228,13 @@ export class InboundService {
 
   async confirm(user: AuthPrincipal, id: string, body?: ConfirmInboundBodyDto) {
     const order = await this.findById(id);
+    const wasPendingApproval = order.status === InboundOrderStatus.pending_approval;
     for (const line of order.lines) {
       assertProductOrderableForOrders(line.product.status);
     }
-    if (order.status !== 'draft') {
+    if (!isInboundConfirmable(order.status)) {
       throw new InvalidStateException(
-        `Only draft orders can be confirmed (current status: ${order.status}).`,
+        `Only draft or pending-approval orders can be confirmed (current status: ${order.status}).`,
       );
     }
     if (order.lines.length === 0) {
@@ -227,9 +253,9 @@ export class InboundService {
         if (user.companyId && cur.companyId !== user.companyId) {
           throw new NotFoundException('Inbound order not found.');
         }
-        if (cur.status !== 'draft') {
+        if (!isInboundConfirmable(cur.status)) {
           throw new InvalidStateException(
-            `Only draft orders can be confirmed (current status: ${cur.status}).`,
+            `Only draft or pending-approval orders can be confirmed (current status: ${cur.status}).`,
           );
         }
         await tx.inboundOrder.update({
@@ -244,6 +270,15 @@ export class InboundService {
         status: updated.status,
         reason: 'confirm',
       });
+      if (wasPendingApproval) {
+        await this.notifications.notifyClientOrderConfirmed({
+          companyId: updated.companyId,
+          orderType: 'inbound',
+          orderId: updated.id,
+          orderNumber: updated.orderNumber,
+        });
+        await this.notifications.dismissPendingAdminNotifications('inbound_order', updated.id);
+      }
       return updated;
     }
 
@@ -258,14 +293,23 @@ export class InboundService {
       status: confirmed.status,
       reason: 'confirm',
     });
+    if (wasPendingApproval) {
+      await this.notifications.notifyClientOrderConfirmed({
+        companyId: confirmed.companyId,
+        orderType: 'inbound',
+        orderId: confirmed.id,
+        orderNumber: confirmed.orderNumber,
+      });
+      await this.notifications.dismissPendingAdminNotifications('inbound_order', confirmed.id);
+    }
     return confirmed;
   }
 
   async cancel(id: string, user: AuthPrincipal) {
     const order = await this.findById(id);
-    if (!['draft', 'confirmed'].includes(order.status)) {
+    if (!['draft', 'pending_approval', 'confirmed'].includes(order.status)) {
       throw new InvalidStateException(
-        `Inbound orders can only be cancelled while in draft/confirmed (current: ${order.status}).`,
+        `Inbound orders can only be cancelled while in draft, pending approval, or confirmed (current: ${order.status}).`,
       );
     }
     const cancelled = await this.prisma.inboundOrder.update({
@@ -411,6 +455,12 @@ export class InboundService {
         });
         if (existing) {
           lotId = existing.id;
+          if (expiryForLot && !existing.expiryDate) {
+            await tx.lot.update({
+              where: { id: existing.id },
+              data: { expiryDate: expiryForLot },
+            });
+          }
         } else {
           const created = await tx.lot.create({
             data: {

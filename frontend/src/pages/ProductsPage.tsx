@@ -15,10 +15,8 @@ import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { BarcodeImageModal } from '../components/BarcodeImageModal';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
-import { FilterActions } from '../components/FilterActions';
 import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
-import { PageHeader } from '../components/PageHeader';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
@@ -357,20 +355,13 @@ export function ProductsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Products"
-        actions={
-          <Button
-            onClick={() => setOpenCreate(true)}
-            className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
-          >
-            + New product
-          </Button>
-        }
-      />
-
-      <FilterPanel showLabel="Show filters" hideLabel="Hide filters">
-      <div className="space-y-3">
+      <FilterPanel
+        title="Product filters"
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={list.isFetching}
+      >
+      <div className="space-y-5">
         <div className="flex flex-wrap items-end gap-3">
           <Combobox
             label="Client filter"
@@ -421,15 +412,19 @@ export function ProductsPage() {
             </Button>
           </div>
         </div>
-        <FilterActions
-          onApply={applyFilters}
-          onReset={resetFilters}
-          loading={list.isFetching}
-        />
       </div>
       </FilterPanel>
 
       <DataTable
+        title="Products"
+        actions={
+          <Button
+            onClick={() => setOpenCreate(true)}
+            className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
+          >
+            + New product
+          </Button>
+        }
         columns={columns}
         rows={list.data?.items ?? []}
         rowKey={(p) => p.id}

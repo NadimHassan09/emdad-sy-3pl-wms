@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { OutboundOrderStatus, Prisma } from '@prisma/client';
 
 import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
@@ -23,6 +23,7 @@ import {
   outboundConfirmDefersDeduction,
   taskOnlyFlows,
 } from '../warehouse-workflow/feature-flags';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { WorkflowBootstrapService } from '../warehouse-workflow/workflow-bootstrap.service';
 import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
@@ -63,6 +64,15 @@ const ORDER_INCLUDE = {
 const FULL_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const OUTBOUND_CONFIRMABLE: OutboundOrderStatus[] = [
+  OutboundOrderStatus.draft,
+  OutboundOrderStatus.pending_approval,
+];
+
+function isOutboundConfirmable(status: OutboundOrderStatus): boolean {
+  return OUTBOUND_CONFIRMABLE.includes(status);
+}
+
 @Injectable()
 export class OutboundService {
   constructor(
@@ -71,6 +81,7 @@ export class OutboundService {
     private readonly config: ConfigService,
     private readonly workflowBootstrap: WorkflowBootstrapService,
     private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -83,7 +94,11 @@ export class OutboundService {
    * deduction; `confirmAndDeduct` retains its atomic decrement guards as a
    * safety net.
    */
-  async create(user: AuthPrincipal, dto: CreateOutboundOrderDto) {
+  async create(
+    user: AuthPrincipal,
+    dto: CreateOutboundOrderDto,
+    opts?: { pendingClientApproval?: boolean },
+  ) {
     const companyId = dto.companyId ?? user.companyId;
     if (!companyId) {
       throw new BadRequestException(
@@ -124,8 +139,54 @@ export class OutboundService {
       assertDiscreteUomPositiveIntegerQuantity(p.uom, l.requestedQuantity, 'Requested quantity');
     }
 
+    await this.assertSufficientStockForLines(companyId, dto.lines, products);
+
+    const created = await this.prisma.outboundOrder.create({
+      data: {
+        companyId,
+        status: opts?.pendingClientApproval ? OutboundOrderStatus.pending_approval : undefined,
+        destinationAddress: dto.destinationAddress,
+        requiredShipDate: new Date(dto.requiredShipDate),
+        carrier: dto.carrier,
+        clientReference: dto.clientReference,
+        notes: dto.notes,
+        createdBy: user.id,
+        lines: {
+          create: dto.lines.map((l, idx) => ({
+            productId: l.productId,
+            requestedQuantity: new Prisma.Decimal(l.requestedQuantity),
+            specificLotId: l.specificLotId,
+            lineNumber: idx + 1,
+          })),
+        },
+      },
+      include: ORDER_INCLUDE,
+    });
+    this.realtime.emitOutboundOrderCreated(created.companyId, {
+      orderId: created.id,
+      status: created.status,
+    });
+    if (opts?.pendingClientApproval) {
+      await this.notifications.notifyAdminsPendingApproval({
+        companyId: created.companyId,
+        companyName: created.company.name,
+        orderType: 'outbound',
+        orderId: created.id,
+        orderNumber: created.orderNumber,
+      });
+    }
+    return created;
+  }
+
+  /** Rejects when summed line qty per product exceeds aggregate available stock. */
+  private async assertSufficientStockForLines(
+    companyId: string,
+    lines: { productId: string; requestedQuantity: number }[],
+    products: { id: string; sku: string }[],
+  ): Promise<void> {
+    const productIds = Array.from(new Set(lines.map((l) => l.productId)));
     const requestedByProduct = new Map<string, Prisma.Decimal>();
-    for (const l of dto.lines) {
+    for (const l of lines) {
       const cur = requestedByProduct.get(l.productId) ?? new Prisma.Decimal(0);
       requestedByProduct.set(
         l.productId,
@@ -174,32 +235,6 @@ export class OutboundService {
         shortages,
       );
     }
-
-    const created = await this.prisma.outboundOrder.create({
-      data: {
-        companyId,
-        destinationAddress: dto.destinationAddress,
-        requiredShipDate: new Date(dto.requiredShipDate),
-        carrier: dto.carrier,
-        clientReference: dto.clientReference,
-        notes: dto.notes,
-        createdBy: user.id,
-        lines: {
-          create: dto.lines.map((l, idx) => ({
-            productId: l.productId,
-            requestedQuantity: new Prisma.Decimal(l.requestedQuantity),
-            specificLotId: l.specificLotId,
-            lineNumber: idx + 1,
-          })),
-        },
-      },
-      include: ORDER_INCLUDE,
-    });
-    this.realtime.emitOutboundOrderCreated(created.companyId, {
-      orderId: created.id,
-      status: created.status,
-    });
-    return created;
   }
 
   async list(user: AuthPrincipal, query: ListOutboundQueryDto) {
@@ -261,9 +296,9 @@ export class OutboundService {
 
   async cancel(id: string, user: AuthPrincipal) {
     const order = await this.findById(id);
-    if (order.status !== 'draft') {
+    if (!['draft', 'pending_approval'].includes(order.status)) {
       throw new InvalidStateException(
-        `Outbound orders can only be cancelled while in draft (current: ${order.status}).`,
+        `Outbound orders can only be cancelled while in draft or pending approval (current: ${order.status}).`,
       );
     }
     const cancelled = await this.prisma.outboundOrder.update({
@@ -287,6 +322,10 @@ export class OutboundService {
    */
   /** Confirms a draft outbound order without stock deduction (workflow dispatch completes shipping). */
   async confirmWithoutDeduction(user: AuthPrincipal, orderId: string) {
+    const before = await this.prisma.outboundOrder.findUnique({
+      where: { id: orderId },
+      select: { status: true, companyId: true, orderNumber: true, id: true },
+    });
     const updated = await this.prisma.$transaction(async (tx) => {
       const order = await tx.outboundOrder.findUnique({
         where: { id: orderId },
@@ -298,9 +337,9 @@ export class OutboundService {
         },
       });
       if (!order) throw new NotFoundException('Outbound order not found.');
-      if (order.status !== 'draft') {
+      if (!isOutboundConfirmable(order.status)) {
         throw new InvalidStateException(
-          `Only draft orders can be confirmed (current: ${order.status}).`,
+          `Only draft or pending-approval orders can be confirmed (current: ${order.status}).`,
         );
       }
       if (order.lines.length === 0) {
@@ -324,10 +363,23 @@ export class OutboundService {
       status: updated.status,
       reason: 'confirm_without_deduction',
     });
+    if (before?.status === OutboundOrderStatus.pending_approval) {
+      await this.notifications.notifyClientOrderConfirmed({
+        companyId: before.companyId,
+        orderType: 'outbound',
+        orderId: before.id,
+        orderNumber: before.orderNumber,
+      });
+      await this.notifications.dismissPendingAdminNotifications('outbound_order', before.id);
+    }
     return updated;
   }
 
   async confirmAndDeduct(user: AuthPrincipal, orderId: string, body?: ConfirmOutboundBodyDto) {
+    const before = await this.prisma.outboundOrder.findUnique({
+      where: { id: orderId },
+      select: { status: true, companyId: true, orderNumber: true, id: true },
+    });
     if (taskOnlyFlows(this.config)) {
       if (!body?.warehouseId) {
         throw new BadRequestException(
@@ -349,9 +401,9 @@ export class OutboundService {
         if (user.companyId && order.companyId !== user.companyId) {
           throw new NotFoundException('Outbound order not found.');
         }
-        if (order.status !== 'draft') {
+        if (!isOutboundConfirmable(order.status)) {
           throw new InvalidStateException(
-            `Only draft orders can be confirmed (current status: ${order.status}).`,
+            `Only draft or pending-approval orders can be confirmed (current status: ${order.status}).`,
           );
         }
         if (order.lines.length === 0) {
@@ -376,6 +428,15 @@ export class OutboundService {
         status: wfConfirmed.status,
         reason: 'confirm_task_flow',
       });
+      if (before?.status === OutboundOrderStatus.pending_approval) {
+        await this.notifications.notifyClientOrderConfirmed({
+          companyId: before.companyId,
+          orderType: 'outbound',
+          orderId: before.id,
+          orderNumber: before.orderNumber,
+        });
+        await this.notifications.dismissPendingAdminNotifications('outbound_order', before.id);
+      }
       return wfConfirmed;
     }
     if (outboundConfirmDefersDeduction(this.config)) {
@@ -392,9 +453,9 @@ export class OutboundService {
         },
       });
       if (!order) throw new NotFoundException('Outbound order not found.');
-      if (order.status !== 'draft') {
+      if (!isOutboundConfirmable(order.status)) {
         throw new InvalidStateException(
-          `Only draft orders can be confirmed (current: ${order.status}).`,
+          `Only draft or pending-approval orders can be confirmed (current: ${order.status}).`,
         );
       }
       if (order.lines.length === 0) {
@@ -499,6 +560,21 @@ export class OutboundService {
     this.realtime.emitInventoryChanged(shipped.companyId, {
       source: 'outbound_ship',
       orderId: shipped.id,
+    });
+    if (before?.status === OutboundOrderStatus.pending_approval) {
+      await this.notifications.notifyClientOrderConfirmed({
+        companyId: before.companyId,
+        orderType: 'outbound',
+        orderId: before.id,
+        orderNumber: before.orderNumber,
+      });
+      await this.notifications.dismissPendingAdminNotifications('outbound_order', before.id);
+    }
+    await this.notifications.notifyClientOrderCompleted({
+      companyId: shipped.companyId,
+      orderType: 'outbound',
+      orderId: shipped.id,
+      orderNumber: shipped.orderNumber,
     });
     return shipped;
   }

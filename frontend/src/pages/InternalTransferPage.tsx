@@ -11,7 +11,6 @@ import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { Modal } from '../components/Modal';
-import { PageHeader } from '../components/PageHeader';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
@@ -119,23 +118,20 @@ export function InternalTransferPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title={t('Internal transfer', 'نقل داخلي')}
-        description={t('View transfer history and create a new internal transfer.', 'عرض سجل النقل وإنشاء نقل داخلي جديد.')}
-        actions={
-          <Button
-            onClick={() => setCreateOpen(true)}
-            className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
-          >
-            {t('Create Internal Transfer', 'إنشاء نقل داخلي')}
-          </Button>
-        }
-      />
-
       {!warehouseId ? (
         <p className="text-sm text-slate-600">{t('Resolve warehouse configuration first.', 'قم بحل إعدادات المستودع أولاً.')}</p>
       ) : (
         <DataTable
+          title={t('Internal transfer', 'نقل داخلي')}
+          description={t('View transfer history and create a new internal transfer.', 'عرض سجل النقل وإنشاء نقل داخلي جديد.')}
+          actions={
+            <Button
+              onClick={() => setCreateOpen(true)}
+              className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
+            >
+              {t('Create Internal Transfer', 'إنشاء نقل داخلي')}
+            </Button>
+          }
           columns={columns}
           rows={transfers.data?.items ?? []}
           rowKey={(r) => `${r.id}:${r.createdAt}`}

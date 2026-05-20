@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { WorkflowsApi, type WorkflowTimelineTask } from '../api/workflows';
+import { PANEL_CARD_CLASS, PANEL_TITLE_CLASS } from './FilterPanel';
 import { QK } from '../constants/query-keys';
 import { taskAssignedWorkerLabel } from '../lib/task-worker-label';
 
@@ -125,9 +126,9 @@ export function WorkflowOrderTimeline({
   });
 
   return (
-    <section className="mt-4 mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+    <section className={PANEL_CARD_CLASS}>
       <div className="flex items-center justify-between gap-3">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Workflow timeline</div>
+        <h2 className={PANEL_TITLE_CLASS}>Workflow timeline</h2>
         {wf ? (
           <div className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-600">
             <span className="font-mono">{wf.id.slice(0, 8)}…</span>

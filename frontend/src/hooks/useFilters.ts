@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
  * Draft vs applied filter state: list queries should only read `appliedFilters`.
  * Call `applyFilters` after the user clicks Apply; `resetFilters` restores `initialFilters` and applies.
  */
-export function useFilters<T extends Record<string, unknown>>(initialFilters: T) {
+export function useFilters<T extends object>(initialFilters: T) {
   const initial = useMemo(() => ({ ...initialFilters }), [initialFilters]);
 
   const [draftFilters, setDraftFilters] = useState<T>(() => ({ ...initial }));

@@ -68,3 +68,24 @@ export async function fetchClientInboundOrder(id: string): Promise<ClientInbound
   const { data } = await apiClient.get<ClientInboundOrderDetail>(`/inbound-orders/${id}`);
   return data;
 }
+
+export type CreateClientInboundOrderLine = {
+  productId: string;
+  expectedQuantity: number;
+  expectedLotNumber?: string;
+  expectedExpiryDate?: string;
+};
+
+export type CreateClientInboundOrderInput = {
+  expectedArrivalDate: string;
+  clientReference?: string;
+  notes?: string;
+  lines: CreateClientInboundOrderLine[];
+};
+
+export async function createClientInboundOrder(
+  input: CreateClientInboundOrderInput,
+): Promise<ClientInboundOrderRow> {
+  const { data } = await apiClient.post<ClientInboundOrderRow>('/inbound-orders', input);
+  return data;
+}

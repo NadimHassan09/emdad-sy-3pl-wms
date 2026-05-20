@@ -18,6 +18,7 @@ const public_decorator_1 = require("../../../common/auth/public.decorator");
 const client_user_decorator_1 = require("../auth/client-user.decorator");
 const jwt_client_auth_guard_1 = require("../auth/jwt-client-auth.guard");
 const list_products_query_dto_1 = require("../../products/dto/list-products-query.dto");
+const client_create_product_dto_1 = require("./dto/client-create-product.dto");
 const client_products_service_1 = require("./client-products.service");
 let ClientProductsController = class ClientProductsController {
     products;
@@ -26,6 +27,9 @@ let ClientProductsController = class ClientProductsController {
     }
     list(client, query) {
         return this.products.list(client, query);
+    }
+    create(client, dto) {
+        return this.products.create(client, dto);
     }
 };
 exports.ClientProductsController = ClientProductsController;
@@ -39,6 +43,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, list_products_query_dto_1.ListProductsQueryDto]),
     __metadata("design:returntype", void 0)
 ], ClientProductsController.prototype, "list", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)(),
+    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, client_create_product_dto_1.ClientCreateProductDto]),
+    __metadata("design:returntype", void 0)
+], ClientProductsController.prototype, "create", null);
 exports.ClientProductsController = ClientProductsController = __decorate([
     (0, common_1.Controller)('client/products'),
     __metadata("design:paramtypes", [client_products_service_1.ClientProductsService])

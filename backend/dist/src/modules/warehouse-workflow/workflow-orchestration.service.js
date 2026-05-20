@@ -23,12 +23,13 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
         const wf = task.workflowInstance;
         if (wf.referenceType === 'inbound_order') {
             await this.afterInboundTask(tx, wf, task.taskType, body, actorUserId);
-            await this.maybeCloseInboundWorkflow(tx, wf.id);
-            return;
+            const inboundCompleted = await this.maybeCloseInboundWorkflow(tx, wf.id);
+            return inboundCompleted ? { inboundCompleted } : {};
         }
         if (wf.referenceType === 'outbound_order') {
             await this.afterOutboundTask(tx, wf, task.taskType, body);
         }
+        return {};
     }
     async resolveStagingLotIdForPutaway(tx, args) {
         const { companyId, productId, stagingLocationId, qty, trackingType } = args;
@@ -237,11 +238,17 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
             where: { id: instanceId },
         });
         if (!wf || wf.referenceType !== 'inbound_order')
-            return;
+            return null;
         const open = await this.countOpenTasks(tx, instanceId);
         if (open > 0)
-            return;
+            return null;
         const inboundOrderId = wf.referenceId;
+        const order = await tx.inboundOrder.findUnique({
+            where: { id: inboundOrderId },
+            select: { companyId: true, id: true, orderNumber: true },
+        });
+        if (!order)
+            return null;
         await tx.workflowInstance.update({
             where: { id: instanceId },
             data: { status: 'completed' },
@@ -253,6 +260,11 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
                 completedAt: new Date(),
             },
         });
+        return {
+            companyId: order.companyId,
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+        };
     }
     async afterOutboundTask(tx, wf, taskType, body) {
         const orderId = wf.referenceId;

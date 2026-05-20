@@ -1,28 +1,51 @@
+import { lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 
 import { RequireAuth } from './auth/RequireAuth';
+import { RoleHomeRedirect } from './auth/RoleHomeRedirect';
 import { Layout } from './components/Layout';
-import { AdjustmentsPage } from './pages/AdjustmentsPage';
-import { InboundDetailPage } from './pages/InboundDetailPage';
-import { InboundListPage } from './pages/InboundListPage';
-import { InventoryLedgerPage } from './pages/InventoryLedgerPage';
-import { InventoryLedgerEntryPage } from './pages/InventoryLedgerEntryPage';
-import { InventoryLedgerReferencePage } from './pages/InventoryLedgerReferencePage';
-import { InventoryPage } from './pages/InventoryPage';
-import { InventoryProductDetailPage } from './pages/InventoryProductDetailPage';
-import { LocationsPage } from './pages/LocationsPage';
-import { OutboundDetailPage } from './pages/OutboundDetailPage';
-import { OutboundListPage } from './pages/OutboundListPage';
-import { ProductDetailPage } from './pages/ProductDetailPage';
-import { ProductsPage } from './pages/ProductsPage';
-import { TaskDetailPage } from './pages/TaskDetailPage';
-import { TaskExecutePage } from './pages/TaskExecutePage';
-import { TasksListPage } from './pages/TasksListPage';
-import { ClientsPage } from './pages/ClientsPage';
-import { DashboardOverviewPage } from './pages/DashboardOverviewPage';
-import { UsersPage } from './pages/UsersPage';
-import { LoginPage } from './pages/LoginPage';
-import { InternalTransferPage } from './pages/InternalTransferPage';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lazy page imports — each page becomes a separate JS chunk at build time.
+// Suspense boundary lives in Layout.tsx wrapping the <Outlet />.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function lazyPage<M extends Record<string, React.ComponentType>>(
+  loader: () => Promise<M>,
+  name: keyof M,
+) {
+  return lazy(async () => {
+    const mod = await loader();
+    return { default: mod[name] };
+  });
+}
+
+const DashboardOverviewPage   = lazyPage(() => import('./pages/DashboardOverviewPage'),   'DashboardOverviewPage');
+const ProductsPage            = lazyPage(() => import('./pages/ProductsPage'),            'ProductsPage');
+const ProductDetailPage       = lazyPage(() => import('./pages/ProductDetailPage'),       'ProductDetailPage');
+const LocationsPage           = lazyPage(() => import('./pages/LocationsPage'),           'LocationsPage');
+const InventoryPage           = lazyPage(() => import('./pages/InventoryPage'),           'InventoryPage');
+const InventoryProductDetailPage = lazyPage(() => import('./pages/InventoryProductDetailPage'), 'InventoryProductDetailPage');
+const InventoryLedgerPage     = lazyPage(() => import('./pages/InventoryLedgerPage'),     'InventoryLedgerPage');
+const InventoryLedgerEntryPage = lazyPage(() => import('./pages/InventoryLedgerEntryPage'), 'InventoryLedgerEntryPage');
+const InventoryLedgerReferencePage = lazyPage(() => import('./pages/InventoryLedgerReferencePage'), 'InventoryLedgerReferencePage');
+const AdjustmentsPage         = lazyPage(() => import('./pages/AdjustmentsPage'),         'AdjustmentsPage');
+const InboundListPage         = lazyPage(() => import('./pages/InboundListPage'),         'InboundListPage');
+const InboundDetailPage       = lazyPage(() => import('./pages/InboundDetailPage'),       'InboundDetailPage');
+const OutboundListPage        = lazyPage(() => import('./pages/OutboundListPage'),        'OutboundListPage');
+const OutboundDetailPage      = lazyPage(() => import('./pages/OutboundDetailPage'),      'OutboundDetailPage');
+const TasksListPage           = lazyPage(() => import('./pages/TasksListPage'),           'TasksListPage');
+const TaskDetailPage          = lazyPage(() => import('./pages/TaskDetailPage'),          'TaskDetailPage');
+const TaskExecutePage         = lazyPage(() => import('./pages/TaskExecutePage'),         'TaskExecutePage');
+const InternalTransferPage    = lazyPage(() => import('./pages/InternalTransferPage'),    'InternalTransferPage');
+const ReportsLayout                 = lazyPage(() => import('./pages/reports/ReportsLayout'),                 'ReportsLayout');
+const WarehouseAnalysisReportPage = lazyPage(() => import('./pages/reports/WarehouseAnalysisReportPage'), 'WarehouseAnalysisReportPage');
+const InventoryReportPage           = lazyPage(() => import('./pages/reports/InventoryReportPage'),           'InventoryReportPage');
+const ProductMovesReportPage        = lazyPage(() => import('./pages/reports/ProductMovesReportPage'),        'ProductMovesReportPage');
+const ClientsPage             = lazyPage(() => import('./pages/ClientsPage'),             'ClientsPage');
+const WarehouseUsersPage      = lazyPage(() => import('./pages/UsersPage'),               'WarehouseUsersPage');
+const ClientUsersPage         = lazyPage(() => import('./pages/UsersPage'),               'ClientUsersPage');
+const LoginPage               = lazyPage(() => import('./pages/LoginPage'),               'LoginPage');
 
 /** Data router required for `useBlocker` (task execution exit guard). */
 export const router = createBrowserRouter([
@@ -35,7 +58,7 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <Navigate to="/dashboard/overview" replace /> },
+      { index: true, element: <RoleHomeRedirect /> },
       { path: 'dashboard', element: <Navigate to="/dashboard/overview" replace /> },
       { path: 'dashboard/overview', element: <DashboardOverviewPage /> },
       { path: 'products', element: <ProductsPage /> },
@@ -51,6 +74,7 @@ export const router = createBrowserRouter([
       { path: 'inventory/adjustments', element: <AdjustmentsPage /> },
       { path: 'inbound', element: <Navigate to="/orders/inbound" replace /> },
       { path: 'outbound', element: <Navigate to="/orders/outbound" replace /> },
+      { path: 'orders', element: <Navigate to="/orders/inbound" replace /> },
       { path: 'orders/inbound', element: <InboundListPage /> },
       { path: 'orders/inbound/:id', element: <InboundDetailPage /> },
       { path: 'orders/outbound', element: <OutboundListPage /> },
@@ -59,9 +83,21 @@ export const router = createBrowserRouter([
       { path: 'tasks/:id/execute', element: <TaskExecutePage /> },
       { path: 'tasks/:id', element: <TaskDetailPage /> },
       { path: 'internal', element: <InternalTransferPage /> },
+      {
+        path: 'reports',
+        element: <ReportsLayout />,
+        children: [
+          { index: true, element: <Navigate to="/reports/warehouse-analysis" replace /> },
+          { path: 'warehouse-analysis', element: <WarehouseAnalysisReportPage /> },
+          { path: 'inventory', element: <InventoryReportPage /> },
+          { path: 'product-moves', element: <ProductMovesReportPage /> },
+        ],
+      },
       { path: 'clients', element: <ClientsPage /> },
-      { path: 'users', element: <UsersPage /> },
-      { path: '*', element: <Navigate to="/dashboard/overview" replace /> },
+      { path: 'users', element: <Navigate to="/users/warehouse_users" replace /> },
+      { path: 'users/warehouse_users', element: <WarehouseUsersPage /> },
+      { path: 'users/client_users', element: <ClientUsersPage /> },
+      { path: '*', element: <RoleHomeRedirect /> },
     ],
   },
 ]);

@@ -28,6 +28,7 @@ const products_module_1 = require("./modules/products/products.module");
 const users_module_1 = require("./modules/users/users.module");
 const warehouses_module_1 = require("./modules/warehouses/warehouses.module");
 const warehouse_workflow_module_1 = require("./modules/warehouse-workflow/warehouse-workflow.module");
+const notifications_module_1 = require("./modules/notifications/notifications.module");
 const realtime_module_1 = require("./modules/realtime/realtime.module");
 let AppModule = class AppModule {
 };
@@ -41,6 +42,7 @@ exports.AppModule = AppModule = __decorate([
             auth_module_1.AuthModule,
             prisma_module_1.PrismaModule,
             redis_module_1.RedisModule,
+            notifications_module_1.NotificationsModule,
             companies_module_1.CompaniesModule,
             dashboard_module_1.DashboardModule,
             client_portal_module_1.ClientPortalModule,

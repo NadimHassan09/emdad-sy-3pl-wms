@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientInboundOrdersController = void 0;
 const common_1 = require("@nestjs/common");
+const create_inbound_dto_1 = require("../../inbound/dto/create-inbound.dto");
 const public_decorator_1 = require("../../../common/auth/public.decorator");
 const parse_uuid_loose_pipe_1 = require("../../../common/pipes/parse-uuid-loose.pipe");
 const list_inbound_query_dto_1 = require("../../inbound/dto/list-inbound-query.dto");
@@ -30,6 +31,9 @@ let ClientInboundOrdersController = class ClientInboundOrdersController {
     }
     findOne(client, id) {
         return this.inbound.findOne(client, id);
+    }
+    create(client, body) {
+        return this.inbound.create(client, body);
     }
 };
 exports.ClientInboundOrdersController = ClientInboundOrdersController;
@@ -53,6 +57,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ClientInboundOrdersController.prototype, "findOne", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)(),
+    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, create_inbound_dto_1.CreateInboundOrderDto]),
+    __metadata("design:returntype", void 0)
+], ClientInboundOrdersController.prototype, "create", null);
 exports.ClientInboundOrdersController = ClientInboundOrdersController = __decorate([
     (0, common_1.Controller)('client/inbound-orders'),
     __metadata("design:paramtypes", [client_inbound_orders_service_1.ClientInboundOrdersService])

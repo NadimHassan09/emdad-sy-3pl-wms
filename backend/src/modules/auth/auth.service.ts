@@ -98,13 +98,25 @@ export class AuthService {
     };
   }
 
-  getProfile(user: AuthPrincipal) {
+  async getProfile(user: AuthPrincipal) {
+    const [dbUser, worker] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: user.id },
+        select: { fullName: true },
+      }),
+      this.prisma.worker.findUnique({
+        where: { userId: user.id },
+        select: { id: true },
+      }),
+    ]);
     return {
       id: user.id,
       email: user.email ?? null,
+      fullName: dbUser?.fullName ?? null,
       role: user.role,
       authGroup: userRoleToAuthGroup(user.role),
       tenantCompanyId: user.companyId,
+      workerId: worker?.id ?? null,
     };
   }
 

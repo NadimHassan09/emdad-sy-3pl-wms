@@ -49,11 +49,16 @@ export function RealtimeProvider({ children }: Props): ReactElement {
       void qc.invalidateQueries({ queryKey: QK.dashboardOpenOrdersCharts });
     };
 
-    const onInbound = (): void => {
+    const onOrders = (): void => {
       invalidateLists();
+      void qc.invalidateQueries({ queryKey: QK.notifications });
+    };
+
+    const onInbound = (): void => {
+      onOrders();
     };
     const onOutbound = (): void => {
-      invalidateLists();
+      onOrders();
     };
     const onTask = (): void => {
       void qc.invalidateQueries({ queryKey: QK.tasks.all });

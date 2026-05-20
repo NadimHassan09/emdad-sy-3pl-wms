@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const public_decorator_1 = require("../../../common/auth/public.decorator");
 const client_user_decorator_1 = require("../auth/client-user.decorator");
 const jwt_client_auth_guard_1 = require("../auth/jwt-client-auth.guard");
+const availability_query_dto_1 = require("../../inventory/dto/availability-query.dto");
 const stock_query_dto_1 = require("../../inventory/dto/stock-query.dto");
 const client_stock_service_1 = require("./client-stock.service");
 let ClientStockController = class ClientStockController {
@@ -24,11 +25,24 @@ let ClientStockController = class ClientStockController {
     constructor(stock) {
         this.stock = stock;
     }
+    availability(client, query) {
+        return this.stock.availability(client, query.productId);
+    }
     list(client, query) {
         return this.stock.list(client, query);
     }
 };
 exports.ClientStockController = ClientStockController;
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Get)('availability'),
+    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, availability_query_dto_1.AvailabilityQueryDto]),
+    __metadata("design:returntype", void 0)
+], ClientStockController.prototype, "availability", null);
 __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Get)(),

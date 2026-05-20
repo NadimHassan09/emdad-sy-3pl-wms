@@ -68,3 +68,25 @@ export async function fetchClientOutboundOrder(id: string): Promise<ClientOutbou
   const { data } = await apiClient.get<ClientOutboundOrderDetail>(`/outbound-orders/${id}`);
   return data;
 }
+
+export type CreateClientOutboundOrderLine = {
+  productId: string;
+  requestedQuantity: number;
+  specificLotId?: string;
+};
+
+export type CreateClientOutboundOrderInput = {
+  destinationAddress: string;
+  requiredShipDate: string;
+  carrier?: string;
+  clientReference?: string;
+  notes?: string;
+  lines: CreateClientOutboundOrderLine[];
+};
+
+export async function createClientOutboundOrder(
+  input: CreateClientOutboundOrderInput,
+): Promise<ClientOutboundOrderRow> {
+  const { data } = await apiClient.post<ClientOutboundOrderRow>('/outbound-orders', input);
+  return data;
+}

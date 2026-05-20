@@ -11,7 +11,6 @@ import {
 import { Button } from '../components/Button';
 import { Column, DataTable } from '../components/DataTable';
 import { Modal } from '../components/Modal';
-import { PageHeader } from '../components/PageHeader';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
@@ -106,12 +105,6 @@ export function WarehousesPage() {
 
   return (
     <>
-      <PageHeader
-        title="Warehouses"
-        description="Physical sites. Operators can Activate inactive warehouses from this list."
-        actions={<Button onClick={() => setOpenCreate(true)}>+ New warehouse</Button>}
-      />
-
       <label className="mb-3 flex items-center gap-2 text-sm text-slate-700">
         <input
           type="checkbox"
@@ -122,6 +115,9 @@ export function WarehousesPage() {
       </label>
 
       <DataTable
+        title="Warehouses"
+        description="Physical sites. Operators can Activate inactive warehouses from this list."
+        actions={<Button onClick={() => setOpenCreate(true)}>+ New warehouse</Button>}
         columns={columns}
         rows={list.data ?? []}
         rowKey={(w) => w.id}

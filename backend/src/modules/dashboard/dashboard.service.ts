@@ -46,6 +46,7 @@ export type DashboardOverviewDto = {
 
 const INBOUND_OPEN: InboundOrderStatus[] = [
   InboundOrderStatus.draft,
+  InboundOrderStatus.pending_approval,
   InboundOrderStatus.confirmed,
   InboundOrderStatus.in_progress,
   InboundOrderStatus.partially_received,
@@ -53,6 +54,7 @@ const INBOUND_OPEN: InboundOrderStatus[] = [
 
 const OUTBOUND_OPEN: OutboundOrderStatus[] = [
   OutboundOrderStatus.draft,
+  OutboundOrderStatus.pending_approval,
   OutboundOrderStatus.pending_stock,
   OutboundOrderStatus.confirmed,
   OutboundOrderStatus.picking,
@@ -76,6 +78,17 @@ const TASK_CARD_MAP = [
   { key: 'dispatch', label: 'Delivery' },
   { key: 'routing', label: 'Internal' },
 ] as const;
+
+/** UTC calendar day (matches PostgreSQL `DATE` comparisons). */
+function startOfUtcDay(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+function addUtcMonths(day: Date, months: number): Date {
+  const x = new Date(day);
+  x.setUTCMonth(x.getUTCMonth() + months);
+  return x;
+}
 
 @Injectable()
 export class DashboardService {
@@ -107,7 +120,10 @@ export class DashboardService {
       {
         key: 'new',
         label: 'New',
-        count: inCount(InboundOrderStatus.draft) + inCount(InboundOrderStatus.confirmed),
+        count:
+          inCount(InboundOrderStatus.draft) +
+          inCount(InboundOrderStatus.pending_approval) +
+          inCount(InboundOrderStatus.confirmed),
       },
       {
         key: 'receive',
@@ -130,6 +146,7 @@ export class DashboardService {
         label: 'Picking',
         count:
           outCount(OutboundOrderStatus.draft) +
+          outCount(OutboundOrderStatus.pending_approval) +
           outCount(OutboundOrderStatus.pending_stock) +
           outCount(OutboundOrderStatus.confirmed) +
           outCount(OutboundOrderStatus.picking),
@@ -151,9 +168,8 @@ export class DashboardService {
 
   async overview(_user: AuthPrincipal): Promise<DashboardOverviewDto> {
     // Warehouse KPIs: all customers (ignore request-scoped X-Company-Id).
-    const now = new Date();
-    const sixMonthsFromNow = new Date(now);
-    sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
+    const today = startOfUtcDay(new Date());
+    const sixMonthsEnd = addUtcMonths(today, 6);
 
     const [
       stockAgg,
@@ -165,6 +181,7 @@ export class DashboardService {
       occupiedLocationsCount,
       totalStorageLocationsCount,
       soonExpiryRows,
+      missingExpiryRows,
       recentInbound,
       recentOutbound,
     ] = await Promise.all([
@@ -207,13 +224,9 @@ export class DashboardService {
       this.prisma.currentStock.findMany({
         where: {
           quantityOnHand: { gt: 0 },
+          lotId: { not: null },
           lot: {
-            is: {
-              expiryDate: {
-                gte: now,
-                lte: sixMonthsFromNow,
-              },
-            },
+            expiryDate: { not: null, lte: sixMonthsEnd },
           },
         },
         select: {
@@ -225,6 +238,23 @@ export class DashboardService {
         },
         orderBy: [{ lot: { expiryDate: 'asc' } }],
         take: 200,
+      }),
+      this.prisma.currentStock.findMany({
+        where: {
+          quantityOnHand: { gt: 0 },
+          lotId: { not: null },
+          product: { expiryTracking: true, trackingType: 'lot' },
+          lot: { expiryDate: null },
+        },
+        select: {
+          lotId: true,
+          quantityOnHand: true,
+          lot: { select: { id: true, lotNumber: true, expiryDate: true } },
+          product: { select: { id: true, name: true } },
+          location: { select: { id: true, name: true } },
+        },
+        orderBy: [{ product: { name: 'asc' } }],
+        take: 100,
       }),
       this.prisma.inboundOrder.findMany({
         where: { status: { in: INBOUND_OPEN } },
@@ -259,7 +289,8 @@ export class DashboardService {
       count: taskCounts.get(t.key) ?? 0,
     }));
 
-    const productIds = Array.from(new Set(soonExpiryRows.map((r) => r.product.id)));
+    const allExpiryAlertRows = [...missingExpiryRows, ...soonExpiryRows];
+    const productIds = Array.from(new Set(allExpiryAlertRows.map((r) => r.product.id)));
     const totalsByProduct = await this.prisma.currentStock.groupBy({
       by: ['productId'],
       where: {
@@ -285,7 +316,7 @@ export class DashboardService {
         lotQuantity: number;
       }
     >();
-    for (const row of soonExpiryRows) {
+    for (const row of allExpiryAlertRows) {
       if (!row.lot) continue;
       const cur = byLot.get(row.lot.id);
       if (cur) {
@@ -305,8 +336,18 @@ export class DashboardService {
       }
     }
 
+    const todayMs = today.getTime();
     const soonExpiryLots = Array.from(byLot.values())
       .sort((a, b) => {
+        const rank = (expiryDate: string | null) => {
+          if (!expiryDate) return 0;
+          const ms = new Date(expiryDate).getTime();
+          if (ms < todayMs) return 1;
+          return 2;
+        };
+        const ra = rank(a.expiryDate);
+        const rb = rank(b.expiryDate);
+        if (ra !== rb) return ra - rb;
         const da = a.expiryDate ? new Date(a.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
         const db = b.expiryDate ? new Date(b.expiryDate).getTime() : Number.MAX_SAFE_INTEGER;
         return da - db;

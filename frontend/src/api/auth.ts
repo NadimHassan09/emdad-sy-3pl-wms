@@ -19,11 +19,12 @@ export type LoginResponse = {
 
 export type MeResponse = {
   id: string;
-  fullName?: string;
+  fullName?: string | null;
   email: string | null;
   role: string;
   authGroup: AuthGroup;
   tenantCompanyId: string | null;
+  workerId: string | null;
 };
 
 export const AuthApi = {

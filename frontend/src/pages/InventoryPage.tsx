@@ -4,13 +4,14 @@ import { useNavigate } from 'react-router-dom';
 
 import { CompaniesApi } from '../api/companies';
 import { InventoryApi, ProductStockSummaryRow } from '../api/inventory';
+import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
+import { Alert } from '@ds';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
-import { FilterActions } from '../components/FilterActions';
 import { FilterPanel } from '../components/FilterPanel';
-import { PageHeader } from '../components/PageHeader';
+import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
@@ -77,14 +78,47 @@ const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
   },
 ];
 
+type InventorySearchCategory = 'name' | 'sku' | 'barcode' | 'lotNumber' | 'inboundOrderNumber';
+
 type InvDraftFilters = {
   companyId: string;
-  name: string;
-  sku: string;
-  barcode: string;
-  lotNumber: string;
-  inboundOrderNumber: string;
+  searchCategory: InventorySearchCategory;
+  searchQuery: string;
 };
+
+function inventorySearchParams(
+  filters: InvDraftFilters,
+  warehouseId: string | undefined,
+): {
+  warehouseId?: string;
+  companyId?: string;
+  productName?: string;
+  sku?: string;
+  productBarcode?: string;
+  lotNumber?: string;
+  inboundOrderNumber?: string;
+} {
+  const q = filters.searchQuery.trim();
+  const base = {
+    warehouseId: warehouseId || undefined,
+    companyId: filters.companyId.trim() || undefined,
+  };
+  if (!q) return base;
+  switch (filters.searchCategory) {
+    case 'name':
+      return { ...base, productName: q };
+    case 'sku':
+      return { ...base, sku: q };
+    case 'barcode':
+      return { ...base, productBarcode: q };
+    case 'lotNumber':
+      return { ...base, lotNumber: q };
+    case 'inboundOrderNumber':
+      return { ...base, inboundOrderNumber: q };
+    default:
+      return base;
+  }
+}
 
 export function InventoryPage() {
   const isArabic =
@@ -98,13 +132,21 @@ export function InventoryPage() {
   const initialInvFilters = useMemo<InvDraftFilters>(
     () => ({
       companyId: '',
-      name: '',
-      sku: '',
-      barcode: '',
-      lotNumber: '',
-      inboundOrderNumber: '',
+      searchCategory: 'name',
+      searchQuery: '',
     }),
     [],
+  );
+
+  const searchCategoryOptions = useMemo(
+    () => [
+      { value: 'name', label: t('Product name', 'اسم المنتج') },
+      { value: 'sku', label: t('SKU', 'رمز الصنف') },
+      { value: 'barcode', label: t('Barcode', 'الباركود') },
+      { value: 'lotNumber', label: t('Lot number', 'رقم الدفعة') },
+      { value: 'inboundOrderNumber', label: t('Inbound order number', 'رقم طلب الوارد') },
+    ],
+    [isArabic],
   );
 
   const { draftFilters, appliedFilters, setDraft, applyFilters, applyPatch, resetFilters } =
@@ -117,15 +159,7 @@ export function InventoryPage() {
   });
 
   const summaryParams = useMemo(
-    () => ({
-      warehouseId: warehouseIdForced || undefined,
-      companyId: appliedFilters.companyId.trim() || undefined,
-      productName: appliedFilters.name.trim() || undefined,
-      sku: appliedFilters.sku.trim() || undefined,
-      productBarcode: appliedFilters.barcode.trim() || undefined,
-      lotNumber: appliedFilters.lotNumber.trim() || undefined,
-      inboundOrderNumber: appliedFilters.inboundOrderNumber.trim() || undefined,
-    }),
+    () => inventorySearchParams(appliedFilters, warehouseIdForced || undefined),
     [appliedFilters, warehouseIdForced],
   );
 
@@ -149,20 +183,68 @@ export function InventoryPage() {
 
   return (
     <>
-      <PageHeader
-        title={t('Inventory', 'المخزون')}
-        description={t('Totals for the configured default warehouse — click a row for lot/location detail.', 'إجماليات المستودع الافتراضي المحدد — اضغط على أي صف لعرض تفاصيل الدفعة/الموقع.')}
-      />
+      {!warehouseIdForced && (
+        <Alert
+          variant="warning"
+          title={t('Warehouse not configured', 'المستودع غير محدد')}
+          description={t(
+            'No default warehouse is set. Contact your administrator to configure warehouse settings.',
+            'لم يتم تحديد مستودع افتراضي. تواصل مع المسؤول لتهيئة إعدادات المستودع.',
+          )}
+          className="mb-4"
+        />
+      )}
 
-      {!warehouseIdForced ? (
-        <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>
-      ) : null}
+      {summary.isError && (
+        <Alert
+          variant="error"
+          title={t('Failed to load inventory', 'فشل تحميل المخزون')}
+          description={t(
+            'There was a problem retrieving inventory data. Check your connection and try again.',
+            'حدثت مشكلة في جلب بيانات المخزون. تحقق من اتصالك وأعد المحاولة.',
+          )}
+          className="mb-4"
+        >
+          <Alert.Action onClick={() => summary.refetch()}>{t('Retry', 'إعادة المحاولة')}</Alert.Action>
+        </Alert>
+      )}
 
-      <FilterPanel showLabel={t('Show filters', 'إظهار الفلاتر')} hideLabel={t('Hide filters', 'إخفاء الفلاتر')}>
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-end gap-3">
+      <FilterPanel
+        title={t('Inventory filters', 'فلاتر المخزون')}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={summary.isFetching}
+        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
+        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
+      >
+      <div className="flex flex-wrap items-end gap-3">
+          <TextField
+            label={t('Search', 'بحث')}
+            value={draftFilters.searchQuery}
+            onChange={(e) => setDraft({ searchQuery: e.target.value })}
+            placeholder={t('Contains…', 'يحتوي على…')}
+            className={`min-w-[200px] flex-1 ${draftFilters.searchCategory !== 'name' ? 'font-mono' : ''}`}
+            hint={
+              draftFilters.searchCategory === 'inboundOrderNumber'
+                ? t(
+                    'Matches inbound order number; narrows stock received on matching orders.',
+                    'يطابق رقم طلب الوارد؛ يضيّق المخزون المستلم على الطلبات المطابقة.',
+                  )
+                : undefined
+            }
+          />
+          <SelectField
+            label={t('Search by', 'البحث حسب')}
+            name="searchCategory"
+            value={draftFilters.searchCategory}
+            onChange={(e) =>
+              setDraft({ searchCategory: e.target.value as InventorySearchCategory })
+            }
+            options={searchCategoryOptions}
+            className="min-w-[200px] max-w-xs shrink-0"
+          />
           <Combobox
-            label={t('Client filter', 'فلتر العميل')}
+            label={t('Client', 'العميل')}
             value={draftFilters.companyId}
             onChange={(v) => setDraft({ companyId: v })}
             options={[
@@ -174,68 +256,27 @@ export function InventoryPage() {
               })),
             ]}
             placeholder={t('All clients', 'كل العملاء')}
-            className="min-w-[220px] max-w-xs"
+            className="min-w-[220px] max-w-xs shrink-0"
           />
-        </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <TextField
-            label={t('Product name', 'اسم المنتج')}
-            value={draftFilters.name}
-            onChange={(e) => setDraft({ name: e.target.value })}
-            placeholder={t('Contains…', 'يحتوي على…')}
-          />
-          <TextField
-            label={t('SKU', 'رمز الصنف')}
-            className="font-mono"
-            value={draftFilters.sku}
-            onChange={(e) => setDraft({ sku: e.target.value })}
-            placeholder={t('Contains…', 'يحتوي على…')}
-          />
-          <div className="flex items-end gap-2">
-            <TextField
-              label={t('Barcode', 'الباركود')}
-              className="min-w-0 flex-1 font-mono"
-              value={draftFilters.barcode}
-              onChange={(e) => setDraft({ barcode: e.target.value })}
-              placeholder={t('Contains…', 'يحتوي على…')}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              className="shrink-0"
-              title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
-              onClick={() => setScanOpen(true)}
-            >
-              {t('Scan', 'مسح')}
-            </Button>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <TextField
-            label={t('Lot number', 'رقم الدفعة')}
-            value={draftFilters.lotNumber}
-            onChange={(e) => setDraft({ lotNumber: e.target.value })}
-            placeholder={t('Contains…', 'يحتوي على…')}
-          />
-          <TextField
-            label={t('Inbound order number', 'رقم طلب الوارد')}
-            value={draftFilters.inboundOrderNumber}
-            onChange={(e) => setDraft({ inboundOrderNumber: e.target.value })}
-            placeholder={t('Contains…', 'يحتوي على…')}
-            hint={t('Matches inbound order number; narrows stock that was received on matching orders.', 'يطابق رقم طلب الوارد؛ يضيّق المخزون المستلم على الطلبات المطابقة.')}
-          />
-        </div>
-        <FilterActions
-          onApply={applyFilters}
-          onReset={resetFilters}
-          loading={summary.isFetching}
-          applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
-          resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
-        />
+          <Button
+            type="button"
+            variant="secondary"
+            className="shrink-0 px-2.5"
+            title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
+            aria-label={t('Scan barcode', 'مسح الباركود')}
+            onClick={() => setScanOpen(true)}
+          >
+            <BarcodeScanIcon className="h-5 w-5" />
+          </Button>
       </div>
       </FilterPanel>
 
       <DataTable
+        title={t('Inventory', 'المخزون')}
+        description={t(
+          'Stock totals for the default warehouse — click any row for lot and location detail.',
+          'إجماليات المخزون للمستودع الافتراضي — اضغط على أي صف لعرض تفاصيل الدفعة والموقع.',
+        )}
         columns={summaryColumns}
         rows={summary.data?.items ?? []}
         rowKey={(r) => r.productId}
@@ -264,8 +305,10 @@ export function InventoryPage() {
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onScan={(text) => {
-          applyPatch({ barcode: text.trim() });
-          toast.success('Barcode scanned — barcode filter updated.');
+          applyPatch({ searchCategory: 'barcode', searchQuery: text.trim() });
+          toast.success(
+            t('Barcode scanned — search updated.', 'تم مسح الباركود — تم تحديث البحث.'),
+          );
         }}
         onCameraError={(msg) => toast.error(msg)}
       />

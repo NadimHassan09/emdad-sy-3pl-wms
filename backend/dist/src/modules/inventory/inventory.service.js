@@ -13,6 +13,7 @@ exports.InventoryService = void 0;
 const node_crypto_1 = require("node:crypto");
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const company_read_scope_1 = require("../../common/auth/company-read-scope");
 const storage_location_types_1 = require("../../common/constants/storage-location-types");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const location_operational_1 = require("../../common/utils/location-operational");
@@ -103,7 +104,7 @@ let InventoryService = class InventoryService {
         }
     }
     async resolveCurrentStockWhere(user, query) {
-        const companyId = query.companyId ?? user.companyId ?? undefined;
+        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(user, query.companyId);
         const and = [
             { quantityOnHand: { gt: 0 } },
         ];
@@ -256,7 +257,7 @@ let InventoryService = class InventoryService {
     }
     async ledger(user, query) {
         const andParts = [];
-        const companyId = query.companyId ?? user.companyId ?? undefined;
+        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(user, query.companyId);
         if (companyId)
             andParts.push({ companyId });
         if (query.productId)
