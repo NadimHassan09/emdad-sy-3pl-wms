@@ -2,6 +2,7 @@ import { PageResult, api } from './client';
 
 export type OutboundOrderStatus =
   | 'draft'
+  | 'pending_approval'
   | 'pending_stock'
   | 'confirmed'
   | 'picking'

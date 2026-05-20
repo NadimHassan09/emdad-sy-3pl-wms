@@ -2,6 +2,7 @@ import { PageResult, api } from './client';
 
 export type InboundOrderStatus =
   | 'draft'
+  | 'pending_approval'
   | 'confirmed'
   | 'in_progress'
   | 'partially_received'
