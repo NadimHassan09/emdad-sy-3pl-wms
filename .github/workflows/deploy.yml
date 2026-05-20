@@ -61,6 +61,17 @@ jobs:
             cd "$DEPLOY_PATH/backend"
             npm ci
 
+            echo "=== backend: prisma migrate deploy ==="
+            if [ -f .env ]; then
+              set -a
+              set +u
+              # shellcheck disable=SC1091
+              . ./.env
+              set +a
+              set -u
+            fi
+            npx prisma migrate deploy
+
             echo "=== backend: build (Prisma generate + Nest) ==="
             if [ -f .env ]; then
               set -a
