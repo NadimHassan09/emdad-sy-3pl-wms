@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FormEvent, ComponentPropsWithoutRef, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { InventoryApi, StockRow } from '../api/inventory';
 import { CreateLocationInput, Location, LocationTreeNode, LocationsApi, LocationType } from '../api/locations';
 import { BarcodeImageModal } from '../components/BarcodeImageModal';
+import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
@@ -11,15 +12,16 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
+import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
+import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
 import { useFilters } from '../hooks/useFilters';
+import { LocationsTreeTable } from '../components/locations/LocationsTreeTable';
 import {
   LOCATION_TYPE_OPTIONS,
-  locationTypeLabel,
-  locationTypeShowsStockContents,
   locationTypeSupportsCapacityFields,
   managedTypeOptionsForEdit,
 } from '../lib/location-types';
@@ -41,118 +43,25 @@ function fmtQty(s: string) {
   return Number(s).toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
-function collectSubtreeIdsFromFlat(flat: Location[], rootId: string): string[] {
-  const byParent = new Map<string | null, string[]>();
-  for (const l of flat) {
-    const p = l.parentId;
-    const arr = byParent.get(p) ?? [];
-    arr.push(l.id);
-    byParent.set(p, arr);
-  }
-  const out: string[] = [];
-  const stack = [rootId];
-  while (stack.length) {
-    const id = stack.pop()!;
-    out.push(id);
-    for (const c of byParent.get(id) ?? []) stack.push(c);
-  }
-  return out;
+function locationMatchesTypeFilter(nodeType: string, typeQ: string): boolean {
+  if (!typeQ) return true;
+  if (nodeType === typeQ) return true;
+  return typeQ === 'quarantine' && nodeType === 'qc';
 }
 
-function subtreeTouchesBlocker(flat: Location[], rootId: string, block: Set<string>): boolean {
-  if (!flat.length) return false;
-  return collectSubtreeIdsFromFlat(flat, rootId).some((id) => block.has(id));
-}
-
-/** Rounded-square icon styling per location type (matches pill semantics). */
-function locationTypeIconBoxClass(type: string): string {
-  switch (type) {
-    case 'iss':
-      return 'bg-slate-100 text-slate-700 ring-1 ring-slate-200/80';
-    case 'internal':
-      return 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200/80';
-    case 'fridge':
-      return 'bg-sky-100 text-sky-800 ring-1 ring-sky-200/80';
-    case 'packing':
-      return 'bg-violet-100 text-violet-800 ring-1 ring-violet-200/80';
-    case 'output':
-      return 'bg-blue-100 text-blue-800 ring-1 ring-blue-200/80';
-    case 'quarantine':
-      return 'bg-amber-100 text-amber-900 ring-1 ring-amber-200/80';
-    case 'scrap':
-      return 'bg-rose-100 text-rose-800 ring-1 ring-rose-200/80';
-    default:
-      return 'bg-slate-50 text-slate-600 ring-1 ring-slate-200/80';
-  }
-}
-
-function LocationTypeGlyph({ type }: { type: string }) {
-  switch (type) {
-    case 'iss':
-      return (
-        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
-          <path d="M4 14V6l6-3 6 3v8l-6 3-6-3Z" />
-          <path d="M10 11V3.5M4 6v8M16 6v8" />
-        </svg>
-      );
-    case 'internal':
-      return (
-        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
-          <path d="M4 7h12v10H4V7ZM7 7V5a3 3 0 016 0v2" />
-        </svg>
-      );
-    case 'fridge':
-      return (
-        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
-          <path d="M7 4h8v13H7V4Z" />
-          <path d="M9 7v8M13 9v5" />
-        </svg>
-      );
-    case 'packing':
-      return (
-        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
-          <path d="m4 7 8-4 8 4-8 4-8-4Z" />
-          <path d="M4 10l8 4 8-4M7 14l5 3 5-3" strokeLinecap="round" />
-        </svg>
-      );
-    case 'output':
-      return (
-        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
-          <path d="M13 17H4V7h12v5" />
-          <path d="M15 13h4l-4-4v8l4-4h-4" />
-        </svg>
-      );
-    case 'quarantine':
-      return (
-        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
-          <path d="M10 4 4 17h12L10 4Z" />
-          <path d="M10 9v5M10 15h0" strokeLinecap="round" />
-        </svg>
-      );
-    case 'scrap':
-      return (
-        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
-          <path d="M8 8V6h4v2" />
-          <path d="M6 8h8l1 11H5L6 8Z" />
-          <path d="M7 11h6M10 13v5" strokeLinecap="round" />
-        </svg>
-      );
-    default:
-      return (
-        <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75">
-          <path d="M10 4a6 6 0 0 1 6 6c0 4-6 8-6 8S4 14 4 10a6 6 0 0 1 6-6Z" />
-          <circle cx="10" cy="10" r="2.25" />
-        </svg>
-      );
-  }
-}
-
-function pruneLocationTree(nodes: LocationTreeNode[], nameQ: string, barcodeQ: string): LocationTreeNode[] {
+function pruneLocationTree(
+  nodes: LocationTreeNode[],
+  nameQ: string,
+  barcodeQ: string,
+  typeQ: string,
+): LocationTreeNode[] {
   const nq = nameQ.trim().toLowerCase();
   const bq = barcodeQ.trim().toLowerCase();
-  if (!nq && !bq) return nodes;
+  const tq = typeQ.trim();
+  if (!nq && !bq && !tq) return nodes;
 
   const nodeMatches = (node: LocationTreeNode) =>
+    locationMatchesTypeFilter(node.type, tq) &&
     (!nq || node.name.toLowerCase().includes(nq) || node.fullPath.toLowerCase().includes(nq)) &&
     (!bq || node.barcode.toLowerCase().includes(bq));
 
@@ -169,17 +78,21 @@ function pruneLocationTree(nodes: LocationTreeNode[], nameQ: string, barcodeQ: s
   return nodes.map(walk).filter(Boolean) as LocationTreeNode[];
 }
 
-type LocationDraftFilters = { name: string; barcode: string };
+type LocationDraftFilters = { name: string; barcode: string; locationType: string };
+
+const INCLUDE_ARCHIVED_LOCATIONS = true;
 
 export function LocationsPage() {
   const qc = useQueryClient();
   const toast = useToast();
-  const { warehouseId, isLoading: whLoading } = useDefaultWarehouseId();
-  const initialLocFilters = useMemo<LocationDraftFilters>(() => ({ name: '', barcode: '' }), []);
+  const { warehouseId } = useDefaultWarehouseId();
+  const initialLocFilters = useMemo<LocationDraftFilters>(
+    () => ({ name: '', barcode: '', locationType: '' }),
+    [],
+  );
   const { draftFilters, appliedFilters, setDraft, applyFilters, applyPatch, resetFilters } =
     useFilters(initialLocFilters);
   const [open, setOpen] = useState(false);
-  const [includeArchived, setIncludeArchived] = useState(false);
   const [editLoc, setEditLoc] = useState<Location | null>(null);
   const [barcodeModal, setBarcodeModal] = useState<{ value: string; contextLabel: string } | null>(null);
   const [branchExpanded, setBranchExpanded] = useState<Record<string, boolean>>({});
@@ -207,8 +120,8 @@ export function LocationsPage() {
   });
 
   const flat = useQuery({
-    queryKey: QK.locationsFlat(warehouseId, includeArchived),
-    queryFn: () => LocationsApi.list(warehouseId, includeArchived),
+    queryKey: QK.locationsFlat(warehouseId, INCLUDE_ARCHIVED_LOCATIONS),
+    queryFn: () => LocationsApi.list(warehouseId, INCLUDE_ARCHIVED_LOCATIONS),
     enabled: !!warehouseId,
   });
 
@@ -229,13 +142,18 @@ export function LocationsPage() {
 
   const filteredTree = useMemo(() => {
     const raw = tree.data ?? [];
-    return pruneLocationTree(raw, appliedFilters.name, appliedFilters.barcode);
-  }, [tree.data, appliedFilters.name, appliedFilters.barcode]);
+    return pruneLocationTree(
+      raw,
+      appliedFilters.name,
+      appliedFilters.barcode,
+      appliedFilters.locationType,
+    );
+  }, [tree.data, appliedFilters.name, appliedFilters.barcode, appliedFilters.locationType]);
 
   const invalidateLocationQueries = () => {
     if (!warehouseId) return;
     qc.invalidateQueries({ queryKey: QK.locationsTree(warehouseId) });
-    qc.invalidateQueries({ queryKey: QK.locationsFlat(warehouseId, includeArchived) });
+    qc.invalidateQueries({ queryKey: QK.locationsFlat(warehouseId, INCLUDE_ARCHIVED_LOCATIONS) });
     qc.invalidateQueries({ queryKey: QK.locationsFlatAll(false) });
     qc.invalidateQueries({ queryKey: QK.locationsFlatAll(true) });
     qc.invalidateQueries({ queryKey: QK.locationsPurgeContext(warehouseId) });
@@ -302,9 +220,8 @@ export function LocationsPage() {
     <>
       <PageHeader
         title="Locations"
-        description="Hierarchy for this warehouse: aisles group bins; storage, fridge, quarantine, and scrap accept putaway (with optional max weight / volume where shown). Shipping docks support delivery; packing supports packing tasks."
         actions={
-          <Button disabled={!warehouseId} onClick={() => setOpen(true)}>
+          <Button variant="brand" disabled={!warehouseId} onClick={() => setOpen(true)}>
             + New location
           </Button>
         }
@@ -316,89 +233,82 @@ export function LocationsPage() {
         onReset={resetFilters}
         loading={tree.isFetching || flat.isFetching}
       >
-      <div className="space-y-5">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <p className="pb-2 text-sm text-slate-600">
-            {whLoading
-              ? 'Loading default warehouse…'
-              : warehouseId
-                ? 'Locations are scoped to your default warehouse.'
-                : 'No warehouse available — seed data or set VITE_DEFAULT_WAREHOUSE_ID.'}
-          </p>
-          <label className="flex items-center gap-2 pb-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={includeArchived}
-              onChange={(e) => setIncludeArchived(e.target.checked)}
-            />
-            Include archived locations in flat list / tree hides archived paths
-          </label>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <TextField
-            label="Location name"
-            value={draftFilters.name}
-            onChange={(e) => setDraft({ name: e.target.value })}
-            placeholder="Contains…"
+      <div className="flex min-w-0 flex-wrap items-end gap-3">
+        <TextField
+          label="Location name"
+          value={draftFilters.name}
+          onChange={(e) => setDraft({ name: e.target.value })}
+          placeholder="Contains…"
+          className="min-w-[12.5rem] flex-1 basis-40"
+        />
+        <TextField
+          label="Barcode"
+          value={draftFilters.barcode}
+          onChange={(e) => setDraft({ barcode: e.target.value })}
+          placeholder="Contains…"
+          className="min-w-[10rem] flex-1 basis-32 font-mono"
+        />
+        <Button
+          type="button"
+          variant="secondary"
+          className="h-[34px] shrink-0 px-2.5"
+          title="Scan a barcode with the device camera"
+          aria-label="Scan barcode"
+          onClick={() => setScanOpen(true)}
+        >
+          <BarcodeScanIcon className="h-5 w-5" />
+        </Button>
+        <div className="min-w-[11rem] max-w-[14rem] shrink-0">
+          <SelectField
+            label="Location type"
+            name="locationTypeFilter"
+            value={draftFilters.locationType}
+            onChange={(e) => setDraft({ locationType: e.target.value })}
+            options={[
+              { value: '', label: 'All types' },
+              ...LOCATION_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+            ]}
           />
-          <div className="flex items-end gap-2">
-            <TextField
-              label="Barcode"
-              className="min-w-0 flex-1 font-mono"
-              value={draftFilters.barcode}
-              onChange={(e) => setDraft({ barcode: e.target.value })}
-              placeholder="Contains…"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              className="shrink-0"
-              title="Scan a barcode with the device camera"
-              onClick={() => setScanOpen(true)}
-            >
-              Scan
-            </Button>
-          </div>
         </div>
       </div>
       </FilterPanel>
 
-      <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-        {!warehouseId ? (
-          <p className="text-sm text-slate-500">Default warehouse required to load the location tree.</p>
-        ) : tree.isLoading ? (
-          <p className="text-sm text-slate-500">Loading…</p>
-        ) : filteredTree.length ? (
-          <ul className="space-y-2">
-            {filteredTree.map((node) => (
-              <TreeNode
-                key={node.id}
-                node={node}
-                flatList={flat.data ?? []}
-                purgeReady={purgeCtx.isSuccess}
-                blockDeleteSet={blockDeleteSet}
-                branchIsExpanded={branchIsExpanded}
-                onToggleBranch={toggleBranch}
-                resolve={(id) => flatById.get(id)}
-                onEdit={(loc) => setEditLoc(loc)}
-                onBarcodeClick={(barcode, contextLabel) => setBarcodeModal({ value: barcode, contextLabel })}
-                onStockTypeClick={(n) => setStockModal(n)}
-                actionBusy={locActionBusy}
-                onSuspend={(id) => suspendLocMut.mutate(id)}
-                onUnsuspend={(id) => unsuspendLocMut.mutate(id)}
-                onRequestPermanentDelete={(id, fullPath, subtreeSize) =>
-                  setPendingPermanentDelete({ id, fullPath, subtreeSize })
-                }
-              />
-            ))}
-          </ul>
-        ) : tree.data?.length ? (
-          <p className="text-sm text-slate-600">No locations match the current filters.</p>
-        ) : (
-          <p className="text-sm text-slate-500">No locations in this warehouse yet.</p>
-        )}
-      </div>
+      {!warehouseId ? (
+        <p className="rounded-xl border border-slate-100 bg-white p-4 text-sm text-slate-500 shadow-sm">
+          Default warehouse required to load the location tree.
+        </p>
+      ) : tree.isLoading ? (
+        <p className="rounded-xl border border-slate-100 bg-white p-4 text-sm text-slate-500 shadow-sm">
+          Loading…
+        </p>
+      ) : filteredTree.length ? (
+        <LocationsTreeTable
+          roots={filteredTree}
+          flatList={flat.data ?? []}
+          purgeReady={purgeCtx.isSuccess}
+          blockDeleteSet={blockDeleteSet}
+          branchIsExpanded={branchIsExpanded}
+          onToggleBranch={toggleBranch}
+          resolve={(id) => flatById.get(id)}
+          onEdit={(loc) => setEditLoc(loc)}
+          onBarcodeClick={(barcode, contextLabel) => setBarcodeModal({ value: barcode, contextLabel })}
+          onStockTypeClick={(n) => setStockModal(n)}
+          actionBusy={locActionBusy}
+          onSuspend={(id) => suspendLocMut.mutate(id)}
+          onUnsuspend={(id) => unsuspendLocMut.mutate(id)}
+          onRequestPermanentDelete={(id, fullPath, subtreeSize) =>
+            setPendingPermanentDelete({ id, fullPath, subtreeSize })
+          }
+        />
+      ) : tree.data?.length ? (
+        <p className="rounded-xl border border-slate-100 bg-white p-4 text-sm text-slate-600 shadow-sm">
+          No locations match the current filters.
+        </p>
+      ) : (
+        <p className="rounded-xl border border-slate-100 bg-white p-4 text-sm text-slate-500 shadow-sm">
+          No locations in this warehouse yet.
+        </p>
+      )}
 
       <BarcodeImageModal
         open={!!barcodeModal}
@@ -467,316 +377,6 @@ export function LocationsPage() {
         onCameraError={(msg) => toast.error(msg)}
       />
     </>
-  );
-}
-
-function LocationRowMenuItem({
-  className = '',
-  danger,
-  ...rest
-}: ComponentPropsWithoutRef<'button'> & { danger?: boolean }) {
-  const base =
-    'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50';
-  const dc = danger ? 'text-rose-800 hover:bg-rose-50' : '';
-  return <button type="button" className={`${base} ${dc} ${className}`.trim()} {...rest} />;
-}
-
-function TreeNode({
-  node,
-  flatList,
-  purgeReady,
-  blockDeleteSet,
-  branchIsExpanded,
-  onToggleBranch,
-  resolve,
-  onEdit,
-  onBarcodeClick,
-  onStockTypeClick,
-  actionBusy,
-  onSuspend,
-  onUnsuspend,
-  onRequestPermanentDelete,
-}: {
-  node: LocationTreeNode;
-  flatList: Location[];
-  purgeReady: boolean;
-  blockDeleteSet: Set<string>;
-  branchIsExpanded: (id: string) => boolean;
-  onToggleBranch: (id: string) => void;
-  resolve: (id: string) => Location | undefined;
-  onEdit: (l: Location) => void;
-  onBarcodeClick: (barcode: string, contextLabel: string) => void;
-  onStockTypeClick: (n: LocationTreeNode) => void;
-  actionBusy: boolean;
-  onSuspend: (id: string) => void;
-  onUnsuspend: (id: string) => void;
-  onRequestPermanentDelete: (id: string, fullPath: string, subtreeSize: number) => void;
-}) {
-  const full = resolve(node.id);
-  const children = node.children;
-  const hasChildren = children.length > 0;
-  const expanded = branchIsExpanded(node.id);
-  const typeHint = LOCATION_TYPE_OPTIONS.find((o) => o.value === node.type)?.hint ?? node.type;
-  const stockInteractive = locationTypeShowsStockContents(node.type);
-
-  const subtreeIds = useMemo(() => collectSubtreeIdsFromFlat(flatList, node.id), [flatList, node.id]);
-  const canPermanentDelete =
-    purgeReady &&
-    full &&
-    full.status !== 'archived' &&
-    flatList.length > 0 &&
-    !subtreeTouchesBlocker(flatList, node.id, blockDeleteSet);
-
-  const typeIconTitle = `${locationTypeLabel(node.type)} · ${typeHint}`;
-
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = () => setMenuOpen(false);
-    const onDown = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) close();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [menuOpen]);
-
-  const closeMenu = () => setMenuOpen(false);
-
-  return (
-    <li className="list-none">
-      <div className="rounded-lg border border-slate-200 bg-slate-50/50 px-2 py-2 shadow-sm sm:px-3">
-        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-          {/* Expand / spacer */}
-          {hasChildren ? (
-            <button
-              type="button"
-              aria-expanded={expanded}
-              aria-label={expanded ? 'Collapse branch' : 'Expand branch'}
-              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-200/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500`}
-              onClick={() => onToggleBranch(node.id)}
-            >
-              <svg
-                viewBox="0 0 20 20"
-                className={`h-5 w-5 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M7 4 13 10 7 16" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          ) : (
-            <div className="w-9 shrink-0" aria-hidden />
-          )}
-
-          <span
-            className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg shadow-sm ${locationTypeIconBoxClass(node.type)}`}
-            title={typeIconTitle}
-          >
-            <LocationTypeGlyph type={node.type} />
-          </span>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-              <span className="truncate text-base font-semibold text-slate-900">{node.name}</span>
-              {full?.status === 'blocked' ? (
-                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-900 ring-1 ring-amber-200">
-                  Suspended
-                </span>
-              ) : null}
-            </div>
-            <div className="truncate font-mono text-[11px] text-slate-500" title={`${node.fullPath} · ${node.barcode}`}>
-              <span className="text-slate-400">{node.fullPath}</span>
-              <span className="text-slate-300"> · </span>
-              <span>{node.barcode}</span>
-            </div>
-          </div>
-
-          <div className="relative shrink-0" ref={menuRef}>
-            <button
-              type="button"
-              aria-expanded={menuOpen}
-              aria-haspopup="menu"
-              aria-label="Location actions"
-              disabled={actionBusy}
-              className={`flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-200/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-40`}
-              onClick={() => setMenuOpen((o) => !o)}
-            >
-              <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor">
-                <circle cx="10" cy="4" r="1.85" />
-                <circle cx="10" cy="10" r="1.85" />
-                <circle cx="10" cy="16" r="1.85" />
-              </svg>
-            </button>
-
-            {menuOpen ? (
-              <div
-                role="menu"
-                className="absolute right-0 top-full z-50 mt-1 min-w-[13.5rem] overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
-              >
-                <LocationRowMenuItem
-                  role="menuitem"
-                  className="bg-indigo-50/80 text-indigo-900 hover:bg-indigo-100"
-                  disabled={actionBusy}
-                  onClick={() => {
-                    closeMenu();
-                    onBarcodeClick(node.barcode, node.fullPath);
-                  }}
-                >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-indigo-200/80 text-indigo-950">
-                    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 14V6l2 .5 2-.5 2 .5 2-.5 2 .5 2-.5v8l-2-.5-2 .5-2-.5-2 .5-2-.5L4 14Z" />
-                      <path d="M9 17V3M13 17V7" strokeLinecap="round" />
-                    </svg>
-                  </span>
-                  Barcode image
-                </LocationRowMenuItem>
-
-                {stockInteractive ? (
-                  <LocationRowMenuItem
-                    role="menuitem"
-                    className="bg-emerald-50/80 text-emerald-950 hover:bg-emerald-100"
-                    disabled={actionBusy}
-                    onClick={() => {
-                      closeMenu();
-                      onStockTypeClick(node);
-                    }}
-                  >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-200/80 text-emerald-950">
-                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.75">
-                        <path d="M10 15V5m-6 9V6l6-4 6 4v8" />
-                        <path d="M4 13l6 3 6-3" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
-                    Current stock
-                  </LocationRowMenuItem>
-                ) : null}
-
-                {full ? (
-                  <LocationRowMenuItem
-                    role="menuitem"
-                    className="bg-sky-50/85 text-sky-950 hover:bg-sky-100"
-                    disabled={actionBusy}
-                    onClick={() => {
-                      closeMenu();
-                      onEdit(full);
-                    }}
-                  >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-200/80 text-sky-950">
-                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.85">
-                        <path d="M14 5 15 15H5m7-13H7a2 2 0 0 0-2 2v9" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="m11 3 6 6" strokeLinecap="round" />
-                      </svg>
-                    </span>
-                    Edit location
-                  </LocationRowMenuItem>
-                ) : null}
-
-                {(full?.status === 'active' ||
-                  full?.status === 'blocked' ||
-                  canPermanentDelete) && (
-                  <div className="my-1 border-t border-slate-100" role="presentation" />
-                )}
-
-                {full?.status === 'active' ? (
-                  <LocationRowMenuItem
-                    role="menuitem"
-                    className="bg-amber-50/80 text-amber-950 hover:bg-amber-100"
-                    disabled={actionBusy}
-                    onClick={() => {
-                      closeMenu();
-                      onSuspend(full.id);
-                    }}
-                  >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-amber-200/80 text-amber-950">
-                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
-                        <rect x="5" y="4" width="3.5" height="12" rx="1" />
-                        <rect x="11.5" y="4" width="3.5" height="12" rx="1" />
-                      </svg>
-                    </span>
-                    Suspend
-                  </LocationRowMenuItem>
-                ) : null}
-
-                {full?.status === 'blocked' ? (
-                  <LocationRowMenuItem
-                    role="menuitem"
-                    className="bg-teal-50/85 text-teal-950 hover:bg-teal-100"
-                    disabled={actionBusy}
-                    onClick={() => {
-                      closeMenu();
-                      onUnsuspend(full.id);
-                    }}
-                  >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-teal-200/80 text-teal-950">
-                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">
-                        <path d="M9 14V6l8 4-8 4Z" />
-                      </svg>
-                    </span>
-                    Unsuspend
-                  </LocationRowMenuItem>
-                ) : null}
-
-                {canPermanentDelete ? (
-                  <LocationRowMenuItem
-                    danger
-                    role="menuitem"
-                    className="text-rose-800 hover:bg-rose-50"
-                    disabled={actionBusy}
-                    title="Permanently delete this location and all descendants"
-                    onClick={() => {
-                      closeMenu();
-                      onRequestPermanentDelete(node.id, node.fullPath, subtreeIds.length);
-                    }}
-                  >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-rose-200/85 text-rose-950">
-                      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.85">
-                        <path d="M8 9v5m4-5v5M6 16h8l1-13H5l1 13Z" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M8 6V4h8v2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
-                    Delete permanently
-                  </LocationRowMenuItem>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      {hasChildren && expanded ? (
-        <ul className="mt-2 space-y-2 border-l border-slate-200/90 pl-2 sm:mt-3 sm:space-y-3 sm:border-l-2 sm:pl-4">
-          {children.map((c) => (
-            <TreeNode
-              key={c.id}
-              node={c}
-              flatList={flatList}
-              purgeReady={purgeReady}
-              blockDeleteSet={blockDeleteSet}
-              branchIsExpanded={branchIsExpanded}
-              onToggleBranch={onToggleBranch}
-              resolve={resolve}
-              onEdit={onEdit}
-              onBarcodeClick={onBarcodeClick}
-              onStockTypeClick={onStockTypeClick}
-              actionBusy={actionBusy}
-              onSuspend={onSuspend}
-              onUnsuspend={onUnsuspend}
-              onRequestPermanentDelete={onRequestPermanentDelete}
-            />
-          ))}
-        </ul>
-      ) : null}
-    </li>
   );
 }
 
@@ -879,7 +479,6 @@ function CreateLocationModal({
   const [type, setType] = useState<LocationType>('internal');
   const [parentId, setParentId] = useState('');
   const [barcode, setBarcode] = useState('');
-  const [autoBarcode, setAutoBarcode] = useState(true);
   const [maxWeightKg, setMaxWeightKg] = useState('');
   const [maxCbm, setMaxCbm] = useState('');
 
@@ -888,7 +487,6 @@ function CreateLocationModal({
     setType('internal');
     setParentId('');
     setBarcode('');
-    setAutoBarcode(true);
     setMaxWeightKg('');
     setMaxCbm('');
   };
@@ -908,7 +506,7 @@ function CreateLocationModal({
       parentId: parentId || undefined,
       name,
       type,
-      barcode: autoBarcode ? undefined : barcode.trim() || undefined,
+      barcode: barcode.trim() || undefined,
       maxWeightKg: cap ? parseOptionalPositiveDecimal(maxWeightKg) : undefined,
       maxCbm: cap ? parseOptionalPositiveDecimal(maxCbm) : undefined,
     });
@@ -923,16 +521,27 @@ function CreateLocationModal({
       title="New location"
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
+          <Button
+            type="button"
+            variant="danger"
+            className={MODAL_CANCEL_BUTTON_CLASS}
+            onClick={handleClose}
+            disabled={loading}
+          >
             Cancel
           </Button>
-          <Button form="create-loc" type="submit" loading={loading}>
+          <Button
+            form="create-loc"
+            type="submit"
+            variant="brand"
+            loading={loading}
+          >
             Create
           </Button>
         </>
       }
     >
-      <form id="create-loc" onSubmit={submit} className="space-y-3">
+      <form id="create-loc" onSubmit={submit} className="space-y-3 pb-2">
         <Combobox
           label="Parent (optional)"
           value={parentId}
@@ -941,11 +550,10 @@ function CreateLocationModal({
           placeholder="No parent (top-level)"
         />
         <TextField
-          label="Receiving dock"
+          label="Name"
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          hint="Display name for this node (aisle, bin, dock, etc.)."
         />
         <Combobox
           label="Type"
@@ -954,19 +562,16 @@ function CreateLocationModal({
           onChange={(v) => setType(v as LocationType)}
           options={TYPE_COMBO_OPTIONS}
           placeholder="Pick type…"
+          dropdownInFlow
         />
         {typeHint ? <p className="text-xs text-slate-600">{typeHint}</p> : null}
-        <label className="flex items-center gap-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={autoBarcode}
-            onChange={(e) => setAutoBarcode(e.target.checked)}
-          />
-          Auto-generate barcode (recommended).
-        </label>
-        {!autoBarcode && (
-          <TextField label="Barcode" required value={barcode} onChange={(e) => setBarcode(e.target.value)} />
-        )}
+        <TextField
+          label="Barcode"
+          value={barcode}
+          onChange={(e) => setBarcode(e.target.value)}
+          className="font-mono"
+          hint="Leave empty to auto-generate a barcode."
+        />
         {locationTypeSupportsCapacityFields(type) ? (
           <>
             <TextField
@@ -1049,22 +654,32 @@ function EditLocationModal({
       title={`Edit ${location.fullPath}`}
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+          <Button
+            type="button"
+            variant="danger"
+            className={MODAL_CANCEL_BUTTON_CLASS}
+            onClick={onClose}
+            disabled={loading}
+          >
             Cancel
           </Button>
-          <Button type="submit" form="edit-loc" loading={loading}>
+          <Button
+            type="submit"
+            form="edit-loc"
+            variant="brand"
+            loading={loading}
+          >
             Save
           </Button>
         </>
       }
     >
-      <form id="edit-loc" onSubmit={submit} className="space-y-3">
+      <form id="edit-loc" onSubmit={submit} className="space-y-3 pb-2">
         <TextField
-          label="Receiving dock"
+          label="Name"
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          hint="Display name for this node (aisle, bin, dock, etc.)."
         />
         <Combobox
           label="Type"
@@ -1073,6 +688,7 @@ function EditLocationModal({
           onChange={(v) => setType(v as LocationType)}
           options={typeOptions}
           placeholder="Pick type…"
+          dropdownInFlow
         />
         {typeHint ? <p className="text-xs text-slate-600">{typeHint}</p> : null}
         <TextField label="Barcode" required value={barcode} onChange={(e) => setBarcode(e.target.value)} />

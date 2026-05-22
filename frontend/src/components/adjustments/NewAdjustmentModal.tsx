@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ADJUSTMENT_PRIMARY_BUTTON_CLASS } from './adjustment-button-styles';
+import { ADJUSTMENT_CANCEL_BUTTON_CLASS } from './adjustment-button-styles';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AdjustmentsApi, type AddAdjustmentLineInput } from '../../api/adjustments';
@@ -20,7 +20,14 @@ type PendingAdjustmentRow = {
   productName: string;
   locationPath: string;
   lotLabel?: string;
+  quantityBefore: string;
 };
+
+function fmtAdjustmentQty(v: string | number): string {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '—';
+  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
 
 export function NewAdjustmentModal({
   open,
@@ -147,8 +154,7 @@ export function NewAdjustmentModal({
         header: t('Before → After', 'قبل → بعد'),
         accessor: (r) => (
           <span className="font-mono text-xs">
-            — →{' '}
-            {Number(r.body.quantityAfter).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+            {fmtAdjustmentQty(r.quantityBefore)} → {fmtAdjustmentQty(r.body.quantityAfter)}
           </span>
         ),
         width: '140px',
@@ -175,13 +181,18 @@ export function NewAdjustmentModal({
   const footer =
     step === 1 ? (
       <div className="flex flex-wrap justify-end gap-2">
-        <Button type="button" variant="secondary" onClick={onClose} disabled={pending}>
+        <Button
+          type="button"
+          variant="danger"
+          className={ADJUSTMENT_CANCEL_BUTTON_CLASS}
+          onClick={onClose}
+          disabled={pending}
+        >
           {t('Cancel', 'إلغاء')}
         </Button>
         <Button
           type="button"
-          variant="secondary"
-          className={ADJUSTMENT_PRIMARY_BUTTON_CLASS}
+          variant="brand"
           disabled={!canGoNext || pending}
           onClick={() => setStep(2)}
         >
@@ -189,32 +200,41 @@ export function NewAdjustmentModal({
         </Button>
       </div>
     ) : (
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button type="button" variant="secondary" onClick={() => setStep(1)} disabled={pending}>
-          {t('Back', 'رجوع')}
-        </Button>
-        <Button type="button" variant="secondary" onClick={onClose} disabled={pending}>
-          {t('Cancel', 'إلغاء')}
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          loading={composeSaveMut.isPending}
-          disabled={pending || pendingRows.length === 0}
-          onClick={() => composeSaveMut.mutate()}
-        >
-          {t('Save draft', 'حفظ المسودة')}
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          className={ADJUSTMENT_PRIMARY_BUTTON_CLASS}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={() => setStep(1)} disabled={pending}>
+            {t('Back', 'رجوع')}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            loading={composeSaveMut.isPending}
+            disabled={pending || pendingRows.length === 0}
+            onClick={() => composeSaveMut.mutate()}
+          >
+            {t('Save draft', 'حفظ المسودة')}
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="danger"
+            className={ADJUSTMENT_CANCEL_BUTTON_CLASS}
+            onClick={onClose}
+            disabled={pending}
+          >
+            {t('Cancel', 'إلغاء')}
+          </Button>
+          <Button
+            type="button"
+          variant="brand"
           loading={composeConfirmMut.isPending}
-          disabled={pending || pendingRows.length === 0}
-          onClick={() => composeConfirmMut.mutate()}
-        >
-          {t('Confirm', 'تأكيد')}
-        </Button>
+            disabled={pending || pendingRows.length === 0}
+            onClick={() => composeConfirmMut.mutate()}
+          >
+            {t('Confirm', 'تأكيد')}
+          </Button>
+        </div>
       </div>
     );
 
@@ -292,6 +312,7 @@ export function NewAdjustmentModal({
                     productName: payload.display.productName,
                     locationPath: payload.display.locationPath,
                     lotLabel: payload.display.lotLabel,
+                    quantityBefore: payload.display.quantityBefore,
                   },
                 ])
               }

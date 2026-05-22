@@ -1,44 +1,61 @@
-import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
-import {
-  type FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { Link } from 'react-router-dom';
-
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { useTaskProgressSave } from '../../../hooks/useTaskProgressSave';
+import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { InboundApi, type InboundOrderLine } from '../../../api/inbound';
+import { Column, DataTable } from '../../../components/DataTable';
+import { TaskDetailsCard } from '../../../components/tasks/TaskDetailsCard';
+import { formatTaskDateTime, inboundOrderTitle } from '../../../lib/task-details-helpers';
+import { taskTypeIconClass } from '../../../lib/task-type-icons';
+import { taskTypeTitle } from '../../../workflow/task-ui-matrix';
 import { LocationsApi } from '../../../api/locations';
 import { ProductsApi } from '../../../api/products';
-import { TasksApi } from '../../../api/tasks';
-import { BarcodeScanModal } from '../../../components/BarcodeScanModal';
+import { AnchoredDropdown } from '../../../components/AnchoredDropdown';
 import { Button } from '../../../components/Button';
+import { TaskLinesFilterCard } from '../../../components/tasks/TaskLinesFilterCard';
 import { useToast } from '../../../components/ToastProvider';
 import { QK } from '../../../constants/query-keys';
 import { Alert } from '@ds';
-import { ProductAttributeValidationCard } from './ProductAttributeValidationCard';
+import { useMediaQuery } from '../../../hooks/useMediaQuery';
+import { ProductSpecsValidationModal } from './ProductSpecsValidationModal';
 import type {
   LineReceiveDraft,
   ProductAttributeDraft,
   ReceivingExecutionDraft,
+  ReceivingLineFilters,
   ReceivingLineRow,
+  ReceivingLineStatus,
 } from './receiving-types';
+import { DEFAULT_RECEIVING_LINE_FILTERS } from './receiving-types';
+import type { ProductLot } from '../../../api/products';
 import {
   buildDiscrepancyNotes,
   computeLineStatus,
   computeReceivingSummary,
+  filterReceivingLines,
   isLikelyFirstInbound,
+  lineDraftFromInboundOrderLine,
   lineStatusClass,
   lineStatusLabel,
-  matchScanToLine,
   parseQty,
+  productRequiresExpiry,
   receivingExpectedLotDisplay,
+  resolveLineExpiryDisplay,
 } from './receiving-utils';
+import { buildReceivingPrintInput, openReceivingPrintPdf } from './receiving-print';
 
 function emptyLineDraft(): LineReceiveDraft {
   return { receivedQty: '', damagedQty: '', notes: '', expiry: '' };
+}
+
+function lineDraftForOrderLine(
+  ol: InboundOrderLine | undefined,
+  saved?: LineReceiveDraft,
+  lots?: ProductLot[],
+): LineReceiveDraft {
+  const base = saved ?? emptyLineDraft();
+  if (base.expiry.trim()) return base;
+  const resolved = resolveLineExpiryDisplay(ol, base, lots);
+  return resolved ? { ...base, expiry: resolved } : base;
 }
 
 function emptyAttributeDraft(product?: {
@@ -73,6 +90,7 @@ type Props = {
   warehouseId: string;
   companyIdOverride?: string;
   taskOperatorNotes: string;
+  showExportPdf?: boolean;
   assignedWorkerLabel: string;
   taskStatus: string;
   executionState?: unknown;
@@ -87,7 +105,8 @@ export function ReceivingExecutionPanel({
   inboundOrderId,
   warehouseId,
   companyIdOverride,
-  taskOperatorNotes: _taskOperatorNotes,
+  taskOperatorNotes,
+  showExportPdf = true,
   assignedWorkerLabel,
   taskStatus,
   executionState,
@@ -96,16 +115,15 @@ export function ReceivingExecutionPanel({
   readOnly = false,
 }: Props) {
   const toast = useToast();
-  const scanRef = useRef<HTMLInputElement>(null);
-  const lastScanRef = useRef<{ code: string; at: number } | null>(null);
-
-  const [scanValue, setScanValue] = useState('');
-  const [highlightLineId, setHighlightLineId] = useState<string | null>(null);
-  const [scanModalOpen, setScanModalOpen] = useState(false);
-  const [scanFeedback, setScanFeedback] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null);
-  const [issueBanner, setIssueBanner] = useState<string | null>(null);
-  const [showIssueForm, setShowIssueForm] = useState(false);
-  const [issueText, setIssueText] = useState('');
+  const isMdUp = useMediaQuery('(min-width: 768px)');
+  const [openLineActionId, setOpenLineActionId] = useState<string | null>(null);
+  const [specsModalProductId, setSpecsModalProductId] = useState<string | null>(null);
+  const [draftLineFilters, setDraftLineFilters] = useState<ReceivingLineFilters>(
+    DEFAULT_RECEIVING_LINE_FILTERS,
+  );
+  const [appliedLineFilters, setAppliedLineFilters] = useState<ReceivingLineFilters>(
+    DEFAULT_RECEIVING_LINE_FILTERS,
+  );
 
   const initialDraft = readExecutionDraft(executionState);
   const [lineDrafts, setLineDrafts] = useState<Record<string, LineReceiveDraft>>(() => {
@@ -182,6 +200,74 @@ export function ReceivingExecutionPanel({
     return m;
   }, [productIds, productQueries]);
 
+  const lotsByProductId = useMemo(() => {
+    const m = new Map<string, ProductLot[]>();
+    productIds.forEach((id, i) => {
+      const lots = lotsQueries[i]?.data;
+      if (lots) m.set(id, lots);
+    });
+    return m;
+  }, [productIds, lotsQueries]);
+
+  useEffect(() => {
+    const orderLines = inbound.data?.lines;
+    if (!orderLines?.length) return;
+    setLineDrafts((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const ol of orderLines) {
+        const cur = next[ol.id] ?? emptyLineDraft();
+        const lots = lotsByProductId.get(ol.productId);
+        if (readOnly) {
+          const hydrated = lineDraftFromInboundOrderLine(ol, lots);
+          if (
+            hydrated.receivedQty !== cur.receivedQty ||
+            hydrated.damagedQty !== cur.damagedQty ||
+            hydrated.expiry !== cur.expiry ||
+            hydrated.notes !== cur.notes
+          ) {
+            next[ol.id] = hydrated;
+            changed = true;
+          }
+          continue;
+        }
+        if (
+          parseQty(cur.receivedQty) === 0 &&
+          parseQty(ol.receivedQuantity) > 0
+        ) {
+          next[ol.id] = lineDraftFromInboundOrderLine(ol, lots);
+          changed = true;
+          continue;
+        }
+        if (!cur.expiry.trim()) {
+          const withExpiry = lineDraftForOrderLine(ol, cur, lots);
+          if (withExpiry.expiry !== cur.expiry) {
+            next[ol.id] = withExpiry;
+            changed = true;
+          }
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [inbound.data?.lines, readOnly, lotsByProductId]);
+
+  const filteredLines = useMemo(
+    () => filterReceivingLines(lines, appliedLineFilters, lineMap, lineDrafts),
+    [lines, appliedLineFilters, lineMap, lineDrafts],
+  );
+
+  const lineExpiryByLineId = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const row of lines) {
+      const lid = row.inbound_order_line_id;
+      const ol = lineMap.get(lid);
+      const d = lineDrafts[lid] ?? emptyLineDraft();
+      const lots = ol?.productId ? lotsByProductId.get(ol.productId) : undefined;
+      m[lid] = resolveLineExpiryDisplay(ol, d, lots);
+    }
+    return m;
+  }, [lines, lineMap, lineDrafts, lotsByProductId]);
+
   const firstInboundProductIds = useMemo(() => {
     const orders = priorInbound.data?.items ?? [];
     const out: string[] = [];
@@ -196,6 +282,11 @@ export function ReceivingExecutionPanel({
     });
     return out;
   }, [productIds, productsById, lotsQueries, priorInbound.data, inboundOrderId]);
+
+  const firstInboundProductIdSet = useMemo(
+    () => new Set(firstInboundProductIds),
+    [firstInboundProductIds],
+  );
 
   const dockPath = useMemo(() => {
     const sid = lines[0]?.staging_location_id?.trim();
@@ -220,86 +311,29 @@ export function ReceivingExecutionPanel({
       const status = computeLineStatus(expected, received, damaged);
       if (status === 'overage') issues.push(`Overage on line ${lid.slice(0, 8)}…`);
       if (status === 'shortage' && received + damaged > 0) issues.push(`Shortage on ${olLabel(lineMap, lid)}`);
-    }
-    for (const pid of firstInboundProductIds) {
-      const ad = attrDrafts[pid];
-      if (!ad?.completed) {
-        const p = productsById.get(pid);
-        issues.push(`Attribute validation required: ${p?.sku ?? pid.slice(0, 8)}`);
+      const ol = lineMap.get(lid);
+      const lots = ol?.productId ? lotsByProductId.get(ol.productId) : undefined;
+      if (
+        productRequiresExpiry(ol, ol?.productId ? productsById.get(ol.productId) : undefined) &&
+        received + damaged > 0 &&
+        !resolveLineExpiryDisplay(ol, d, lots).trim()
+      ) {
+        issues.push(`Expiry date required for ${olLabel(lineMap, lid)}`);
       }
     }
     return issues;
-  }, [lines, lineDrafts, lineMap, firstInboundProductIds, attrDrafts, productsById]);
+  }, [lines, lineDrafts, lineMap, lotsByProductId, productsById]);
 
   function olLabel(map: Map<string, InboundOrderLine>, lid: string): string {
     return map.get(lid)?.product?.sku ?? lid.slice(0, 8);
   }
 
-  const saveProgress = useMutation({
-    mutationFn: () =>
-      TasksApi.patchProgress(
-        taskId,
-        {
-          receiving_draft: {
-            lines: lineDrafts,
-            attributes: attrDrafts,
-          } satisfies ReceivingExecutionDraft,
-        },
-        companyIdOverride,
-      ),
-    onSuccess: () => toast.success('Progress saved'),
-    onError: (e: Error) => toast.error(e.message),
+  const saveProgress = useTaskProgressSave({
+    taskId,
+    warehouseId,
+    inboundOrderId,
+    companyIdOverride,
   });
-
-  useEffect(() => {
-    if (!readOnly) scanRef.current?.focus();
-  }, [readOnly, lines.length]);
-
-  useEffect(() => {
-    if (!highlightLineId) return;
-    const t = window.setTimeout(() => setHighlightLineId(null), 2500);
-    return () => window.clearTimeout(t);
-  }, [highlightLineId]);
-
-  const applyScan = useCallback(
-    (raw: string) => {
-      const code = raw.trim();
-      if (!code) return;
-      const now = Date.now();
-      if (
-        lastScanRef.current &&
-        lastScanRef.current.code === code.toLowerCase() &&
-        now - lastScanRef.current.at < 1500
-      ) {
-        setScanFeedback({ type: 'err', msg: 'Duplicate scan — wait a moment.' });
-        return;
-      }
-      lastScanRef.current = { code: code.toLowerCase(), at: now };
-
-      const hit = matchScanToLine(code, lines, lineMap);
-      if (!hit) {
-        setScanFeedback({ type: 'err', msg: `No matching product for “${code}”.` });
-        return;
-      }
-
-      setHighlightLineId(hit.lineId);
-      setLineDrafts((prev) => {
-        const cur = prev[hit.lineId] ?? emptyLineDraft();
-        const nextReceived = parseQty(cur.receivedQty) + 1;
-        return {
-          ...prev,
-          [hit.lineId]: { ...cur, receivedQty: String(nextReceived) },
-        };
-      });
-      setScanFeedback({
-        type: 'ok',
-        msg: `${hit.orderLine?.product?.name ?? 'Product'} +1`,
-      });
-      setScanValue('');
-      scanRef.current?.focus();
-    },
-    [lines, lineMap],
-  );
 
   function patchLine(lid: string, patch: Partial<LineReceiveDraft>) {
     setLineDrafts((prev) => ({
@@ -307,6 +341,23 @@ export function ReceivingExecutionPanel({
       [lid]: { ...(prev[lid] ?? emptyLineDraft()), ...patch },
     }));
   }
+
+  useEffect(() => {
+    if (!openLineActionId) return;
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.closest('[data-receiving-line-action-trigger="true"]') ||
+        target.closest('[data-receiving-line-action-menu="true"]') ||
+        target.closest('[data-receiving-line-action-menu-button="true"]')
+      ) {
+        return;
+      }
+      setOpenLineActionId(null);
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, [openLineActionId]);
 
   function handleComplete(e: FormEvent) {
     e.preventDefault();
@@ -367,54 +418,120 @@ export function ReceivingExecutionPanel({
     });
   }
 
-  const arrivalLabel = inbound.data?.expectedArrivalDate
-    ? new Date(inbound.data.expectedArrivalDate).toLocaleString()
-    : '—';
+  const arrivalLabel = formatTaskDateTime(inbound.data?.expectedArrivalDate);
 
-  const isUrgent =
-    inbound.data?.expectedArrivalDate &&
-    new Date(inbound.data.expectedArrivalDate).getTime() < Date.now();
+  const handleExportPrint = () => {
+    if (lines.length === 0) {
+      toast.error('No lines to export.');
+      return;
+    }
+    const ok = openReceivingPrintPdf(
+      buildReceivingPrintInput({
+        orderNumber: inbound.data?.orderNumber ?? inboundOrderId ?? '—',
+        companyName: inbound.data?.company?.name ?? '—',
+        operatorNotes: taskOperatorNotes,
+        assignedWorker: assignedWorkerLabel,
+        expectedArrival: arrivalLabel,
+        firstInboundProductIds,
+        productsById,
+        lines,
+        lineMap,
+        lineDrafts,
+        locations: locationsForDock.data ?? [],
+      }),
+    );
+    if (!ok) toast.error('Allow pop-ups to print or save as PDF.');
+  };
+
+  const receivingDetailsCard = (
+    <TaskDetailsCard
+      taskTypeLabel={taskTypeTitle('receiving')}
+      iconClass={taskTypeIconClass('receiving')}
+      primaryTitle={inboundOrderTitle(
+        inbound.data?.orderNumber,
+        inboundOrderId ? `/orders/inbound/${inboundOrderId}` : undefined,
+      )}
+      subtitle={inbound.data?.company?.name ?? '—'}
+      status={taskStatus}
+      fields={[
+        {
+          iconClass: 'fa-solid fa-building',
+          label: 'Client',
+          value: inbound.data?.company?.name ?? '—',
+        },
+        {
+          iconClass: 'fa-solid fa-user',
+          label: 'Worker',
+          value: assignedWorkerLabel,
+        },
+        {
+          iconClass: 'fa-solid fa-warehouse',
+          label: 'Dock',
+          value: dockPath,
+        },
+        {
+          iconClass: 'fa-solid fa-calendar',
+          label: 'Expected arrival',
+          value: arrivalLabel,
+        },
+      ]}
+      summary={inbound.data?.notes ?? undefined}
+    />
+  );
+
+  const lineFiltersCard = (
+    <TaskLinesFilterCard
+      draft={draftLineFilters}
+      onDraftChange={(next) =>
+        setDraftLineFilters({
+          search: next.search,
+          status: (next.status || '') as ReceivingLineFilters['status'],
+        })
+      }
+      onApply={() => setAppliedLineFilters({ ...draftLineFilters })}
+      onReset={() => {
+        setDraftLineFilters(DEFAULT_RECEIVING_LINE_FILTERS);
+        setAppliedLineFilters(DEFAULT_RECEIVING_LINE_FILTERS);
+      }}
+      onBarcodeScan={(code) => {
+        const next: ReceivingLineFilters = {
+          ...draftLineFilters,
+          search: code.trim(),
+        };
+        setDraftLineFilters(next);
+        setAppliedLineFilters(next);
+      }}
+      resultCount={filteredLines.length}
+      totalCount={lines.length}
+      statusOptions={RECEIVING_LINE_STATUS_OPTIONS}
+      searchPlaceholder="SKU, product name, barcode, or lot"
+    />
+  );
 
   if (readOnly) {
     return (
       <div className="space-y-4">
-        <ReceivingHeader
-          orderNumber={inbound.data?.orderNumber}
-          companyName={inbound.data?.company?.name}
-          dockPath={dockPath}
-          assignedWorkerLabel={assignedWorkerLabel}
-          arrivalLabel={arrivalLabel}
-          taskStatus={taskStatus}
-          isUrgent={!!isUrgent}
-          notes={inbound.data?.notes}
-        />
+        {receivingDetailsCard}
         <SummaryCards summary={summary} />
-        <div className="-mx-1 overflow-x-auto overscroll-x-contain">
-          <ReceivingTable
-            lines={lines}
-            lineMap={lineMap}
-            lineDrafts={lineDrafts}
-            highlightLineId={null}
-            readOnly
-          />
-        </div>
+        {lineFiltersCard}
+        <ReceivingLinesTable
+          lines={filteredLines}
+          totalLineCount={lines.length}
+          lineMap={lineMap}
+          lineDrafts={lineDrafts}
+          lineExpiryByLineId={lineExpiryByLineId}
+          productsById={productsById}
+          firstInboundProductIdSet={firstInboundProductIdSet}
+          onExportPrint={showExportPdf ? handleExportPrint : undefined}
+          readOnly
+        />
       </div>
     );
   }
 
   return (
-    <form className="space-y-4 pb-32" onSubmit={handleComplete}>
-      <ReceivingHeader
-        orderNumber={inbound.data?.orderNumber}
-        companyName={inbound.data?.company?.name}
-        dockPath={dockPath}
-        assignedWorkerLabel={assignedWorkerLabel}
-        arrivalLabel={arrivalLabel}
-        taskStatus={taskStatus}
-        isUrgent={!!isUrgent}
-        notes={inbound.data?.notes}
-        inboundHref={inboundOrderId ? `/orders/inbound/${inboundOrderId}` : undefined}
-      />
+    <form className="w-full min-w-0 space-y-4 pb-32" onSubmit={handleComplete}>
+      {receivingDetailsCard}
 
       {validationIssues.length > 0 ? (
         <Alert variant="warning" title="Validation attention needed">
@@ -426,118 +543,74 @@ export function ReceivingExecutionPanel({
         </Alert>
       ) : null}
 
-      {issueBanner ? (
-        <Alert
-          variant="info"
-          title="Issue reported"
-          description={issueBanner}
-          onDismiss={() => setIssueBanner(null)}
-        />
+      <SummaryCards summary={summary} />
+      {showExportPdf && !isMdUp ? (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={lines.length === 0}
+            onClick={handleExportPrint}
+          >
+            Export PDF
+          </Button>
+        </div>
       ) : null}
 
-      <SummaryCards summary={summary} />
+      {lineFiltersCard}
 
-      <section className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/80 to-white p-4 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Scan to receive</p>
-        <p className="mt-1 text-sm text-slate-600">
-          Scan product barcode or SKU — matching line highlights and quantity increments.
-        </p>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <input
-            ref={scanRef}
-            type="text"
-            inputMode="none"
-            autoComplete="off"
-            className="min-h-[52px] flex-1 rounded-xl border-2 border-emerald-400 bg-white px-4 text-lg font-mono shadow-inner outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200"
-            placeholder="Scan barcode…"
-            value={scanValue}
-            onChange={(e) => setScanValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                applyScan(scanValue);
-              }
-            }}
-            aria-label="Barcode scan input"
-          />
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              className="min-h-[52px] flex-1 sm:flex-none"
-              onClick={() => applyScan(scanValue)}
-            >
-              Apply
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="min-h-[52px] flex-1 sm:flex-none"
-              onClick={() => setScanModalOpen(true)}
-            >
-              Camera
-            </Button>
-          </div>
-        </div>
-        {scanFeedback ? (
-          <p
-            className={`mt-2 text-sm font-medium ${scanFeedback.type === 'ok' ? 'text-emerald-700' : 'text-rose-700'}`}
-            role="status"
-          >
-            {scanFeedback.msg}
+      {!isMdUp ? (
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-800">Receive lines</h2>
+        {filteredLines.length === 0 ? (
+          <p className="rounded-xl border border-slate-100 bg-white px-4 py-6 text-center text-sm text-slate-500 shadow-sm">
+            No lines match the current filters.
           </p>
         ) : null}
-      </section>
-
-      {firstInboundProductIds.map((pid) => {
-        const product = productsById.get(pid);
-        if (!product) return null;
-        const draft = attrDrafts[pid] ?? emptyAttributeDraft(product);
-        return (
-          <ProductAttributeValidationCard
-            key={pid}
-            product={product}
-            draft={draft}
-            onChange={(patch) =>
-              setAttrDrafts((prev) => ({
-                ...prev,
-                [pid]: { ...(prev[pid] ?? emptyAttributeDraft(product)), ...patch },
-              }))
-            }
-            onConfirm={() => {
-              setAttrDrafts((prev) => ({
-                ...prev,
-                [pid]: { ...(prev[pid] ?? emptyAttributeDraft(product)), completed: true },
-              }));
-              toast.success(`Attributes validated for ${product.sku}`);
-            }}
-          />
-        );
-      })}
-
-      <section className="space-y-3 md:hidden">
-        <h2 className="text-sm font-semibold text-slate-800">Receive lines</h2>
-        {lines.map((l) => {
+        {filteredLines.map((l) => {
           const lid = l.inbound_order_line_id;
           const ol = lineMap.get(lid);
           const d = lineDrafts[lid] ?? emptyLineDraft();
           const expected = parseQty(l.expected_qty);
           const status = computeLineStatus(expected, parseQty(d.receivedQty), parseQty(d.damagedQty));
-          const highlighted = highlightLineId === lid;
           return (
             <div
               key={lid}
-              className={`rounded-2xl border bg-white p-4 shadow-sm transition ${
-                highlighted ? 'border-emerald-500 ring-2 ring-emerald-200' : 'border-slate-100'
-              }`}
+              className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="font-medium text-slate-900">{ol?.product?.name ?? '—'}</p>
                   <p className="font-mono text-xs text-slate-500">{ol?.product?.sku}</p>
                 </div>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${lineStatusClass(status)}`}>
-                  {lineStatusLabel(status)}
-                </span>
+                <div className="flex shrink-0 items-center gap-1">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${lineStatusClass(status)}`}
+                  >
+                    {lineStatusLabel(status)}
+                  </span>
+                  <ReceivingLineActionsMenu
+                    lineLabel={ol?.product?.sku ?? 'line'}
+                    expectedQty={l.expected_qty}
+                    draft={d}
+                    showValidateSpecs={
+                      !!ol?.productId && firstInboundProductIdSet.has(ol.productId)
+                    }
+                    onValidateSpecs={() => {
+                      if (ol?.productId) {
+                        setOpenLineActionId(null);
+                        setSpecsModalProductId(ol.productId);
+                      }
+                    }}
+                    open={openLineActionId === lid}
+                    onToggle={() =>
+                      setOpenLineActionId((cur) => (cur === lid ? null : lid))
+                    }
+                    onClose={() => setOpenLineActionId(null)}
+                    onPatch={(patch) => patchLine(lid, patch)}
+                  />
+                </div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <div>
@@ -571,187 +644,112 @@ export function ReceivingExecutionPanel({
                   </p>
                 </div>
               </div>
-              {ol?.product?.expiryTracking ? (
+              {productRequiresExpiry(ol, ol?.productId ? productsById.get(ol.productId) : undefined) ? (
                 <label className="mt-2 block text-xs text-slate-600">
-                  Expiry
+                  Expiry date <span className="text-rose-600">*</span>
                   <input
                     type="date"
+                    required
                     className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
-                    value={d.expiry}
+                    value={d.expiry || lineExpiryByLineId[lid] || ''}
                     onChange={(e) => patchLine(lid, { expiry: e.target.value })}
                   />
                 </label>
               ) : null}
-              <input
-                type="text"
-                className="mt-2 w-full rounded-lg border border-slate-300 px-2 py-2 text-xs"
-                placeholder="Line notes / damage detail"
-                value={d.notes}
-                onChange={(e) => patchLine(lid, { notes: e.target.value })}
-              />
             </div>
           );
         })}
       </section>
-
-      <section className="hidden md:block">
-        <h2 className="mb-2 text-sm font-semibold text-slate-800">Receive lines</h2>
-        <div className="-mx-1 overflow-x-auto overscroll-x-contain rounded-2xl border border-slate-100 bg-white shadow-sm">
-          <ReceivingTable
-            lines={lines}
-            lineMap={lineMap}
-            lineDrafts={lineDrafts}
-            highlightLineId={highlightLineId}
-            onPatchLine={patchLine}
-          />
-        </div>
-      </section>
-
-      {showIssueForm ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <p className="text-sm font-medium text-slate-800">Report issue</p>
-          <textarea
-            className="mt-2 min-h-[80px] w-full rounded-lg border border-slate-300 p-2 text-sm"
-            value={issueText}
-            onChange={(e) => setIssueText(e.target.value)}
-            placeholder="Describe shortage, damage, wrong SKU…"
-          />
-          <div className="mt-2 flex gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                const msg = issueText.trim();
-                if (msg) {
-                  setIssueBanner(msg);
-                  void saveProgress.mutate();
-                }
-                setShowIssueForm(false);
-                setIssueText('');
-              }}
-            >
-              Save issue note
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => setShowIssueForm(false)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
       ) : null}
 
+      {isMdUp ? (
+        <ReceivingLinesTable
+          lines={filteredLines}
+          totalLineCount={lines.length}
+          lineMap={lineMap}
+          lineDrafts={lineDrafts}
+          lineExpiryByLineId={lineExpiryByLineId}
+          productsById={productsById}
+          firstInboundProductIdSet={firstInboundProductIdSet}
+          onExportPrint={showExportPdf ? handleExportPrint : undefined}
+          openLineActionId={openLineActionId}
+          onOpenLineActionId={setOpenLineActionId}
+          onOpenSpecsModal={setSpecsModalProductId}
+          onPatchLine={patchLine}
+        />
+      ) : null}
+
+      <ProductSpecsValidationModal
+        open={!!specsModalProductId}
+        product={specsModalProductId ? productsById.get(specsModalProductId) : undefined}
+        draft={
+          specsModalProductId
+            ? attrDrafts[specsModalProductId] ??
+              emptyAttributeDraft(productsById.get(specsModalProductId))
+            : emptyAttributeDraft()
+        }
+        onChange={(patch) => {
+          if (!specsModalProductId) return;
+          const product = productsById.get(specsModalProductId);
+          setAttrDrafts((prev) => ({
+            ...prev,
+            [specsModalProductId]: {
+              ...(prev[specsModalProductId] ?? emptyAttributeDraft(product)),
+              ...patch,
+            },
+          }));
+        }}
+        onConfirm={() => {
+          if (!specsModalProductId) return;
+          const product = productsById.get(specsModalProductId);
+          setAttrDrafts((prev) => ({
+            ...prev,
+            [specsModalProductId]: {
+              ...(prev[specsModalProductId] ?? emptyAttributeDraft(product)),
+              completed: true,
+            },
+          }));
+          toast.success(`Attributes validated for ${product?.sku ?? 'product'}`);
+        }}
+        onClose={() => setSpecsModalProductId(null)}
+      />
+
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
-        <div className="mx-auto flex max-w-4xl flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button
             type="button"
             variant="secondary"
             className="min-h-[48px] w-full sm:w-auto"
             loading={saveProgress.isPending}
-            onClick={() => saveProgress.mutate()}
+            onClick={() =>
+              saveProgress.mutate({
+                receiving_draft: {
+                  lines: lineDrafts,
+                  attributes: attrDrafts,
+                } satisfies ReceivingExecutionDraft,
+              })
+            }
           >
             Save progress
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            className="min-h-[48px] w-full sm:w-auto"
-            onClick={() => setShowIssueForm(true)}
-          >
-            Report issue
           </Button>
           <Button type="submit" className="min-h-[52px] flex-1 text-base" loading={busy}>
             Complete receiving
           </Button>
         </div>
-        <p className="mx-auto mt-2 max-w-4xl text-center text-xs text-slate-500 sm:text-start">
-          Completing stages inventory at the dock and unlocks putaway.
-        </p>
       </div>
-
-      <BarcodeScanModal
-        open={scanModalOpen}
-        onClose={() => setScanModalOpen(false)}
-        onScan={(text) => {
-          applyScan(text);
-          setScanModalOpen(false);
-        }}
-      />
     </form>
   );
 }
 
-function ReceivingHeader({
-  orderNumber,
-  companyName,
-  dockPath,
-  assignedWorkerLabel,
-  arrivalLabel,
-  taskStatus,
-  isUrgent,
-  notes,
-  inboundHref,
-}: {
-  orderNumber?: string;
-  companyName?: string;
-  dockPath: string;
-  assignedWorkerLabel: string;
-  arrivalLabel: string;
-  taskStatus: string;
-  isUrgent: boolean;
-  notes?: string | null;
-  inboundHref?: string;
-}) {
-  return (
-    <header className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Receiving</p>
-          <h2 className="mt-1 text-xl font-semibold text-slate-900">
-            {orderNumber ? (
-              inboundHref ? (
-                <Link to={inboundHref} className="hover:text-emerald-700">
-                  {orderNumber}
-                </Link>
-              ) : (
-                orderNumber
-              )
-            ) : (
-              'Inbound shipment'
-            )}
-          </h2>
-          <p className="mt-1 text-sm text-slate-600">{companyName ?? '—'}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-            {taskStatus.replace(/_/g, ' ')}
-          </span>
-          {isUrgent ? (
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900">
-              SLA · due
-            </span>
-          ) : null}
-        </div>
-      </div>
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-        <div>
-          <dt className="text-xs text-slate-500">Dock</dt>
-          <dd className="font-medium text-slate-900">{dockPath}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-slate-500">Worker</dt>
-          <dd className="font-medium text-slate-900">{assignedWorkerLabel}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-slate-500">Expected arrival</dt>
-          <dd className="font-medium text-slate-900">{arrivalLabel}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-slate-500">Notes</dt>
-          <dd className="text-slate-700">{notes?.trim() || '—'}</dd>
-        </div>
-      </dl>
-    </header>
-  );
-}
+const RECEIVING_LINE_STATUS_OPTIONS: { value: ReceivingLineStatus | ''; label: string }[] = [
+  { value: '', label: 'All statuses' },
+  { value: 'pending', label: lineStatusLabel('pending') },
+  { value: 'partial', label: lineStatusLabel('partial') },
+  { value: 'complete', label: lineStatusLabel('complete') },
+  { value: 'shortage', label: lineStatusLabel('shortage') },
+  { value: 'overage', label: lineStatusLabel('overage') },
+  { value: 'damaged', label: lineStatusLabel('damaged') },
+];
 
 function SummaryCards({ summary }: { summary: ReturnType<typeof computeReceivingSummary> }) {
   const cards = [
@@ -779,99 +777,301 @@ function SummaryCards({ summary }: { summary: ReturnType<typeof computeReceiving
   );
 }
 
-function ReceivingTable({
+function ReceivingLineActionsMenu({
+  lineLabel,
+  expectedQty,
+  draft,
+  showValidateSpecs,
+  onValidateSpecs,
+  open,
+  onToggle,
+  onClose,
+  onPatch,
+}: {
+  lineLabel: string;
+  expectedQty: string;
+  draft: LineReceiveDraft;
+  showValidateSpecs?: boolean;
+  onValidateSpecs?: () => void;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onPatch: (patch: Partial<LineReceiveDraft>) => void;
+}) {
+  const menuBtn = (label: string, onClick: () => void, className = '') => (
+    <button
+      type="button"
+      className={`block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 ${className}`}
+      data-receiving-line-action-menu-button="true"
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <AnchoredDropdown
+      open={open}
+      align="end"
+      menuRootProps={{ 'data-receiving-line-action-menu': 'true' }}
+      trigger={
+        <button
+          type="button"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+          data-receiving-line-action-trigger="true"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+          aria-label={`Actions for ${lineLabel}`}
+          aria-expanded={open}
+          aria-haspopup="menu"
+        >
+          <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
+            <path d="M4 10a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm4.5 0a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 8.5 10ZM13 10a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 13 10Z" />
+          </svg>
+        </button>
+      }
+    >
+      {showValidateSpecs && onValidateSpecs
+        ? menuBtn('Validate specs', () => {
+            onValidateSpecs();
+            onClose();
+          })
+        : null}
+      {menuBtn('Edit note', () => {
+        const next = window.prompt(`Note for ${lineLabel}`, draft.notes);
+        if (next !== null) onPatch({ notes: next });
+        onClose();
+      })}
+      {menuBtn('Receive expected qty', () => {
+        onPatch({ receivedQty: expectedQty, damagedQty: '' });
+        onClose();
+      })}
+      {menuBtn('Clear line', () => {
+        onPatch({ receivedQty: '', damagedQty: '', notes: '' });
+        onClose();
+      }, 'text-rose-700 hover:bg-rose-50')}
+    </AnchoredDropdown>
+  );
+}
+
+function ReceivingLinesTable({
   lines,
+  totalLineCount,
   lineMap,
   lineDrafts,
-  highlightLineId,
+  lineExpiryByLineId,
+  productsById,
+  firstInboundProductIdSet,
+  onExportPrint,
+  openLineActionId,
+  onOpenLineActionId,
+  onOpenSpecsModal,
   readOnly,
   onPatchLine,
 }: {
   lines: ReceivingLineRow[];
+  totalLineCount: number;
   lineMap: Map<string, InboundOrderLine>;
   lineDrafts: Record<string, LineReceiveDraft>;
-  highlightLineId: string | null;
+  lineExpiryByLineId: Record<string, string>;
+  productsById: Map<string, { expiryTracking: boolean; trackingType: string } | undefined>;
+  firstInboundProductIdSet: Set<string>;
+  onExportPrint?: () => void;
+  openLineActionId?: string | null;
+  onOpenLineActionId?: (id: string | null) => void;
+  onOpenSpecsModal?: (productId: string) => void;
   readOnly?: boolean;
   onPatchLine?: (lid: string, patch: Partial<LineReceiveDraft>) => void;
 }) {
+  const columns: Column<ReceivingLineRow>[] = [
+    {
+      header: 'Product',
+      accessor: (l) => {
+        const ol = lineMap.get(l.inbound_order_line_id);
+        return <span className="font-medium text-slate-800">{ol?.product?.name ?? '—'}</span>;
+      },
+    },
+    {
+      header: 'SKU',
+      accessor: (l) => {
+        const ol = lineMap.get(l.inbound_order_line_id);
+        return <span className="font-mono text-xs">{ol?.product?.sku ?? '—'}</span>;
+      },
+    },
+    {
+      header: 'Barcode',
+      accessor: (l) => {
+        const ol = lineMap.get(l.inbound_order_line_id);
+        return <span className="font-mono text-xs">{ol?.product?.barcode ?? '—'}</span>;
+      },
+    },
+    {
+      header: 'Lot',
+      accessor: (l) => {
+        const ol = lineMap.get(l.inbound_order_line_id);
+        return <span className="font-mono text-xs">{receivingExpectedLotDisplay(ol)}</span>;
+      },
+    },
+    {
+      header: 'Expected',
+      accessor: (l) => <span className="font-mono tabular-nums">{l.expected_qty}</span>,
+      className: 'whitespace-nowrap',
+    },
+    {
+      header: 'Received',
+      accessor: (l) => {
+        const lid = l.inbound_order_line_id;
+        const d = lineDrafts[lid] ?? emptyLineDraft();
+        return readOnly ? (
+          <span className="font-mono tabular-nums">{d.receivedQty || '—'}</span>
+        ) : (
+          <input
+            className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm"
+            value={d.receivedQty}
+            onChange={(e) => onPatchLine?.(lid, { receivedQty: e.target.value })}
+            onClick={(e) => e.stopPropagation()}
+          />
+        );
+      },
+      className: 'whitespace-nowrap',
+    },
+    {
+      header: 'Damaged',
+      accessor: (l) => {
+        const lid = l.inbound_order_line_id;
+        const d = lineDrafts[lid] ?? emptyLineDraft();
+        return readOnly ? (
+          <span className="font-mono tabular-nums">{d.damagedQty || '—'}</span>
+        ) : (
+          <input
+            className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm"
+            value={d.damagedQty}
+            onChange={(e) => onPatchLine?.(lid, { damagedQty: e.target.value })}
+            onClick={(e) => e.stopPropagation()}
+          />
+        );
+      },
+      className: 'whitespace-nowrap',
+    },
+    {
+      header: 'Missing',
+      accessor: (l) => {
+        const lid = l.inbound_order_line_id;
+        const d = lineDrafts[lid] ?? emptyLineDraft();
+        const expected = parseQty(l.expected_qty);
+        const missing = Math.max(0, expected - parseQty(d.receivedQty) - parseQty(d.damagedQty));
+        return <span className="font-mono tabular-nums">{missing}</span>;
+      },
+      className: 'whitespace-nowrap',
+    },
+    {
+      header: 'Status',
+      accessor: (l) => {
+        const lid = l.inbound_order_line_id;
+        const d = lineDrafts[lid] ?? emptyLineDraft();
+        const status = computeLineStatus(
+          parseQty(l.expected_qty),
+          parseQty(d.receivedQty),
+          parseQty(d.damagedQty),
+        );
+        return (
+          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${lineStatusClass(status)}`}>
+            {lineStatusLabel(status)}
+          </span>
+        );
+      },
+      className: 'whitespace-nowrap',
+    },
+    {
+      header: 'Expiry',
+      accessor: (l) => {
+        const lid = l.inbound_order_line_id;
+        const ol = lineMap.get(lid);
+        const d = lineDrafts[lid] ?? emptyLineDraft();
+        const displayExpiry = lineExpiryByLineId[lid] ?? d.expiry;
+        if (!productRequiresExpiry(ol, ol?.productId ? productsById.get(ol.productId) : undefined)) {
+          return <span className="text-slate-400">—</span>;
+        }
+        return readOnly ? (
+          <span className="font-mono text-xs tabular-nums">{displayExpiry || '—'}</span>
+        ) : (
+          <input
+            type="date"
+            required
+            className="w-[9.5rem] rounded border border-slate-300 px-2 py-1 text-sm"
+            value={d.expiry || displayExpiry}
+            onChange={(e) => onPatchLine?.(lid, { expiry: e.target.value })}
+            onClick={(e) => e.stopPropagation()}
+          />
+        );
+      },
+      className: 'whitespace-nowrap',
+    },
+    ...(!readOnly && onPatchLine && onOpenLineActionId
+      ? [
+          {
+            header: 'Actions',
+            accessor: (l: ReceivingLineRow) => {
+              const lid = l.inbound_order_line_id;
+              const ol = lineMap.get(lid);
+              const d = lineDrafts[lid] ?? emptyLineDraft();
+              return (
+                <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
+                  <ReceivingLineActionsMenu
+                    lineLabel={ol?.product?.sku ?? 'line'}
+                    expectedQty={l.expected_qty}
+                    draft={d}
+                    showValidateSpecs={
+                      !!ol?.productId && firstInboundProductIdSet.has(ol.productId)
+                    }
+                    onValidateSpecs={() => {
+                      if (ol?.productId) {
+                        onOpenLineActionId?.(null);
+                        onOpenSpecsModal?.(ol.productId);
+                      }
+                    }}
+                    open={openLineActionId === lid}
+                    onToggle={() =>
+                      onOpenLineActionId(openLineActionId === lid ? null : lid)
+                    }
+                    onClose={() => onOpenLineActionId(null)}
+                    onPatch={(patch) => onPatchLine(lid, patch)}
+                  />
+                </div>
+              );
+            },
+            className: 'whitespace-nowrap',
+          } satisfies Column<ReceivingLineRow>,
+        ]
+      : []),
+  ];
+
   return (
-    <table className="min-w-[960px] w-full text-left text-sm">
-      <thead>
-        <tr className="border-b bg-slate-50 text-xs uppercase text-slate-500">
-          <th className="px-4 py-3">Product</th>
-          <th className="px-4 py-3">SKU</th>
-          <th className="px-4 py-3">Barcode</th>
-          <th className="px-4 py-3">Lot</th>
-          <th className="px-4 py-3">Expected</th>
-          <th className="px-4 py-3">Received</th>
-          <th className="px-4 py-3">Damaged</th>
-          <th className="px-4 py-3">Missing</th>
-          <th className="px-4 py-3">Status</th>
-          {!readOnly ? <th className="px-4 py-3">Notes</th> : null}
-        </tr>
-      </thead>
-      <tbody>
-        {lines.map((l) => {
-          const lid = l.inbound_order_line_id;
-          const ol = lineMap.get(lid);
-          const d = lineDrafts[lid] ?? emptyLineDraft();
-          const expected = parseQty(l.expected_qty);
-          const received = parseQty(d.receivedQty);
-          const damaged = parseQty(d.damagedQty);
-          const missing = Math.max(0, expected - received - damaged);
-          const status = computeLineStatus(expected, received, damaged);
-          const hi = highlightLineId === lid;
-          return (
-            <tr
-              key={lid}
-              className={`border-b border-slate-100 ${hi ? 'bg-emerald-50' : ''}`}
-            >
-              <td className="px-4 py-3 text-xs font-medium">{ol?.product?.name ?? '—'}</td>
-              <td className="px-4 py-3 font-mono text-xs">{ol?.product?.sku ?? '—'}</td>
-              <td className="px-4 py-3 font-mono text-xs">{ol?.product?.barcode ?? '—'}</td>
-              <td className="px-4 py-3 font-mono text-xs">{receivingExpectedLotDisplay(ol)}</td>
-              <td className="px-4 py-3 font-mono">{l.expected_qty}</td>
-              <td className="px-4 py-3">
-                {readOnly ? (
-                  <span className="font-mono">{d.receivedQty || '—'}</span>
-                ) : (
-                  <input
-                    className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm"
-                    value={d.receivedQty}
-                    onChange={(e) => onPatchLine?.(lid, { receivedQty: e.target.value })}
-                  />
-                )}
-              </td>
-              <td className="px-4 py-3">
-                {readOnly ? (
-                  <span className="font-mono">{d.damagedQty || '—'}</span>
-                ) : (
-                  <input
-                    className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm"
-                    value={d.damagedQty}
-                    onChange={(e) => onPatchLine?.(lid, { damagedQty: e.target.value })}
-                  />
-                )}
-              </td>
-              <td className="px-4 py-3 font-mono">{missing}</td>
-              <td className="px-4 py-3">
-                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${lineStatusClass(status)}`}>
-                  {lineStatusLabel(status)}
-                </span>
-              </td>
-              {!readOnly ? (
-                <td className="px-4 py-3">
-                  <input
-                    className="min-w-[120px] rounded border border-slate-300 px-2 py-1 text-xs"
-                    value={d.notes}
-                    onChange={(e) => onPatchLine?.(lid, { notes: e.target.value })}
-                  />
-                </td>
-              ) : null}
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <DataTable
+      title="Receive lines"
+      actions={
+        onExportPrint ? (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={lines.length === 0}
+            onClick={() => onExportPrint()}
+          >
+            Export PDF
+          </Button>
+        ) : undefined
+      }
+      columns={columns}
+      rows={lines}
+      rowKey={(l) => l.inbound_order_line_id}
+      empty={
+        totalLineCount === 0
+          ? 'No lines on this task.'
+          : 'No lines match the current filters.'
+      }
+    />
   );
 }

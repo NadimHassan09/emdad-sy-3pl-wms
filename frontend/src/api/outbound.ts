@@ -39,6 +39,7 @@ export interface OutboundOrder {
   carrier: string | null;
   trackingNumber: string | null;
   notes: string | null;
+  requiresPacking: boolean;
   confirmedAt: string | null;
   shippedAt: string | null;
   cancelledAt: string | null;
@@ -54,6 +55,8 @@ export interface CreateOutboundOrderInput {
   requiredShipDate: string;
   carrier?: string;
   notes?: string;
+  /** Default true when omitted. */
+  requiresPacking?: boolean;
   lines: Array<{
     productId: string;
     requestedQuantity: number;

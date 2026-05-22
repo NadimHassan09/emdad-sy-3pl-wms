@@ -11,7 +11,6 @@ import { Button } from '../Button';
 import { Combobox } from '../Combobox';
 import { SelectField } from '../SelectField';
 import { TextField } from '../TextField';
-import { ADJUSTMENT_PRIMARY_BUTTON_CLASS } from './adjustment-button-styles';
 import { useToast } from '../ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { isAdjustmentStockLocationType } from '../../lib/location-types';
@@ -47,7 +46,13 @@ export function AddAdjustmentLineForm({
   loading: boolean;
   onAdd: (payload: {
     body: AddAdjustmentLineInput;
-    display: { sku: string; productName: string; locationPath: string; lotLabel?: string };
+    display: {
+      sku: string;
+      productName: string;
+      locationPath: string;
+      lotLabel?: string;
+      quantityBefore: string;
+    };
   }) => void;
 }) {
   const isArabic =
@@ -229,6 +234,7 @@ export function AddAdjustmentLineForm({
         productName: productMeta.name,
         locationPath: loc?.fullPath ?? locationId,
         lotLabel,
+        quantityBefore: stockRow?.quantityOnHand ?? '0',
       },
     });
     setQtyAfter('');
@@ -241,13 +247,13 @@ export function AddAdjustmentLineForm({
         <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
           {t('Add line', 'إضافة بند')}
         </div>
-        <div className="flex flex-wrap items-end gap-2">
+        <div className="grid w-full grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(8.75rem,11rem)_auto]">
           <TextField
             label={t('Search', 'بحث')}
             value={productSearch}
             onChange={(e) => setProductSearch(e.target.value)}
             placeholder={t('Contains…', 'يحتوي على…')}
-            className={`min-w-[200px] flex-1 ${productSearchCategory !== 'name' ? 'font-mono' : ''}`}
+            className={`min-w-0 ${productSearchCategory !== 'name' ? 'font-mono' : ''}`}
           />
           <SelectField
             label={t('Search by', 'البحث حسب')}
@@ -255,13 +261,12 @@ export function AddAdjustmentLineForm({
             value={productSearchCategory}
             onChange={(e) => setProductSearchCategory(e.target.value as ProductSearchCategory)}
             options={productSearchCategoryOptions}
-            className="min-w-[160px] max-w-xs shrink-0"
+            className="min-w-0 w-full"
           />
           <Button
             type="button"
-            size="sm"
             variant="secondary"
-            className="shrink-0 px-2.5"
+            className="h-[34px] w-full shrink-0 px-2.5 sm:w-auto"
             title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
             aria-label={t('Scan barcode', 'مسح الباركود')}
             onClick={() => setScanOpen(true)}
@@ -359,13 +364,6 @@ export function AddAdjustmentLineForm({
             <span className="font-medium text-slate-600">{t('UOM:', 'وحدة القياس:')}</span>{' '}
             <span className="uppercase text-slate-800">{quantityUom}</span>
           </div>
-        ) : productId && locationId && isLotTracked && !lotId ? (
-          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-            {t(
-              'Select a lot to see current on-hand for this location.',
-              'اختر دفعة لعرض الرصيد الحالي لهذا الموقع.',
-            )}
-          </div>
         ) : null}
 
         <TextField
@@ -379,10 +377,9 @@ export function AddAdjustmentLineForm({
         />
         <Button
           type="submit"
+          variant="brand"
           size="sm"
-          variant="secondary"
           loading={loading}
-          className={ADJUSTMENT_PRIMARY_BUTTON_CLASS}
         >
           {t('Add line', 'إضافة بند')}
         </Button>

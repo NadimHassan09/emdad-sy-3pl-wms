@@ -22,3 +22,22 @@ const MAP: Record<string, TaskUiMeta> = {
 export function taskUiMeta(taskType: string): TaskUiMeta {
   return MAP[taskType] ?? { ...DEFAULT_META, label: taskType.replace(/_/g, ' ') };
 }
+
+/** Short page title from task type (e.g. receiving → Receiving). */
+export function taskTypeTitle(taskType: string): string {
+  const titles: Record<string, string> = {
+    receiving: 'Receiving',
+    qc: 'QC',
+    putaway: 'Putaway',
+    putaway_quarantine: 'Quarantine putaway',
+    pick: 'Pick',
+    pack: 'Pack',
+    dispatch: 'Dispatch',
+    routing: 'Routing',
+  };
+  if (titles[taskType]) return titles[taskType];
+  return taskType
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}

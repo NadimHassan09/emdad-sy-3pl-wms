@@ -17,7 +17,12 @@ export function useDefaultWarehouseId() {
 
   const list = q.data ?? [];
   const fromEnv = ENV_WID && list.some((w) => w.id === ENV_WID) ? ENV_WID : '';
-  const warehouseId = fromEnv || list.find((w) => w.status === 'active')?.id || list[0]?.id || '';
+  const warehouseId =
+    fromEnv ||
+    list.find((w) => w.code === 'WH-001')?.id ||
+    list.find((w) => w.status === 'active')?.id ||
+    list[0]?.id ||
+    '';
 
   return {
     warehouseId,

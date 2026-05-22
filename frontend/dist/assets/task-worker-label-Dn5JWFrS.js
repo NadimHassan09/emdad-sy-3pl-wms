@@ -1,0 +1,1 @@
+function a(e){var f,o,n,c,l,d;const r=(f=e==null?void 0:e[0])==null?void 0:f.worker;if(!r)return"—";const t=(o=r.displayName)==null?void 0:o.trim();if(t)return t;const i=(c=(n=r.user)==null?void 0:n.fullName)==null?void 0:c.trim();if(i)return i;const u=(d=(l=r.user)==null?void 0:l.email)==null?void 0:d.trim();return u||(r.id?`${r.id.slice(0,8)}…`:"—")}export{a as t};

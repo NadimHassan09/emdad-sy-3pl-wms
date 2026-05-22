@@ -14,6 +14,16 @@ export type ReceivingLineStatus =
   | 'overage'
   | 'damaged';
 
+export type ReceivingLineFilters = {
+  search: string;
+  status: ReceivingLineStatus | '';
+};
+
+export const DEFAULT_RECEIVING_LINE_FILTERS: ReceivingLineFilters = {
+  search: '',
+  status: '',
+};
+
 export type LineReceiveDraft = {
   receivedQty: string;
   damagedQty: string;

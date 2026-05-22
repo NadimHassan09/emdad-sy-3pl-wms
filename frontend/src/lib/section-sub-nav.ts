@@ -67,7 +67,12 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
   },
   {
     ariaLabelKey: 'Tasks navigation',
-    matchSection: (p) => p.startsWith('/tasks') || p === '/internal',
+    matchSection: (p) => {
+      if (p === '/internal') return true;
+      if (!p.startsWith('/tasks')) return false;
+      // Hide sub-nav on task detail / execute pages
+      return !/^\/tasks\/[^/]+(\/execute)?$/.test(p);
+    },
     items: [
       {
         labelKey: 'Tasks',

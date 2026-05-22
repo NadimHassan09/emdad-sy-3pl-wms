@@ -21,6 +21,7 @@ interface DataTableProps<T> {
   empty?: ReactNode;
   loading?: boolean;
   onRowClick?: (row: T) => void;
+  getRowClassName?: (row: T) => string | undefined;
   labels?: {
     rowsSuffix?: string;
     resultsSuffix?: string;
@@ -42,6 +43,7 @@ export function DataTable<T>({
   empty,
   loading,
   onRowClick,
+  getRowClassName,
   labels,
 }: DataTableProps<T>) {
   const [rowsPerPage, setRowsPerPage] = useState(20);
@@ -64,9 +66,9 @@ export function DataTable<T>({
   const endDisplay = totalRows === 0 ? 0 : Math.min(page * rowsPerPage, totalRows);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-visible rounded-xl border border-slate-100 bg-white shadow-sm">
       <TableCardHeader title={title} description={description} actions={actions} titleAs={titleAs} />
-      <div className="w-full overflow-x-auto">
+      <div className="w-full overflow-x-auto overflow-y-visible">
         <table className="min-w-full border-collapse text-sm">
           <thead>
             <tr>
@@ -100,11 +102,14 @@ export function DataTable<T>({
                 <tr
                   key={rowKey(row)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={
+                  className={[
                     onRowClick
                       ? 'cursor-pointer border-t border-slate-100 transition hover:bg-emerald-50/50'
-                      : 'border-t border-slate-100 transition hover:bg-emerald-50/50'
-                  }
+                      : 'border-t border-slate-100 transition hover:bg-emerald-50/50',
+                    getRowClassName?.(row),
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                 >
                   {columns.map((c, colIdx) => (
                     <td key={colIdx} className={`px-3 py-2.5 align-middle text-sm text-slate-600 ${c.className ?? ''}`}>
@@ -117,7 +122,7 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
-      <div className="flex flex-col gap-2 border-t border-slate-100 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2">
+      <div className="relative z-0 flex flex-col gap-2 border-t border-slate-100 bg-white px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2">
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
           <select
             aria-label={labels?.rowsPerPageAria ?? 'Rows per page'}

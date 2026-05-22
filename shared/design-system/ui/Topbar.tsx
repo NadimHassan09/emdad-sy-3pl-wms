@@ -15,7 +15,9 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { Button } from './Button';
 import { cn } from './cn';
+import { FILTER_RESET_BUTTON_CLASS } from './filter-button-styles';
 
 const MENU_WIDTH = 240;
 const MENU_TOP = 100;
@@ -285,36 +287,21 @@ function TopbarUserMenuDropdown({
         )}
 
         {showSignOut && (
-          <div className="p-2">
-            <button
+          <div className="border-t border-neutral-100 p-3">
+            <Button
               type="button"
               role="menuitem"
-              className={cn(
-                'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5',
-                'text-sm font-medium text-danger-600',
-                'transition-colors duration-fast',
-                'hover:bg-danger-50 active:bg-danger-100',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-200',
-              )}
+              variant="danger"
+              size="md"
+              block
+              className={`${FILTER_RESET_BUTTON_CLASS} h-[34px] !py-0`}
               onClick={() => {
                 onClose();
                 onSignOut();
               }}
             >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-danger-50">
-                <svg
-                  viewBox="0 0 20 20"
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  aria-hidden="true"
-                >
-                  <path d="M13 4h3v12h-3M8 10l4 4m0-4l-4 4M4 16V4" strokeLinecap="round" />
-                </svg>
-              </span>
               {signOutLabel}
-            </button>
+            </Button>
           </div>
         )}
       </div>

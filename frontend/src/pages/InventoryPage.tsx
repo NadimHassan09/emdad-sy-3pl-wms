@@ -224,14 +224,6 @@ export function InventoryPage() {
             onChange={(e) => setDraft({ searchQuery: e.target.value })}
             placeholder={t('Contains…', 'يحتوي على…')}
             className={`min-w-[200px] flex-1 ${draftFilters.searchCategory !== 'name' ? 'font-mono' : ''}`}
-            hint={
-              draftFilters.searchCategory === 'inboundOrderNumber'
-                ? t(
-                    'Matches inbound order number; narrows stock received on matching orders.',
-                    'يطابق رقم طلب الوارد؛ يضيّق المخزون المستلم على الطلبات المطابقة.',
-                  )
-                : undefined
-            }
           />
           <SelectField
             label={t('Search by', 'البحث حسب')}

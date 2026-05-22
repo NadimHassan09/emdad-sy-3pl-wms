@@ -1,5 +1,56 @@
 import type { OutboundOrderLine } from '../../../api/outbound';
 import type { Location } from '../../../api/locations';
+import {
+  DEFAULT_TASK_LINE_FILTERS,
+  matchesTaskLineSearch,
+  type TaskLineFilters,
+} from '../../../lib/task-line-filters';
+
+export type PickLineFilters = TaskLineFilters & {
+  product: string;
+  location: string;
+};
+
+export const DEFAULT_PICK_LINE_FILTERS: PickLineFilters = {
+  ...DEFAULT_TASK_LINE_FILTERS,
+  product: '',
+  location: '',
+};
+
+function matchesPickProductFilter(query: string, ol?: OutboundOrderLine): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const p = ol?.product;
+  if (!p) return false;
+  const sku = p.sku?.trim().toLowerCase() ?? '';
+  const name = p.name?.trim().toLowerCase() ?? '';
+  const bc = p.barcode?.trim().toLowerCase() ?? '';
+  return sku.includes(q) || name.includes(q) || bc.includes(q);
+}
+
+function matchesPickLocationFilter(query: string, loc?: Location): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  if (!loc) return false;
+  const d = locationDisplay(loc);
+  const parts = [loc.fullPath, loc.barcode, loc.name, d.shortLabel, ...d.segments];
+  return parts.some((p) => (p ?? '').trim().toLowerCase().includes(q));
+}
+
+export function pickLineFiltersAfterScan(
+  current: PickLineFilters,
+  field: 'product' | 'location',
+  code: string,
+  allLocations: Location[],
+): PickLineFilters {
+  const trimmed = code.trim();
+  if (!trimmed) return current;
+  if (field === 'location') {
+    const hit = matchLocationByScan(trimmed, allLocations);
+    return { ...current, location: hit?.fullPath ?? trimmed };
+  }
+  return { ...current, product: trimmed };
+}
 
 import type {
   PickLineDraft,
@@ -125,16 +176,8 @@ export function computePickLineStatus(draft: PickLineDraft): PickLineStatus {
   const required = parseQty(draft.requiredQty);
   const picked = parseQty(draft.pickedQty);
   if (picked > 0 && picked < required - 1e-6) return 'short';
-  if (
-    draft.locationVerified &&
-    draft.productVerified &&
-    picked >= required - 1e-6 &&
-    draft.exceptionType === 'none'
-  ) {
-    return 'complete';
-  }
-  if (draft.locationVerified && draft.productVerified) return 'ready';
-  if (draft.locationVerified) return 'scanning';
+  if (picked >= required - 1e-6 && draft.exceptionType === 'none') return 'complete';
+  if (picked > 0) return 'ready';
   return 'pending';
 }
 
@@ -162,6 +205,43 @@ export function pickLineStatusClass(status: PickLineStatus): string {
     default:
       return 'bg-slate-100 text-slate-600';
   }
+}
+
+export function pickLineStatusFilterOptions(): Array<{ value: PickLineStatus | ''; label: string }> {
+  return [
+    { value: '', label: 'All statuses' },
+    { value: 'pending', label: pickLineStatusLabel('pending') },
+    { value: 'scanning', label: pickLineStatusLabel('scanning') },
+    { value: 'ready', label: pickLineStatusLabel('ready') },
+    { value: 'complete', label: pickLineStatusLabel('complete') },
+    { value: 'short', label: pickLineStatusLabel('short') },
+  ];
+}
+
+export function filterPickDrafts(
+  drafts: PickLineDraft[],
+  filters: PickLineFilters,
+  lineMeta: Map<string, OutboundOrderLine>,
+  allLocations: Location[],
+  lotNumberById: Map<string, string>,
+): PickLineDraft[] {
+  return drafts.filter((d) => {
+    const status = computePickLineStatus(d);
+    if (filters.status && status !== filters.status) return false;
+    const ol = lineMeta.get(d.outboundOrderLineId);
+    const loc = allLocations.find((l) => l.id === d.locationId);
+    const lot =
+      d.lotId != null ? (lotNumberById.get(d.lotId) ?? d.lotId.slice(0, 8)) : undefined;
+    if (!matchesPickProductFilter(filters.product, ol)) return false;
+    if (!matchesPickLocationFilter(filters.location, loc)) return false;
+    return matchesTaskLineSearch(filters.search, {
+      sku: ol?.product?.sku,
+      name: ol?.product?.name,
+      barcode: ol?.product?.barcode,
+      lot,
+      locationPath: loc?.fullPath,
+    });
+  });
 }
 
 export function computePickSummary(

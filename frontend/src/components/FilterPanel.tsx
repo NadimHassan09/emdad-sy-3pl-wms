@@ -49,7 +49,7 @@ export function FilterPanel({
               size="md"
               onClick={onReset}
               disabled={loading}
-              className={FILTER_RESET_BUTTON_CLASS}
+              className={`${FILTER_RESET_BUTTON_CLASS} h-[34px] !py-0`}
             >
               {resetLabel}
             </Button>
@@ -60,7 +60,7 @@ export function FilterPanel({
               onClick={onApply}
               disabled={applyDisabled || loading}
               loading={loading}
-              className={FILTER_APPLY_BUTTON_CLASS}
+              className={`${FILTER_APPLY_BUTTON_CLASS} h-[34px] !py-0`}
             >
               {applyLabel}
             </Button>

@@ -117,6 +117,10 @@ class LedgerQueryDto extends pagination_dto_1.PaginationDto {
     companyId;
     warehouseId;
     productId;
+    productSearch;
+    productName;
+    sku;
+    productBarcode;
     movementType;
     referenceType;
     referenceId;
@@ -142,6 +146,30 @@ __decorate([
     (0, is_uuid_loose_1.IsUuidLoose)(),
     __metadata("design:type", String)
 ], LedgerQueryDto.prototype, "productId", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], LedgerQueryDto.prototype, "productSearch", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], LedgerQueryDto.prototype, "productName", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], LedgerQueryDto.prototype, "sku", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], LedgerQueryDto.prototype, "productBarcode", void 0);
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),

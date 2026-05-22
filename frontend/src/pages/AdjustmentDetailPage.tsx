@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ADJUSTMENT_PRIMARY_BUTTON_CLASS } from '../components/adjustments/adjustment-button-styles';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
@@ -13,7 +12,6 @@ import { AddAdjustmentLineForm } from '../components/adjustments/AddAdjustmentLi
 import { Button } from '../components/Button';
 import { Column, DataTable } from '../components/DataTable';
 import { ConfirmModal } from '../components/ConfirmModal';
-import { PageHeader } from '../components/PageHeader';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
@@ -144,36 +142,30 @@ export function AdjustmentDetailPage() {
         </Link>
       </div>
 
-      <PageHeader
-        title={t('Adjustment details', 'تفاصيل التعديل')}
-        actions={
-          isDraft ? (
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="danger" onClick={() => setCancelConfirmOpen(true)}>
-                {t('Delete draft', 'حذف المسودة')}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className={ADJUSTMENT_PRIMARY_BUTTON_CLASS}
-                loading={approveMut.isPending}
-                onClick={() => {
-                  const r = adj.reason?.trim() ?? '';
-                  if (!r || r === ADJUSTMENT_REASON_PENDING) {
-                    toast.error(
-                      t('Enter an adjustment reason before confirming.', 'أدخل سبب التعديل قبل التأكيد.'),
-                    );
-                    return;
-                  }
-                  approveMut.mutate();
-                }}
-              >
-                {t('Confirm', 'تأكيد')}
-              </Button>
-            </div>
-          ) : null
-        }
-      />
+      {isDraft ? (
+        <div className="mb-4 flex flex-wrap justify-end gap-2 sm:mb-5">
+          <Button type="button" variant="danger" onClick={() => setCancelConfirmOpen(true)}>
+            {t('Delete draft', 'حذف المسودة')}
+          </Button>
+          <Button
+            type="button"
+            variant="brand"
+            loading={approveMut.isPending}
+            onClick={() => {
+              const r = adj.reason?.trim() ?? '';
+              if (!r || r === ADJUSTMENT_REASON_PENDING) {
+                toast.error(
+                  t('Enter an adjustment reason before confirming.', 'أدخل سبب التعديل قبل التأكيد.'),
+                );
+                return;
+              }
+              approveMut.mutate();
+            }}
+          >
+            {t('Confirm', 'تأكيد')}
+          </Button>
+        </div>
+      ) : null}
 
       <AdjustmentSummaryCard adjustment={adj} t={t} />
 

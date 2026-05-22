@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import {
   CompaniesApi,
@@ -8,6 +9,7 @@ import {
   type CreateCompanyPayload,
   type UpdateCompanyPayload,
 } from '../api/companies';
+import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { Button } from '../components/Button';
 import { DataTable, type Column } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
@@ -17,6 +19,15 @@ import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
+import { useFilters } from '../hooks/useFilters';
+import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
+
+type ClientSearchCategory = 'name' | 'tradeName' | 'email' | 'phone' | 'city' | 'country';
+
+type ClientListFilters = {
+  search: string;
+  searchCategory: ClientSearchCategory;
+};
 
 const TEXTAREA_CLASS =
   'mt-1 block w-full min-h-[72px] rounded-md border border-slate-300 px-3 py-1.5 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200';
@@ -65,6 +76,7 @@ function FieldTextarea({
 }
 
 export function ClientsPage() {
+  const navigate = useNavigate();
   const isArabic =
     typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (en: string, ar: string) => (isArabic ? ar : en);
@@ -73,8 +85,14 @@ export function ClientsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<CompanyListRow | null>(null);
   const [openActionId, setOpenActionId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
   const [createForm, setCreateForm] = useState<CreateCompanyPayload>(emptyCreate);
+
+  const initialClientFilters = useMemo<ClientListFilters>(
+    () => ({ search: '', searchCategory: 'name' }),
+    [],
+  );
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
+    useFilters(initialClientFilters);
   const [editForm, setEditForm] = useState<UpdateCompanyPayload>({});
 
   useEffect(() => {
@@ -96,7 +114,7 @@ export function ClientsPage() {
 
   const companiesKey = QK.companies;
 
-  const { data: rows = [], isLoading, error } = useQuery({
+  const { data: rows = [], isLoading, isFetching, error } = useQuery({
     queryKey: companiesKey,
     queryFn: () => CompaniesApi.list({ includeAll: true }),
   });
@@ -227,71 +245,69 @@ export function ClientsPage() {
         accessor: (r) => {
           const busy =
             suspendMut.isPending || removeMut.isPending || updateMut.isPending || createMut.isPending;
-          const menuOpen = openActionId === r.id;
           return (
-            <div className="relative inline-flex">
-              <button
-                type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
-                disabled={busy}
-                data-client-action-trigger="true"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpenActionId((cur) => (cur === r.id ? null : r.id));
-                }}
-                aria-label="Open actions"
-                aria-expanded={menuOpen}
+            <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
+              <AnchoredDropdown
+                open={openActionId === r.id}
+                align="end"
+                menuRootProps={{ 'data-client-action-menu': 'true' }}
+                trigger={
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                    disabled={busy}
+                    data-client-action-trigger="true"
+                    onClick={() => setOpenActionId((cur) => (cur === r.id ? null : r.id))}
+                    aria-label="Open actions"
+                    aria-expanded={openActionId === r.id}
+                    aria-haspopup="menu"
+                  >
+                    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
+                      <path d="M4 10a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm4.5 0a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 8.5 10ZM13 10a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 13 10Z" />
+                    </svg>
+                  </button>
+                }
               >
-                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
-                  <path d="M4 10a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm4.5 0a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 8.5 10ZM13 10a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 13 10Z" />
-                </svg>
-              </button>
-              {menuOpen ? (
-                <div className="absolute right-0 top-9 z-10 min-w-[140px] overflow-hidden rounded-md border border-slate-200 bg-white shadow-md">
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                  data-client-action-menu-button="true"
+                  onClick={() => {
+                    setOpenActionId(null);
+                    openEdit(r);
+                  }}
+                >
+                  Edit
+                </button>
+                {r.status === 'active' ? (
                   <button
                     type="button"
                     className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
                     data-client-action-menu-button="true"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenActionId(null);
-                      openEdit(r);
+                    onClick={() => {
+                      if (window.confirm(`Suspend operations for "${r.name}"?`)) suspendMut.mutate(r.id);
                     }}
                   >
-                    Edit
+                    Suspend
                   </button>
-                  {r.status === 'active' ? (
-                    <button
-                      type="button"
-                      className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
-                      data-client-action-menu-button="true"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm(`Suspend operations for "${r.name}"?`)) suspendMut.mutate(r.id);
-                      }}
-                    >
-                      Suspend
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
-                    data-client-action-menu-button="true"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (
-                        window.confirm(
-                          `Permanently delete "${r.name}"? This only succeeds if there are no linked products, orders, or users. Otherwise the server will reject the request.`,
-                        )
-                      ) {
-                        removeMut.mutate(r.id);
-                      }
-                    }}
-                  >
-                    Delete
-                  </button>
-                </div>
-              ) : null}
+                ) : null}
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
+                  data-client-action-menu-button="true"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Permanently delete "${r.name}"? This only succeeds if there are no linked products, orders, or users. Otherwise the server will reject the request.`,
+                      )
+                    ) {
+                      removeMut.mutate(r.id);
+                    }
+                  }}
+                >
+                  Delete
+                </button>
+              </AnchoredDropdown>
             </div>
           );
         },
@@ -302,43 +318,82 @@ export function ClientsPage() {
 
   const errMsg = error instanceof Error ? error.message : null;
   const filteredRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = appliedFilters.search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => {
-      const name = r.name?.toLowerCase() ?? '';
-      const trade = r.tradeName?.toLowerCase() ?? '';
-      const email = r.contactEmail?.toLowerCase() ?? '';
-      return name.includes(q) || trade.includes(q) || email.includes(q);
+      const value = (() => {
+        switch (appliedFilters.searchCategory) {
+          case 'tradeName':
+            return r.tradeName ?? '';
+          case 'email':
+            return r.contactEmail ?? '';
+          case 'phone':
+            return r.contactPhone ?? '';
+          case 'city':
+            return r.city ?? '';
+          case 'country':
+            return r.country ?? '';
+          case 'name':
+          default:
+            return r.name ?? '';
+        }
+      })();
+      return value.toLowerCase().includes(q);
     });
-  }, [rows, search]);
+  }, [rows, appliedFilters.search, appliedFilters.searchCategory]);
 
   return (
     <>
       {errMsg ? <p className="mb-4 text-sm text-rose-600">{errMsg}</p> : null}
 
-      <FilterPanel title={t('Client filters', 'فلاتر العملاء')}>
-        <TextField
-          label={t('Search', 'بحث')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('Search by company name, trade name, or email', 'ابحث باسم الشركة أو الاسم التجاري أو البريد الإلكتروني')}
-        />
+      <FilterPanel
+        title={t('Client filters', 'فلاتر العملاء')}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={isFetching}
+        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
+        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
+      >
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-full min-w-[10rem] max-w-[25%] flex-1 basis-32">
+            <TextField
+              label={t('Search', 'بحث')}
+              value={draftFilters.search}
+              onChange={(e) => setDraft({ search: e.target.value })}
+              placeholder={t('Search client...', 'ابحث عن عميل...')}
+            />
+          </div>
+          <SelectField
+            label={t('Search by', 'البحث حسب')}
+            name="clientSearchCategory"
+            value={draftFilters.searchCategory}
+            onChange={(e) =>
+              setDraft({ searchCategory: e.target.value as ClientSearchCategory })
+            }
+            options={[
+              { value: 'name', label: t('Company name', 'اسم الشركة') },
+              { value: 'tradeName', label: t('Trade name', 'الاسم التجاري') },
+              { value: 'email', label: t('Email', 'البريد الإلكتروني') },
+              { value: 'phone', label: t('Phone', 'الهاتف') },
+              { value: 'city', label: t('City', 'المدينة') },
+              { value: 'country', label: t('Country', 'الدولة') },
+            ]}
+            className="min-w-[8.75rem] max-w-[11rem] shrink-0"
+          />
+        </div>
       </FilterPanel>
 
       <DataTable
         title={t('Clients', 'العملاء')}
         actions={
-          <Button
-            type="button"
-            className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
-            onClick={() => setCreateOpen(true)}
-          >
+          <Button type="button" variant="brand" onClick={() => setCreateOpen(true)}>
             {t('+ New company', '+ شركة جديدة')}
           </Button>
         }
         columns={columns}
         rows={filteredRows}
         rowKey={(r) => r.id}
+        onRowClick={(r) => navigate(`/clients/${r.id}`)}
         loading={isLoading}
         empty={t('No companies yet.', 'لا توجد شركات بعد.')}
         labels={{
@@ -358,14 +413,20 @@ export function ClientsPage() {
         widthClass="max-w-xl"
         footer={
           <>
-            <Button variant="secondary" type="button" onClick={closeCreate} disabled={createMut.isPending}>
+            <Button
+              variant="danger"
+              className={MODAL_CANCEL_BUTTON_CLASS}
+              type="button"
+              onClick={closeCreate}
+              disabled={createMut.isPending}
+            >
               {t('Cancel', 'إلغاء')}
             </Button>
             <Button
               type="submit"
               form="create-company"
+              variant="brand"
               loading={createMut.isPending}
-              className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
             >
               {t('Create', 'إنشاء')}
             </Button>
@@ -436,10 +497,21 @@ export function ClientsPage() {
         widthClass="max-w-xl"
         footer={
           <>
-            <Button variant="secondary" type="button" onClick={closeEdit} disabled={updateMut.isPending}>
+            <Button
+              variant="danger"
+              className={MODAL_CANCEL_BUTTON_CLASS}
+              type="button"
+              onClick={closeEdit}
+              disabled={updateMut.isPending}
+            >
               {t('Cancel', 'إلغاء')}
             </Button>
-            <Button type="submit" form="edit-company" loading={updateMut.isPending}>
+            <Button
+              type="submit"
+              form="edit-company"
+              variant="brand"
+              loading={updateMut.isPending}
+            >
               {t('Save', 'حفظ')}
             </Button>
           </>

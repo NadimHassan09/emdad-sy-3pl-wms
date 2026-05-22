@@ -2,9 +2,11 @@
  * Shared filter action button styles (list pages, report filters, FilterBar).
  */
 
-/** Apply filters — brand green primary. */
+/** Apply filters — brand green primary (#10B981, hover #059669). */
 export const FILTER_APPLY_BUTTON_CLASS =
-  'rounded-xl border-emerald-500 bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-white shadow hover:border-emerald-600 hover:bg-emerald-600';
+  '!rounded-xl border border-[#10B981] bg-[#10B981] px-3 py-1.5 text-sm font-semibold text-white shadow-sm ' +
+  'hover:border-[#059669] hover:bg-[#059669] hover:text-white ' +
+  'disabled:border-[#10B981]/40 disabled:bg-[#10B981]/40 disabled:text-white/90';
 
 /** Reset / clear filters — crimson fill, white label (reference: delete-draft control). */
 export const FILTER_RESET_BUTTON_CLASS =

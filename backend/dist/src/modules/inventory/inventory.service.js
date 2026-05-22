@@ -260,8 +260,41 @@ let InventoryService = class InventoryService {
         const companyId = (0, company_read_scope_1.readCompanyIdFilter)(user, query.companyId);
         if (companyId)
             andParts.push({ companyId });
-        if (query.productId)
+        if (query.productId) {
             andParts.push({ productId: query.productId });
+        }
+        else if (query.sku?.trim()) {
+            andParts.push({
+                product: { sku: { contains: query.sku.trim(), mode: 'insensitive' } },
+            });
+        }
+        else if (query.productName?.trim()) {
+            andParts.push({
+                product: { name: { contains: query.productName.trim(), mode: 'insensitive' } },
+            });
+        }
+        else if (query.productBarcode?.trim()) {
+            const b = query.productBarcode.trim();
+            andParts.push({
+                product: {
+                    AND: [{ barcode: { not: null } }, { barcode: { contains: b, mode: 'insensitive' } }],
+                },
+            });
+        }
+        else if (query.productSearch?.trim()) {
+            const q = query.productSearch.trim();
+            andParts.push({
+                product: {
+                    OR: [
+                        { name: { contains: q, mode: 'insensitive' } },
+                        { sku: { contains: q, mode: 'insensitive' } },
+                        {
+                            AND: [{ barcode: { not: null } }, { barcode: { contains: q, mode: 'insensitive' } }],
+                        },
+                    ],
+                },
+            });
+        }
         andParts.push({ movementType: { in: expandMovementFilter(query.movementType) } });
         if (query.referenceType)
             andParts.push({ referenceType: query.referenceType });

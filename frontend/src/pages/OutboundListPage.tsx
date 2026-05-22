@@ -303,6 +303,7 @@ function CreateOutboundModal({ open, onClose, loading, isArabic, onSubmit }: Cre
   const [destination, setDestination] = useState('');
   const [carrier, setCarrier] = useState('');
   const [notes, setNotes] = useState('');
+  const [requiresPacking, setRequiresPacking] = useState(true);
   const [lines, setLines] = useState<DraftLine[]>([{ productId: '', requestedQuantity: '' }]);
   const [scanOpen, setScanOpen] = useState(false);
 
@@ -407,6 +408,7 @@ function CreateOutboundModal({ open, onClose, loading, isArabic, onSubmit }: Cre
     setDestination('');
     setCarrier('');
     setNotes('');
+    setRequiresPacking(true);
     setLines([{ productId: '', requestedQuantity: '' }]);
     setScanOpen(false);
     setStep(1);
@@ -496,6 +498,7 @@ function CreateOutboundModal({ open, onClose, loading, isArabic, onSubmit }: Cre
       requiredShipDate: shipDate,
       carrier: carrier || undefined,
       notes: notes || undefined,
+      requiresPacking,
       lines: lines
         .filter((l) => l.productId && l.requestedQuantity)
         .map((l) => ({ productId: l.productId, requestedQuantity: Number(l.requestedQuantity) })),
@@ -601,6 +604,15 @@ function CreateOutboundModal({ open, onClose, loading, isArabic, onSubmit }: Cre
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
             />
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={requiresPacking}
+                onChange={(e) => setRequiresPacking(e.target.checked)}
+                className="mt-1 rounded border-slate-300"
+              />
+              <span className="text-sm font-medium text-slate-900">{t('Packing')}</span>
+            </label>
           </div>
         ) : (
           <>

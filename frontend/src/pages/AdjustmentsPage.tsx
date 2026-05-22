@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ADJUSTMENT_PRIMARY_BUTTON_CLASS } from '../components/adjustments/adjustment-button-styles';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -7,6 +6,7 @@ import { AdjustmentsApi, type StockAdjustment } from '../api/adjustments';
 import { CompaniesApi } from '../api/companies';
 import { ProductsApi } from '../api/products';
 import { NewAdjustmentModal } from '../components/adjustments/NewAdjustmentModal';
+import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { Button } from '../components/Button';
 import { StatusBadge } from '../components/StatusBadge';
 import { Combobox } from '../components/Combobox';
@@ -50,6 +50,7 @@ export function AdjustmentsPage() {
       if (!target) return;
       if (
         target.closest('[data-adjustment-action-trigger="true"]') ||
+        target.closest('[data-adjustment-action-menu="true"]') ||
         target.closest('[data-adjustment-action-menu-button="true"]')
       ) {
         return;
@@ -164,47 +165,52 @@ export function AdjustmentsPage() {
       {
         header: t('Actions', 'الإجراءات'),
         accessor: (a) => (
-          <div className="relative inline-flex" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
-              data-adjustment-action-trigger="true"
-              onClick={() => setOpenActionId((cur) => (cur === a.id ? null : a.id))}
-              aria-label={t('Open actions', 'فتح الإجراءات')}
-              aria-expanded={openActionId === a.id}
-            >
-              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
-                <path d="M4 10a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm4.5 0a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 8.5 10ZM13 10a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 13 10Z" />
-              </svg>
-            </button>
-            {openActionId === a.id ? (
-              <div className="absolute right-0 top-9 z-10 min-w-[140px] overflow-hidden rounded-md border border-slate-200 bg-white shadow-md">
+          <div onClick={(e) => e.stopPropagation()}>
+            <AnchoredDropdown
+              open={openActionId === a.id}
+              align="end"
+              menuRootProps={{ 'data-adjustment-action-menu': 'true' }}
+              trigger={
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                  data-adjustment-action-trigger="true"
+                  onClick={() => setOpenActionId((cur) => (cur === a.id ? null : a.id))}
+                  aria-label={t('Open actions', 'فتح الإجراءات')}
+                  aria-expanded={openActionId === a.id}
+                  aria-haspopup="menu"
+                >
+                  <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
+                    <path d="M4 10a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm4.5 0a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 8.5 10ZM13 10a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 13 10Z" />
+                  </svg>
+                </button>
+              }
+            >
+              <button
+                type="button"
+                className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                data-adjustment-action-menu-button="true"
+                onClick={() => {
+                  setOpenActionId(null);
+                  navigate(`/inventory/adjustments/${a.id}`);
+                }}
+              >
+                {a.status === 'draft' ? t('Edit', 'تعديل') : t('Open', 'فتح')}
+              </button>
+              {a.status === 'draft' ? (
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
                   data-adjustment-action-menu-button="true"
                   onClick={() => {
                     setOpenActionId(null);
-                    navigate(`/inventory/adjustments/${a.id}`);
+                    setDraftDeleteTarget(a);
                   }}
                 >
-                  {a.status === 'draft' ? t('Edit', 'تعديل') : t('Open', 'فتح')}
+                  {t('Delete', 'حذف')}
                 </button>
-                {a.status === 'draft' ? (
-                  <button
-                    type="button"
-                    className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
-                    data-adjustment-action-menu-button="true"
-                    onClick={() => {
-                      setOpenActionId(null);
-                      setDraftDeleteTarget(a);
-                    }}
-                  >
-                    {t('Delete', 'حذف')}
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
+              ) : null}
+            </AnchoredDropdown>
           </div>
         ),
         width: '120px',
@@ -279,9 +285,8 @@ export function AdjustmentsPage() {
         actions={
           <Button
             disabled={!wid}
-            variant="secondary"
+            variant="brand"
             onClick={() => wid && setNewModalOpen(true)}
-            className={ADJUSTMENT_PRIMARY_BUTTON_CLASS}
           >
             {t('+ New adjustment', '+ تعديل جديد')}
           </Button>
