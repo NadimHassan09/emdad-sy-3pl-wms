@@ -35,15 +35,15 @@ export function TableToolbar({
   compact,
   className,
 }: TableToolbarProps) {
-  const px = compact ? 'px-4' : 'px-6';
-  const py = compact ? 'py-3' : 'py-5';
+  const px = compact ? 'px-3' : 'px-4';
+  const py = compact ? 'py-2' : 'py-3';
   return (
     <div className={cn('border-b border-slate-100 bg-white', className)}>
       {/* Header row */}
       <div className={cn('flex flex-wrap items-center gap-3', px, py)}>
         {/* Title */}
         {title && (
-          <h2 className="m-0 me-auto whitespace-nowrap text-xl font-semibold text-slate-900">
+          <h2 className="m-0 me-auto whitespace-nowrap text-base font-semibold text-slate-900 sm:text-lg">
             {title}
           </h2>
         )}

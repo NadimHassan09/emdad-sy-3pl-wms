@@ -8,7 +8,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { unlockNotificationAudio } from '../lib/notification-sound';
@@ -62,26 +61,6 @@ function defaultFormatTime(iso: string): string {
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
   return new Date(iso).toLocaleDateString();
-}
-
-function BellIcon(): ReactNode {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      className="h-4.5 w-4.5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      aria-hidden="true"
-    >
-      <path
-        d="M10 2.5a4.5 4.5 0 0 0-4.5 4.5v2.1c0 .5-.2 1-.5 1.4L3.5 13.2A1 1 0 0 0 4.4 15h11.2a1 1 0 0 0 .9-1.5l-1.5-2.7a2 2 0 0 1-.5-1.4V7a4.5 4.5 0 0 0-4.5-4.5z"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M8 15a2 2 0 0 0 4 0" strokeLinecap="round" />
-    </svg>
-  );
 }
 
 function NotificationsDropdown({
@@ -254,17 +233,11 @@ export function TopbarNotifications({
         ref={triggerRef}
         type="button"
         className={cn(
-          'relative inline-flex h-9 w-9 items-center justify-center rounded-lg',
-          'transition-colors duration-fast',
-          'hover:bg-white/10',
+          'relative inline-flex h-9 w-9 items-center justify-center',
+          'border-0 bg-transparent shadow-none',
+          'transition-opacity duration-fast hover:opacity-80',
           'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30',
-          open && 'bg-white/10',
         )}
-        style={{
-          color: 'var(--sidebar-text)',
-          border: '1px solid var(--sidebar-border)',
-          backgroundColor: 'var(--sidebar-hover-bg)',
-        }}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
@@ -274,7 +247,7 @@ export function TopbarNotifications({
           setOpen((v) => !v);
         }}
       >
-        <BellIcon />
+        <i className="fa-solid fa-bell text-lg text-white" aria-hidden="true" />
         {unreadCount > 0 && (
           <span
             className="absolute -top-1 -end-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white"

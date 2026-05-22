@@ -243,6 +243,16 @@ export function InventoryPage() {
             options={searchCategoryOptions}
             className="min-w-[200px] max-w-xs shrink-0"
           />
+          <Button
+            type="button"
+            variant="secondary"
+            className="shrink-0 px-2.5"
+            title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
+            aria-label={t('Scan barcode', 'مسح الباركود')}
+            onClick={() => setScanOpen(true)}
+          >
+            <BarcodeScanIcon className="h-5 w-5" />
+          </Button>
           <Combobox
             label={t('Client', 'العميل')}
             value={draftFilters.companyId}
@@ -258,25 +268,11 @@ export function InventoryPage() {
             placeholder={t('All clients', 'كل العملاء')}
             className="min-w-[220px] max-w-xs shrink-0"
           />
-          <Button
-            type="button"
-            variant="secondary"
-            className="shrink-0 px-2.5"
-            title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
-            aria-label={t('Scan barcode', 'مسح الباركود')}
-            onClick={() => setScanOpen(true)}
-          >
-            <BarcodeScanIcon className="h-5 w-5" />
-          </Button>
       </div>
       </FilterPanel>
 
       <DataTable
         title={t('Inventory', 'المخزون')}
-        description={t(
-          'Stock totals for the default warehouse — click any row for lot and location detail.',
-          'إجماليات المخزون للمستودع الافتراضي — اضغط على أي صف لعرض تفاصيل الدفعة والموقع.',
-        )}
         columns={summaryColumns}
         rows={summary.data?.items ?? []}
         rowKey={(r) => r.productId}

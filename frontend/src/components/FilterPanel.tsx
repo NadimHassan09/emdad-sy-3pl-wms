@@ -1,15 +1,16 @@
-import { Button } from '@ds';
+import { Button, FILTER_APPLY_BUTTON_CLASS, FILTER_RESET_BUTTON_CLASS } from '@ds';
 import type { ReactNode } from 'react';
 
-/** Matches the Apply filters primary action in filter panels. */
-export const FILTER_PRIMARY_BUTTON_CLASS =
-  'rounded-xl border-emerald-500 bg-emerald-500 px-4 py-2 shadow hover:border-emerald-600 hover:bg-emerald-600';
+/** @deprecated Use FILTER_APPLY_BUTTON_CLASS from @ds */
+export const FILTER_PRIMARY_BUTTON_CLASS = FILTER_APPLY_BUTTON_CLASS;
+
+export { FILTER_APPLY_BUTTON_CLASS, FILTER_RESET_BUTTON_CLASS };
 
 /** Shared white panel shell (filters, order details, workflow timeline, etc.). */
 export const PANEL_CARD_CLASS =
-  'mb-6 space-y-5 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm';
+  'mb-4 space-y-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm sm:p-4';
 
-export const PANEL_TITLE_CLASS = 'text-xl font-semibold text-slate-900';
+export const PANEL_TITLE_CLASS = 'text-base font-semibold text-slate-900';
 
 export function FilterPanel({
   children,
@@ -44,11 +45,11 @@ export function FilterPanel({
           <div className="flex flex-wrap gap-3">
             <Button
               type="button"
-              variant="secondary"
+              variant="danger"
               size="md"
               onClick={onReset}
               disabled={loading}
-              className="rounded-xl border-slate-200 px-4 py-2 text-slate-600 hover:bg-slate-50"
+              className={FILTER_RESET_BUTTON_CLASS}
             >
               {resetLabel}
             </Button>
@@ -59,7 +60,7 @@ export function FilterPanel({
               onClick={onApply}
               disabled={applyDisabled || loading}
               loading={loading}
-              className={FILTER_PRIMARY_BUTTON_CLASS}
+              className={FILTER_APPLY_BUTTON_CLASS}
             >
               {applyLabel}
             </Button>

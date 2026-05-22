@@ -16,7 +16,11 @@ import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { OrderDraftLinesTable } from '../components/OrderDraftLinesTable';
-import { FILTER_PRIMARY_BUTTON_CLASS, FilterPanel } from '../components/FilterPanel';
+import {
+  FILTER_PRIMARY_BUTTON_CLASS,
+  FILTER_RESET_BUTTON_CLASS,
+  FilterPanel,
+} from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
@@ -224,7 +228,7 @@ export function InboundListPage() {
             value={draftFilters.orderSearch}
             onChange={(e) => setDraft({ orderSearch: e.target.value })}
             placeholder={t('Search order...')}
-            className="font-mono text-xs"
+            className="font-mono"
           />
           <Combobox
             label={t('Client')}
@@ -469,7 +473,14 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
       footer={
         step === 1 ? (
           <>
-            <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
+            <Button
+              type="button"
+              variant="danger"
+              size="md"
+              onClick={handleClose}
+              disabled={loading}
+              className={FILTER_RESET_BUTTON_CLASS}
+            >
               {t('Cancel')}
             </Button>
             <Button
@@ -485,6 +496,16 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
           </>
         ) : (
           <>
+            <Button
+              type="button"
+              variant="danger"
+              size="md"
+              onClick={handleClose}
+              disabled={loading}
+              className={FILTER_RESET_BUTTON_CLASS}
+            >
+              {t('Cancel')}
+            </Button>
             <Button
               type="button"
               variant="secondary"

@@ -17,6 +17,22 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 import { DashboardApi } from '../api/dashboard';
+import {
+  OpenOrdersStageBarCard,
+  OpenOrdersStageBarCardSkeleton,
+} from '../components/dashboard/OpenOrdersStageBarCard';
+import {
+  OrderProgressGaugeCard,
+  OrderProgressGaugeCardSkeleton,
+} from '../components/dashboard/OrderProgressGaugeCard';
+import {
+  OpenTasksByTypeChartCard,
+  OpenTasksByTypeChartCardSkeleton,
+} from '../components/dashboard/OpenTasksByTypeChartCard';
+import {
+  WarehouseOverviewMetricCard,
+  WarehouseOverviewMetricCardSkeleton,
+} from '../components/dashboard/WarehouseOverviewMetricCard';
 import { Alert, AppPageHeader, Skeleton } from '@ds';
 import { QK } from '../constants/query-keys';
 
@@ -38,11 +54,14 @@ function dashboardLabel(label: string, isArabic: boolean): string {
     Pack: 'تغليف',
     Delivery: 'تسليم',
     Internal: 'داخلي',
-    'Open tasks by type': 'المهام المفتوحة حسب النوع',
+    'Open tasks': 'المهام المفتوحة',
     'Warehouse capacity consumption': 'استهلاك سعة المستودع',
+    Available: 'متاح',
+    Occupied: 'مشغول',
     'occupied of': 'مشغول من',
     'storage locations': 'مواقع تخزين',
     consumed: 'مستهلك',
+    Capacity: 'السعة',
     'Soon expiry lots (next 6 months)': 'الدفعات القريبة من الانتهاء (خلال 6 أشهر)',
     'No lots expiring soon.': 'لا توجد دفعات تنتهي قريبًا.',
     'Not set': 'غير محدد',
@@ -50,9 +69,23 @@ function dashboardLabel(label: string, isArabic: boolean): string {
     'Go to inbound orders': 'الانتقال إلى طلبات الوارد',
     'Recent 5 open outbound orders': 'آخر 5 طلبات صادر مفتوحة',
     'Go to outbound orders': 'الانتقال إلى طلبات الصادر',
+    'No open orders': 'لا توجد طلبات مفتوحة',
+    '1 open order': 'طلب واحد مفتوح',
+    'open orders': 'طلبات مفتوحة',
+    New: 'جديد',
+    Receive: 'استلام',
+    Putaway: 'تخزين',
+    Picking: 'التقاط',
+    Packing: 'تغليف',
+    Shipping: 'الشحن',
     Overview: 'نظرة عامة',
     'Warehouse overview': 'نظرة عامة على المستودع',
     'Could not load dashboard': 'تعذر تحميل لوحة التحكم',
+    'Open orders in pipeline': 'طلبات مفتوحة قيد التنفيذ',
+    'Active warehouse tasks': 'مهام مستودع نشطة',
+    'Registered client companies': 'شركات عملاء مسجلة',
+    completed: 'مكتمل',
+    pending: 'معلق',
   };
   return ar[label] ?? label;
 }
@@ -68,55 +101,19 @@ function dateFmt(value: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// StatCard — reference-style KPI card (label above, bold value below)
+// Section header — premium operational hierarchy
 // ─────────────────────────────────────────────────────────────────────────────
 
 const statCardClass =
-  'rounded-3xl border border-slate-100 bg-white p-6 shadow-sm ' +
+  'rounded-xl border border-slate-100 bg-white p-3 shadow-sm sm:p-4 ' +
   'transition-[box-shadow,border-color] duration-fast ease-standard';
 
 const statCardInteractiveClass =
   'hover:border-slate-200 hover:shadow-md focus-visible:outline-none focus-visible:shadow-focus';
 
-function StatCard({
-  value,
-  title,
-  to,
-}: {
-  value: string;
-  title: string;
-  to?: string;
-}) {
-  const body = (
-    <>
-      <div className="text-sm text-slate-500">{title}</div>
-      <div className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-slate-900 sm:text-3xl">
-        {value}
-      </div>
-    </>
-  );
-
-  if (to) {
-    return (
-      <Link
-        to={to}
-        className={`${statCardClass} ${statCardInteractiveClass} block`}
-      >
-        {body}
-      </Link>
-    );
-  }
-
-  return <div className={statCardClass}>{body}</div>;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section header — premium operational hierarchy
-// ─────────────────────────────────────────────────────────────────────────────
-
 function SectionHeading({ children }: { children: ReactNode }) {
   return (
-    <h2 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+    <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
       {children}
     </h2>
   );
@@ -138,30 +135,48 @@ export function DashboardOverviewPage() {
     queryFn: () => DashboardApi.overview(),
   });
 
+  const chartsQuery = useQuery({
+    queryKey: QK.dashboardOpenOrdersCharts,
+    queryFn: () => DashboardApi.openOrdersCharts(),
+  });
+
   const data = query.data;
 
+  const inboundCharts = chartsQuery.data?.inbound;
+  const outboundCharts = chartsQuery.data?.outbound;
+
+  function openOrdersSubtitle(total: number): string {
+    if (total === 0) return t('No open orders');
+    if (total === 1) return t('1 open order');
+    return `${numberFmt(total)} ${t('open orders')}`;
+  }
+
+  function formatPercent(value: number): string {
+    return value.toFixed(1);
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <AppPageHeader title={t('Overview')} />
 
       {/* ── Loading skeleton ──────────────────────────────────────── */}
       {query.isPending && (
         <div className="space-y-5">
-          <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-                <Skeleton height={14} width="55%" className="mb-3" />
-                <Skeleton height={32} width="35%" />
-              </div>
-            ))}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <WarehouseOverviewMetricCardSkeleton primary />
+            <WarehouseOverviewMetricCardSkeleton />
+            <WarehouseOverviewMetricCardSkeleton />
           </div>
-          <div className="grid gap-6 sm:grid-cols-2">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <div key={i} className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
-                <Skeleton height={14} width="50%" className="mb-3" />
-                <Skeleton height={32} width="30%" />
-              </div>
-            ))}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <OpenOrdersStageBarCardSkeleton title={t('Open inbound orders')} />
+            <OpenOrdersStageBarCardSkeleton title={t('Open outbound orders')} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <OpenTasksByTypeChartCardSkeleton title={t('Open tasks by type')} />
+            <OrderProgressGaugeCardSkeleton
+              title={t('Warehouse capacity consumption')}
+              subtitlePlacement="footer"
+            />
           </div>
         </div>
       )}
@@ -182,83 +197,108 @@ export function DashboardOverviewPage() {
 
       {data && (
         <>
-          {/* ── Counters ──────────────────────────────────────────── */}
+          {/* ── Warehouse overview (reference metric cards) ───────── */}
           <section>
             <SectionHeading>{t('Warehouse overview')}</SectionHeading>
-            <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
-              <StatCard
-                value={numberFmt(data.counters.totalItemsInStock)}
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <WarehouseOverviewMetricCard
+                variant="primary"
                 title={t('Total items in stock')}
+                value={numberFmt(data.counters.totalItemsInStock)}
                 to="/inventory/stock"
+                footer={{
+                  kind: 'trend',
+                  value: data.openOrders.inbound + data.openOrders.outbound,
+                  caption: t('Open orders in pipeline'),
+                }}
               />
-              <StatCard
-                value={numberFmt(data.counters.itemsInCatalog)}
+              <WarehouseOverviewMetricCard
                 title={t('Items in catalog')}
+                value={numberFmt(data.counters.itemsInCatalog)}
                 to="/products"
+                footer={{
+                  kind: 'trend',
+                  value: data.openTasksByType.reduce((sum, task) => sum + task.openCount, 0),
+                  caption: t('Active warehouse tasks'),
+                }}
               />
-              <StatCard
-                value={numberFmt(data.counters.totalCustomers)}
+              <WarehouseOverviewMetricCard
                 title={t('Total customers (companies)')}
+                value={numberFmt(data.counters.totalCustomers)}
                 to="/clients"
+                footer={{
+                  kind: 'status',
+                  text: t('Registered client companies'),
+                }}
               />
             </div>
           </section>
 
-          {/* ── Open orders ────────────────────────────────────────── */}
+          {/* ── Open orders (stage bar cards) ───────────────────────── */}
           <section>
             <SectionHeading>Open orders</SectionHeading>
-            <div className="grid gap-6 sm:grid-cols-2">
-              <StatCard
-                value={numberFmt(data.openOrders.inbound)}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <OpenOrdersStageBarCard
                 title={t('Open inbound orders')}
+                slices={inboundCharts?.stages}
+                inProgress={inboundCharts?.inProgress}
+                notInProgress={inboundCharts?.notInProgress}
+                openOrderCount={data.openOrders.inbound}
                 to="/orders/inbound"
+                isLoading={chartsQuery.isPending}
+                translateLabel={t}
+                openOrdersSubtitle={openOrdersSubtitle}
               />
-              <StatCard
-                value={numberFmt(data.openOrders.outbound)}
+              <OpenOrdersStageBarCard
                 title={t('Open outbound orders')}
+                slices={outboundCharts?.stages}
+                inProgress={outboundCharts?.inProgress}
+                notInProgress={outboundCharts?.notInProgress}
+                openOrderCount={data.openOrders.outbound}
                 to="/orders/outbound"
+                isLoading={chartsQuery.isPending}
+                translateLabel={t}
+                openOrdersSubtitle={openOrdersSubtitle}
               />
             </div>
           </section>
 
-          {/* ── Open tasks by type ─────────────────────────────────── */}
+          {/* ── Open tasks + Capacity (side by side) ─────────────────── */}
           <section>
-            <SectionHeading>{t('Open tasks by type')}</SectionHeading>
-            <div className="grid gap-6 sm:grid-cols-3 lg:grid-cols-6">
-              {data.openTasksByType.map((task) => (
-                <StatCard
-                  key={task.key}
-                  value={numberFmt(task.count)}
-                  title={t(task.label)}
-                  to={`/tasks?taskType=${encodeURIComponent(task.key)}`}
-                />
-              ))}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <OpenTasksByTypeChartCard
+                title={t('Open tasks')}
+                rows={data.openTasksByType}
+                to="/tasks"
+                translateLabel={t}
+                formatPercent={formatPercent}
+              />
+              <OrderProgressGaugeCard
+                title={t('Warehouse capacity consumption')}
+                subtitlePlacement="footer"
+                slices={[
+                  {
+                    key: 'available',
+                    label: 'Available',
+                    count: Math.max(
+                      0,
+                      data.capacity.totalStorageLocations - data.capacity.occupiedLocations,
+                    ),
+                  },
+                  {
+                    key: 'occupied',
+                    label: 'Occupied',
+                    count: data.capacity.occupiedLocations,
+                  },
+                ]}
+                to="/locations"
+                centerPercent={data.capacity.consumedPercent}
+                translateLabel={t}
+                openOrdersSubtitle={() =>
+                  `${numberFmt(data.capacity.occupiedLocations)} ${t('occupied of')} ${numberFmt(data.capacity.totalStorageLocations)} ${t('storage locations')}`
+                }
+              />
             </div>
-          </section>
-
-          {/* ── Capacity bar ───────────────────────────────────────── */}
-          <section>
-            <SectionHeading>Capacity</SectionHeading>
-            <Link
-              to="/locations"
-              className={`block ${statCardClass} ${statCardInteractiveClass}`}
-            >
-              <div className="text-sm text-slate-500">{t('Warehouse capacity consumption')}</div>
-              <div className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-slate-900 sm:text-3xl">
-                {data.capacity.consumedPercent}
-                <span className="text-lg font-normal text-slate-400">%</span>
-              </div>
-              <p className="mt-2 text-sm text-slate-500">
-                {data.capacity.occupiedLocations} {t('occupied of')}{' '}
-                {data.capacity.totalStorageLocations} {t('storage locations')}
-              </p>
-              <div className="mt-3.5 h-2 w-full overflow-hidden rounded-pill bg-neutral-100">
-                <div
-                  className="h-2 rounded-pill bg-gradient-to-r from-brand-500 to-brand-600 transition-[width] duration-slow ease-standard"
-                  style={{ width: `${Math.min(100, Math.max(0, data.capacity.consumedPercent))}%` }}
-                />
-              </div>
-            </Link>
           </section>
 
           {/* ── Expiry lots table ──────────────────────────────────── */}
@@ -320,7 +360,7 @@ export function DashboardOverviewPage() {
           {/* ── Recent orders ──────────────────────────────────────── */}
           <section>
             <SectionHeading>Recent activity</SectionHeading>
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-3 lg:grid-cols-2">
               {/* Inbound */}
               <div className={statCardClass}>
                 <div className="mb-4 flex items-center justify-between gap-3">

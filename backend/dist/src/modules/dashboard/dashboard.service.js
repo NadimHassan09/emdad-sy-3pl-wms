@@ -13,6 +13,7 @@ exports.DashboardService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const open_orders_chart_util_1 = require("./open-orders-chart.util");
 const INBOUND_OPEN = [
     client_1.InboundOrderStatus.draft,
     client_1.InboundOrderStatus.pending_approval,
@@ -58,70 +59,64 @@ let DashboardService = class DashboardService {
         this.prisma = prisma;
     }
     async openOrdersCharts(_user) {
-        const [inboundGroups, outboundGroups] = await Promise.all([
-            this.prisma.inboundOrder.groupBy({
-                by: ['status'],
-                where: {
-                    status: { in: INBOUND_OPEN },
-                },
-                _count: { _all: true },
+        const [openInbound, openOutbound] = await Promise.all([
+            this.prisma.inboundOrder.findMany({
+                where: { status: { in: INBOUND_OPEN } },
+                select: { id: true },
             }),
-            this.prisma.outboundOrder.groupBy({
-                by: ['status'],
-                where: {
-                    status: { in: OUTBOUND_OPEN },
-                },
-                _count: { _all: true },
+            this.prisma.outboundOrder.findMany({
+                where: { status: { in: OUTBOUND_OPEN } },
+                select: { id: true },
             }),
         ]);
-        const inCount = (s) => inboundGroups.find((g) => g.status === s)?._count._all ?? 0;
-        const inbound = [
-            {
-                key: 'new',
-                label: 'New',
-                count: inCount(client_1.InboundOrderStatus.draft) +
-                    inCount(client_1.InboundOrderStatus.pending_approval) +
-                    inCount(client_1.InboundOrderStatus.confirmed),
-            },
-            {
-                key: 'receive',
-                label: 'Receive',
-                count: inCount(client_1.InboundOrderStatus.in_progress),
-            },
-            {
-                key: 'putaway',
-                label: 'Putaway',
-                count: inCount(client_1.InboundOrderStatus.partially_received),
-            },
+        const orderIds = [
+            ...openInbound.map((o) => o.id),
+            ...openOutbound.map((o) => o.id),
         ];
-        const outCount = (s) => outboundGroups.find((g) => g.status === s)?._count._all ?? 0;
-        const outbound = [
-            {
-                key: 'picking',
-                label: 'Picking',
-                count: outCount(client_1.OutboundOrderStatus.draft) +
-                    outCount(client_1.OutboundOrderStatus.pending_approval) +
-                    outCount(client_1.OutboundOrderStatus.pending_stock) +
-                    outCount(client_1.OutboundOrderStatus.confirmed) +
-                    outCount(client_1.OutboundOrderStatus.picking),
-            },
-            {
-                key: 'packing',
-                label: 'Packing',
-                count: outCount(client_1.OutboundOrderStatus.packing),
-            },
-            {
-                key: 'shipping',
-                label: 'Shipping',
-                count: outCount(client_1.OutboundOrderStatus.ready_to_ship),
-            },
-        ];
+        const workflows = orderIds.length === 0
+            ? []
+            : await this.prisma.workflowInstance.findMany({
+                where: {
+                    referenceType: { in: ['inbound_order', 'outbound_order'] },
+                    referenceId: { in: orderIds },
+                },
+                select: { id: true, referenceType: true, referenceId: true },
+            });
+        const instanceIds = workflows.map((w) => w.id);
+        const tasks = instanceIds.length === 0
+            ? []
+            : await this.prisma.warehouseTask.findMany({
+                where: { workflowInstanceId: { in: instanceIds } },
+                select: { id: true, workflowInstanceId: true, taskType: true, status: true },
+            });
+        const inboundWorkflowByOrder = new Map();
+        const outboundWorkflowByOrder = new Map();
+        for (const wf of workflows) {
+            if (wf.referenceType === 'inbound_order') {
+                inboundWorkflowByOrder.set(wf.referenceId, wf.id);
+            }
+            else if (wf.referenceType === 'outbound_order') {
+                outboundWorkflowByOrder.set(wf.referenceId, wf.id);
+            }
+        }
+        const tasksByInstanceId = new Map();
+        for (const task of tasks) {
+            const cur = tasksByInstanceId.get(task.workflowInstanceId) ?? [];
+            cur.push({
+                id: task.id,
+                taskType: task.taskType,
+                status: task.status,
+            });
+            tasksByInstanceId.set(task.workflowInstanceId, cur);
+        }
+        const inbound = (0, open_orders_chart_util_1.buildInboundOpenOrdersChart)(openInbound, inboundWorkflowByOrder, tasksByInstanceId);
+        const outbound = (0, open_orders_chart_util_1.buildOutboundOpenOrdersChart)(openOutbound, outboundWorkflowByOrder, tasksByInstanceId);
         return { inbound, outbound };
     }
     async overview(_user) {
         const today = startOfUtcDay(new Date());
         const sixMonthsEnd = addUtcMonths(today, 6);
-        const [stockAgg, productsCount, companiesCount, openInboundCount, openOutboundCount, openTasksGrouped, occupiedLocationsCount, totalStorageLocationsCount, soonExpiryRows, missingExpiryRows, recentInbound, recentOutbound,] = await Promise.all([
+        const [stockAgg, productsCount, companiesCount, openInboundCount, openOutboundCount, openTasksGrouped, taskPipelineGrouped, occupiedLocationsCount, totalStorageLocationsCount, soonExpiryRows, missingExpiryRows, recentInbound, recentOutbound,] = await Promise.all([
             this.prisma.currentStock.aggregate({
                 where: {},
                 _sum: { quantityOnHand: true },
@@ -140,6 +135,14 @@ let DashboardService = class DashboardService {
                     status: { in: OPEN_TASK_STATUSES },
                 },
                 _count: true,
+            }),
+            this.prisma.warehouseTask.groupBy({
+                by: ['taskType', 'status'],
+                where: {
+                    taskType: { in: TASK_CARD_MAP.map((t) => t.key) },
+                    status: { in: [...OPEN_TASK_STATUSES, client_1.WarehouseTaskStatus.completed] },
+                },
+                _count: { _all: true },
             }),
             this.prisma.location.count({
                 where: {
@@ -218,12 +221,28 @@ let DashboardService = class DashboardService {
                 },
             }),
         ]);
-        const taskCounts = new Map(openTasksGrouped.map((r) => [r.taskType, Number(r._count)]));
-        const openTasksByType = TASK_CARD_MAP.map((t) => ({
-            key: t.key,
-            label: t.label,
-            count: taskCounts.get(t.key) ?? 0,
-        }));
+        const openTaskCounts = new Map(openTasksGrouped.map((r) => [r.taskType, Number(r._count)]));
+        const pipelineByType = new Map();
+        for (const row of taskPipelineGrouped) {
+            const cur = pipelineByType.get(row.taskType) ?? { open: 0, completed: 0 };
+            const n = row._count._all;
+            if (row.status === client_1.WarehouseTaskStatus.completed) {
+                cur.completed += n;
+            }
+            else {
+                cur.open += n;
+            }
+            pipelineByType.set(row.taskType, cur);
+        }
+        const openTasksByType = TASK_CARD_MAP.map((t) => {
+            const pipe = pipelineByType.get(t.key);
+            return {
+                key: t.key,
+                label: t.label,
+                openCount: pipe?.open ?? openTaskCounts.get(t.key) ?? 0,
+                completedCount: pipe?.completed ?? 0,
+            };
+        });
         const allExpiryAlertRows = [...missingExpiryRows, ...soonExpiryRows];
         const productIds = Array.from(new Set(allExpiryAlertRows.map((r) => r.product.id)));
         const totalsByProduct = await this.prisma.currentStock.groupBy({

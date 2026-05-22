@@ -3,12 +3,23 @@ import { InboundOrderStatus, OutboundOrderStatus, WarehouseTaskStatus } from '@p
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import type { TaskRunnableShape } from '../warehouse-workflow/task-runnable.util';
+import {
+  buildInboundOpenOrdersChart,
+  buildOutboundOpenOrdersChart,
+} from './open-orders-chart.util';
 
 export type ChartSlice = { key: string; label: string; count: number };
 
+export type OpenOrdersChartSideDto = {
+  stages: ChartSlice[];
+  inProgress: number;
+  notInProgress: number;
+};
+
 export type OpenOrdersChartsDto = {
-  inbound: ChartSlice[];
-  outbound: ChartSlice[];
+  inbound: OpenOrdersChartSideDto;
+  outbound: OpenOrdersChartSideDto;
 };
 
 export type DashboardOverviewDto = {
@@ -21,7 +32,12 @@ export type DashboardOverviewDto = {
     inbound: number;
     outbound: number;
   };
-  openTasksByType: Array<{ key: string; label: string; count: number }>;
+  openTasksByType: Array<{
+    key: string;
+    label: string;
+    openCount: number;
+    completedCount: number;
+  }>;
   capacity: {
     occupiedLocations: number;
     totalStorageLocations: number;
@@ -96,72 +112,73 @@ export class DashboardService {
 
   async openOrdersCharts(_user: AuthPrincipal): Promise<OpenOrdersChartsDto> {
     // Warehouse KPIs: all customers (ignore request-scoped X-Company-Id).
-    const [inboundGroups, outboundGroups] = await Promise.all([
-      this.prisma.inboundOrder.groupBy({
-        by: ['status'],
-        where: {
-          status: { in: INBOUND_OPEN },
-        },
-        _count: { _all: true },
+    const [openInbound, openOutbound] = await Promise.all([
+      this.prisma.inboundOrder.findMany({
+        where: { status: { in: INBOUND_OPEN } },
+        select: { id: true },
       }),
-      this.prisma.outboundOrder.groupBy({
-        by: ['status'],
-        where: {
-          status: { in: OUTBOUND_OPEN },
-        },
-        _count: { _all: true },
+      this.prisma.outboundOrder.findMany({
+        where: { status: { in: OUTBOUND_OPEN } },
+        select: { id: true },
       }),
     ]);
 
-    const inCount = (s: InboundOrderStatus) =>
-      inboundGroups.find((g) => g.status === s)?._count._all ?? 0;
-
-    const inbound: ChartSlice[] = [
-      {
-        key: 'new',
-        label: 'New',
-        count:
-          inCount(InboundOrderStatus.draft) +
-          inCount(InboundOrderStatus.pending_approval) +
-          inCount(InboundOrderStatus.confirmed),
-      },
-      {
-        key: 'receive',
-        label: 'Receive',
-        count: inCount(InboundOrderStatus.in_progress),
-      },
-      {
-        key: 'putaway',
-        label: 'Putaway',
-        count: inCount(InboundOrderStatus.partially_received),
-      },
+    const orderIds = [
+      ...openInbound.map((o) => o.id),
+      ...openOutbound.map((o) => o.id),
     ];
 
-    const outCount = (s: OutboundOrderStatus) =>
-      outboundGroups.find((g) => g.status === s)?._count._all ?? 0;
+    const workflows =
+      orderIds.length === 0
+        ? []
+        : await this.prisma.workflowInstance.findMany({
+            where: {
+              referenceType: { in: ['inbound_order', 'outbound_order'] },
+              referenceId: { in: orderIds },
+            },
+            select: { id: true, referenceType: true, referenceId: true },
+          });
 
-    const outbound: ChartSlice[] = [
-      {
-        key: 'picking',
-        label: 'Picking',
-        count:
-          outCount(OutboundOrderStatus.draft) +
-          outCount(OutboundOrderStatus.pending_approval) +
-          outCount(OutboundOrderStatus.pending_stock) +
-          outCount(OutboundOrderStatus.confirmed) +
-          outCount(OutboundOrderStatus.picking),
-      },
-      {
-        key: 'packing',
-        label: 'Packing',
-        count: outCount(OutboundOrderStatus.packing),
-      },
-      {
-        key: 'shipping',
-        label: 'Shipping',
-        count: outCount(OutboundOrderStatus.ready_to_ship),
-      },
-    ];
+    const instanceIds = workflows.map((w) => w.id);
+    const tasks =
+      instanceIds.length === 0
+        ? []
+        : await this.prisma.warehouseTask.findMany({
+            where: { workflowInstanceId: { in: instanceIds } },
+            select: { id: true, workflowInstanceId: true, taskType: true, status: true },
+          });
+
+    const inboundWorkflowByOrder = new Map<string, string>();
+    const outboundWorkflowByOrder = new Map<string, string>();
+    for (const wf of workflows) {
+      if (wf.referenceType === 'inbound_order') {
+        inboundWorkflowByOrder.set(wf.referenceId, wf.id);
+      } else if (wf.referenceType === 'outbound_order') {
+        outboundWorkflowByOrder.set(wf.referenceId, wf.id);
+      }
+    }
+
+    const tasksByInstanceId = new Map<string, TaskRunnableShape[]>();
+    for (const task of tasks) {
+      const cur = tasksByInstanceId.get(task.workflowInstanceId) ?? [];
+      cur.push({
+        id: task.id,
+        taskType: task.taskType,
+        status: task.status,
+      });
+      tasksByInstanceId.set(task.workflowInstanceId, cur);
+    }
+
+    const inbound = buildInboundOpenOrdersChart(
+      openInbound,
+      inboundWorkflowByOrder,
+      tasksByInstanceId,
+    );
+    const outbound = buildOutboundOpenOrdersChart(
+      openOutbound,
+      outboundWorkflowByOrder,
+      tasksByInstanceId,
+    );
 
     return { inbound, outbound };
   }
@@ -178,6 +195,7 @@ export class DashboardService {
       openInboundCount,
       openOutboundCount,
       openTasksGrouped,
+      taskPipelineGrouped,
       occupiedLocationsCount,
       totalStorageLocationsCount,
       soonExpiryRows,
@@ -203,6 +221,14 @@ export class DashboardService {
           status: { in: OPEN_TASK_STATUSES },
         },
         _count: true,
+      }),
+      this.prisma.warehouseTask.groupBy({
+        by: ['taskType', 'status'],
+        where: {
+          taskType: { in: TASK_CARD_MAP.map((t) => t.key) },
+          status: { in: [...OPEN_TASK_STATUSES, WarehouseTaskStatus.completed] },
+        },
+        _count: { _all: true },
       }),
       this.prisma.location.count({
         where: {
@@ -282,12 +308,27 @@ export class DashboardService {
       }),
     ]);
 
-    const taskCounts = new Map(openTasksGrouped.map((r) => [r.taskType, Number(r._count)]));
-    const openTasksByType = TASK_CARD_MAP.map((t) => ({
-      key: t.key,
-      label: t.label,
-      count: taskCounts.get(t.key) ?? 0,
-    }));
+    const openTaskCounts = new Map(openTasksGrouped.map((r) => [r.taskType, Number(r._count)]));
+    const pipelineByType = new Map<string, { open: number; completed: number }>();
+    for (const row of taskPipelineGrouped) {
+      const cur = pipelineByType.get(row.taskType) ?? { open: 0, completed: 0 };
+      const n = row._count._all;
+      if (row.status === WarehouseTaskStatus.completed) {
+        cur.completed += n;
+      } else {
+        cur.open += n;
+      }
+      pipelineByType.set(row.taskType, cur);
+    }
+    const openTasksByType = TASK_CARD_MAP.map((t) => {
+      const pipe = pipelineByType.get(t.key);
+      return {
+        key: t.key,
+        label: t.label,
+        openCount: pipe?.open ?? openTaskCounts.get(t.key) ?? 0,
+        completedCount: pipe?.completed ?? 0,
+      };
+    });
 
     const allExpiryAlertRows = [...missingExpiryRows, ...soonExpiryRows];
     const productIds = Array.from(new Set(allExpiryAlertRows.map((r) => r.product.id)));

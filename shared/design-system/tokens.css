@@ -200,16 +200,16 @@
     --font-arabic: 'IBM Plex Arabic', 'Noto Naskh Arabic', 'Cairo',
                    'Segoe UI', Tahoma, Arial, sans-serif;
 
-    /* Type scale (rem). Naming follows Tailwind for familiarity. */
-    --text-2xs: 0.6875rem;  /* 11px */
-    --text-xs:  0.75rem;    /* 12px */
-    --text-sm:  0.875rem;   /* 14px */
-    --text-base: 1rem;      /* 16px */
-    --text-lg:  1.125rem;   /* 18px */
-    --text-xl:  1.25rem;    /* 20px */
-    --text-2xl: 1.5rem;     /* 24px */
-    --text-3xl: 1.875rem;   /* 30px */
-    --text-4xl: 2.25rem;    /* 36px */
+    /* Type scale (rem @ 14px root). Compact enterprise density. */
+    --text-2xs: 0.6429rem;  /* ~9px — section labels */
+    --text-xs:  0.7143rem;  /* ~10px */
+    --text-sm:  0.8571rem;  /* ~12px — body / nav */
+    --text-base: 1rem;      /* ~14px — default body */
+    --text-lg:  1.1429rem;  /* ~16px — page titles */
+    --text-xl:  1.2857rem;  /* ~18px */
+    --text-2xl: 1.5714rem;  /* ~22px — KPI values */
+    --text-3xl: 1.8571rem;  /* ~26px */
+    --text-4xl: 2.2857rem;  /* ~32px */
 
     --leading-tight:   1.2;
     --leading-snug:    1.35;
@@ -255,12 +255,12 @@
     --radius-3xl:  16px;
     --radius-pill: 9999px;
 
-    /* Component-level aliases — updated for premium rounded feel (Phase 5 visual pass) */
-    --radius-input:  12px;    /* was 8px — rounder input fields */
-    --radius-button: 14px;    /* was 8px — rounder action buttons */
-    --radius-card:   20px;    /* was 12px — large rounded cards */
+    /* Component-level aliases — compact reference dashboard density */
+    --radius-input:  8px;
+    --radius-button: 10px;
+    --radius-card:   14px;    /* ~12–16px reference cards */
     --radius-badge:  var(--radius-pill);
-    --radius-modal:  16px;    /* was 12px — rounder modal panels */
+    --radius-modal:  12px;
 
     /* -------------------------------------------------------------------------
      * 9. SHADOW SCALE
@@ -317,14 +317,12 @@
 
     /* -------------------------------------------------------------------------
      * 12. LAYOUT CONSTANTS
-     * Topbar is 52px (tight enterprise chrome). Sidebar 240px expanded.
-     * Compact sidebar (icon-only) collapses to 56px.
+     * Tight enterprise chrome — matches reference dashboard density.
      * ----------------------------------------------------------------------- */
-    /* Topbar uses py-6 content padding; min height for layout alignment */
-    --topbar-h:             88px;
-    --sidebar-w:            260px;
-    --sidebar-compact-w:    56px;
-    --sidebar-w-mobile:     17.5rem;   /* mobile overlay (full-width drawer) */
+    --topbar-h:             52px;
+    --sidebar-w:            180px;     /* 75% of prior 240px expanded width */
+    --sidebar-compact-w:    39px;      /* 75% of prior 52px icon-only rail */
+    --sidebar-w-mobile:     13.125rem; /* 75% of prior 17.5rem mobile drawer */
     --content-max-w:        1440px;
 
     /* -------------------------------------------------------------------------
@@ -368,8 +366,17 @@
      * Forest green navigation chrome — sidebar + topbar dark mode.
      * Used exclusively by Sidebar.tsx and Topbar.tsx.
      * ----------------------------------------------------------------------- */
-    --sidebar-bg:           #163f32;              /* main sidebar background */
-    --sidebar-brand-bg:     #0f3d2e;              /* brand area + topbar */
+    --sidebar-bg:           #0f3328;              /* fallback solid (deepest green) */
+    --sidebar-bg-gradient:  linear-gradient(
+                              180deg,
+                              #071f18 0%,
+                              #0c2d23 28%,
+                              #123d30 58%,
+                              #1a5240 100%
+                            );
+    --sidebar-topbar-bg:    #072019;              /* topbar fallback */
+    --sidebar-topbar-bg-gradient: linear-gradient(90deg, #072019 0%, #08231b 100%);
+    --sidebar-brand-bg:     transparent;         /* logo strip — shows sidebar gradient */
     --sidebar-text:         #d1fae5;              /* emerald-100 — default nav text */
     --sidebar-text-muted:   rgba(209,250,229,0.6);/* emerald-100 @ 60% — section labels */
     --sidebar-border:       rgba(255,255,255,0.08);/* inner borders */

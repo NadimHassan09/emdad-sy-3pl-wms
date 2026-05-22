@@ -64,7 +64,7 @@ export function DataTable<T>({
   const endDisplay = totalRows === 0 ? 0 : Math.min(page * rowsPerPage, totalRows);
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
       <TableCardHeader title={title} description={description} actions={actions} titleAs={titleAs} />
       <div className="w-full overflow-x-auto">
         <table className="min-w-full border-collapse text-sm">
@@ -74,7 +74,7 @@ export function DataTable<T>({
                 <th
                   key={colIdx}
                   scope="col"
-                  className={`whitespace-nowrap bg-slate-100 px-6 py-4 text-sm font-medium uppercase tracking-wide text-slate-500 ${isRtl ? 'text-right' : 'text-left'} ${c.className ?? ''}`}
+                  className={`whitespace-nowrap bg-slate-100 px-3 py-2 text-xs font-medium uppercase tracking-wide text-slate-500 ${isRtl ? 'text-right' : 'text-left'} ${c.className ?? ''}`}
                   style={c.width ? { width: c.width } : undefined}
                 >
                   {c.header}
@@ -85,13 +85,13 @@ export function DataTable<T>({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={columns.length} className="px-6 py-8 text-center text-sm text-slate-500">
+                <td colSpan={columns.length} className="px-3 py-5 text-center text-sm text-slate-500">
                   Loading…
                 </td>
               </tr>
             ) : pagedRows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-6 py-8 text-center text-sm text-slate-500">
+                <td colSpan={columns.length} className="px-3 py-5 text-center text-sm text-slate-500">
                   {empty ?? 'No data.'}
                 </td>
               </tr>
@@ -107,7 +107,7 @@ export function DataTable<T>({
                   }
                 >
                   {columns.map((c, colIdx) => (
-                    <td key={colIdx} className={`px-6 py-5 align-middle text-slate-600 ${c.className ?? ''}`}>
+                    <td key={colIdx} className={`px-3 py-2.5 align-middle text-sm text-slate-600 ${c.className ?? ''}`}>
                       {c.accessor(row)}
                     </td>
                   ))}
@@ -117,7 +117,7 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
-      <div className="flex flex-col gap-2 border-t border-slate-100 px-6 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3">
+      <div className="flex flex-col gap-2 border-t border-slate-100 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2">
         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
           <select
             aria-label={labels?.rowsPerPageAria ?? 'Rows per page'}

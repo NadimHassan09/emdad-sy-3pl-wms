@@ -30,6 +30,7 @@ const InventoryLedgerPage     = lazyPage(() => import('./pages/InventoryLedgerPa
 const InventoryLedgerEntryPage = lazyPage(() => import('./pages/InventoryLedgerEntryPage'), 'InventoryLedgerEntryPage');
 const InventoryLedgerReferencePage = lazyPage(() => import('./pages/InventoryLedgerReferencePage'), 'InventoryLedgerReferencePage');
 const AdjustmentsPage         = lazyPage(() => import('./pages/AdjustmentsPage'),         'AdjustmentsPage');
+const AdjustmentDetailPage    = lazyPage(() => import('./pages/AdjustmentDetailPage'),    'AdjustmentDetailPage');
 const InboundListPage         = lazyPage(() => import('./pages/InboundListPage'),         'InboundListPage');
 const InboundDetailPage       = lazyPage(() => import('./pages/InboundDetailPage'),       'InboundDetailPage');
 const OutboundListPage        = lazyPage(() => import('./pages/OutboundListPage'),        'OutboundListPage');
@@ -72,6 +73,7 @@ export const router = createBrowserRouter([
       { path: 'inventory/stock', element: <InventoryPage /> },
       { path: 'adjustments', element: <Navigate to="/inventory/adjustments" replace /> },
       { path: 'inventory/adjustments', element: <AdjustmentsPage /> },
+      { path: 'inventory/adjustments/:id', element: <AdjustmentDetailPage /> },
       { path: 'inbound', element: <Navigate to="/orders/inbound" replace /> },
       { path: 'outbound', element: <Navigate to="/orders/outbound" replace /> },
       { path: 'orders', element: <Navigate to="/orders/inbound" replace /> },

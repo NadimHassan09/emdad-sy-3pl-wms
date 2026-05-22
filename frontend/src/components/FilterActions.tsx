@@ -1,4 +1,4 @@
-import { Button } from '@ds';
+import { Button, FILTER_RESET_BUTTON_CLASS } from '@ds';
 
 export function FilterActions({
   onApply,
@@ -29,10 +29,11 @@ export function FilterActions({
       </Button>
       <Button
         type="button"
-        variant="secondary"
+        variant="danger"
         size="sm"
         onClick={onReset}
         disabled={loading}
+        className={FILTER_RESET_BUTTON_CLASS}
       >
         {resetLabel}
       </Button>

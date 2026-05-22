@@ -14,7 +14,11 @@ import { Alert, Button as DsButton } from '@ds';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
-import { FILTER_PRIMARY_BUTTON_CLASS, FilterPanel } from '../components/FilterPanel';
+import {
+  FILTER_PRIMARY_BUTTON_CLASS,
+  FILTER_RESET_BUTTON_CLASS,
+  FilterPanel,
+} from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
@@ -67,6 +71,22 @@ function outboundLabel(label: string, isArabic: boolean): string {
     'New outbound order': 'طلب صادر جديد',
     Cancel: 'إلغاء',
     Create: 'إنشاء',
+    Back: 'رجوع',
+    'Required ship date': 'تاريخ الشحن المطلوب',
+    Carrier: 'الناقل',
+    Notes: 'ملاحظات',
+    'Destination address': 'عنوان الوجهة',
+    'Required ship date cannot be before today.': 'لا يمكن أن يكون تاريخ الشحن المطلوب قبل اليوم.',
+    'Pick a client.': 'اختر عميلاً.',
+    'Enter a destination address.': 'أدخل عنوان الوجهة.',
+    'Pick a client…': 'اختر عميلاً…',
+    Product: 'المنتج',
+    Quantity: 'الكمية',
+    Remove: 'إزالة',
+    'Pick product…': 'اختر منتجاً…',
+    'No lines yet — add a product below.': 'لا توجد بنود بعد — أضف منتجاً أدناه.',
+    '+ Add line': '+ إضافة بند',
+    'Pick a client first': 'اختر عميلاً أولاً',
     'All clients': 'كل العملاء',
   };
   return ar[label] ?? label;
@@ -198,7 +218,7 @@ export function OutboundListPage() {
           value={draftFilters.orderSearch}
           onChange={(e) => setDraft({ orderSearch: e.target.value })}
           placeholder={t('Search order...')}
-          className="font-mono text-xs"
+          className="font-mono"
         />
         <Combobox
           label={t('Client')}
@@ -254,6 +274,7 @@ export function OutboundListPage() {
         open={open}
         onClose={() => setOpen(false)}
         loading={createMut.isPending}
+        isArabic={isArabic}
         onSubmit={(input) => createMut.mutate(input)}
       />
     </>
@@ -269,11 +290,14 @@ interface CreateOutboundModalProps {
   open: boolean;
   onClose: () => void;
   loading: boolean;
+  isArabic: boolean;
   onSubmit: (input: CreateOutboundOrderInput) => void;
 }
 
-function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboundModalProps) {
+function CreateOutboundModal({ open, onClose, loading, isArabic, onSubmit }: CreateOutboundModalProps) {
   const toast = useToast();
+  const t = (label: string) => outboundLabel(label, isArabic);
+  const [step, setStep] = useState<1 | 2>(1);
   const [companyId, setCompanyId] = useState(DEFAULT_COMPANY_ID);
   const [shipDate, setShipDate] = useState(() => localCalendarDateYmd());
   const [destination, setDestination] = useState('');
@@ -385,6 +409,7 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
     setNotes('');
     setLines([{ productId: '', requestedQuantity: '' }]);
     setScanOpen(false);
+    setStep(1);
   };
 
   const handleClose = () => {
@@ -438,21 +463,31 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
     }
   };
 
+  const goToLinesStep = () => {
+    if (!companyId.trim()) {
+      toast.error(t('Pick a client.'));
+      return;
+    }
+    if (!isYmdOnOrAfterLocalToday(shipDate)) {
+      toast.error(t('Required ship date cannot be before today.'));
+      return;
+    }
+    if (!destination.trim()) {
+      toast.error(t('Enter a destination address.'));
+      return;
+    }
+    setStep(2);
+  };
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    if (step !== 2) return;
     if (shortages.length > 0) {
       toast.error('Insufficient stock for one or more products.');
       return;
     }
     if (!isYmdOnOrAfterLocalToday(shipDate)) {
-      const isAr =
-        typeof window !== 'undefined' &&
-        (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
-      toast.error(
-        isAr
-          ? 'لا يمكن أن يكون تاريخ الشحن المطلوب قبل اليوم.'
-          : 'Required ship date cannot be before today.',
-      );
+      toast.error(t('Required ship date cannot be before today.'));
       return;
     }
     onSubmit({
@@ -473,166 +508,209 @@ function CreateOutboundModal({ open, onClose, loading, onSubmit }: CreateOutboun
     <Modal
       open={open}
       onClose={handleClose}
-      title="New outbound order"
+      title={t('New outbound order')}
       widthClass="max-w-3xl"
       footer={
-        <>
-          <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
-            Cancel
-          </Button>
-          <DsButton
-            form="create-outbound"
-            type="submit"
-            variant="primary"
-            size="md"
-            loading={loading}
-            disabled={submitDisabled}
-            className={FILTER_PRIMARY_BUTTON_CLASS}
-          >
-            Create
-          </DsButton>
-        </>
+        step === 1 ? (
+          <>
+            <DsButton
+              type="button"
+              variant="danger"
+              size="md"
+              onClick={handleClose}
+              disabled={loading}
+              className={FILTER_RESET_BUTTON_CLASS}
+            >
+              {t('Cancel')}
+            </DsButton>
+            <DsButton
+              type="button"
+              variant="primary"
+              size="md"
+              disabled={loading}
+              className={FILTER_PRIMARY_BUTTON_CLASS}
+              onClick={goToLinesStep}
+            >
+              {t('Next')}
+            </DsButton>
+          </>
+        ) : (
+          <>
+            <DsButton
+              type="button"
+              variant="danger"
+              size="md"
+              onClick={handleClose}
+              disabled={loading}
+              className={FILTER_RESET_BUTTON_CLASS}
+            >
+              {t('Cancel')}
+            </DsButton>
+            <Button type="button" variant="secondary" onClick={() => setStep(1)} disabled={loading}>
+              {t('Back')}
+            </Button>
+            <DsButton
+              form="create-outbound"
+              type="submit"
+              variant="primary"
+              size="md"
+              loading={loading}
+              disabled={submitDisabled}
+              className={FILTER_PRIMARY_BUTTON_CLASS}
+            >
+              {t('Create')}
+            </DsButton>
+          </>
+        )
       }
     >
-      <form
-        id="create-outbound"
-        onSubmit={submit}
-        className="space-y-4"
-      >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Combobox
-            label="Client"
-            required
-            value={companyId}
-            onChange={setCompanyId}
-            clearable={false}
-            dropdownInFlow
-            options={(companies.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-            placeholder="Pick a client…"
-          />
-          <TextField
-            label="Required ship date"
-            type="date"
-            required
-            min={localCalendarDateYmd()}
-            value={shipDate}
-            onChange={(e) => setShipDate(e.target.value)}
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <TextField label="Carrier" value={carrier} onChange={(e) => setCarrier(e.target.value)} />
-          <TextField label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </div>
-        <TextField
-          label="Destination address"
-          required
-          value={destination}
-          onChange={(e) => setDestination(e.target.value)}
-        />
-
-        <OrderDraftLinesTable
-          title="Lines"
-          productHeader="Product"
-          lines={tableLines}
-          productOptions={productOptions}
-          productsById={productsById}
-          companyId={companyId}
-          companyDisabledMessage="Pick a client first"
-          pickProductPlaceholder="Pick product…"
-          quantityHeader="Quantity"
-          emptyMessage="No lines yet — add a product below."
-          removeLabel="Remove"
-          loading={loading}
-          showProductOnHand={false}
-          formatOnHand={formatProductOnHand}
-          onHandLabel=""
-          renderProductFooter={(productId) => {
-            const avail = availabilityByProduct.get(productId);
-            const summed = requestedByProduct.get(productId) ?? 0;
-            if (avail === undefined) return null;
-            const isShort = summed > avail;
-            return (
-              <div className={`mt-1 text-xs ${isShort ? 'text-rose-600' : 'text-emerald-700'}`}>
-                Available: {avail.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                {summed > 0 && (
-                  <>
-                    {' '}
-                    • Requested across lines:{' '}
-                    {summed.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                  </>
-                )}
-              </div>
-            );
-          }}
-          quantityError={(row) => {
-            if (!row.productId) return undefined;
-            const avail = availabilityByProduct.get(row.productId);
-            const summed = requestedByProduct.get(row.productId) ?? 0;
-            if (avail !== undefined && summed > avail) return 'Exceeds available stock';
-            return undefined;
-          }}
-          onUpdateLine={(lineKey, patch) => {
-            const idx = Number(lineKey);
-            updateLine(idx, {
-              ...(patch.productId !== undefined ? { productId: patch.productId } : {}),
-              ...(patch.quantity !== undefined ? { requestedQuantity: patch.quantity } : {}),
-            });
-          }}
-          onRemoveLine={(lineKey) => {
-            setLines((prev) => prev.filter((_, i) => i !== Number(lineKey)));
-          }}
-          toolbar={
-            <>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={!companyId || loading}
-                onClick={() => setScanOpen(true)}
-                aria-label="Scan barcode"
-                title="Scan a barcode with the device camera"
-                className="px-2.5"
-              >
-                <BarcodeScanIcon className="h-5 w-5" />
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={loading}
-                onClick={() => setLines((prev) => [...prev, { productId: '', requestedQuantity: '' }])}
-              >
-                + Add line
-              </Button>
-            </>
-          }
-        />
-          {shortages.length > 0 && (
-            <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
-              <strong className="block">Order cannot be created — insufficient stock:</strong>
-              <ul className="mt-1 list-disc pl-4">
-                {shortages.map((s) => {
-                  const p = products.data?.items.find((x) => x.id === s.productId);
-                  return (
-                    <li key={s.productId}>
-                      {p ? `${p.sku} — ${p.name}` : s.productId}: requested {s.requested}, available{' '}
-                      {s.available}
-                    </li>
-                  );
-                })}
-              </ul>
+      <form id="create-outbound" onSubmit={submit} className="space-y-4">
+        {step === 1 ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <Combobox
+                label={t('Client')}
+                required
+                value={companyId}
+                onChange={setCompanyId}
+                clearable={false}
+                dropdownInFlow
+                options={(companies.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
+                placeholder={t('Pick a client…')}
+              />
+              <TextField
+                label={t('Required ship date')}
+                type="date"
+                required
+                min={localCalendarDateYmd()}
+                value={shipDate}
+                onChange={(e) => setShipDate(e.target.value)}
+              />
             </div>
-          )}
-
-        <BarcodeScanModal
-          open={scanOpen}
-          onClose={() => setScanOpen(false)}
-          onScan={(text) => {
-            void applyProductByBarcode(text);
-            setScanOpen(false);
-          }}
-        />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <TextField
+                label={t('Carrier')}
+                value={carrier}
+                onChange={(e) => setCarrier(e.target.value)}
+              />
+              <TextField label={t('Notes')} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </div>
+            <TextField
+              label={t('Destination address')}
+              required
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+            />
+          </div>
+        ) : (
+          <>
+            <OrderDraftLinesTable
+              title={t('Lines')}
+              productHeader={t('Product')}
+              lines={tableLines}
+              productOptions={productOptions}
+              productsById={productsById}
+              companyId={companyId}
+              companyDisabledMessage={t('Pick a client first')}
+              pickProductPlaceholder={t('Pick product…')}
+              quantityHeader={t('Quantity')}
+              emptyMessage={t('No lines yet — add a product below.')}
+              removeLabel={t('Remove')}
+              loading={loading}
+              showProductOnHand={false}
+              formatOnHand={formatProductOnHand}
+              onHandLabel=""
+              renderProductFooter={(productId) => {
+                const avail = availabilityByProduct.get(productId);
+                const summed = requestedByProduct.get(productId) ?? 0;
+                if (avail === undefined) return null;
+                const isShort = summed > avail;
+                return (
+                  <div className={`mt-1 text-xs ${isShort ? 'text-rose-600' : 'text-emerald-700'}`}>
+                    Available: {avail.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                    {summed > 0 && (
+                      <>
+                        {' '}
+                        • Requested across lines:{' '}
+                        {summed.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                      </>
+                    )}
+                  </div>
+                );
+              }}
+              quantityError={(row) => {
+                if (!row.productId) return undefined;
+                const avail = availabilityByProduct.get(row.productId);
+                const summed = requestedByProduct.get(row.productId) ?? 0;
+                if (avail !== undefined && summed > avail) return 'Exceeds available stock';
+                return undefined;
+              }}
+              onUpdateLine={(lineKey, patch) => {
+                const idx = Number(lineKey);
+                updateLine(idx, {
+                  ...(patch.productId !== undefined ? { productId: patch.productId } : {}),
+                  ...(patch.quantity !== undefined ? { requestedQuantity: patch.quantity } : {}),
+                });
+              }}
+              onRemoveLine={(lineKey) => {
+                setLines((prev) => prev.filter((_, i) => i !== Number(lineKey)));
+              }}
+              toolbar={
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={!companyId || loading}
+                    onClick={() => setScanOpen(true)}
+                    aria-label="Scan barcode"
+                    title="Scan a barcode with the device camera"
+                    className="px-2.5"
+                  >
+                    <BarcodeScanIcon className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={loading}
+                    onClick={() =>
+                      setLines((prev) => [...prev, { productId: '', requestedQuantity: '' }])
+                    }
+                  >
+                    {t('+ Add line')}
+                  </Button>
+                </>
+              }
+            />
+            {shortages.length > 0 && (
+              <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                <strong className="block">Order cannot be created — insufficient stock:</strong>
+                <ul className="mt-1 list-disc pl-4">
+                  {shortages.map((s) => {
+                    const p = products.data?.items.find((x) => x.id === s.productId);
+                    return (
+                      <li key={s.productId}>
+                        {p ? `${p.sku} — ${p.name}` : s.productId}: requested {s.requested}, available{' '}
+                        {s.available}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
       </form>
+
+      <BarcodeScanModal
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onScan={(text) => {
+          void applyProductByBarcode(text);
+          setScanOpen(false);
+        }}
+      />
     </Modal>
   );
 }

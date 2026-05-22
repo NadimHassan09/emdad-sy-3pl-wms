@@ -1,7 +1,7 @@
 import type { WarehouseKpi } from '../../lib/reports/types';
 
 const kpiCardClass =
-  'rounded-3xl border border-slate-100 bg-white p-5 shadow-sm transition-[box-shadow,border-color] duration-fast hover:border-slate-200 hover:shadow-md';
+  'rounded-xl border border-slate-100 bg-white p-3 shadow-sm transition-[box-shadow,border-color] duration-fast hover:border-slate-200 hover:shadow-md sm:p-4';
 
 type Props = {
   kpis: WarehouseKpi[];
@@ -12,7 +12,7 @@ type Props = {
 export function ReportKpiGrid({ kpis, isArabic = false, loading }: Props) {
   if (loading) {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className={`${kpiCardClass} animate-pulse`}>
             <div className="h-4 w-24 rounded bg-slate-100" />
@@ -26,11 +26,11 @@ export function ReportKpiGrid({ kpis, isArabic = false, loading }: Props) {
   if (!kpis.length) return null;
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {kpis.map((kpi) => (
         <div key={kpi.id} className={kpiCardClass}>
-          <div className="text-sm text-slate-500">{isArabic ? kpi.labelAr : kpi.label}</div>
-          <div className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-emerald-900">
+          <div className="text-xs text-slate-500">{isArabic ? kpi.labelAr : kpi.label}</div>
+          <div className="mt-1 text-xl font-bold tabular-nums tracking-tight text-emerald-900">
             {kpi.value}
           </div>
           {(kpi.hint || kpi.hintAr) && (

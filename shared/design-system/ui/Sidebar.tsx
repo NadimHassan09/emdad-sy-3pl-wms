@@ -2,8 +2,8 @@
  * Sidebar — premium dark enterprise nav sidebar.
  *
  * Visual direction (Phase 5 premium pass):
- *   - Dark forest green background (#163f32) — matches the WMS reference design
- *   - Brand area uses a slightly deeper tone (#0f3d2e)
+ *   - Dark forest green vertical gradient (--sidebar-bg-gradient)
+ *   - Brand area is transparent over the gradient
  *   - Active items: bright emerald-500 pill with white text + shadow
  *   - Hover items: white/8% tint (subtle depth on dark)
  *   - Section labels: emerald-100/60 small caps
@@ -37,14 +37,17 @@ export function Sidebar({ collapsed, children, className, ...rest }: SidebarProp
       data-sidebar
       className={cn(
         'relative z-[var(--z-sidebar)] hidden min-h-0 shrink-0 flex-col self-stretch md:flex',
-        'h-full overflow-hidden rounded-2xl md:rounded-3xl',
+        'h-full overflow-hidden rounded-xl md:rounded-[var(--radius-card)]',
         'transition-[width] duration-300 ease-emphasis',
         collapsed
           ? 'w-[var(--sidebar-compact-w)] md:w-[var(--sidebar-compact-w)]'
           : 'w-[var(--sidebar-w)] md:w-[var(--sidebar-w)]',
         className,
       )}
-      style={{ backgroundColor: 'var(--sidebar-bg)' }}
+      style={{
+        backgroundColor: 'var(--sidebar-bg)',
+        backgroundImage: 'var(--sidebar-bg-gradient)',
+      }}
       {...rest}
     >
       {children}
@@ -101,8 +104,8 @@ export function SidebarNav({ children, className }: { children: ReactNode; class
     <nav
       aria-label="Main navigation"
       className={cn(
-        'flex flex-1 flex-col gap-3 overflow-y-auto overflow-x-hidden',
-        'p-6',
+        'flex flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden',
+        'p-3',
         className,
       )}
     >
@@ -240,14 +243,14 @@ export function SidebarLink({
   ...rest
 }: SidebarLinkProps) {
   const base = cn(
-    'flex items-center gap-2 rounded-2xl text-sm font-medium',
+    'flex items-center gap-3 rounded-xl text-sm font-medium',
     'transition-[background-color,color,box-shadow] duration-fast ease-standard',
     'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30',
     collapsed
-      ? 'h-10 w-10 justify-center p-0 rounded-xl'
+      ? 'h-8 w-8 justify-center p-0 rounded-lg'
       : nested
-      ? 'px-4 py-3'
-      : 'px-4 py-3',
+      ? 'px-3 py-2'
+      : 'px-3 py-2',
     className,
   );
 
@@ -286,10 +289,10 @@ export function SidebarLink({
     >
       {icon && (
         <span
-          className="shrink-0 h-4 w-4"
+          className="flex h-5 w-5 shrink-0 items-center justify-center"
           aria-hidden="true"
           style={{
-            color: isActive ? 'rgba(255,255,255,0.9)' : 'var(--sidebar-icon-muted)',
+            color: isActive ? 'rgba(255,255,255,0.95)' : 'var(--sidebar-icon-muted)',
           }}
         >
           {icon}
@@ -337,7 +340,7 @@ export function SidebarFooter({
         className,
       )}
       style={{
-        backgroundColor: 'var(--sidebar-brand-bg)',
+        backgroundColor: 'transparent',
         borderTop: '1px solid var(--sidebar-border)',
       }}
     >
@@ -439,7 +442,10 @@ export function MobileSidebarOverlay({ open, onClose, children }: MobileSidebarO
           'w-[var(--sidebar-w)] max-w-[85vw] overflow-hidden',
           'shadow-2xl',
         )}
-        style={{ backgroundColor: 'var(--sidebar-bg)' }}
+        style={{
+          backgroundColor: 'var(--sidebar-bg)',
+          backgroundImage: 'var(--sidebar-bg-gradient)',
+        }}
       >
         {children}
       </div>

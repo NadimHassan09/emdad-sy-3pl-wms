@@ -6,6 +6,7 @@
  * Must come before @tailwind directives — PostCSS requires @import first.
  * ============================================================================= */
 @import './tokens.css';
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css');
 
 @tailwind base;
 @tailwind components;
@@ -27,9 +28,9 @@
   }
 
   html {
-    /* Smooth anchor scrolling — overridden by reduced-motion guard below. */
+    /* Compact density: 14px root scales rem-based spacing & type (reference dashboard). */
+    font-size: 14px;
     scroll-behavior: smooth;
-    /* Ensure native UI elements (scrollbars, inputs) match light theme. */
     color-scheme: light;
   }
 
@@ -444,7 +445,7 @@
 }
 
 .sidebar {
-  width: 220px;
+  width: var(--sidebar-w);
   flex-shrink: 0;
   border-right: 1px solid #e2e8f0;
   background: #fff;
@@ -531,32 +532,32 @@
   flex: 1;
   min-width: 0;
   overflow: auto;
-  padding: 0.75rem;
+  padding: 0.625rem;
 }
 
 @media (min-width: 640px) {
   .app-main {
-    padding: 1rem;
+    padding: 0.75rem;
   }
 }
 
 @media (min-width: 1024px) {
   .app-main {
-    padding: 1.25rem;
+    padding: 1rem;
   }
 }
 
 .card {
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   border: 1px solid #e2e8f0;
-  padding: 1rem;
+  padding: 0.75rem;
   box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
 }
 
 @media (min-width: 640px) {
   .card {
-    padding: 1.25rem;
+    padding: 1rem;
   }
 }
 
@@ -567,7 +568,7 @@
 
 .card__title {
   margin: 0 0 0.35rem;
-  font-size: 1.35rem;
+  font-size: 1.125rem;
 }
 
 .card__subtitle {
@@ -599,10 +600,10 @@
 }
 
 .field__input {
-  padding: 0.55rem 0.65rem;
+  padding: 0.4rem 0.55rem;
   border: 1px solid var(--app-border);
-  border-radius: 8px;
-  font-size: 1rem;
+  border-radius: var(--radius-input);
+  font-size: 0.875rem;
 }
 
 .field__input:focus {
@@ -613,9 +614,9 @@
 
 .btn {
   border: none;
-  border-radius: 8px;
-  padding: 0.6rem 1rem;
-  font-size: 1rem;
+  border-radius: var(--radius-button);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
 }
@@ -735,7 +736,7 @@
 .data-table th,
 .data-table td {
   text-align: left;
-  padding: 0.5rem 0.6rem;
+  padding: 0.4rem 0.5rem;
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -743,7 +744,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.02em;
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   color: #475569;
   background: #f8fafc;
 }

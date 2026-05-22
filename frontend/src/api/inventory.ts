@@ -87,6 +87,11 @@ export interface LedgerEntryResponse {
 
 export interface LedgerQuery {
   productId?: string;
+  /** Substring match on product name, SKU, or barcode. */
+  productSearch?: string;
+  productName?: string;
+  sku?: string;
+  productBarcode?: string;
   companyId?: string;
   warehouseId?: string;
   movementType?: 'inbound' | 'outbound' | 'adjustment' | string;

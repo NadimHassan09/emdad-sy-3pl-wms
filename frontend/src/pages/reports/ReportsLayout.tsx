@@ -33,7 +33,7 @@ export function ReportsLayout() {
   const { warehouseId } = useDefaultWarehouseId();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <AppPageHeader
         title={tr('Reporting Center')}
         description={tr(

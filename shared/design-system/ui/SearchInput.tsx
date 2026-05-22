@@ -123,7 +123,7 @@ export function SearchInput({
           autoCorrect="off"
           spellCheck={false}
           className={cn(
-            'flex-1 min-w-0 h-10 bg-transparent border-0 outline-none ps-2 pe-2',
+            'flex-1 min-w-0 h-8 bg-transparent border-0 outline-none ps-2 pe-2 text-sm',
             'text-sm text-neutral-900 placeholder:text-neutral-400',
             // Hide the native ×-clear button in WebKit (we render our own)
             '[&::-webkit-search-cancel-button]:hidden',
@@ -155,7 +155,7 @@ export function SearchInput({
           type="submit"
           disabled={disabled || isLoading}
           className={cn(
-            'h-10 px-4 rounded-lg font-medium text-sm whitespace-nowrap',
+            'h-8 px-3 rounded-lg font-medium text-xs whitespace-nowrap',
             'bg-brand-600 text-white border border-brand-600',
             'transition-colors duration-fast ease-standard',
             'hover:bg-brand-700 hover:border-brand-700',

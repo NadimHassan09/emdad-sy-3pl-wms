@@ -15,9 +15,9 @@ interface SectionContainerProps extends Omit<HTMLAttributes<HTMLElement>, 'title
 }
 
 const GAP = {
-  sm: 'gap-3',
-  md: 'gap-4',
-  lg: 'gap-6',
+  sm: 'gap-2',
+  md: 'gap-3',
+  lg: 'gap-4',
 };
 
 /**
@@ -52,7 +52,7 @@ export function SectionContainer({
         <header
           className={cn(
             'flex flex-wrap items-start justify-between gap-3',
-            !flat && 'px-4 sm:px-5 pt-4 sm:pt-5',
+            !flat && 'px-3 pt-3 sm:px-4',
           )}
         >
           <div className="min-w-0">
@@ -68,7 +68,7 @@ export function SectionContainer({
           {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
         </header>
       )}
-      <div className={cn(!flat && 'px-4 sm:px-5 pb-4 sm:pb-5', 'flex flex-col', GAP[gap])}>
+      <div className={cn(!flat && 'px-3 pb-3 sm:px-4 sm:pb-4', 'flex flex-col', GAP[gap])}>
         {children}
       </div>
     </section>

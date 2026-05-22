@@ -28,9 +28,9 @@ export interface SelectProps
 }
 
 const SIZE_STYLES: Record<Size, string> = {
-  sm: 'h-8 text-xs',
-  md: 'h-10 text-sm',
-  lg: 'h-12 text-base',
+  sm: 'h-7 text-xs',
+  md: 'h-8 text-sm',
+  lg: 'h-9 text-sm',
 };
 
 /**

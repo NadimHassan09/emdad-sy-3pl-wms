@@ -1,24 +1,125 @@
 import { useQuery } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { InventoryApi, StockRow } from '../api/inventory';
-import { ProductsApi } from '../api/products';
+import { ProductsApi, type Product, type ProductUom } from '../api/products';
+import { Column, DataTable } from '../components/DataTable';
 import { PageHeader } from '../components/PageHeader';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 
 const fmtQty = (s: string) => Number(s).toLocaleString(undefined, { maximumFractionDigits: 4 });
 
-type LotBucket = {
-  lotId: string | null;
-  lotNumber: string;
-  rows: StockRow[];
+const UOM_LABELS: Record<ProductUom, string> = {
+  piece: 'Piece',
+  kg: 'Kilogram',
+  litre: 'Litre',
+  carton: 'Carton',
+  pallet: 'Pallet',
+  box: 'Box',
+  roll: 'Roll',
 };
+
+function uomLabel(uom: ProductUom) {
+  return UOM_LABELS[uom] ?? uom;
+}
+
+function ProductDetailField({
+  iconClass,
+  label,
+  value,
+}: {
+  iconClass: string;
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+        <i className={`${iconClass} text-[11px] text-brand-600/80`} aria-hidden="true" />
+        <span>{label}</span>
+      </div>
+      <div className="mt-1.5 text-sm font-semibold text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+function ProductDetailsSummaryCard({
+  product,
+  totalOnHand,
+  t,
+}: {
+  product: Product;
+  totalOnHand: string;
+  t: (en: string, ar: string) => string;
+}) {
+  return (
+    <section className="mb-6 overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+      <div className="flex items-start gap-4">
+        <div
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-100 to-slate-50 ring-4 ring-slate-50"
+          aria-hidden="true"
+        >
+          <i className="fa-solid fa-box text-xl text-slate-500" />
+        </div>
+        <div className="min-w-0 flex-1 pt-0.5">
+          <h2 className="text-lg font-semibold leading-tight text-slate-900">
+            {t('Product information', 'معلومات المنتج')}
+          </h2>
+        </div>
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <ProductDetailField
+          iconClass="fa-solid fa-tag"
+          label={t('Product', 'المنتج')}
+          value={product.name}
+        />
+        <ProductDetailField
+          iconClass="fa-solid fa-hashtag"
+          label={t('SKU', 'رمز الصنف')}
+          value={<span className="font-mono font-semibold">{product.sku}</span>}
+        />
+        <ProductDetailField
+          iconClass="fa-solid fa-building"
+          label={t('Client', 'العميل')}
+          value={product.company?.name ?? '—'}
+        />
+        <ProductDetailField
+          iconClass="fa-solid fa-barcode"
+          label={t('Barcode', 'الباركود')}
+          value={
+            product.barcode ? (
+              <span className="font-mono font-semibold">{product.barcode}</span>
+            ) : (
+              '—'
+            )
+          }
+        />
+        <ProductDetailField
+          iconClass="fa-solid fa-scale-balanced"
+          label={t('Unit of measure', 'وحدة القياس')}
+          value={uomLabel(product.uom)}
+        />
+        <ProductDetailField
+          iconClass="fa-solid fa-boxes-stacked"
+          label={t('Total on hand', 'إجمالي المتوفر')}
+          value={<span className="font-mono tabular-nums">{totalOnHand}</span>}
+        />
+      </div>
+    </section>
+  );
+}
 
 export function InventoryProductDetailPage() {
   const { productId = '' } = useParams<{ productId: string }>();
   const { warehouseId: wid } = useDefaultWarehouseId();
+  const isArabic =
+    typeof window !== 'undefined' &&
+    (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (en: string, ar: string) => (isArabic ? ar : en);
 
   const product = useQuery({
     queryKey: [...QK.products, productId],
@@ -32,22 +133,51 @@ export function InventoryProductDetailPage() {
     enabled: !!productId && !!wid,
   });
 
-  const buckets: LotBucket[] = useMemo(() => {
+  const stockRows = useMemo(() => {
     const items = stock.data?.items ?? [];
-    const map = new Map<string | null, StockRow[]>();
-    for (const row of items) {
-      const k = row.lotId;
-      if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(row);
-    }
-    const out: LotBucket[] = [];
-    for (const [lotId, rows] of map.entries()) {
-      const lotNumber = rows[0]?.lot?.lotNumber ?? '—';
-      out.push({ lotId, lotNumber, rows: rows.slice().sort((a, b) => a.location.fullPath.localeCompare(b.location.fullPath)) });
-    }
-    out.sort((a, b) => a.lotNumber.localeCompare(b.lotNumber));
-    return out;
+    return items.slice().sort((a, b) => {
+      const lotA = a.lot?.lotNumber ?? '';
+      const lotB = b.lot?.lotNumber ?? '';
+      if (lotA !== lotB) return lotA.localeCompare(lotB);
+      return a.location.fullPath.localeCompare(b.location.fullPath);
+    });
   }, [stock.data?.items]);
+
+  const columns: Column<StockRow>[] = useMemo(
+    () => [
+      {
+        header: t('Lot number', 'رقم الدفعة'),
+        accessor: (r) => (
+          <span className="font-mono text-slate-800">{r.lot?.lotNumber ?? '—'}</span>
+        ),
+        width: '180px',
+      },
+      {
+        header: t('Quantity', 'الكمية'),
+        accessor: (r) => (
+          <span className="font-mono font-semibold text-slate-900">{fmtQty(r.quantityOnHand)}</span>
+        ),
+        width: '140px',
+        className: 'text-right',
+      },
+      {
+        header: t('Location name', 'اسم الموقع'),
+        accessor: (r) => r.location.name,
+      },
+      {
+        header: t('Location code', 'رمز الموقع'),
+        accessor: (r) => <span className="font-mono text-xs text-slate-800">{r.location.barcode}</span>,
+        width: '200px',
+      },
+    ],
+    [isArabic],
+  );
+
+  const totalOnHand = useMemo(() => {
+    const sum = stockRows.reduce((acc, row) => acc + Number(row.quantityOnHand), 0);
+    if (Number.isNaN(sum)) return '0';
+    return fmtQty(String(sum));
+  }, [stockRows]);
 
   if (!productId) return null;
   if (!wid) return <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>;
@@ -61,73 +191,32 @@ export function InventoryProductDetailPage() {
     <>
       <div className="mb-2 text-sm text-slate-500">
         <Link to="/inventory/stock" className="hover:underline">
-          ← Back to inventory
+          ← {t('Back to inventory', 'العودة إلى المخزون')}
         </Link>
       </div>
-      <PageHeader
-        title={p.name}
-        description={`SKU ${p.sku} • Client ${p.company?.name ?? '—'}`}
-      />
+      <PageHeader title={t('Product details', 'تفاصيل المنتج')} />
 
-      <div className="mb-6 rounded-md border border-slate-200 bg-white p-4 shadow-sm text-sm">
-        <div className="grid gap-2 md:grid-cols-3">
-          <div>
-            <span className="text-xs uppercase tracking-wide text-slate-500">Product</span>
-            <div className="font-medium text-slate-900">{p.name}</div>
-          </div>
-          <div>
-            <span className="text-xs uppercase tracking-wide text-slate-500">SKU</span>
-            <div className="font-mono text-slate-800">{p.sku}</div>
-          </div>
-          <div>
-            <span className="text-xs uppercase tracking-wide text-slate-500">Client</span>
-            <div className="text-slate-800">{p.company?.name ?? '—'}</div>
-          </div>
-        </div>
-      </div>
+      <ProductDetailsSummaryCard product={p} totalOnHand={totalOnHand} t={t} />
 
-      <section className="space-y-6">
-        <h2 className="text-sm font-semibold text-slate-800">Lot / location breakdown</h2>
-        {buckets.length === 0 ? (
-          <p className="text-sm text-slate-500">No stock rows for this product with current visibility.</p>
-        ) : (
-          buckets.map((bucket) => (
-            <div
-              key={bucket.lotId ?? '__none'}
-              className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm"
-            >
-              <div className="border-b border-slate-100 bg-slate-50 px-3 py-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Lot number</span>
-                <span className="ml-2 font-mono text-sm font-medium text-slate-900">{bucket.lotNumber}</span>
-              </div>
-              <table className="min-w-full divide-y divide-slate-100 text-sm">
-                <thead className="bg-white">
-                  <tr>
-                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Quantity
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Location name
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Location code
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {bucket.rows.map((r) => (
-                    <tr key={r.id}>
-                      <td className="px-3 py-2 font-mono text-right">{fmtQty(r.quantityOnHand)}</td>
-                      <td className="px-3 py-2 text-slate-800">{r.location.name}</td>
-                      <td className="px-3 py-2 font-mono text-xs text-slate-600">{r.location.barcode}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ))
+      <DataTable
+        title={t('Lot / location breakdown', 'تفصيل الدفعة / الموقع')}
+        columns={columns}
+        rows={stockRows}
+        rowKey={(r) => r.id}
+        loading={stock.isFetching}
+        empty={t(
+          'No stock rows for this product with current visibility.',
+          'لا توجد صفوف مخزون لهذا المنتج ضمن الصلاحيات الحالية.',
         )}
-      </section>
+        labels={{
+          rowsSuffix: t('rows', 'صف'),
+          resultsSuffix: t('results', 'نتيجة'),
+          ofWord: t('of', 'من'),
+          previous: t('Previous', 'السابق'),
+          next: t('Next', 'التالي'),
+          rowsPerPageAria: t('Rows per page', 'عدد الصفوف لكل صفحة'),
+        }}
+      />
     </>
   );
 }

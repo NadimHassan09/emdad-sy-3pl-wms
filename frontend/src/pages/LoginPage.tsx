@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
+import { LoginScreen } from '@ds';
 import { useAuth } from '../auth/AuthContext';
 import { canAccessPath, defaultHomePath } from '../lib/rbac';
 
@@ -15,18 +16,31 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const isArabic =
+    typeof window !== 'undefined' &&
+    (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+
   if (booting) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-600">
-        Loading…
-      </div>
+      <LoginScreen
+        brandName="EMDAD WMS"
+        title=""
+        subtitle=""
+        heroTitle=""
+        heroDescription=""
+        email=""
+        password=""
+        onEmailChange={() => {}}
+        onPasswordChange={() => {}}
+        onSubmit={() => {}}
+        bootSlot={isArabic ? 'جاري التحميل…' : 'Loading…'}
+      />
     );
   }
 
   if (user) {
     const home = defaultHomePath(user.role);
-    const target =
-      fromState && canAccessPath(user.role, fromState) ? fromState : home;
+    const target = fromState && canAccessPath(user.role, fromState) ? fromState : home;
     return <Navigate to={target} replace />;
   }
 
@@ -37,8 +51,7 @@ export function LoginPage() {
     try {
       const loggedIn = await login(email.trim(), password);
       const home = defaultHomePath(loggedIn.role);
-      const target =
-        fromState && canAccessPath(loggedIn.role, fromState) ? fromState : home;
+      const target = fromState && canAccessPath(loggedIn.role, fromState) ? fromState : home;
       navigate(target, { replace: true });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Login failed.';
@@ -49,53 +62,31 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <h1 className="text-center text-lg font-semibold text-slate-900">Sign in</h1>
-        <p className="mt-1 text-center text-sm text-slate-500">Internal warehouse users only.</p>
-
-        <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-          <div>
-            <label htmlFor="email" className="block text-xs font-medium text-slate-700">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="username"
-              required
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-primary-500 focus:border-primary-500 focus:ring-1"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="block text-xs font-medium text-slate-700">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none ring-primary-500 focus:border-primary-500 focus:ring-1"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          {error ? (
-            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</div>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-          >
-            {submitting ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
-      </div>
-    </div>
+    <LoginScreen
+      brandName="EMDAD WMS"
+      title={isArabic ? 'تسجيل الدخول إلى حسابك' : 'Log in to your account'}
+      subtitle={
+        isArabic
+          ? 'مرحباً بعودتك! سجّل الدخول لإدارة عمليات المستودع.'
+          : 'Welcome back! Sign in to manage warehouse operations.'
+      }
+      heroTitle={
+        isArabic ? 'حوّل المخزون إلى حركة' : 'Turn your inventory into motion'
+      }
+      heroDescription={
+        isArabic
+          ? 'جودة وتجربة متسقة عبر المنصات والأجهزة. نفّذ عمليات المستودع بسرعة وموثوقية.'
+          : 'Consistent quality and experience across platforms and devices. Run warehouse operations faster than ever.'
+      }
+      submitLabel={isArabic ? 'تسجيل الدخول' : 'Sign in'}
+      submittingLabel={isArabic ? 'جاري تسجيل الدخول…' : 'Signing in…'}
+      email={email}
+      password={password}
+      onEmailChange={setEmail}
+      onPasswordChange={setPassword}
+      onSubmit={onSubmit}
+      loading={submitting}
+      error={error}
+    />
   );
 }

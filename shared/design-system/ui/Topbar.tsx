@@ -1,7 +1,7 @@
 /**
  * Topbar — the sticky application chrome bar.
  *
- * Phase 5 visual update: dark forest green background (#0f3d2e).
+ * Dark forest green chrome — gradient #072019 → #08231B.
  * TopbarUserMenu: profile avatar opens a portaled dropdown (language + sign out).
  */
 
@@ -35,9 +35,9 @@ export function Topbar({ children, transparent, className, ...rest }: TopbarProp
     <header
       data-topbar
       className={cn(
-        'z-[var(--z-topbar)] w-full shrink-0 overflow-hidden rounded-2xl md:rounded-3xl',
-        'flex min-h-[var(--topbar-h)] items-center gap-3',
-        'px-8 py-6',
+        'z-[var(--z-topbar)] w-full shrink-0 overflow-hidden rounded-xl md:rounded-[var(--radius-card)]',
+        'flex min-h-[var(--topbar-h)] items-center gap-2',
+        'px-4 py-2 sm:px-5',
         transparent ? 'bg-transparent' : '',
         className,
       )}
@@ -45,7 +45,8 @@ export function Topbar({ children, transparent, className, ...rest }: TopbarProp
         transparent
           ? undefined
           : {
-              backgroundColor: 'var(--sidebar-brand-bg)',
+              backgroundColor: 'var(--sidebar-topbar-bg)',
+              backgroundImage: 'var(--sidebar-topbar-bg-gradient)',
               borderBottom: '1px solid var(--sidebar-border)',
             }
       }
@@ -138,7 +139,7 @@ export interface TopbarUserMenuProps {
   role?: string;
   connected?: boolean;
   language?: 'EN' | 'AR';
-  onLanguageChange?: (lang: 'EN' | 'AR') => void;
+  onLanguageChange?: (lang: 'EN' | 'AR') => void | Promise<void>;
   onSignOut?: () => void;
   signOutLabel?: string;
   languageLabel?: string;
@@ -169,7 +170,7 @@ function UserAvatar({ connected }: { connected?: boolean }) {
       {connected && (
         <span
           className="absolute bottom-0 end-0 h-2.5 w-2.5 rounded-full border-2"
-          style={{ borderColor: 'var(--sidebar-brand-bg)', backgroundColor: '#10b981' }}
+          style={{ borderColor: '#072019', backgroundColor: '#10b981' }}
           aria-hidden="true"
         />
       )}
@@ -207,7 +208,7 @@ function TopbarUserMenuDropdown({
   name: string;
   role?: string;
   language?: 'EN' | 'AR';
-  onLanguageChange?: (lang: 'EN' | 'AR') => void;
+  onLanguageChange?: (lang: 'EN' | 'AR') => void | Promise<void>;
   onSignOut?: () => void;
   signOutLabel: string;
   languageLabel: string;
@@ -265,7 +266,10 @@ function TopbarUserMenuDropdown({
                   type="button"
                   role="menuitemradio"
                   aria-checked={language === lang}
-                  onClick={() => onLanguageChange(lang)}
+                  onClick={() => {
+                    onClose();
+                    void onLanguageChange(lang);
+                  }}
                   className={cn(
                     'flex-1 rounded-lg py-2 text-xs font-semibold transition-all duration-fast',
                     language === lang
