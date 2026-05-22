@@ -90,15 +90,9 @@ let UsersService = class UsersService {
         if (dto.kind === 'system') {
             const role = mapSystemRoleToUserRole(dto.systemRole);
             const shouldProvisionWorker = role === client_1.UserRole.wh_operator && !!actor.companyId;
-            if (shouldProvisionWorker && dto.workerWarehouseId) {
-                const wh = await this.prisma.warehouse.findUnique({
-                    where: { id: dto.workerWarehouseId },
-                    select: { id: true },
-                });
-                if (!wh) {
-                    throw new common_1.NotFoundException('Warehouse not found.');
-                }
-            }
+            const workerWarehouseId = shouldProvisionWorker
+                ? await this.resolveWorkerWarehouseId(dto.workerWarehouseId)
+                : null;
             return this.prisma.$transaction(async (tx) => {
                 const u = await tx.user.create({
                     data: {
@@ -115,7 +109,7 @@ let UsersService = class UsersService {
                     await tx.worker.create({
                         data: {
                             companyId: actor.companyId,
-                            warehouseId: dto.workerWarehouseId ?? null,
+                            warehouseId: workerWarehouseId,
                             displayName: dto.fullName.trim(),
                             userId: u.id,
                             roles: {
@@ -295,6 +289,23 @@ let UsersService = class UsersService {
                 },
             },
         });
+    }
+    async resolveWorkerWarehouseId(explicitId) {
+        const trimmed = explicitId?.trim();
+        if (trimmed) {
+            const wh = await this.prisma.warehouse.findUnique({
+                where: { id: trimmed },
+                select: { id: true },
+            });
+            if (!wh)
+                throw new common_1.NotFoundException('Warehouse not found.');
+            return wh.id;
+        }
+        const main = await this.prisma.warehouse.findUnique({
+            where: { code: 'WH-001' },
+            select: { id: true },
+        });
+        return main?.id ?? null;
     }
     toListRow(u) {
         return {

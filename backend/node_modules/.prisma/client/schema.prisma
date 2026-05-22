@@ -630,6 +630,7 @@ model OutboundOrder {
   trackingNumber     String?             @map("tracking_number")
   clientReference    String?             @map("client_reference")
   notes              String?
+  requiresPacking    Boolean             @default(true) @map("requires_packing")
   confirmedAt        DateTime?           @map("confirmed_at") @db.Timestamptz(6)
   pickingStartedAt   DateTime?           @map("picking_started_at") @db.Timestamptz(6)
   shippedAt          DateTime?           @map("shipped_at") @db.Timestamptz(6)

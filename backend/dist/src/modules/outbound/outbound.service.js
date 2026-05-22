@@ -110,6 +110,7 @@ let OutboundService = class OutboundService {
                 carrier: dto.carrier,
                 clientReference: dto.clientReference,
                 notes: dto.notes,
+                requiresPacking: dto.requiresPacking !== false,
                 createdBy: user.id,
                 lines: {
                     create: dto.lines.map((l, idx) => ({

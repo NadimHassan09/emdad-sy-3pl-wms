@@ -224,16 +224,13 @@ export class TaskInventoryEffectsService {
         operatorId,
       });
 
+      const discrepancyNotes = l.discrepancy_notes?.trim() || undefined;
       await tx.inboundOrderLine.update({
         where: { id: line.id },
         data: {
           receivedQuantity: { increment: qty },
-          ...(qty.lessThan(expected)
-            ? {
-                discrepancyType: 'short' as const,
-                discrepancyNotes: l.discrepancy_notes ?? undefined,
-              }
-            : {}),
+          ...(qty.lessThan(expected) ? { discrepancyType: 'short' as const } : {}),
+          ...(discrepancyNotes ? { discrepancyNotes } : {}),
         },
       });
     }
@@ -384,10 +381,15 @@ export class TaskInventoryEffectsService {
       });
     }
 
+    const order = await tx.outboundOrder.findUnique({
+      where: { id: orderId },
+      select: { requiresPacking: true },
+    });
+
     await tx.outboundOrder.update({
       where: { id: orderId },
       data: {
-        status: 'packing',
+        status: order?.requiresPacking === false ? 'ready_to_ship' : 'packing',
       },
     });
   }

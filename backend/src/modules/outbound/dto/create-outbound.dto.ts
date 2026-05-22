@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsNumber,
   IsOptional,
@@ -47,6 +48,11 @@ export class CreateOutboundOrderDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** When false, pick drops to delivery area and dispatch follows pick (no pack task). */
+  @IsOptional()
+  @IsBoolean()
+  requiresPacking?: boolean;
 
   @IsArray()
   @ArrayMinSize(1)

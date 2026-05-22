@@ -27,9 +27,9 @@ const VARIANT: Record<Variant, string> = {
 };
 
 const SIZE: Record<Size, string> = {
-  sm: 'h-8 w-8',   // 32px — desktop only
-  md: 'h-10 w-10', // 40px — default
-  lg: 'h-12 w-12', // 48px — tablet target
+  sm: 'h-7 w-7',
+  md: 'h-8 w-8',
+  lg: 'h-9 w-9',
 };
 
 /**

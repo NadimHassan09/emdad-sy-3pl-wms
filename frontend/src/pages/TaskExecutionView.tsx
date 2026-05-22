@@ -8,14 +8,18 @@ import { OutboundApi } from '../api/outbound';
 import { TaskMutationEnvelope, TasksApi, type ResolveTaskResolution } from '../api/tasks';
 import { WorkersApi } from '../api/workers';
 import { Button } from '../components/Button';
+import { Column, DataTable } from '../components/DataTable';
 import { Combobox } from '../components/Combobox';
 import { PageHeader } from '../components/PageHeader';
+import { TaskDetailsCard } from '../components/tasks/TaskDetailsCard';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
+import { useAuth } from '../auth/AuthContext';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
-import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
+import { applyTaskMutationEnvelope } from '../lib/task-mutation-cache';
+import { isOperatorRole } from '../lib/rbac';
 import { taskAssignedWorkerLabel } from '../lib/task-worker-label';
 import { useExecutionExitBlocker } from '../hooks/useExecutionExitBlocker';
 import type { Location } from '../api/locations';
@@ -28,7 +32,8 @@ import { PutawayExecutionPanel } from './tasks/putaway/PutawayExecutionPanel';
 import type { PutawayLineRow } from './tasks/putaway/putaway-types';
 import { ReceivingExecutionPanel } from './tasks/receiving/ReceivingExecutionPanel';
 import type { ReceivingLineRow } from './tasks/receiving/receiving-types';
-import { taskUiMeta } from '../workflow/task-ui-matrix';
+import { taskTypeIconClass } from '../lib/task-type-icons';
+import { taskTypeTitle } from '../workflow/task-ui-matrix';
 import { useWorkflowUx } from '../workflow/WorkflowUxContext';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -60,32 +65,18 @@ function envelopeTouch(
   env: TaskMutationEnvelope,
   warehouseId: string | undefined,
 ) {
-  if (id) {
-    const task = env.task as Record<string, unknown> | null | undefined;
-    const merged =
-      Array.isArray(env.assignments) && task && typeof task === 'object'
-        ? { ...task, assignments: env.assignments }
-        : env.task;
-    qc.setQueryData(QK.tasks.detail(id), merged);
-  }
-  if (env.workflowInstance?.id) {
-    qc.setQueryData(QK.workflows.instance(env.workflowInstance.id as string), env.workflowInstance);
-  }
+  if (!id) return;
   const wi = env.workflowInstance as { referenceType?: string; referenceId?: string } | null | undefined;
-  invalidateWorkflowTasksInventory(qc, {
+  applyTaskMutationEnvelope(qc, {
+    taskId: id,
+    envelope: env,
+    warehouseId,
     referenceId: wi?.referenceId ?? undefined,
     referenceType:
       wi?.referenceType === 'inbound_order' || wi?.referenceType === 'outbound_order'
         ? wi.referenceType
         : undefined,
   });
-  qc.invalidateQueries({ queryKey: QK.workflows.all });
-  if (warehouseId) {
-    qc.invalidateQueries({
-      queryKey: QK.tasks.list({ warehouseId, limit: '500', offset: '0' }),
-    });
-  }
-  if (id) qc.invalidateQueries({ queryKey: QK.tasks.detail(id) });
 }
 
 const MOCK_WORKER_ID = (import.meta.env.VITE_MOCK_WORKER_ID as string | undefined)?.trim();
@@ -96,6 +87,8 @@ export function TaskExecutionView() {
   const companyIdOverride = searchParams.get('companyId')?.trim() || undefined;
   const toast = useToast();
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const isWorkerAccount = isOperatorRole(user?.role);
   const { effective } = useWorkflowUx();
   const { warehouseId: defaultWid } = useDefaultWarehouseId();
   const [workerId, setWorkerId] = useState('');
@@ -244,14 +237,24 @@ export function TaskExecutionView() {
   );
 
   const packSiblingTask = useQuery({
-    queryKey: [...QK.tasks.list({ warehouseId, limit: '100' }), 'pack-sibling', wf?.id],
+    queryKey: [...QK.tasks.list({ warehouseId, limit: '100' }), 'pack-sibling', wf?.id, referenceId],
     queryFn: async () => {
-      const page = await TasksApi.list({ warehouseId, limit: '100' });
+      const page = await TasksApi.list(
+        {
+          warehouseId,
+          limit: '100',
+          ...(referenceId ? { referenceId } : {}),
+        },
+        companyIdOverride,
+      );
       return page.items.find(
-        (t) => t.workflowInstance?.id === wf?.id && t.taskType === 'pack' && t.status === 'completed',
+        (t) =>
+          (!wf?.id || t.workflowInstance?.id === wf.id) &&
+          t.taskType === 'pack' &&
+          t.status === 'completed',
       );
     },
-    enabled: taskType === 'dispatch' && !!wf?.id && !!warehouseId,
+    enabled: taskType === 'dispatch' && !!warehouseId && !!referenceId,
   });
 
   const packSiblingDetail = useQuery({
@@ -266,6 +269,40 @@ export function TaskExecutionView() {
     const r = t as Record<string, unknown>;
     return r.executionState ?? r.execution_state;
   }, [packSiblingDetail.data]);
+
+  const pickSiblingTask = useQuery({
+    queryKey: [...QK.tasks.list({ warehouseId, limit: '100' }), 'pick-sibling', wf?.id, referenceId],
+    queryFn: async () => {
+      const page = await TasksApi.list(
+        {
+          warehouseId,
+          limit: '100',
+          ...(referenceId ? { referenceId } : {}),
+        },
+        companyIdOverride,
+      );
+      return page.items.find(
+        (t) =>
+          (!wf?.id || t.workflowInstance?.id === wf.id) &&
+          t.taskType === 'pick' &&
+          t.status === 'completed',
+      );
+    },
+    enabled: taskType === 'dispatch' && !!warehouseId && !!referenceId,
+  });
+
+  const pickSiblingDetail = useQuery({
+    queryKey: pickSiblingTask.data?.id ? QK.tasks.detail(pickSiblingTask.data.id) : [],
+    queryFn: () => TasksApi.get(pickSiblingTask.data!.id, companyIdOverride),
+    enabled: !!pickSiblingTask.data?.id,
+  });
+
+  const pickExecutionStateForDispatch = useMemo(() => {
+    const t = pickSiblingDetail.data;
+    if (!t || typeof t !== 'object') return undefined;
+    const r = t as Record<string, unknown>;
+    return r.executionState ?? r.execution_state;
+  }, [pickSiblingDetail.data]);
 
   const pickReservations = useMemo(
     () => parsePickReservationsFromExecutionState(task.data?.executionState),
@@ -300,6 +337,7 @@ export function TaskExecutionView() {
 
   useExecutionExitBlocker(
     Boolean(
+      !isWorkerAccount &&
       effective.confirmUnsavedDraft &&
         operatorNotes !== syncedOperatorNotes &&
         task.data?.status === 'in_progress' &&
@@ -351,36 +389,35 @@ export function TaskExecutionView() {
 
   const showAssignBar = sts !== 'completed' && sts !== 'cancelled';
 
-  const uiMeta = taskUiMeta(taskType);
+  const structuredPanelTypes = new Set([
+    'receiving',
+    'qc',
+    'putaway',
+    'putaway_quarantine',
+    'pick',
+    'pack',
+    'dispatch',
+  ]);
+  const usesStructuredPanel = structuredPanelTypes.has(taskType);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-4 pb-16">
-      {(taskType !== 'receiving' &&
-        taskType !== 'putaway' &&
-        taskType !== 'putaway_quarantine' &&
-        taskType !== 'pick' &&
-        taskType !== 'pack' &&
-        taskType !== 'dispatch') ||
-      isCompleted ? (
-        <PageHeader
-          title={isCompleted ? `View · ${uiMeta.label}` : `Execute · ${uiMeta.label}`}
-          description={`Task ${id.slice(0, 8)}… · ${uiMeta.stage} lane`}
-        />
-      ) : null}
-      <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600 -mt-2">
-        <StatusBadge status={sts} />
-        {!isCompleted && (
-          <>
-            {runnable ? (
+    <div className="w-full min-w-0 space-y-4 pb-16">
+      {!usesStructuredPanel ? (
+        <>
+          <PageHeader title={taskTypeTitle(taskType)} />
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+            <StatusBadge status={sts} />
+            {!isCompleted ? (
+              runnable ? (
               <span className="text-xs font-semibold text-emerald-700">Runnable</span>
             ) : (
               <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">Not runnable</span>
-            )}
-          </>
-        )}
+              )
+            ) : null}
       </div>
-
       <div className="flex flex-wrap gap-3 text-sm">{orderLink}</div>
+        </>
+      ) : null}
 
       {assigneeGateMessage ? (
         <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
@@ -443,7 +480,7 @@ export function TaskExecutionView() {
         </div>
       ) : null}
 
-      {sts === 'in_progress' && runnable && executionAllowed ? (
+      {sts === 'in_progress' && runnable && executionAllowed && !isWorkerAccount ? (
         <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3 text-sm">
           <label className="block space-y-1">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -515,20 +552,16 @@ export function TaskExecutionView() {
             onClick={() => mutateStart.mutate()}
             disabled={!runnable || !executionAllowed}
           >
-            Start / reserve pick
+            Start
           </Button>
+          {workers.isLoading || workers.isError ? (
           <p className="w-full text-xs text-slate-500">
             {workers.isLoading
               ? 'Loading worker directory…'
-              : workers.isError
-                ? 'Fix worker directory fetch errors above.'
-                : `${workerOptions.length} worker(s)${warehouseId ? ` · warehouse scoped` : ''}`}
+                : 'Fix worker directory fetch errors above.'}
           </p>
+          ) : null}
         </div>
-      ) : null}
-
-      {sts !== 'in_progress' && !isCompleted ? (
-        <p className="text-xs text-slate-500">Execution forms unlock after Start (pick reserves inventory on start).</p>
       ) : null}
 
       {sts === 'in_progress' && runnable && executionAllowed ? (
@@ -546,6 +579,7 @@ export function TaskExecutionView() {
           }
           assignedWorkerLabel={taskAssignedWorkerLabel(t.assignments)}
           taskOperatorNotes={operatorNotes}
+          showExportPdf={!isWorkerAccount}
           putawayDestLocs={putawayDestLocs}
           quarantinePutawayDestLocs={quarantinePutawayDestLocs}
           outbound={outbound.data}
@@ -554,6 +588,7 @@ export function TaskExecutionView() {
           packingLocationsOnly={packingLocationsOnly}
           dispatchLocationsOnly={dispatchLocationsOnly}
           packExecutionState={packExecutionStateForDispatch}
+          pickExecutionState={pickExecutionStateForDispatch}
           submit={(body: unknown, e?: FormEvent) => {
             e?.preventDefault();
             mutateComplete.mutate(body);
@@ -578,6 +613,7 @@ export function TaskExecutionView() {
           }
           assignedWorkerLabel={taskAssignedWorkerLabel(t.assignments)}
           taskOperatorNotes={operatorNotes}
+          showExportPdf={!isWorkerAccount}
           putawayDestLocs={putawayDestLocs}
           quarantinePutawayDestLocs={quarantinePutawayDestLocs}
           outbound={outbound.data}
@@ -586,13 +622,14 @@ export function TaskExecutionView() {
           packingLocationsOnly={packingLocationsOnly}
           dispatchLocationsOnly={dispatchLocationsOnly}
           packExecutionState={packExecutionStateForDispatch}
+          pickExecutionState={pickExecutionStateForDispatch}
           submit={() => {}}
           busy={false}
           readOnly
         />
       ) : null}
 
-      {taskType === 'pack' && showAssignBar && sts !== 'completed' ? (
+      {taskType === 'qc' && showAssignBar && sts !== 'completed' ? (
         <TaskManagerSkipBlock taskType={taskType} taskId={id} />
       ) : null}
 
@@ -785,6 +822,7 @@ function ExecuteFormSwitcher(props: {
   assignedWorkerLabel: string;
   /** Current operator notes (same field as task execution header). */
   taskOperatorNotes?: string;
+  showExportPdf?: boolean;
   putawayDestLocs: Location[];
   quarantinePutawayDestLocs: Location[];
   outbound: OutboundOrder | undefined;
@@ -793,6 +831,7 @@ function ExecuteFormSwitcher(props: {
   packingLocationsOnly: Location[];
   dispatchLocationsOnly: Location[];
   packExecutionState?: unknown;
+  pickExecutionState?: unknown;
   submit: (body: unknown, e?: FormEvent) => void;
   busy: boolean;
   readOnly?: boolean;
@@ -809,6 +848,7 @@ function ExecuteFormSwitcher(props: {
     executionState,
     assignedWorkerLabel,
     taskOperatorNotes,
+    showExportPdf = true,
     putawayDestLocs,
     quarantinePutawayDestLocs,
     outbound,
@@ -817,6 +857,7 @@ function ExecuteFormSwitcher(props: {
     packingLocationsOnly,
     dispatchLocationsOnly,
     packExecutionState,
+    pickExecutionState,
     submit,
     busy,
     readOnly = false,
@@ -832,6 +873,7 @@ function ExecuteFormSwitcher(props: {
         warehouseId={warehouseId}
         companyIdOverride={companyIdOverride}
         taskOperatorNotes={taskOperatorNotes ?? ''}
+        showExportPdf={showExportPdf}
         assignedWorkerLabel={assignedWorkerLabel}
         taskStatus={taskStatus}
         executionState={executionState}
@@ -870,6 +912,8 @@ function ExecuteFormSwitcher(props: {
         warehouseId={warehouseId}
         companyIdOverride={companyIdOverride}
         assignedWorkerLabel={assignedWorkerLabel}
+        taskOperatorNotes={taskOperatorNotes}
+        showExportPdf={showExportPdf}
         taskStatus={taskStatus}
         executionState={executionState}
         destinationLocations={
@@ -883,6 +927,7 @@ function ExecuteFormSwitcher(props: {
   }
 
   if (taskType === 'pick') {
+    const requiresPacking = outbound?.requiresPacking !== false;
     return (
       <PickExecutionPanel
         key={`${taskId}-pick`}
@@ -891,10 +936,13 @@ function ExecuteFormSwitcher(props: {
         outbound={outbound}
         outboundOrderId={outboundOrderId}
         allLocations={allLocations}
-        packingLocations={packingLocationsOnly}
+        dropOffLocations={requiresPacking ? packingLocationsOnly : dispatchLocationsOnly}
+        requiresPacking={requiresPacking}
         warehouseId={warehouseId}
         companyIdOverride={companyIdOverride}
         assignedWorkerLabel={assignedWorkerLabel}
+        taskOperatorNotes={taskOperatorNotes}
+        showExportPdf={showExportPdf}
         taskStatus={taskStatus}
         executionState={executionState}
         submit={submit}
@@ -916,6 +964,8 @@ function ExecuteFormSwitcher(props: {
         warehouseId={warehouseId}
         companyIdOverride={companyIdOverride}
         assignedWorkerLabel={assignedWorkerLabel}
+        taskOperatorNotes={taskOperatorNotes}
+        showExportPdf={showExportPdf}
         taskStatus={taskStatus}
         executionState={executionState}
         submit={submit}
@@ -927,6 +977,7 @@ function ExecuteFormSwitcher(props: {
 
   if (taskType === 'dispatch' && isRecord(payload) && typeof payload.outbound_order_id === 'string') {
     const lineIds = outbound?.lines?.map((l) => l.id) ?? [];
+    const requiresPacking = outbound?.requiresPacking !== false;
     return (
       <DispatchExecutionPanel
         key={`${taskId}-dispatch`}
@@ -934,14 +985,17 @@ function ExecuteFormSwitcher(props: {
         outbound={outbound}
         outboundOrderId={outboundOrderId ?? payload.outbound_order_id}
         lineIds={lineIds}
-        packingLocations={packingLocationsOnly}
-        dispatchLocations={dispatchLocationsOnly}
+        requiresPacking={requiresPacking}
+        allLocations={allLocations}
         warehouseId={warehouseId}
         companyIdOverride={companyIdOverride}
         assignedWorkerLabel={assignedWorkerLabel}
+        taskOperatorNotes={taskOperatorNotes}
+        showExportPdf={showExportPdf}
         taskStatus={taskStatus}
         executionState={executionState}
         packExecutionState={packExecutionState}
+        pickExecutionState={pickExecutionState}
         submit={submit}
         busy={busy}
         readOnly={readOnly}
@@ -1005,33 +1059,119 @@ function QcExecuteForm({
     }
   };
 
+  const eligibleTotal = lines.reduce((sum, l) => sum + Number(l.eligible_qty || 0), 0);
+
+  const qcDetailsCard = (
+    <TaskDetailsCard
+      taskTypeLabel={taskTypeTitle('qc')}
+      iconClass={taskTypeIconClass('qc')}
+      primaryTitle={`${lines.length} line${lines.length === 1 ? '' : 's'} to inspect`}
+      subtitle={`${eligibleTotal} eligible units`}
+      fields={[
+        {
+          iconClass: 'fa-solid fa-list-ol',
+          label: 'Lines',
+          value: String(lines.length),
+        },
+        {
+          iconClass: 'fa-solid fa-boxes-stacked',
+          label: 'Eligible quantity',
+          value: String(eligibleTotal),
+        },
+      ]}
+      summary="PASS or FAIL each line before putaway can proceed."
+    />
+  );
+
+  const qcColumns: Column<QcLineRow>[] = [
+    {
+      header: 'Line',
+      accessor: (l) => (
+        <span className="font-mono text-xs">{l.inbound_order_line_id.slice(0, 8)}…</span>
+      ),
+      width: '120px',
+    },
+    {
+      header: 'Eligible',
+      accessor: (l) => <span className="font-mono tabular-nums">{l.eligible_qty}</span>,
+      width: '100px',
+    },
+    ...(readOnly
+      ? []
+      : [
+          {
+            header: 'Result',
+            accessor: (l: QcLineRow) => (
+              <div className="flex flex-wrap gap-3">
+                <label className="inline-flex items-center gap-1 text-xs">
+                  <input
+                    type="radio"
+                    name={`qc-${l.inbound_order_line_id}`}
+                    checked={disposition[l.inbound_order_line_id] === 'PASS'}
+                    onChange={() => applyPassFail(l.inbound_order_line_id, 'PASS')}
+                  />
+                  PASS
+                </label>
+                <label className="inline-flex items-center gap-1 text-xs">
+                  <input
+                    type="radio"
+                    name={`qc-${l.inbound_order_line_id}`}
+                    checked={disposition[l.inbound_order_line_id] === 'FAIL'}
+                    onChange={() => applyPassFail(l.inbound_order_line_id, 'FAIL')}
+                  />
+                  FAIL
+                </label>
+              </div>
+            ),
+            width: '140px',
+          } satisfies Column<QcLineRow>,
+          {
+            header: 'Passed',
+            accessor: (l: QcLineRow) => (
+                <input
+                className="w-24 rounded border border-slate-300 px-2 py-1 font-mono text-xs"
+                  value={passed[l.inbound_order_line_id] ?? ''}
+                  onChange={(e) =>
+                    setPassed((p) => ({ ...p, [l.inbound_order_line_id]: e.target.value }))
+                  }
+                />
+            ),
+            width: '100px',
+          } satisfies Column<QcLineRow>,
+          {
+            header: 'Failed',
+            accessor: (l: QcLineRow) => (
+                <input
+                className="w-24 rounded border border-slate-300 px-2 py-1 font-mono text-xs"
+                  value={failed[l.inbound_order_line_id] ?? ''}
+                  onChange={(e) =>
+                    setFailed((p) => ({ ...p, [l.inbound_order_line_id]: e.target.value }))
+                  }
+                />
+            ),
+            width: '100px',
+          } satisfies Column<QcLineRow>,
+        ]),
+  ];
+
   if (readOnly) {
     return (
-      <div className="space-y-3 rounded-md border border-slate-200 bg-white p-4 text-sm">
-        <div className="font-medium text-slate-800">QC task</div>
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b text-xs uppercase text-slate-500">
-              <th className="py-2">Line</th>
-              <th className="py-2">Eligible</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((l) => (
-              <tr key={l.inbound_order_line_id} className="border-b border-slate-100">
-                <td className="py-2 font-mono text-xs">{l.inbound_order_line_id.slice(0, 8)}…</td>
-                <td className="py-2 font-mono">{l.eligible_qty}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="space-y-4">
+        {qcDetailsCard}
+        <DataTable
+          title="QC lines"
+          columns={qcColumns}
+          rows={lines}
+          rowKey={(l) => l.inbound_order_line_id}
+          empty="No QC lines."
+        />
       </div>
     );
   }
 
   return (
     <form
-      className="space-y-4 rounded-md border border-slate-200 bg-white p-4"
+      className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
         for (const l of lines) {
@@ -1050,64 +1190,14 @@ function QcExecuteForm({
         });
       }}
     >
-      <div className="text-sm font-medium text-slate-800">QC — PASS or FAIL per line</div>
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b text-xs uppercase text-slate-500">
-            <th className="py-2">Line</th>
-            <th className="py-2">Eligible</th>
-            <th className="py-2">Result</th>
-            <th className="py-2">Passed</th>
-            <th className="py-2">Failed</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lines.map((l) => (
-            <tr key={l.inbound_order_line_id} className="border-b border-slate-100">
-              <td className="py-2 font-mono text-xs">{l.inbound_order_line_id.slice(0, 8)}…</td>
-              <td className="py-2 font-mono">{l.eligible_qty}</td>
-              <td className="py-2">
-                <label className="mr-3 inline-flex items-center gap-1 text-xs">
-                  <input
-                    type="radio"
-                    name={`qc-${l.inbound_order_line_id}`}
-                    checked={disposition[l.inbound_order_line_id] === 'PASS'}
-                    onChange={() => applyPassFail(l.inbound_order_line_id, 'PASS')}
-                  />
-                  PASS
-                </label>
-                <label className="inline-flex items-center gap-1 text-xs">
-                  <input
-                    type="radio"
-                    name={`qc-${l.inbound_order_line_id}`}
-                    checked={disposition[l.inbound_order_line_id] === 'FAIL'}
-                    onChange={() => applyPassFail(l.inbound_order_line_id, 'FAIL')}
-                  />
-                  FAIL
-                </label>
-              </td>
-              <td className="py-2">
-                <input
-                  className="w-24 rounded border px-2 py-1 font-mono text-xs"
-                  value={passed[l.inbound_order_line_id] ?? ''}
-                  onChange={(e) =>
-                    setPassed((p) => ({ ...p, [l.inbound_order_line_id]: e.target.value }))
-                  }
-                />
-              </td>
-              <td className="py-2">
-                <input
-                  className="w-24 rounded border px-2 py-1 font-mono text-xs"
-                  value={failed[l.inbound_order_line_id] ?? ''}
-                  onChange={(e) =>
-                    setFailed((p) => ({ ...p, [l.inbound_order_line_id]: e.target.value }))
-                  }
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {qcDetailsCard}
+      <DataTable
+        title="QC lines"
+        columns={qcColumns}
+        rows={lines}
+        rowKey={(l) => l.inbound_order_line_id}
+        empty="No QC lines."
+      />
       <Button type="submit" loading={busy}>
         Submit QC
       </Button>

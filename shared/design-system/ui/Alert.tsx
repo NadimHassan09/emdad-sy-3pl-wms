@@ -184,11 +184,10 @@ export function Alert({
           <p className={cn('text-sm font-semibold', styles.title)}>{title}</p>
         )}
         {description && (
-          <p className="text-sm text-neutral-700">{description}</p>
+          <div className="text-sm text-neutral-700">{description}</div>
         )}
-        {/* Inline children (e.g., just a string message) */}
         {children && (
-          <p className="text-sm text-neutral-700">{children}</p>
+          <div className="text-sm text-neutral-700">{children}</div>
         )}
         {action && (
           <div className="mt-1.5">{action}</div>

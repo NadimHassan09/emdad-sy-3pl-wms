@@ -1,4 +1,8 @@
 import type { OutboundOrderLine } from '../../../api/outbound';
+import {
+  matchesTaskLineSearch,
+  type TaskLineFilters,
+} from '../../../lib/task-line-filters';
 
 import type {
   PackExecutionDraft,
@@ -173,6 +177,35 @@ export function packLineStatusClass(status: PackLineStatus): string {
   }
 }
 
+export function packLineStatusFilterOptions(): Array<{ value: PackLineStatus | ''; label: string }> {
+  return [
+    { value: '', label: 'All statuses' },
+    { value: 'pending', label: packLineStatusLabel('pending') },
+    { value: 'verifying', label: packLineStatusLabel('verifying') },
+    { value: 'packing', label: packLineStatusLabel('packing') },
+    { value: 'complete', label: packLineStatusLabel('complete') },
+    { value: 'short', label: packLineStatusLabel('short') },
+    { value: 'overpack', label: packLineStatusLabel('overpack') },
+  ];
+}
+
+export function filterPackLines(
+  lines: PackLineDraft[],
+  filters: TaskLineFilters,
+  lineMeta: Map<string, OutboundOrderLine>,
+): PackLineDraft[] {
+  return lines.filter((l) => {
+    const status = computePackLineStatus(l);
+    if (filters.status && status !== filters.status) return false;
+    const ol = lineMeta.get(l.outboundOrderLineId);
+    return matchesTaskLineSearch(filters.search, {
+      sku: ol?.product?.sku,
+      name: ol?.product?.name,
+      barcode: ol?.product?.barcode,
+    });
+  });
+}
+
 export function computePackSummary(
   lines: PackLineDraft[],
   packages: PackPackageDraft[],
@@ -225,6 +258,37 @@ export function findLineByProductScan(
   return undefined;
 }
 
+export function matchesPackProductFilter(query: string, ol?: OutboundOrderLine): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const p = ol?.product;
+  if (!p) return false;
+  const sku = p.sku?.trim().toLowerCase() ?? '';
+  const name = p.name?.trim().toLowerCase() ?? '';
+  const bc = p.barcode?.trim().toLowerCase() ?? '';
+  return sku.includes(q) || name.includes(q) || bc.includes(q);
+}
+
+export function filterPackLineIdsByProduct(
+  lineIds: string[],
+  lineMeta: Map<string, OutboundOrderLine>,
+  productFilter: string,
+): string[] {
+  return lineIds.filter((lid) => matchesPackProductFilter(productFilter, lineMeta.get(lid)));
+}
+
+export function qtyInPackage(pkg: PackPackageDraft, lineId: string): number {
+  const item = pkg.items.find((i) => i.outboundOrderLineId === lineId);
+  return item ? parseQty(item.quantity) : 0;
+}
+
+/** Picked minus total packed across all packages. */
+export function remainingPackableQty(line: PackLineDraft, packages: PackPackageDraft[]): number {
+  const picked = parseQty(line.pickedQty);
+  const packed = sumPackedForLine(packages, line.outboundOrderLineId);
+  return Math.max(0, picked - packed);
+}
+
 export function findPackageByLabelScan(
   code: string,
   packages: PackPackageDraft[],
@@ -232,3 +296,5 @@ export function findPackageByLabelScan(
   const c = code.trim().toLowerCase();
   return packages.find((p) => p.label.trim().toLowerCase() === c || p.id === code.trim());
 }
+
+export { parseQty };

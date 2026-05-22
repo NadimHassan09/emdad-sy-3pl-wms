@@ -13,7 +13,9 @@ import {
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
+import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { BarcodeImageModal } from '../components/BarcodeImageModal';
+import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
@@ -23,6 +25,7 @@ import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useFilters } from '../hooks/useFilters';
 import { generateSku } from '../lib/identifiers';
+import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
 
 const UOM_OPTIONS = [
   { value: 'piece', label: 'Piece' },
@@ -53,11 +56,12 @@ function parseDimUpdate(s: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+type ProductSearchCategory = 'name' | 'sku' | 'barcode';
+
 type ProductDraftFilters = {
   companyId: string;
-  name: string;
-  sku: string;
-  barcode: string;
+  searchCategory: ProductSearchCategory;
+  searchQuery: string;
 };
 
 function prependProductAcrossCaches(qc: ReturnType<typeof useQueryClient>, created: Product) {
@@ -89,9 +93,8 @@ export function ProductsPage() {
   const initialProductFilters = useMemo<ProductDraftFilters>(
     () => ({
       companyId: '',
-      name: '',
-      sku: '',
-      barcode: '',
+      searchCategory: 'name',
+      searchQuery: '',
     }),
     [],
   );
@@ -110,6 +113,7 @@ export function ProductsPage() {
       if (!target) return;
       if (
         target.closest('[data-product-action-trigger="true"]') ||
+        target.closest('[data-product-action-menu="true"]') ||
         target.closest('[data-product-action-menu-button="true"]')
       ) {
         return;
@@ -122,15 +126,23 @@ export function ProductsPage() {
 
   const [scanOpen, setScanOpen] = useState(false);
 
-  const filters = useMemo(
-    () => ({
+  const filters = useMemo(() => {
+    const base = {
       companyId: appliedFilters.companyId.trim() || undefined,
-      productName: appliedFilters.name.trim() || undefined,
-      sku: appliedFilters.sku.trim() || undefined,
-      productBarcode: appliedFilters.barcode.trim() || undefined,
-    }),
-    [appliedFilters],
-  );
+    };
+    const q = appliedFilters.searchQuery.trim();
+    if (!q) return base;
+    switch (appliedFilters.searchCategory) {
+      case 'name':
+        return { ...base, productName: q };
+      case 'sku':
+        return { ...base, sku: q };
+      case 'barcode':
+        return { ...base, productBarcode: q };
+      default:
+        return base;
+    }
+  }, [appliedFilters]);
 
   const list = useQuery({
     queryKey: [...QK.products, filters],
@@ -258,94 +270,89 @@ export function ProductsPage() {
         const canEdit = p.status === 'active' || p.status === 'suspended';
         const busy =
           suspendMut.isPending || unsuspendMut.isPending || hardDeleteMut.isPending || updateMut.isPending;
-        const menuOpen = openActionId === p.id;
         return (
-          <div className="relative inline-flex">
-            <button
-              type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
-              disabled={busy}
-              data-product-action-trigger="true"
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpenActionId((cur) => (cur === p.id ? null : p.id));
-              }}
-              aria-label="Open actions"
-              aria-expanded={menuOpen}
+          <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
+            <AnchoredDropdown
+              open={openActionId === p.id}
+              align="end"
+              menuRootProps={{ 'data-product-action-menu': 'true' }}
+              trigger={
+                <button
+                  type="button"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                  disabled={busy}
+                  data-product-action-trigger="true"
+                  onClick={() => setOpenActionId((cur) => (cur === p.id ? null : p.id))}
+                  aria-label="Open actions"
+                  aria-expanded={openActionId === p.id}
+                  aria-haspopup="menu"
+                >
+                  <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
+                    <path d="M4 10a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm4.5 0a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 8.5 10ZM13 10a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 13 10Z" />
+                  </svg>
+                </button>
+              }
             >
-              <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
-                <path d="M4 10a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm4.5 0a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 8.5 10ZM13 10a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 13 10Z" />
-              </svg>
-            </button>
-            {menuOpen ? (
-              <div className="absolute right-0 top-9 z-10 min-w-[140px] overflow-hidden rounded-md border border-slate-200 bg-white shadow-md">
-                {canEdit ? (
-                  <button
-                    type="button"
-                    className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
-                    data-product-action-menu-button="true"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenActionId(null);
-                      setEditProduct(p);
-                    }}
-                  >
-                    Edit
-                  </button>
-                ) : null}
-                {p.status === 'active' ? (
-                  <button
-                    type="button"
-                    className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
-                    data-product-action-menu-button="true"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (
-                        window.confirm(
-                          `Suspend ${p.sku}? It will be blocked from new inbound/outbound lines.`,
-                        )
-                      ) {
-                        suspendMut.mutate(p.id);
-                      }
-                    }}
-                  >
-                    Suspend
-                  </button>
-                ) : null}
-                {p.status === 'suspended' ? (
-                  <button
-                    type="button"
-                    className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
-                    data-product-action-menu-button="true"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      unsuspendMut.mutate(p.id);
-                    }}
-                  >
-                    Unsuspend
-                  </button>
-                ) : null}
-                {p.deletable ? (
-                  <button
-                    type="button"
-                    className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
-                    data-product-action-menu-button="true"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (
-                        window.confirm(
-                          `Permanently delete ${p.sku}? This cannot be undone. The server only allows this when the product has zero stock and no order, adjustment, or ledger references.`,
-                        )
-                      ) {
-                        hardDeleteMut.mutate(p.id);
-                      }
-                    }}
-                  >
-                    Delete
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
+              {canEdit ? (
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                  data-product-action-menu-button="true"
+                  onClick={() => {
+                    setOpenActionId(null);
+                    setEditProduct(p);
+                  }}
+                >
+                  Edit
+                </button>
+              ) : null}
+              {p.status === 'active' ? (
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                  data-product-action-menu-button="true"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Suspend ${p.sku}? It will be blocked from new inbound/outbound lines.`,
+                      )
+                    ) {
+                      suspendMut.mutate(p.id);
+                    }
+                  }}
+                >
+                  Suspend
+                </button>
+              ) : null}
+              {p.status === 'suspended' ? (
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                  data-product-action-menu-button="true"
+                  onClick={() => unsuspendMut.mutate(p.id)}
+                >
+                  Unsuspend
+                </button>
+              ) : null}
+              {p.deletable ? (
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
+                  data-product-action-menu-button="true"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Permanently delete ${p.sku}? This cannot be undone. The server only allows this when the product has zero stock and no order, adjustment, or ledger references.`,
+                      )
+                    ) {
+                      hardDeleteMut.mutate(p.id);
+                    }
+                  }}
+                >
+                  Delete
+                </button>
+              ) : null}
+            </AnchoredDropdown>
           </div>
         );
       },
@@ -361,67 +368,60 @@ export function ProductsPage() {
         onReset={resetFilters}
         loading={list.isFetching}
       >
-      <div className="space-y-5">
-        <div className="flex flex-wrap items-end gap-3">
-          <Combobox
-            label="Client filter"
-            value={draftFilters.companyId}
-            onChange={(v) => setDraft({ companyId: v })}
-            options={[
-              { value: '', label: 'All clients' },
-              ...(companies.data ?? []).map((c) => ({
-                value: c.id,
-                label: c.name,
-                hint: c.contactEmail,
-              })),
-            ]}
-            placeholder="All clients"
-            className="min-w-[220px] max-w-xs"
-          />
-        </div>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <TextField
-            label="Product name"
-            value={draftFilters.name}
-            onChange={(e) => setDraft({ name: e.target.value })}
-            placeholder="Contains…"
-          />
-          <TextField
-            label="SKU"
-            className="font-mono"
-            value={draftFilters.sku}
-            onChange={(e) => setDraft({ sku: e.target.value })}
-            placeholder="Contains…"
-          />
-          <div className="flex items-end gap-2">
-            <TextField
-              label="Barcode"
-              className="min-w-0 flex-1 font-mono"
-              value={draftFilters.barcode}
-              onChange={(e) => setDraft({ barcode: e.target.value })}
-              placeholder="Contains…"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              className="shrink-0"
-              title="Scan a barcode with the device camera"
-              onClick={() => setScanOpen(true)}
-            >
-              Scan
-            </Button>
-          </div>
-        </div>
+      <div className="flex min-w-0 flex-wrap items-end gap-3">
+        <TextField
+          label="Search"
+          value={draftFilters.searchQuery}
+          onChange={(e) => setDraft({ searchQuery: e.target.value })}
+          placeholder="Contains…"
+          className={`min-w-[12.5rem] flex-1 basis-32 ${draftFilters.searchCategory !== 'name' ? 'font-mono' : ''}`}
+        />
+        <SelectField
+          label="Search by"
+          name="productSearchCategory"
+          value={draftFilters.searchCategory}
+          onChange={(e) =>
+            setDraft({ searchCategory: e.target.value as ProductSearchCategory })
+          }
+          options={[
+            { value: 'name', label: 'Product name' },
+            { value: 'sku', label: 'SKU' },
+            { value: 'barcode', label: 'Barcode' },
+          ]}
+          className="min-w-[8.75rem] max-w-[11rem] shrink-0"
+        />
+        <Button
+          type="button"
+          variant="secondary"
+          className="h-[34px] shrink-0 px-2.5"
+          title="Scan a barcode with the device camera"
+          aria-label="Scan barcode"
+          onClick={() => setScanOpen(true)}
+        >
+          <BarcodeScanIcon className="h-5 w-5" />
+        </Button>
+        <Combobox
+          label="Client"
+          value={draftFilters.companyId}
+          onChange={(v) => setDraft({ companyId: v })}
+          options={[
+            { value: '', label: 'All clients' },
+            ...(companies.data ?? []).map((c) => ({
+              value: c.id,
+              label: c.name,
+              hint: c.contactEmail,
+            })),
+          ]}
+          placeholder="All clients"
+          className="min-w-[220px] max-w-xs shrink-0"
+        />
       </div>
       </FilterPanel>
 
       <DataTable
         title="Products"
         actions={
-          <Button
-            onClick={() => setOpenCreate(true)}
-            className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
-          >
+          <Button variant="brand" onClick={() => setOpenCreate(true)}>
             + New product
           </Button>
         }
@@ -462,8 +462,8 @@ export function ProductsPage() {
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onScan={(text) => {
-          applyPatch({ barcode: text.trim() });
-          toast.success('Barcode scanned — barcode filter updated.');
+          applyPatch({ searchCategory: 'barcode', searchQuery: text.trim() });
+          toast.success('Barcode scanned — search updated.');
         }}
         onCameraError={(msg) => toast.error(msg)}
       />
@@ -570,14 +570,20 @@ function CreateProductModal({
       widthClass="max-w-2xl"
       footer={
         <>
-          <Button variant="secondary" onClick={handleClose} type="button" disabled={loading}>
+          <Button
+            variant="danger"
+            className={MODAL_CANCEL_BUTTON_CLASS}
+            onClick={handleClose}
+            type="button"
+            disabled={loading}
+          >
             Cancel
           </Button>
           <Button
             form="create-product"
             type="submit"
+            variant="brand"
             loading={loading}
-            className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
           >
             Create
           </Button>
@@ -628,7 +634,7 @@ function CreateProductModal({
             checked={expiryTracking}
             onChange={(e) => setExpiryTracking(e.target.checked)}
           />
-          Product has an expiry date (required on lots when receiving or picking)
+          Product has an expiry date
         </label>
         <TextField
           label="Min stock threshold"
@@ -748,10 +754,21 @@ function EditProductModal({ open, product, loading, onClose, onSubmit }: EditPro
       widthClass="max-w-2xl"
       footer={
         <>
-          <Button variant="secondary" type="button" onClick={handleClose} disabled={loading}>
+          <Button
+            variant="danger"
+            className={MODAL_CANCEL_BUTTON_CLASS}
+            type="button"
+            onClick={handleClose}
+            disabled={loading}
+          >
             Cancel
           </Button>
-          <Button form="edit-product" type="submit" loading={loading}>
+          <Button
+            form="edit-product"
+            type="submit"
+            variant="brand"
+            loading={loading}
+          >
             Save
           </Button>
         </>
@@ -787,7 +804,7 @@ function EditProductModal({ open, product, loading, onClose, onSubmit }: EditPro
             checked={expiryTracking}
             onChange={(e) => setExpiryTracking(e.target.checked)}
           />
-          Product has an expiry date (required on lots when receiving or picking)
+          Product has an expiry date
         </label>
         <TextField
           label="Min stock threshold"

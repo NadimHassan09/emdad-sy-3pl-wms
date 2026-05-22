@@ -140,7 +140,7 @@ export class LocationsService {
 
   async tree(warehouseId: string): Promise<LocationTreeNode[]> {
     const flat = await this.prisma.location.findMany({
-      where: { warehouseId, status: 'active' },
+      where: { warehouseId },
       orderBy: { sortOrder: 'asc' },
     });
     const byId = new Map<string, LocationTreeNode>();

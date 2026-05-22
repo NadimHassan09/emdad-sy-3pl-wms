@@ -23,9 +23,9 @@ export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 
 }
 
 const SIZE_STYLES: Record<Size, string> = {
-  sm: 'h-8 text-xs',
-  md: 'h-10 text-sm',
-  lg: 'h-12 text-base', // tablet-friendly
+  sm: 'h-7 text-xs',
+  md: 'h-8 text-sm',
+  lg: 'h-9 text-sm',
 };
 
 /**

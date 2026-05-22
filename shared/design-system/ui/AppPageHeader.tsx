@@ -43,16 +43,15 @@ export function AppPageHeader({
     <div
       className={cn(
         /* Flex layout for title + actions */
-        'flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4',
-        /* Bottom separator with breathing room */
-        'pb-4 mb-6 border-b border-neutral-100',
+        'flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3',
+        'pb-3 mb-4 border-b border-neutral-100',
         className,
       )}
       {...rest}
     >
       {/* Title block */}
       <div className="min-w-0">
-        <h1 className="text-lg font-bold leading-snug tracking-tight text-neutral-900 sm:text-xl">
+        <h1 className="text-base font-bold leading-snug tracking-tight text-neutral-900 sm:text-lg">
           {title}
         </h1>
         {description && (

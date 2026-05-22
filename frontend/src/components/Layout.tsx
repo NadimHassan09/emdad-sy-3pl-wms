@@ -56,6 +56,12 @@ import {
 
   TopbarUserMenu,
 
+  LanguageSwitchOverlay,
+
+  renderSidebarNavIcon,
+
+  useUiLanguage,
+
   type TopbarNotificationItem,
 
 } from '@ds';
@@ -136,6 +142,8 @@ interface FlatNavItem {
 
   label: string;
 
+  iconKey: string;
+
   to: string;
 
   active: (pathname: string, search: string) => boolean;
@@ -147,6 +155,7 @@ interface FlatNavItem {
 function buildFlatNav(t: (s: string) => string, role: string | undefined): FlatNavItem[] {
   return navItemsForRole(role).map((item) => ({
     label: t(item.labelKey),
+    iconKey: item.iconKey,
     to: item.to,
     active: (p) => item.match(p),
   }));
@@ -184,33 +193,24 @@ function SidebarNavContent({
 
     <SidebarNav>
 
-      {items.map((item) => (
-
-        <SidebarLink
-
-          key={item.to}
-
-          href={item.to}
-
-          isActive={item.active(pathname, search)}
-
-          onClick={(e) => {
-
-            e.preventDefault();
-
-            navigate(item.to);
-
-            onLinkClick?.();
-
-          }}
-
-        >
-
-          {item.label}
-
-        </SidebarLink>
-
-      ))}
+      {items.map((item) => {
+        const active = item.active(pathname, search);
+        return (
+          <SidebarLink
+            key={item.to}
+            href={item.to}
+            isActive={active}
+            icon={renderSidebarNavIcon(item.iconKey)}
+            onClick={(e) => {
+              e.preventDefault();
+              navigate(item.to);
+              onLinkClick?.();
+            }}
+          >
+            {item.label}
+          </SidebarLink>
+        );
+      })}
 
     </SidebarNav>
 
@@ -232,17 +232,10 @@ export function Layout() {
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
-  const [language, setLanguage] = useState<'EN' | 'AR'>(() => {
-
-    const saved = typeof window !== 'undefined' ? window.localStorage.getItem('wms-ui-language') : null;
-
-    return saved === 'AR' ? 'AR' : 'EN';
-
+  const { language, setLanguage, isArabic, isSwitching } = useUiLanguage({
+    storageKey: 'wms-ui-language',
+    eventName: 'wms-ui-language-changed',
   });
-
-
-
-  const isArabic = language === 'AR';
 
   const t = (label: string) => sidebarLabel(label, isArabic);
 
@@ -253,20 +246,6 @@ export function Layout() {
     setMobileNavOpen(false);
 
   }, [pathname, search]);
-
-
-
-  useEffect(() => {
-
-    document.documentElement.dir = isArabic ? 'rtl' : 'ltr';
-
-    document.documentElement.lang = 'en';
-
-    window.localStorage.setItem('wms-ui-language', language);
-
-    window.dispatchEvent(new CustomEvent('wms-ui-language-changed', { detail: { language } }));
-
-  }, [language, isArabic]);
 
 
 
@@ -329,7 +308,11 @@ export function Layout() {
 
   return (
 
-    <div key={language} className="h-dvh max-h-dvh overflow-hidden">
+    <>
+
+      <LanguageSwitchOverlay open={isSwitching} language={language} />
+
+      <div key={language} className="h-dvh max-h-dvh overflow-hidden">
 
       <AppShell>
 
@@ -480,6 +463,8 @@ export function Layout() {
       </AppShell>
 
     </div>
+
+    </>
 
   );
 

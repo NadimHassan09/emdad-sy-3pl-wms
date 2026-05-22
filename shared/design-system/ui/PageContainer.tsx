@@ -14,9 +14,9 @@ interface PageContainerProps extends HTMLAttributes<HTMLElement> {
 
 const PADDING = {
   none: 'p-0',
-  sm:   'px-3 py-3 sm:px-4 sm:py-4',
-  md:   'px-3 py-4 sm:px-4 sm:py-5 lg:px-5',
-  lg:   'px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8',
+  sm:   'px-2.5 py-2.5 sm:px-3 sm:py-3',
+  md:   'px-3 py-3 sm:px-4 sm:py-4',
+  lg:   'px-4 py-4 sm:px-5 sm:py-5',
 };
 
 /**
@@ -49,7 +49,7 @@ export function PageContainer({
       )}
       {...rest}
     >
-      {header && <div className="mb-4 sm:mb-6">{header}</div>}
+      {header && <div className="mb-3 sm:mb-4">{header}</div>}
       {children}
     </Tag>
   );

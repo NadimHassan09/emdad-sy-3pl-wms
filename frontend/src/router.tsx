@@ -30,6 +30,7 @@ const InventoryLedgerPage     = lazyPage(() => import('./pages/InventoryLedgerPa
 const InventoryLedgerEntryPage = lazyPage(() => import('./pages/InventoryLedgerEntryPage'), 'InventoryLedgerEntryPage');
 const InventoryLedgerReferencePage = lazyPage(() => import('./pages/InventoryLedgerReferencePage'), 'InventoryLedgerReferencePage');
 const AdjustmentsPage         = lazyPage(() => import('./pages/AdjustmentsPage'),         'AdjustmentsPage');
+const AdjustmentDetailPage    = lazyPage(() => import('./pages/AdjustmentDetailPage'),    'AdjustmentDetailPage');
 const InboundListPage         = lazyPage(() => import('./pages/InboundListPage'),         'InboundListPage');
 const InboundDetailPage       = lazyPage(() => import('./pages/InboundDetailPage'),       'InboundDetailPage');
 const OutboundListPage        = lazyPage(() => import('./pages/OutboundListPage'),        'OutboundListPage');
@@ -43,8 +44,11 @@ const WarehouseAnalysisReportPage = lazyPage(() => import('./pages/reports/Wareh
 const InventoryReportPage           = lazyPage(() => import('./pages/reports/InventoryReportPage'),           'InventoryReportPage');
 const ProductMovesReportPage        = lazyPage(() => import('./pages/reports/ProductMovesReportPage'),        'ProductMovesReportPage');
 const ClientsPage             = lazyPage(() => import('./pages/ClientsPage'),             'ClientsPage');
+const CompanyDetailPage       = lazyPage(() => import('./pages/CompanyDetailPage'),       'CompanyDetailPage');
 const WarehouseUsersPage      = lazyPage(() => import('./pages/UsersPage'),               'WarehouseUsersPage');
 const ClientUsersPage         = lazyPage(() => import('./pages/UsersPage'),               'ClientUsersPage');
+const WarehouseUserDetailPage = lazyPage(() => import('./pages/UserDetailPage'),         'WarehouseUserDetailPage');
+const ClientUserDetailPage    = lazyPage(() => import('./pages/UserDetailPage'),          'ClientUserDetailPage');
 const LoginPage               = lazyPage(() => import('./pages/LoginPage'),               'LoginPage');
 
 /** Data router required for `useBlocker` (task execution exit guard). */
@@ -72,6 +76,7 @@ export const router = createBrowserRouter([
       { path: 'inventory/stock', element: <InventoryPage /> },
       { path: 'adjustments', element: <Navigate to="/inventory/adjustments" replace /> },
       { path: 'inventory/adjustments', element: <AdjustmentsPage /> },
+      { path: 'inventory/adjustments/:id', element: <AdjustmentDetailPage /> },
       { path: 'inbound', element: <Navigate to="/orders/inbound" replace /> },
       { path: 'outbound', element: <Navigate to="/orders/outbound" replace /> },
       { path: 'orders', element: <Navigate to="/orders/inbound" replace /> },
@@ -94,9 +99,12 @@ export const router = createBrowserRouter([
         ],
       },
       { path: 'clients', element: <ClientsPage /> },
+      { path: 'clients/:id', element: <CompanyDetailPage /> },
       { path: 'users', element: <Navigate to="/users/warehouse_users" replace /> },
       { path: 'users/warehouse_users', element: <WarehouseUsersPage /> },
+      { path: 'users/warehouse_users/:id', element: <WarehouseUserDetailPage /> },
       { path: 'users/client_users', element: <ClientUsersPage /> },
+      { path: 'users/client_users/:id', element: <ClientUserDetailPage /> },
       { path: '*', element: <RoleHomeRedirect /> },
     ],
   },

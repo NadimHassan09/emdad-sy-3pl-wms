@@ -15,7 +15,7 @@ export function SectionSubNavCard({ isArabic = false }: SectionSubNavCardProps) 
   return (
     <nav
       aria-label={isArabic ? section.ariaLabelAr : section.ariaLabel}
-      className="mb-6 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm"
+      className="mb-4 rounded-xl border border-slate-100 bg-white p-3 shadow-sm"
     >
       <div className="flex flex-wrap gap-2" role="list">
         {section.items.map((item) => {

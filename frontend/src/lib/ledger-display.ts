@@ -102,7 +102,7 @@ export function ledgerMovementLabel(cat: LedgerMovementCategory): string {
     case 'outbound':
       return 'Outbound';
     case 'adjustment':
-      return 'Adjustment';
+      return 'Adjustments';
     default:
       return cat;
   }
@@ -169,6 +169,20 @@ export function ledgerGroupRefLabel(refType: string, refId: string): string {
 export function ledgerEntryDetailPath(ledgerId: string, createdAt: string, companyId?: string): string {
   const base = `/inventory/ledger/line/${encodeURIComponent(ledgerId)}/${encodeURIComponent(createdAt)}`;
   return companyId ? `${base}?companyId=${encodeURIComponent(companyId)}` : base;
+}
+
+/** Admin UI path for the ledger row's source document (order or adjustment). */
+export function ledgerReferenceAdminPath(referenceType: string, referenceId: string): string | null {
+  switch (referenceType) {
+    case 'inbound_order':
+      return `/orders/inbound/${referenceId}`;
+    case 'outbound_order':
+      return `/orders/outbound/${referenceId}`;
+    case 'adjustment':
+      return `/inventory/adjustments/${encodeURIComponent(referenceId)}`;
+    default:
+      return null;
+  }
 }
 
 /** @deprecated Use ledgerEntryDetailPath; kept for deep links to order-wide ledger views. */

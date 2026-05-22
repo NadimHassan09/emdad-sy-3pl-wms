@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { CompaniesApi } from '../api/companies';
-import { WarehousesApi } from '../api/warehouses';
 import {
   UsersApi,
   type CreateUserPayload,
@@ -11,6 +11,7 @@ import {
   type UserRole,
   type UserStatus,
 } from '../api/users';
+import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { DataTable, type Column } from '../components/DataTable';
@@ -20,6 +21,14 @@ import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
+import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
+import { useFilters } from '../hooks/useFilters';
+import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
+
+type UserListFilters = {
+  search: string;
+  role: string;
+};
 
 export type UsersPageVariant = 'warehouse' | 'client';
 
@@ -122,7 +131,9 @@ function statusPill(status: string) {
 }
 
 function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
+  const navigate = useNavigate();
   const apiKind = variantToApiKind(variant);
+  const { warehouseId: defaultWarehouseId } = useDefaultWarehouseId();
   const isArabic =
     typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (en: string, ar: string) => (isArabic ? ar : en);
@@ -139,7 +150,6 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
   const [systemRole, setSystemRole] = useState<'super_admin' | 'admin' | 'worker'>('worker');
   const [clientRole, setClientRole] = useState<'client_admin' | 'client_staff'>('client_staff');
   const [companyId, setCompanyId] = useState('');
-  const [workerWarehouseId, setWorkerWarehouseId] = useState('');
 
   const [editEmail, setEditEmail] = useState('');
   const [editFullName, setEditFullName] = useState('');
@@ -148,8 +158,9 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
   const [editRole, setEditRole] = useState<UserRole>('wh_operator');
   const [editStatus, setEditStatus] = useState<UserStatus>('active');
   const [editCompanyId, setEditCompanyId] = useState('');
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
+  const initialUserFilters = useMemo<UserListFilters>(() => ({ search: '', role: '' }), []);
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
+    useFilters(initialUserFilters);
 
   useEffect(() => {
     if (!openActionId) return;
@@ -180,12 +191,6 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     enabled: createOpen || !!editUser,
   });
 
-  const warehousesQuery = useQuery({
-    queryKey: [...QK.warehouses, false, 'users-modal'],
-    queryFn: () => WarehousesApi.list(false),
-    enabled: createOpen && apiKind === 'system' && systemRole === 'worker',
-  });
-
   const resetCreateForm = useCallback(() => {
     setKind(apiKind);
     setEmail('');
@@ -195,7 +200,6 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     setSystemRole('worker');
     setClientRole('client_staff');
     setCompanyId('');
-    setWorkerWarehouseId('');
   }, [apiKind]);
 
   const openEdit = useCallback((u: UserListRow) => {
@@ -299,77 +303,75 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
         header: t('Actions', 'الإجراءات'),
         className: 'min-w-[120px] text-right',
         accessor: (u) => {
-          const menuOpen = openActionId === u.id;
           return (
-            <div className="relative inline-flex">
-              <button
-                type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
-                disabled={busy}
-                data-user-action-trigger="true"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpenActionId((cur) => (cur === u.id ? null : u.id));
-                }}
-                aria-label="Open actions"
-                aria-expanded={menuOpen}
+            <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
+              <AnchoredDropdown
+                open={openActionId === u.id}
+                align="end"
+                menuRootProps={{ 'data-user-action-menu': 'true' }}
+                trigger={
+                  <button
+                    type="button"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                    disabled={busy}
+                    data-user-action-trigger="true"
+                    onClick={() => setOpenActionId((cur) => (cur === u.id ? null : u.id))}
+                    aria-label="Open actions"
+                    aria-expanded={openActionId === u.id}
+                    aria-haspopup="menu"
+                  >
+                    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
+                      <path d="M4 10a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm4.5 0a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 8.5 10ZM13 10a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 13 10Z" />
+                    </svg>
+                  </button>
+                }
               >
-                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor" aria-hidden>
-                  <path d="M4 10a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0Zm4.5 0a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 8.5 10ZM13 10a1.5 1.5 0 1 1 3.001 0A1.5 1.5 0 0 1 13 10Z" />
-                </svg>
-              </button>
-              {menuOpen ? (
-                <div className="absolute right-0 top-9 z-10 min-w-[140px] overflow-hidden rounded-md border border-slate-200 bg-white shadow-md">
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                  data-user-action-menu-button="true"
+                  onClick={() => {
+                    setOpenActionId(null);
+                    openEdit(u);
+                  }}
+                >
+                  Edit
+                </button>
+                {u.status === 'active' ? (
                   <button
                     type="button"
                     className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
                     data-user-action-menu-button="true"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenActionId(null);
-                      openEdit(u);
-                    }}
-                  >
-                    Edit
-                  </button>
-                  {u.status === 'active' ? (
-                    <button
-                      type="button"
-                      className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
-                      data-user-action-menu-button="true"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (
-                          window.confirm(
-                            `Suspend "${u.email}"? They will not be able to sign in or appear in task assignment.`,
-                          )
-                        ) {
-                          suspendMut.mutate(u.id);
-                        }
-                      }}
-                    >
-                      Suspend
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
-                    data-user-action-menu-button="true"
-                    onClick={(e) => {
-                      e.stopPropagation();
+                    onClick={() => {
                       if (
                         window.confirm(
-                          `Permanently delete "${u.email}"? This fails if the user still has related orders, ledger rows, or task history.`,
+                          `Suspend "${u.email}"? They will not be able to sign in or appear in task assignment.`,
                         )
                       ) {
-                        removeMut.mutate(u.id);
+                        suspendMut.mutate(u.id);
                       }
                     }}
                   >
-                    Delete
+                    Suspend
                   </button>
-                </div>
-              ) : null}
+                ) : null}
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
+                  data-user-action-menu-button="true"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `Permanently delete "${u.email}"? This fails if the user still has related orders, ledger rows, or task history.`,
+                      )
+                    ) {
+                      removeMut.mutate(u.id);
+                    }
+                  }}
+                >
+                  Delete
+                </button>
+              </AnchoredDropdown>
             </div>
           );
         },
@@ -393,16 +395,16 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       (usersQuery.data ?? [])
         .filter((u) => u.kind === apiKind)
         .filter((u) => {
-          const q = search.trim().toLowerCase();
+          const q = appliedFilters.search.trim().toLowerCase();
           if (q) {
             const name = u.fullName?.toLowerCase() ?? '';
             const email = u.email?.toLowerCase() ?? '';
             if (!name.includes(q) && !email.includes(q)) return false;
           }
-          if (roleFilter && u.role !== roleFilter) return false;
+          if (appliedFilters.role && u.role !== appliedFilters.role) return false;
           return true;
         }),
-    [usersQuery.data, apiKind, search, roleFilter],
+    [usersQuery.data, apiKind, appliedFilters.search, appliedFilters.role],
   );
 
   const tableColumns = variant === 'warehouse' ? systemColumns : clientColumns;
@@ -432,8 +434,8 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
         ...base,
         kind: 'system',
         systemRole,
-        ...(systemRole === 'worker' && workerWarehouseId.trim()
-          ? { workerWarehouseId: workerWarehouseId.trim() }
+        ...(systemRole === 'worker' && defaultWarehouseId
+          ? { workerWarehouseId: defaultWarehouseId }
           : {}),
       };
       createMut.mutate(payload);
@@ -478,26 +480,37 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     <>
       {errMsg ? <p className="mb-4 text-sm text-rose-600">{errMsg}</p> : null}
 
-      <FilterPanel title={filterTitle}>
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-          <TextField
-            label={t('Search', 'بحث')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('Search by name or email', 'ابحث بالاسم أو البريد الإلكتروني')}
-          />
-          <SelectField
-            label={t('Role', 'الدور')}
-            name="roleFilter"
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            options={[
-              { value: '', label: t('All roles', 'كل الأدوار') },
-              ...(variant === 'warehouse'
-                ? SYSTEM_ROLE_EDIT.map((r) => ({ value: r.value, label: r.label }))
-                : CLIENT_ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label }))),
-            ]}
-          />
+      <FilterPanel
+        title={filterTitle}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={usersQuery.isFetching}
+        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
+        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
+      >
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-full min-w-[10rem] max-w-[25%] flex-1 basis-32">
+            <TextField
+              label={t('Search', 'بحث')}
+              value={draftFilters.search}
+              onChange={(e) => setDraft({ search: e.target.value })}
+              placeholder={t('Search by name or email', 'ابحث بالاسم أو البريد الإلكتروني')}
+            />
+          </div>
+          <div className="w-full min-w-[10rem] max-w-[25%] flex-1 basis-32">
+            <SelectField
+              label={t('Role', 'الدور')}
+              name="roleFilter"
+              value={draftFilters.role}
+              onChange={(e) => setDraft({ role: e.target.value })}
+              options={[
+                { value: '', label: t('All roles', 'كل الأدوار') },
+                ...(variant === 'warehouse'
+                  ? SYSTEM_ROLE_EDIT.map((r) => ({ value: r.value, label: r.label }))
+                  : CLIENT_ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label }))),
+              ]}
+            />
+          </div>
         </div>
       </FilterPanel>
 
@@ -506,7 +519,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
         actions={
           <Button
             type="button"
-            className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
+            variant="brand"
             onClick={() => {
               resetCreateForm();
               setCreateOpen(true);
@@ -518,6 +531,9 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
         columns={tableColumns}
         rows={filteredUsers}
         rowKey={(u) => u.id}
+        onRowClick={(u) =>
+          navigate(variant === 'warehouse' ? `/users/warehouse_users/${u.id}` : `/users/client_users/${u.id}`)
+        }
         loading={usersQuery.isLoading}
         empty={emptyMessage}
         labels={{
@@ -537,14 +553,20 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
         widthClass="max-w-lg"
         footer={
           <>
-            <Button type="button" variant="secondary" onClick={closeCreate} disabled={createMut.isPending}>
+            <Button
+              type="button"
+              variant="danger"
+              className={MODAL_CANCEL_BUTTON_CLASS}
+              onClick={closeCreate}
+              disabled={createMut.isPending}
+            >
               {t('Cancel', 'إلغاء')}
             </Button>
             <Button
               type="submit"
               form="create-user"
+              variant="brand"
               loading={createMut.isPending}
-              className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
             >
               {t('Create', 'إنشاء')}
             </Button>
@@ -587,42 +609,22 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            hint={t('Minimum 8 characters. Stored hashed on the server.', '8 أحرف على الأقل. تُخزن مشفرة على الخادم.')}
+            hint={t('Minimum 8 characters.', '8 أحرف على الأقل.')}
           />
           {kind === 'system' ? (
-            <>
-              <SelectField
-                label={t('System role', 'دور النظام')}
-                name="systemRole"
-                value={systemRole}
-                onChange={(e) => {
-                  const v = e.target.value as typeof systemRole;
-                  setSystemRole(v);
-                  if (v !== 'worker') setWorkerWarehouseId('');
-                }}
-                options={SYSTEM_ROLE_OPTIONS}
-              />
-              {systemRole === 'worker' ? (
-                <Combobox
-                  label={t('Default warehouse (optional)', 'المستودع الافتراضي (اختياري)')}
-                  value={workerWarehouseId}
-                  onChange={setWorkerWarehouseId}
-                  options={(warehousesQuery.data ?? []).map((w) => ({
-                    value: w.id,
-                    label: w.name,
-                    hint: w.code,
-                  }))}
-                  placeholder={t('Any warehouse…', 'أي مستودع…')}
-                  emptyMessage={t('No warehouses loaded.', 'لا توجد مستودعات محملة.')}
-                  hint={t('Stored on the worker profile. Requires a tenant session (X-Company-Id).', 'يُخزن في ملف العامل. يتطلب جلسة مستأجر (X-Company-Id).')}
-                />
-              ) : null}
-            </>
+            <SelectField
+              label={t('System role', 'دور النظام')}
+              name="systemRole"
+              value={systemRole}
+              onChange={(e) => setSystemRole(e.target.value as typeof systemRole)}
+              options={SYSTEM_ROLE_OPTIONS}
+            />
           ) : (
             <>
               <Combobox
                 label={t('Company', 'الشركة')}
                 required
+                dropdownInFlow
                 value={companyId}
                 onChange={setCompanyId}
                 options={(companiesQuery.data ?? []).map((c) => ({
@@ -653,10 +655,21 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
           widthClass="max-w-lg"
           footer={
             <>
-              <Button type="button" variant="secondary" onClick={closeEdit} disabled={updateMut.isPending}>
+              <Button
+                type="button"
+                variant="danger"
+                className={MODAL_CANCEL_BUTTON_CLASS}
+                onClick={closeEdit}
+                disabled={updateMut.isPending}
+              >
                 {t('Cancel', 'إلغاء')}
               </Button>
-              <Button type="submit" form="edit-user" loading={updateMut.isPending}>
+              <Button
+                type="submit"
+                form="edit-user"
+                variant="brand"
+                loading={updateMut.isPending}
+              >
                 {t('Save', 'حفظ')}
               </Button>
             </>
@@ -702,6 +715,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
               <Combobox
                 label="Company"
                 required
+                dropdownInFlow
                 value={editCompanyId}
                 onChange={setEditCompanyId}
                 options={(companiesQuery.data ?? []).map((c) => ({

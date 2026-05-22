@@ -31,9 +31,9 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 
 const PADDING: Record<Padding, string> = {
   none: 'p-0',
-  sm:   'p-3',
-  md:   'p-4 sm:p-5',
-  lg:   'p-5 sm:p-6',
+  sm:   'p-2',
+  md:   'p-3 sm:p-3.5',
+  lg:   'p-4',
 };
 
 const ELEVATION: Record<Elevation, string> = {
@@ -85,7 +85,7 @@ function CardHeader({ className, children, ...rest }: CardSlotProps) {
     <div
       className={cn(
         'flex items-start justify-between gap-3',
-        'px-4 sm:px-5 py-3.5',
+        'px-3 py-2.5',
         /* Phase 4.5: slightly tinted header to differentiate from card body */
         'border-b border-neutral-100 bg-neutral-50/60',
         'rounded-t-card',
@@ -111,7 +111,7 @@ function CardTitle({ className, children, ...rest }: HTMLAttributes<HTMLHeadingE
 
 function CardBody({ className, children, ...rest }: CardSlotProps) {
   return (
-    <div className={cn('px-4 sm:px-5 py-4', className)} {...rest}>
+    <div className={cn('px-3 py-3', className)} {...rest}>
       {children}
     </div>
   );
@@ -122,7 +122,7 @@ function CardFooter({ className, children, ...rest }: CardSlotProps) {
     <div
       className={cn(
         'flex items-center justify-end gap-2',
-        'px-4 sm:px-5 py-3',
+        'px-3 py-2',
         'border-t border-neutral-100 bg-neutral-50/70',
         'rounded-b-card',
         className,

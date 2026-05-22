@@ -3,6 +3,7 @@ export type InternalRole = 'super_admin' | 'wh_manager' | 'wh_operator' | 'finan
 
 export type NavItemDef = {
   labelKey: string;
+  iconKey: string;
   to: string;
   match: (pathname: string) => boolean;
 };
@@ -12,54 +13,63 @@ const ALL_ROLES: InternalRole[] = ['super_admin', 'wh_manager', 'wh_operator', '
 const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
   {
     labelKey: 'Dashboard',
+    iconKey: 'Dashboard',
     to: '/dashboard/overview',
     match: (p) => p === '/dashboard' || p.startsWith('/dashboard/'),
     roles: ['super_admin', 'wh_manager', 'finance'],
   },
   {
-    labelKey: 'Reports',
-    to: '/reports',
-    match: (p) => p.startsWith('/reports'),
-    roles: ['super_admin', 'wh_manager', 'finance'],
-  },
-  {
     labelKey: 'Orders',
+    iconKey: 'Orders',
     to: '/orders/inbound',
     match: (p) => p.startsWith('/orders'),
     roles: ['super_admin', 'wh_manager', 'finance'],
   },
   {
     labelKey: 'Inventory',
+    iconKey: 'Inventory',
     to: '/inventory/stock',
     match: (p) => p.startsWith('/inventory') || p === '/adjustments',
     roles: ['super_admin', 'wh_manager', 'finance'],
   },
   {
     labelKey: 'Tasks',
+    iconKey: 'Tasks',
     to: '/tasks',
     match: (p) => p.startsWith('/tasks') || p === '/internal',
     roles: ['super_admin', 'wh_manager', 'wh_operator'],
   },
   {
     labelKey: 'Products',
+    iconKey: 'Products',
     to: '/products',
     match: (p) => p.startsWith('/products'),
     roles: ['super_admin', 'wh_manager'],
   },
   {
     labelKey: 'Locations',
+    iconKey: 'Locations',
     to: '/locations',
     match: (p) => p.startsWith('/locations'),
     roles: ['super_admin', 'wh_manager'],
   },
   {
+    labelKey: 'Reports',
+    iconKey: 'Reports',
+    to: '/reports',
+    match: (p) => p.startsWith('/reports'),
+    roles: ['super_admin', 'wh_manager', 'finance'],
+  },
+  {
     labelKey: 'Customers',
+    iconKey: 'Customers',
     to: '/clients',
     match: (p) => p.startsWith('/clients'),
     roles: ['super_admin', 'wh_manager'],
   },
   {
     labelKey: 'Users',
+    iconKey: 'Users',
     to: '/users/warehouse_users',
     match: (p) => p.startsWith('/users'),
     roles: ['super_admin', 'wh_manager'],
@@ -123,8 +133,9 @@ export function defaultHomePath(role: string | undefined): string {
 export function navItemsForRole(role: string | undefined): NavItemDef[] {
   const r = normalizeInternalRole(role);
   if (!r) return [];
-  return NAV_CATALOG.filter((item) => item.roles.includes(r)).map(({ labelKey, to, match }) => ({
+  return NAV_CATALOG.filter((item) => item.roles.includes(r)).map(({ labelKey, iconKey, to, match }) => ({
     labelKey,
+    iconKey,
     to,
     match,
   }));

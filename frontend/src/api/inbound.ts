@@ -17,6 +17,7 @@ export interface InboundOrderLine {
   receivedQuantity: string;
   expectedLotNumber: string | null;
   expectedExpiryDate: string | null;
+  discrepancyNotes?: string | null;
   lineNumber: number;
   product?: {
     id: string;

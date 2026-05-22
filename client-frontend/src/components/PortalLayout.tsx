@@ -20,6 +20,9 @@ import {
   TopbarMobileMenuButton,
   TopbarNotifications,
   TopbarUserMenu,
+  LanguageSwitchOverlay,
+  renderSidebarNavIcon,
+  useUiLanguage,
   type TopbarNotificationItem,
 } from '@ds';
 import { useClientNotifications } from '../hooks/useClientNotifications';
@@ -28,6 +31,7 @@ import { clientNotificationHref } from '../services/clientNotificationsService';
 interface NavItem {
   label: string;
   labelAr: string;
+  iconKey: string;
   to: string;
   exact?: boolean;
 }
@@ -39,19 +43,10 @@ export function PortalLayout(): ReactElement {
   const { pathname } = useLocation();
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [language, setLanguage] = useState<'EN' | 'AR'>(() => {
-    const saved = typeof window !== 'undefined' ? window.localStorage.getItem('client-ui-language') : null;
-    return saved === 'AR' ? 'AR' : 'EN';
+  const { language, setLanguage, isArabic, isSwitching } = useUiLanguage({
+    storageKey: 'client-ui-language',
+    eventName: 'client-ui-language-changed',
   });
-
-  const isArabic = language === 'AR';
-
-  useEffect(() => {
-    document.documentElement.dir = isArabic ? 'rtl' : 'ltr';
-    document.documentElement.lang = 'en';
-    window.localStorage.setItem('client-ui-language', language);
-    window.dispatchEvent(new CustomEvent('client-ui-language-changed', { detail: { language } }));
-  }, [language, isArabic]);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -72,19 +67,23 @@ export function PortalLayout(): ReactElement {
 
   const navContent = (
     <SidebarNav>
-      {navItems.map((item) => (
-        <SidebarLink
-          key={item.to}
-          href={item.to}
-          isActive={isActive(item)}
-          onClick={(e) => {
-            e.preventDefault();
-            navigate(item.to);
-          }}
-        >
-          {isArabic ? item.labelAr : item.label}
-        </SidebarLink>
-      ))}
+      {navItems.map((item) => {
+        const active = isActive(item);
+        return (
+          <SidebarLink
+            key={item.to}
+            href={item.to}
+            isActive={active}
+            icon={renderSidebarNavIcon(item.iconKey)}
+            onClick={(e) => {
+              e.preventDefault();
+              navigate(item.to);
+            }}
+          >
+            {isArabic ? item.labelAr : item.label}
+          </SidebarLink>
+        );
+      })}
     </SidebarNav>
   );
 
@@ -118,7 +117,9 @@ export function PortalLayout(): ReactElement {
   }
 
   return (
-    <div key={language} className="h-dvh max-h-dvh overflow-hidden">
+    <>
+      <LanguageSwitchOverlay open={isSwitching} language={language} />
+      <div key={language} className="h-dvh max-h-dvh overflow-hidden">
       <AppShell>
         <AppShell.SkipNav />
 
@@ -179,5 +180,6 @@ export function PortalLayout(): ReactElement {
         </AppShell.Body>
       </AppShell>
     </div>
+    </>
   );
 }

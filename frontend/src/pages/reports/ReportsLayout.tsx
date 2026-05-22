@@ -1,4 +1,4 @@
-import { Link, Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 
 import { Alert, AppPageHeader } from '@ds';
 
@@ -18,11 +18,7 @@ function t(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
     'Reporting Center': 'مركز التقارير',
-    Dashboard: 'لوحة التحكم',
-    Reports: 'التقارير',
     'Warehouse not configured': 'المستودع غير مُعد',
-    '3PL operational analytics for client-owned inventory, fulfillment, and warehouse performance.':
-      'تحليلات تشغيلية لمخزون العملاء والتنفيذ وأداء المستودع.',
   };
   return ar[label] ?? label;
 }
@@ -33,22 +29,8 @@ export function ReportsLayout() {
   const { warehouseId } = useDefaultWarehouseId();
 
   return (
-    <div className="space-y-6">
-      <AppPageHeader
-        title={tr('Reporting Center')}
-        description={tr(
-          '3PL operational analytics for client-owned inventory, fulfillment, and warehouse performance.',
-        )}
-        meta={
-          <nav className="text-sm text-slate-500" aria-label="Breadcrumb">
-            <Link to="/dashboard/overview" className="hover:text-emerald-700 hover:underline">
-              {tr('Dashboard')}
-            </Link>
-            <span className="mx-2 text-slate-300">/</span>
-            <span className="text-slate-700">{tr('Reports')}</span>
-          </nav>
-        }
-      />
+    <div className="space-y-4">
+      <AppPageHeader title={tr('Reporting Center')} />
 
       {!warehouseId && (
         <Alert

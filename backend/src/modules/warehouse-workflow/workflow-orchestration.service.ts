@@ -348,7 +348,15 @@ export class WorkflowOrchestrationService {
     switch (taskType) {
       case WarehouseTaskType.pick:
         if (body.task_type === 'pick') {
-          await this.spawnPackIfNeeded(tx, wf.id, orderId);
+          const order = await tx.outboundOrder.findUnique({
+            where: { id: orderId },
+            select: { requiresPacking: true },
+          });
+          if (order?.requiresPacking === false) {
+            await this.enqueueDispatchTaskIfNeeded(tx, wf.id, orderId);
+          } else {
+            await this.spawnPackIfNeeded(tx, wf.id, orderId);
+          }
         }
         break;
       case WarehouseTaskType.pack:
@@ -394,6 +402,7 @@ export class WorkflowOrchestrationService {
       include: { lines: { orderBy: { lineNumber: 'asc' } } },
     });
     if (!order) throw new BadRequestException('Outbound order missing for pack spawn.');
+    if (order.requiresPacking === false) return;
 
     const seq = await this.nextNodeSequence(tx, instanceId);
     const node = await tx.workflowNode.create({

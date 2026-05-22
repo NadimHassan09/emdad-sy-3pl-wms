@@ -41,7 +41,7 @@ export function EmptyState({
       role="status"
       className={cn(
         'flex flex-col items-center justify-center text-center',
-        size === 'sm' ? 'py-6 px-4 gap-2' : 'py-12 px-6 gap-3',
+        size === 'sm' ? 'py-4 px-3 gap-2' : 'py-8 px-4 gap-2.5',
         className,
       )}
       {...rest}

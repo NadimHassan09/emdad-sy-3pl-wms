@@ -5,8 +5,10 @@ import { Link } from 'react-router-dom';
 import { CompaniesApi } from '../api/companies';
 import { InventoryApi, LedgerRow, StockRow } from '../api/inventory';
 import { LocationsApi } from '../api/locations';
-import { ProductsApi } from '../api/products';
+import { ProductsApi, type ProductListQuery } from '../api/products';
+import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
+import { ADJUSTMENT_CANCEL_BUTTON_CLASS } from '../components/adjustments/adjustment-button-styles';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
@@ -30,12 +32,40 @@ const TRANSFER_LOCATION_TYPE_OPTIONS: { value: TransferLocationTypeFilter; label
   { value: 'scrap', label: 'Scrap' },
 ];
 
-type ProductListParams = {
-  companyId: string;
-  productName: string;
-  sku: string;
-  productBarcode: string;
-};
+type ProductSearchCategory = 'name' | 'sku' | 'barcode';
+
+function productListQuery(
+  companyId: string | undefined,
+  category: ProductSearchCategory,
+  query: string,
+): ProductListQuery {
+  const q = query.trim();
+  const base: ProductListQuery = { limit: 200, ...(companyId ? { companyId } : {}) };
+  if (!q) return base;
+  switch (category) {
+    case 'name':
+      return { ...base, productName: q };
+    case 'sku':
+      return { ...base, sku: q };
+    case 'barcode':
+      return { ...base, productBarcode: q };
+    default:
+      return base;
+  }
+}
+
+/** Matches backend decrement: on-hand minus reserved (never raw on-hand only). */
+function transferableQtyAtRow(row: StockRow): number {
+  const avail = Number(row.quantityAvailable);
+  if (Number.isFinite(avail)) return Math.max(0, avail);
+  const onHand = Number(row.quantityOnHand);
+  const reserved = Number(row.quantityReserved);
+  if (Number.isFinite(onHand) && Number.isFinite(reserved)) {
+    return Math.max(0, onHand - reserved);
+  }
+  if (Number.isFinite(onHand)) return Math.max(0, onHand);
+  return 0;
+}
 
 export function InternalTransferPage() {
   const isArabic =
@@ -123,11 +153,10 @@ export function InternalTransferPage() {
       ) : (
         <DataTable
           title={t('Internal transfer', 'نقل داخلي')}
-          description={t('View transfer history and create a new internal transfer.', 'عرض سجل النقل وإنشاء نقل داخلي جديد.')}
           actions={
             <Button
+              variant="brand"
               onClick={() => setCreateOpen(true)}
-              className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
             >
               {t('Create Internal Transfer', 'إنشاء نقل داخلي')}
             </Button>
@@ -162,15 +191,9 @@ function CreateInternalTransferModal({
   const qc = useQueryClient();
 
   const [companyId, setCompanyId] = useState('');
-  const [productName, setProductName] = useState('');
-  const [skuFilter, setSkuFilter] = useState('');
-  const [barcodeFilter, setBarcodeFilter] = useState('');
-  const [debounced, setDebounced] = useState<ProductListParams>({
-    companyId: '',
-    productName: '',
-    sku: '',
-    productBarcode: '',
-  });
+  const [productSearchCategory, setProductSearchCategory] = useState<ProductSearchCategory>('name');
+  const [productSearch, setProductSearch] = useState('');
+  const [debouncedProductSearch, setDebouncedProductSearch] = useState('');
   const [scanOpen, setScanOpen] = useState(false);
   const [productId, setProductId] = useState('');
   const [lotId, setLotId] = useState('');
@@ -183,9 +206,9 @@ function CreateInternalTransferModal({
   useEffect(() => {
     if (!open) return;
     setCompanyId('');
-    setProductName('');
-    setSkuFilter('');
-    setBarcodeFilter('');
+    setProductSearchCategory('name');
+    setProductSearch('');
+    setDebouncedProductSearch('');
     setProductId('');
     setLotId('');
     setFromLocationId('');
@@ -196,16 +219,9 @@ function CreateInternalTransferModal({
   }, [open]);
 
   useEffect(() => {
-    const t = window.setTimeout(() => {
-      setDebounced({
-        companyId,
-        productName: productName.trim(),
-        sku: skuFilter.trim(),
-        productBarcode: barcodeFilter.trim(),
-      });
-    }, 350);
-    return () => window.clearTimeout(t);
-  }, [companyId, productName, skuFilter, barcodeFilter]);
+    const timer = window.setTimeout(() => setDebouncedProductSearch(productSearch.trim()), 350);
+    return () => window.clearTimeout(timer);
+  }, [productSearch]);
 
   const companies = useQuery({
     queryKey: QK.companies,
@@ -214,16 +230,18 @@ function CreateInternalTransferModal({
   });
 
   const products = useQuery({
-    queryKey: [...QK.products, 'internal-transfer-create', debounced],
+    queryKey: [
+      ...QK.products,
+      'internal-transfer-create',
+      companyId,
+      productSearchCategory,
+      debouncedProductSearch,
+    ],
     queryFn: () =>
-      ProductsApi.list({
-        companyId: debounced.companyId,
-        limit: 200,
-        ...(debounced.productName ? { productName: debounced.productName } : {}),
-        ...(debounced.sku ? { sku: debounced.sku } : {}),
-        ...(debounced.productBarcode ? { productBarcode: debounced.productBarcode } : {}),
-      }),
-    enabled: !!debounced.companyId && open,
+      ProductsApi.list(
+        productListQuery(companyId.trim() || undefined, productSearchCategory, debouncedProductSearch),
+      ),
+    enabled: open,
     staleTime: 60_000,
   });
 
@@ -231,6 +249,15 @@ function CreateInternalTransferModal({
     () => (products.data?.items ?? []).find((p) => p.id === productId),
     [products.data?.items, productId],
   );
+
+  const stockCompanyId = productMeta?.companyId || companyId.trim();
+  const lotTracked = productMeta?.trackingType === 'lot';
+
+  useEffect(() => {
+    if (productMeta?.companyId && productMeta.companyId !== companyId) {
+      setCompanyId(productMeta.companyId);
+    }
+  }, [productMeta?.companyId]);
 
   useEffect(() => {
     setLotId('');
@@ -271,49 +298,97 @@ function CreateInternalTransferModal({
   );
 
   const stockByProduct = useQuery({
-    queryKey: [...QK.inventoryStock, 'internal-transfer-create', warehouseId, companyId, productId],
+    queryKey: [...QK.inventoryStock, 'internal-transfer-create', warehouseId, stockCompanyId, productId],
     queryFn: () =>
       InventoryApi.stock({
         warehouseId,
-        companyId: companyId || undefined,
+        companyId: stockCompanyId,
         productId,
         limit: 500,
       }),
-    enabled: !!warehouseId && !!companyId && !!productId && open,
+    enabled: !!warehouseId && !!stockCompanyId && !!productId && open,
     staleTime: 30_000,
   });
 
+  const eligibleLocationIds = useMemo(
+    () => new Set(adjustmentLocations.map((l) => l.id)),
+    [adjustmentLocations],
+  );
+
+  const lotOptionsWithStock = useMemo(() => {
+    if (!lotTracked || !productId) return [];
+
+    const byLot = new Map<
+      string,
+      { id: string; lotNumber: string; expiryDate: string | null }
+    >();
+
+    for (const row of stockByProduct.data?.items ?? []) {
+      if (!eligibleLocationIds.has(row.locationId)) continue;
+      const id = row.lotId ?? row.lot?.id;
+      if (!id) continue;
+      const onHand = Number(row.quantityOnHand);
+      if (!Number.isFinite(onHand) || onHand <= 0) continue;
+
+      if (!byLot.has(id)) {
+        const catalog = (lots.data ?? []).find((l) => l.id === id);
+        byLot.set(id, {
+          id,
+          lotNumber: row.lot?.lotNumber ?? catalog?.lotNumber ?? id.slice(0, 8),
+          expiryDate: row.lot?.expiryDate ?? catalog?.expiryDate ?? null,
+        });
+      }
+    }
+
+    return [...byLot.values()].sort((a, b) => a.lotNumber.localeCompare(b.lotNumber));
+  }, [
+    lotTracked,
+    productId,
+    eligibleLocationIds,
+    stockByProduct.data?.items,
+    lots.data,
+  ]);
+
   const sourceLocationOptions = useMemo(() => {
+    if (!productId || (lotTracked && !lotId)) return [];
+
     const items = stockByProduct.data?.items ?? [];
     const locMap = new Map(adjustmentLocations.map((l) => [l.id, l]));
-    const seen = new Set<string>();
-    const out: { id: string; label: string; hint?: string }[] = [];
+    const availByLoc = new Map<string, number>();
+
     for (const row of items) {
       const loc = locMap.get(row.locationId);
       if (!loc) continue;
       if (sourceTypeFilter && loc.type !== sourceTypeFilter) continue;
-      if (productMeta?.trackingType === 'lot') {
-        if (!lotId) continue;
-        const rowLot = row.lotId ?? row.lot?.id ?? null;
+
+      const rowLot = row.lotId ?? row.lot?.id ?? null;
+      if (lotTracked) {
         if (rowLot !== lotId) continue;
-      } else if (row.lotId || row.lot?.id) {
+      } else if (rowLot) {
         continue;
       }
-      const avail = Number(row.quantityAvailable ?? row.quantityOnHand);
-      if (!Number.isFinite(avail) || avail <= 0 || seen.has(loc.id)) continue;
-      seen.add(loc.id);
-      out.push({
-        id: loc.id,
-        label: loc.fullPath,
-        hint: `${locationTypeLabel(loc.type)} · avail ${avail.toLocaleString()}`,
-      });
+
+      const qty = transferableQtyAtRow(row);
+      if (qty <= 0) continue;
+      availByLoc.set(loc.id, (availByLoc.get(loc.id) ?? 0) + qty);
     }
-    return out;
+
+    return [...availByLoc.entries()]
+      .map(([id, avail]) => {
+        const loc = locMap.get(id)!;
+        return {
+          id,
+          label: loc.fullPath,
+          hint: `${locationTypeLabel(loc.type)} · avail ${avail.toLocaleString()}`,
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
   }, [
     stockByProduct.data?.items,
     adjustmentLocations,
-    productMeta?.trackingType,
+    lotTracked,
     lotId,
+    productId,
     sourceTypeFilter,
   ]);
 
@@ -330,35 +405,24 @@ function CreateInternalTransferModal({
     [adjustmentLocations, fromLocationId, destTypeFilter],
   );
 
-  const stockRow: StockRow | null = useMemo(() => {
-    const items = stockByProduct.data?.items ?? [];
-    if (!productId || !fromLocationId) return null;
-    if (productMeta?.trackingType === 'lot') {
-      if (!lotId) return null;
-      return (
-        items.find(
-          (r) =>
-            r.productId === productId &&
-            r.locationId === fromLocationId &&
-            (r.lotId === lotId || r.lot?.id === lotId),
-        ) ?? null
-      );
-    }
-    return (
-      items.find(
-        (r) =>
-          r.productId === productId &&
-          r.locationId === fromLocationId &&
-          !(r.lotId ?? r.lot?.id),
-      ) ?? null
-    );
-  }, [stockByProduct.data?.items, productId, fromLocationId, lotId, productMeta?.trackingType]);
-
   const availableQty = useMemo(() => {
-    if (!stockRow) return null;
-    const n = Number(stockRow.quantityAvailable ?? stockRow.quantityOnHand);
-    return Number.isFinite(n) ? n : null;
-  }, [stockRow]);
+    if (!productId || !fromLocationId) return null;
+    if (lotTracked && !lotId) return null;
+
+    const items = stockByProduct.data?.items ?? [];
+    let total = 0;
+    for (const row of items) {
+      if (row.productId !== productId || row.locationId !== fromLocationId) continue;
+      const rowLot = row.lotId ?? row.lot?.id ?? null;
+      if (lotTracked) {
+        if (rowLot !== lotId) continue;
+      } else if (rowLot) {
+        continue;
+      }
+      total += transferableQtyAtRow(row);
+    }
+    return total > 0 ? total : null;
+  }, [stockByProduct.data?.items, productId, fromLocationId, lotId, lotTracked]);
 
   const transferMut = useMutation({
     mutationFn: InventoryApi.internalTransfer,
@@ -374,7 +438,8 @@ function CreateInternalTransferModal({
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!companyId.trim() || !productMeta || !warehouseId) return;
+    if (!productMeta || !warehouseId) return;
+    const transferCompanyId = productMeta.companyId;
 
     const qtyNum = Number(quantity);
     if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
@@ -395,7 +460,7 @@ function CreateInternalTransferModal({
     }
 
     transferMut.mutate({
-      companyId: companyId.trim(),
+      companyId: transferCompanyId,
       productId,
       fromLocationId,
       toLocationId,
@@ -404,9 +469,8 @@ function CreateInternalTransferModal({
     });
   };
 
-  const lotTracked = productMeta?.trackingType === 'lot';
   const formReady =
-    !!companyId &&
+    !!productMeta &&
     !!productId &&
     !!fromLocationId &&
     !!toLocationId &&
@@ -424,7 +488,8 @@ function CreateInternalTransferModal({
           <>
             <Button
               type="button"
-              variant="secondary"
+              variant="danger"
+              className={ADJUSTMENT_CANCEL_BUTTON_CLASS}
               onClick={onClose}
               disabled={transferMut.isPending}
             >
@@ -433,9 +498,9 @@ function CreateInternalTransferModal({
             <Button
               type="submit"
               form="internal-transfer-form"
+              variant="brand"
               loading={transferMut.isPending}
               disabled={!formReady}
-              className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
             >
               Create transfer
             </Button>
@@ -448,54 +513,55 @@ function CreateInternalTransferModal({
           className="max-h-[calc(100vh-220px)] space-y-4 overflow-y-auto pr-1"
         >
           <Combobox
-            label="Client"
-            required
+            label="Client (optional)"
             value={companyId}
             onChange={(v) => {
               setCompanyId(v);
               setProductId('');
             }}
-            options={(companies.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-            placeholder={companies.isLoading ? 'Loading...' : 'Select client...'}
+            options={[
+              { value: '', label: 'All clients' },
+              ...(companies.data ?? []).map((c) => ({ value: c.id, label: c.name })),
+            ]}
+            placeholder={companies.isLoading ? 'Loading...' : 'All clients'}
+            clearable
           />
 
           <div className="space-y-2 border-t border-slate-100 pt-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Find product
             </div>
-            <div className="grid gap-2 md:grid-cols-2">
+            <div className="grid w-full grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(8.75rem,11rem)_auto]">
               <TextField
-                label="Product name (contains)"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                placeholder="Filter by name..."
-                disabled={!companyId}
+                label="Search"
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                placeholder="Contains…"
+                className={`min-w-0 ${productSearchCategory !== 'name' ? 'font-mono' : ''}`}
               />
-              <TextField
-                label="SKU (contains)"
-                value={skuFilter}
-                onChange={(e) => setSkuFilter(e.target.value)}
-                placeholder="Filter by SKU..."
-                disabled={!companyId}
-              />
-            </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <TextField
-                label="Barcode (contains)"
-                value={barcodeFilter}
-                onChange={(e) => setBarcodeFilter(e.target.value)}
-                placeholder="Product barcode..."
-                className="min-w-[200px] flex-1"
-                disabled={!companyId}
+              <SelectField
+                label="Search by"
+                name="internalTransferProductSearchCategory"
+                value={productSearchCategory}
+                onChange={(e) =>
+                  setProductSearchCategory(e.target.value as ProductSearchCategory)
+                }
+                options={[
+                  { value: 'name', label: 'Product name' },
+                  { value: 'sku', label: 'SKU' },
+                  { value: 'barcode', label: 'Barcode' },
+                ]}
+                className="min-w-0 w-full"
               />
               <Button
                 type="button"
-                size="sm"
                 variant="secondary"
-                disabled={!companyId}
+                className="h-[34px] w-full shrink-0 px-2.5 sm:w-auto"
+                title="Scan a barcode with the device camera"
+                aria-label="Scan barcode"
                 onClick={() => setScanOpen(true)}
               >
-                Scan barcode
+                <BarcodeScanIcon className="h-5 w-5" />
               </Button>
             </div>
           </div>
@@ -505,19 +571,12 @@ function CreateInternalTransferModal({
             required
             value={productId}
             onChange={setProductId}
-            disabled={!companyId}
             options={(products.data?.items ?? []).map((p) => ({
               value: p.id,
               label: `${p.sku} - ${p.name}`,
-              hint: p.barcode ?? undefined,
+              hint: p.company?.name ?? undefined,
             }))}
-            placeholder={
-              !companyId
-                ? 'Select a client first...'
-                : products.isLoading
-                  ? 'Loading...'
-                  : 'Select product...'
-            }
+            placeholder={products.isLoading ? 'Loading...' : 'Select product...'}
             emptyMessage="No products match the filters."
           />
 
@@ -527,14 +586,18 @@ function CreateInternalTransferModal({
               required
               value={lotId}
               onChange={setLotId}
-              options={(lots.data ?? []).map((lot) => ({
+              options={lotOptionsWithStock.map((lot) => ({
                 value: lot.id,
                 label: lot.lotNumber,
                 hint: lot.expiryDate ? `Exp ${lot.expiryDate.slice(0, 10)}` : undefined,
               }))}
-              placeholder={lots.isLoading ? 'Loading lots...' : 'Select lot...'}
-              disabled={!productId || lots.isLoading}
-              emptyMessage="No lots for this product."
+              placeholder={stockByProduct.isPending ? 'Loading stock...' : 'Select lot...'}
+              disabled={!productId || stockByProduct.isPending}
+              emptyMessage={
+                stockByProduct.isPending
+                  ? 'Loading stock...'
+                  : 'No lots with on-hand stock in eligible locations.'
+              }
             />
           ) : null}
 
@@ -576,7 +639,13 @@ function CreateInternalTransferModal({
                       ? 'Loading stock...'
                       : 'Where stock is now...'
               }
-              emptyMessage="No on-hand stock in an eligible bin for this type filter."
+              emptyMessage={
+                lotTracked && !lotId
+                  ? 'Select a lot first.'
+                  : sourceTypeFilter
+                    ? 'No on-hand stock in an eligible bin for this type filter.'
+                    : 'No on-hand stock in an eligible bin for this product.'
+              }
             />
             <Combobox
               label="Destination location"
@@ -623,7 +692,8 @@ function CreateInternalTransferModal({
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onScan={(text) => {
-          setBarcodeFilter(text.trim());
+          setProductSearchCategory('barcode');
+          setProductSearch(text.trim());
           setScanOpen(false);
         }}
         onCameraError={(msg) => toast.error(msg)}

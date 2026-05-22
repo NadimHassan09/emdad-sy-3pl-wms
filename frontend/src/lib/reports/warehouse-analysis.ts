@@ -55,7 +55,7 @@ export async function loadWarehouseKpis(
 
   const openInbound = inbound.items.filter((o) => o.status !== 'completed' && o.status !== 'cancelled').length;
   const openOutbound = outbound.items.filter((o) => o.status !== 'shipped' && o.status !== 'cancelled').length;
-  const openTasks = overview.openTasksByType.reduce((sum, row) => sum + row.count, 0);
+  const openTasks = overview.openTasksByType.reduce((sum, row) => sum + row.openCount, 0);
   const cap = overview.capacity;
 
   const receiptCycles = inbound.items

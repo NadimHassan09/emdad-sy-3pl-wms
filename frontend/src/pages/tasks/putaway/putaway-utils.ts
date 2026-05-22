@@ -1,5 +1,9 @@
 import type { InboundOrderLine } from '../../../api/inbound';
 import type { Location } from '../../../api/locations';
+import {
+  matchesTaskLineSearch,
+  type TaskLineFilters,
+} from '../../../lib/task-line-filters';
 
 import type {
   PutawayLineDraft,
@@ -94,6 +98,41 @@ export function lineStatusClass(status: PutawayLineStatus): string {
     default:
       return 'bg-slate-100 text-slate-600';
   }
+}
+
+export function putawayLineStatusFilterOptions(): Array<{
+  value: PutawayLineStatus | '';
+  label: string;
+}> {
+  return [
+    { value: '', label: 'All statuses' },
+    { value: 'pending', label: lineStatusLabel('pending') },
+    { value: 'scanning', label: lineStatusLabel('scanning') },
+    { value: 'ready', label: lineStatusLabel('ready') },
+    { value: 'complete', label: lineStatusLabel('complete') },
+  ];
+}
+
+export function filterPutawayDrafts(
+  drafts: PutawayLineDraft[],
+  filters: TaskLineFilters,
+  lineById: Map<string, InboundOrderLine>,
+  targetQty: Record<string, number>,
+  lotsByProductId: Map<string, Array<{ id: string; lotNumber: string }>>,
+  allLocations: Location[],
+): PutawayLineDraft[] {
+  return drafts.filter((d) => {
+    const ol = lineById.get(d.inbound_order_line_id);
+    const status = computeLineStatus(d, targetQty[d.inbound_order_line_id] ?? 0);
+    if (filters.status && status !== filters.status) return false;
+    const lots = ol?.productId ? lotsByProductId.get(ol.productId) : undefined;
+    return matchesTaskLineSearch(filters.search, {
+      sku: ol?.product?.sku,
+      name: ol?.product?.name,
+      barcode: ol?.product?.barcode,
+      lot: putawayLotLabel(d.lot_id, ol, lots ?? []),
+    });
+  });
 }
 
 export function computePutawaySummary(

@@ -97,6 +97,27 @@ export class LedgerQueryDto extends PaginationDto {
   @IsUuidLoose()
   productId?: string;
 
+  /** Substring match on product name, SKU, or barcode. */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  productSearch?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  productName?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  productBarcode?: string;
+
   @EmptyToUndefined()
   @IsOptional()
   @IsIn(MOVEMENT_FILTERS)

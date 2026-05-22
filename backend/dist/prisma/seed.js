@@ -168,6 +168,34 @@ async function main() {
         console.log('   - ' + c.name + ' (' + c.id + ')');
     console.log('  Warehouse: ' + warehouse.code + ' — ' + warehouse.name);
     console.log('  Locations: WH-001/A, WH-001/A/A-01\n');
+    await removeStrayWarehouseWh();
+}
+async function removeStrayWarehouseWh() {
+    const stray = await prisma.warehouse.findUnique({ where: { code: 'WH' } });
+    if (!stray)
+        return;
+    const main = await prisma.warehouse.findUnique({ where: { code: 'WH-001' } });
+    if (main) {
+        await prisma.worker.updateMany({
+            where: { warehouseId: stray.id },
+            data: { warehouseId: main.id },
+        });
+        await prisma.workflowInstance.updateMany({
+            where: { warehouseId: stray.id },
+            data: { warehouseId: main.id },
+        });
+        await prisma.stockAdjustment.updateMany({
+            where: { warehouseId: stray.id },
+            data: { warehouseId: main.id },
+        });
+        await prisma.currentStock.updateMany({
+            where: { warehouseId: stray.id },
+            data: { warehouseId: main.id },
+        });
+    }
+    await prisma.location.deleteMany({ where: { warehouseId: stray.id } });
+    await prisma.warehouse.delete({ where: { id: stray.id } });
+    console.log('  Removed stray warehouse WH (reassigned to WH-001 when applicable).');
 }
 main()
     .catch((err) => {

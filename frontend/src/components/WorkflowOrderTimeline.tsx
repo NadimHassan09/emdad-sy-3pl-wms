@@ -127,18 +127,9 @@ export function WorkflowOrderTimeline({
 
   return (
     <section className={PANEL_CARD_CLASS}>
-      <div className="flex items-center justify-between gap-3">
-        <h2 className={PANEL_TITLE_CLASS}>Workflow timeline</h2>
-        {wf ? (
-          <div className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-600">
-            <span className="font-mono">{wf.id.slice(0, 8)}…</span>
-            <span className="text-slate-400">•</span>
-            <span>{prettyStatus(wf.status)}</span>
-          </div>
-        ) : null}
-      </div>
-      <div className="mt-4 overflow-x-auto pb-1">
-        <ol className="flex min-w-max items-start gap-0">
+      <h2 className={PANEL_TITLE_CLASS}>Workflow timeline</h2>
+      <div className="mt-4 flex justify-center overflow-x-auto pb-1">
+        <ol className="flex w-max items-start gap-0">
           {tasks.map((t, idx) => {
             const state = workflowState(t);
             const assigneeLabel = taskAssignedWorkerLabel(t.assignments);

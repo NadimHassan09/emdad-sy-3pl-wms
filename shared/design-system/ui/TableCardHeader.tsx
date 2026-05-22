@@ -29,7 +29,7 @@ export function TableCardHeader({
   return (
     <div
       className={cn(
-        'flex flex-col gap-4 border-b border-slate-100 px-6 py-5 md:flex-row md:items-start md:justify-between',
+        'flex flex-col gap-2 border-b border-slate-100 px-3 py-3 sm:px-4 md:flex-row md:items-start md:justify-between',
         className,
       )}
       {...rest}
@@ -37,7 +37,7 @@ export function TableCardHeader({
       {(title || description) && (
         <div className="min-w-0">
           {title && (
-            <TitleTag className="text-xl font-semibold text-slate-900">{title}</TitleTag>
+            <TitleTag className="text-base font-semibold text-slate-900 sm:text-lg">{title}</TitleTag>
           )}
           {description && (
             <p className="mt-1 text-sm leading-relaxed text-slate-500">{description}</p>

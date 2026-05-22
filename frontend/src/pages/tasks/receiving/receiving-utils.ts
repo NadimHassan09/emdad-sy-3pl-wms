@@ -1,9 +1,11 @@
 import type { InboundOrder, InboundOrderLine } from '../../../api/inbound';
-import type { Product } from '../../../api/products';
+import type { Product, ProductLot } from '../../../api/products';
+import { downloadCsv } from '../../../lib/reports/csv-export';
 
 import type {
   LineReceiveDraft,
   MatchedLine,
+  ReceivingLineFilters,
   ReceivingLineRow,
   ReceivingLineStatus,
   ReceivingSummary,
@@ -59,6 +61,37 @@ export function lineStatusClass(status: ReceivingLineStatus): string {
     default:
       return 'bg-slate-100 text-slate-600';
   }
+}
+
+export function filterReceivingLines(
+  lines: ReceivingLineRow[],
+  filters: ReceivingLineFilters,
+  lineMap: Map<string, InboundOrderLine>,
+  lineDrafts: Record<string, LineReceiveDraft>,
+): ReceivingLineRow[] {
+  const q = filters.search.trim().toLowerCase();
+  return lines.filter((row) => {
+    const lid = row.inbound_order_line_id;
+    const ol = lineMap.get(lid);
+    const d = lineDrafts[lid] ?? {
+      receivedQty: '',
+      damagedQty: '',
+      notes: '',
+      expiry: '',
+    };
+    const status = computeLineStatus(
+      parseQty(row.expected_qty),
+      parseQty(d.receivedQty),
+      parseQty(d.damagedQty),
+    );
+    if (filters.status && status !== filters.status) return false;
+    if (!q) return true;
+    const sku = ol?.product?.sku?.toLowerCase() ?? '';
+    const name = ol?.product?.name?.toLowerCase() ?? '';
+    const bc = ol?.product?.barcode?.toLowerCase() ?? '';
+    const lot = ol?.expectedLotNumber?.trim().toLowerCase() ?? '';
+    return sku.includes(q) || name.includes(q) || bc.includes(q) || lot.includes(q);
+  });
 }
 
 export function computeReceivingSummary(
@@ -138,6 +171,140 @@ export function formatDim(v: string | number | null | undefined): string {
   if (v == null || v === '') return '—';
   const n = typeof v === 'number' ? v : parseFloat(String(v));
   return Number.isFinite(n) ? String(n) : String(v);
+}
+
+export function exportReceivingLinesCsv(
+  lines: ReceivingLineRow[],
+  lineMap: Map<string, InboundOrderLine>,
+  lineDrafts: Record<string, LineReceiveDraft>,
+  fileName: string,
+): void {
+  const headers = [
+    'Product',
+    'SKU',
+    'Barcode',
+    'Lot',
+    'Expected',
+    'Received',
+    'Damaged',
+    'Missing',
+    'Status',
+    'Expiry',
+    'Notes',
+  ];
+  const rows = lines.map((l) => {
+    const lid = l.inbound_order_line_id;
+    const ol = lineMap.get(lid);
+    const d = lineDrafts[lid] ?? { receivedQty: '', damagedQty: '', notes: '', expiry: '' };
+    const expected = parseQty(l.expected_qty);
+    const received = parseQty(d.receivedQty);
+    const damaged = parseQty(d.damagedQty);
+    const missing = Math.max(0, expected - received - damaged);
+    const status = lineStatusLabel(computeLineStatus(expected, received, damaged));
+    return [
+      ol?.product?.name ?? '',
+      ol?.product?.sku ?? '',
+      ol?.product?.barcode ?? '',
+      receivingExpectedLotDisplay(ol),
+      l.expected_qty,
+      d.receivedQty,
+      d.damagedQty,
+      String(missing),
+      status,
+      ol?.product?.expiryTracking ? d.expiry : '',
+      d.notes,
+    ];
+  });
+  downloadCsv(headers, rows, fileName);
+}
+
+export function parseDamagedFromDiscrepancyNotes(notes?: string | null): string {
+  if (!notes) return '';
+  const m = /damaged:([\d.]+)/i.exec(notes);
+  return m ? m[1] : '';
+}
+
+export function formatDateOnly(value: string | null | undefined): string {
+  if (!value?.trim()) return '';
+  const s = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
+}
+
+export function parseExpiryFromDiscrepancyNotes(notes?: string | null): string {
+  if (!notes) return '';
+  const m = /expiry:(\d{4}-\d{2}-\d{2})/i.exec(notes);
+  return m ? m[1] : '';
+}
+
+export function lotExpiryForOrderLine(
+  ol: InboundOrderLine | undefined,
+  lots: ProductLot[] | undefined,
+): string {
+  if (!ol?.expectedLotNumber?.trim() || !lots?.length) return '';
+  const ln = ol.expectedLotNumber.trim().toLowerCase();
+  const lot = lots.find((l) => l.lotNumber.trim().toLowerCase() === ln);
+  return formatDateOnly(lot?.expiryDate);
+}
+
+export function productRequiresExpiry(
+  ol: InboundOrderLine | undefined,
+  fullProduct?: Pick<Product, 'expiryTracking' | 'trackingType'> | null,
+): boolean {
+  const p = fullProduct ?? ol?.product;
+  if (!p) return false;
+  return p.expiryTracking === true || p.trackingType === 'lot';
+}
+
+export function resolveLineExpiryDisplay(
+  ol: InboundOrderLine | undefined,
+  draft: LineReceiveDraft,
+  lots?: ProductLot[],
+): string {
+  const fromDraft = draft.expiry.trim();
+  if (fromDraft) return fromDraft;
+  if (!ol) return '';
+  const fromNotes = parseExpiryFromDiscrepancyNotes(ol.discrepancyNotes);
+  if (fromNotes) return fromNotes;
+  const fromExpected = formatDateOnly(ol.expectedExpiryDate);
+  if (fromExpected) return fromExpected;
+  return lotExpiryForOrderLine(ol, lots);
+}
+
+export function parseHumanNotesFromDiscrepancyNotes(notes?: string | null): string {
+  if (!notes) return '';
+  return notes
+    .split(' · ')
+    .filter(
+      (part) =>
+        !/^damaged:/i.test(part) &&
+        !/^expiry:/i.test(part) &&
+        !/^attr-validated:/i.test(part),
+    )
+    .join(' · ')
+    .trim();
+}
+
+/** Rebuild receive-line draft from persisted inbound order line (completed receiving tasks). */
+export function lineDraftFromInboundOrderLine(
+  ol: InboundOrderLine,
+  lots?: ProductLot[],
+): LineReceiveDraft {
+  const received = parseQty(ol.receivedQuantity);
+  const damaged = parseDamagedFromDiscrepancyNotes(ol.discrepancyNotes);
+  const empty: LineReceiveDraft = {
+    receivedQty: '',
+    damagedQty: '',
+    notes: '',
+    expiry: '',
+  };
+  return {
+    receivedQty: received > 0 ? String(received) : '',
+    damagedQty: damaged,
+    notes: parseHumanNotesFromDiscrepancyNotes(ol.discrepancyNotes),
+    expiry: resolveLineExpiryDisplay(ol, empty, lots),
+  };
 }
 
 export function buildDiscrepancyNotes(draft: LineReceiveDraft): string | undefined {

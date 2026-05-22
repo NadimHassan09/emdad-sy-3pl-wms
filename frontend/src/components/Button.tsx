@@ -1,6 +1,6 @@
 import { ButtonHTMLAttributes, forwardRef } from 'react';
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'brand';
 type Size = 'sm' | 'md';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -16,11 +16,16 @@ const VARIANT_CLASSES: Record<Variant, string> = {
     'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 focus:ring-emerald-300',
   danger: 'bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-300 disabled:bg-rose-300',
   ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 focus:ring-emerald-300',
+  /** Modal create/save/confirm — matches Apply filters green; hover #059669. */
+  brand:
+    '!rounded-xl border border-[#10B981] bg-[#10B981] px-3 py-1.5 text-sm font-semibold text-white shadow-sm ' +
+    'hover:border-[#059669] hover:bg-[#059669] hover:text-white ' +
+    'focus:ring-emerald-300 disabled:border-[#10B981]/40 disabled:bg-[#10B981]/40 disabled:text-white/90',
 };
 
 const SIZE_CLASSES: Record<Size, string> = {
-  sm: 'px-2.5 py-1 text-xs',
-  md: 'px-3.5 py-2 text-sm',
+  sm: 'px-2 py-0.5 text-xs',
+  md: 'px-3 py-1.5 text-xs',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

@@ -3,27 +3,31 @@ import type { ClientPortalRole } from '../types/auth';
 export type ClientNavItem = {
   label: string;
   labelAr: string;
+  iconKey: string;
   to: string;
   exact?: boolean;
 };
 
 const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
-  { label: 'Home', labelAr: 'الرئيسية', to: '/', exact: true, roles: ['client_admin', 'client_staff'] },
+  { label: 'Home', labelAr: 'الرئيسية', iconKey: 'Home', to: '/', exact: true, roles: ['client_admin', 'client_staff'] },
   {
     label: 'Orders',
     labelAr: 'الطلبات',
+    iconKey: 'Orders',
     to: '/inbound-orders',
     roles: ['client_admin', 'client_staff'],
   },
   {
     label: 'Products',
     labelAr: 'المنتجات',
+    iconKey: 'Products',
     to: '/products',
     roles: ['client_admin'],
   },
   {
     label: 'Stock',
     labelAr: 'المخزون',
+    iconKey: 'Stock',
     to: '/stock',
     roles: ['client_admin', 'client_staff'],
   },
@@ -57,9 +61,10 @@ export function defaultClientHomePath(): string {
 
 export function clientNavForRole(role: ClientPortalRole | string | undefined): ClientNavItem[] {
   if (role !== 'client_admin' && role !== 'client_staff') return [];
-  return NAV_CATALOG.filter((item) => item.roles.includes(role)).map(({ label, labelAr, to, exact }) => ({
+  return NAV_CATALOG.filter((item) => item.roles.includes(role)).map(({ label, labelAr, iconKey, to, exact }) => ({
     label,
     labelAr,
+    iconKey,
     to,
     exact,
   }));

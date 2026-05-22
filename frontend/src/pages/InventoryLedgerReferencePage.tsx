@@ -94,16 +94,11 @@ export function InventoryLedgerReferencePage() {
                 ? 'bg-rose-50 text-rose-900 ring-rose-200'
                 : 'bg-slate-100 text-slate-800 ring-slate-200';
           return (
-            <div className="space-y-1">
-              <span
-                className={`inline-block rounded px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tone}`}
-              >
-                {ledgerMovementLabel(cat)}
-              </span>
-              <div className="font-mono text-[11px] text-slate-500" title={r.movementType}>
-                {r.movementType}
-              </div>
-            </div>
+            <span
+              className={`inline-block rounded px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tone}`}
+            >
+              {ledgerMovementLabel(cat)}
+            </span>
           );
         },
         width: '140px',

@@ -32,6 +32,7 @@ import {
 } from 'react';
 import { cn } from './cn';
 import { Button } from './Button';
+import { FILTER_RESET_BUTTON_CLASS } from './filter-button-styles';
 import { Spinner } from './Spinner';
 import { Badge } from './Badge';
 
@@ -122,10 +123,11 @@ export function FilterBarActions({
       </Button>
       <Button
         type="button"
-        variant="secondary"
+        variant="danger"
         size="sm"
         disabled={loading}
         onClick={onReset}
+        className={FILTER_RESET_BUTTON_CLASS}
       >
         {resetLabel}
         {activeCount != null && activeCount > 0 && (
@@ -239,7 +241,7 @@ export function StatusFilter({
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         className={cn(
-          'h-10 w-full bg-white border border-neutral-300 rounded-lg',
+          'h-8 w-full bg-white border border-neutral-300 rounded-lg text-sm',
           'ps-3 pe-9 text-sm text-neutral-900',
           'appearance-none',
           'transition-colors duration-fast',

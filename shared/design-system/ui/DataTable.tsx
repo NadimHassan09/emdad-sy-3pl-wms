@@ -134,15 +134,15 @@ const DENSITY_ROW_H: Record<Density, string> = {
 };
 
 const DENSITY_CELL_PX: Record<Density, string> = {
-  compact:     'px-3 py-2',
-  default:     'px-6 py-5',
-  comfortable: 'px-6 py-5',
+  compact:     'px-2.5 py-1.5',
+  default:     'px-3 py-2.5',
+  comfortable: 'px-4 py-3',
 };
 
 const DENSITY_HEADER_PX: Record<Density, string> = {
-  compact:     'px-3 py-2',
-  default:     'px-6 py-4',
-  comfortable: 'px-6 py-4',
+  compact:     'px-2.5 py-1.5',
+  default:     'px-3 py-2',
+  comfortable: 'px-4 py-2.5',
 };
 
 const ALIGN_CLASS: Record<Align, string> = {
@@ -195,7 +195,7 @@ function Th({
       aria-sort={sortable ? (isDir === 'asc' ? 'ascending' : isDir === 'desc' ? 'descending' : 'none') : undefined}
       className={cn(
         'bg-slate-100 text-slate-500',
-        'text-sm font-medium uppercase tracking-wide whitespace-nowrap',
+        'text-xs font-medium uppercase tracking-wide whitespace-nowrap',
         ALIGN_CLASS[align],
         sticky && 'sticky start-0 z-raised bg-slate-100 after:absolute after:inset-y-0 after:end-0 after:w-px after:bg-slate-200',
         sortable && 'cursor-pointer select-none hover:text-slate-700',
@@ -335,7 +335,7 @@ export function DataTable<T>({
   return (
     <div
       className={cn(
-        'w-full overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm',
+        'w-full overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm',
         className,
       )}
     >
@@ -463,7 +463,7 @@ export function DataTableContainer({
   return (
     <div
       className={cn(
-        'flex flex-col gap-0 overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm',
+        'flex flex-col gap-0 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm',
         className,
       )}
       {...rest}
