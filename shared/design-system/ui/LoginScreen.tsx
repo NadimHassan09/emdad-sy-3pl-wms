@@ -19,7 +19,6 @@ export type LoginScreenProps = {
   emailLabel?: string;
   passwordLabel?: string;
   rememberLabel?: string;
-  forgotPasswordLabel?: string;
   loading?: boolean;
   error?: string | null;
   email: string;
@@ -93,7 +92,6 @@ export function LoginScreen({
   emailLabel = 'Email',
   passwordLabel = 'Password',
   rememberLabel = 'Remember me',
-  forgotPasswordLabel = 'Forgot password?',
   loading = false,
   error,
   email,
@@ -176,24 +174,15 @@ export function LoginScreen({
               />
             </div>
 
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <label className="inline-flex cursor-pointer items-center gap-2 text-neutral-600">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={(e) => setRemember(e.target.checked)}
-                  className="h-4 w-4 rounded border-neutral-300 text-brand-600 focus:ring-brand-500"
-                />
-                {rememberLabel}
-              </label>
-              <button
-                type="button"
-                className="font-medium text-brand-700 hover:text-brand-800"
-                onClick={(e) => e.preventDefault()}
-              >
-                {forgotPasswordLabel}
-              </button>
-            </div>
+            <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-neutral-600">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                className="h-4 w-4 rounded border-neutral-300 text-brand-600 focus:ring-brand-500"
+              />
+              {rememberLabel}
+            </label>
 
             {error ? (
               <div

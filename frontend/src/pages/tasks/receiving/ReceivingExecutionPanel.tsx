@@ -26,7 +26,7 @@ import type {
   ReceivingLineStatus,
 } from './receiving-types';
 import { DEFAULT_RECEIVING_LINE_FILTERS } from './receiving-types';
-import type { ProductLot } from '../../../api/products';
+import type { Product, ProductLot } from '../../../api/products';
 import {
   buildDiscrepancyNotes,
   computeLineStatus,
@@ -876,7 +876,7 @@ function ReceivingLinesTable({
   lineMap: Map<string, InboundOrderLine>;
   lineDrafts: Record<string, LineReceiveDraft>;
   lineExpiryByLineId: Record<string, string>;
-  productsById: Map<string, { expiryTracking: boolean; trackingType: string } | undefined>;
+  productsById: Map<string, Pick<Product, 'expiryTracking' | 'trackingType'> | undefined>;
   firstInboundProductIdSet: Set<string>;
   onExportPrint?: () => void;
   openLineActionId?: string | null;

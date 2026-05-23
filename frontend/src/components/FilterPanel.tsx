@@ -15,6 +15,7 @@ export const PANEL_TITLE_CLASS = 'text-base font-semibold text-slate-900';
 export function FilterPanel({
   children,
   title = 'Filters',
+  headerActions,
   onApply,
   onReset,
   applyDisabled,
@@ -25,6 +26,8 @@ export function FilterPanel({
 }: {
   children: ReactNode;
   title?: ReactNode;
+  /** Optional controls in the panel header (top right), e.g. order actions. */
+  headerActions?: ReactNode;
   onApply?: () => void;
   onReset?: () => void;
   applyDisabled?: boolean;
@@ -34,6 +37,7 @@ export function FilterPanel({
   className?: string;
 }) {
   const showActions = onApply != null && onReset != null;
+  const showHeaderRow = headerActions != null || showActions;
 
   return (
     <div
@@ -41,8 +45,11 @@ export function FilterPanel({
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className={PANEL_TITLE_CLASS}>{title}</h2>
-        {showActions && (
-          <div className="flex flex-wrap gap-3">
+        {showHeaderRow && (
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {headerActions}
+            {showActions && (
+              <>
             <Button
               type="button"
               variant="danger"
@@ -64,6 +71,8 @@ export function FilterPanel({
             >
               {applyLabel}
             </Button>
+              </>
+            )}
           </div>
         )}
       </div>

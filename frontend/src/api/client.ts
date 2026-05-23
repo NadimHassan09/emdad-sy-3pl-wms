@@ -1,8 +1,9 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 
 import { getAccessToken, setAccessToken } from '../auth/authStorage';
+import { getApiBaseUrl } from './apiBaseUrl';
 
-const baseURL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3000/api';
+const baseURL = getApiBaseUrl();
 const mockCompanyId = import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined;
 
 export const api: AxiosInstance = axios.create({

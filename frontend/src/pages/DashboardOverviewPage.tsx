@@ -33,7 +33,7 @@ import {
   WarehouseOverviewMetricCard,
   WarehouseOverviewMetricCardSkeleton,
 } from '../components/dashboard/WarehouseOverviewMetricCard';
-import { Alert, AppPageHeader, Skeleton } from '@ds';
+import { Alert, AppPageHeader } from '@ds';
 import { QK } from '../constants/query-keys';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -73,8 +73,6 @@ function dashboardLabel(label: string, isArabic: boolean): string {
     '1 open order': 'طلب واحد مفتوح',
     'open orders': 'طلبات مفتوحة',
     New: 'جديد',
-    Receive: 'استلام',
-    Putaway: 'تخزين',
     Picking: 'التقاط',
     Packing: 'تغليف',
     Shipping: 'الشحن',

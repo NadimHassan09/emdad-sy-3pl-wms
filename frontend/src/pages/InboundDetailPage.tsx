@@ -5,10 +5,12 @@ import { Link, useParams } from 'react-router-dom';
 
 import { ConfirmInboundBody, InboundApi, InboundOrderLine, ReceiveLineInput } from '../api/inbound';
 import { LocationsApi } from '../api/locations';
-import { Button } from '../components/Button';
+import { Button } from '@ds';
+
+import { Button as LegacyButton } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
-import { FilterPanel } from '../components/FilterPanel';
+import { FILTER_RESET_BUTTON_CLASS, FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
@@ -173,9 +175,9 @@ export function InboundDetailPage() {
         const rem = Number(l.expectedQuantity) - Number(l.receivedQuantity);
         if (rem <= 0) return <span className="text-xs text-emerald-700">complete</span>;
         return (
-          <Button size="sm" disabled={!canReceive} onClick={() => setReceivingLine(l)}>
+          <LegacyButton size="sm" disabled={!canReceive} onClick={() => setReceivingLine(l)}>
             {t('Receive')}
-          </Button>
+          </LegacyButton>
         );
       },
       width: '120px',
@@ -189,7 +191,23 @@ export function InboundDetailPage() {
           ← {t('All inbound orders')}
         </Link>
       </div>
-      <FilterPanel title={t('Order details')}>
+      <FilterPanel
+        title={t('Order details')}
+        headerActions={
+          canCancel ? (
+            <Button
+              type="button"
+              variant="danger"
+              size="md"
+              onClick={() => cancelMut.mutate()}
+              loading={cancelMut.isPending}
+              className={`${FILTER_RESET_BUTTON_CLASS} h-[34px] !py-0`}
+            >
+              {t('Cancel order')}
+            </Button>
+          ) : undefined
+        }
+      >
         <div className="grid grid-cols-2 gap-5 md:grid-cols-4">
         <Field label={t('Order #')} value={<span className="font-mono">{o.orderNumber || '—'}</span>} />
         <Field
@@ -264,17 +282,8 @@ export function InboundDetailPage() {
         title={o.orderNumber || t('Inbound order')}
         actions={
           <>
-            {canCancel && (
-              <Button
-                variant="secondary"
-                onClick={() => cancelMut.mutate()}
-                loading={cancelMut.isPending}
-              >
-                {t('Cancel order')}
-              </Button>
-            )}
             {canConfirm && (
-              <Button
+              <LegacyButton
                 className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
                 onClick={() => {
                   if (taskOnlyMode) {
@@ -293,7 +302,7 @@ export function InboundDetailPage() {
                 disabled={confirmDisabledTaskOnly}
               >
                 {o.status === 'pending_approval' ? t('Approve order') : t('Confirm order')}
-              </Button>
+              </LegacyButton>
             )}
           </>
         }

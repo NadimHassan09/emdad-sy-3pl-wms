@@ -10,16 +10,18 @@ const GAUGE_COLORS = {
   pendingStroke: '#e2e8f0',
 } as const;
 
+type GaugeSegmentVariant = 'completed' | 'inProgress' | 'pending';
+
 type GaugeSegment = {
   label: string;
   count: number;
-  variant: keyof typeof GAUGE_COLORS | 'pending';
+  variant: GaugeSegmentVariant;
 };
 
 function pipelinePercent(segments: GaugeSegment[]): number {
   const total = segments.reduce((s, x) => s + x.count, 0);
   if (total === 0) return 0;
-  const weights: Record<GaugeSegment['variant'], number> = {
+  const weights: Record<GaugeSegmentVariant, number> = {
     completed: 3,
     inProgress: 2,
     pending: 1,
@@ -61,7 +63,7 @@ function segmentsFromSlices(slices: DashboardChartSlice[]): GaugeSegment[] {
   ];
 }
 
-function strokeColor(variant: GaugeSegment['variant']): string {
+function strokeColor(variant: GaugeSegmentVariant): string {
   if (variant === 'completed') return GAUGE_COLORS.completed;
   if (variant === 'inProgress') return GAUGE_COLORS.inProgress;
   return GAUGE_COLORS.pendingStroke;

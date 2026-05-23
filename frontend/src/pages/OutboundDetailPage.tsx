@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { OutboundApi, OutboundOrderLine, type ConfirmOutboundBody } from '../api/outbound';
-import { Button } from '../components/Button';
+import { Button } from '@ds';
+
 import { Column, DataTable } from '../components/DataTable';
 import { Combobox } from '../components/Combobox';
-import { PageHeader } from '../components/PageHeader';
+import { FILTER_APPLY_BUTTON_CLASS, FILTER_RESET_BUTTON_CLASS, FilterPanel } from '../components/FilterPanel';
 import { StatusBadge } from '../components/StatusBadge';
 import { useToast } from '../components/ToastProvider';
 import { WorkflowOrderTimeline } from '../components/WorkflowOrderTimeline';
@@ -21,6 +22,7 @@ function outboundDetailLabel(label: string, isArabic: boolean): string {
   const ar: Record<string, string> = {
     'All outbound orders': 'جميع طلبات الصادر',
     'Outbound order': 'طلب صادر',
+    'Order details': 'تفاصيل الطلب',
     Client: 'العميل',
     Created: 'تاريخ الإنشاء',
     'Cancel order': 'إلغاء الطلب',
@@ -143,49 +145,58 @@ export function OutboundDetailPage() {
           ← {t('All outbound orders')}
         </Link>
       </div>
-      <PageHeader
-        title={o.orderNumber || t('Outbound order')}
-        actions={
-          <>
-            {canCancel && (
-              <Button
-                variant="secondary"
-                onClick={() => cancelMut.mutate()}
-                loading={cancelMut.isPending}
-              >
-                {t('Cancel order')}
-              </Button>
-            )}
-            {canConfirm && (
-              <Button
-                onClick={() =>
-                  confirmMut.mutate(
-                    taskOnlyMode ? { warehouseId: effectiveWarehouseId } : {},
-                  )
-                }
-                loading={confirmMut.isPending}
-                disabled={outboundConfirmBlocked}
-              >
-                {o.status === 'pending_approval'
-                  ? t('Approve order')
-                  : taskOnlyMode
-                    ? t('Confirm & start workflow')
-                    : t('Confirm & deduct stock')}
-              </Button>
-            )}
-          </>
+      <FilterPanel
+        title={t('Order details')}
+        headerActions={
+          canCancel || canConfirm ? (
+            <>
+              {canCancel ? (
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="md"
+                  onClick={() => cancelMut.mutate()}
+                  loading={cancelMut.isPending}
+                  className={`${FILTER_RESET_BUTTON_CLASS} h-[34px] !py-0`}
+                >
+                  {t('Cancel order')}
+                </Button>
+              ) : null}
+              {canConfirm ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={() =>
+                    confirmMut.mutate(
+                      taskOnlyMode ? { warehouseId: effectiveWarehouseId } : {},
+                    )
+                  }
+                  loading={confirmMut.isPending}
+                  disabled={outboundConfirmBlocked}
+                  className={`${FILTER_APPLY_BUTTON_CLASS} h-[34px] !py-0`}
+                >
+                  {o.status === 'pending_approval'
+                    ? t('Approve order')
+                    : taskOnlyMode
+                      ? t('Confirm & start workflow')
+                      : t('Confirm & deduct stock')}
+                </Button>
+              ) : null}
+            </>
+          ) : undefined
         }
-      />
-
-      <div className="mb-4 grid grid-cols-2 gap-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-4">
-        <Field label={t('Order #')} value={<span className="font-mono">{o.orderNumber || '—'}</span>} />
-        <Field label={t('Status')} value={<StatusBadge status={o.status} />} />
-        <Field label={t('Client')} value={o.company?.name ?? '—'} />
-        <Field label={t('Required ship')} value={new Date(o.requiredShipDate).toLocaleDateString()} />
-        <Field label={t('Carrier')} value={o.carrier ?? '—'} />
-        <Field label={t('Shipped at')} value={o.shippedAt ? new Date(o.shippedAt).toLocaleString() : '—'} />
-        <Field label={t('Destination')} value={o.destinationAddress} />
-      </div>
+      >
+        <div className="grid grid-cols-2 gap-5 md:grid-cols-4">
+          <Field label={t('Order #')} value={<span className="font-mono">{o.orderNumber || '—'}</span>} />
+          <Field label={t('Status')} value={<StatusBadge status={o.status} />} />
+          <Field label={t('Client')} value={o.company?.name ?? '—'} />
+          <Field label={t('Required ship')} value={new Date(o.requiredShipDate).toLocaleDateString()} />
+          <Field label={t('Carrier')} value={o.carrier ?? '—'} />
+          <Field label={t('Shipped at')} value={o.shippedAt ? new Date(o.shippedAt).toLocaleString() : '—'} />
+          <Field label={t('Destination')} value={o.destinationAddress} />
+        </div>
+      </FilterPanel>
 
       {taskOnlyMode && canConfirm ? (
         <div className="mb-4 space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-4 text-sm text-amber-950">

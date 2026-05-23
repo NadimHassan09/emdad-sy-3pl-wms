@@ -34,7 +34,9 @@ export function AnchoredDropdown({
   align?: 'start' | 'end';
   menuClassName?: string;
   /** Props on the portaled menu root (e.g. data-* for click-outside). */
-  menuRootProps?: HTMLAttributes<HTMLDivElement>;
+  menuRootProps?: HTMLAttributes<HTMLDivElement> & {
+    [key: `data-${string}`]: string | undefined;
+  };
   extendScroll?: boolean;
 }) {
   const triggerRef = useRef<HTMLDivElement>(null);

@@ -1,5 +1,5 @@
 import JsBarcode from 'jsbarcode';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 import { Button } from './Button';
 import { Modal } from './Modal';
@@ -17,37 +17,51 @@ interface BarcodeImageModalProps {
 
 export function BarcodeImageModal({ open, onClose, value, productName, contextLabel }: BarcodeImageModalProps) {
   const titleSuffix = (contextLabel ?? productName ?? '').trim() || '—';
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const paintBarcode = useCallback(
+    (canvas: HTMLCanvasElement) => {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        setError('No barcode value.');
+        return;
+      }
+      setError(null);
+      try {
+        JsBarcode(canvas, trimmed, {
+          format: 'CODE128',
+          width: 2,
+          height: 96,
+          displayValue: true,
+          margin: 16,
+          background: '#ffffff',
+          lineColor: '#0f172a',
+          fontSize: 16,
+        });
+      } catch {
+        setError('Could not generate a barcode image for this value.');
+      }
+    },
+    [value],
+  );
+
+  const onCanvasRef = useCallback(
+    (canvas: HTMLCanvasElement | null) => {
+      canvasRef.current = canvas;
+      if (canvas && open) paintBarcode(canvas);
+    },
+    [open, paintBarcode],
+  );
+
+  useLayoutEffect(() => {
     if (!open) {
       setError(null);
       return;
     }
-    const trimmed = value.trim();
-    if (!trimmed) {
-      setError('No barcode value.');
-      return;
-    }
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    setError(null);
-    try {
-      JsBarcode(canvas, trimmed, {
-        format: 'CODE128',
-        width: 2,
-        height: 96,
-        displayValue: true,
-        margin: 16,
-        background: '#ffffff',
-        lineColor: '#0f172a',
-        fontSize: 16,
-      });
-    } catch {
-      setError('Could not generate a barcode image for this value.');
-    }
-  }, [open, value]);
+    if (canvas) paintBarcode(canvas);
+  }, [open, value, paintBarcode]);
 
   const downloadPng = () => {
     const canvas = canvasRef.current;
@@ -91,8 +105,7 @@ export function BarcodeImageModal({ open, onClose, value, productName, contextLa
           <p className="text-center text-sm text-rose-600">{error}</p>
         ) : (
           <canvas
-            key={`${open}-${value.trim()}`}
-            ref={canvasRef}
+            ref={onCanvasRef}
             className="max-w-full rounded border border-slate-200 bg-white"
           />
         )}
