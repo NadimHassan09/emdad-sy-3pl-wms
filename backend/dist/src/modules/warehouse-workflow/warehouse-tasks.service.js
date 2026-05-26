@@ -451,6 +451,10 @@ let WarehouseTasksService = class WarehouseTasksService {
                 const wf = await tx.workflowInstance.findUniqueOrThrow({
                     where: { id: task.workflowInstanceId },
                 });
+                const existingExec = this.parseExecState(task.executionState);
+                if (existingExec.reservations.length > 0) {
+                    await this.effects.releaseReservations(tx, existingExec.reservations);
+                }
                 const parsed = parsePickPayload(task.payload);
                 const linesDb = await tx.outboundOrderLine.findMany({
                     where: {

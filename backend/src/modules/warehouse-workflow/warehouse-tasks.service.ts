@@ -554,6 +554,17 @@ export class WarehouseTasksService {
         const wf = await tx.workflowInstance.findUniqueOrThrow({
           where: { id: task.workflowInstanceId },
         });
+        // GAP: if a pick task is reopened (failed → pending) without clearing
+        // `executionState.reservations`, a subsequent `start()` would reserve stock
+        // again on top of the old reserved quantity.
+        //
+        // Safeguard: when starting a pick task, release any existing reservations
+        // encoded in `executionState` before creating the new reservation set.
+        const existingExec = this.parseExecState(task.executionState);
+        if (existingExec.reservations.length > 0) {
+          await this.effects.releaseReservations(tx, existingExec.reservations);
+        }
+
         const parsed = parsePickPayload(task.payload as unknown);
         const linesDb = await tx.outboundOrderLine.findMany({
           where: {

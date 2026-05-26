@@ -105,7 +105,25 @@ export class TaskInventoryEffectsService {
         );
       }
     }
-    return reservations;
+
+    // Reservation uniqueness safeguard:
+    // Merge duplicate slices for the same (outboundOrderLineId, locationId, lotId).
+    // This prevents multiple active “slice entries” for the same inventory unit tuple,
+    // while preserving the exact reserved quantity totals.
+    const merged = new Map<string, ReservationSnapshot>();
+    for (const r of reservations) {
+      const k = `${r.outboundOrderLineId}:${r.companyId}:${r.productId}:${r.locationId}:${r.lotId ?? 'null'}`;
+      const cur = merged.get(k);
+      if (!cur) {
+        merged.set(k, { ...r, quantity: r.quantity });
+        continue;
+      }
+      merged.set(k, {
+        ...cur,
+        quantity: new Prisma.Decimal(cur.quantity).plus(new Prisma.Decimal(r.quantity)).toString(),
+      });
+    }
+    return [...merged.values()];
   }
 
   async releaseReservations(tx: Prisma.TransactionClient, rows: ReservationSnapshot[]): Promise<void> {

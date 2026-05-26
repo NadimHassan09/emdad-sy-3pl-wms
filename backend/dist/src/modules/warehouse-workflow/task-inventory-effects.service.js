@@ -75,7 +75,20 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 throw new common_1.BadRequestException(`Insufficient stock to reserve pick for line ${line.outboundOrderLineId}.`);
             }
         }
-        return reservations;
+        const merged = new Map();
+        for (const r of reservations) {
+            const k = `${r.outboundOrderLineId}:${r.companyId}:${r.productId}:${r.locationId}:${r.lotId ?? 'null'}`;
+            const cur = merged.get(k);
+            if (!cur) {
+                merged.set(k, { ...r, quantity: r.quantity });
+                continue;
+            }
+            merged.set(k, {
+                ...cur,
+                quantity: new client_1.Prisma.Decimal(cur.quantity).plus(new client_1.Prisma.Decimal(r.quantity)).toString(),
+            });
+        }
+        return [...merged.values()];
     }
     async releaseReservations(tx, rows) {
         for (const r of rows) {
