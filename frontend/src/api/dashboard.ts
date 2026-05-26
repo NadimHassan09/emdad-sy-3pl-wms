@@ -42,6 +42,40 @@ export function normalizeOpenOrdersChartSide(
   return { stages, inProgress, notInProgress };
 }
 
+export type OpenTasksByTypeRow = {
+  key: string;
+  label: string;
+  openCount: number;
+  inProgressCount: number;
+};
+
+function safeCount(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+/** Normalize API rows and hide types with no open (non-completed) tasks. */
+export function normalizeOpenTasksByType(
+  raw: Array<Record<string, unknown>> | undefined,
+): OpenTasksByTypeRow[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((row) => {
+      const openCount = safeCount(row.openCount ?? row.open_count);
+      const inProgressCount = safeCount(
+        row.inProgressCount ?? row.in_progress_count ?? row.inProgress ?? row.in_progress,
+      );
+      return {
+        key: String(row.key ?? ''),
+        label: String(row.label ?? row.key ?? ''),
+        openCount,
+        inProgressCount: Math.min(inProgressCount, openCount),
+      };
+    })
+    .filter((row) => row.key && row.openCount > 0);
+}
+
 export type DashboardOverview = {
   counters: {
     totalItemsInStock: number;
@@ -52,12 +86,7 @@ export type DashboardOverview = {
     inbound: number;
     outbound: number;
   };
-  openTasksByType: Array<{
-    key: string;
-    label: string;
-    openCount: number;
-    completedCount: number;
-  }>;
+  openTasksByType: OpenTasksByTypeRow[];
   capacity: {
     occupiedLocations: number;
     totalStorageLocations: number;
@@ -82,8 +111,13 @@ export type DashboardOverview = {
 
 export const DashboardApi = {
   async overview(): Promise<DashboardOverview> {
-    const { data } = await api.get<DashboardOverview>('/dashboard/overview');
-    return data;
+    const { data } = await api.get<DashboardOverview & { openTasksByType?: Array<Record<string, unknown>> }>(
+      '/dashboard/overview',
+    );
+    return {
+      ...data,
+      openTasksByType: normalizeOpenTasksByType(data.openTasksByType),
+    };
   },
 
   async openOrdersCharts(): Promise<OpenOrdersCharts> {

@@ -6,6 +6,7 @@ import { Request } from 'express';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
 import { AuthPrincipal } from '../../../common/auth/current-user.types';
+import { CompanyAccessService } from '../../../common/company-access/company-access.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { UserActivityService } from '../user-activity.service';
 
@@ -19,7 +20,8 @@ export interface JwtAccessPayload {
 
 const UUID_HEADER_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function companyScopeFromRequest(req: Request): string | null {
+/** Raw header hint only — validated in `CompanyAccessService`, never trusted alone. */
+function requestedCompanyIdFromRequest(req: Request): string | null {
   const raw = req.headers['x-company-id'];
   const v = Array.isArray(raw) ? raw[0] : raw;
   if (typeof v !== 'string' || !UUID_HEADER_RE.test(v.trim())) return null;
@@ -39,6 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly userActivity: UserActivityService,
+    private readonly companyAccess: CompanyAccessService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
@@ -66,12 +69,21 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new ForbiddenException('Client accounts are not permitted to use this application.');
     }
     this.userActivity.touch(user.id);
-    return {
-      id: user.id,
-      role: user.role as AuthPrincipal['role'],
-      /** Request-scoped tenant (optional). System users always have `users.company_id` null. */
-      companyId: companyScopeFromRequest(req),
-      email: user.email,
-    };
+
+    const tenantScope = await this.companyAccess.resolvePrincipalTenant(
+      user.id,
+      user.role as AuthPrincipal['role'],
+      requestedCompanyIdFromRequest(req),
+    );
+
+    return this.companyAccess.enrichPrincipal(
+      {
+        id: user.id,
+        companyId: null,
+        role: user.role as AuthPrincipal['role'],
+        email: user.email,
+      },
+      tenantScope,
+    );
   }
 }

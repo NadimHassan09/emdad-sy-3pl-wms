@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 
 import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import {
   isAdjustmentStockLocationType,
 } from '../../common/constants/storage-location-types';
@@ -47,15 +48,11 @@ export class AdjustmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stock: StockHelpers,
+    private readonly companyAccess: CompanyAccessService,
   ) {}
 
   async create(user: AuthPrincipal, dto: CreateAdjustmentDto) {
-    const companyId = dto.companyId ?? user.companyId;
-    if (!companyId) {
-      throw new BadRequestException(
-        'companyId is required (no default company on current user).',
-      );
-    }
+    const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
 
     const wh = await this.prisma.warehouse.findUnique({
       where: { id: dto.warehouseId },
@@ -80,9 +77,7 @@ export class AdjustmentsService {
     if (adj.status !== 'draft') {
       throw new InvalidStateException('Only draft adjustments can be edited.');
     }
-    if (user.companyId && adj.companyId !== user.companyId) {
-      throw new NotFoundException('Adjustment not found.');
-    }
+    this.companyAccess.validateResourceOwnership(user, adj);
     return this.prisma.stockAdjustment.update({
       where: { id },
       data: { reason: dto.reason.trim(), updatedAt: new Date() },
@@ -92,7 +87,7 @@ export class AdjustmentsService {
 
   list(user: AuthPrincipal, query: ListAdjustmentsQueryDto) {
     const where: Prisma.StockAdjustmentWhereInput = {};
-    const companyId = readCompanyIdFilter(user, query.companyId);
+    const companyId = readCompanyIdFilter(this.companyAccess, user, query.companyId);
     if (companyId) where.companyId = companyId;
     if (query.status) where.status = query.status;
     if (query.warehouseId) where.warehouseId = query.warehouseId;
@@ -131,19 +126,23 @@ export class AdjustmentsService {
     }));
   }
 
-  async findById(id: string) {
+  async findById(id: string, user?: AuthPrincipal) {
     const row = await this.prisma.stockAdjustment.findUnique({
       where: { id },
       include: ADJUSTMENT_DETAIL_INCLUDE,
     });
     if (!row) throw new NotFoundException('Adjustment not found.');
+    if (user) {
+      this.companyAccess.validateResourceOwnership(user, row);
+    }
     return row;
   }
 
-  async addLine(_user: AuthPrincipal, adjustmentId: string, dto: AddAdjustmentLineDto) {
+  async addLine(user: AuthPrincipal, adjustmentId: string, dto: AddAdjustmentLineDto) {
     return this.prisma.$transaction(async (tx) => {
       const adj = await tx.stockAdjustment.findUnique({ where: { id: adjustmentId } });
       if (!adj) throw new NotFoundException('Adjustment not found.');
+      this.companyAccess.validateResourceOwnership(user, adj);
       if (adj.status !== 'draft') {
         throw new InvalidStateException('Lines can only be added while adjustment is draft.');
       }
@@ -283,6 +282,7 @@ export class AdjustmentsService {
           include: { lines: true },
         });
         if (!adj) throw new NotFoundException('Adjustment not found.');
+        this.companyAccess.validateResourceOwnership(user, adj);
         if (adj.status !== 'draft') {
           throw new InvalidStateException(
             `Only draft adjustments can be approved (current: ${adj.status}).`,
@@ -402,9 +402,10 @@ export class AdjustmentsService {
     }
   }
 
-  async cancel(id: string) {
+  async cancel(id: string, user: AuthPrincipal) {
     const adj = await this.prisma.stockAdjustment.findUnique({ where: { id } });
     if (!adj) throw new NotFoundException('Adjustment not found.');
+    this.companyAccess.validateResourceOwnership(user, adj);
     if (adj.status !== 'draft') {
       throw new InvalidStateException('Only draft adjustments can be cancelled.');
     }

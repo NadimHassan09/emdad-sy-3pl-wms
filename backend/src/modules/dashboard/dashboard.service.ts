@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { InboundOrderStatus, OutboundOrderStatus, WarehouseTaskStatus } from '@prisma/client';
+import {
+  InboundOrderStatus,
+  OutboundOrderStatus,
+  WarehouseTaskStatus,
+  WarehouseTaskType,
+} from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -35,8 +40,10 @@ export type DashboardOverviewDto = {
   openTasksByType: Array<{
     key: string;
     label: string;
+    /** Non-completed tasks (pending, assigned, in_progress, blocked, retry_pending). */
     openCount: number;
-    completedCount: number;
+    /** Open tasks with an active worker assignment and status in_progress (started). */
+    inProgressCount: number;
   }>;
   capacity: {
     occupiedLocations: number;
@@ -94,6 +101,54 @@ const TASK_CARD_MAP = [
   { key: 'dispatch', label: 'Delivery' },
   { key: 'routing', label: 'Internal' },
 ] as const;
+
+const TASK_CARD_KEYS = new Set<string>(TASK_CARD_MAP.map((t) => t.key));
+
+/** Task types included in open / in-progress queries (card keys + inbound variants). */
+const TASK_TYPES_TRACKED: WarehouseTaskType[] = [
+  ...TASK_CARD_MAP.map((t) => t.key as WarehouseTaskType),
+  WarehouseTaskType.putaway_quarantine,
+];
+
+/**
+ * Aligns with open-orders chart: assigned (with worker), in_progress, blocked, retry_pending
+ * are "under progress"; pending-only rows are open but not started.
+ */
+function taskUnderProgressWhere() {
+  return {
+    OR: [
+      { status: WarehouseTaskStatus.in_progress },
+      { status: WarehouseTaskStatus.blocked },
+      { status: WarehouseTaskStatus.retry_pending },
+      {
+        status: WarehouseTaskStatus.assigned,
+        assignments: { some: { unassignedAt: null } },
+      },
+    ],
+  };
+}
+
+function rollupTaskTypeToCardKey(taskType: string): string | null {
+  if (taskType === 'putaway_quarantine') return 'putaway';
+  return TASK_CARD_KEYS.has(taskType) ? taskType : null;
+}
+
+function incrementCardCount(map: Map<string, number>, taskType: string, delta = 1): void {
+  const key = rollupTaskTypeToCardKey(taskType);
+  if (!key) return;
+  map.set(key, (map.get(key) ?? 0) + delta);
+}
+
+/** Prisma groupBy may return `_count` as a number or `{ _all: number }`. */
+function groupByRowCount(row: { _count: unknown }): number {
+  const c = row._count;
+  if (typeof c === 'number' && Number.isFinite(c)) return c;
+  if (c && typeof c === 'object' && '_all' in c) {
+    const all = (c as { _all: unknown })._all;
+    if (typeof all === 'number' && Number.isFinite(all)) return all;
+  }
+  return 0;
+}
 
 /** UTC calendar day (matches PostgreSQL `DATE` comparisons). */
 function startOfUtcDay(d: Date): Date {
@@ -195,7 +250,7 @@ export class DashboardService {
       openInboundCount,
       openOutboundCount,
       openTasksGrouped,
-      taskPipelineGrouped,
+      underProgressTasks,
       occupiedLocationsCount,
       totalStorageLocationsCount,
       soonExpiryRows,
@@ -218,17 +273,18 @@ export class DashboardService {
       this.prisma.warehouseTask.groupBy({
         by: ['taskType'],
         where: {
+          taskType: { in: TASK_TYPES_TRACKED },
           status: { in: OPEN_TASK_STATUSES },
         },
         _count: true,
       }),
-      this.prisma.warehouseTask.groupBy({
-        by: ['taskType', 'status'],
+      this.prisma.warehouseTask.findMany({
         where: {
-          taskType: { in: TASK_CARD_MAP.map((t) => t.key) },
-          status: { in: [...OPEN_TASK_STATUSES, WarehouseTaskStatus.completed] },
+          taskType: { in: TASK_TYPES_TRACKED },
+          status: { in: OPEN_TASK_STATUSES },
+          ...taskUnderProgressWhere(),
         },
-        _count: { _all: true },
+        select: { taskType: true },
       }),
       this.prisma.location.count({
         where: {
@@ -308,27 +364,24 @@ export class DashboardService {
       }),
     ]);
 
-    const openTaskCounts = new Map(openTasksGrouped.map((r) => [r.taskType, Number(r._count)]));
-    const pipelineByType = new Map<string, { open: number; completed: number }>();
-    for (const row of taskPipelineGrouped) {
-      const cur = pipelineByType.get(row.taskType) ?? { open: 0, completed: 0 };
-      const n = row._count._all;
-      if (row.status === WarehouseTaskStatus.completed) {
-        cur.completed += n;
-      } else {
-        cur.open += n;
-      }
-      pipelineByType.set(row.taskType, cur);
+    const openTaskCounts = new Map<string, number>();
+    for (const row of openTasksGrouped) {
+      incrementCardCount(openTaskCounts, row.taskType, groupByRowCount(row));
+    }
+    const inProgressTaskCounts = new Map<string, number>();
+    for (const row of underProgressTasks) {
+      incrementCardCount(inProgressTaskCounts, row.taskType, 1);
     }
     const openTasksByType = TASK_CARD_MAP.map((t) => {
-      const pipe = pipelineByType.get(t.key);
+      const openCount = openTaskCounts.get(t.key) ?? 0;
+      const inProgressCount = Math.min(inProgressTaskCounts.get(t.key) ?? 0, openCount);
       return {
         key: t.key,
         label: t.label,
-        openCount: pipe?.open ?? openTaskCounts.get(t.key) ?? 0,
-        completedCount: pipe?.completed ?? 0,
+        openCount,
+        inProgressCount,
       };
-    });
+    }).filter((row) => row.openCount > 0);
 
     const allExpiryAlertRows = [...missingExpiryRows, ...soonExpiryRows];
     const productIds = Array.from(new Set(allExpiryAlertRows.map((r) => r.product.id)));

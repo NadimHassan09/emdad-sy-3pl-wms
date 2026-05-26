@@ -1,8 +1,8 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
+import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
-import { AuthPrincipal } from '../../../common/auth/current-user.types';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { ListProductsQueryDto } from '../../products/dto/list-products-query.dto';
 import { ProductsService } from '../../products/products.service';
@@ -15,17 +15,8 @@ export class ClientProductsService {
     private readonly notifications: NotificationsService,
   ) {}
 
-  private principal(client: ClientPrincipal): AuthPrincipal {
-    return {
-      id: client.id,
-      companyId: client.companyId,
-      role: client.role,
-      email: client.email ?? undefined,
-    };
-  }
-
   async list(client: ClientPrincipal, query: ListProductsQueryDto) {
-    return this.products.list(this.principal(client), {
+    return this.products.list(clientAuthPrincipal(client), {
       ...query,
       companyId: client.companyId,
     });
@@ -35,7 +26,7 @@ export class ClientProductsService {
     if (client.role === UserRole.client_staff) {
       throw new ForbiddenException('Only client administrators can create products.');
     }
-    const product = await this.products.create(this.principal(client), {
+    const product = await this.products.create(clientAuthPrincipal(client), {
       ...dto,
       companyId: client.companyId,
     });

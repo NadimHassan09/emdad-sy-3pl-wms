@@ -32,8 +32,8 @@ let InboundController = class InboundController {
     list(user, query) {
         return this.inbound.list(user, query);
     }
-    findOne(id) {
-        return this.inbound.findById(id);
+    findOne(user, id) {
+        return this.inbound.findById(id, user);
     }
     confirm(user, id, body) {
         return this.inbound.confirm(user, id, body);
@@ -64,9 +64,10 @@ __decorate([
 ], InboundController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], InboundController.prototype, "findOne", null);
 __decorate([

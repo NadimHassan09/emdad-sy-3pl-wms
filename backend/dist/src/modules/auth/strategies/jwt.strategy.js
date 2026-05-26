@@ -15,10 +15,11 @@ const config_1 = require("@nestjs/config");
 const passport_1 = require("@nestjs/passport");
 const client_1 = require("@prisma/client");
 const passport_jwt_1 = require("passport-jwt");
+const company_access_service_1 = require("../../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../../common/prisma/prisma.service");
 const user_activity_service_1 = require("../user-activity.service");
 const UUID_HEADER_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function companyScopeFromRequest(req) {
+function requestedCompanyIdFromRequest(req) {
     const raw = req.headers['x-company-id'];
     const v = Array.isArray(raw) ? raw[0] : raw;
     if (typeof v !== 'string' || !UUID_HEADER_RE.test(v.trim()))
@@ -33,7 +34,8 @@ function fromCookie(req) {
 let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(passport_jwt_1.Strategy, 'jwt') {
     prisma;
     userActivity;
-    constructor(config, prisma, userActivity) {
+    companyAccess;
+    constructor(config, prisma, userActivity, companyAccess) {
         super({
             jwtFromRequest: passport_jwt_1.ExtractJwt.fromExtractors([
                 passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -45,6 +47,7 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         });
         this.prisma = prisma;
         this.userActivity = userActivity;
+        this.companyAccess = companyAccess;
     }
     async validate(req, payload) {
         if (payload.typ === 'client') {
@@ -61,12 +64,13 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
             throw new common_1.ForbiddenException('Client accounts are not permitted to use this application.');
         }
         this.userActivity.touch(user.id);
-        return {
+        const tenantScope = await this.companyAccess.resolvePrincipalTenant(user.id, user.role, requestedCompanyIdFromRequest(req));
+        return this.companyAccess.enrichPrincipal({
             id: user.id,
+            companyId: null,
             role: user.role,
-            companyId: companyScopeFromRequest(req),
             email: user.email,
-        };
+        }, tenantScope);
     }
 };
 exports.JwtStrategy = JwtStrategy;
@@ -74,6 +78,7 @@ exports.JwtStrategy = JwtStrategy = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [config_1.ConfigService,
         prisma_service_1.PrismaService,
-        user_activity_service_1.UserActivityService])
+        user_activity_service_1.UserActivityService,
+        company_access_service_1.CompanyAccessService])
 ], JwtStrategy);
 //# sourceMappingURL=jwt.strategy.js.map

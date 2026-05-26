@@ -45,6 +45,46 @@ const TASK_CARD_MAP = [
     { key: 'dispatch', label: 'Delivery' },
     { key: 'routing', label: 'Internal' },
 ];
+const TASK_CARD_KEYS = new Set(TASK_CARD_MAP.map((t) => t.key));
+const TASK_TYPES_TRACKED = [
+    ...TASK_CARD_MAP.map((t) => t.key),
+    client_1.WarehouseTaskType.putaway_quarantine,
+];
+function taskUnderProgressWhere() {
+    return {
+        OR: [
+            { status: client_1.WarehouseTaskStatus.in_progress },
+            { status: client_1.WarehouseTaskStatus.blocked },
+            { status: client_1.WarehouseTaskStatus.retry_pending },
+            {
+                status: client_1.WarehouseTaskStatus.assigned,
+                assignments: { some: { unassignedAt: null } },
+            },
+        ],
+    };
+}
+function rollupTaskTypeToCardKey(taskType) {
+    if (taskType === 'putaway_quarantine')
+        return 'putaway';
+    return TASK_CARD_KEYS.has(taskType) ? taskType : null;
+}
+function incrementCardCount(map, taskType, delta = 1) {
+    const key = rollupTaskTypeToCardKey(taskType);
+    if (!key)
+        return;
+    map.set(key, (map.get(key) ?? 0) + delta);
+}
+function groupByRowCount(row) {
+    const c = row._count;
+    if (typeof c === 'number' && Number.isFinite(c))
+        return c;
+    if (c && typeof c === 'object' && '_all' in c) {
+        const all = c._all;
+        if (typeof all === 'number' && Number.isFinite(all))
+            return all;
+    }
+    return 0;
+}
 function startOfUtcDay(d) {
     return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
@@ -116,7 +156,7 @@ let DashboardService = class DashboardService {
     async overview(_user) {
         const today = startOfUtcDay(new Date());
         const sixMonthsEnd = addUtcMonths(today, 6);
-        const [stockAgg, productsCount, companiesCount, openInboundCount, openOutboundCount, openTasksGrouped, taskPipelineGrouped, occupiedLocationsCount, totalStorageLocationsCount, soonExpiryRows, missingExpiryRows, recentInbound, recentOutbound,] = await Promise.all([
+        const [stockAgg, productsCount, companiesCount, openInboundCount, openOutboundCount, openTasksGrouped, underProgressTasks, occupiedLocationsCount, totalStorageLocationsCount, soonExpiryRows, missingExpiryRows, recentInbound, recentOutbound,] = await Promise.all([
             this.prisma.currentStock.aggregate({
                 where: {},
                 _sum: { quantityOnHand: true },
@@ -132,17 +172,18 @@ let DashboardService = class DashboardService {
             this.prisma.warehouseTask.groupBy({
                 by: ['taskType'],
                 where: {
+                    taskType: { in: TASK_TYPES_TRACKED },
                     status: { in: OPEN_TASK_STATUSES },
                 },
                 _count: true,
             }),
-            this.prisma.warehouseTask.groupBy({
-                by: ['taskType', 'status'],
+            this.prisma.warehouseTask.findMany({
                 where: {
-                    taskType: { in: TASK_CARD_MAP.map((t) => t.key) },
-                    status: { in: [...OPEN_TASK_STATUSES, client_1.WarehouseTaskStatus.completed] },
+                    taskType: { in: TASK_TYPES_TRACKED },
+                    status: { in: OPEN_TASK_STATUSES },
+                    ...taskUnderProgressWhere(),
                 },
-                _count: { _all: true },
+                select: { taskType: true },
             }),
             this.prisma.location.count({
                 where: {
@@ -221,28 +262,24 @@ let DashboardService = class DashboardService {
                 },
             }),
         ]);
-        const openTaskCounts = new Map(openTasksGrouped.map((r) => [r.taskType, Number(r._count)]));
-        const pipelineByType = new Map();
-        for (const row of taskPipelineGrouped) {
-            const cur = pipelineByType.get(row.taskType) ?? { open: 0, completed: 0 };
-            const n = row._count._all;
-            if (row.status === client_1.WarehouseTaskStatus.completed) {
-                cur.completed += n;
-            }
-            else {
-                cur.open += n;
-            }
-            pipelineByType.set(row.taskType, cur);
+        const openTaskCounts = new Map();
+        for (const row of openTasksGrouped) {
+            incrementCardCount(openTaskCounts, row.taskType, groupByRowCount(row));
+        }
+        const inProgressTaskCounts = new Map();
+        for (const row of underProgressTasks) {
+            incrementCardCount(inProgressTaskCounts, row.taskType, 1);
         }
         const openTasksByType = TASK_CARD_MAP.map((t) => {
-            const pipe = pipelineByType.get(t.key);
+            const openCount = openTaskCounts.get(t.key) ?? 0;
+            const inProgressCount = Math.min(inProgressTaskCounts.get(t.key) ?? 0, openCount);
             return {
                 key: t.key,
                 label: t.label,
-                openCount: pipe?.open ?? openTaskCounts.get(t.key) ?? 0,
-                completedCount: pipe?.completed ?? 0,
+                openCount,
+                inProgressCount,
             };
-        });
+        }).filter((row) => row.openCount > 0);
         const allExpiryAlertRows = [...missingExpiryRows, ...soonExpiryRows];
         const productIds = Array.from(new Set(allExpiryAlertRows.map((r) => r.product.id)));
         const totalsByProduct = await this.prisma.currentStock.groupBy({

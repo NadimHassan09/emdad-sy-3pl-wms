@@ -33,8 +33,8 @@ let AdjustmentsController = class AdjustmentsController {
     list(user, query) {
         return this.adjustments.list(user, query);
     }
-    findOne(id) {
-        return this.adjustments.findById(id);
+    findOne(user, id) {
+        return this.adjustments.findById(id, user);
     }
     patch(user, id, dto) {
         return this.adjustments.patch(user, id, dto);
@@ -48,8 +48,8 @@ let AdjustmentsController = class AdjustmentsController {
     approve(user, id) {
         return this.adjustments.approve(user, id);
     }
-    cancel(id) {
-        return this.adjustments.cancel(id);
+    cancel(user, id) {
+        return this.adjustments.cancel(id, user);
     }
 };
 exports.AdjustmentsController = AdjustmentsController;
@@ -71,9 +71,10 @@ __decorate([
 ], AdjustmentsController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], AdjustmentsController.prototype, "findOne", null);
 __decorate([
@@ -113,9 +114,10 @@ __decorate([
 ], AdjustmentsController.prototype, "approve", null);
 __decorate([
     (0, common_1.Post)(':id/cancel'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], AdjustmentsController.prototype, "cancel", null);
 exports.AdjustmentsController = AdjustmentsController = __decorate([

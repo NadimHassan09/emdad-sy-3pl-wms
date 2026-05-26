@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   Prisma,
@@ -18,16 +19,20 @@ interface CreateWorkerDto {
 
 @Injectable()
 export class WorkflowWorkersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly companyAccess: CompanyAccessService,
+  ) {}
 
   /**
    * Task assignment: only workers backed by a **system** user (`users.company_id` null)
    * with **Worker** platform role (`wh_operator`).
    */
   async list(user: AuthPrincipal, warehouseId?: string) {
-    if (!user.companyId) return [];
+    const tenantCompanyId = this.companyAccess.getReadFilterCompanyId(user);
+    if (!tenantCompanyId) return [];
     const where: Prisma.WorkerWhereInput = {
-      companyId: user.companyId,
+      companyId: tenantCompanyId,
       status: WorkerOperationalStatus.active,
       userId: { not: null },
       user: {
@@ -49,10 +54,10 @@ export class WorkflowWorkersService {
   }
 
   async create(user: AuthPrincipal, dto: CreateWorkerDto) {
-    if (!user.companyId) throw new NotFoundException('company required');
+    const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
     return this.prisma.worker.create({
       data: {
-        companyId: user.companyId,
+        companyId: tenantCompanyId,
         warehouseId: dto.warehouseId,
         displayName: dto.displayName,
         roles: {
@@ -66,9 +71,10 @@ export class WorkflowWorkersService {
   }
 
   async workerLoad(user: AuthPrincipal, warehouseId?: string) {
-    if (!user.companyId) {
-      throw new BadRequestException('companyId required for worker load.');
-    }
+    const tenantCompanyId = this.companyAccess.requireActiveTenant(
+      user,
+      'An active client tenant is required for worker load.',
+    );
     const whFilter = warehouseId
       ? Prisma.sql`AND (w.warehouse_id = ${warehouseId}::uuid OR w.warehouse_id IS NULL)`
       : Prisma.empty;
@@ -90,7 +96,7 @@ export class WorkflowWorkersService {
       FROM v_wms_worker_load v
       INNER JOIN workers w ON w.id = v.worker_id
       INNER JOIN users u ON u.id = w.user_id
-      WHERE w.company_id = ${user.companyId}::uuid
+      WHERE w.company_id = ${tenantCompanyId}::uuid
         AND w.status = 'active'::worker_operational_status
         AND w.user_id IS NOT NULL
         AND u.company_id IS NULL
@@ -120,9 +126,10 @@ export class WorkflowWorkersService {
         },
       },
     });
-    if (!w || (user.companyId && w.companyId !== user.companyId)) {
+    if (!w) {
       throw new NotFoundException('Worker not found.');
     }
+    this.companyAccess.validateResourceOwnership(user, w);
 
     const openTaskCount = await this.prisma.taskAssignment.count({
       where: { workerId, unassignedAt: null },

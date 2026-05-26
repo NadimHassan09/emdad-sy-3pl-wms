@@ -33,6 +33,8 @@ let MockAuthMiddleware = class MockAuthMiddleware {
             id: userId,
             companyId: isUuid(companyIdRaw) ? companyIdRaw : null,
             role: 'wh_manager',
+            tenantScope: 'all',
+            authorizedCompanyIds: [],
         };
         req.user = principal;
         next();

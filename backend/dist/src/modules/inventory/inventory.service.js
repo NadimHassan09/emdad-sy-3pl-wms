@@ -14,6 +14,7 @@ const node_crypto_1 = require("node:crypto");
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const company_read_scope_1 = require("../../common/auth/company-read-scope");
+const company_access_service_1 = require("../../common/company-access/company-access.service");
 const storage_location_types_1 = require("../../common/constants/storage-location-types");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const location_operational_1 = require("../../common/utils/location-operational");
@@ -62,9 +63,11 @@ function businessGroupKey(row) {
 let InventoryService = class InventoryService {
     prisma;
     stockHelpers;
-    constructor(prisma, stockHelpers) {
+    companyAccess;
+    constructor(prisma, stockHelpers, companyAccess) {
         this.prisma = prisma;
         this.stockHelpers = stockHelpers;
+        this.companyAccess = companyAccess;
     }
     async appendInboundLedgerStockFilter(and, orderIds) {
         if (orderIds.length === 0) {
@@ -104,7 +107,7 @@ let InventoryService = class InventoryService {
         }
     }
     async resolveCurrentStockWhere(user, query) {
-        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(user, query.companyId);
+        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(this.companyAccess, user, query.companyId);
         const and = [
             { quantityOnHand: { gt: 0 } },
         ];
@@ -257,7 +260,7 @@ let InventoryService = class InventoryService {
     }
     async ledger(user, query) {
         const andParts = [];
-        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(user, query.companyId);
+        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(this.companyAccess, user, query.companyId);
         if (companyId)
             andParts.push({ companyId });
         if (query.productId) {
@@ -362,9 +365,7 @@ let InventoryService = class InventoryService {
         if (!head) {
             throw new common_1.NotFoundException('Ledger entry not found.');
         }
-        if (user.companyId && head.companyId !== user.companyId) {
-            throw new common_1.NotFoundException('Ledger entry not found.');
-        }
+        this.companyAccess.validateResourceOwnership(user, head);
         const groupKey = businessGroupKey(head);
         const rows = await this.prisma.inventoryLedger.findMany({
             where: {
@@ -556,13 +557,7 @@ let InventoryService = class InventoryService {
         };
     }
     async internalTransfer(user, dto) {
-        const companyId = dto.companyId ?? user.companyId ?? undefined;
-        if (!companyId) {
-            throw new common_1.BadRequestException('companyId is required (set X-Company-Id, pass companyId, or use a client-scoped user).');
-        }
-        if (user.companyId && companyId !== user.companyId) {
-            throw new common_1.NotFoundException('Company not found.');
-        }
+        const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
         const qty = new client_1.Prisma.Decimal(dto.quantity.toString());
         if (qty.lte(0)) {
             throw new common_1.BadRequestException('quantity must be greater than zero.');
@@ -666,10 +661,7 @@ let InventoryService = class InventoryService {
         }
     }
     async availability(user, productId, companyIdParam) {
-        const companyId = companyIdParam ?? user.companyId;
-        if (!companyId) {
-            throw new common_1.BadRequestException('companyId is required.');
-        }
+        const companyId = this.companyAccess.resolveWriteCompanyId(user, companyIdParam);
         const agg = await this.prisma.currentStock.aggregate({
             where: { companyId, productId, status: 'available' },
             _sum: {
@@ -691,6 +683,7 @@ exports.InventoryService = InventoryService;
 exports.InventoryService = InventoryService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        stock_helpers_1.StockHelpers])
+        stock_helpers_1.StockHelpers,
+        company_access_service_1.CompanyAccessService])
 ], InventoryService);
 //# sourceMappingURL=inventory.service.js.map

@@ -8,6 +8,8 @@ import { Prisma } from '@prisma/client';
 
 import { coerceOptionalBool } from '../../common/utils/coerce-boolean';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
+import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import {
   generateBarcodeCandidate,
   generateSkuCandidate,
@@ -29,7 +31,10 @@ const INTERNAL_ROLES = new Set<AuthPrincipal['role']>([
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly companyAccess: CompanyAccessService,
+  ) {}
 
   /**
    * RLS policies read `app.user_role` / `app.current_company_id`. Prisma does not
@@ -71,7 +76,7 @@ export class ProductsService {
   }
 
   async create(user: AuthPrincipal, dto: CreateProductDto) {
-    const companyId = dto.companyId;
+    const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
     const clientBarcode = dto.barcode?.trim();
 
     let lastError: unknown;
@@ -135,9 +140,9 @@ export class ProductsService {
     if (!includeArchived) {
       where.status = { in: ['active', 'suspended'] };
     }
-    // Only filter by company when explicitly requested — default is all tenants' products.
-    if (query.companyId) {
-      where.companyId = query.companyId;
+    const companyId = readCompanyIdFilter(this.companyAccess, user, query.companyId);
+    if (companyId) {
+      where.companyId = companyId;
     }
 
     const and: Prisma.ProductWhereInput[] = [];
@@ -219,17 +224,20 @@ export class ProductsService {
     });
   }
 
-  async findById(id: string) {
+  async findById(id: string, user?: AuthPrincipal) {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: { company: { select: { id: true, name: true } } },
     });
     if (!product) throw new NotFoundException('Product not found.');
+    if (user) {
+      this.companyAccess.validateResourceOwnership(user, product);
+    }
     return product;
   }
 
-  async listLotsForProduct(productId: string) {
-    await this.findById(productId);
+  async listLotsForProduct(productId: string, user: AuthPrincipal) {
+    await this.findById(productId, user);
     return this.prisma.lot.findMany({
       where: { productId },
       orderBy: { lotNumber: 'asc' },
@@ -237,8 +245,8 @@ export class ProductsService {
     });
   }
 
-  async update(id: string, dto: UpdateProductDto) {
-    await this.findById(id);
+  async update(id: string, dto: UpdateProductDto, user: AuthPrincipal) {
+    await this.findById(id, user);
     const data: Prisma.ProductUpdateInput = {};
     if (dto.expiryTracking !== undefined) data.expiryTracking = dto.expiryTracking;
     if (dto.name !== undefined) data.name = dto.name;
@@ -272,7 +280,7 @@ export class ProductsService {
         dto.weightKg === null ? null : new Prisma.Decimal(dto.weightKg);
     }
     if (Object.keys(data).length === 0) {
-      return this.findById(id);
+      return this.findById(id, user);
     }
     try {
       return await this.prisma.product.update({
@@ -291,11 +299,10 @@ export class ProductsService {
     }
   }
 
-  async softDelete(id: string) {
-    const product = await this.prisma.product.findUnique({ where: { id } });
-    if (!product) throw new NotFoundException('Product not found.');
+  async softDelete(id: string, user: AuthPrincipal) {
+    const product = await this.findById(id, user);
     if (product.status === 'archived') {
-      return this.findById(id);
+      return this.findById(id, user);
     }
 
     const [stockSum, resSum, ledgerCount] = await this.prisma.$transaction([
@@ -324,9 +331,8 @@ export class ProductsService {
     });
   }
 
-  async suspend(id: string) {
-    const product = await this.prisma.product.findUnique({ where: { id } });
-    if (!product) throw new NotFoundException('Product not found.');
+  async suspend(id: string, user: AuthPrincipal) {
+    const product = await this.findById(id, user);
     if (product.status !== 'active') {
       throw new BadRequestException('Only active products can be suspended.');
     }
@@ -337,9 +343,8 @@ export class ProductsService {
     });
   }
 
-  async unsuspend(id: string) {
-    const product = await this.prisma.product.findUnique({ where: { id } });
-    if (!product) throw new NotFoundException('Product not found.');
+  async unsuspend(id: string, user: AuthPrincipal) {
+    const product = await this.findById(id, user);
     if (product.status !== 'suspended') {
       throw new BadRequestException('Only suspended products can be reactivated this way.');
     }
@@ -354,9 +359,8 @@ export class ProductsService {
    * Permanent row removal when there is no stock and no referencing rows that
    * would violate FK constraints.
    */
-  async removePermanentlyIfSafe(id: string) {
-    const product = await this.prisma.product.findUnique({ where: { id } });
-    if (!product) throw new NotFoundException('Product not found.');
+  async removePermanentlyIfSafe(id: string, user: AuthPrincipal) {
+    const product = await this.findById(id, user);
     if (product.status === 'archived') {
       throw new BadRequestException('Archived products cannot be hard-deleted from this action.');
     }
@@ -403,7 +407,8 @@ export class ProductsService {
    * Returns a candidate SKU that is currently free for the given company.
    * The SKU is NOT persisted — caller must POST a product to claim it.
    */
-  async nextSku(companyId: string): Promise<{ sku: string }> {
+  async nextSku(user: AuthPrincipal, companyIdParam?: string): Promise<{ sku: string }> {
+    const companyId = this.companyAccess.resolveWriteCompanyId(user, companyIdParam);
     for (let i = 0; i < SKU_RETRY_LIMIT; i++) {
       const candidate = generateSkuCandidate();
       const taken = await this.prisma.product.findFirst({

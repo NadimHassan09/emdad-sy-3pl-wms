@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientStockService = void 0;
 const common_1 = require("@nestjs/common");
+const client_auth_principal_1 = require("../../../common/auth/client-auth-principal");
 const prisma_service_1 = require("../../../common/prisma/prisma.service");
 const inventory_service_1 = require("../../inventory/inventory.service");
 let ClientStockService = class ClientStockService {
@@ -21,22 +22,10 @@ let ClientStockService = class ClientStockService {
         this.prisma = prisma;
     }
     async availability(client, productId) {
-        const principal = {
-            id: client.id,
-            companyId: client.companyId,
-            role: client.role,
-            email: client.email ?? undefined,
-        };
-        return this.inventory.availability(principal, productId, client.companyId);
+        return this.inventory.availability((0, client_auth_principal_1.clientAuthPrincipal)(client), productId, client.companyId);
     }
     async list(client, query) {
-        const principal = {
-            id: client.id,
-            companyId: client.companyId,
-            role: client.role,
-            email: client.email ?? undefined,
-        };
-        const page = await this.inventory.stockByProductSummary(principal, {
+        const page = await this.inventory.stockByProductSummary((0, client_auth_principal_1.clientAuthPrincipal)(client), {
             ...query,
             companyId: client.companyId,
         });

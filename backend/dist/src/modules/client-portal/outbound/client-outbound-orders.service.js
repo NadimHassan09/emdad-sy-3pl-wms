@@ -11,35 +11,24 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientOutboundOrdersService = void 0;
 const common_1 = require("@nestjs/common");
+const client_auth_principal_1 = require("../../../common/auth/client-auth-principal");
 const outbound_service_1 = require("../../outbound/outbound.service");
 let ClientOutboundOrdersService = class ClientOutboundOrdersService {
     outbound;
     constructor(outbound) {
         this.outbound = outbound;
     }
-    principal(client) {
-        return {
-            id: client.id,
-            companyId: client.companyId,
-            role: client.role,
-            email: client.email ?? undefined,
-        };
-    }
     async findOne(client, id) {
-        const order = await this.outbound.findById(id);
-        if (order.companyId !== client.companyId) {
-            throw new common_1.NotFoundException('Outbound order not found.');
-        }
-        return order;
+        return this.outbound.findById(id, (0, client_auth_principal_1.clientAuthPrincipal)(client));
     }
     async list(client, query) {
-        return this.outbound.list(this.principal(client), {
+        return this.outbound.list((0, client_auth_principal_1.clientAuthPrincipal)(client), {
             ...query,
             companyId: client.companyId,
         });
     }
     async create(client, dto) {
-        return this.outbound.create(this.principal(client), dto, {
+        return this.outbound.create((0, client_auth_principal_1.clientAuthPrincipal)(client), dto, {
             pendingClientApproval: true,
         });
     }

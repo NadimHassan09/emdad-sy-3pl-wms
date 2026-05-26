@@ -8,6 +8,7 @@ import { OutboundOrderStatus, Prisma } from '@prisma/client';
 
 import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { outboundIdsVisibleForWarehouse } from '../../common/utils/warehouse-order-scope';
 import {
   InsufficientStockException,
@@ -82,6 +83,7 @@ export class OutboundService {
     private readonly workflowBootstrap: WorkflowBootstrapService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
+    private readonly companyAccess: CompanyAccessService,
   ) {}
 
   /**
@@ -99,12 +101,7 @@ export class OutboundService {
     dto: CreateOutboundOrderDto,
     opts?: { pendingClientApproval?: boolean },
   ) {
-    const companyId = dto.companyId ?? user.companyId;
-    if (!companyId) {
-      throw new BadRequestException(
-        'companyId is required (no default company on current user).',
-      );
-    }
+    const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
 
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
     const products = await this.prisma.product.findMany({
@@ -242,7 +239,7 @@ export class OutboundService {
     const baseAnd: Prisma.OutboundOrderWhereInput[] = [];
     const where: Prisma.OutboundOrderWhereInput = {};
 
-    const companyId = readCompanyIdFilter(user, query.companyId);
+    const companyId = readCompanyIdFilter(this.companyAccess, user, query.companyId);
     if (companyId) where.companyId = companyId;
     if (query.status) where.status = query.status;
 
@@ -286,17 +283,20 @@ export class OutboundService {
     ]).then(([items, total]) => ({ items, total, limit: query.limit, offset: query.offset }));
   }
 
-  async findById(id: string) {
+  async findById(id: string, user?: AuthPrincipal) {
     const order = await this.prisma.outboundOrder.findUnique({
       where: { id },
       include: ORDER_INCLUDE,
     });
     if (!order) throw new NotFoundException('Outbound order not found.');
+    if (user) {
+      this.companyAccess.validateResourceOwnership(user, order);
+    }
     return order;
   }
 
   async cancel(id: string, user: AuthPrincipal) {
-    const order = await this.findById(id);
+    const order = await this.findById(id, user);
     if (!['draft', 'pending_approval'].includes(order.status)) {
       throw new InvalidStateException(
         `Outbound orders can only be cancelled while in draft or pending approval (current: ${order.status}).`,
@@ -399,9 +399,7 @@ export class OutboundService {
           },
         });
         if (!order) throw new NotFoundException('Outbound order not found.');
-        if (user.companyId && order.companyId !== user.companyId) {
-          throw new NotFoundException('Outbound order not found.');
-        }
+        this.companyAccess.validateResourceOwnership(user, order);
         if (!isOutboundConfirmable(order.status)) {
           throw new InvalidStateException(
             `Only draft or pending-approval orders can be confirmed (current status: ${order.status}).`,

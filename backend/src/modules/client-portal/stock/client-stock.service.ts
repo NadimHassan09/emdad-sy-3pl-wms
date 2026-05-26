@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
-import { AuthPrincipal } from '../../../common/auth/current-user.types';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { StockQueryDto } from '../../inventory/dto/stock-query.dto';
 import { InventoryService } from '../../inventory/inventory.service';
@@ -29,13 +29,11 @@ export class ClientStockService {
    * Ignores any `companyId` on the query string — always scoped to `client.companyId`.
    */
   async availability(client: ClientPrincipal, productId: string) {
-    const principal: AuthPrincipal = {
-      id: client.id,
-      companyId: client.companyId,
-      role: client.role,
-      email: client.email ?? undefined,
-    };
-    return this.inventory.availability(principal, productId, client.companyId);
+    return this.inventory.availability(
+      clientAuthPrincipal(client),
+      productId,
+      client.companyId,
+    );
   }
 
   async list(client: ClientPrincipal, query: StockQueryDto): Promise<{
@@ -44,13 +42,7 @@ export class ClientStockService {
     limit: number;
     offset: number;
   }> {
-    const principal: AuthPrincipal = {
-      id: client.id,
-      companyId: client.companyId,
-      role: client.role,
-      email: client.email ?? undefined,
-    };
-    const page = await this.inventory.stockByProductSummary(principal, {
+    const page = await this.inventory.stockByProductSummary(clientAuthPrincipal(client), {
       ...query,
       companyId: client.companyId,
     });

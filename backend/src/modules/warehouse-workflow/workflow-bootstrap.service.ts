@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma, WorkflowReferenceType } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { taskOnlyFlows } from './feature-flags';
 import { getFrontierBlockedReason } from './task-runnable.util';
@@ -26,6 +27,7 @@ export class WorkflowBootstrapService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly engine: WorkflowEngineService,
+    private readonly companyAccess: CompanyAccessService,
   ) {}
 
   async startInboundWorkflow(
@@ -67,12 +69,12 @@ export class WorkflowBootstrapService {
 
   /** Timeline + ordered steps (pending | locked | done) for GET /workflows/references/... */
   async getWorkflowTimeline(user: AuthPrincipal, referenceType: 'inbound_order' | 'outbound_order', referenceId: string) {
-    if (!user.companyId) throw new BadRequestException('companyId required.');
+    const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
     const wf = await this.prisma.workflowInstance.findFirst({
       where: {
         referenceType,
         referenceId,
-        companyId: user.companyId,
+        companyId: tenantCompanyId,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -193,12 +195,12 @@ export class WorkflowBootstrapService {
     referenceType: 'inbound_order' | 'outbound_order',
     referenceId: string,
   ) {
-    if (!user.companyId) throw new BadRequestException('companyId required.');
+    const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
     const wf = await this.prisma.workflowInstance.findFirst({
       where: {
         referenceType,
         referenceId,
-        companyId: user.companyId,
+        companyId: tenantCompanyId,
         status: { in: ['pending', 'in_progress', 'degraded'] },
       },
       orderBy: { createdAt: 'desc' },
@@ -212,14 +214,14 @@ export class WorkflowBootstrapService {
    * `warehouseId` is always a string echo of the query param (empty when omitted).
    */
   async getWorkflowContextSettings(user: AuthPrincipal, warehouseId?: string) {
-    if (!user.companyId) throw new BadRequestException('companyId required.');
+    const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
     const flag = taskOnlyFlows(this.config);
     const defaults = {
       showAdvancedJson: false,
       confirmUnsavedDraft: true,
     };
     const company = await this.prisma.company.findUnique({
-      where: { id: user.companyId },
+      where: { id: tenantCompanyId },
       select: { workflowUxSettings: true },
     });
     let warehouse: { workflowUxSettings: unknown } | null = null;

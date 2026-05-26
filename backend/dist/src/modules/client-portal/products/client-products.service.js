@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientProductsService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const client_auth_principal_1 = require("../../../common/auth/client-auth-principal");
 const notifications_service_1 = require("../../notifications/notifications.service");
 const products_service_1 = require("../../products/products.service");
 let ClientProductsService = class ClientProductsService {
@@ -21,16 +22,8 @@ let ClientProductsService = class ClientProductsService {
         this.products = products;
         this.notifications = notifications;
     }
-    principal(client) {
-        return {
-            id: client.id,
-            companyId: client.companyId,
-            role: client.role,
-            email: client.email ?? undefined,
-        };
-    }
     async list(client, query) {
-        return this.products.list(this.principal(client), {
+        return this.products.list((0, client_auth_principal_1.clientAuthPrincipal)(client), {
             ...query,
             companyId: client.companyId,
         });
@@ -39,7 +32,7 @@ let ClientProductsService = class ClientProductsService {
         if (client.role === client_1.UserRole.client_staff) {
             throw new common_1.ForbiddenException('Only client administrators can create products.');
         }
-        const product = await this.products.create(this.principal(client), {
+        const product = await this.products.create((0, client_auth_principal_1.clientAuthPrincipal)(client), {
             ...dto,
             companyId: client.companyId,
         });

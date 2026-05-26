@@ -11,6 +11,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const jwt_1 = require("@nestjs/jwt");
 const passport_1 = require("@nestjs/passport");
+const company_access_module_1 = require("../../common/company-access/company-access.module");
 const crypto_module_1 = require("../../common/crypto/crypto.module");
 const prisma_module_1 = require("../../common/prisma/prisma.module");
 const auth_controller_1 = require("./auth.controller");
@@ -34,6 +35,7 @@ exports.AuthModule = AuthModule = __decorate([
                     signOptions: { expiresIn: 8 * 60 * 60 },
                 }),
             }),
+            company_access_module_1.CompanyAccessModule,
             prisma_module_1.PrismaModule,
             crypto_module_1.CryptoModule,
         ],

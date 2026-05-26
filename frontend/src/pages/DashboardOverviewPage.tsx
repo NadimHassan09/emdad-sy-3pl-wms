@@ -82,8 +82,9 @@ function dashboardLabel(label: string, isArabic: boolean): string {
     'Open orders in pipeline': 'طلبات مفتوحة قيد التنفيذ',
     'Active warehouse tasks': 'مهام مستودع نشطة',
     'Registered client companies': 'شركات عملاء مسجلة',
-    completed: 'مكتمل',
-    pending: 'معلق',
+    'in progress': 'قيد التنفيذ',
+    'not started': 'لم تبدأ',
+    'No open tasks': 'لا توجد مهام مفتوحة',
   };
   return ar[label] ?? label;
 }
@@ -150,7 +151,7 @@ export function DashboardOverviewPage() {
   }
 
   function formatPercent(value: number): string {
-    return value.toFixed(1);
+    return Number.isFinite(value) ? value.toFixed(1) : '0.0';
   }
 
   return (

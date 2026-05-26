@@ -33,8 +33,8 @@ export class AdjustmentsController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.adjustments.findById(id);
+  findOne(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.adjustments.findById(id, user);
   }
 
   @Patch(':id')
@@ -70,7 +70,7 @@ export class AdjustmentsController {
   }
 
   @Post(':id/cancel')
-  cancel(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.adjustments.cancel(id);
+  cancel(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.adjustments.cancel(id, user);
   }
 }

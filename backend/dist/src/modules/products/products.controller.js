@@ -32,32 +32,28 @@ let ProductsController = class ProductsController {
         return this.products.list(user, query);
     }
     nextSku(user, companyIdParam) {
-        const companyId = companyIdParam ?? user.companyId;
-        if (!companyId) {
-            throw new common_1.BadRequestException('companyId is required for SKU generation.');
-        }
-        return this.products.nextSku(companyId);
+        return this.products.nextSku(user, companyIdParam);
     }
-    suspend(id) {
-        return this.products.suspend(id);
+    suspend(user, id) {
+        return this.products.suspend(id, user);
     }
-    unsuspend(id) {
-        return this.products.unsuspend(id);
+    unsuspend(user, id) {
+        return this.products.unsuspend(id, user);
     }
-    hardDelete(id) {
-        return this.products.removePermanentlyIfSafe(id);
+    hardDelete(user, id) {
+        return this.products.removePermanentlyIfSafe(id, user);
     }
-    listLots(id) {
-        return this.products.listLotsForProduct(id);
+    listLots(user, id) {
+        return this.products.listLotsForProduct(id, user);
     }
-    update(id, dto) {
-        return this.products.update(id, dto);
+    update(user, id, dto) {
+        return this.products.update(id, dto, user);
     }
-    archive(id) {
-        return this.products.softDelete(id);
+    archive(user, id) {
+        return this.products.softDelete(id, user);
     }
-    findOne(id) {
-        return this.products.findById(id);
+    findOne(user, id) {
+        return this.products.findById(id, user);
     }
 };
 exports.ProductsController = ProductsController;
@@ -87,52 +83,59 @@ __decorate([
 ], ProductsController.prototype, "nextSku", null);
 __decorate([
     (0, common_1.Post)(':id/suspend'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "suspend", null);
 __decorate([
     (0, common_1.Post)(':id/unsuspend'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "unsuspend", null);
 __decorate([
     (0, common_1.Delete)(':id/hard'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "hardDelete", null);
 __decorate([
     (0, common_1.Get)(':id/lots'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "listLots", null);
 __decorate([
     (0, common_1.Patch)(':id'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
-    __param(1, (0, common_1.Body)()),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_product_dto_1.UpdateProductDto]),
+    __metadata("design:paramtypes", [Object, String, update_product_dto_1.UpdateProductDto]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "archive", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ProductsController.prototype, "findOne", null);
 exports.ProductsController = ProductsController = __decorate([

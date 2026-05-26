@@ -41,6 +41,8 @@ export class MockAuthMiddleware implements NestMiddleware {
       id: userId,
       companyId: isUuid(companyIdRaw) ? (companyIdRaw as string) : null,
       role: 'wh_manager',
+      tenantScope: 'all',
+      authorizedCompanyIds: [],
     };
     req.user = principal;
     next();

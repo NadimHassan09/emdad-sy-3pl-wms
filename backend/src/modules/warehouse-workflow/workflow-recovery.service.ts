@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { CacheInvalidationService } from '../../common/redis/cache-invalidation.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { workflowRecoverRequestSchema } from '../../vendor/wms-task-execution/compensation';
@@ -23,6 +24,7 @@ export class WorkflowRecoveryService {
     private readonly prisma: PrismaService,
     private readonly effects: TaskInventoryEffectsService,
     private readonly cacheInv: CacheInvalidationService,
+    private readonly companyAccess: CompanyAccessService,
   ) {}
 
   async recoverWorkflowInstance(instanceId: string, user: AuthPrincipal, rawBody: unknown) {
@@ -38,7 +40,8 @@ export class WorkflowRecoveryService {
     const wf = await this.prisma.workflowInstance.findUnique({
       where: { id: instanceId },
     });
-    if (!wf || wf.companyId !== user.companyId) throw new NotFoundException('Workflow instance not found.');
+    if (!wf) throw new NotFoundException('Workflow instance not found.');
+    this.companyAccess.validateResourceOwnership(user, wf);
     if (!['super_admin', 'wh_manager'].includes(user.role)) {
       throw new ForbiddenException('Only warehouse managers may run workflow recovery.');
     }

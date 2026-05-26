@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const client_1 = require("@prisma/client");
 const company_read_scope_1 = require("../../common/auth/company-read-scope");
+const company_access_service_1 = require("../../common/company-access/company-access.service");
 const warehouse_order_scope_1 = require("../../common/utils/warehouse-order-scope");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const assert_product_orderable_1 = require("../../common/utils/assert-product-orderable");
@@ -59,19 +60,18 @@ let OutboundService = class OutboundService {
     workflowBootstrap;
     realtime;
     notifications;
-    constructor(prisma, stock, config, workflowBootstrap, realtime, notifications) {
+    companyAccess;
+    constructor(prisma, stock, config, workflowBootstrap, realtime, notifications, companyAccess) {
         this.prisma = prisma;
         this.stock = stock;
         this.config = config;
         this.workflowBootstrap = workflowBootstrap;
         this.realtime = realtime;
         this.notifications = notifications;
+        this.companyAccess = companyAccess;
     }
     async create(user, dto, opts) {
-        const companyId = dto.companyId ?? user.companyId;
-        if (!companyId) {
-            throw new common_1.BadRequestException('companyId is required (no default company on current user).');
-        }
+        const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
         const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
         const products = await this.prisma.product.findMany({
             where: { id: { in: productIds } },
@@ -184,7 +184,7 @@ let OutboundService = class OutboundService {
     async list(user, query) {
         const baseAnd = [];
         const where = {};
-        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(user, query.companyId);
+        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(this.companyAccess, user, query.companyId);
         if (companyId)
             where.companyId = companyId;
         if (query.status)
@@ -228,17 +228,20 @@ let OutboundService = class OutboundService {
             this.prisma.outboundOrder.count({ where }),
         ]).then(([items, total]) => ({ items, total, limit: query.limit, offset: query.offset }));
     }
-    async findById(id) {
+    async findById(id, user) {
         const order = await this.prisma.outboundOrder.findUnique({
             where: { id },
             include: ORDER_INCLUDE,
         });
         if (!order)
             throw new common_1.NotFoundException('Outbound order not found.');
+        if (user) {
+            this.companyAccess.validateResourceOwnership(user, order);
+        }
         return order;
     }
     async cancel(id, user) {
-        const order = await this.findById(id);
+        const order = await this.findById(id, user);
         if (!['draft', 'pending_approval'].includes(order.status)) {
             throw new domain_exceptions_1.InvalidStateException(`Outbound orders can only be cancelled while in draft or pending approval (current: ${order.status}).`);
         }
@@ -328,9 +331,7 @@ let OutboundService = class OutboundService {
                 });
                 if (!order)
                     throw new common_1.NotFoundException('Outbound order not found.');
-                if (user.companyId && order.companyId !== user.companyId) {
-                    throw new common_1.NotFoundException('Outbound order not found.');
-                }
+                this.companyAccess.validateResourceOwnership(user, order);
                 if (!isOutboundConfirmable(order.status)) {
                     throw new domain_exceptions_1.InvalidStateException(`Only draft or pending-approval orders can be confirmed (current status: ${order.status}).`);
                 }
@@ -533,6 +534,7 @@ exports.OutboundService = OutboundService = __decorate([
         config_1.ConfigService,
         workflow_bootstrap_service_1.WorkflowBootstrapService,
         realtime_service_1.RealtimeService,
-        notifications_service_1.NotificationsService])
+        notifications_service_1.NotificationsService,
+        company_access_service_1.CompanyAccessService])
 ], OutboundService);
 //# sourceMappingURL=outbound.service.js.map

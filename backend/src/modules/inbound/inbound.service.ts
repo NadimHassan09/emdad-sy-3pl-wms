@@ -10,6 +10,7 @@ import { InboundOrderStatus, Prisma } from '@prisma/client';
 
 import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { inboundIdsVisibleForWarehouse } from '../../common/utils/warehouse-order-scope';
 import { isStorageLocationType } from '../../common/constants/storage-location-types';
 import {
@@ -79,6 +80,7 @@ export class InboundService {
     private readonly workflowBootstrap: WorkflowBootstrapService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
+    private readonly companyAccess: CompanyAccessService,
   ) {}
 
   async create(
@@ -86,12 +88,7 @@ export class InboundService {
     dto: CreateInboundOrderDto,
     opts?: { pendingClientApproval?: boolean },
   ) {
-    const companyId = dto.companyId ?? user.companyId;
-    if (!companyId) {
-      throw new BadRequestException(
-        'companyId is required (no default company on current user).',
-      );
-    }
+    const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
 
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
     const products = await this.prisma.product.findMany({
@@ -170,7 +167,7 @@ export class InboundService {
     const baseAnd: Prisma.InboundOrderWhereInput[] = [];
     const where: Prisma.InboundOrderWhereInput = {};
 
-    const companyId = readCompanyIdFilter(user, query.companyId);
+    const companyId = readCompanyIdFilter(this.companyAccess, user, query.companyId);
     if (companyId) where.companyId = companyId;
     if (query.status) where.status = query.status;
 
@@ -217,17 +214,20 @@ export class InboundService {
     ]).then(([items, total]) => ({ items, total, limit: query.limit, offset: query.offset }));
   }
 
-  async findById(id: string) {
+  async findById(id: string, user?: AuthPrincipal) {
     const order = await this.prisma.inboundOrder.findUnique({
       where: { id },
       include: ORDER_INCLUDE,
     });
     if (!order) throw new NotFoundException('Inbound order not found.');
+    if (user) {
+      this.companyAccess.validateResourceOwnership(user, order);
+    }
     return order;
   }
 
   async confirm(user: AuthPrincipal, id: string, body?: ConfirmInboundBodyDto) {
-    const order = await this.findById(id);
+    const order = await this.findById(id, user);
     const wasPendingApproval = order.status === InboundOrderStatus.pending_approval;
     for (const line of order.lines) {
       assertProductOrderableForOrders(line.product.status);
@@ -250,9 +250,7 @@ export class InboundService {
         const wh = body.warehouseId!;
         const cur = await tx.inboundOrder.findUnique({ where: { id } });
         if (!cur) throw new NotFoundException('Inbound order not found.');
-        if (user.companyId && cur.companyId !== user.companyId) {
-          throw new NotFoundException('Inbound order not found.');
-        }
+        this.companyAccess.validateResourceOwnership(user, cur);
         if (!isInboundConfirmable(cur.status)) {
           throw new InvalidStateException(
             `Only draft or pending-approval orders can be confirmed (current status: ${cur.status}).`,
@@ -306,7 +304,7 @@ export class InboundService {
   }
 
   async cancel(id: string, user: AuthPrincipal) {
-    const order = await this.findById(id);
+    const order = await this.findById(id, user);
     if (!['draft', 'pending_approval', 'confirmed'].includes(order.status)) {
       throw new InvalidStateException(
         `Inbound orders can only be cancelled while in draft, pending approval, or confirmed (current: ${order.status}).`,

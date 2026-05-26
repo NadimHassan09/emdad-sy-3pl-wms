@@ -13,6 +13,8 @@ exports.ProductsService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const coerce_boolean_1 = require("../../common/utils/coerce-boolean");
+const company_read_scope_1 = require("../../common/auth/company-read-scope");
+const company_access_service_1 = require("../../common/company-access/company-access.service");
 const identifiers_1 = require("../../common/generators/identifiers");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const SKU_RETRY_LIMIT = 5;
@@ -25,8 +27,10 @@ const INTERNAL_ROLES = new Set([
 ]);
 let ProductsService = class ProductsService {
     prisma;
-    constructor(prisma) {
+    companyAccess;
+    constructor(prisma, companyAccess) {
         this.prisma = prisma;
+        this.companyAccess = companyAccess;
     }
     async withProductCatalogRls(user, fn) {
         const isInternal = INTERNAL_ROLES.has(user.role);
@@ -51,7 +55,7 @@ let ProductsService = class ProductsService {
         return (0, identifiers_1.generateBarcodeCandidate)();
     }
     async create(user, dto) {
-        const companyId = dto.companyId;
+        const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
         const clientBarcode = dto.barcode?.trim();
         let lastError;
         const attempts = dto.sku?.trim() ? 1 : SKU_RETRY_LIMIT;
@@ -106,8 +110,9 @@ let ProductsService = class ProductsService {
         if (!includeArchived) {
             where.status = { in: ['active', 'suspended'] };
         }
-        if (query.companyId) {
-            where.companyId = query.companyId;
+        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(this.companyAccess, user, query.companyId);
+        if (companyId) {
+            where.companyId = companyId;
         }
         const and = [];
         if (query.search?.trim()) {
@@ -180,25 +185,28 @@ let ProductsService = class ProductsService {
             return { items: rows, total, limit: query.limit, offset: query.offset };
         });
     }
-    async findById(id) {
+    async findById(id, user) {
         const product = await this.prisma.product.findUnique({
             where: { id },
             include: { company: { select: { id: true, name: true } } },
         });
         if (!product)
             throw new common_1.NotFoundException('Product not found.');
+        if (user) {
+            this.companyAccess.validateResourceOwnership(user, product);
+        }
         return product;
     }
-    async listLotsForProduct(productId) {
-        await this.findById(productId);
+    async listLotsForProduct(productId, user) {
+        await this.findById(productId, user);
         return this.prisma.lot.findMany({
             where: { productId },
             orderBy: { lotNumber: 'asc' },
             select: { id: true, lotNumber: true, expiryDate: true },
         });
     }
-    async update(id, dto) {
-        await this.findById(id);
+    async update(id, dto, user) {
+        await this.findById(id, user);
         const data = {};
         if (dto.expiryTracking !== undefined)
             data.expiryTracking = dto.expiryTracking;
@@ -236,7 +244,7 @@ let ProductsService = class ProductsService {
                 dto.weightKg === null ? null : new client_1.Prisma.Decimal(dto.weightKg);
         }
         if (Object.keys(data).length === 0) {
-            return this.findById(id);
+            return this.findById(id, user);
         }
         try {
             return await this.prisma.product.update({
@@ -253,12 +261,10 @@ let ProductsService = class ProductsService {
             throw err;
         }
     }
-    async softDelete(id) {
-        const product = await this.prisma.product.findUnique({ where: { id } });
-        if (!product)
-            throw new common_1.NotFoundException('Product not found.');
+    async softDelete(id, user) {
+        const product = await this.findById(id, user);
         if (product.status === 'archived') {
-            return this.findById(id);
+            return this.findById(id, user);
         }
         const [stockSum, resSum, ledgerCount] = await this.prisma.$transaction([
             this.prisma.currentStock.aggregate({
@@ -282,10 +288,8 @@ let ProductsService = class ProductsService {
             include: { company: { select: { id: true, name: true } } },
         });
     }
-    async suspend(id) {
-        const product = await this.prisma.product.findUnique({ where: { id } });
-        if (!product)
-            throw new common_1.NotFoundException('Product not found.');
+    async suspend(id, user) {
+        const product = await this.findById(id, user);
         if (product.status !== 'active') {
             throw new common_1.BadRequestException('Only active products can be suspended.');
         }
@@ -295,10 +299,8 @@ let ProductsService = class ProductsService {
             include: { company: { select: { id: true, name: true } } },
         });
     }
-    async unsuspend(id) {
-        const product = await this.prisma.product.findUnique({ where: { id } });
-        if (!product)
-            throw new common_1.NotFoundException('Product not found.');
+    async unsuspend(id, user) {
+        const product = await this.findById(id, user);
         if (product.status !== 'suspended') {
             throw new common_1.BadRequestException('Only suspended products can be reactivated this way.');
         }
@@ -308,10 +310,8 @@ let ProductsService = class ProductsService {
             include: { company: { select: { id: true, name: true } } },
         });
     }
-    async removePermanentlyIfSafe(id) {
-        const product = await this.prisma.product.findUnique({ where: { id } });
-        if (!product)
-            throw new common_1.NotFoundException('Product not found.');
+    async removePermanentlyIfSafe(id, user) {
+        const product = await this.findById(id, user);
         if (product.status === 'archived') {
             throw new common_1.BadRequestException('Archived products cannot be hard-deleted from this action.');
         }
@@ -344,7 +344,8 @@ let ProductsService = class ProductsService {
         ]);
         return { id, deleted: true };
     }
-    async nextSku(companyId) {
+    async nextSku(user, companyIdParam) {
+        const companyId = this.companyAccess.resolveWriteCompanyId(user, companyIdParam);
         for (let i = 0; i < SKU_RETRY_LIMIT; i++) {
             const candidate = (0, identifiers_1.generateSkuCandidate)();
             const taken = await this.prisma.product.findFirst({
@@ -360,6 +361,7 @@ let ProductsService = class ProductsService {
 exports.ProductsService = ProductsService;
 exports.ProductsService = ProductsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        company_access_service_1.CompanyAccessService])
 ], ProductsService);
 //# sourceMappingURL=products.service.js.map

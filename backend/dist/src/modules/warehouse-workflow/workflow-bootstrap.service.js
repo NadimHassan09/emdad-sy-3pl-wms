@@ -13,6 +13,7 @@ exports.WorkflowBootstrapService = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const client_1 = require("@prisma/client");
+const company_access_service_1 = require("../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const feature_flags_1 = require("./feature-flags");
 const task_runnable_util_1 = require("./task-runnable.util");
@@ -22,10 +23,12 @@ let WorkflowBootstrapService = class WorkflowBootstrapService {
     prisma;
     config;
     engine;
-    constructor(prisma, config, engine) {
+    companyAccess;
+    constructor(prisma, config, engine, companyAccess) {
         this.prisma = prisma;
         this.config = config;
         this.engine = engine;
+        this.companyAccess = companyAccess;
     }
     async startInboundWorkflow(user, orderId, warehouseId, stagingOverrides) {
         return this.prisma.$transaction((tx) => this.engine.createInboundInstanceWithFirstReceiveTask(tx, user, orderId, warehouseId, stagingOverrides));
@@ -40,13 +43,12 @@ let WorkflowBootstrapService = class WorkflowBootstrapService {
         return this.engine.createOutboundInstanceWithFirstPickTask(tx, user, orderId, warehouseId);
     }
     async getWorkflowTimeline(user, referenceType, referenceId) {
-        if (!user.companyId)
-            throw new common_1.BadRequestException('companyId required.');
+        const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
         const wf = await this.prisma.workflowInstance.findFirst({
             where: {
                 referenceType,
                 referenceId,
-                companyId: user.companyId,
+                companyId: tenantCompanyId,
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -152,13 +154,12 @@ let WorkflowBootstrapService = class WorkflowBootstrapService {
         };
     }
     async getWorkflowInstanceGraphByReference(user, referenceType, referenceId) {
-        if (!user.companyId)
-            throw new common_1.BadRequestException('companyId required.');
+        const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
         const wf = await this.prisma.workflowInstance.findFirst({
             where: {
                 referenceType,
                 referenceId,
-                companyId: user.companyId,
+                companyId: tenantCompanyId,
                 status: { in: ['pending', 'in_progress', 'degraded'] },
             },
             orderBy: { createdAt: 'desc' },
@@ -168,15 +169,14 @@ let WorkflowBootstrapService = class WorkflowBootstrapService {
         return this.getWorkflowInstanceGraph(user, wf.id);
     }
     async getWorkflowContextSettings(user, warehouseId) {
-        if (!user.companyId)
-            throw new common_1.BadRequestException('companyId required.');
+        const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
         const flag = (0, feature_flags_1.taskOnlyFlows)(this.config);
         const defaults = {
             showAdvancedJson: false,
             confirmUnsavedDraft: true,
         };
         const company = await this.prisma.company.findUnique({
-            where: { id: user.companyId },
+            where: { id: tenantCompanyId },
             select: { workflowUxSettings: true },
         });
         let warehouse = null;
@@ -211,6 +211,7 @@ exports.WorkflowBootstrapService = WorkflowBootstrapService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         config_1.ConfigService,
-        workflow_engine_service_1.WorkflowEngineService])
+        workflow_engine_service_1.WorkflowEngineService,
+        company_access_service_1.CompanyAccessService])
 ], WorkflowBootstrapService);
 //# sourceMappingURL=workflow-bootstrap.service.js.map

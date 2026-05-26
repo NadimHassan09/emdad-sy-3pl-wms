@@ -1,18 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.readCompanyIdFilter = readCompanyIdFilter;
-const INTERNAL_WMS_ROLES = new Set([
-    'super_admin',
-    'wh_manager',
-    'wh_operator',
-    'finance',
-]);
-function readCompanyIdFilter(user, queryCompanyId) {
-    const q = queryCompanyId?.trim();
-    if (q)
-        return q;
-    if (INTERNAL_WMS_ROLES.has(user.role))
-        return undefined;
-    return user.companyId ?? undefined;
+function readCompanyIdFilter(companyAccess, user, queryCompanyId) {
+    return companyAccess.getReadFilterCompanyId(user, queryCompanyId);
 }
 //# sourceMappingURL=company-read-scope.js.map

@@ -9,6 +9,7 @@ import { MovementType, Prisma, ProductTrackingType } from '@prisma/client';
 
 import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { isAdjustmentStockLocationType } from '../../common/constants/storage-location-types';
 import { InsufficientStockException } from '../../common/errors/domain-exceptions';
 import { assertLocationUsableForInventoryMove } from '../../common/utils/location-operational';
@@ -93,6 +94,7 @@ export class InventoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stockHelpers: StockHelpers,
+    private readonly companyAccess: CompanyAccessService,
   ) {}
 
   /**
@@ -142,7 +144,7 @@ export class InventoryService {
     user: AuthPrincipal,
     query: StockQueryDto,
   ): Promise<Prisma.CurrentStockWhereInput> {
-    const companyId = readCompanyIdFilter(user, query.companyId);
+    const companyId = readCompanyIdFilter(this.companyAccess, user, query.companyId);
 
     const and: Prisma.CurrentStockWhereInput[] = [
       { quantityOnHand: { gt: 0 } },
@@ -322,7 +324,7 @@ export class InventoryService {
   async ledger(user: AuthPrincipal, query: LedgerQueryDto) {
     const andParts: Prisma.InventoryLedgerWhereInput[] = [];
 
-    const companyId = readCompanyIdFilter(user, query.companyId);
+    const companyId = readCompanyIdFilter(this.companyAccess, user, query.companyId);
     if (companyId) andParts.push({ companyId });
     if (query.productId) {
       andParts.push({ productId: query.productId });
@@ -433,9 +435,7 @@ export class InventoryService {
     if (!head) {
       throw new NotFoundException('Ledger entry not found.');
     }
-    if (user.companyId && head.companyId !== user.companyId) {
-      throw new NotFoundException('Ledger entry not found.');
-    }
+    this.companyAccess.validateResourceOwnership(user, head);
 
     const groupKey = businessGroupKey(head);
     const rows = await this.prisma.inventoryLedger.findMany({
@@ -667,15 +667,7 @@ export class InventoryService {
    * Source and destination types must be `internal` (storage), `fridge`, `quarantine`, or `scrap`.
    */
   async internalTransfer(user: AuthPrincipal, dto: InternalTransferDto) {
-    const companyId = dto.companyId ?? user.companyId ?? undefined;
-    if (!companyId) {
-      throw new BadRequestException(
-        'companyId is required (set X-Company-Id, pass companyId, or use a client-scoped user).',
-      );
-    }
-    if (user.companyId && companyId !== user.companyId) {
-      throw new NotFoundException('Company not found.');
-    }
+    const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
 
     const qty = new Prisma.Decimal(dto.quantity.toString());
     if (qty.lte(0)) {
@@ -799,10 +791,7 @@ export class InventoryService {
     productId: string,
     companyIdParam?: string,
   ): Promise<AvailabilityResult> {
-    const companyId = companyIdParam ?? user.companyId;
-    if (!companyId) {
-      throw new BadRequestException('companyId is required.');
-    }
+    const companyId = this.companyAccess.resolveWriteCompanyId(user, companyIdParam);
 
     const agg = await this.prisma.currentStock.aggregate({
       where: { companyId, productId, status: 'available' },

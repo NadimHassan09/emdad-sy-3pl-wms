@@ -31,8 +31,8 @@ export class InboundController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.inbound.findById(id);
+  findOne(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.inbound.findById(id, user);
   }
 
   @Post(':id/confirm')

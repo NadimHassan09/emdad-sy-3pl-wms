@@ -16,16 +16,17 @@ exports.AnalyticsOverviewController = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
+const company_access_service_1 = require("../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 let AnalyticsOverviewController = class AnalyticsOverviewController {
     prisma;
-    constructor(prisma) {
+    companyAccess;
+    constructor(prisma, companyAccess) {
         this.prisma = prisma;
+        this.companyAccess = companyAccess;
     }
     async overview(user, warehouseId, daysRaw) {
-        if (!user.companyId) {
-            throw new common_1.BadRequestException('company context required');
-        }
+        const tenantCompanyId = this.companyAccess.requireActiveTenant(user, 'company context required');
         const days = Math.min(Number(daysRaw ?? '7') || 7, 90);
         const from = new Date();
         from.setDate(from.getDate() - days);
@@ -46,7 +47,7 @@ let AnalyticsOverviewController = class AnalyticsOverviewController {
         percentile_cont(0.5) WITHIN GROUP (ORDER BY duration_minutes)::float8 AS median_minutes,
         COUNT(*)::bigint AS cycle_samples
       FROM v_analytics_wh_task_completed_rows
-      WHERE company_id = ${user.companyId}::uuid
+      WHERE company_id = ${tenantCompanyId}::uuid
         AND completed_at >= ${from}
         ${whFilter}
         AND duration_minutes IS NOT NULL
@@ -81,6 +82,7 @@ __decorate([
 ], AnalyticsOverviewController.prototype, "overview", null);
 exports.AnalyticsOverviewController = AnalyticsOverviewController = __decorate([
     (0, common_1.Controller)('analytics'),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        company_access_service_1.CompanyAccessService])
 ], AnalyticsOverviewController);
 //# sourceMappingURL=analytics-overview.controller.js.map

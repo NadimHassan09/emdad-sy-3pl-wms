@@ -5,27 +5,35 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkflowEngineService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const company_access_service_1 = require("../../common/company-access/company-access.service");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const task_sla_defaults_1 = require("./task-sla-defaults");
 const DEF_INBOUND = 'inbound_default_v1';
 const DEF_OUTBOUND = 'outbound_default_v1';
 let WorkflowEngineService = class WorkflowEngineService {
+    companyAccess;
+    constructor(companyAccess) {
+        this.companyAccess = companyAccess;
+    }
     async createInboundInstanceWithFirstReceiveTask(tx, user, orderId, warehouseId, stagingOverrides) {
-        if (!user.companyId)
-            throw new common_1.BadRequestException('companyId required on user.');
+        const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
         const order = await tx.inboundOrder.findUnique({
             where: { id: orderId },
             include: {
                 lines: { orderBy: { lineNumber: 'asc' } },
             },
         });
-        if (!order || order.companyId !== user.companyId) {
+        if (!order) {
             throw new common_1.NotFoundException('Inbound order not found.');
         }
+        this.companyAccess.validateResourceOwnership(user, order);
         if (!['confirmed', 'in_progress', 'partially_received'].includes(order.status)) {
             throw new domain_exceptions_1.InvalidStateException('Workflow can only start for an active inbound order.');
         }
@@ -57,7 +65,7 @@ let WorkflowEngineService = class WorkflowEngineService {
         });
         const wf = await tx.workflowInstance.create({
             data: {
-                companyId: user.companyId,
+                companyId: tenantCompanyId,
                 warehouseId,
                 referenceType: 'inbound_order',
                 referenceId: orderId,
@@ -99,14 +107,14 @@ let WorkflowEngineService = class WorkflowEngineService {
         return { workflowInstance: wf, nodes, tasks };
     }
     async createOutboundInstanceWithFirstPickTask(tx, user, orderId, warehouseId) {
-        if (!user.companyId)
-            throw new common_1.BadRequestException('companyId required on user.');
+        const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
         const order = await tx.outboundOrder.findUnique({
             where: { id: orderId },
             include: { lines: { orderBy: { lineNumber: 'asc' } } },
         });
-        if (!order || order.companyId !== user.companyId)
+        if (!order)
             throw new common_1.NotFoundException('Outbound order not found.');
+        this.companyAccess.validateResourceOwnership(user, order);
         if (order.status !== 'picking' && order.status !== 'confirmed') {
             throw new domain_exceptions_1.InvalidStateException('Workflow requires confirmed / picking outbound order.');
         }
@@ -126,7 +134,7 @@ let WorkflowEngineService = class WorkflowEngineService {
         }
         const wf = await tx.workflowInstance.create({
             data: {
-                companyId: user.companyId,
+                companyId: tenantCompanyId,
                 warehouseId,
                 referenceType: 'outbound_order',
                 referenceId: orderId,
@@ -168,6 +176,7 @@ let WorkflowEngineService = class WorkflowEngineService {
 };
 exports.WorkflowEngineService = WorkflowEngineService;
 exports.WorkflowEngineService = WorkflowEngineService = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __metadata("design:paramtypes", [company_access_service_1.CompanyAccessService])
 ], WorkflowEngineService);
 //# sourceMappingURL=workflow-engine.service.js.map

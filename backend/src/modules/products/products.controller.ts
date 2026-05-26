@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -37,45 +36,63 @@ export class ProductsController {
     @CurrentUser() user: AuthPrincipal,
     @Query('companyId') companyIdParam?: string,
   ) {
-    const companyId = companyIdParam ?? user.companyId;
-    if (!companyId) {
-      throw new BadRequestException('companyId is required for SKU generation.');
-    }
-    return this.products.nextSku(companyId);
+    return this.products.nextSku(user, companyIdParam);
   }
 
   @Post(':id/suspend')
-  suspend(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.products.suspend(id);
+  suspend(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.products.suspend(id, user);
   }
 
   @Post(':id/unsuspend')
-  unsuspend(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.products.unsuspend(id);
+  unsuspend(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.products.unsuspend(id, user);
   }
 
   @Delete(':id/hard')
-  hardDelete(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.products.removePermanentlyIfSafe(id);
+  hardDelete(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.products.removePermanentlyIfSafe(id, user);
   }
 
   @Get(':id/lots')
-  listLots(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.products.listLotsForProduct(id);
+  listLots(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.products.listLotsForProduct(id, user);
   }
 
   @Patch(':id')
-  update(@Param('id', ParseUuidLoosePipe) id: string, @Body() dto: UpdateProductDto) {
-    return this.products.update(id, dto);
+  update(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: UpdateProductDto,
+  ) {
+    return this.products.update(id, dto, user);
   }
 
   @Delete(':id')
-  archive(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.products.softDelete(id);
+  archive(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.products.softDelete(id, user);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.products.findById(id);
+  findOne(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.products.findById(id, user);
   }
 }

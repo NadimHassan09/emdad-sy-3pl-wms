@@ -11,6 +11,7 @@ const common_1 = require("@nestjs/common");
 const core_1 = require("@nestjs/core");
 const config_1 = require("@nestjs/config");
 const schedule_1 = require("@nestjs/schedule");
+const company_access_module_1 = require("./common/company-access/company-access.module");
 const crypto_module_1 = require("./common/crypto/crypto.module");
 const prisma_module_1 = require("./common/prisma/prisma.module");
 const redis_module_1 = require("./common/redis/redis.module");
@@ -38,6 +39,7 @@ exports.AppModule = AppModule = __decorate([
         imports: [
             config_1.ConfigModule.forRoot({ isGlobal: true }),
             schedule_1.ScheduleModule.forRoot(),
+            company_access_module_1.CompanyAccessModule,
             crypto_module_1.CryptoModule,
             auth_module_1.AuthModule,
             prisma_module_1.PrismaModule,

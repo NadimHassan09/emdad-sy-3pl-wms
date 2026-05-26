@@ -3,11 +3,15 @@ import { Prisma } from '@prisma/client';
 
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 
 @Controller('analytics')
 export class AnalyticsOverviewController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly companyAccess: CompanyAccessService,
+  ) {}
 
   @Get('overview')
   async overview(
@@ -15,9 +19,10 @@ export class AnalyticsOverviewController {
     @Query('warehouse_id') warehouseId?: string,
     @Query('days') daysRaw?: string,
   ) {
-    if (!user.companyId) {
-      throw new BadRequestException('company context required');
-    }
+    const tenantCompanyId = this.companyAccess.requireActiveTenant(
+      user,
+      'company context required',
+    );
     const days = Math.min(Number(daysRaw ?? '7') || 7, 90);
     const from = new Date();
     from.setDate(from.getDate() - days);
@@ -45,7 +50,7 @@ export class AnalyticsOverviewController {
         percentile_cont(0.5) WITHIN GROUP (ORDER BY duration_minutes)::float8 AS median_minutes,
         COUNT(*)::bigint AS cycle_samples
       FROM v_analytics_wh_task_completed_rows
-      WHERE company_id = ${user.companyId}::uuid
+      WHERE company_id = ${tenantCompanyId}::uuid
         AND completed_at >= ${from}
         ${whFilter}
         AND duration_minutes IS NOT NULL

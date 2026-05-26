@@ -13,6 +13,7 @@ exports.AdjustmentsService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const company_read_scope_1 = require("../../common/auth/company-read-scope");
+const company_access_service_1 = require("../../common/company-access/company-access.service");
 const storage_location_types_1 = require("../../common/constants/storage-location-types");
 const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantity");
 const location_operational_1 = require("../../common/utils/location-operational");
@@ -39,15 +40,14 @@ const ADJUSTMENT_DETAIL_INCLUDE = {
 let AdjustmentsService = class AdjustmentsService {
     prisma;
     stock;
-    constructor(prisma, stock) {
+    companyAccess;
+    constructor(prisma, stock, companyAccess) {
         this.prisma = prisma;
         this.stock = stock;
+        this.companyAccess = companyAccess;
     }
     async create(user, dto) {
-        const companyId = dto.companyId ?? user.companyId;
-        if (!companyId) {
-            throw new common_1.BadRequestException('companyId is required (no default company on current user).');
-        }
+        const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
         const wh = await this.prisma.warehouse.findUnique({
             where: { id: dto.warehouseId },
             select: { id: true },
@@ -71,9 +71,7 @@ let AdjustmentsService = class AdjustmentsService {
         if (adj.status !== 'draft') {
             throw new domain_exceptions_1.InvalidStateException('Only draft adjustments can be edited.');
         }
-        if (user.companyId && adj.companyId !== user.companyId) {
-            throw new common_1.NotFoundException('Adjustment not found.');
-        }
+        this.companyAccess.validateResourceOwnership(user, adj);
         return this.prisma.stockAdjustment.update({
             where: { id },
             data: { reason: dto.reason.trim(), updatedAt: new Date() },
@@ -82,7 +80,7 @@ let AdjustmentsService = class AdjustmentsService {
     }
     list(user, query) {
         const where = {};
-        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(user, query.companyId);
+        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(this.companyAccess, user, query.companyId);
         if (companyId)
             where.companyId = companyId;
         if (query.status)
@@ -123,20 +121,24 @@ let AdjustmentsService = class AdjustmentsService {
             offset: query.offset,
         }));
     }
-    async findById(id) {
+    async findById(id, user) {
         const row = await this.prisma.stockAdjustment.findUnique({
             where: { id },
             include: ADJUSTMENT_DETAIL_INCLUDE,
         });
         if (!row)
             throw new common_1.NotFoundException('Adjustment not found.');
+        if (user) {
+            this.companyAccess.validateResourceOwnership(user, row);
+        }
         return row;
     }
-    async addLine(_user, adjustmentId, dto) {
+    async addLine(user, adjustmentId, dto) {
         return this.prisma.$transaction(async (tx) => {
             const adj = await tx.stockAdjustment.findUnique({ where: { id: adjustmentId } });
             if (!adj)
                 throw new common_1.NotFoundException('Adjustment not found.');
+            this.companyAccess.validateResourceOwnership(user, adj);
             if (adj.status !== 'draft') {
                 throw new domain_exceptions_1.InvalidStateException('Lines can only be added while adjustment is draft.');
             }
@@ -253,6 +255,7 @@ let AdjustmentsService = class AdjustmentsService {
                 });
                 if (!adj)
                     throw new common_1.NotFoundException('Adjustment not found.');
+                this.companyAccess.validateResourceOwnership(user, adj);
                 if (adj.status !== 'draft') {
                     throw new domain_exceptions_1.InvalidStateException(`Only draft adjustments can be approved (current: ${adj.status}).`);
                 }
@@ -359,10 +362,11 @@ let AdjustmentsService = class AdjustmentsService {
             throw e;
         }
     }
-    async cancel(id) {
+    async cancel(id, user) {
         const adj = await this.prisma.stockAdjustment.findUnique({ where: { id } });
         if (!adj)
             throw new common_1.NotFoundException('Adjustment not found.');
+        this.companyAccess.validateResourceOwnership(user, adj);
         if (adj.status !== 'draft') {
             throw new domain_exceptions_1.InvalidStateException('Only draft adjustments can be cancelled.');
         }
@@ -377,6 +381,7 @@ exports.AdjustmentsService = AdjustmentsService;
 exports.AdjustmentsService = AdjustmentsService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        stock_helpers_1.StockHelpers])
+        stock_helpers_1.StockHelpers,
+        company_access_service_1.CompanyAccessService])
 ], AdjustmentsService);
 //# sourceMappingURL=adjustments.service.js.map

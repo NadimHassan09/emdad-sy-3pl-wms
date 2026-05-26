@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const client_1 = require("@prisma/client");
 const company_read_scope_1 = require("../../common/auth/company-read-scope");
+const company_access_service_1 = require("../../common/company-access/company-access.service");
 const warehouse_order_scope_1 = require("../../common/utils/warehouse-order-scope");
 const storage_location_types_1 = require("../../common/constants/storage-location-types");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
@@ -63,19 +64,18 @@ let InboundService = class InboundService {
     workflowBootstrap;
     realtime;
     notifications;
-    constructor(prisma, stock, config, workflowBootstrap, realtime, notifications) {
+    companyAccess;
+    constructor(prisma, stock, config, workflowBootstrap, realtime, notifications, companyAccess) {
         this.prisma = prisma;
         this.stock = stock;
         this.config = config;
         this.workflowBootstrap = workflowBootstrap;
         this.realtime = realtime;
         this.notifications = notifications;
+        this.companyAccess = companyAccess;
     }
     async create(user, dto, opts) {
-        const companyId = dto.companyId ?? user.companyId;
-        if (!companyId) {
-            throw new common_1.BadRequestException('companyId is required (no default company on current user).');
-        }
+        const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
         const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
         const products = await this.prisma.product.findMany({
             where: { id: { in: productIds } },
@@ -147,7 +147,7 @@ let InboundService = class InboundService {
     async list(user, query) {
         const baseAnd = [];
         const where = {};
-        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(user, query.companyId);
+        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(this.companyAccess, user, query.companyId);
         if (companyId)
             where.companyId = companyId;
         if (query.status)
@@ -194,17 +194,20 @@ let InboundService = class InboundService {
             this.prisma.inboundOrder.count({ where }),
         ]).then(([items, total]) => ({ items, total, limit: query.limit, offset: query.offset }));
     }
-    async findById(id) {
+    async findById(id, user) {
         const order = await this.prisma.inboundOrder.findUnique({
             where: { id },
             include: ORDER_INCLUDE,
         });
         if (!order)
             throw new common_1.NotFoundException('Inbound order not found.');
+        if (user) {
+            this.companyAccess.validateResourceOwnership(user, order);
+        }
         return order;
     }
     async confirm(user, id, body) {
-        const order = await this.findById(id);
+        const order = await this.findById(id, user);
         const wasPendingApproval = order.status === client_1.InboundOrderStatus.pending_approval;
         for (const line of order.lines) {
             (0, assert_product_orderable_1.assertProductOrderableForOrders)(line.product.status);
@@ -224,9 +227,7 @@ let InboundService = class InboundService {
                 const cur = await tx.inboundOrder.findUnique({ where: { id } });
                 if (!cur)
                     throw new common_1.NotFoundException('Inbound order not found.');
-                if (user.companyId && cur.companyId !== user.companyId) {
-                    throw new common_1.NotFoundException('Inbound order not found.');
-                }
+                this.companyAccess.validateResourceOwnership(user, cur);
                 if (!isInboundConfirmable(cur.status)) {
                     throw new domain_exceptions_1.InvalidStateException(`Only draft or pending-approval orders can be confirmed (current status: ${cur.status}).`);
                 }
@@ -275,7 +276,7 @@ let InboundService = class InboundService {
         return confirmed;
     }
     async cancel(id, user) {
-        const order = await this.findById(id);
+        const order = await this.findById(id, user);
         if (!['draft', 'pending_approval', 'confirmed'].includes(order.status)) {
             throw new domain_exceptions_1.InvalidStateException(`Inbound orders can only be cancelled while in draft, pending approval, or confirmed (current: ${order.status}).`);
         }
@@ -502,6 +503,7 @@ exports.InboundService = InboundService = __decorate([
         config_1.ConfigService,
         workflow_bootstrap_service_1.WorkflowBootstrapService,
         realtime_service_1.RealtimeService,
-        notifications_service_1.NotificationsService])
+        notifications_service_1.NotificationsService,
+        company_access_service_1.CompanyAccessService])
 ], InboundService);
 //# sourceMappingURL=inbound.service.js.map

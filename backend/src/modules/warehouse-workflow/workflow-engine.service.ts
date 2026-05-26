@@ -11,6 +11,7 @@ import {
 } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { InvalidStateException } from '../../common/errors/domain-exceptions';
 import { InboundReceivingPayload, OutboundPickPayload } from './workflow-payload.contracts';
 import { defaultSlaMinutesForTaskType } from './task-sla-defaults';
@@ -21,6 +22,8 @@ const DEF_OUTBOUND = 'outbound_default_v1';
 /** Core transactional workflow bootstrap (TASK_ONLY_FLOWS order confirm delegates here). */
 @Injectable()
 export class WorkflowEngineService {
+  constructor(private readonly companyAccess: CompanyAccessService) {}
+
   /**
    * Idempotent: returns existing open instance + tasks when already present.
    * Caller must run inside a transaction when combined with order mutations.
@@ -36,7 +39,7 @@ export class WorkflowEngineService {
     nodes: unknown[];
     tasks: unknown[];
   }> {
-    if (!user.companyId) throw new BadRequestException('companyId required on user.');
+    const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
 
     const order = await tx.inboundOrder.findUnique({
       where: { id: orderId },
@@ -44,9 +47,10 @@ export class WorkflowEngineService {
         lines: { orderBy: { lineNumber: 'asc' } },
       },
     });
-    if (!order || order.companyId !== user.companyId) {
+    if (!order) {
       throw new NotFoundException('Inbound order not found.');
     }
+    this.companyAccess.validateResourceOwnership(user, order);
     if (!['confirmed', 'in_progress', 'partially_received'].includes(order.status)) {
       throw new InvalidStateException('Workflow can only start for an active inbound order.');
     }
@@ -83,7 +87,7 @@ export class WorkflowEngineService {
 
     const wf = await tx.workflowInstance.create({
       data: {
-        companyId: user.companyId,
+        companyId: tenantCompanyId,
         warehouseId,
         referenceType: 'inbound_order',
         referenceId: orderId,
@@ -141,12 +145,13 @@ export class WorkflowEngineService {
     nodes: unknown[];
     tasks: unknown[];
   }> {
-    if (!user.companyId) throw new BadRequestException('companyId required on user.');
+    const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
     const order = await tx.outboundOrder.findUnique({
       where: { id: orderId },
       include: { lines: { orderBy: { lineNumber: 'asc' } } },
     });
-    if (!order || order.companyId !== user.companyId) throw new NotFoundException('Outbound order not found.');
+    if (!order) throw new NotFoundException('Outbound order not found.');
+    this.companyAccess.validateResourceOwnership(user, order);
     if (order.status !== 'picking' && order.status !== 'confirmed') {
       throw new InvalidStateException('Workflow requires confirmed / picking outbound order.');
     }
@@ -168,7 +173,7 @@ export class WorkflowEngineService {
 
     const wf = await tx.workflowInstance.create({
       data: {
-        companyId: user.companyId,
+        companyId: tenantCompanyId,
         warehouseId,
         referenceType: 'outbound_order',
         referenceId: orderId,

@@ -7,8 +7,17 @@ import { AuthProvider } from './auth/AuthContext';
 import { ToastProvider } from './components/ToastProvider';
 import { queryClient } from './lib/queryClient';
 import { RealtimeProvider } from './realtime/RealtimeProvider';
+import { getApiBaseUrl } from './api/apiBaseUrl';
 import { router } from './router';
+import { socketHttpOrigin } from './realtime/socketBaseUrl';
 import './styles.css';
+
+if (import.meta.env.DEV) {
+  const api = getApiBaseUrl();
+  const socket = socketHttpOrigin();
+  // eslint-disable-next-line no-console
+  console.info(`[wms] API ${api} · realtime ${socket}/realtime`);
+}
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 
+import { CompanyAccessModule } from '../../common/company-access/company-access.module';
 import { CryptoModule } from '../../common/crypto/crypto.module';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { AuthController } from './auth.controller';
@@ -24,6 +25,7 @@ import { UserActivityService } from './user-activity.service';
         signOptions: { expiresIn: 8 * 60 * 60 },
       }),
     }),
+    CompanyAccessModule,
     PrismaModule,
     CryptoModule,
   ],

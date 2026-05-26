@@ -30,8 +30,8 @@ export class OutboundController {
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.outbound.findById(id);
+  findOne(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.outbound.findById(id, user);
   }
 
   @Post(':id/confirm')

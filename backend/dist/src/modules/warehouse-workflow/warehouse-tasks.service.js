@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.WarehouseTasksService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const company_access_service_1 = require("../../common/company-access/company-access.service");
 const notifications_service_1 = require("../notifications/notifications.service");
 const realtime_service_1 = require("../realtime/realtime.service");
 const cache_invalidation_service_1 = require("../../common/redis/cache-invalidation.service");
@@ -33,7 +34,8 @@ let WarehouseTasksService = class WarehouseTasksService {
     taskReadCache;
     realtime;
     notifications;
-    constructor(prisma, effects, cacheInv, orchestration, taskReadCache, realtime, notifications) {
+    companyAccess;
+    constructor(prisma, effects, cacheInv, orchestration, taskReadCache, realtime, notifications, companyAccess) {
         this.prisma = prisma;
         this.effects = effects;
         this.cacheInv = cacheInv;
@@ -41,6 +43,10 @@ let WarehouseTasksService = class WarehouseTasksService {
         this.taskReadCache = taskReadCache;
         this.realtime = realtime;
         this.notifications = notifications;
+        this.companyAccess = companyAccess;
+    }
+    assertTaskWorkflowTenant(user, workflowCompanyId) {
+        this.companyAccess.assertSameCompany(user, workflowCompanyId);
     }
     async list(user, query) {
         const where = {};
@@ -80,9 +86,10 @@ let WarehouseTasksService = class WarehouseTasksService {
             if (query.updatedTo)
                 where.updatedAt.lte = query.updatedTo;
         }
-        if (user.companyId) {
+        const listCompanyId = this.companyAccess.getReadFilterCompanyId(user);
+        if (listCompanyId) {
             and.push({
-                workflowInstance: { companyId: user.companyId },
+                workflowInstance: { companyId: listCompanyId },
             });
         }
         if (and.length)
@@ -157,9 +164,7 @@ let WarehouseTasksService = class WarehouseTasksService {
         });
         if (!task)
             throw new common_1.NotFoundException('Task not found.');
-        if (user.companyId && task.workflowInstance.companyId !== user.companyId) {
-            throw new common_1.NotFoundException('Task not found.');
-        }
+        this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
         await this.assertOperatorAssignedToTask(user, task);
         return task;
     }
@@ -323,9 +328,7 @@ let WarehouseTasksService = class WarehouseTasksService {
         });
         if (!task)
             throw new common_1.NotFoundException('Task not found.');
-        if (user.companyId && task.workflowInstance.companyId !== user.companyId) {
-            throw new common_1.NotFoundException('Task not found.');
-        }
+        this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
         await this.assertOperatorAssignedToTask(user, task);
         const wfAll = await this.prisma.warehouseTask.findMany({
             where: { workflowInstanceId: task.workflowInstanceId },
@@ -367,9 +370,11 @@ let WarehouseTasksService = class WarehouseTasksService {
             await this.lockTask(tx, taskId);
             const task = await tx.warehouseTask.findUnique({
                 where: { id: taskId },
+                include: { workflowInstance: true },
             });
             if (!task)
                 throw new common_1.NotFoundException('Task not found.');
+            this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
             await tx.taskAssignment.updateMany({
                 where: { taskId, unassignedAt: null },
                 data: { unassignedAt: new Date() },
@@ -391,9 +396,11 @@ let WarehouseTasksService = class WarehouseTasksService {
             await this.lockTask(tx, taskId);
             const task = await tx.warehouseTask.findUnique({
                 where: { id: taskId },
+                include: { workflowInstance: true },
             });
             if (!task)
                 throw new common_1.NotFoundException('Task not found.');
+            this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
             await tx.taskAssignment.updateMany({
                 where: { taskId, unassignedAt: null },
                 data: { unassignedAt: new Date() },
@@ -613,7 +620,9 @@ let WarehouseTasksService = class WarehouseTasksService {
             await this.lockTask(tx, taskId);
             const task = await tx.warehouseTask.findUniqueOrThrow({
                 where: { id: taskId },
+                include: { workflowInstance: true },
             });
+            this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
             if (!(0, task_transitions_1.canTransitionTask)(task.status, client_1.WarehouseTaskStatus.cancelled)) {
                 throw new common_1.BadRequestException(`Cannot cancel from ${task.status}.`);
             }
@@ -733,9 +742,7 @@ let WarehouseTasksService = class WarehouseTasksService {
             });
             if (!task)
                 throw new common_1.NotFoundException('Task not found.');
-            if (user.companyId && task.workflowInstance.companyId !== user.companyId) {
-                throw new common_1.NotFoundException('Task not found.');
-            }
+            this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
             if (task.status !== client_1.WarehouseTaskStatus.in_progress) {
                 throw new common_1.BadRequestException('progress updates require task status in_progress.');
             }
@@ -770,9 +777,7 @@ let WarehouseTasksService = class WarehouseTasksService {
             });
             if (!task)
                 throw new common_1.NotFoundException('Task not found.');
-            if (user.companyId && task.workflowInstance.companyId !== user.companyId) {
-                throw new common_1.NotFoundException('Task not found.');
-            }
+            this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
             if (task.status !== client_1.WarehouseTaskStatus.pending &&
                 task.status !== client_1.WarehouseTaskStatus.assigned &&
                 task.status !== client_1.WarehouseTaskStatus.in_progress) {
@@ -798,9 +803,7 @@ let WarehouseTasksService = class WarehouseTasksService {
             });
             if (!task)
                 throw new common_1.NotFoundException('Task not found.');
-            if (user.companyId && task.workflowInstance.companyId !== user.companyId) {
-                throw new common_1.NotFoundException('Task not found.');
-            }
+            this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
             await tx.warehouseTask.update({
                 where: { id: taskId },
                 data: { leaseExpiresAt: null },
@@ -1096,7 +1099,8 @@ exports.WarehouseTasksService = WarehouseTasksService = __decorate([
         workflow_orchestration_service_1.WorkflowOrchestrationService,
         task_read_cache_service_1.TaskReadCacheService,
         realtime_service_1.RealtimeService,
-        notifications_service_1.NotificationsService])
+        notifications_service_1.NotificationsService,
+        company_access_service_1.CompanyAccessService])
 ], WarehouseTasksService);
 function parsePickPayload(raw) {
     if (!isRecord(raw))

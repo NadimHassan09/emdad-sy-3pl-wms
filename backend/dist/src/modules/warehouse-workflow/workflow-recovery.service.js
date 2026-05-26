@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkflowRecoveryService = void 0;
 const common_1 = require("@nestjs/common");
+const company_access_service_1 = require("../../common/company-access/company-access.service");
 const cache_invalidation_service_1 = require("../../common/redis/cache-invalidation.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const compensation_1 = require("../../vendor/wms-task-execution/compensation");
@@ -28,10 +29,12 @@ let WorkflowRecoveryService = class WorkflowRecoveryService {
     prisma;
     effects;
     cacheInv;
-    constructor(prisma, effects, cacheInv) {
+    companyAccess;
+    constructor(prisma, effects, cacheInv, companyAccess) {
         this.prisma = prisma;
         this.effects = effects;
         this.cacheInv = cacheInv;
+        this.companyAccess = companyAccess;
     }
     async recoverWorkflowInstance(instanceId, user, rawBody) {
         if (!user.companyId)
@@ -47,8 +50,9 @@ let WorkflowRecoveryService = class WorkflowRecoveryService {
         const wf = await this.prisma.workflowInstance.findUnique({
             where: { id: instanceId },
         });
-        if (!wf || wf.companyId !== user.companyId)
+        if (!wf)
             throw new common_1.NotFoundException('Workflow instance not found.');
+        this.companyAccess.validateResourceOwnership(user, wf);
         if (!['super_admin', 'wh_manager'].includes(user.role)) {
             throw new common_1.ForbiddenException('Only warehouse managers may run workflow recovery.');
         }
@@ -133,6 +137,7 @@ exports.WorkflowRecoveryService = WorkflowRecoveryService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         task_inventory_effects_service_1.TaskInventoryEffectsService,
-        cache_invalidation_service_1.CacheInvalidationService])
+        cache_invalidation_service_1.CacheInvalidationService,
+        company_access_service_1.CompanyAccessService])
 ], WorkflowRecoveryService);
 //# sourceMappingURL=workflow-recovery.service.js.map
