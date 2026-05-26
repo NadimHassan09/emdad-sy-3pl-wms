@@ -36,11 +36,15 @@ export class CompaniesController {
   }
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
   create(@Body() dto: CreateCompanyDto) {
     return this.companies.create(dto);
   }
 
   @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
   update(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
@@ -50,11 +54,15 @@ export class CompaniesController {
   }
 
   @Post(':id/suspend')
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
   suspend(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.companies.suspend(user, id);
   }
 
   @Post(':id/close')
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
   close(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.companies.softDelete(user, id);
   }
