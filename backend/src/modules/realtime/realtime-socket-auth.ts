@@ -12,6 +12,17 @@ export type SocketPrincipal =
   | { kind: 'internal'; userId: string; role: UserRole; email: string | null }
   | { kind: 'client'; userId: string; companyId: string; role: UserRole; email: string | null };
 
+export function normalizeCompanyId(value: string | undefined | null): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim().toLowerCase();
+  if (!UUID_RE.test(trimmed)) return null;
+  return trimmed;
+}
+
+export function companyRoomName(companyId: string): string {
+  return `tenant:company:${companyId}`;
+}
+
 function tryVerify(token: string, secret: string): jwt.JwtPayload | null {
   try {
     const p = jwt.verify(token, secret);
@@ -76,5 +87,5 @@ export async function authenticateSocketConnection(
 }
 
 export function isValidCompanyRoomId(companyId: string | undefined): companyId is string {
-  return typeof companyId === 'string' && UUID_RE.test(companyId.trim());
+  return normalizeCompanyId(companyId) !== null;
 }

@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 
 import { AuthGroup } from '../../common/auth/auth-groups';
+import { CurrentUser } from '../../common/auth/current-user.decorator';
+import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { Roles } from '../../common/auth/roles.decorator';
 import { RolesGuard } from '../../common/auth/roles.guard';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
@@ -24,13 +26,13 @@ export class CompaniesController {
   constructor(private readonly companies: CompaniesService) {}
 
   @Get()
-  list(@Query() query: ListCompaniesQueryDto) {
-    return this.companies.list(query);
+  list(@CurrentUser() user: AuthPrincipal, @Query() query: ListCompaniesQueryDto) {
+    return this.companies.list(user, query);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.companies.findById(id);
+  findOne(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.companies.findById(user, id);
   }
 
   @Post()
@@ -39,24 +41,28 @@ export class CompaniesController {
   }
 
   @Patch(':id')
-  update(@Param('id', ParseUuidLoosePipe) id: string, @Body() dto: UpdateCompanyDto) {
-    return this.companies.update(id, dto);
+  update(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: UpdateCompanyDto,
+  ) {
+    return this.companies.update(user, id, dto);
   }
 
   @Post(':id/suspend')
-  suspend(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.companies.suspend(id);
+  suspend(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.companies.suspend(user, id);
   }
 
   @Post(':id/close')
-  close(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.companies.softDelete(id);
+  close(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.companies.softDelete(user, id);
   }
 
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(AuthGroup.ADMIN)
-  remove(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.companies.remove(id);
+  remove(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.companies.remove(user, id);
   }
 }

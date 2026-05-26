@@ -126,15 +126,13 @@ export class AdjustmentsService {
     }));
   }
 
-  async findById(id: string, user?: AuthPrincipal) {
+  async findById(id: string, user: AuthPrincipal) {
     const row = await this.prisma.stockAdjustment.findUnique({
       where: { id },
       include: ADJUSTMENT_DETAIL_INCLUDE,
     });
     if (!row) throw new NotFoundException('Adjustment not found.');
-    if (user) {
-      this.companyAccess.validateResourceOwnership(user, row);
-    }
+    this.companyAccess.validateResourceOwnership(user, row);
     return row;
   }
 

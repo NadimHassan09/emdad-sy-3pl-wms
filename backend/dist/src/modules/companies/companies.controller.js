@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CompaniesController = void 0;
 const common_1 = require("@nestjs/common");
 const auth_groups_1 = require("../../common/auth/auth-groups");
+const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
 const roles_decorator_1 = require("../../common/auth/roles.decorator");
 const roles_guard_1 = require("../../common/auth/roles.guard");
 const parse_uuid_loose_pipe_1 = require("../../common/pipes/parse-uuid-loose.pipe");
@@ -27,41 +28,43 @@ let CompaniesController = class CompaniesController {
     constructor(companies) {
         this.companies = companies;
     }
-    list(query) {
-        return this.companies.list(query);
+    list(user, query) {
+        return this.companies.list(user, query);
     }
-    findOne(id) {
-        return this.companies.findById(id);
+    findOne(user, id) {
+        return this.companies.findById(user, id);
     }
     create(dto) {
         return this.companies.create(dto);
     }
-    update(id, dto) {
-        return this.companies.update(id, dto);
+    update(user, id, dto) {
+        return this.companies.update(user, id, dto);
     }
-    suspend(id) {
-        return this.companies.suspend(id);
+    suspend(user, id) {
+        return this.companies.suspend(user, id);
     }
-    close(id) {
-        return this.companies.softDelete(id);
+    close(user, id) {
+        return this.companies.softDelete(user, id);
     }
-    remove(id) {
-        return this.companies.remove(id);
+    remove(user, id) {
+        return this.companies.remove(user, id);
     }
 };
 exports.CompaniesController = CompaniesController;
 __decorate([
     (0, common_1.Get)(),
-    __param(0, (0, common_1.Query)()),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [list_companies_query_dto_1.ListCompaniesQueryDto]),
+    __metadata("design:paramtypes", [Object, list_companies_query_dto_1.ListCompaniesQueryDto]),
     __metadata("design:returntype", void 0)
 ], CompaniesController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], CompaniesController.prototype, "findOne", null);
 __decorate([
@@ -73,33 +76,37 @@ __decorate([
 ], CompaniesController.prototype, "create", null);
 __decorate([
     (0, common_1.Patch)(':id'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
-    __param(1, (0, common_1.Body)()),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_company_dto_1.UpdateCompanyDto]),
+    __metadata("design:paramtypes", [Object, String, update_company_dto_1.UpdateCompanyDto]),
     __metadata("design:returntype", void 0)
 ], CompaniesController.prototype, "update", null);
 __decorate([
     (0, common_1.Post)(':id/suspend'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], CompaniesController.prototype, "suspend", null);
 __decorate([
     (0, common_1.Post)(':id/close'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], CompaniesController.prototype, "close", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)(auth_groups_1.AuthGroup.ADMIN),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], CompaniesController.prototype, "remove", null);
 exports.CompaniesController = CompaniesController = __decorate([

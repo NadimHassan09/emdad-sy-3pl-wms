@@ -33,12 +33,25 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.normalizeCompanyId = normalizeCompanyId;
+exports.companyRoomName = companyRoomName;
 exports.authenticateSocketConnection = authenticateSocketConnection;
 exports.isValidCompanyRoomId = isValidCompanyRoomId;
 const client_1 = require("@prisma/client");
 const jwt = __importStar(require("jsonwebtoken"));
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CLIENT_ROLES = [client_1.UserRole.client_admin, client_1.UserRole.client_staff];
+function normalizeCompanyId(value) {
+    if (typeof value !== 'string')
+        return null;
+    const trimmed = value.trim().toLowerCase();
+    if (!UUID_RE.test(trimmed))
+        return null;
+    return trimmed;
+}
+function companyRoomName(companyId) {
+    return `tenant:company:${companyId}`;
+}
 function tryVerify(token, secret) {
     try {
         const p = jwt.verify(token, secret);
@@ -96,6 +109,6 @@ async function authenticateSocketConnection(config, prisma, token) {
     return null;
 }
 function isValidCompanyRoomId(companyId) {
-    return typeof companyId === 'string' && UUID_RE.test(companyId.trim());
+    return normalizeCompanyId(companyId) !== null;
 }
 //# sourceMappingURL=realtime-socket-auth.js.map

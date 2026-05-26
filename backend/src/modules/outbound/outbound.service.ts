@@ -283,15 +283,13 @@ export class OutboundService {
     ]).then(([items, total]) => ({ items, total, limit: query.limit, offset: query.offset }));
   }
 
-  async findById(id: string, user?: AuthPrincipal) {
+  async findById(id: string, user: AuthPrincipal) {
     const order = await this.prisma.outboundOrder.findUnique({
       where: { id },
       include: ORDER_INCLUDE,
     });
     if (!order) throw new NotFoundException('Outbound order not found.');
-    if (user) {
-      this.companyAccess.validateResourceOwnership(user, order);
-    }
+    this.companyAccess.validateResourceOwnership(user, order);
     return order;
   }
 
@@ -327,6 +325,9 @@ export class OutboundService {
       where: { id: orderId },
       select: { status: true, companyId: true, orderNumber: true, id: true },
     });
+    if (before) {
+      this.companyAccess.validateResourceOwnership(user, before);
+    }
     const updated = await this.prisma.$transaction(async (tx) => {
       const order = await tx.outboundOrder.findUnique({
         where: { id: orderId },
@@ -338,6 +339,7 @@ export class OutboundService {
         },
       });
       if (!order) throw new NotFoundException('Outbound order not found.');
+      this.companyAccess.validateResourceOwnership(user, order);
       if (!isOutboundConfirmable(order.status)) {
         throw new InvalidStateException(
           `Only draft or pending-approval orders can be confirmed (current: ${order.status}).`,
@@ -381,6 +383,8 @@ export class OutboundService {
       where: { id: orderId },
       select: { status: true, companyId: true, orderNumber: true, id: true },
     });
+    if (!before) throw new NotFoundException('Outbound order not found.');
+    this.companyAccess.validateResourceOwnership(user, before);
     if (taskOnlyFlows(this.config)) {
       if (!body?.warehouseId) {
         throw new BadRequestException(
@@ -421,7 +425,7 @@ export class OutboundService {
         });
         await this.workflowBootstrap.startOutboundWorkflowTx(tx, user, orderId, wh);
       });
-      const wfConfirmed = await this.findById(orderId);
+      const wfConfirmed = await this.findById(orderId, user);
       this.realtime.emitOutboundOrderUpdated(wfConfirmed.companyId, {
         orderId: wfConfirmed.id,
         status: wfConfirmed.status,
@@ -452,6 +456,7 @@ export class OutboundService {
         },
       });
       if (!order) throw new NotFoundException('Outbound order not found.');
+      this.companyAccess.validateResourceOwnership(user, order);
       if (!isOutboundConfirmable(order.status)) {
         throw new InvalidStateException(
           `Only draft or pending-approval orders can be confirmed (current: ${order.status}).`,

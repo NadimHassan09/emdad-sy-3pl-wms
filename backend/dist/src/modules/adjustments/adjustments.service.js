@@ -128,9 +128,7 @@ let AdjustmentsService = class AdjustmentsService {
         });
         if (!row)
             throw new common_1.NotFoundException('Adjustment not found.');
-        if (user) {
-            this.companyAccess.validateResourceOwnership(user, row);
-        }
+        this.companyAccess.validateResourceOwnership(user, row);
         return row;
     }
     async addLine(user, adjustmentId, dto) {

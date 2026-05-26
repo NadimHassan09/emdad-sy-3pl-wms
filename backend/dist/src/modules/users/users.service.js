@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsersService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const company_access_service_1 = require("../../common/company-access/company-access.service");
 const password_service_1 = require("../../common/crypto/password.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const USER_LIST_SELECT = {
@@ -51,11 +52,13 @@ const CLIENT_ROLES = [client_1.UserRole.client_admin, client_1.UserRole.client_s
 let UsersService = class UsersService {
     prisma;
     password;
-    constructor(prisma, password) {
+    companyAccess;
+    constructor(prisma, password, companyAccess) {
         this.prisma = prisma;
         this.password = password;
+        this.companyAccess = companyAccess;
     }
-    async list(query) {
+    async list(actor, query) {
         const kind = query.kind ?? 'all';
         const where = {};
         if (kind === 'system') {
@@ -64,6 +67,17 @@ let UsersService = class UsersService {
         else if (kind === 'client') {
             where.companyId = { not: null };
         }
+        if (actor.tenantScope === 'restricted') {
+            if (kind === 'client') {
+                where.companyId = { in: actor.authorizedCompanyIds };
+            }
+            else if (kind === 'all') {
+                where.OR = [
+                    { companyId: null },
+                    { companyId: { in: actor.authorizedCompanyIds } },
+                ];
+            }
+        }
         const rows = await this.prisma.user.findMany({
             where,
             orderBy: [{ email: 'asc' }],
@@ -71,13 +85,16 @@ let UsersService = class UsersService {
         });
         return rows.map((u) => this.toListRow(u));
     }
-    async findById(id) {
+    async findById(id, actor) {
         const u = await this.prisma.user.findUnique({
             where: { id },
             select: USER_LIST_SELECT,
         });
         if (!u)
             throw new common_1.NotFoundException('User not found.');
+        if (u.companyId) {
+            this.companyAccess.assertCompanyAccess(actor, u.companyId);
+        }
         return this.toListRow(u);
     }
     async create(dto, actor) {
@@ -89,7 +106,10 @@ let UsersService = class UsersService {
         const passwordHash = await this.password.hash(dto.password);
         if (dto.kind === 'system') {
             const role = mapSystemRoleToUserRole(dto.systemRole);
-            const shouldProvisionWorker = role === client_1.UserRole.wh_operator && !!actor.companyId;
+            const tenantCompanyId = role === client_1.UserRole.wh_operator
+                ? this.companyAccess.requireActiveTenant(actor, 'Select a client tenant before provisioning a warehouse operator.')
+                : null;
+            const shouldProvisionWorker = role === client_1.UserRole.wh_operator && !!tenantCompanyId;
             const workerWarehouseId = shouldProvisionWorker
                 ? await this.resolveWorkerWarehouseId(dto.workerWarehouseId)
                 : null;
@@ -105,10 +125,10 @@ let UsersService = class UsersService {
                     },
                     select: USER_LIST_SELECT,
                 });
-                if (shouldProvisionWorker) {
+                if (shouldProvisionWorker && tenantCompanyId) {
                     await tx.worker.create({
                         data: {
-                            companyId: actor.companyId,
+                            companyId: tenantCompanyId,
                             warehouseId: workerWarehouseId,
                             displayName: dto.fullName.trim(),
                             userId: u.id,
@@ -123,13 +143,7 @@ let UsersService = class UsersService {
                 return this.toListRow(u);
             });
         }
-        const company = await this.prisma.company.findUnique({
-            where: { id: dto.companyId },
-            select: { id: true },
-        });
-        if (!company) {
-            throw new common_1.NotFoundException('Company not found.');
-        }
+        const companyId = this.companyAccess.resolveWriteCompanyId(actor, dto.companyId);
         const u = await this.prisma.user.create({
             data: {
                 email,
@@ -137,7 +151,7 @@ let UsersService = class UsersService {
                 phone: dto.phone?.trim() || null,
                 passwordHash,
                 role: dto.clientRole,
-                companyId: dto.companyId,
+                companyId,
             },
             select: USER_LIST_SELECT,
         });
@@ -161,6 +175,9 @@ let UsersService = class UsersService {
         });
         if (!existing)
             throw new common_1.NotFoundException('User not found.');
+        if (existing.companyId) {
+            this.companyAccess.assertCompanyAccess(actor, existing.companyId);
+        }
         const isSystem = existing.companyId === null;
         if (dto.email !== undefined) {
             const email = dto.email.trim().toLowerCase();
@@ -180,12 +197,7 @@ let UsersService = class UsersService {
             if (isSystem) {
                 throw new common_1.ConflictException('Cannot set company on a system user.');
             }
-            const co = await this.prisma.company.findUnique({
-                where: { id: dto.companyId },
-                select: { id: true },
-            });
-            if (!co)
-                throw new common_1.NotFoundException('Company not found.');
+            this.companyAccess.assertCompanyAccess(actor, dto.companyId);
         }
         const data = {};
         if (dto.email !== undefined)
@@ -230,10 +242,13 @@ let UsersService = class UsersService {
         }
         const u = await this.prisma.user.findUnique({
             where: { id },
-            select: { id: true },
+            select: { id: true, companyId: true },
         });
         if (!u)
             throw new common_1.NotFoundException('User not found.');
+        if (u.companyId) {
+            this.companyAccess.assertCompanyAccess(actor, u.companyId);
+        }
         try {
             await this.prisma.$transaction(async (tx) => {
                 await tx.worker.deleteMany({ where: { userId: id } });
@@ -260,7 +275,11 @@ let UsersService = class UsersService {
             }
             return;
         }
-        if (!actor.companyId) {
+        let tenantCompanyId = null;
+        try {
+            tenantCompanyId = this.companyAccess.requireActiveTenant(actor);
+        }
+        catch {
             if (worker) {
                 await tx.worker.update({
                     where: { id: worker.id },
@@ -278,7 +297,7 @@ let UsersService = class UsersService {
         }
         await tx.worker.create({
             data: {
-                companyId: actor.companyId,
+                companyId: tenantCompanyId,
                 warehouseId: null,
                 displayName,
                 userId,
@@ -329,6 +348,7 @@ exports.UsersService = UsersService;
 exports.UsersService = UsersService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        password_service_1.PasswordService])
+        password_service_1.PasswordService,
+        company_access_service_1.CompanyAccessService])
 ], UsersService);
 //# sourceMappingURL=users.service.js.map

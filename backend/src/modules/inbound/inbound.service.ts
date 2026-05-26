@@ -214,15 +214,13 @@ export class InboundService {
     ]).then(([items, total]) => ({ items, total, limit: query.limit, offset: query.offset }));
   }
 
-  async findById(id: string, user?: AuthPrincipal) {
+  async findById(id: string, user: AuthPrincipal) {
     const order = await this.prisma.inboundOrder.findUnique({
       where: { id },
       include: ORDER_INCLUDE,
     });
     if (!order) throw new NotFoundException('Inbound order not found.');
-    if (user) {
-      this.companyAccess.validateResourceOwnership(user, order);
-    }
+    this.companyAccess.validateResourceOwnership(user, order);
     return order;
   }
 
@@ -262,7 +260,7 @@ export class InboundService {
         });
         await this.workflowBootstrap.startInboundWorkflowTx(tx, user, id, wh, body.stagingByLineId);
       });
-      const updated = await this.findById(id);
+      const updated = await this.findById(id, user);
       this.realtime.emitInboundOrderUpdated(updated.companyId, {
         orderId: updated.id,
         status: updated.status,
@@ -285,7 +283,7 @@ export class InboundService {
       data: { status: 'confirmed', confirmedAt: new Date() },
     });
 
-    const confirmed = await this.findById(id);
+    const confirmed = await this.findById(id, user);
     this.realtime.emitInboundOrderUpdated(confirmed.companyId, {
       orderId: confirmed.id,
       status: confirmed.status,
@@ -351,6 +349,7 @@ export class InboundService {
     const received = await this.prisma.$transaction(async (tx) => {
       const order = await tx.inboundOrder.findUnique({ where: { id: orderId } });
       if (!order) throw new NotFoundException('Inbound order not found.');
+      this.companyAccess.validateResourceOwnership(user, order);
       if (!['confirmed', 'in_progress', 'partially_received'].includes(order.status)) {
         throw new InvalidStateException(
           `Receive is only allowed when order status is confirmed/in_progress (current: ${order.status}).`,

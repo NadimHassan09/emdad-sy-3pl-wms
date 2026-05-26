@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { CompanyStatus, Prisma } from '@prisma/client';
 
+import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { ListCompaniesQueryDto } from './dto/list-companies-query.dto';
@@ -29,10 +31,16 @@ const COMPANY_LIST_SELECT = {
 
 @Injectable()
 export class CompaniesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly companyAccess: CompanyAccessService,
+  ) {}
 
-  list(query: ListCompaniesQueryDto) {
+  list(user: AuthPrincipal, query: ListCompaniesQueryDto) {
     const where: Prisma.CompanyWhereInput = {};
+    if (user.tenantScope === 'restricted') {
+      where.id = { in: user.authorizedCompanyIds };
+    }
     if (!query.includeAll) {
       where.status = CompanyStatus.active;
     }
@@ -51,7 +59,8 @@ export class CompaniesService {
     });
   }
 
-  async findById(id: string) {
+  async findById(user: AuthPrincipal, id: string) {
+    this.companyAccess.assertCompanyAccess(user, id);
     const company = await this.prisma.company.findUnique({
       where: { id },
       select: COMPANY_LIST_SELECT,
@@ -77,7 +86,8 @@ export class CompaniesService {
     });
   }
 
-  async update(id: string, dto: UpdateCompanyDto) {
+  async update(user: AuthPrincipal, id: string, dto: UpdateCompanyDto) {
+    this.companyAccess.assertCompanyAccess(user, id);
     await this.ensureExists(id);
     const data: Prisma.CompanyUpdateInput = {};
     if (dto.name !== undefined) data.name = dto.name.trim();
@@ -98,15 +108,15 @@ export class CompaniesService {
   }
 
   /** Sets status to paused (suspend operations for this client). */
-  async suspend(id: string) {
-    return this.update(id, { status: CompanyStatus.paused });
+  async suspend(user: AuthPrincipal, id: string) {
+    return this.update(user, id, { status: CompanyStatus.paused });
   }
 
   /**
    * Soft-remove: set status to closed. Hard delete is blocked when related rows exist.
    */
-  async softDelete(id: string) {
-    return this.update(id, { status: CompanyStatus.closed });
+  async softDelete(user: AuthPrincipal, id: string) {
+    return this.update(user, id, { status: CompanyStatus.closed });
   }
 
   private async ensureExists(id: string) {
@@ -117,7 +127,8 @@ export class CompaniesService {
   /**
    * Permanently delete only when no blocking foreign keys. Otherwise use softDelete.
    */
-  async remove(id: string) {
+  async remove(user: AuthPrincipal, id: string) {
+    this.companyAccess.assertCompanyAccess(user, id);
     await this.ensureExists(id);
     try {
       await this.prisma.company.delete({ where: { id } });

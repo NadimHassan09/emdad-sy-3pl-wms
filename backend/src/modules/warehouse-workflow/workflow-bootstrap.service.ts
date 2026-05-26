@@ -133,11 +133,11 @@ export class WorkflowBootstrapService {
 
   /** Part I.F / Part II — DAG read for dashboards (instance-centric). */
   async getWorkflowInstanceGraph(user: AuthPrincipal, instanceId: string) {
-    if (!user.companyId) throw new BadRequestException('companyId required.');
     const wf = await this.prisma.workflowInstance.findUnique({
       where: { id: instanceId },
     });
-    if (!wf || wf.companyId !== user.companyId) throw new NotFoundException('Workflow instance not found.');
+    if (!wf) throw new NotFoundException('Workflow instance not found.');
+    this.companyAccess.validateResourceOwnership(user, wf);
 
     const [nodes, tasks] = await Promise.all([
       this.prisma.workflowNode.findMany({

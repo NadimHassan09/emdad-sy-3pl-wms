@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CompaniesService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const company_access_service_1 = require("../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const COMPANY_LIST_SELECT = {
     id: true,
@@ -31,11 +32,16 @@ const COMPANY_LIST_SELECT = {
 };
 let CompaniesService = class CompaniesService {
     prisma;
-    constructor(prisma) {
+    companyAccess;
+    constructor(prisma, companyAccess) {
         this.prisma = prisma;
+        this.companyAccess = companyAccess;
     }
-    list(query) {
+    list(user, query) {
         const where = {};
+        if (user.tenantScope === 'restricted') {
+            where.id = { in: user.authorizedCompanyIds };
+        }
         if (!query.includeAll) {
             where.status = client_1.CompanyStatus.active;
         }
@@ -53,7 +59,8 @@ let CompaniesService = class CompaniesService {
             select: COMPANY_LIST_SELECT,
         });
     }
-    async findById(id) {
+    async findById(user, id) {
+        this.companyAccess.assertCompanyAccess(user, id);
         const company = await this.prisma.company.findUnique({
             where: { id },
             select: COMPANY_LIST_SELECT,
@@ -78,7 +85,8 @@ let CompaniesService = class CompaniesService {
             select: COMPANY_LIST_SELECT,
         });
     }
-    async update(id, dto) {
+    async update(user, id, dto) {
+        this.companyAccess.assertCompanyAccess(user, id);
         await this.ensureExists(id);
         const data = {};
         if (dto.name !== undefined)
@@ -105,18 +113,19 @@ let CompaniesService = class CompaniesService {
             select: COMPANY_LIST_SELECT,
         });
     }
-    async suspend(id) {
-        return this.update(id, { status: client_1.CompanyStatus.paused });
+    async suspend(user, id) {
+        return this.update(user, id, { status: client_1.CompanyStatus.paused });
     }
-    async softDelete(id) {
-        return this.update(id, { status: client_1.CompanyStatus.closed });
+    async softDelete(user, id) {
+        return this.update(user, id, { status: client_1.CompanyStatus.closed });
     }
     async ensureExists(id) {
         const n = await this.prisma.company.count({ where: { id } });
         if (!n)
             throw new common_1.NotFoundException('Company not found.');
     }
-    async remove(id) {
+    async remove(user, id) {
+        this.companyAccess.assertCompanyAccess(user, id);
         await this.ensureExists(id);
         try {
             await this.prisma.company.delete({ where: { id } });
@@ -133,6 +142,7 @@ let CompaniesService = class CompaniesService {
 exports.CompaniesService = CompaniesService;
 exports.CompaniesService = CompaniesService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        company_access_service_1.CompanyAccessService])
 ], CompaniesService);
 //# sourceMappingURL=companies.service.js.map

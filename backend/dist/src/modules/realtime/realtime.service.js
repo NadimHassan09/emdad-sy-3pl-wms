@@ -13,6 +13,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RealtimeService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const realtime_socket_auth_1 = require("./realtime-socket-auth");
 const realtime_events_1 = require("./realtime.events");
 let RealtimeService = RealtimeService_1 = class RealtimeService {
     prisma;
@@ -29,9 +30,14 @@ let RealtimeService = RealtimeService_1 = class RealtimeService {
             this.log.debug(`Skip ${event} (socket server not ready).`);
             return;
         }
+        const normalizedCompanyId = (0, realtime_socket_auth_1.normalizeCompanyId)(companyId);
+        if (!normalizedCompanyId) {
+            this.log.warn(`Skip ${event}: invalid company room id.`);
+            return;
+        }
         try {
-            const body = { ...payload, companyId, at: new Date().toISOString() };
-            this.io.to(`company:${companyId}`).emit(event, body);
+            const body = { ...payload, companyId: normalizedCompanyId, at: new Date().toISOString() };
+            this.io.to((0, realtime_socket_auth_1.companyRoomName)(normalizedCompanyId)).emit(event, body);
         }
         catch (err) {
             this.log.warn(`Emit ${event} failed: ${err instanceof Error ? err.message : String(err)}`);

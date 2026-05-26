@@ -224,15 +224,13 @@ export class ProductsService {
     });
   }
 
-  async findById(id: string, user?: AuthPrincipal) {
+  async findById(id: string, user: AuthPrincipal) {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: { company: { select: { id: true, name: true } } },
     });
     if (!product) throw new NotFoundException('Product not found.');
-    if (user) {
-      this.companyAccess.validateResourceOwnership(user, product);
-    }
+    this.companyAccess.validateResourceOwnership(user, product);
     return product;
   }
 

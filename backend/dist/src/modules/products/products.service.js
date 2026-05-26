@@ -192,9 +192,7 @@ let ProductsService = class ProductsService {
         });
         if (!product)
             throw new common_1.NotFoundException('Product not found.');
-        if (user) {
-            this.companyAccess.validateResourceOwnership(user, product);
-        }
+        this.companyAccess.validateResourceOwnership(user, product);
         return product;
     }
     async listLotsForProduct(productId, user) {

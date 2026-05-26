@@ -36,7 +36,7 @@ export class AnalyticsOverviewController {
     >(Prisma.sql`
       SELECT task_type, COUNT(*)::bigint AS completions
       FROM v_analytics_wh_task_completed_rows
-      WHERE company_id = ${user.companyId}::uuid
+      WHERE company_id = ${tenantCompanyId}::uuid
         AND completed_at >= ${from}
         ${whFilter}
       GROUP BY task_type

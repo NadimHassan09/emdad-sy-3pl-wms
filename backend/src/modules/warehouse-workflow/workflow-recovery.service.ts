@@ -28,7 +28,6 @@ export class WorkflowRecoveryService {
   ) {}
 
   async recoverWorkflowInstance(instanceId: string, user: AuthPrincipal, rawBody: unknown) {
-    if (!user.companyId) throw new BadRequestException('companyId required.');
     const parsed = workflowRecoverRequestSchema.safeParse(rawBody);
     if (!parsed.success) {
       throw new BadRequestException({

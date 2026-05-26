@@ -25,11 +25,11 @@ let UsersController = class UsersController {
     constructor(users) {
         this.users = users;
     }
-    list(query) {
-        return this.users.list(query);
+    list(user, query) {
+        return this.users.list(user, query);
     }
-    findOne(id) {
-        return this.users.findById(id);
+    findOne(user, id) {
+        return this.users.findById(id, user);
     }
     create(user, dto) {
         return this.users.create(dto, user);
@@ -47,16 +47,18 @@ let UsersController = class UsersController {
 exports.UsersController = UsersController;
 __decorate([
     (0, common_1.Get)(),
-    __param(0, (0, common_1.Query)()),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [list_users_query_dto_1.ListUsersQueryDto]),
+    __metadata("design:paramtypes", [Object, list_users_query_dto_1.ListUsersQueryDto]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "findOne", null);
 __decorate([

@@ -37,8 +37,6 @@ let WorkflowRecoveryService = class WorkflowRecoveryService {
         this.companyAccess = companyAccess;
     }
     async recoverWorkflowInstance(instanceId, user, rawBody) {
-        if (!user.companyId)
-            throw new common_1.BadRequestException('companyId required.');
         const parsed = compensation_1.workflowRecoverRequestSchema.safeParse(rawBody);
         if (!parsed.success) {
             throw new common_1.BadRequestException({

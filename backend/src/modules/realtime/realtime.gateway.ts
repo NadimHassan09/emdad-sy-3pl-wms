@@ -9,8 +9,13 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 
+import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { authenticateSocketConnection, isValidCompanyRoomId } from './realtime-socket-auth';
+import {
+  authenticateSocketConnection,
+  companyRoomName,
+  normalizeCompanyId,
+} from './realtime-socket-auth';
 import type { SocketPrincipal } from './realtime-socket-auth';
 import { RealtimeService } from './realtime.service';
 
@@ -27,6 +32,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly companyAccess: CompanyAccessService,
     private readonly realtime: RealtimeService,
   ) {}
 
@@ -38,7 +44,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
   async handleConnection(client: Socket): Promise<void> {
     const auth = client.handshake.auth as Record<string, unknown> | undefined;
     const token = typeof auth?.token === 'string' ? auth.token.trim() : '';
-    const handshakeCompanyId =
+    const handshakeCompanyIdRaw =
       typeof auth?.companyId === 'string' ? auth.companyId.trim() : undefined;
 
     if (!token) {
@@ -57,29 +63,50 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     (client.data as { principal?: SocketPrincipal }).principal = principal;
 
     if (principal.kind === 'client') {
-      if (
-        handshakeCompanyId &&
-        handshakeCompanyId.toLowerCase() !== principal.companyId.toLowerCase()
-      ) {
+      const requestedCompanyId = normalizeCompanyId(handshakeCompanyIdRaw);
+      if (requestedCompanyId && requestedCompanyId !== principal.companyId.toLowerCase()) {
         this.log.warn('Client socket rejected: auth.companyId does not match token tenant.');
         client.disconnect(true);
         return;
       }
-      client.join(`company:${principal.companyId}`);
-      this.log.debug(`Client socket ${client.id} joined company:${principal.companyId}`);
+      client.join(companyRoomName(principal.companyId));
+      (client.data as { roomCompanyId?: string }).roomCompanyId = principal.companyId;
+      this.log.debug(
+        `Client socket ${client.id} joined ${companyRoomName(principal.companyId)}`,
+      );
       return;
     }
 
-    if (!isValidCompanyRoomId(handshakeCompanyId)) {
+    let tenantScope: Awaited<
+      ReturnType<CompanyAccessService['resolvePrincipalTenant']>
+    > | null = null;
+    try {
+      tenantScope = await this.companyAccess.resolvePrincipalTenant(
+        principal.userId,
+        principal.role,
+        handshakeCompanyIdRaw ?? null,
+      );
+    } catch {
       this.log.warn(
-        `Internal socket ${client.id} rejected: provide auth.companyId (UUID) matching your active tenant.`,
+        `Internal socket ${client.id} rejected: invalid or unauthorized auth.companyId.`,
       );
       client.disconnect(true);
       return;
     }
 
-    client.join(`company:${handshakeCompanyId}`);
-    this.log.debug(`Internal socket ${client.id} joined company:${handshakeCompanyId}`);
+    if (!tenantScope.activeCompanyId) {
+      this.log.warn(
+        `Internal socket ${client.id} rejected: provide auth.companyId for an authorized tenant.`,
+      );
+      client.disconnect(true);
+      return;
+    }
+
+    client.join(companyRoomName(tenantScope.activeCompanyId));
+    (client.data as { roomCompanyId?: string }).roomCompanyId = tenantScope.activeCompanyId;
+    this.log.debug(
+      `Internal socket ${client.id} joined ${companyRoomName(tenantScope.activeCompanyId)}`,
+    );
   }
 
   handleDisconnect(client: Socket): void {

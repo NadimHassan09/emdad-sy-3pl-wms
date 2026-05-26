@@ -22,13 +22,13 @@ export class UsersController {
   constructor(private readonly users: UsersService) {}
 
   @Get()
-  list(@Query() query: ListUsersQueryDto) {
-    return this.users.list(query);
+  list(@CurrentUser() user: AuthPrincipal, @Query() query: ListUsersQueryDto) {
+    return this.users.list(user, query);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.users.findById(id);
+  findOne(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.users.findById(id, user);
   }
 
   @Post()

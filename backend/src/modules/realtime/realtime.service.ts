@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Server } from 'socket.io';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { companyRoomName, normalizeCompanyId } from './realtime-socket-auth';
 import { RealtimeEvents, type RealtimeEventName } from './realtime.events';
 
 @Injectable()
@@ -20,9 +21,14 @@ export class RealtimeService {
       this.log.debug(`Skip ${event} (socket server not ready).`);
       return;
     }
+    const normalizedCompanyId = normalizeCompanyId(companyId);
+    if (!normalizedCompanyId) {
+      this.log.warn(`Skip ${event}: invalid company room id.`);
+      return;
+    }
     try {
-      const body = { ...payload, companyId, at: new Date().toISOString() };
-      this.io.to(`company:${companyId}`).emit(event, body);
+      const body = { ...payload, companyId: normalizedCompanyId, at: new Date().toISOString() };
+      this.io.to(companyRoomName(normalizedCompanyId)).emit(event, body);
     } catch (err) {
       this.log.warn(`Emit ${event} failed: ${err instanceof Error ? err.message : String(err)}`);
     }

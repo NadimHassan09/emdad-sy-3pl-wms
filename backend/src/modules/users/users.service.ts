@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PasswordService } from '../../common/crypto/password.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateUserDto, CreateSystemRoleUi } from './dto/create-user.dto';
@@ -79,15 +80,26 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly password: PasswordService,
+    private readonly companyAccess: CompanyAccessService,
   ) {}
 
-  async list(query: ListUsersQueryDto): Promise<UserListRow[]> {
+  async list(actor: AuthPrincipal, query: ListUsersQueryDto): Promise<UserListRow[]> {
     const kind = query.kind ?? 'all';
     const where: Prisma.UserWhereInput = {};
     if (kind === 'system') {
       where.companyId = null;
     } else if (kind === 'client') {
       where.companyId = { not: null };
+    }
+    if (actor.tenantScope === 'restricted') {
+      if (kind === 'client') {
+        where.companyId = { in: actor.authorizedCompanyIds };
+      } else if (kind === 'all') {
+        where.OR = [
+          { companyId: null },
+          { companyId: { in: actor.authorizedCompanyIds } },
+        ];
+      }
     }
 
     const rows = await this.prisma.user.findMany({
@@ -99,12 +111,15 @@ export class UsersService {
     return rows.map((u) => this.toListRow(u));
   }
 
-  async findById(id: string): Promise<UserListRow> {
+  async findById(id: string, actor: AuthPrincipal): Promise<UserListRow> {
     const u = await this.prisma.user.findUnique({
       where: { id },
       select: USER_LIST_SELECT,
     });
     if (!u) throw new NotFoundException('User not found.');
+    if (u.companyId) {
+      this.companyAccess.assertCompanyAccess(actor, u.companyId);
+    }
     return this.toListRow(u);
   }
 
@@ -119,8 +134,14 @@ export class UsersService {
 
     if (dto.kind === 'system') {
       const role = mapSystemRoleToUserRole(dto.systemRole);
-      const shouldProvisionWorker =
-        role === UserRole.wh_operator && !!actor.companyId;
+      const tenantCompanyId =
+        role === UserRole.wh_operator
+          ? this.companyAccess.requireActiveTenant(
+              actor,
+              'Select a client tenant before provisioning a warehouse operator.',
+            )
+          : null;
+      const shouldProvisionWorker = role === UserRole.wh_operator && !!tenantCompanyId;
 
       const workerWarehouseId = shouldProvisionWorker
         ? await this.resolveWorkerWarehouseId(dto.workerWarehouseId)
@@ -139,10 +160,10 @@ export class UsersService {
           select: USER_LIST_SELECT,
         });
 
-        if (shouldProvisionWorker) {
+        if (shouldProvisionWorker && tenantCompanyId) {
           await tx.worker.create({
             data: {
-              companyId: actor.companyId!,
+              companyId: tenantCompanyId,
               warehouseId: workerWarehouseId,
               displayName: dto.fullName.trim(),
               userId: u.id,
@@ -159,13 +180,7 @@ export class UsersService {
       });
     }
 
-    const company = await this.prisma.company.findUnique({
-      where: { id: dto.companyId },
-      select: { id: true },
-    });
-    if (!company) {
-      throw new NotFoundException('Company not found.');
-    }
+    const companyId = this.companyAccess.resolveWriteCompanyId(actor, dto.companyId);
 
     const u = await this.prisma.user.create({
       data: {
@@ -174,7 +189,7 @@ export class UsersService {
         phone: dto.phone?.trim() || null,
         passwordHash,
         role: dto.clientRole,
-        companyId: dto.companyId,
+        companyId,
       },
       select: USER_LIST_SELECT,
     });
@@ -200,6 +215,9 @@ export class UsersService {
       },
     });
     if (!existing) throw new NotFoundException('User not found.');
+    if (existing.companyId) {
+      this.companyAccess.assertCompanyAccess(actor, existing.companyId);
+    }
 
     const isSystem = existing.companyId === null;
 
@@ -222,11 +240,7 @@ export class UsersService {
       if (isSystem) {
         throw new ConflictException('Cannot set company on a system user.');
       }
-      const co = await this.prisma.company.findUnique({
-        where: { id: dto.companyId },
-        select: { id: true },
-      });
-      if (!co) throw new NotFoundException('Company not found.');
+      this.companyAccess.assertCompanyAccess(actor, dto.companyId);
     }
 
     const data: Prisma.UserUpdateInput = {};
@@ -278,9 +292,12 @@ export class UsersService {
     }
     const u = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, companyId: true },
     });
     if (!u) throw new NotFoundException('User not found.');
+    if (u.companyId) {
+      this.companyAccess.assertCompanyAccess(actor, u.companyId);
+    }
 
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -319,7 +336,10 @@ export class UsersService {
       return;
     }
 
-    if (!actor.companyId) {
+    let tenantCompanyId: string | null = null;
+    try {
+      tenantCompanyId = this.companyAccess.requireActiveTenant(actor);
+    } catch {
       if (worker) {
         await tx.worker.update({
           where: { id: worker.id },
@@ -339,7 +359,7 @@ export class UsersService {
 
     await tx.worker.create({
       data: {
-        companyId: actor.companyId,
+        companyId: tenantCompanyId,
         warehouseId: null,
         displayName,
         userId,

@@ -101,13 +101,12 @@ let WorkflowBootstrapService = class WorkflowBootstrapService {
         };
     }
     async getWorkflowInstanceGraph(user, instanceId) {
-        if (!user.companyId)
-            throw new common_1.BadRequestException('companyId required.');
         const wf = await this.prisma.workflowInstance.findUnique({
             where: { id: instanceId },
         });
-        if (!wf || wf.companyId !== user.companyId)
+        if (!wf)
             throw new common_1.NotFoundException('Workflow instance not found.');
+        this.companyAccess.validateResourceOwnership(user, wf);
         const [nodes, tasks] = await Promise.all([
             this.prisma.workflowNode.findMany({
                 where: { instanceId },
