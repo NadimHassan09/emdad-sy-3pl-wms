@@ -407,6 +407,78 @@ export class WarehouseTasksService {
     return { reservations: r as ReservationSnapshot[] };
   }
 
+  /**
+   * Release reservation snapshots held on a single task and clear executionState so
+   * subsequent failure/cancel paths cannot double-release the same slices.
+   */
+  private async releaseTaskHeldReservations(
+    tx: Prisma.TransactionClient,
+    taskId: string,
+    executionState: unknown,
+  ): Promise<boolean> {
+    const exec = this.parseExecState(executionState);
+    if (exec.reservations.length === 0) return false;
+    await this.effects.releaseReservations(tx, exec.reservations);
+    await tx.warehouseTask.update({
+      where: { id: taskId },
+      data: { executionState: Prisma.DbNull },
+    });
+    return true;
+  }
+
+  /**
+   * Release active pick reservations for an outbound workflow instance.
+   * Used when shipping is abandoned (dispatch cancel, cancel_remaining, etc.).
+   */
+  private async releaseOutboundPickReservationsInWorkflow(
+    tx: Prisma.TransactionClient,
+    workflowInstanceId: string,
+    opts?: { excludeTaskId?: string },
+  ): Promise<number> {
+    const picks = await tx.warehouseTask.findMany({
+      where: {
+        workflowInstanceId,
+        taskType: WarehouseTaskType.pick,
+        ...(opts?.excludeTaskId ? { id: { not: opts.excludeTaskId } } : {}),
+      },
+      select: { id: true, executionState: true },
+    });
+    let releasedTasks = 0;
+    for (const pick of picks) {
+      const released = await this.releaseTaskHeldReservations(tx, pick.id, pick.executionState);
+      if (released) releasedTasks += 1;
+    }
+    return releasedTasks;
+  }
+
+  /** Decide whether cancelling a task should release held pick reservations. */
+  private async releaseReservationsOnTaskCancel(
+    tx: Prisma.TransactionClient,
+    task: {
+      id: string;
+      taskType: WarehouseTaskType;
+      workflowInstanceId: string;
+      executionState: unknown;
+      workflowInstance: { referenceType: string };
+    },
+  ): Promise<boolean> {
+    let released = false;
+
+    if (task.taskType === WarehouseTaskType.pick) {
+      released = (await this.releaseTaskHeldReservations(tx, task.id, task.executionState)) || released;
+    }
+
+    if (
+      task.workflowInstance.referenceType === 'outbound_order' &&
+      task.taskType === WarehouseTaskType.dispatch
+    ) {
+      const n = await this.releaseOutboundPickReservationsInWorkflow(tx, task.workflowInstanceId);
+      released = released || n > 0;
+    }
+
+    return released;
+  }
+
   private async lockTask(tx: Prisma.TransactionClient, taskId: string) {
     await tx.$executeRaw(Prisma.sql`SELECT id FROM warehouse_tasks WHERE id = ${taskId}::uuid FOR UPDATE`);
   }
@@ -562,7 +634,7 @@ export class WarehouseTasksService {
         // encoded in `executionState` before creating the new reservation set.
         const existingExec = this.parseExecState(task.executionState);
         if (existingExec.reservations.length > 0) {
-          await this.effects.releaseReservations(tx, existingExec.reservations);
+          await this.releaseTaskHeldReservations(tx, taskId, task.executionState);
         }
 
         const parsed = parsePickPayload(task.payload as unknown);
@@ -622,6 +694,10 @@ export class WarehouseTasksService {
 
     let inboundCompleted: OrderNotificationTarget | undefined;
     let outboundCompleted: OrderNotificationTarget | undefined;
+    // Idempotency for pick completion:
+    // - if a websocket/client replay sends the same "pick complete" again after the first success,
+    //   we should not re-run side effects or emit duplicate completion signals.
+    let idempotentPickNoop = false;
 
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
@@ -638,6 +714,15 @@ export class WarehouseTasksService {
         throw new BadRequestException('task_type does not match target task.');
       }
       if (task.status !== WarehouseTaskStatus.in_progress) {
+        // Allow repeated pick completion requests to be idempotent after the task is already completed.
+        if (
+          task.taskType === 'pick' &&
+          body.task_type === 'pick' &&
+          task.status === WarehouseTaskStatus.completed
+        ) {
+          idempotentPickNoop = true;
+          return;
+        }
         throw new BadRequestException('Task must be in_progress to complete.');
       }
 
@@ -729,6 +814,13 @@ export class WarehouseTasksService {
             pickExec.reservations,
             body,
           );
+          // Prevent stale pick snapshots from being re-released after successful ship.
+          if (pickSibling) {
+            await tx.warehouseTask.update({
+              where: { id: pickSibling.id },
+              data: { executionState: Prisma.DbNull },
+            });
+          }
           break;
         }
         case 'routing':
@@ -755,29 +847,33 @@ export class WarehouseTasksService {
       await this.refreshWorkflowInstanceHealth(tx, finalized.workflowInstanceId);
     });
 
-    if (inboundCompleted) {
-      await this.notifications.notifyClientOrderCompleted({
-        companyId: inboundCompleted.companyId,
-        orderType: 'inbound',
-        orderId: inboundCompleted.orderId,
-        orderNumber: inboundCompleted.orderNumber,
-      });
-    }
-    if (outboundCompleted) {
-      await this.notifications.notifyClientOrderCompleted({
-        companyId: outboundCompleted.companyId,
-        orderType: 'outbound',
-        orderId: outboundCompleted.orderId,
-        orderNumber: outboundCompleted.orderNumber,
-      });
+    if (!idempotentPickNoop) {
+      if (inboundCompleted) {
+        await this.notifications.notifyClientOrderCompleted({
+          companyId: inboundCompleted.companyId,
+          orderType: 'inbound',
+          orderId: inboundCompleted.orderId,
+          orderNumber: inboundCompleted.orderNumber,
+        });
+      }
+      if (outboundCompleted) {
+        await this.notifications.notifyClientOrderCompleted({
+          companyId: outboundCompleted.companyId,
+          orderType: 'outbound',
+          orderId: outboundCompleted.orderId,
+          orderNumber: outboundCompleted.orderNumber,
+        });
+      }
+
+      await this.cacheInv.afterTaskAndStockMutation();
+      void this.realtime.emitTaskUpdatedByTaskId(taskId, { inventorySource: 'task_complete' });
     }
 
-    await this.cacheInv.afterTaskAndStockMutation();
-    void this.realtime.emitTaskUpdatedByTaskId(taskId, { inventorySource: 'task_complete' });
     return this.loadTaskEnvelope(taskId, user);
   }
 
   async cancel(taskId: string, user: AuthPrincipal, reason?: string) {
+    let stockMutated = false;
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await tx.warehouseTask.findUniqueOrThrow({
@@ -788,10 +884,7 @@ export class WarehouseTasksService {
       if (!canTransitionTask(task.status, WarehouseTaskStatus.cancelled)) {
         throw new BadRequestException(`Cannot cancel from ${task.status}.`);
       }
-      const exec = this.parseExecState(task.executionState);
-      if (task.taskType === 'pick' && exec.reservations?.length > 0) {
-        await this.effects.releaseReservations(tx, exec.reservations);
-      }
+      stockMutated = await this.releaseReservationsOnTaskCancel(tx, task);
       await this.bumpStatus(tx, taskId, task.lockVersion, WarehouseTaskStatus.cancelled, {
         failureReason: reason ?? null,
         executionState: Prisma.DbNull,
@@ -799,8 +892,44 @@ export class WarehouseTasksService {
       await this.appendEvent(tx, taskId, 'cancelled', user.id, { reason });
       await this.refreshWorkflowInstanceHealth(tx, task.workflowInstanceId);
     });
-    await this.cacheInv.afterTaskAndStockMutation();
+    if (stockMutated) {
+      await this.cacheInv.afterTaskAndStockMutation();
+    } else {
+      await this.cacheInv.afterTaskMutation();
+    }
     void this.realtime.emitTaskUpdatedByTaskId(taskId, { inventorySource: 'task_cancel' });
+    return this.loadTaskEnvelope(taskId, user);
+  }
+
+  /** Mark a task failed and release any held pick reservations (execution error / pick fail). */
+  async fail(taskId: string, user: AuthPrincipal, reason?: string) {
+    let stockMutated = false;
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockTask(tx, taskId);
+      const task = await tx.warehouseTask.findUniqueOrThrow({
+        where: { id: taskId },
+        include: { workflowInstance: true },
+      });
+      this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
+      if (!canTransitionTask(task.status, WarehouseTaskStatus.failed)) {
+        throw new BadRequestException(`Cannot fail from ${task.status}.`);
+      }
+      if (task.taskType === WarehouseTaskType.pick) {
+        stockMutated = await this.releaseTaskHeldReservations(tx, task.id, task.executionState);
+      }
+      await this.bumpStatus(tx, taskId, task.lockVersion, WarehouseTaskStatus.failed, {
+        failureReason: reason ?? null,
+        executionState: Prisma.DbNull,
+      });
+      await this.appendEvent(tx, taskId, 'failed', user.id, { reason });
+      await this.refreshWorkflowInstanceHealth(tx, task.workflowInstanceId);
+    });
+    if (stockMutated) {
+      await this.cacheInv.afterTaskAndStockMutation();
+    } else {
+      await this.cacheInv.afterTaskMutation();
+    }
+    void this.realtime.emitTaskUpdatedByTaskId(taskId, { inventorySource: 'task_fail' });
     return this.loadTaskEnvelope(taskId, user);
   }
 
@@ -1092,6 +1221,7 @@ export class WarehouseTasksService {
       throw new ForbiddenException('Only warehouse managers may resolve blocked tasks.');
     }
     const reason = body.reason.trim();
+    let stockMutated = false;
 
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
@@ -1162,6 +1292,13 @@ export class WarehouseTasksService {
               failureReason: `cancel_remaining: ${reason.slice(0, 300)}`,
             },
           });
+          if (task.workflowInstance.referenceType === 'outbound_order') {
+            const released = await this.releaseOutboundPickReservationsInWorkflow(
+              tx,
+              task.workflowInstanceId,
+            );
+            stockMutated = stockMutated || released > 0;
+          }
           break;
 
         case 'fork_new_task':
@@ -1194,7 +1331,11 @@ export class WarehouseTasksService {
 
       await this.refreshWorkflowInstanceHealth(tx, task.workflowInstanceId);
     });
-    await this.cacheInv.afterTaskMutation();
+    if (stockMutated) {
+      await this.cacheInv.afterTaskAndStockMutation();
+    } else {
+      await this.cacheInv.afterTaskMutation();
+    }
     void this.realtime.emitTaskUpdatedByTaskId(taskId);
     return this.loadTaskEnvelope(taskId, user);
   }

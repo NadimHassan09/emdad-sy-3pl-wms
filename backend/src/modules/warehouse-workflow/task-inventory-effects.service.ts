@@ -106,12 +106,25 @@ export class TaskInventoryEffectsService {
       }
     }
 
-    // Reservation uniqueness safeguard:
-    // Merge duplicate slices for the same (outboundOrderLineId, locationId, lotId).
-    // This prevents multiple active “slice entries” for the same inventory unit tuple,
-    // while preserving the exact reserved quantity totals.
+    return this.mergeReservationSnapshots(reservations);
+  }
+
+  async releaseReservations(tx: Prisma.TransactionClient, rows: ReservationSnapshot[]): Promise<void> {
+    for (const r of this.mergeReservationSnapshots(rows)) {
+      await this.stock.releaseReservedWithMeta(tx, {
+        companyId: r.companyId,
+        productId: r.productId,
+        locationId: r.locationId,
+        lotId: r.lotId,
+        quantity: r.quantity,
+      });
+    }
+  }
+
+  /** Canonicalize reservation slices so release/allocation never double-counts the same stock tuple. */
+  mergeReservationSnapshots(rows: ReservationSnapshot[]): ReservationSnapshot[] {
     const merged = new Map<string, ReservationSnapshot>();
-    for (const r of reservations) {
+    for (const r of rows) {
       const k = `${r.outboundOrderLineId}:${r.companyId}:${r.productId}:${r.locationId}:${r.lotId ?? 'null'}`;
       const cur = merged.get(k);
       if (!cur) {
@@ -124,18 +137,6 @@ export class TaskInventoryEffectsService {
       });
     }
     return [...merged.values()];
-  }
-
-  async releaseReservations(tx: Prisma.TransactionClient, rows: ReservationSnapshot[]): Promise<void> {
-    for (const r of rows) {
-      await this.stock.releaseReservedWithMeta(tx, {
-        companyId: r.companyId,
-        productId: r.productId,
-        locationId: r.locationId,
-        lotId: r.lotId,
-        quantity: r.quantity,
-      });
-    }
   }
 
   async applyReceivingStaging(

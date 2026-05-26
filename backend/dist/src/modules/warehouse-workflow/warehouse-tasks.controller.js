@@ -83,6 +83,9 @@ let WarehouseTasksController = class WarehouseTasksController {
     resolve(user, id, body) {
         return this.tasks.resolveBlocked(id, user, body);
     }
+    fail(user, id, body) {
+        return this.tasks.fail(id, user, body.reason);
+    }
     reopen(user, id) {
         return this.tasks.reopen(id, user);
     }
@@ -225,6 +228,17 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, resolve_task_dto_1.ResolveTaskDto]),
     __metadata("design:returntype", void 0)
 ], WarehouseTasksController.prototype, "resolve", null);
+__decorate([
+    (0, common_1.Post)(':id/fail'),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(auth_groups_1.AuthGroup.ADMIN),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:returntype", void 0)
+], WarehouseTasksController.prototype, "fail", null);
 __decorate([
     (0, common_1.Post)(':id/reopen'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),

@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
@@ -91,9 +92,16 @@ export class WorkflowRecoveryService {
       for (const action of parsed.data.actions) {
         if (action.code === 'RELEASE_RESERVATIONS_OUTBOUND') {
           const task = await tx.warehouseTask.findUniqueOrThrow({ where: { id: action.task_id } });
+          if (task.workflowInstanceId !== instanceId) {
+            throw new BadRequestException(`Invalid RELEASE task ${action.task_id} for workflow.`);
+          }
           const rows = reservationRowsFromExec(task.executionState);
           if (rows.length > 0) {
             await this.effects.releaseReservations(tx, rows);
+            await tx.warehouseTask.update({
+              where: { id: action.task_id },
+              data: { executionState: Prisma.DbNull },
+            });
           }
           await tx.taskEvent.create({
             data: {

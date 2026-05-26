@@ -145,6 +145,17 @@ export class WarehouseTasksController {
     return this.tasks.resolveBlocked(id, user, body);
   }
 
+  @Post(':id/fail')
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
+  fail(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.tasks.fail(id, user, body.reason);
+  }
+
   @Post(':id/reopen')
   @UseGuards(RolesGuard)
   @Roles(AuthGroup.ADMIN)

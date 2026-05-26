@@ -75,8 +75,22 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 throw new common_1.BadRequestException(`Insufficient stock to reserve pick for line ${line.outboundOrderLineId}.`);
             }
         }
+        return this.mergeReservationSnapshots(reservations);
+    }
+    async releaseReservations(tx, rows) {
+        for (const r of this.mergeReservationSnapshots(rows)) {
+            await this.stock.releaseReservedWithMeta(tx, {
+                companyId: r.companyId,
+                productId: r.productId,
+                locationId: r.locationId,
+                lotId: r.lotId,
+                quantity: r.quantity,
+            });
+        }
+    }
+    mergeReservationSnapshots(rows) {
         const merged = new Map();
-        for (const r of reservations) {
+        for (const r of rows) {
             const k = `${r.outboundOrderLineId}:${r.companyId}:${r.productId}:${r.locationId}:${r.lotId ?? 'null'}`;
             const cur = merged.get(k);
             if (!cur) {
@@ -89,17 +103,6 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
             });
         }
         return [...merged.values()];
-    }
-    async releaseReservations(tx, rows) {
-        for (const r of rows) {
-            await this.stock.releaseReservedWithMeta(tx, {
-                companyId: r.companyId,
-                productId: r.productId,
-                locationId: r.locationId,
-                lotId: r.lotId,
-                quantity: r.quantity,
-            });
-        }
     }
     async applyReceivingStaging(tx, operatorId, taskId, inboundOrderId, companyId, body, stagingByLineId) {
         const order = await tx.inboundOrder.findUnique({

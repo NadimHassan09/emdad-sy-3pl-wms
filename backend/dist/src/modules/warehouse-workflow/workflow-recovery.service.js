@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkflowRecoveryService = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const cache_invalidation_service_1 = require("../../common/redis/cache-invalidation.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
@@ -97,9 +98,16 @@ let WorkflowRecoveryService = class WorkflowRecoveryService {
             for (const action of parsed.data.actions) {
                 if (action.code === 'RELEASE_RESERVATIONS_OUTBOUND') {
                     const task = await tx.warehouseTask.findUniqueOrThrow({ where: { id: action.task_id } });
+                    if (task.workflowInstanceId !== instanceId) {
+                        throw new common_1.BadRequestException(`Invalid RELEASE task ${action.task_id} for workflow.`);
+                    }
                     const rows = reservationRowsFromExec(task.executionState);
                     if (rows.length > 0) {
                         await this.effects.releaseReservations(tx, rows);
+                        await tx.warehouseTask.update({
+                            where: { id: action.task_id },
+                            data: { executionState: client_1.Prisma.DbNull },
+                        });
                     }
                     await tx.taskEvent.create({
                         data: {
