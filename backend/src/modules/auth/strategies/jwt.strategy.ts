@@ -16,6 +16,8 @@ export interface JwtAccessPayload {
   role: UserRole;
   /** Internal WMS tokens use `internal`; client portal uses `client` (rejected here). */
   typ?: 'internal' | 'client';
+  /** User token version snapshot; enables server-side session invalidation. */
+  ver?: number;
 }
 
 const UUID_HEADER_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -55,15 +57,27 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(req: Request, payload: JwtAccessPayload): Promise<AuthPrincipal> {
+    if (!payload?.sub || !payload?.email || !payload?.role) {
+      throw new UnauthorizedException('Invalid session token.');
+    }
     if (payload.typ === 'client') {
       throw new UnauthorizedException('Use the internal WMS app with an internal account.');
     }
+    if (payload.typ && payload.typ !== 'internal') {
+      throw new UnauthorizedException('Invalid session token type.');
+    }
+    if (typeof payload.ver !== 'number') {
+      throw new UnauthorizedException('Session token version missing.');
+    }
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, role: true, status: true, companyId: true, email: true },
+      select: { id: true, role: true, status: true, companyId: true, email: true, tokenVersion: true },
     });
     if (!user || user.status !== UserStatus.active) {
       throw new UnauthorizedException('Session is no longer valid.');
+    }
+    if (user.tokenVersion !== payload.ver) {
+      throw new UnauthorizedException('Session has been invalidated.');
     }
     if (user.companyId !== null || CLIENT_ROLES.includes(user.role)) {
       throw new ForbiddenException('Client accounts are not permitted to use this application.');

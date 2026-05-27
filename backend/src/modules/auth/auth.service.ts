@@ -1,8 +1,10 @@
+import { randomUUID } from 'node:crypto';
+
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { UserRole, UserStatus } from '@prisma/client';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 import { AuthGroup, userRoleToAuthGroup } from '../../common/auth/auth-groups';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
@@ -12,6 +14,18 @@ import { LoginDto } from './dto/login.dto';
 import type { JwtAccessPayload } from './strategies/jwt.strategy';
 
 const CLIENT_ROLES: UserRole[] = [UserRole.client_admin, UserRole.client_staff];
+const ACCESS_COOKIE_NAME = 'access_token';
+const REFRESH_COOKIE_NAME = 'refresh_token';
+const DEFAULT_ACCESS_EXPIRES = '15m';
+const DEFAULT_REFRESH_EXPIRES = '7d';
+
+type JwtRefreshPayload = {
+  sub: string;
+  typ: 'internal';
+  kind: 'refresh';
+  ver: number;
+  jti: string;
+};
 
 @Injectable()
 export class AuthService {
@@ -34,6 +48,7 @@ export class AuthService {
         status: true,
         companyId: true,
         fullName: true,
+        tokenVersion: true,
       },
     });
 
@@ -62,32 +77,32 @@ export class AuthService {
       data: loginData,
     });
 
-    const expiresIn = this.config.get<string>('JWT_EXPIRES_IN') ?? '8h';
+    const accessExpiresIn = this.config.get<string>('JWT_ACCESS_EXPIRES_IN') ?? DEFAULT_ACCESS_EXPIRES;
+    const refreshExpiresIn =
+      this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? DEFAULT_REFRESH_EXPIRES;
+    const accessMaxAgeMs = this.expiresInToMs(accessExpiresIn);
+    const refreshMaxAgeMs = this.expiresInToMs(refreshExpiresIn);
     const payload: JwtAccessPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
       typ: 'internal',
+      ver: user.tokenVersion,
     };
-    const maxAgeMs = this.expiresInToMs(expiresIn);
     const access_token = await this.jwt.signAsync(payload, {
-      expiresIn: Math.max(60, Math.floor(maxAgeMs / 1000)),
+      expiresIn: Math.max(60, Math.floor(accessMaxAgeMs / 1000)),
     });
+    const refresh_token = await this.signRefreshToken(user.id, user.tokenVersion, refreshMaxAgeMs);
 
     if (res) {
-      res.cookie('access_token', access_token, {
-        httpOnly: true,
-        secure: this.config.get<string>('NODE_ENV') === 'production',
-        sameSite: 'lax',
-        maxAge: maxAgeMs,
-        path: '/',
-      });
+      this.setAccessCookie(res, access_token, accessMaxAgeMs);
+      this.setRefreshCookie(res, refresh_token, refreshMaxAgeMs);
     }
 
     return {
       access_token,
       token_type: 'Bearer' as const,
-      expires_in: Math.floor(maxAgeMs / 1000),
+      expires_in: Math.floor(accessMaxAgeMs / 1000),
       user: {
         id: user.id,
         email: user.email,
@@ -96,6 +111,89 @@ export class AuthService {
         authGroup: userRoleToAuthGroup(user.role),
       },
     };
+  }
+
+  async refresh(req: Request, res?: Response) {
+    const rawToken = this.readRefreshToken(req);
+    if (!rawToken) throw new UnauthorizedException('Missing refresh token.');
+
+    const payload = await this.verifyRefreshToken(rawToken);
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        status: true,
+        companyId: true,
+        fullName: true,
+        tokenVersion: true,
+      },
+    });
+    if (!user || user.status !== UserStatus.active) {
+      throw new UnauthorizedException('Session is no longer valid.');
+    }
+    if (user.companyId !== null || CLIENT_ROLES.includes(user.role)) {
+      throw new ForbiddenException('Client accounts cannot access this system.');
+    }
+    if (payload.ver !== user.tokenVersion) {
+      throw new UnauthorizedException('Session has been invalidated. Please log in again.');
+    }
+
+    const now = new Date();
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastActivityAt: now },
+    });
+
+    const accessExpiresIn = this.config.get<string>('JWT_ACCESS_EXPIRES_IN') ?? DEFAULT_ACCESS_EXPIRES;
+    const refreshExpiresIn =
+      this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? DEFAULT_REFRESH_EXPIRES;
+    const accessMaxAgeMs = this.expiresInToMs(accessExpiresIn);
+    const refreshMaxAgeMs = this.expiresInToMs(refreshExpiresIn);
+
+    const accessPayload: JwtAccessPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      typ: 'internal',
+      ver: user.tokenVersion,
+    };
+    const access_token = await this.jwt.signAsync(accessPayload, {
+      expiresIn: Math.max(60, Math.floor(accessMaxAgeMs / 1000)),
+    });
+    const refresh_token = await this.signRefreshToken(user.id, user.tokenVersion, refreshMaxAgeMs);
+
+    if (res) {
+      this.setAccessCookie(res, access_token, accessMaxAgeMs);
+      this.setRefreshCookie(res, refresh_token, refreshMaxAgeMs);
+    }
+
+    return {
+      access_token,
+      token_type: 'Bearer' as const,
+      expires_in: Math.floor(accessMaxAgeMs / 1000),
+    };
+  }
+
+  async logout(req: Request, res?: Response) {
+    const rawRefresh = this.readRefreshToken(req);
+    if (rawRefresh) {
+      const payload = await this.tryVerifyRefreshToken(rawRefresh);
+      if (payload?.sub) {
+        await this.prisma.user.updateMany({
+          where: { id: payload.sub },
+          data: {
+            tokenVersion: { increment: 1 },
+            lastActivityAt: new Date(),
+          },
+        });
+      }
+    }
+
+    if (res) {
+      this.clearAuthCookies(res);
+    }
   }
 
   async getProfile(user: AuthPrincipal) {
@@ -129,5 +227,92 @@ export class AuthService {
     const u = m[2] ?? 's';
     const mult = u === 'd' ? 86400e3 : u === 'h' ? 3600e3 : u === 'm' ? 60e3 : 1000;
     return n * mult;
+  }
+
+  private isProduction(): boolean {
+    return this.config.get<string>('NODE_ENV') === 'production';
+  }
+
+  private getCookieDomain(): string | undefined {
+    const domain = this.config.get<string>('AUTH_COOKIE_DOMAIN')?.trim();
+    return domain ? domain : undefined;
+  }
+
+  private buildCookieBase() {
+    return {
+      httpOnly: true as const,
+      secure: this.isProduction(),
+      sameSite: 'strict' as const,
+      domain: this.getCookieDomain(),
+    };
+  }
+
+  private setAccessCookie(res: Response, token: string, maxAgeMs: number): void {
+    res.cookie(ACCESS_COOKIE_NAME, token, {
+      ...this.buildCookieBase(),
+      maxAge: maxAgeMs,
+      path: '/',
+    });
+  }
+
+  private setRefreshCookie(res: Response, token: string, maxAgeMs: number): void {
+    res.cookie(REFRESH_COOKIE_NAME, token, {
+      ...this.buildCookieBase(),
+      maxAge: maxAgeMs,
+      path: '/api/auth/refresh',
+    });
+  }
+
+  private clearAuthCookies(res: Response): void {
+    const base = this.buildCookieBase();
+    res.clearCookie(ACCESS_COOKIE_NAME, {
+      ...base,
+      path: '/',
+    });
+    res.clearCookie(REFRESH_COOKIE_NAME, {
+      ...base,
+      path: '/api/auth/refresh',
+    });
+  }
+
+  private readRefreshToken(req: Request): string | null {
+    const c = req?.cookies?.[REFRESH_COOKIE_NAME];
+    return typeof c === 'string' && c.length > 0 ? c : null;
+  }
+
+  private async signRefreshToken(userId: string, tokenVersion: number, maxAgeMs: number): Promise<string> {
+    const payload: JwtRefreshPayload = {
+      sub: userId,
+      typ: 'internal',
+      kind: 'refresh',
+      ver: tokenVersion,
+      jti: randomUUID(),
+    };
+    return this.jwt.signAsync(payload, {
+      secret: this.config.get<string>('JWT_REFRESH_SECRET') ?? this.config.get<string>('JWT_SECRET'),
+      expiresIn: Math.max(60, Math.floor(maxAgeMs / 1000)),
+    });
+  }
+
+  private async verifyRefreshToken(token: string): Promise<JwtRefreshPayload> {
+    try {
+      const payload = await this.jwt.verifyAsync<JwtRefreshPayload>(token, {
+        secret: this.config.get<string>('JWT_REFRESH_SECRET') ?? this.config.get<string>('JWT_SECRET'),
+      });
+      if (payload.typ !== 'internal' || payload.kind !== 'refresh' || typeof payload.ver !== 'number') {
+        throw new UnauthorizedException('Invalid refresh token.');
+      }
+      return payload;
+    } catch {
+      throw new UnauthorizedException('Invalid or expired refresh token.');
+    }
+  }
+
+  private async tryVerifyRefreshToken(token: string): Promise<JwtRefreshPayload | null> {
+    try {
+      return await this.verifyRefreshToken(token);
+    } catch {
+      return null;
+    }
   }
 }

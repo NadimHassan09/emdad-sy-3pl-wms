@@ -1,5 +1,5 @@
-import { Body, Controller, Get, HttpCode, Post, Res } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
 
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
@@ -30,14 +30,17 @@ export class AuthController {
   }
 
   @Public()
+  @Post('refresh')
+  @HttpCode(200)
+  refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.auth.refresh(req, res);
+  }
+
+  @Public()
   @Post('logout')
   @HttpCode(204)
-  logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('access_token', {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-    });
+  logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.auth.logout(req, res);
   }
 
   /** Sample protected route — requires a valid JWT and an internal (non-client) user. */
