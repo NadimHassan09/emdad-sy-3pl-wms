@@ -4,6 +4,7 @@ import { strict as assert } from 'node:assert';
 import { Prisma, WarehouseTaskStatus, WarehouseTaskType } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { AuditLogService } from '../../common/audit/audit-log.service';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { InventoryConsistencyService } from '../../modules/inventory/inventory-consistency.service';
@@ -105,6 +106,12 @@ export async function createServiceDeps(): Promise<ServiceDeps> {
   const taskReadCache = {
     getOrLoad: async (_k: string, _t: string, loader: () => Promise<unknown>) => loader(),
   } as unknown as TaskReadCacheService;
+  const audit = {
+    log: async () => undefined,
+    logTx: async () => undefined,
+    fromPrincipal: (_principal: AuthPrincipal, patch: Record<string, unknown>) =>
+      patch as unknown as ReturnType<AuditLogService['fromPrincipal']>,
+  } as unknown as AuditLogService;
 
   const tasks = new WarehouseTasksService(
     prisma,
@@ -115,6 +122,7 @@ export async function createServiceDeps(): Promise<ServiceDeps> {
     realtime,
     notifications,
     companyAccess,
+    audit,
   );
 
   return { prisma, tasks, stock, consistency, realtimeCalls, notificationCalls };

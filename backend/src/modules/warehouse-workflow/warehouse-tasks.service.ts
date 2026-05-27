@@ -16,6 +16,7 @@ import {
 } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { AuditLogService } from '../../common/audit/audit-log.service';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import {
   NotificationsService,
@@ -62,6 +63,7 @@ export class WarehouseTasksService {
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
     private readonly companyAccess: CompanyAccessService,
+    private readonly audit: AuditLogService,
   ) {}
 
   private assertTaskWorkflowTenant(
@@ -980,6 +982,58 @@ export class WarehouseTasksService {
       const hooks = await this.orchestration.onTaskCompleted(tx, finalized, body, user.id);
       inboundCompleted = hooks.inboundCompleted;
 
+      await this.audit.logTx(
+        tx,
+        this.audit.fromPrincipal(user, {
+          action: 'TASK_COMPLETED',
+          resourceType: 'warehouse_task',
+          resourceId: taskId,
+          companyId: finalized.workflowInstance.companyId,
+          previousState: {
+            status: task.status,
+            taskType: task.taskType,
+            workflowInstanceId: task.workflowInstanceId,
+          },
+          newState: {
+            status: WarehouseTaskStatus.completed,
+            taskType: body.task_type,
+            completedById: user.id,
+          },
+        }),
+      );
+      if (body.task_type === 'dispatch') {
+        const dispatchPayload = parseDispatchTaskPayloadAllowLegacy(task.payload);
+        await this.audit.logTx(
+          tx,
+          this.audit.fromPrincipal(user, {
+            action: 'SHIPMENT_DISPATCHED',
+            resourceType: 'outbound_order',
+            resourceId: dispatchPayload.outbound_order_id,
+            companyId: finalized.workflowInstance.companyId,
+            previousState: { status: 'ready_to_ship' },
+            newState: {
+              status: 'shipped',
+              dispatchTaskId: taskId,
+            },
+          }),
+        );
+      }
+      if (['pick', 'putaway', 'putaway_quarantine', 'dispatch'].includes(body.task_type)) {
+        await this.audit.logTx(
+          tx,
+          this.audit.fromPrincipal(user, {
+            action: 'INVENTORY_MUTATION_APPLIED',
+            resourceType: 'warehouse_task',
+            resourceId: taskId,
+            companyId: finalized.workflowInstance.companyId,
+            newState: {
+              taskType: body.task_type,
+              inventoryMutation: true,
+            },
+          }),
+        );
+      }
+
       await this.refreshWorkflowInstanceHealth(tx, finalized.workflowInstanceId);
     });
 
@@ -1026,6 +1080,17 @@ export class WarehouseTasksService {
         executionState: Prisma.DbNull,
       });
       await this.appendEvent(tx, taskId, 'cancelled', user.id, { reason });
+      await this.audit.logTx(
+        tx,
+        this.audit.fromPrincipal(user, {
+          action: 'TASK_CANCELLED',
+          resourceType: 'warehouse_task',
+          resourceId: taskId,
+          companyId: task.workflowInstance.companyId,
+          previousState: { status: task.status },
+          newState: { status: WarehouseTaskStatus.cancelled, reason: reason ?? null },
+        }),
+      );
       await this.refreshWorkflowInstanceHealth(tx, task.workflowInstanceId);
     });
     if (stockMutated) {
@@ -1058,6 +1123,17 @@ export class WarehouseTasksService {
         executionState: Prisma.DbNull,
       });
       await this.appendEvent(tx, taskId, 'failed', user.id, { reason });
+      await this.audit.logTx(
+        tx,
+        this.audit.fromPrincipal(user, {
+          action: 'TASK_FAILED',
+          resourceType: 'warehouse_task',
+          resourceId: taskId,
+          companyId: task.workflowInstance.companyId,
+          previousState: { status: task.status },
+          newState: { status: WarehouseTaskStatus.failed, reason: reason ?? null },
+        }),
+      );
       await this.refreshWorkflowInstanceHealth(tx, task.workflowInstanceId);
     });
     if (stockMutated) {
@@ -1326,6 +1402,16 @@ export class WarehouseTasksService {
         failureReason: null,
       });
       await this.appendEvent(tx, taskId, 'reopened', user.id);
+      await this.audit.logTx(
+        tx,
+        this.audit.fromPrincipal(user, {
+          action: 'TASK_REOPENED',
+          resourceType: 'warehouse_task',
+          resourceId: taskId,
+          previousState: { status: task.status },
+          newState: { status: WarehouseTaskStatus.pending },
+        }),
+      );
       await this.refreshWorkflowInstanceHealth(tx, task.workflowInstanceId);
     });
     await this.cacheInv.afterTaskMutation();
@@ -1476,6 +1562,18 @@ export class WarehouseTasksService {
         default:
           throw new BadRequestException(`Unsupported resolution`);
       }
+
+      await this.audit.logTx(
+        tx,
+        this.audit.fromPrincipal(user, {
+          action: 'TASK_BLOCK_RESOLVED',
+          resourceType: 'warehouse_task',
+          resourceId: taskId,
+          companyId: task.workflowInstance.companyId,
+          previousState: { status: task.status },
+          newState: { status: body.resolution, resolution: body.resolution, reason },
+        }),
+      );
 
       await this.refreshWorkflowInstanceHealth(tx, task.workflowInstanceId);
     });

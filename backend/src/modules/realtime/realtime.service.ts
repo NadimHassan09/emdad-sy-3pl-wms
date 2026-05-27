@@ -92,4 +92,21 @@ export class RealtimeService {
       });
     }
   }
+
+  getHealthSnapshot(): {
+    attached: boolean;
+    connectedClients: number;
+  } {
+    if (!this.io) {
+      return { attached: false, connectedClients: 0 };
+    }
+    try {
+      return {
+        attached: true,
+        connectedClients: this.io.sockets.sockets.size,
+      };
+    } catch {
+      return { attached: true, connectedClients: 0 };
+    }
+  }
 }

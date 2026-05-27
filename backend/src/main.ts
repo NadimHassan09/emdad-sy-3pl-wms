@@ -1,4 +1,6 @@
 import 'reflect-metadata';
+import { randomUUID } from 'node:crypto';
+import type { INestApplication } from '@nestjs/common';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
@@ -39,11 +41,60 @@ function sanitizeRequestPayload(req: Request, _res: Response, next: NextFunction
   next();
 }
 
+function validateStartupSafety(config: ConfigService, isProd: boolean): void {
+  if (!isProd) return;
+
+  const corsOrigins = (config.get<string>('CORS_ORIGINS') ?? '')
+    .split(',')
+    .map((o) => o.trim().toLowerCase())
+    .filter(Boolean);
+  const hasLocalhost = corsOrigins.some(
+    (o) => o.includes('localhost') || o.includes('127.0.0.1'),
+  );
+  if (hasLocalhost) {
+    throw new Error('Production startup blocked: CORS_ORIGINS must not include localhost or 127.0.0.1.');
+  }
+}
+
+function installRequestTracingAndStructuredLogs(app: INestApplication): void {
+  const httpLogger = new Logger('HTTP');
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const started = process.hrtime.bigint();
+    const incomingRequestId = req.header('x-request-id') || req.header('x-correlation-id');
+    const requestId = incomingRequestId?.trim() || randomUUID();
+    res.setHeader('x-request-id', requestId);
+    res.locals.requestId = requestId;
+
+    res.on('finish', () => {
+      const elapsedMs = Number((process.hrtime.bigint() - started) / BigInt(1_000_000));
+      const principal = req.user;
+      const logRecord = {
+        ts: new Date().toISOString(),
+        level: 'info',
+        msg: 'http_request',
+        requestId,
+        method: req.method,
+        path: req.originalUrl ?? req.url,
+        statusCode: res.statusCode,
+        durationMs: elapsedMs,
+        ip: req.ip,
+        userAgent: req.get('user-agent') ?? null,
+        actorId: principal?.id ?? null,
+        actorRole: principal?.role ?? null,
+      };
+      httpLogger.log(JSON.stringify(logRecord));
+    });
+
+    next();
+  });
+}
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
   const config = app.get(ConfigService);
   const isProd = config.get<string>('NODE_ENV') === 'production';
+  validateStartupSafety(config, isProd);
 
   app.useWebSocketAdapter(new IoAdapter(app));
   app.use(
@@ -64,6 +115,7 @@ async function bootstrap() {
   );
   app.use(cookieParser());
   app.use(sanitizeRequestPayload);
+  installRequestTracingAndStructuredLogs(app);
 
   const corsOrigins = (config.get<string>('CORS_ORIGINS') ?? 'http://localhost:5173')
     .split(',')

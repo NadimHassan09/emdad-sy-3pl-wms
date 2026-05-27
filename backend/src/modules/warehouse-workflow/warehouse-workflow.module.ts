@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AuditModule } from '../../common/audit/audit.module';
 import { RedisModule } from '../../common/redis/redis.module';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
@@ -19,7 +20,7 @@ import { WorkflowRecoveryService } from './workflow-recovery.service';
 import { WorkflowEngineService } from './workflow-engine.service';
 
 @Module({
-  imports: [PrismaModule, InventoryModule, RedisModule, AuthModule],
+  imports: [PrismaModule, InventoryModule, RedisModule, AuthModule, AuditModule],
   controllers: [
     WorkflowController,
     WarehouseTasksController,

@@ -7,6 +7,7 @@ import { UserRole, UserStatus } from '@prisma/client';
 import type { Request, Response } from 'express';
 
 import { AuthGroup, userRoleToAuthGroup } from '../../common/auth/auth-groups';
+import { AuditLogService } from '../../common/audit/audit-log.service';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { PasswordService } from '../../common/crypto/password.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -34,6 +35,7 @@ export class AuthService {
     private readonly password: PasswordService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly audit: AuditLogService,
   ) {}
 
   async login(dto: LoginDto, res?: Response) {
@@ -76,6 +78,18 @@ export class AuthService {
       where: { id: user.id },
       data: loginData,
     });
+    await this.audit.log(
+      this.audit.fromPrincipal(
+        { id: user.id, email: user.email, role: user.role, companyId: user.companyId },
+        {
+          action: 'AUTH_LOGIN_SUCCESS',
+          resourceType: 'user',
+          resourceId: user.id,
+          previousState: { tokenVersion: user.tokenVersion },
+          newState: { lastLoginAt: now.toISOString(), lastActivityAt: now.toISOString() },
+        },
+      ),
+    );
 
     const accessExpiresIn = this.config.get<string>('JWT_ACCESS_EXPIRES_IN') ?? DEFAULT_ACCESS_EXPIRES;
     const refreshExpiresIn =
@@ -145,6 +159,18 @@ export class AuthService {
       where: { id: user.id },
       data: { lastActivityAt: now },
     });
+    await this.audit.log(
+      this.audit.fromPrincipal(
+        { id: user.id, email: user.email, role: user.role, companyId: user.companyId },
+        {
+          action: 'AUTH_REFRESH_SUCCESS',
+          resourceType: 'user',
+          resourceId: user.id,
+          previousState: { tokenVersion: user.tokenVersion },
+          newState: { lastActivityAt: now.toISOString() },
+        },
+      ),
+    );
 
     const accessExpiresIn = this.config.get<string>('JWT_ACCESS_EXPIRES_IN') ?? DEFAULT_ACCESS_EXPIRES;
     const refreshExpiresIn =
@@ -181,6 +207,10 @@ export class AuthService {
     if (rawRefresh) {
       const payload = await this.tryVerifyRefreshToken(rawRefresh);
       if (payload?.sub) {
+        const prev = await this.prisma.user.findUnique({
+          where: { id: payload.sub },
+          select: { tokenVersion: true, email: true, role: true, companyId: true },
+        });
         await this.prisma.user.updateMany({
           where: { id: payload.sub },
           data: {
@@ -188,6 +218,20 @@ export class AuthService {
             lastActivityAt: new Date(),
           },
         });
+        if (prev) {
+          await this.audit.log(
+            this.audit.fromPrincipal(
+              { id: payload.sub, email: prev.email, role: prev.role, companyId: prev.companyId },
+              {
+                action: 'AUTH_LOGOUT',
+                resourceType: 'user',
+                resourceId: payload.sub,
+                previousState: { tokenVersion: prev.tokenVersion },
+                newState: { tokenVersion: prev.tokenVersion + 1 },
+              },
+            ),
+          );
+        }
       }
     }
 

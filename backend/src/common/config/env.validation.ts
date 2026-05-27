@@ -9,6 +9,7 @@ const envSchema = z.object({
   HTTP_JSON_BODY_LIMIT: z.string().optional(),
   HTTP_FORM_BODY_LIMIT: z.string().optional(),
   AUTH_COOKIE_DOMAIN: z.string().optional(),
+  READY_RETRY_PENDING_MAX: z.coerce.number().int().nonnegative().default(1000),
 });
 
 export function validateEnv(raw: Record<string, unknown>): Record<string, unknown> {

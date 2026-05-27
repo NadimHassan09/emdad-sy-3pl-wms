@@ -18,6 +18,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { InboundModule } from './modules/inbound/inbound.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { LocationsModule } from './modules/locations/locations.module';
+import { ObservabilityModule } from './modules/observability/observability.module';
 import { OutboundModule } from './modules/outbound/outbound.module';
 import { ProductsModule } from './modules/products/products.module';
 import { UsersModule } from './modules/users/users.module';
@@ -57,6 +58,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     WarehousesModule,
     LocationsModule,
     InventoryModule,
+    ObservabilityModule,
     InboundModule,
     OutboundModule,
     AdjustmentsModule,

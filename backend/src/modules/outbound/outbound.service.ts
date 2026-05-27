@@ -8,6 +8,7 @@ import { OutboundOrderStatus, Prisma } from '@prisma/client';
 
 import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { AuditLogService } from '../../common/audit/audit-log.service';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { outboundIdsVisibleForWarehouse } from '../../common/utils/warehouse-order-scope';
 import {
@@ -84,6 +85,7 @@ export class OutboundService {
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
     private readonly companyAccess: CompanyAccessService,
+    private readonly audit: AuditLogService,
   ) {}
 
   /**
@@ -173,6 +175,19 @@ export class OutboundService {
         orderNumber: created.orderNumber,
       });
     }
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'OUTBOUND_ORDER_CREATED',
+        resourceType: 'outbound_order',
+        resourceId: created.id,
+        companyId: created.companyId,
+        newState: {
+          status: created.status,
+          lineCount: created.lines.length,
+          requiresPacking: created.requiresPacking,
+        },
+      }),
+    );
     return created;
   }
 
@@ -310,6 +325,16 @@ export class OutboundService {
       status: cancelled.status,
       reason: 'cancel',
     });
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'OUTBOUND_ORDER_CANCELLED',
+        resourceType: 'outbound_order',
+        resourceId: cancelled.id,
+        companyId: cancelled.companyId,
+        previousState: { status: order.status },
+        newState: { status: cancelled.status, cancelledBy: user.id },
+      }),
+    );
     return cancelled;
   }
 
@@ -375,6 +400,16 @@ export class OutboundService {
       });
       await this.notifications.dismissPendingAdminNotifications('outbound_order', before.id);
     }
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'OUTBOUND_ORDER_CONFIRMED',
+        resourceType: 'outbound_order',
+        resourceId: updated.id,
+        companyId: updated.companyId,
+        previousState: { status: before?.status ?? null },
+        newState: { status: updated.status },
+      }),
+    );
     return updated;
   }
 
@@ -440,6 +475,16 @@ export class OutboundService {
         });
         await this.notifications.dismissPendingAdminNotifications('outbound_order', before.id);
       }
+      await this.audit.log(
+        this.audit.fromPrincipal(user, {
+          action: 'OUTBOUND_ORDER_CONFIRMED',
+          resourceType: 'outbound_order',
+          resourceId: wfConfirmed.id,
+          companyId: wfConfirmed.companyId,
+          previousState: { status: before.status },
+          newState: { status: wfConfirmed.status, flow: 'task_only' },
+        }),
+      );
       return wfConfirmed;
     }
     if (outboundConfirmDefersDeduction(this.config)) {
@@ -580,6 +625,25 @@ export class OutboundService {
       orderId: shipped.id,
       orderNumber: shipped.orderNumber,
     });
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'OUTBOUND_ORDER_SHIPPED',
+        resourceType: 'outbound_order',
+        resourceId: shipped.id,
+        companyId: shipped.companyId,
+        previousState: { status: before.status },
+        newState: { status: shipped.status, shippedAt: shipped.shippedAt?.toISOString() ?? null },
+      }),
+    );
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'INVENTORY_MUTATION_APPLIED',
+        resourceType: 'outbound_order',
+        resourceId: shipped.id,
+        companyId: shipped.companyId,
+        newState: { source: 'confirm_and_deduct', movementType: 'outbound_pick' },
+      }),
+    );
     return shipped;
   }
 
