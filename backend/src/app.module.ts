@@ -2,7 +2,9 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
+import { validateEnv } from './common/config/env.validation';
 import { CompanyAccessModule } from './common/company-access/company-access.module';
 import { CryptoModule } from './common/crypto/crypto.module';
 import { PrismaModule } from './common/prisma/prisma.module';
@@ -26,8 +28,21 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv,
+      cache: true,
+      expandVariables: true,
+    }),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60_000,
+          limit: 120,
+        },
+      ],
+    }),
     CompanyAccessModule,
     CryptoModule,
     AuthModule,
@@ -48,6 +63,9 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     WarehouseWorkflowModule,
     RealtimeModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ],
 })
 export class AppModule {}
