@@ -19,6 +19,7 @@ const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantit
 const ledger_idempotency_service_1 = require("../inventory/ledger-idempotency.service");
 const stock_helpers_1 = require("../inventory/stock.helpers");
 const task_allocation_helper_1 = require("./task-allocation.helper");
+const pick_concurrency_util_1 = require("./pick-concurrency.util");
 function parseExpiryFromDiscrepancyNotes(notes) {
     if (!notes)
         return null;
@@ -43,8 +44,8 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
         this.ledgerDedup = ledgerDedup;
     }
     async buildPickReservations(tx, companyId, warehouseId, lines) {
-        const reservations = [];
-        for (const line of lines) {
+        const planned = [];
+        for (const line of (0, pick_concurrency_util_1.sortPickLinesForLocking)(lines)) {
             let remaining = new client_1.Prisma.Decimal(line.requestedQty.toString());
             const candidates = await (0, task_allocation_helper_1.findWarehouseStockFefo)(tx, companyId, warehouseId, line.productId, line.specificLotId);
             for (const row of candidates) {
@@ -53,14 +54,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 const take = client_1.Prisma.Decimal.min(remaining, row.quantityAvailable);
                 if (take.lessThanOrEqualTo(0))
                     continue;
-                await this.stock.incrementReservedWithMeta(tx, {
-                    companyId,
-                    productId: line.productId,
-                    locationId: row.locationId,
-                    lotId: row.lotId,
-                    quantity: take.toString(),
-                });
-                reservations.push({
+                planned.push({
                     outboundOrderLineId: line.outboundOrderLineId,
                     companyId,
                     productId: line.productId,
@@ -75,10 +69,22 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 throw new common_1.BadRequestException(`Insufficient stock to reserve pick for line ${line.outboundOrderLineId}.`);
             }
         }
-        return this.mergeReservationSnapshots(reservations);
+        const merged = this.mergeReservationSnapshots(planned);
+        const lockOrder = (0, pick_concurrency_util_1.sortReservationSnapshotsForLocking)(merged);
+        for (const slice of lockOrder) {
+            await this.stock.incrementReservedWithMeta(tx, {
+                companyId: slice.companyId,
+                productId: slice.productId,
+                locationId: slice.locationId,
+                lotId: slice.lotId,
+                quantity: slice.quantity,
+            });
+        }
+        return lockOrder;
     }
     async releaseReservations(tx, rows) {
-        for (const r of this.mergeReservationSnapshots(rows)) {
+        const merged = (0, pick_concurrency_util_1.sortReservationSnapshotsForLocking)(this.mergeReservationSnapshots(rows));
+        for (const r of merged) {
             await this.stock.releaseReservedWithMeta(tx, {
                 companyId: r.companyId,
                 productId: r.productId,
@@ -274,6 +280,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
         }
     }
     async applyPickRecord(tx, orderId, reservations, body) {
+        await this.lockOutboundOrderRow(tx, orderId);
         this.assertPickCompletionMatchesReservations(reservations, body);
         const lineUoms = await tx.outboundOrderLine.findMany({
             where: { outboundOrderId: orderId },
@@ -315,6 +322,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
         });
     }
     async applyDispatchShip(tx, operatorId, taskId, outboundOrderId, companyId, reservations, body) {
+        await this.lockOutboundOrderRow(tx, outboundOrderId);
         const order = await tx.outboundOrder.findUnique({
             where: { id: outboundOrderId },
             include: {
@@ -419,6 +427,9 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
             where: { id: outboundOrderId },
             data: { status: 'ready_to_ship' },
         });
+    }
+    async lockOutboundOrderRow(tx, outboundOrderId) {
+        await tx.$executeRaw(client_1.Prisma.sql `SELECT id FROM outbound_orders WHERE id = ${outboundOrderId}::uuid FOR UPDATE`);
     }
     assertPickCompletionMatchesReservations(reservations, body) {
         const normLot = (v) => v === undefined || v === null || v === '' ? null : v;

@@ -38,7 +38,7 @@ export class WorkflowOrchestrationService {
       return inboundCompleted ? { inboundCompleted } : {};
     }
     if (wf.referenceType === 'outbound_order') {
-      await this.afterOutboundTask(tx, wf, task.taskType, body);
+      await this.afterOutboundTask(tx, wf, task, body);
     }
     return {};
   }
@@ -341,11 +341,11 @@ export class WorkflowOrchestrationService {
   private async afterOutboundTask(
     tx: Prisma.TransactionClient,
     wf: WorkflowInstance,
-    taskType: WarehouseTaskType,
+    completedTask: { id: string; taskType: WarehouseTaskType },
     body: TaskCompleteBody,
   ) {
     const orderId = wf.referenceId;
-    switch (taskType) {
+    switch (completedTask.taskType) {
       case WarehouseTaskType.pick:
         if (body.task_type === 'pick') {
           const order = await tx.outboundOrder.findUnique({
@@ -353,7 +353,7 @@ export class WorkflowOrchestrationService {
             select: { requiresPacking: true },
           });
           if (order?.requiresPacking === false) {
-            await this.enqueueDispatchTaskIfNeeded(tx, wf.id, orderId);
+            await this.enqueueDispatchTaskIfNeeded(tx, wf.id, orderId, completedTask.id);
           } else {
             await this.spawnPackIfNeeded(tx, wf.id, orderId);
           }
@@ -429,8 +429,64 @@ export class WorkflowOrchestrationService {
     });
   }
 
+  /**
+   * Resolve the pick task whose reservation snapshot dispatch should ship.
+   * When explicitPickTaskId is provided (pick just completed), validate workflow membership.
+   */
+  private async resolvePickTaskIdForDispatchEnqueue(
+    tx: Prisma.TransactionClient,
+    instanceId: string,
+    explicitPickTaskId?: string,
+  ): Promise<string> {
+    if (explicitPickTaskId) {
+      const pick = await tx.warehouseTask.findFirst({
+        where: {
+          id: explicitPickTaskId,
+          workflowInstanceId: instanceId,
+          taskType: WarehouseTaskType.pick,
+        },
+        select: { id: true },
+      });
+      if (!pick) {
+        throw new BadRequestException(
+          'Dispatch pick binding invalid: referenced pick task not found in this workflow.',
+        );
+      }
+      return pick.id;
+    }
+
+    const completedPicks = await tx.warehouseTask.findMany({
+      where: {
+        workflowInstanceId: instanceId,
+        taskType: WarehouseTaskType.pick,
+        status: WarehouseTaskStatus.completed,
+      },
+      orderBy: { completedAt: 'desc' },
+      select: { id: true, executionState: true },
+    });
+
+    const withReservations = completedPicks.filter((p) => pickExecutionHasReservations(p.executionState));
+    if (withReservations.length === 1) {
+      return withReservations[0].id;
+    }
+    if (withReservations.length > 1) {
+      throw new BadRequestException(
+        'Cannot enqueue dispatch: multiple completed picks with reservations; explicit pick binding required.',
+      );
+    }
+    if (completedPicks.length === 1) {
+      return completedPicks[0].id;
+    }
+    throw new BadRequestException('Cannot enqueue dispatch: no completed pick found for binding.');
+  }
+
   /** Public for skip-pack UX: enqueue ship task once pack is bypassed. */
-  async enqueueDispatchTaskIfNeeded(tx: Prisma.TransactionClient, instanceId: string, orderId: string) {
+  async enqueueDispatchTaskIfNeeded(
+    tx: Prisma.TransactionClient,
+    instanceId: string,
+    orderId: string,
+    pickTaskId?: string,
+  ) {
     const existing = await tx.warehouseTask.findFirst({
       where: {
         workflowInstanceId: instanceId,
@@ -460,6 +516,8 @@ export class WorkflowOrchestrationService {
       },
     });
 
+    const boundPickTaskId = await this.resolvePickTaskIdForDispatchEnqueue(tx, instanceId, pickTaskId);
+
     await tx.warehouseTask.create({
       data: {
         workflowInstanceId: instanceId,
@@ -467,8 +525,19 @@ export class WorkflowOrchestrationService {
         taskType: WarehouseTaskType.dispatch,
         status: WarehouseTaskStatus.pending,
         slaMinutes: defaultSlaMinutesForTaskType(WarehouseTaskType.dispatch),
-        payload: { outbound_order_id: orderId } as object as Prisma.InputJsonValue,
+        payload: {
+          outbound_order_id: orderId,
+          pick_task_id: boundPickTaskId,
+        } as object as Prisma.InputJsonValue,
       },
     });
   }
+}
+
+function pickExecutionHasReservations(executionState: unknown): boolean {
+  if (!executionState || typeof executionState !== 'object' || Array.isArray(executionState)) {
+    return false;
+  }
+  const reservations = (executionState as Record<string, unknown>).reservations;
+  return Array.isArray(reservations) && reservations.length > 0;
 }

@@ -6,14 +6,19 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { Roles } from '../../common/auth/roles.decorator';
 import { RolesGuard } from '../../common/auth/roles.guard';
 import { AvailabilityQueryDto } from './dto/availability-query.dto';
+import { ConsistencyQueryDto } from './dto/consistency-query.dto';
 import { InternalTransferDto } from './dto/internal-transfer.dto';
 import { LedgerEntryQueryDto } from './dto/ledger-entry-query.dto';
 import { LedgerQueryDto, StockQueryDto } from './dto/stock-query.dto';
+import { InventoryConsistencyService } from './inventory-consistency.service';
 import { InventoryService } from './inventory.service';
 
 @Controller('inventory')
 export class InventoryController {
-  constructor(private readonly inventory: InventoryService) {}
+  constructor(
+    private readonly inventory: InventoryService,
+    private readonly consistency: InventoryConsistencyService,
+  ) {}
 
   @Get('stock/by-product')
   stockByProduct(@CurrentUser() user: AuthPrincipal, @Query() query: StockQueryDto) {
@@ -41,6 +46,19 @@ export class InventoryController {
     @Query() query: AvailabilityQueryDto,
   ) {
     return this.inventory.availability(user, query.productId, query.companyId);
+  }
+
+  @Get('consistency/validate')
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
+  validateConsistency(
+    @CurrentUser() user: AuthPrincipal,
+    @Query() query: ConsistencyQueryDto,
+  ) {
+    return this.consistency.validateForUser(user, {
+      companyId: query.companyId,
+      warehouseId: query.warehouseId,
+    });
   }
 
   @Post('internal-transfer')

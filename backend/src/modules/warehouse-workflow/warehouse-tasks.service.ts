@@ -27,7 +27,12 @@ import { TaskReadCacheService } from '../../common/redis/task-read-cache.service
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { TaskMutationResponseEnvelope } from './task-mutation-envelope.dto';
 import { TaskInventoryEffectsService, ReservationSnapshot } from './task-inventory-effects.service';
-import type { OutboundPickPayload, InboundPutawayPayload, InboundQcTaskPayload } from './workflow-payload.contracts';
+import type {
+  OutboundDispatchPayload,
+  OutboundPickPayload,
+  InboundPutawayPayload,
+  InboundQcTaskPayload,
+} from './workflow-payload.contracts';
 import type { ResolveTaskDto } from './dto/resolve-task.dto';
 import { WorkflowOrchestrationService } from './workflow-orchestration.service';
 import { TaskCompleteBody, safeParseTaskComplete, taskProgressRequestSchema } from './task-payload.schema';
@@ -408,6 +413,69 @@ export class WarehouseTasksService {
   }
 
   /**
+   * Deterministically resolve which completed pick task's reservation snapshot a dispatch should ship.
+   *
+   * Preferred (safe) path:
+   * - dispatch task payload includes pick_task_id → bind directly to that pick snapshot.
+   *
+   * Legacy fallback (still deterministic):
+   * - if pick_task_id is missing, only allow dispatch when exactly one completed pick
+   *   in the workflow has a non-empty executionState.reservations snapshot.
+   * - otherwise throw to avoid "latest completed pick sibling" ambiguity.
+   */
+  private async resolvePickTaskForDispatchCompletion(
+    tx: Prisma.TransactionClient,
+    args: { workflowInstanceId: string; explicitPickTaskId?: string },
+  ): Promise<{ id: string; executionState: unknown }> {
+    const { workflowInstanceId, explicitPickTaskId } = args;
+
+    if (explicitPickTaskId) {
+      const pick = await tx.warehouseTask.findFirst({
+        where: {
+          id: explicitPickTaskId,
+          workflowInstanceId,
+          taskType: WarehouseTaskType.pick,
+          status: WarehouseTaskStatus.completed,
+        },
+        select: { id: true, executionState: true },
+      });
+
+      if (!pick) {
+        throw new BadRequestException(
+          'Dispatch pick binding invalid: referenced pick task not found in this workflow.',
+        );
+      }
+
+      const pickExec = this.parseExecState(pick.executionState);
+      if (!pickExec.reservations.length) {
+        throw new BadRequestException('Dispatch bound pick has no reservation snapshot.');
+      }
+      return pick;
+    }
+
+    const completedPicks = await tx.warehouseTask.findMany({
+      where: {
+        workflowInstanceId,
+        taskType: WarehouseTaskType.pick,
+        status: WarehouseTaskStatus.completed,
+      },
+      select: { id: true, executionState: true },
+    });
+
+    const withReservations = completedPicks.filter(
+      (p) => this.parseExecState(p.executionState).reservations.length > 0,
+    );
+
+    if (withReservations.length === 1) return withReservations[0];
+    if (withReservations.length === 0) {
+      throw new BadRequestException('No completed pick reservation snapshot found for dispatch.');
+    }
+    throw new BadRequestException(
+      'Cannot complete dispatch: multiple completed picks with reservation snapshots found; dispatch payload must include pick_task_id.',
+    );
+  }
+
+  /**
    * Release reservation snapshots held on a single task and clear executionState so
    * subsequent failure/cancel paths cannot double-release the same slices.
    */
@@ -481,6 +549,55 @@ export class WarehouseTasksService {
 
   private async lockTask(tx: Prisma.TransactionClient, taskId: string) {
     await tx.$executeRaw(Prisma.sql`SELECT id FROM warehouse_tasks WHERE id = ${taskId}::uuid FOR UPDATE`);
+  }
+
+  private async lockWorkflowInstance(tx: Prisma.TransactionClient, workflowInstanceId: string) {
+    await tx.$executeRaw(
+      Prisma.sql`SELECT id FROM workflow_instances WHERE id = ${workflowInstanceId}::uuid FOR UPDATE`,
+    );
+  }
+
+  /** Serialize all pick tasks in a workflow (prevents concurrent reservation on sibling picks). */
+  private async lockWorkflowPickTasks(tx: Prisma.TransactionClient, workflowInstanceId: string) {
+    await tx.$executeRaw(
+      Prisma.sql`
+        SELECT id FROM warehouse_tasks
+         WHERE workflow_instance_id = ${workflowInstanceId}::uuid
+           AND task_type = 'pick'
+         FOR UPDATE
+      `,
+    );
+  }
+
+  private async lockOutboundOrder(tx: Prisma.TransactionClient, outboundOrderId: string) {
+    await tx.$executeRaw(
+      Prisma.sql`SELECT id FROM outbound_orders WHERE id = ${outboundOrderId}::uuid FOR UPDATE`,
+    );
+  }
+
+  /**
+   * Only one pick task may hold active reservations per workflow at a time.
+   * Called after pick-task rows are locked so concurrent starts serialize.
+   */
+  private async assertExclusiveActivePickInWorkflow(
+    tx: Prisma.TransactionClient,
+    workflowInstanceId: string,
+    currentTaskId: string,
+  ): Promise<void> {
+    const other = await tx.warehouseTask.findFirst({
+      where: {
+        workflowInstanceId,
+        taskType: WarehouseTaskType.pick,
+        status: WarehouseTaskStatus.in_progress,
+        id: { not: currentTaskId },
+      },
+      select: { id: true },
+    });
+    if (other) {
+      throw new ConflictException(
+        'Another pick task is already in progress for this workflow. Finish or cancel it before starting a new pick.',
+      );
+    }
   }
 
   /** HTTP pre-check for `WorkflowExecutionGateGuard` (DAG frontier + skills); mutation paths re-assert under row lock. */
@@ -623,6 +740,10 @@ export class WarehouseTasksService {
       }
 
       if (task.taskType === 'pick') {
+        await this.lockWorkflowInstance(tx, task.workflowInstanceId);
+        await this.lockWorkflowPickTasks(tx, task.workflowInstanceId);
+        await this.assertExclusiveActivePickInWorkflow(tx, task.workflowInstanceId, taskId);
+
         const wf = await tx.workflowInstance.findUniqueOrThrow({
           where: { id: task.workflowInstanceId },
         });
@@ -638,6 +759,7 @@ export class WarehouseTasksService {
         }
 
         const parsed = parsePickPayload(task.payload as unknown);
+        await this.lockOutboundOrder(tx, parsed.outbound_order_id);
         const linesDb = await tx.outboundOrderLine.findMany({
           where: {
             outboundOrderId: parsed.outbound_order_id,
@@ -698,6 +820,7 @@ export class WarehouseTasksService {
     // - if a websocket/client replay sends the same "pick complete" again after the first success,
     //   we should not re-run side effects or emit duplicate completion signals.
     let idempotentPickNoop = false;
+    let idempotentDispatchNoop = false;
 
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
@@ -710,6 +833,7 @@ export class WarehouseTasksService {
         },
       });
       if (!task) throw new NotFoundException('Task not found.');
+      this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
       if (task.taskType !== body.task_type) {
         throw new BadRequestException('task_type does not match target task.');
       }
@@ -721,6 +845,14 @@ export class WarehouseTasksService {
           task.status === WarehouseTaskStatus.completed
         ) {
           idempotentPickNoop = true;
+          return;
+        }
+        if (
+          task.taskType === WarehouseTaskType.dispatch &&
+          body.task_type === 'dispatch' &&
+          task.status === WarehouseTaskStatus.completed
+        ) {
+          idempotentDispatchNoop = true;
           return;
         }
         throw new BadRequestException('Task must be in_progress to complete.');
@@ -792,17 +924,21 @@ export class WarehouseTasksService {
           break;
         }
         case 'dispatch': {
-          const outboundId = (task.payload as { outbound_order_id: string }).outbound_order_id;
-          const pickSibling = await tx.warehouseTask.findFirst({
-            where: {
-              workflowInstanceId: task.workflowInstanceId,
-              taskType: 'pick',
-              status: 'completed',
-            },
-            orderBy: { completedAt: 'desc' },
+          const { outbound_order_id: outboundId, pick_task_id: explicitPickTaskId } =
+            parseDispatchTaskPayloadAllowLegacy(task.payload);
+          await this.lockWorkflowInstance(tx, task.workflowInstanceId);
+          await this.lockWorkflowPickTasks(tx, task.workflowInstanceId);
+          await this.lockOutboundOrder(tx, outboundId);
+
+          const boundPick = await this.resolvePickTaskForDispatchCompletion(tx, {
+            workflowInstanceId: task.workflowInstanceId,
+            explicitPickTaskId,
           });
-          const pickExec = this.parseExecState(pickSibling?.executionState);
+
+          const pickExec = this.parseExecState(boundPick.executionState);
           if (!pickExec.reservations.length) {
+            // Should never happen if resolvePickTaskForDispatchCompletion returns a completed pick
+            // with a valid reservation snapshot.
             throw new BadRequestException('No pick reservations found for dispatch.');
           }
           outboundCompleted = await this.effects.applyDispatchShip(
@@ -815,9 +951,9 @@ export class WarehouseTasksService {
             body,
           );
           // Prevent stale pick snapshots from being re-released after successful ship.
-          if (pickSibling) {
+          if (boundPick) {
             await tx.warehouseTask.update({
-              where: { id: pickSibling.id },
+              where: { id: boundPick.id },
               data: { executionState: Prisma.DbNull },
             });
           }
@@ -847,7 +983,7 @@ export class WarehouseTasksService {
       await this.refreshWorkflowInstanceHealth(tx, finalized.workflowInstanceId);
     });
 
-    if (!idempotentPickNoop) {
+    if (!idempotentPickNoop && !idempotentDispatchNoop) {
       if (inboundCompleted) {
         await this.notifications.notifyClientOrderCompleted({
           companyId: inboundCompleted.companyId,
@@ -1068,14 +1204,26 @@ export class WarehouseTasksService {
         task.executionState && typeof task.executionState === 'object' && !Array.isArray(task.executionState)
           ? (task.executionState as Record<string, unknown>)
           : {};
-      const next = { ...cur, ...patch };
+      // Reservation snapshots are backend-owned and immutable for pick tasks.
+      // Clients may report progress metadata, but must never mutate `reservations`.
+      const patchForMerge =
+        task.taskType === WarehouseTaskType.pick && Object.prototype.hasOwnProperty.call(patch, 'reservations')
+          ? (({ reservations: _ignored, ...rest }) => rest)(patch)
+          : patch;
+
+      const next = { ...cur, ...patchForMerge };
+      if (task.taskType === WarehouseTaskType.pick && Object.prototype.hasOwnProperty.call(cur, 'reservations')) {
+        next.reservations = cur.reservations;
+      }
       await tx.warehouseTask.update({
         where: { id: taskId },
         data: {
           executionState: next as object as Prisma.InputJsonValue,
         },
       });
-      await this.appendEvent(tx, taskId, 'execution_progress', user.id, { keys: Object.keys(patch) });
+      await this.appendEvent(tx, taskId, 'execution_progress', user.id, {
+        keys: Object.keys(patchForMerge),
+      });
     });
     await this.cacheInv.afterTaskMutation();
     return this.loadTaskEnvelope(taskId, user);
@@ -1510,4 +1658,17 @@ function outboundIdFromPackPayload(raw: unknown) {
     throw new BadRequestException('pack payload malformed.');
   }
   return raw.outbound_order_id;
+}
+
+function parseDispatchTaskPayloadAllowLegacy(
+  raw: unknown,
+): { outbound_order_id: string; pick_task_id?: string } {
+  if (!isRecord(raw) || typeof raw.outbound_order_id !== 'string') {
+    throw new BadRequestException('dispatch task payload malformed.');
+  }
+  const pickTaskId = (raw as { pick_task_id?: unknown }).pick_task_id;
+  if (pickTaskId !== undefined && typeof pickTaskId !== 'string') {
+    throw new BadRequestException('dispatch task payload pick_task_id malformed.');
+  }
+  return { outbound_order_id: raw.outbound_order_id, pick_task_id: pickTaskId };
 }

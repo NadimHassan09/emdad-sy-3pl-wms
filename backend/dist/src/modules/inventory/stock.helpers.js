@@ -5,12 +5,19 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.StockHelpers = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 let StockHelpers = class StockHelpers {
+    consistency;
+    constructor(consistency) {
+        this.consistency = consistency;
+    }
     async lockQuantityOnHand(tx, m) {
         const lid = m.lotId;
         const rows = lid === null
@@ -193,6 +200,12 @@ let StockHelpers = class StockHelpers {
         if (affected === 0) {
             throw new domain_exceptions_1.InsufficientStockException();
         }
+        await this.consistency?.assertStockRowInvariants(tx, {
+            companyId: m.companyId,
+            productId: m.productId,
+            locationId: m.locationId,
+            lotId,
+        });
         const afterAvail = beforeAvail.minus(take);
         return { before: beforeAvail, after: afterAvail };
     }
@@ -249,6 +262,12 @@ let StockHelpers = class StockHelpers {
         if (affected === 0) {
             throw new domain_exceptions_1.InsufficientStockException();
         }
+        await this.consistency?.assertStockRowInvariants(tx, {
+            companyId: m.companyId,
+            productId: m.productId,
+            locationId: m.locationId,
+            lotId,
+        });
         return { before: beforeRes, after: beforeRes.minus(take) };
     }
     async decrementShippedWithMeta(tx, m) {
@@ -291,11 +310,18 @@ let StockHelpers = class StockHelpers {
         if (affected === 0) {
             throw new domain_exceptions_1.InsufficientStockException();
         }
+        await this.consistency?.assertStockRowInvariants(tx, {
+            companyId: m.companyId,
+            productId: m.productId,
+            locationId: m.locationId,
+            lotId,
+        });
         return { before, after: before.minus(take) };
     }
 };
 exports.StockHelpers = StockHelpers;
 exports.StockHelpers = StockHelpers = __decorate([
-    (0, common_1.Injectable)()
+    (0, common_1.Injectable)(),
+    __metadata("design:paramtypes", [Function])
 ], StockHelpers);
 //# sourceMappingURL=stock.helpers.js.map

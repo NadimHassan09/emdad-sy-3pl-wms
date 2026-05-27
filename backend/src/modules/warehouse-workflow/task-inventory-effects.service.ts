@@ -16,6 +16,7 @@ import { StockHelpers } from '../inventory/stock.helpers';
 import { OrderNotificationTarget } from '../notifications/notifications.service';
 import { TaskCompleteBody } from './task-payload.schema';
 import { findWarehouseStockFefo } from './task-allocation.helper';
+import { sortPickLinesForLocking, sortReservationSnapshotsForLocking } from './pick-concurrency.util';
 
 function parseExpiryFromDiscrepancyNotes(notes?: string | null): Date | null {
   if (!notes) return null;
@@ -67,8 +68,9 @@ export class TaskInventoryEffectsService {
       specificLotId: string | null;
     }>,
   ): Promise<ReservationSnapshot[]> {
-    const reservations: ReservationSnapshot[] = [];
-    for (const line of lines) {
+    const planned: ReservationSnapshot[] = [];
+
+    for (const line of sortPickLinesForLocking(lines)) {
       let remaining = new Prisma.Decimal(line.requestedQty.toString());
       const candidates = await findWarehouseStockFefo(
         tx,
@@ -81,14 +83,7 @@ export class TaskInventoryEffectsService {
         if (remaining.lessThanOrEqualTo(0)) break;
         const take = Prisma.Decimal.min(remaining, row.quantityAvailable);
         if (take.lessThanOrEqualTo(0)) continue;
-        await this.stock.incrementReservedWithMeta(tx, {
-          companyId,
-          productId: line.productId,
-          locationId: row.locationId,
-          lotId: row.lotId,
-          quantity: take.toString(),
-        });
-        reservations.push({
+        planned.push({
           outboundOrderLineId: line.outboundOrderLineId,
           companyId,
           productId: line.productId,
@@ -106,11 +101,25 @@ export class TaskInventoryEffectsService {
       }
     }
 
-    return this.mergeReservationSnapshots(reservations);
+    const merged = this.mergeReservationSnapshots(planned);
+    const lockOrder = sortReservationSnapshotsForLocking(merged);
+
+    for (const slice of lockOrder) {
+      await this.stock.incrementReservedWithMeta(tx, {
+        companyId: slice.companyId,
+        productId: slice.productId,
+        locationId: slice.locationId,
+        lotId: slice.lotId,
+        quantity: slice.quantity,
+      });
+    }
+
+    return lockOrder;
   }
 
   async releaseReservations(tx: Prisma.TransactionClient, rows: ReservationSnapshot[]): Promise<void> {
-    for (const r of this.mergeReservationSnapshots(rows)) {
+    const merged = sortReservationSnapshotsForLocking(this.mergeReservationSnapshots(rows));
+    for (const r of merged) {
       await this.stock.releaseReservedWithMeta(tx, {
         companyId: r.companyId,
         productId: r.productId,
@@ -360,6 +369,7 @@ export class TaskInventoryEffectsService {
     reservations: ReservationSnapshot[],
     body: Extract<TaskCompleteBody, { task_type: 'pick' }>,
   ): Promise<void> {
+    await this.lockOutboundOrderRow(tx, orderId);
     this.assertPickCompletionMatchesReservations(reservations, body);
 
     const lineUoms = await tx.outboundOrderLine.findMany({
@@ -422,6 +432,7 @@ export class TaskInventoryEffectsService {
     reservations: ReservationSnapshot[],
     body: Extract<TaskCompleteBody, { task_type: 'dispatch' }>,
   ): Promise<OrderNotificationTarget> {
+    await this.lockOutboundOrderRow(tx, outboundOrderId);
     const order = await tx.outboundOrder.findUnique({
       where: { id: outboundOrderId },
       include: {
@@ -453,7 +464,7 @@ export class TaskInventoryEffectsService {
       }
     }
 
-    for (const r of reservations) {
+    for (const r of sortReservationSnapshotsForLocking(reservations)) {
       const meta = await this.stock.decrementShippedWithMeta(tx, {
         companyId: r.companyId,
         productId: r.productId,
@@ -538,6 +549,13 @@ export class TaskInventoryEffectsService {
       where: { id: outboundOrderId },
       data: { status: 'ready_to_ship' },
     });
+  }
+
+  /** Row lock on the outbound order for pick complete / dispatch ship (prevents concurrent order-line races). */
+  private async lockOutboundOrderRow(tx: Prisma.TransactionClient, outboundOrderId: string): Promise<void> {
+    await tx.$executeRaw(
+      Prisma.sql`SELECT id FROM outbound_orders WHERE id = ${outboundOrderId}::uuid FOR UPDATE`,
+    );
   }
 
   /**

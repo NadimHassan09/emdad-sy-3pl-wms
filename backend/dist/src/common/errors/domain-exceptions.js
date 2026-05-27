@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LotLockedException = exports.InvalidLocationTypeException = exports.LotRequiredException = exports.OverReceiveException = exports.InvalidStateException = exports.InsufficientStockException = exports.DomainException = void 0;
+exports.InventoryIntegrityException = exports.LotLockedException = exports.InvalidLocationTypeException = exports.LotRequiredException = exports.OverReceiveException = exports.InvalidStateException = exports.InsufficientStockException = exports.DomainException = void 0;
 const common_1 = require("@nestjs/common");
 class DomainException extends common_1.HttpException {
     code;
@@ -48,4 +48,10 @@ class LotLockedException extends DomainException {
     }
 }
 exports.LotLockedException = LotLockedException;
+class InventoryIntegrityException extends DomainException {
+    constructor(message, details) {
+        super('INVENTORY_INTEGRITY_VIOLATION', message, common_1.HttpStatus.CONFLICT, details);
+    }
+}
+exports.InventoryIntegrityException = InventoryIntegrityException;
 //# sourceMappingURL=domain-exceptions.js.map

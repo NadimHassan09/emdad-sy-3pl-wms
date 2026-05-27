@@ -357,6 +357,34 @@ let WarehouseTasksService = class WarehouseTasksService {
     async lockTask(tx, taskId) {
         await tx.$executeRaw(client_1.Prisma.sql `SELECT id FROM warehouse_tasks WHERE id = ${taskId}::uuid FOR UPDATE`);
     }
+    async lockWorkflowInstance(tx, workflowInstanceId) {
+        await tx.$executeRaw(client_1.Prisma.sql `SELECT id FROM workflow_instances WHERE id = ${workflowInstanceId}::uuid FOR UPDATE`);
+    }
+    async lockWorkflowPickTasks(tx, workflowInstanceId) {
+        await tx.$executeRaw(client_1.Prisma.sql `
+        SELECT id FROM warehouse_tasks
+         WHERE workflow_instance_id = ${workflowInstanceId}::uuid
+           AND task_type = 'pick'
+         FOR UPDATE
+      `);
+    }
+    async lockOutboundOrder(tx, outboundOrderId) {
+        await tx.$executeRaw(client_1.Prisma.sql `SELECT id FROM outbound_orders WHERE id = ${outboundOrderId}::uuid FOR UPDATE`);
+    }
+    async assertExclusiveActivePickInWorkflow(tx, workflowInstanceId, currentTaskId) {
+        const other = await tx.warehouseTask.findFirst({
+            where: {
+                workflowInstanceId,
+                taskType: client_1.WarehouseTaskType.pick,
+                status: client_1.WarehouseTaskStatus.in_progress,
+                id: { not: currentTaskId },
+            },
+            select: { id: true },
+        });
+        if (other) {
+            throw new common_1.ConflictException('Another pick task is already in progress for this workflow. Finish or cancel it before starting a new pick.');
+        }
+    }
     async ensureRunnableForExecutionGate(taskId, user) {
         const task = await this.prisma.warehouseTask.findUnique({
             where: { id: taskId },
@@ -488,6 +516,9 @@ let WarehouseTasksService = class WarehouseTasksService {
                 throw new common_1.BadRequestException(`Cannot start from status ${task.status}.`);
             }
             if (task.taskType === 'pick') {
+                await this.lockWorkflowInstance(tx, task.workflowInstanceId);
+                await this.lockWorkflowPickTasks(tx, task.workflowInstanceId);
+                await this.assertExclusiveActivePickInWorkflow(tx, task.workflowInstanceId, taskId);
                 const wf = await tx.workflowInstance.findUniqueOrThrow({
                     where: { id: task.workflowInstanceId },
                 });
@@ -496,6 +527,7 @@ let WarehouseTasksService = class WarehouseTasksService {
                     await this.releaseTaskHeldReservations(tx, taskId, task.executionState);
                 }
                 const parsed = parsePickPayload(task.payload);
+                await this.lockOutboundOrder(tx, parsed.outbound_order_id);
                 const linesDb = await tx.outboundOrderLine.findMany({
                     where: {
                         outboundOrderId: parsed.outbound_order_id,
@@ -547,6 +579,7 @@ let WarehouseTasksService = class WarehouseTasksService {
         let inboundCompleted;
         let outboundCompleted;
         let idempotentPickNoop = false;
+        let idempotentDispatchNoop = false;
         await this.prisma.$transaction(async (tx) => {
             await this.lockTask(tx, taskId);
             const task = await tx.warehouseTask.findUnique({
@@ -567,6 +600,12 @@ let WarehouseTasksService = class WarehouseTasksService {
                     body.task_type === 'pick' &&
                     task.status === client_1.WarehouseTaskStatus.completed) {
                     idempotentPickNoop = true;
+                    return;
+                }
+                if (task.taskType === client_1.WarehouseTaskType.dispatch &&
+                    body.task_type === 'dispatch' &&
+                    task.status === client_1.WarehouseTaskStatus.completed) {
+                    idempotentDispatchNoop = true;
                     return;
                 }
                 throw new common_1.BadRequestException('Task must be in_progress to complete.');
@@ -611,6 +650,9 @@ let WarehouseTasksService = class WarehouseTasksService {
                 }
                 case 'dispatch': {
                     const outboundId = task.payload.outbound_order_id;
+                    await this.lockWorkflowInstance(tx, task.workflowInstanceId);
+                    await this.lockWorkflowPickTasks(tx, task.workflowInstanceId);
+                    await this.lockOutboundOrder(tx, outboundId);
                     const pickSibling = await tx.warehouseTask.findFirst({
                         where: {
                             workflowInstanceId: task.workflowInstanceId,
@@ -652,7 +694,7 @@ let WarehouseTasksService = class WarehouseTasksService {
             inboundCompleted = hooks.inboundCompleted;
             await this.refreshWorkflowInstanceHealth(tx, finalized.workflowInstanceId);
         });
-        if (!idempotentPickNoop) {
+        if (!idempotentPickNoop && !idempotentDispatchNoop) {
             if (inboundCompleted) {
                 await this.notifications.notifyClientOrderCompleted({
                     companyId: inboundCompleted.companyId,

@@ -66,3 +66,10 @@ export class LotLockedException extends DomainException {
     super('LOT_LOCKED', message, HttpStatus.CONFLICT);
   }
 }
+
+/** Raised when post-mutation stock invariants fail (reserved/on-hand/available). */
+export class InventoryIntegrityException extends DomainException {
+  constructor(message: string, details?: Record<string, unknown>) {
+    super('INVENTORY_INTEGRITY_VIOLATION', message, HttpStatus.CONFLICT, details);
+  }
+}

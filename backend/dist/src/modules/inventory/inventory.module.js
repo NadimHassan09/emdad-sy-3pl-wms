@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InventoryModule = void 0;
 const common_1 = require("@nestjs/common");
+const inventory_consistency_service_1 = require("./inventory-consistency.service");
 const inventory_controller_1 = require("./inventory.controller");
 const inventory_service_1 = require("./inventory.service");
 const ledger_idempotency_service_1 = require("./ledger-idempotency.service");
@@ -18,8 +19,18 @@ exports.InventoryModule = InventoryModule;
 exports.InventoryModule = InventoryModule = __decorate([
     (0, common_1.Module)({
         controllers: [inventory_controller_1.InventoryController],
-        providers: [inventory_service_1.InventoryService, stock_helpers_1.StockHelpers, ledger_idempotency_service_1.LedgerIdempotencyService],
-        exports: [inventory_service_1.InventoryService, stock_helpers_1.StockHelpers, ledger_idempotency_service_1.LedgerIdempotencyService],
+        providers: [
+            inventory_service_1.InventoryService,
+            inventory_consistency_service_1.InventoryConsistencyService,
+            stock_helpers_1.StockHelpers,
+            ledger_idempotency_service_1.LedgerIdempotencyService,
+        ],
+        exports: [
+            inventory_service_1.InventoryService,
+            inventory_consistency_service_1.InventoryConsistencyService,
+            stock_helpers_1.StockHelpers,
+            ledger_idempotency_service_1.LedgerIdempotencyService,
+        ],
     })
 ], InventoryModule);
 //# sourceMappingURL=inventory.module.js.map

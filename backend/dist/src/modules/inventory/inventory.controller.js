@@ -19,14 +19,18 @@ const current_user_decorator_1 = require("../../common/auth/current-user.decorat
 const roles_decorator_1 = require("../../common/auth/roles.decorator");
 const roles_guard_1 = require("../../common/auth/roles.guard");
 const availability_query_dto_1 = require("./dto/availability-query.dto");
+const consistency_query_dto_1 = require("./dto/consistency-query.dto");
 const internal_transfer_dto_1 = require("./dto/internal-transfer.dto");
 const ledger_entry_query_dto_1 = require("./dto/ledger-entry-query.dto");
 const stock_query_dto_1 = require("./dto/stock-query.dto");
+const inventory_consistency_service_1 = require("./inventory-consistency.service");
 const inventory_service_1 = require("./inventory.service");
 let InventoryController = class InventoryController {
     inventory;
-    constructor(inventory) {
+    consistency;
+    constructor(inventory, consistency) {
         this.inventory = inventory;
+        this.consistency = consistency;
     }
     stockByProduct(user, query) {
         return this.inventory.stockByProductSummary(user, query);
@@ -42,6 +46,12 @@ let InventoryController = class InventoryController {
     }
     availability(user, query) {
         return this.inventory.availability(user, query.productId, query.companyId);
+    }
+    validateConsistency(user, query) {
+        return this.consistency.validateForUser(user, {
+            companyId: query.companyId,
+            warehouseId: query.warehouseId,
+        });
     }
     internalTransfer(user, dto) {
         return this.inventory.internalTransfer(user, dto);
@@ -89,6 +99,16 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], InventoryController.prototype, "availability", null);
 __decorate([
+    (0, common_1.Get)('consistency/validate'),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(auth_groups_1.AuthGroup.ADMIN),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, consistency_query_dto_1.ConsistencyQueryDto]),
+    __metadata("design:returntype", void 0)
+], InventoryController.prototype, "validateConsistency", null);
+__decorate([
     (0, common_1.Post)('internal-transfer'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)(auth_groups_1.AuthGroup.ADMIN),
@@ -100,6 +120,7 @@ __decorate([
 ], InventoryController.prototype, "internalTransfer", null);
 exports.InventoryController = InventoryController = __decorate([
     (0, common_1.Controller)('inventory'),
-    __metadata("design:paramtypes", [inventory_service_1.InventoryService])
+    __metadata("design:paramtypes", [inventory_service_1.InventoryService,
+        inventory_consistency_service_1.InventoryConsistencyService])
 ], InventoryController);
 //# sourceMappingURL=inventory.controller.js.map

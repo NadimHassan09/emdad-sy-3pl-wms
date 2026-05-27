@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { InsufficientStockException } from '../../common/errors/domain-exceptions';
+import type { InventoryConsistencyService } from './inventory-consistency.service';
 
 type Tx = Prisma.TransactionClient;
 
@@ -34,6 +35,7 @@ export interface QuantityMeta {
  */
 @Injectable()
 export class StockHelpers {
+  constructor(private readonly consistency: InventoryConsistencyService) {}
   /**
    * Read current quantity_on_hand FOR UPDATE (or return 0 when no row).
    */
@@ -199,6 +201,7 @@ export class StockHelpers {
   /**
    * Reserve available stock (increment `quantity_reserved`) with row lock.
    * Fails if `quantity_available` would go negative.
+   * Callers must acquire locks in a stable global order (see pick-concurrency.util) to avoid deadlocks.
    */
   async incrementReservedWithMeta(
     tx: Tx,
@@ -269,6 +272,13 @@ export class StockHelpers {
     if (affected === 0) {
       throw new InsufficientStockException();
     }
+
+    await this.consistency?.assertStockRowInvariants(tx, {
+      companyId: m.companyId,
+      productId: m.productId,
+      locationId: m.locationId,
+      lotId,
+    });
 
     const afterAvail = beforeAvail.minus(take);
     return { before: beforeAvail, after: afterAvail };
@@ -341,6 +351,13 @@ export class StockHelpers {
       throw new InsufficientStockException();
     }
 
+    await this.consistency?.assertStockRowInvariants(tx, {
+      companyId: m.companyId,
+      productId: m.productId,
+      locationId: m.locationId,
+      lotId,
+    });
+
     return { before: beforeRes, after: beforeRes.minus(take) };
   }
 
@@ -394,6 +411,13 @@ export class StockHelpers {
     if (affected === 0) {
       throw new InsufficientStockException();
     }
+
+    await this.consistency?.assertStockRowInvariants(tx, {
+      companyId: m.companyId,
+      productId: m.productId,
+      locationId: m.locationId,
+      lotId,
+    });
 
     return { before, after: before.minus(take) };
   }

@@ -15,7 +15,8 @@
     "db:generate": "prisma generate",
     "db:bootstrap": "node prisma/bootstrap-db.js",
     "db:seed": "ts-node --transpile-only prisma/seed.ts",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "test:integration:sprint2": "ts-node --transpile-only src/integration-tests/sprint2/sprint2-reliability.integration.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"

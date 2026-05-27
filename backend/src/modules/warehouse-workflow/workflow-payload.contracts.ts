@@ -25,6 +25,13 @@ export interface OutboundPickPayload {
   lines: Array<{ outbound_order_line_id: string; requested_qty: string }>;
 }
 
+/** Dispatch task payload — includes explicit pick binding for reservation snapshot source. */
+export interface OutboundDispatchPayload {
+  outbound_order_id: string;
+  /** Originating completed pick task whose executionState.reservations dispatch ships. */
+  pick_task_id: string;
+}
+
 /** QC task snapshot: eligible qty per inbound line post-receiving. */
 export interface InboundQcTaskPayload {
   inbound_order_id: string;
