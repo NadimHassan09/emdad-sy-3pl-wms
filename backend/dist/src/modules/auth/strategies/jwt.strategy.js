@@ -50,15 +50,27 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         this.companyAccess = companyAccess;
     }
     async validate(req, payload) {
+        if (!payload?.sub || !payload?.email || !payload?.role) {
+            throw new common_1.UnauthorizedException('Invalid session token.');
+        }
         if (payload.typ === 'client') {
             throw new common_1.UnauthorizedException('Use the internal WMS app with an internal account.');
         }
+        if (payload.typ && payload.typ !== 'internal') {
+            throw new common_1.UnauthorizedException('Invalid session token type.');
+        }
+        if (typeof payload.ver !== 'number') {
+            throw new common_1.UnauthorizedException('Session token version missing.');
+        }
         const user = await this.prisma.user.findUnique({
             where: { id: payload.sub },
-            select: { id: true, role: true, status: true, companyId: true, email: true },
+            select: { id: true, role: true, status: true, companyId: true, email: true, tokenVersion: true },
         });
         if (!user || user.status !== client_1.UserStatus.active) {
             throw new common_1.UnauthorizedException('Session is no longer valid.');
+        }
+        if (user.tokenVersion !== payload.ver) {
+            throw new common_1.UnauthorizedException('Session has been invalidated.');
         }
         if (user.companyId !== null || CLIENT_ROLES.includes(user.role)) {
             throw new common_1.ForbiddenException('Client accounts are not permitted to use this application.');

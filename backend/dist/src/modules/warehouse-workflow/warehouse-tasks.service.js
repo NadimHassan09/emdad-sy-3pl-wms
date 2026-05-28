@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.WarehouseTasksService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const notifications_service_1 = require("../notifications/notifications.service");
 const realtime_service_1 = require("../realtime/realtime.service");
@@ -35,7 +36,8 @@ let WarehouseTasksService = class WarehouseTasksService {
     realtime;
     notifications;
     companyAccess;
-    constructor(prisma, effects, cacheInv, orchestration, taskReadCache, realtime, notifications, companyAccess) {
+    audit;
+    constructor(prisma, effects, cacheInv, orchestration, taskReadCache, realtime, notifications, companyAccess, audit) {
         this.prisma = prisma;
         this.effects = effects;
         this.cacheInv = cacheInv;
@@ -44,6 +46,7 @@ let WarehouseTasksService = class WarehouseTasksService {
         this.realtime = realtime;
         this.notifications = notifications;
         this.companyAccess = companyAccess;
+        this.audit = audit;
     }
     assertTaskWorkflowTenant(user, workflowCompanyId) {
         this.companyAccess.assertSameCompany(user, workflowCompanyId);
@@ -313,6 +316,43 @@ let WarehouseTasksService = class WarehouseTasksService {
         if (!Array.isArray(r))
             return { reservations: [] };
         return { reservations: r };
+    }
+    async resolvePickTaskForDispatchCompletion(tx, args) {
+        const { workflowInstanceId, explicitPickTaskId } = args;
+        if (explicitPickTaskId) {
+            const pick = await tx.warehouseTask.findFirst({
+                where: {
+                    id: explicitPickTaskId,
+                    workflowInstanceId,
+                    taskType: client_1.WarehouseTaskType.pick,
+                    status: client_1.WarehouseTaskStatus.completed,
+                },
+                select: { id: true, executionState: true },
+            });
+            if (!pick) {
+                throw new common_1.BadRequestException('Dispatch pick binding invalid: referenced pick task not found in this workflow.');
+            }
+            const pickExec = this.parseExecState(pick.executionState);
+            if (!pickExec.reservations.length) {
+                throw new common_1.BadRequestException('Dispatch bound pick has no reservation snapshot.');
+            }
+            return pick;
+        }
+        const completedPicks = await tx.warehouseTask.findMany({
+            where: {
+                workflowInstanceId,
+                taskType: client_1.WarehouseTaskType.pick,
+                status: client_1.WarehouseTaskStatus.completed,
+            },
+            select: { id: true, executionState: true },
+        });
+        const withReservations = completedPicks.filter((p) => this.parseExecState(p.executionState).reservations.length > 0);
+        if (withReservations.length === 1)
+            return withReservations[0];
+        if (withReservations.length === 0) {
+            throw new common_1.BadRequestException('No completed pick reservation snapshot found for dispatch.');
+        }
+        throw new common_1.BadRequestException('Cannot complete dispatch: multiple completed picks with reservation snapshots found; dispatch payload must include pick_task_id.');
     }
     async releaseTaskHeldReservations(tx, taskId, executionState) {
         const exec = this.parseExecState(executionState);
@@ -592,6 +632,7 @@ let WarehouseTasksService = class WarehouseTasksService {
             });
             if (!task)
                 throw new common_1.NotFoundException('Task not found.');
+            this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
             if (task.taskType !== body.task_type) {
                 throw new common_1.BadRequestException('task_type does not match target task.');
             }
@@ -649,26 +690,22 @@ let WarehouseTasksService = class WarehouseTasksService {
                     break;
                 }
                 case 'dispatch': {
-                    const outboundId = task.payload.outbound_order_id;
+                    const { outbound_order_id: outboundId, pick_task_id: explicitPickTaskId } = parseDispatchTaskPayloadAllowLegacy(task.payload);
                     await this.lockWorkflowInstance(tx, task.workflowInstanceId);
                     await this.lockWorkflowPickTasks(tx, task.workflowInstanceId);
                     await this.lockOutboundOrder(tx, outboundId);
-                    const pickSibling = await tx.warehouseTask.findFirst({
-                        where: {
-                            workflowInstanceId: task.workflowInstanceId,
-                            taskType: 'pick',
-                            status: 'completed',
-                        },
-                        orderBy: { completedAt: 'desc' },
+                    const boundPick = await this.resolvePickTaskForDispatchCompletion(tx, {
+                        workflowInstanceId: task.workflowInstanceId,
+                        explicitPickTaskId,
                     });
-                    const pickExec = this.parseExecState(pickSibling?.executionState);
+                    const pickExec = this.parseExecState(boundPick.executionState);
                     if (!pickExec.reservations.length) {
                         throw new common_1.BadRequestException('No pick reservations found for dispatch.');
                     }
                     outboundCompleted = await this.effects.applyDispatchShip(tx, user.id, taskId, outboundId, companyId, pickExec.reservations, body);
-                    if (pickSibling) {
+                    if (boundPick) {
                         await tx.warehouseTask.update({
-                            where: { id: pickSibling.id },
+                            where: { id: boundPick.id },
                             data: { executionState: client_1.Prisma.DbNull },
                         });
                     }
@@ -692,6 +729,48 @@ let WarehouseTasksService = class WarehouseTasksService {
             });
             const hooks = await this.orchestration.onTaskCompleted(tx, finalized, body, user.id);
             inboundCompleted = hooks.inboundCompleted;
+            await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
+                action: 'TASK_COMPLETED',
+                resourceType: 'warehouse_task',
+                resourceId: taskId,
+                companyId: finalized.workflowInstance.companyId,
+                previousState: {
+                    status: task.status,
+                    taskType: task.taskType,
+                    workflowInstanceId: task.workflowInstanceId,
+                },
+                newState: {
+                    status: client_1.WarehouseTaskStatus.completed,
+                    taskType: body.task_type,
+                    completedById: user.id,
+                },
+            }));
+            if (body.task_type === 'dispatch') {
+                const dispatchPayload = parseDispatchTaskPayloadAllowLegacy(task.payload);
+                await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
+                    action: 'SHIPMENT_DISPATCHED',
+                    resourceType: 'outbound_order',
+                    resourceId: dispatchPayload.outbound_order_id,
+                    companyId: finalized.workflowInstance.companyId,
+                    previousState: { status: 'ready_to_ship' },
+                    newState: {
+                        status: 'shipped',
+                        dispatchTaskId: taskId,
+                    },
+                }));
+            }
+            if (['pick', 'putaway', 'putaway_quarantine', 'dispatch'].includes(body.task_type)) {
+                await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
+                    action: 'INVENTORY_MUTATION_APPLIED',
+                    resourceType: 'warehouse_task',
+                    resourceId: taskId,
+                    companyId: finalized.workflowInstance.companyId,
+                    newState: {
+                        taskType: body.task_type,
+                        inventoryMutation: true,
+                    },
+                }));
+            }
             await this.refreshWorkflowInstanceHealth(tx, finalized.workflowInstanceId);
         });
         if (!idempotentPickNoop && !idempotentDispatchNoop) {
@@ -734,6 +813,14 @@ let WarehouseTasksService = class WarehouseTasksService {
                 executionState: client_1.Prisma.DbNull,
             });
             await this.appendEvent(tx, taskId, 'cancelled', user.id, { reason });
+            await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
+                action: 'TASK_CANCELLED',
+                resourceType: 'warehouse_task',
+                resourceId: taskId,
+                companyId: task.workflowInstance.companyId,
+                previousState: { status: task.status },
+                newState: { status: client_1.WarehouseTaskStatus.cancelled, reason: reason ?? null },
+            }));
             await this.refreshWorkflowInstanceHealth(tx, task.workflowInstanceId);
         });
         if (stockMutated) {
@@ -765,6 +852,14 @@ let WarehouseTasksService = class WarehouseTasksService {
                 executionState: client_1.Prisma.DbNull,
             });
             await this.appendEvent(tx, taskId, 'failed', user.id, { reason });
+            await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
+                action: 'TASK_FAILED',
+                resourceType: 'warehouse_task',
+                resourceId: taskId,
+                companyId: task.workflowInstance.companyId,
+                previousState: { status: task.status },
+                newState: { status: client_1.WarehouseTaskStatus.failed, reason: reason ?? null },
+            }));
             await this.refreshWorkflowInstanceHealth(tx, task.workflowInstanceId);
         });
         if (stockMutated) {
@@ -886,14 +981,22 @@ let WarehouseTasksService = class WarehouseTasksService {
             const cur = task.executionState && typeof task.executionState === 'object' && !Array.isArray(task.executionState)
                 ? task.executionState
                 : {};
-            const next = { ...cur, ...patch };
+            const patchForMerge = task.taskType === client_1.WarehouseTaskType.pick && Object.prototype.hasOwnProperty.call(patch, 'reservations')
+                ? (({ reservations: _ignored, ...rest }) => rest)(patch)
+                : patch;
+            const next = { ...cur, ...patchForMerge };
+            if (task.taskType === client_1.WarehouseTaskType.pick && Object.prototype.hasOwnProperty.call(cur, 'reservations')) {
+                next.reservations = cur.reservations;
+            }
             await tx.warehouseTask.update({
                 where: { id: taskId },
                 data: {
                     executionState: next,
                 },
             });
-            await this.appendEvent(tx, taskId, 'execution_progress', user.id, { keys: Object.keys(patch) });
+            await this.appendEvent(tx, taskId, 'execution_progress', user.id, {
+                keys: Object.keys(patchForMerge),
+            });
         });
         await this.cacheInv.afterTaskMutation();
         return this.loadTaskEnvelope(taskId, user);
@@ -990,6 +1093,13 @@ let WarehouseTasksService = class WarehouseTasksService {
                 failureReason: null,
             });
             await this.appendEvent(tx, taskId, 'reopened', user.id);
+            await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
+                action: 'TASK_REOPENED',
+                resourceType: 'warehouse_task',
+                resourceId: taskId,
+                previousState: { status: task.status },
+                newState: { status: client_1.WarehouseTaskStatus.pending },
+            }));
             await this.refreshWorkflowInstanceHealth(tx, task.workflowInstanceId);
         });
         await this.cacheInv.afterTaskMutation();
@@ -1126,6 +1236,14 @@ let WarehouseTasksService = class WarehouseTasksService {
                 default:
                     throw new common_1.BadRequestException(`Unsupported resolution`);
             }
+            await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
+                action: 'TASK_BLOCK_RESOLVED',
+                resourceType: 'warehouse_task',
+                resourceId: taskId,
+                companyId: task.workflowInstance.companyId,
+                previousState: { status: task.status },
+                newState: { status: body.resolution, resolution: body.resolution, reason },
+            }));
             await this.refreshWorkflowInstanceHealth(tx, task.workflowInstanceId);
         });
         if (stockMutated) {
@@ -1245,7 +1363,8 @@ exports.WarehouseTasksService = WarehouseTasksService = __decorate([
         task_read_cache_service_1.TaskReadCacheService,
         realtime_service_1.RealtimeService,
         notifications_service_1.NotificationsService,
-        company_access_service_1.CompanyAccessService])
+        company_access_service_1.CompanyAccessService,
+        audit_log_service_1.AuditLogService])
 ], WarehouseTasksService);
 function parsePickPayload(raw) {
     if (!isRecord(raw))
@@ -1291,5 +1410,15 @@ function outboundIdFromPackPayload(raw) {
         throw new common_1.BadRequestException('pack payload malformed.');
     }
     return raw.outbound_order_id;
+}
+function parseDispatchTaskPayloadAllowLegacy(raw) {
+    if (!isRecord(raw) || typeof raw.outbound_order_id !== 'string') {
+        throw new common_1.BadRequestException('dispatch task payload malformed.');
+    }
+    const pickTaskId = raw.pick_task_id;
+    if (pickTaskId !== undefined && typeof pickTaskId !== 'string') {
+        throw new common_1.BadRequestException('dispatch task payload pick_task_id malformed.');
+    }
+    return { outbound_order_id: raw.outbound_order_id, pick_task_id: pickTaskId };
 }
 //# sourceMappingURL=warehouse-tasks.service.js.map

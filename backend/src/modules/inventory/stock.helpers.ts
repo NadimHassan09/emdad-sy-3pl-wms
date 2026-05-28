@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { InsufficientStockException } from '../../common/errors/domain-exceptions';
-import type { InventoryConsistencyService } from './inventory-consistency.service';
+import { InventoryConsistencyService } from './inventory-consistency.service';
 
 type Tx = Prisma.TransactionClient;
 

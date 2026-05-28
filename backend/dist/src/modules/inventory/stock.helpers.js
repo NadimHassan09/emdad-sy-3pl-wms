@@ -13,6 +13,7 @@ exports.StockHelpers = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
+const inventory_consistency_service_1 = require("./inventory-consistency.service");
 let StockHelpers = class StockHelpers {
     consistency;
     constructor(consistency) {
@@ -322,6 +323,6 @@ let StockHelpers = class StockHelpers {
 exports.StockHelpers = StockHelpers;
 exports.StockHelpers = StockHelpers = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [Function])
+    __metadata("design:paramtypes", [inventory_consistency_service_1.InventoryConsistencyService])
 ], StockHelpers);
 //# sourceMappingURL=stock.helpers.js.map

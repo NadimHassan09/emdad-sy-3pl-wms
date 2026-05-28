@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const client_1 = require("@prisma/client");
 const company_read_scope_1 = require("../../common/auth/company-read-scope");
+const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const warehouse_order_scope_1 = require("../../common/utils/warehouse-order-scope");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
@@ -61,7 +62,8 @@ let OutboundService = class OutboundService {
     realtime;
     notifications;
     companyAccess;
-    constructor(prisma, stock, config, workflowBootstrap, realtime, notifications, companyAccess) {
+    audit;
+    constructor(prisma, stock, config, workflowBootstrap, realtime, notifications, companyAccess, audit) {
         this.prisma = prisma;
         this.stock = stock;
         this.config = config;
@@ -69,6 +71,7 @@ let OutboundService = class OutboundService {
         this.realtime = realtime;
         this.notifications = notifications;
         this.companyAccess = companyAccess;
+        this.audit = audit;
     }
     async create(user, dto, opts) {
         const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
@@ -136,6 +139,17 @@ let OutboundService = class OutboundService {
                 orderNumber: created.orderNumber,
             });
         }
+        await this.audit.log(this.audit.fromPrincipal(user, {
+            action: 'OUTBOUND_ORDER_CREATED',
+            resourceType: 'outbound_order',
+            resourceId: created.id,
+            companyId: created.companyId,
+            newState: {
+                status: created.status,
+                lineCount: created.lines.length,
+                requiresPacking: created.requiresPacking,
+            },
+        }));
         return created;
     }
     async assertSufficientStockForLines(companyId, lines, products) {
@@ -253,6 +267,14 @@ let OutboundService = class OutboundService {
             status: cancelled.status,
             reason: 'cancel',
         });
+        await this.audit.log(this.audit.fromPrincipal(user, {
+            action: 'OUTBOUND_ORDER_CANCELLED',
+            resourceType: 'outbound_order',
+            resourceId: cancelled.id,
+            companyId: cancelled.companyId,
+            previousState: { status: order.status },
+            newState: { status: cancelled.status, cancelledBy: user.id },
+        }));
         return cancelled;
     }
     async confirmWithoutDeduction(user, orderId) {
@@ -309,6 +331,14 @@ let OutboundService = class OutboundService {
             });
             await this.notifications.dismissPendingAdminNotifications('outbound_order', before.id);
         }
+        await this.audit.log(this.audit.fromPrincipal(user, {
+            action: 'OUTBOUND_ORDER_CONFIRMED',
+            resourceType: 'outbound_order',
+            resourceId: updated.id,
+            companyId: updated.companyId,
+            previousState: { status: before?.status ?? null },
+            newState: { status: updated.status },
+        }));
         return updated;
     }
     async confirmAndDeduct(user, orderId, body) {
@@ -371,6 +401,14 @@ let OutboundService = class OutboundService {
                 });
                 await this.notifications.dismissPendingAdminNotifications('outbound_order', before.id);
             }
+            await this.audit.log(this.audit.fromPrincipal(user, {
+                action: 'OUTBOUND_ORDER_CONFIRMED',
+                resourceType: 'outbound_order',
+                resourceId: wfConfirmed.id,
+                companyId: wfConfirmed.companyId,
+                previousState: { status: before.status },
+                newState: { status: wfConfirmed.status, flow: 'task_only' },
+            }));
             return wfConfirmed;
         }
         if ((0, feature_flags_1.outboundConfirmDefersDeduction)(this.config)) {
@@ -493,6 +531,21 @@ let OutboundService = class OutboundService {
             orderId: shipped.id,
             orderNumber: shipped.orderNumber,
         });
+        await this.audit.log(this.audit.fromPrincipal(user, {
+            action: 'OUTBOUND_ORDER_SHIPPED',
+            resourceType: 'outbound_order',
+            resourceId: shipped.id,
+            companyId: shipped.companyId,
+            previousState: { status: before.status },
+            newState: { status: shipped.status, shippedAt: shipped.shippedAt?.toISOString() ?? null },
+        }));
+        await this.audit.log(this.audit.fromPrincipal(user, {
+            action: 'INVENTORY_MUTATION_APPLIED',
+            resourceType: 'outbound_order',
+            resourceId: shipped.id,
+            companyId: shipped.companyId,
+            newState: { source: 'confirm_and_deduct', movementType: 'outbound_pick' },
+        }));
         return shipped;
     }
     async findStockCandidates(tx, companyId, productId, specificLotId) {
@@ -541,6 +594,7 @@ exports.OutboundService = OutboundService = __decorate([
         workflow_bootstrap_service_1.WorkflowBootstrapService,
         realtime_service_1.RealtimeService,
         notifications_service_1.NotificationsService,
-        company_access_service_1.CompanyAccessService])
+        company_access_service_1.CompanyAccessService,
+        audit_log_service_1.AuditLogService])
 ], OutboundService);
 //# sourceMappingURL=outbound.service.js.map

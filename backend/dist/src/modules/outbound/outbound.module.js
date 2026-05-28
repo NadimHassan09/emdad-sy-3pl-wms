@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OutboundModule = void 0;
 const common_1 = require("@nestjs/common");
+const audit_module_1 = require("../../common/audit/audit.module");
 const inventory_module_1 = require("../inventory/inventory.module");
 const warehouse_workflow_module_1 = require("../warehouse-workflow/warehouse-workflow.module");
 const outbound_controller_1 = require("./outbound.controller");
@@ -17,7 +18,7 @@ let OutboundModule = class OutboundModule {
 exports.OutboundModule = OutboundModule;
 exports.OutboundModule = OutboundModule = __decorate([
     (0, common_1.Module)({
-        imports: [inventory_module_1.InventoryModule, warehouse_workflow_module_1.WarehouseWorkflowModule],
+        imports: [inventory_module_1.InventoryModule, warehouse_workflow_module_1.WarehouseWorkflowModule, audit_module_1.AuditModule],
         controllers: [outbound_controller_1.OutboundController],
         providers: [outbound_service_1.OutboundService],
         exports: [outbound_service_1.OutboundService],

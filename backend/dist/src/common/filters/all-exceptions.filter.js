@@ -16,16 +16,27 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
     catch(exception, host) {
         const ctx = host.switchToHttp();
         const res = ctx.getResponse();
-        const { status, body } = this.toResponse(exception);
+        const req = ctx.getRequest();
+        const requestId = req?.headers?.['x-request-id'] ?? req?.headers?.['x-correlation-id'];
+        const env = process.env.NODE_ENV ?? 'development';
+        const isProd = env === 'production';
+        const { status, body } = this.toResponse(exception, isProd, requestId);
         if (status >= 500) {
-            this.logger.error(exception instanceof Error ? exception.stack : String(exception));
+            const err = exception instanceof Error ? exception : new Error(String(exception));
+            const prefix = `[${req?.method ?? 'HTTP'} ${req?.url ?? 'unknown'}]`;
+            if (isProd) {
+                this.logger.error(`${prefix} ${err.name}: ${this.redact(err.message)}`);
+            }
+            else {
+                this.logger.error(`${prefix} ${err.stack ?? err.message}`);
+            }
         }
         else {
-            this.logger.warn(`${status} ${body.error.code}: ${body.error.message}`);
+            this.logger.warn(`[${req?.method ?? 'HTTP'} ${req?.url ?? 'unknown'}] ${status} ${body.error.code}: ${this.redact(body.error.message)}`);
         }
         res.status(status).json(body);
     }
-    toResponse(exception) {
+    toResponse(exception, isProd, requestId) {
         if (exception instanceof domain_exceptions_1.DomainException) {
             const code = exception.code;
             return {
@@ -34,8 +45,9 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
                     success: false,
                     error: {
                         code,
-                        message: this.extractMessage(exception),
-                        details: exception.details,
+                        message: this.sanitizeMessage(this.extractMessage(exception), isProd, exception.getStatus()),
+                        ...(isProd ? {} : { details: this.sanitizeDetails(exception.details) }),
+                        ...(requestId ? { requestId } : {}),
                     },
                 },
             };
@@ -59,26 +71,31 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
                     success: false,
                     error: {
                         code: this.codeFromStatus(status),
-                        message: Array.isArray(message) ? message.join('; ') : message,
-                        details,
+                        message: this.sanitizeMessage(Array.isArray(message) ? message.join('; ') : message, isProd, status),
+                        ...(isProd ? {} : { details: this.sanitizeDetails(details) }),
+                        ...(requestId ? { requestId } : {}),
                     },
                 },
             };
         }
         if (exception instanceof client_1.Prisma.PrismaClientKnownRequestError) {
-            return this.fromPrismaKnown(exception);
+            return this.fromPrismaKnown(exception, isProd, requestId);
         }
         if (exception instanceof client_1.Prisma.PrismaClientValidationError) {
             return {
                 status: common_1.HttpStatus.BAD_REQUEST,
                 body: {
                     success: false,
-                    error: { code: 'PRISMA_VALIDATION', message: exception.message },
+                    error: {
+                        code: 'PRISMA_VALIDATION',
+                        message: this.sanitizeMessage(exception.message, isProd, common_1.HttpStatus.BAD_REQUEST),
+                        ...(requestId ? { requestId } : {}),
+                    },
                 },
             };
         }
         if (this.isPgError(exception)) {
-            return this.fromPgError(exception);
+            return this.fromPgError(exception, isProd, requestId);
         }
         return {
             status: common_1.HttpStatus.INTERNAL_SERVER_ERROR,
@@ -86,12 +103,13 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
                 success: false,
                 error: {
                     code: 'INTERNAL_ERROR',
-                    message: exception instanceof Error ? exception.message : 'Unknown error',
+                    message: this.sanitizeMessage(exception instanceof Error ? exception.message : 'Unknown error', isProd, common_1.HttpStatus.INTERNAL_SERVER_ERROR),
+                    ...(requestId ? { requestId } : {}),
                 },
             },
         };
     }
-    fromPrismaKnown(err) {
+    fromPrismaKnown(err, isProd, requestId) {
         switch (err.code) {
             case 'P2002': {
                 const target = err.meta?.target ?? 'unique constraint';
@@ -101,7 +119,8 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
                         success: false,
                         error: {
                             code: 'UNIQUE_VIOLATION',
-                            message: `Duplicate value for ${Array.isArray(target) ? target.join(', ') : target}.`,
+                            message: this.sanitizeMessage(`Duplicate value for ${Array.isArray(target) ? target.join(', ') : target}.`, isProd, common_1.HttpStatus.CONFLICT),
+                            ...(requestId ? { requestId } : {}),
                         },
                     },
                 };
@@ -109,36 +128,68 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
             case 'P2025':
                 return {
                     status: common_1.HttpStatus.NOT_FOUND,
-                    body: { success: false, error: { code: 'NOT_FOUND', message: err.message } },
+                    body: {
+                        success: false,
+                        error: {
+                            code: 'NOT_FOUND',
+                            message: this.sanitizeMessage(err.message, isProd, common_1.HttpStatus.NOT_FOUND),
+                            ...(requestId ? { requestId } : {}),
+                        },
+                    },
                 };
             case 'P2003':
                 return {
                     status: common_1.HttpStatus.BAD_REQUEST,
                     body: {
                         success: false,
-                        error: { code: 'FOREIGN_KEY_VIOLATION', message: err.message },
+                        error: {
+                            code: 'FOREIGN_KEY_VIOLATION',
+                            message: this.sanitizeMessage(err.message, isProd, common_1.HttpStatus.BAD_REQUEST),
+                            ...(requestId ? { requestId } : {}),
+                        },
                     },
                 };
             default:
                 return {
                     status: common_1.HttpStatus.BAD_REQUEST,
-                    body: { success: false, error: { code: 'PRISMA_ERROR_' + err.code, message: err.message } },
+                    body: {
+                        success: false,
+                        error: {
+                            code: 'PRISMA_ERROR_' + err.code,
+                            message: this.sanitizeMessage(err.message, isProd, common_1.HttpStatus.BAD_REQUEST),
+                            ...(requestId ? { requestId } : {}),
+                        },
+                    },
                 };
         }
     }
-    fromPgError(err) {
+    fromPgError(err, isProd, requestId) {
         const message = err.message ?? '';
         if (message.includes('exceeds 110%') || message.includes('expected_quantity')) {
             const dom = new domain_exceptions_1.OverReceiveException(message);
             return {
                 status: dom.getStatus(),
-                body: { success: false, error: { code: 'QUANTITY_EXCEEDS_LIMIT', message } },
+                body: {
+                    success: false,
+                    error: {
+                        code: 'QUANTITY_EXCEEDS_LIMIT',
+                        message: this.sanitizeMessage(message, isProd, dom.getStatus()),
+                        ...(requestId ? { requestId } : {}),
+                    },
+                },
             };
         }
         if (message.includes('inventory_ledger duplicate')) {
             return {
                 status: common_1.HttpStatus.CONFLICT,
-                body: { success: false, error: { code: 'IDEMPOTENT_REPLAY', message } },
+                body: {
+                    success: false,
+                    error: {
+                        code: 'IDEMPOTENT_REPLAY',
+                        message: this.sanitizeMessage(message, isProd, common_1.HttpStatus.CONFLICT),
+                        ...(requestId ? { requestId } : {}),
+                    },
+                },
             };
         }
         if (message.includes('chk_qty_non_negative') ||
@@ -146,21 +197,52 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
             message.includes('chk_reserved_non_negative')) {
             return {
                 status: common_1.HttpStatus.UNPROCESSABLE_ENTITY,
-                body: { success: false, error: { code: 'INSUFFICIENT_STOCK', message } },
+                body: {
+                    success: false,
+                    error: {
+                        code: 'INSUFFICIENT_STOCK',
+                        message: this.sanitizeMessage(message, isProd, common_1.HttpStatus.UNPROCESSABLE_ENTITY),
+                        ...(requestId ? { requestId } : {}),
+                    },
+                },
             };
         }
         return {
             status: common_1.HttpStatus.BAD_REQUEST,
             body: {
                 success: false,
-                error: { code: 'DB_CONSTRAINT_VIOLATION', message: message || String(err) },
+                error: {
+                    code: 'DB_CONSTRAINT_VIOLATION',
+                    message: this.sanitizeMessage(message || String(err), isProd, common_1.HttpStatus.BAD_REQUEST),
+                    ...(requestId ? { requestId } : {}),
+                },
             },
         };
+    }
+    sanitizeMessage(message, isProd, status) {
+        const clean = this.redact(message);
+        if (!isProd)
+            return clean;
+        if (status >= 500)
+            return 'Internal server error.';
+        return clean;
+    }
+    sanitizeDetails(details) {
+        if (details === null || details === undefined)
+            return undefined;
+        const text = typeof details === 'string' ? details : JSON.stringify(details);
+        return this.redact(text).slice(0, 1000);
+    }
+    redact(input) {
+        return input
+            .replace(/(password|token|secret|authorization)\s*[:=]\s*([^\s,;]+)/gi, '$1=[REDACTED]')
+            .replace(/bearer\s+[a-z0-9\-._~+/]+=*/gi, 'bearer [REDACTED]');
     }
     isPgError(value) {
         return (typeof value === 'object' &&
             value !== null &&
-            ('code' in value || 'message' in value) &&
+            typeof value.code === 'string' &&
+            /^\d{5}$/.test(value.code) &&
             typeof value.message === 'string');
     }
     extractMessage(err) {

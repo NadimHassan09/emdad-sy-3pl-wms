@@ -26,12 +26,11 @@ let AuthController = class AuthController {
     login(dto, res) {
         return this.auth.login(dto, res);
     }
-    logout(res) {
-        res.clearCookie('access_token', {
-            path: '/',
-            httpOnly: true,
-            sameSite: 'lax',
-        });
+    refresh(req, res) {
+        return this.auth.refresh(req, res);
+    }
+    logout(req, res) {
+        return this.auth.logout(req, res);
     }
     me(user) {
         return this.auth.getProfile(user);
@@ -50,11 +49,22 @@ __decorate([
 ], AuthController.prototype, "login", null);
 __decorate([
     (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('refresh'),
+    (0, common_1.HttpCode)(200),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], AuthController.prototype, "refresh", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
     (0, common_1.Post)('logout'),
     (0, common_1.HttpCode)(204),
-    __param(0, (0, common_1.Res)({ passthrough: true })),
+    __param(0, (0, common_1.Req)()),
+    __param(1, (0, common_1.Res)({ passthrough: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "logout", null);
 __decorate([

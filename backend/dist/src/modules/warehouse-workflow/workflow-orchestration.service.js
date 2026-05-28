@@ -27,7 +27,7 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
             return inboundCompleted ? { inboundCompleted } : {};
         }
         if (wf.referenceType === 'outbound_order') {
-            await this.afterOutboundTask(tx, wf, task.taskType, body);
+            await this.afterOutboundTask(tx, wf, task, body);
         }
         return {};
     }
@@ -266,9 +266,9 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
             orderNumber: order.orderNumber,
         };
     }
-    async afterOutboundTask(tx, wf, taskType, body) {
+    async afterOutboundTask(tx, wf, completedTask, body) {
         const orderId = wf.referenceId;
-        switch (taskType) {
+        switch (completedTask.taskType) {
             case client_1.WarehouseTaskType.pick:
                 if (body.task_type === 'pick') {
                     const order = await tx.outboundOrder.findUnique({
@@ -276,7 +276,7 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
                         select: { requiresPacking: true },
                     });
                     if (order?.requiresPacking === false) {
-                        await this.enqueueDispatchTaskIfNeeded(tx, wf.id, orderId);
+                        await this.enqueueDispatchTaskIfNeeded(tx, wf.id, orderId, completedTask.id);
                     }
                     else {
                         await this.spawnPackIfNeeded(tx, wf.id, orderId);
@@ -346,7 +346,43 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
             },
         });
     }
-    async enqueueDispatchTaskIfNeeded(tx, instanceId, orderId) {
+    async resolvePickTaskIdForDispatchEnqueue(tx, instanceId, explicitPickTaskId) {
+        if (explicitPickTaskId) {
+            const pick = await tx.warehouseTask.findFirst({
+                where: {
+                    id: explicitPickTaskId,
+                    workflowInstanceId: instanceId,
+                    taskType: client_1.WarehouseTaskType.pick,
+                },
+                select: { id: true },
+            });
+            if (!pick) {
+                throw new common_1.BadRequestException('Dispatch pick binding invalid: referenced pick task not found in this workflow.');
+            }
+            return pick.id;
+        }
+        const completedPicks = await tx.warehouseTask.findMany({
+            where: {
+                workflowInstanceId: instanceId,
+                taskType: client_1.WarehouseTaskType.pick,
+                status: client_1.WarehouseTaskStatus.completed,
+            },
+            orderBy: { completedAt: 'desc' },
+            select: { id: true, executionState: true },
+        });
+        const withReservations = completedPicks.filter((p) => pickExecutionHasReservations(p.executionState));
+        if (withReservations.length === 1) {
+            return withReservations[0].id;
+        }
+        if (withReservations.length > 1) {
+            throw new common_1.BadRequestException('Cannot enqueue dispatch: multiple completed picks with reservations; explicit pick binding required.');
+        }
+        if (completedPicks.length === 1) {
+            return completedPicks[0].id;
+        }
+        throw new common_1.BadRequestException('Cannot enqueue dispatch: no completed pick found for binding.');
+    }
+    async enqueueDispatchTaskIfNeeded(tx, instanceId, orderId, pickTaskId) {
         const existing = await tx.warehouseTask.findFirst({
             where: {
                 workflowInstanceId: instanceId,
@@ -370,6 +406,7 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
                 status: 'pending',
             },
         });
+        const boundPickTaskId = await this.resolvePickTaskIdForDispatchEnqueue(tx, instanceId, pickTaskId);
         await tx.warehouseTask.create({
             data: {
                 workflowInstanceId: instanceId,
@@ -377,7 +414,10 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
                 taskType: client_1.WarehouseTaskType.dispatch,
                 status: client_1.WarehouseTaskStatus.pending,
                 slaMinutes: (0, task_sla_defaults_1.defaultSlaMinutesForTaskType)(client_1.WarehouseTaskType.dispatch),
-                payload: { outbound_order_id: orderId },
+                payload: {
+                    outbound_order_id: orderId,
+                    pick_task_id: boundPickTaskId,
+                },
             },
         });
     }
@@ -387,4 +427,11 @@ exports.WorkflowOrchestrationService = WorkflowOrchestrationService = __decorate
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService])
 ], WorkflowOrchestrationService);
+function pickExecutionHasReservations(executionState) {
+    if (!executionState || typeof executionState !== 'object' || Array.isArray(executionState)) {
+        return false;
+    }
+    const reservations = executionState.reservations;
+    return Array.isArray(reservations) && reservations.length > 0;
+}
 //# sourceMappingURL=workflow-orchestration.service.js.map

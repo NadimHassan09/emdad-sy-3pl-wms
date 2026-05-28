@@ -80,6 +80,20 @@ let RealtimeService = RealtimeService_1 = class RealtimeService {
             });
         }
     }
+    getHealthSnapshot() {
+        if (!this.io) {
+            return { attached: false, connectedClients: 0 };
+        }
+        try {
+            return {
+                attached: true,
+                connectedClients: this.io.sockets.sockets.size,
+            };
+        }
+        catch {
+            return { attached: true, connectedClients: 0 };
+        }
+    }
 };
 exports.RealtimeService = RealtimeService;
 exports.RealtimeService = RealtimeService = RealtimeService_1 = __decorate([

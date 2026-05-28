@@ -35,9 +35,10 @@ function sanitizeValue(value: unknown): unknown {
 }
 
 function sanitizeRequestPayload(req: Request, _res: Response, next: NextFunction): void {
-  req.body = sanitizeValue(req.body) as JsonLike;
-  req.query = sanitizeValue(req.query) as Request['query'];
-  req.params = sanitizeValue(req.params) as Request['params'];
+  // Only replace `body` — Express 5 exposes read-only getters for `query` / `params`.
+  if (req.body !== undefined && req.body !== null && typeof req.body === 'object') {
+    req.body = sanitizeValue(req.body) as JsonLike;
+  }
   next();
 }
 

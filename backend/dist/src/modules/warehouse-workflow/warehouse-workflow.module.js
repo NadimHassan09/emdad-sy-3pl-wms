@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WarehouseWorkflowModule = void 0;
 const common_1 = require("@nestjs/common");
+const audit_module_1 = require("../../common/audit/audit.module");
 const redis_module_1 = require("../../common/redis/redis.module");
 const prisma_module_1 = require("../../common/prisma/prisma.module");
 const auth_module_1 = require("../auth/auth.module");
@@ -30,7 +31,7 @@ let WarehouseWorkflowModule = class WarehouseWorkflowModule {
 exports.WarehouseWorkflowModule = WarehouseWorkflowModule;
 exports.WarehouseWorkflowModule = WarehouseWorkflowModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, inventory_module_1.InventoryModule, redis_module_1.RedisModule, auth_module_1.AuthModule],
+        imports: [prisma_module_1.PrismaModule, inventory_module_1.InventoryModule, redis_module_1.RedisModule, auth_module_1.AuthModule, audit_module_1.AuditModule],
         controllers: [
             workflow_controller_1.WorkflowController,
             warehouse_tasks_controller_1.WarehouseTasksController,

@@ -353,7 +353,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 throw new common_1.BadRequestException(`Ship qty must match picked qty for line ${line.id}.`);
             }
         }
-        for (const r of reservations) {
+        for (const r of (0, pick_concurrency_util_1.sortReservationSnapshotsForLocking)(reservations)) {
             const meta = await this.stock.decrementShippedWithMeta(tx, {
                 companyId: r.companyId,
                 productId: r.productId,

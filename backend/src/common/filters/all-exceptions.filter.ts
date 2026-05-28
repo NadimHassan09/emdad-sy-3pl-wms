@@ -299,7 +299,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     return (
       typeof value === 'object' &&
       value !== null &&
-      ('code' in value || 'message' in value) &&
+      typeof (value as PgErrorLike).code === 'string' &&
+      /^\d{5}$/.test((value as PgErrorLike).code as string) &&
       typeof (value as PgErrorLike).message === 'string'
     );
   }
