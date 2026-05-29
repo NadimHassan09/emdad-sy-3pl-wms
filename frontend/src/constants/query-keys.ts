@@ -58,4 +58,10 @@ export const QK = {
     workload: (id: string) => ['workers', id, 'workload'] as const,
     load: (warehouseId: string | 'none') => ['workers', 'load', warehouseId] as const,
   },
+  auditLogs: {
+    all: ['audit-logs'] as const,
+    policy: ['audit-logs', 'policy'] as const,
+    list: (params: Record<string, unknown>) => ['audit-logs', 'list', params] as const,
+    detail: (id: string) => ['audit-logs', 'detail', id] as const,
+  },
 };

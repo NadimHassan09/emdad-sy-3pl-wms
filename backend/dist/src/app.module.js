@@ -18,6 +18,7 @@ const crypto_module_1 = require("./common/crypto/crypto.module");
 const prisma_module_1 = require("./common/prisma/prisma.module");
 const redis_module_1 = require("./common/redis/redis.module");
 const adjustments_module_1 = require("./modules/adjustments/adjustments.module");
+const audit_logs_module_1 = require("./modules/audit-logs/audit-logs.module");
 const auth_module_1 = require("./modules/auth/auth.module");
 const jwt_auth_guard_1 = require("./modules/auth/guards/jwt-auth.guard");
 const client_portal_module_1 = require("./modules/client-portal/client-portal.module");
@@ -73,6 +74,7 @@ exports.AppModule = AppModule = __decorate([
             inbound_module_1.InboundModule,
             outbound_module_1.OutboundModule,
             adjustments_module_1.AdjustmentsModule,
+            audit_logs_module_1.AuditLogsModule,
             warehouse_workflow_module_1.WarehouseWorkflowModule,
             realtime_module_1.RealtimeModule,
         ],

@@ -74,6 +74,13 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     match: (p) => p.startsWith('/users'),
     roles: ['super_admin', 'wh_manager'],
   },
+  {
+    labelKey: 'Audit logs',
+    iconKey: 'AuditLogs',
+    to: '/audit-logs',
+    match: (p) => p.startsWith('/audit-logs'),
+    roles: ['super_admin', 'wh_manager', 'finance'],
+  },
 ];
 
 /** First path segment groups used for route guards. */
@@ -89,6 +96,7 @@ function routeGroup(pathname: string): string {
   if (p.startsWith('/locations')) return 'locations';
   if (p.startsWith('/clients')) return 'clients';
   if (p.startsWith('/users')) return 'users';
+  if (p.startsWith('/audit-logs')) return 'audit-logs';
   return 'other';
 }
 
@@ -103,6 +111,7 @@ const ROUTE_GROUP_ROLES: Record<string, InternalRole[]> = {
   locations: ['super_admin', 'wh_manager'],
   clients: ['super_admin', 'wh_manager'],
   users: ['super_admin', 'wh_manager'],
+  'audit-logs': ['super_admin', 'wh_manager', 'finance'],
   other: ALL_ROLES,
 };
 

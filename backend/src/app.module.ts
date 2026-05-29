@@ -10,6 +10,7 @@ import { CryptoModule } from './common/crypto/crypto.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { AdjustmentsModule } from './modules/adjustments/adjustments.module';
+import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { ClientPortalModule } from './modules/client-portal/client-portal.module';
@@ -62,6 +63,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     InboundModule,
     OutboundModule,
     AdjustmentsModule,
+    AuditLogsModule,
     WarehouseWorkflowModule,
     RealtimeModule,
   ],

@@ -22,6 +22,15 @@ interface DataTableProps<T> {
   loading?: boolean;
   onRowClick?: (row: T) => void;
   getRowClassName?: (row: T) => string | undefined;
+  /** When set, rows are treated as the current server page (no client slice). */
+  serverPagination?: {
+    total: number;
+    page: number;
+    pageSize: number;
+    onPageChange: (page: number) => void;
+    onPageSizeChange: (pageSize: number) => void;
+    pageSizeOptions?: number[];
+  };
   labels?: {
     rowsSuffix?: string;
     resultsSuffix?: string;
@@ -44,26 +53,32 @@ export function DataTable<T>({
   loading,
   onRowClick,
   getRowClassName,
+  serverPagination,
   labels,
 }: DataTableProps<T>) {
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [page, setPage] = useState(1);
   const isRtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
 
-  const totalRows = rows.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / rowsPerPage));
+  const isServer = !!serverPagination;
+  const effectivePageSize = isServer ? serverPagination.pageSize : rowsPerPage;
+  const effectivePage = isServer ? serverPagination.page : page;
+  const totalRows = isServer ? serverPagination.total : rows.length;
+  const totalPages = Math.max(1, Math.ceil(totalRows / effectivePageSize));
+  const pageSizeOptions = serverPagination?.pageSizeOptions ?? [10, 20, 50, 100];
 
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+    if (!isServer && page > totalPages) setPage(totalPages);
+  }, [page, totalPages, isServer]);
 
   const pagedRows = useMemo(() => {
+    if (isServer) return rows;
     const start = (page - 1) * rowsPerPage;
     return rows.slice(start, start + rowsPerPage);
-  }, [page, rows, rowsPerPage]);
+  }, [isServer, page, rows, rowsPerPage]);
 
-  const startDisplay = totalRows === 0 ? 0 : (page - 1) * rowsPerPage + 1;
-  const endDisplay = totalRows === 0 ? 0 : Math.min(page * rowsPerPage, totalRows);
+  const startDisplay = totalRows === 0 ? 0 : (effectivePage - 1) * effectivePageSize + 1;
+  const endDisplay = totalRows === 0 ? 0 : Math.min(effectivePage * effectivePageSize, totalRows);
 
   return (
     <div className="overflow-visible rounded-xl border border-slate-100 bg-white shadow-sm">
@@ -127,13 +142,18 @@ export function DataTable<T>({
           <select
             aria-label={labels?.rowsPerPageAria ?? 'Rows per page'}
             className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 outline-none transition focus:border-[#1a7a44] focus:ring-2 focus:ring-[#1a7a44]/20"
-            value={rowsPerPage}
+            value={effectivePageSize}
             onChange={(e) => {
-              setRowsPerPage(Number(e.target.value));
-              setPage(1);
+              const n = Number(e.target.value);
+              if (isServer) {
+                serverPagination!.onPageSizeChange(n);
+              } else {
+                setRowsPerPage(n);
+                setPage(1);
+              }
             }}
           >
-            {[10, 20, 50, 100].map((n) => (
+            {pageSizeOptions.map((n) => (
               <option key={n} value={n}>
                 {n} {labels?.rowsSuffix ?? 'rows'}
               </option>
@@ -148,16 +168,22 @@ export function DataTable<T>({
           <button
             type="button"
             className="flex-1 rounded-md border border-[#1a7a44] bg-white px-3 py-1.5 text-sm font-medium text-[#1a7a44] transition hover:bg-[#e9f5ee] disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400 disabled:hover:bg-white sm:flex-none"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1 || loading || totalRows === 0}
+            onClick={() => {
+              if (isServer) serverPagination!.onPageChange(Math.max(1, effectivePage - 1));
+              else setPage((p) => Math.max(1, p - 1));
+            }}
+            disabled={effectivePage <= 1 || loading || totalRows === 0}
           >
             {labels?.previous ?? 'Previous'}
           </button>
           <button
             type="button"
             className="flex-1 rounded-md border border-[#1a7a44] bg-[#1a7a44] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#146135] disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-300 disabled:text-slate-500 disabled:hover:bg-slate-300 sm:flex-none"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages || loading || totalRows === 0}
+            onClick={() => {
+              if (isServer) serverPagination!.onPageChange(Math.min(totalPages, effectivePage + 1));
+              else setPage((p) => Math.min(totalPages, p + 1));
+            }}
+            disabled={effectivePage >= totalPages || loading || totalRows === 0}
           >
             {labels?.next ?? 'Next'}
           </button>

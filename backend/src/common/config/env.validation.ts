@@ -10,6 +10,15 @@ const envSchema = z.object({
   HTTP_FORM_BODY_LIMIT: z.string().optional(),
   AUTH_COOKIE_DOMAIN: z.string().optional(),
   READY_RETRY_PENDING_MAX: z.coerce.number().int().nonnegative().default(1000),
+  AUDIT_RETENTION_DAYS: z.coerce.number().int().min(0).max(3650).optional(),
+  AUDIT_QUERY_MAX_LIMIT: z.coerce.number().int().min(1).max(100).optional(),
+  AUDIT_QUERY_MAX_OFFSET: z.coerce.number().int().min(0).max(50_000).optional(),
+  AUDIT_QUERY_MAX_DATE_RANGE_DAYS: z.coerce.number().int().min(1).max(366).optional(),
+  AUDIT_QUERY_DEFAULT_WINDOW_DAYS: z.coerce.number().int().min(1).max(366).optional(),
+  AUDIT_QUERY_COUNT_CAP: z.coerce.number().int().min(100).max(1_000_000).optional(),
+  AUDIT_EXPORT_MAX_ROWS: z.coerce.number().int().min(1).max(5000).optional(),
+  AUDIT_EXPORT_MAX_DATE_RANGE_DAYS: z.coerce.number().int().min(1).max(366).optional(),
+  AUDIT_EXPORT_ENABLED: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
 });
 
 export function validateEnv(raw: Record<string, unknown>): Record<string, unknown> {

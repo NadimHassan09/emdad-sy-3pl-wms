@@ -96,6 +96,8 @@ function sidebarLabel(label: string, isArabic: boolean): string {
 
     Users: 'المستخدمون',
 
+    'Audit logs': 'سجل التدقيق',
+
     'Sign out': 'تسجيل الخروج',
 
   };

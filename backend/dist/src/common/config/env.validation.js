@@ -12,6 +12,15 @@ const envSchema = zod_1.z.object({
     HTTP_FORM_BODY_LIMIT: zod_1.z.string().optional(),
     AUTH_COOKIE_DOMAIN: zod_1.z.string().optional(),
     READY_RETRY_PENDING_MAX: zod_1.z.coerce.number().int().nonnegative().default(1000),
+    AUDIT_RETENTION_DAYS: zod_1.z.coerce.number().int().min(0).max(3650).optional(),
+    AUDIT_QUERY_MAX_LIMIT: zod_1.z.coerce.number().int().min(1).max(100).optional(),
+    AUDIT_QUERY_MAX_OFFSET: zod_1.z.coerce.number().int().min(0).max(50_000).optional(),
+    AUDIT_QUERY_MAX_DATE_RANGE_DAYS: zod_1.z.coerce.number().int().min(1).max(366).optional(),
+    AUDIT_QUERY_DEFAULT_WINDOW_DAYS: zod_1.z.coerce.number().int().min(1).max(366).optional(),
+    AUDIT_QUERY_COUNT_CAP: zod_1.z.coerce.number().int().min(100).max(1_000_000).optional(),
+    AUDIT_EXPORT_MAX_ROWS: zod_1.z.coerce.number().int().min(1).max(5000).optional(),
+    AUDIT_EXPORT_MAX_DATE_RANGE_DAYS: zod_1.z.coerce.number().int().min(1).max(366).optional(),
+    AUDIT_EXPORT_ENABLED: zod_1.z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
 });
 function validateEnv(raw) {
     const parsed = envSchema.parse(raw);

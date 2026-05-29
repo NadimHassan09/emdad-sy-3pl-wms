@@ -50,6 +50,7 @@ const ClientUsersPage         = lazyPage(() => import('./pages/UsersPage'),     
 const WarehouseUserDetailPage = lazyPage(() => import('./pages/UserDetailPage'),         'WarehouseUserDetailPage');
 const ClientUserDetailPage    = lazyPage(() => import('./pages/UserDetailPage'),          'ClientUserDetailPage');
 const LoginPage               = lazyPage(() => import('./pages/LoginPage'),               'LoginPage');
+const AuditLogsPage           = lazyPage(() => import('./pages/AuditLogsPage'),           'AuditLogsPage');
 
 /** Data router required for `useBlocker` (task execution exit guard). */
 export const router = createBrowserRouter([
@@ -105,6 +106,7 @@ export const router = createBrowserRouter([
       { path: 'users/warehouse_users/:id', element: <WarehouseUserDetailPage /> },
       { path: 'users/client_users', element: <ClientUsersPage /> },
       { path: 'users/client_users/:id', element: <ClientUserDetailPage /> },
+      { path: 'audit-logs', element: <AuditLogsPage /> },
       { path: '*', element: <RoleHomeRedirect /> },
     ],
   },
