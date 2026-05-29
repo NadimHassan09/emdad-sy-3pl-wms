@@ -4,9 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { LedgerRefType, Prisma } from '@prisma/client';
 
-import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
+import { readCompanyIdFilterRequired } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import {
@@ -42,6 +42,11 @@ const ADJUSTMENT_DETAIL_INCLUDE = {
     orderBy: { id: 'asc' as const },
   },
 } satisfies Prisma.StockAdjustmentInclude;
+
+export type ApproveAdjustmentOptions = {
+  ledgerReferenceType?: LedgerRefType;
+  ledgerReferenceId?: string;
+};
 
 @Injectable()
 export class AdjustmentsService {
@@ -87,8 +92,8 @@ export class AdjustmentsService {
 
   list(user: AuthPrincipal, query: ListAdjustmentsQueryDto) {
     const where: Prisma.StockAdjustmentWhereInput = {};
-    const companyId = readCompanyIdFilter(this.companyAccess, user, query.companyId);
-    if (companyId) where.companyId = companyId;
+    const companyId = readCompanyIdFilterRequired(this.companyAccess, user, query.companyId);
+    where.companyId = companyId;
     if (query.status) where.status = query.status;
     if (query.warehouseId) where.warehouseId = query.warehouseId;
     if (query.adjustmentId) where.id = query.adjustmentId;
@@ -224,10 +229,16 @@ export class AdjustmentsService {
     });
   }
 
-  async patchLine(adjustmentId: string, lineId: string, dto: PatchAdjustmentLineDto) {
+  async patchLine(
+    user: AuthPrincipal,
+    adjustmentId: string,
+    lineId: string,
+    dto: PatchAdjustmentLineDto,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const adj = await tx.stockAdjustment.findUnique({ where: { id: adjustmentId } });
       if (!adj) throw new NotFoundException('Adjustment not found.');
+      this.companyAccess.validateResourceOwnership(user, adj);
       if (adj.status !== 'draft') {
         throw new InvalidStateException('Lines can only be edited while adjustment is draft.');
       }
@@ -272,7 +283,10 @@ export class AdjustmentsService {
     });
   }
 
-  async approve(user: AuthPrincipal, id: string) {
+  async approve(user: AuthPrincipal, id: string, opts?: ApproveAdjustmentOptions) {
+    const ledgerRefType = opts?.ledgerReferenceType ?? LedgerRefType.adjustment;
+    const ledgerRefId = opts?.ledgerReferenceId ?? id;
+
     try {
       return await this.prisma.$transaction(async (tx) => {
         const adj = await tx.stockAdjustment.findUnique({
@@ -348,10 +362,10 @@ export class AdjustmentsService {
                 quantity: delta,
                 quantityBefore: meta.before,
                 quantityAfter: meta.after,
-                referenceType: 'adjustment',
-                referenceId: id,
+                referenceType: ledgerRefType,
+                referenceId: ledgerRefId,
                 operatorId: user.id,
-                idempotencyKey: `bm:adjustment:${id}:${line.productId}:line:${line.id}:loc:${line.locationId}:lot:${line.lotId ?? 'null'}:positive`,
+                idempotencyKey: `bm:${ledgerRefType}:${ledgerRefId}:${line.productId}:line:${line.id}:loc:${line.locationId}:lot:${line.lotId ?? 'null'}:positive`,
               },
             });
           } else {
@@ -373,10 +387,10 @@ export class AdjustmentsService {
                 quantity: take,
                 quantityBefore: meta.before,
                 quantityAfter: meta.after,
-                referenceType: 'adjustment',
-                referenceId: id,
+                referenceType: ledgerRefType,
+                referenceId: ledgerRefId,
                 operatorId: user.id,
-                idempotencyKey: `bm:adjustment:${id}:${line.productId}:line:${line.id}:loc:${line.locationId}:lot:${line.lotId ?? 'null'}:negative`,
+                idempotencyKey: `bm:${ledgerRefType}:${ledgerRefId}:${line.productId}:line:${line.id}:loc:${line.locationId}:lot:${line.lotId ?? 'null'}:negative`,
               },
             });
           }

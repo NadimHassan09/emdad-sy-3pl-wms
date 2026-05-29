@@ -6,7 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { OutboundOrderStatus, Prisma } from '@prisma/client';
 
-import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
+import { readCompanyIdFilterRequired } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
@@ -20,7 +20,15 @@ import { assertProductOrderableForOrders } from '../../common/utils/assert-produ
 import { assertCalendarDateNotBeforeToday } from '../../common/utils/order-planning-date';
 import { assertDiscreteUomPositiveIntegerQuantity } from '../../common/utils/discrete-uom-quantity';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { LedgerIdempotencyService } from '../inventory/ledger-idempotency.service';
 import { StockHelpers } from '../inventory/stock.helpers';
+import {
+  claimOutboundConfirmableOrder,
+  finalizeOutboundShipped,
+  isOutboundConfirmable,
+  isOutboundPostConfirm,
+  lockOutboundOrderRow,
+} from './outbound-confirm-lock.util';
 import {
   outboundConfirmDefersDeduction,
   taskOnlyFlows,
@@ -66,20 +74,17 @@ const ORDER_INCLUDE = {
 const FULL_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const OUTBOUND_CONFIRMABLE: OutboundOrderStatus[] = [
-  OutboundOrderStatus.draft,
-  OutboundOrderStatus.pending_approval,
-];
-
-function isOutboundConfirmable(status: OutboundOrderStatus): boolean {
-  return OUTBOUND_CONFIRMABLE.includes(status);
-}
+const CONFIRM_LINE_INCLUDE = {
+  orderBy: { lineNumber: 'asc' as const },
+  include: { product: { select: { status: true } } },
+};
 
 @Injectable()
 export class OutboundService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stock: StockHelpers,
+    private readonly ledger: LedgerIdempotencyService,
     private readonly config: ConfigService,
     private readonly workflowBootstrap: WorkflowBootstrapService,
     private readonly realtime: RealtimeService,
@@ -254,8 +259,8 @@ export class OutboundService {
     const baseAnd: Prisma.OutboundOrderWhereInput[] = [];
     const where: Prisma.OutboundOrderWhereInput = {};
 
-    const companyId = readCompanyIdFilter(this.companyAccess, user, query.companyId);
-    if (companyId) where.companyId = companyId;
+    const companyId = readCompanyIdFilterRequired(this.companyAccess, user, query.companyId);
+    where.companyId = companyId;
     if (query.status) where.status = query.status;
 
     if (query.orderSearch?.trim()) {
@@ -353,39 +358,40 @@ export class OutboundService {
     if (before) {
       this.companyAccess.validateResourceOwnership(user, before);
     }
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const order = await tx.outboundOrder.findUnique({
-        where: { id: orderId },
-        include: {
-          lines: {
-            orderBy: { lineNumber: 'asc' },
-            include: { product: { select: { status: true } } },
-          },
-        },
+
+    const txResult = await this.prisma.$transaction(async (tx) => {
+      const gate = await this.gateConfirmTransaction(tx, user, orderId);
+      if (gate.kind === 'idempotent') {
+        return { idempotent: true as const, order: gate.order };
+      }
+
+      const claimed = await claimOutboundConfirmableOrder(tx, orderId, {
+        status: OutboundOrderStatus.picking,
+        confirmedAt: new Date(),
+        pickingStartedAt: new Date(),
       });
-      if (!order) throw new NotFoundException('Outbound order not found.');
-      this.companyAccess.validateResourceOwnership(user, order);
-      if (!isOutboundConfirmable(order.status)) {
-        throw new InvalidStateException(
-          `Only draft or pending-approval orders can be confirmed (current: ${order.status}).`,
-        );
+      if (!claimed) {
+        const replay = await tx.outboundOrder.findUnique({
+          where: { id: orderId },
+          include: ORDER_INCLUDE,
+        });
+        if (!replay) throw new NotFoundException('Outbound order not found.');
+        return { idempotent: true as const, order: replay };
       }
-      if (order.lines.length === 0) {
-        throw new BadRequestException('Cannot confirm an order with no lines.');
-      }
-      for (const line of order.lines) {
-        assertProductOrderableForOrders(line.product.status);
-      }
-      return tx.outboundOrder.update({
+
+      const updated = await tx.outboundOrder.findUnique({
         where: { id: orderId },
-        data: {
-          status: 'picking',
-          confirmedAt: new Date(),
-          pickingStartedAt: new Date(),
-        },
         include: ORDER_INCLUDE,
       });
+      if (!updated) throw new NotFoundException('Outbound order not found.');
+      return { idempotent: false as const, order: updated };
     });
+
+    if (txResult.idempotent) {
+      return txResult.order;
+    }
+
+    const updated = txResult.order;
     this.realtime.emitOutboundOrderUpdated(updated.companyId, {
       orderId: updated.id,
       status: updated.status,
@@ -420,53 +426,54 @@ export class OutboundService {
     });
     if (!before) throw new NotFoundException('Outbound order not found.');
     this.companyAccess.validateResourceOwnership(user, before);
+
     if (taskOnlyFlows(this.config)) {
       if (!body?.warehouseId) {
         throw new BadRequestException(
           'When TASK_ONLY_FLOWS=true, confirm body must include warehouseId for workflow bootstrap.',
         );
       }
-      await this.prisma.$transaction(async (tx) => {
-        const wh = body.warehouseId!;
+      const wh = body.warehouseId;
+      const txResult = await this.prisma.$transaction(async (tx) => {
+        const gate = await this.gateConfirmTransaction(tx, user, orderId);
+        if (gate.kind === 'idempotent') {
+          return { fresh: false as const, order: gate.order };
+        }
+
+        const claimed = await claimOutboundConfirmableOrder(tx, orderId, {
+          status: OutboundOrderStatus.picking,
+          confirmedAt: new Date(),
+          pickingStartedAt: new Date(),
+        });
+        if (!claimed) {
+          const replay = await tx.outboundOrder.findUnique({
+            where: { id: orderId },
+            include: ORDER_INCLUDE,
+          });
+          if (!replay) throw new NotFoundException('Outbound order not found.');
+          return { fresh: false as const, order: replay };
+        }
+
+        await this.workflowBootstrap.startOutboundWorkflowTx(tx, user, orderId, wh);
         const order = await tx.outboundOrder.findUnique({
           where: { id: orderId },
-          include: {
-            lines: {
-              orderBy: { lineNumber: 'asc' },
-              include: { product: { select: { status: true } } },
-            },
-          },
+          include: ORDER_INCLUDE,
         });
         if (!order) throw new NotFoundException('Outbound order not found.');
-        this.companyAccess.validateResourceOwnership(user, order);
-        if (!isOutboundConfirmable(order.status)) {
-          throw new InvalidStateException(
-            `Only draft or pending-approval orders can be confirmed (current status: ${order.status}).`,
-          );
-        }
-        if (order.lines.length === 0) {
-          throw new BadRequestException('Cannot confirm an order with no lines.');
-        }
-        for (const line of order.lines) {
-          assertProductOrderableForOrders(line.product.status);
-        }
-        await tx.outboundOrder.update({
-          where: { id: orderId },
-          data: {
-            status: 'picking',
-            confirmedAt: new Date(),
-            pickingStartedAt: new Date(),
-          },
-        });
-        await this.workflowBootstrap.startOutboundWorkflowTx(tx, user, orderId, wh);
+        return { fresh: true as const, order };
       });
-      const wfConfirmed = await this.findById(orderId, user);
+
+      if (!txResult.fresh) {
+        return txResult.order;
+      }
+
+      const wfConfirmed = txResult.order;
       this.realtime.emitOutboundOrderUpdated(wfConfirmed.companyId, {
         orderId: wfConfirmed.id,
         status: wfConfirmed.status,
         reason: 'confirm_task_flow',
       });
-      if (before?.status === OutboundOrderStatus.pending_approval) {
+      if (before.status === OutboundOrderStatus.pending_approval) {
         await this.notifications.notifyClientOrderConfirmed({
           companyId: before.companyId,
           orderType: 'outbound',
@@ -487,120 +494,50 @@ export class OutboundService {
       );
       return wfConfirmed;
     }
+
     if (outboundConfirmDefersDeduction(this.config)) {
       return this.confirmWithoutDeduction(user, orderId);
     }
-    const shipped = await this.prisma.$transaction(async (tx) => {
-      const order = await tx.outboundOrder.findUnique({
-        where: { id: orderId },
-        include: {
-          lines: {
-            orderBy: { lineNumber: 'asc' },
-            include: { product: { select: { status: true } } },
-          },
-        },
+
+    const txResult = await this.prisma.$transaction(async (tx) => {
+      const gate = await this.gateConfirmTransaction(tx, user, orderId);
+      if (gate.kind === 'idempotent') {
+        return { fresh: false as const, order: gate.order };
+      }
+
+      const claimed = await claimOutboundConfirmableOrder(tx, orderId, {
+        status: OutboundOrderStatus.picking,
+        confirmedAt: new Date(),
+        pickingStartedAt: new Date(),
       });
-      if (!order) throw new NotFoundException('Outbound order not found.');
-      this.companyAccess.validateResourceOwnership(user, order);
-      if (!isOutboundConfirmable(order.status)) {
-        throw new InvalidStateException(
-          `Only draft or pending-approval orders can be confirmed (current: ${order.status}).`,
-        );
-      }
-      if (order.lines.length === 0) {
-        throw new BadRequestException('Cannot confirm an order with no lines.');
-      }
-      for (const line of order.lines) {
-        assertProductOrderableForOrders(line.product.status);
-      }
-
-      for (const line of order.lines) {
-        const requested = line.requestedQuantity;
-        let remaining = new Prisma.Decimal(requested.toString());
-
-        const candidates = await this.findStockCandidates(
-          tx,
-          order.companyId,
-          line.productId,
-          line.specificLotId,
-        );
-
-        for (const row of candidates) {
-          if (remaining.lessThanOrEqualTo(0)) break;
-
-          const take = Prisma.Decimal.min(remaining, row.quantityAvailable);
-          if (take.lessThanOrEqualTo(0)) continue;
-
-          const meta = await this.stock.decrementWithMeta(tx, {
-            companyId: order.companyId,
-            productId: line.productId,
-            locationId: row.locationId,
-            lotId: row.lotId,
-            quantity: take.toString(),
-          });
-
-          await tx.inventoryLedger.create({
-            data: {
-              companyId: order.companyId,
-              productId: line.productId,
-              lotId: row.lotId,
-              fromLocationId: row.locationId,
-              movementType: 'outbound_pick',
-              quantity: take,
-              quantityBefore: meta.before,
-              quantityAfter: meta.after,
-              referenceType: 'outbound_order',
-              referenceId: orderId,
-              operatorId: user.id,
-              idempotencyKey: `bm:outbound:${orderId}:${line.productId}:line:${line.id}:loc:${row.locationId}:lot:${row.lotId ?? 'null'}:${take.toString()}`,
-            },
-          });
-
-          remaining = remaining.minus(take);
-        }
-
-        if (remaining.greaterThan(0)) {
-          const agg = await tx.currentStock.aggregate({
-            where: {
-              companyId: order.companyId,
-              productId: line.productId,
-              status: 'available',
-            },
-            _sum: { quantityAvailable: true },
-          });
-          const available =
-            agg._sum.quantityAvailable?.toString() ?? '0';
-          throw new InsufficientStockException(
-            `Insufficient stock. Available: ${available}`,
-            [
-              {
-                productId: line.productId,
-                requested: requested.toString(),
-                available,
-              },
-            ],
-          );
-        }
-
-        await tx.outboundOrderLine.update({
-          where: { id: line.id },
-          data: {
-            pickedQuantity: requested,
-            status: 'done',
-          },
+      if (!claimed) {
+        const replay = await tx.outboundOrder.findUnique({
+          where: { id: orderId },
+          include: ORDER_INCLUDE,
         });
+        if (!replay) throw new NotFoundException('Outbound order not found.');
+        return { fresh: false as const, order: replay };
       }
 
-      return tx.outboundOrder.update({
+      await this.deductOutboundOrderLines(tx, user, gate.order, orderId);
+      const finalized = await finalizeOutboundShipped(tx, orderId);
+      if (!finalized) {
+        throw new InvalidStateException('Outbound confirm could not finalize to shipped.');
+      }
+
+      const shipped = await tx.outboundOrder.findUnique({
         where: { id: orderId },
-        data: {
-          status: 'shipped',
-          confirmedAt: new Date(),
-          shippedAt: new Date(),
-        },
         include: ORDER_INCLUDE,
       });
+      if (!shipped) throw new NotFoundException('Outbound order not found.');
+      return { fresh: true as const, order: shipped };
     });
+
+    if (!txResult.fresh) {
+      return txResult.order;
+    }
+
+    const shipped = txResult.order;
     this.realtime.emitOutboundOrderUpdated(shipped.companyId, {
       orderId: shipped.id,
       status: shipped.status,
@@ -645,6 +582,136 @@ export class OutboundService {
       }),
     );
     return shipped;
+  }
+
+  private async gateConfirmTransaction(
+    tx: Prisma.TransactionClient,
+    user: AuthPrincipal,
+    orderId: string,
+  ): Promise<
+    | {
+        kind: 'idempotent';
+        order: Prisma.OutboundOrderGetPayload<{ include: typeof ORDER_INCLUDE }>;
+      }
+    | {
+        kind: 'proceed';
+        order: Prisma.OutboundOrderGetPayload<{
+          include: { lines: typeof CONFIRM_LINE_INCLUDE };
+        }>;
+      }
+  > {
+    await lockOutboundOrderRow(tx, orderId);
+
+    const order = await tx.outboundOrder.findUnique({
+      where: { id: orderId },
+      include: { lines: CONFIRM_LINE_INCLUDE },
+    });
+    if (!order) throw new NotFoundException('Outbound order not found.');
+    this.companyAccess.validateResourceOwnership(user, order);
+
+    if (isOutboundPostConfirm(order.status)) {
+      const full = await tx.outboundOrder.findUnique({
+        where: { id: orderId },
+        include: ORDER_INCLUDE,
+      });
+      if (!full) throw new NotFoundException('Outbound order not found.');
+      return { kind: 'idempotent', order: full };
+    }
+
+    if (!isOutboundConfirmable(order.status)) {
+      throw new InvalidStateException(
+        `Only draft or pending-approval orders can be confirmed (current: ${order.status}).`,
+      );
+    }
+    if (order.lines.length === 0) {
+      throw new BadRequestException('Cannot confirm an order with no lines.');
+    }
+    for (const line of order.lines) {
+      assertProductOrderableForOrders(line.product.status);
+    }
+
+    return { kind: 'proceed', order };
+  }
+
+  private async deductOutboundOrderLines(
+    tx: Prisma.TransactionClient,
+    user: AuthPrincipal,
+    order: Prisma.OutboundOrderGetPayload<{ include: { lines: typeof CONFIRM_LINE_INCLUDE } }>,
+    orderId: string,
+  ): Promise<void> {
+    for (const line of order.lines) {
+      const requested = line.requestedQuantity;
+      let remaining = new Prisma.Decimal(requested.toString());
+
+      const candidates = await this.findStockCandidates(
+        tx,
+        order.companyId,
+        line.productId,
+        line.specificLotId,
+      );
+
+      for (const row of candidates) {
+        if (remaining.lessThanOrEqualTo(0)) break;
+
+        const take = Prisma.Decimal.min(remaining, row.quantityAvailable);
+        if (take.lessThanOrEqualTo(0)) continue;
+
+        const meta = await this.stock.decrementWithMeta(tx, {
+          companyId: order.companyId,
+          productId: line.productId,
+          locationId: row.locationId,
+          lotId: row.lotId,
+          quantity: take.toString(),
+        });
+
+        const idempotencyKey = `bm:outbound:${orderId}:${line.productId}:line:${line.id}:loc:${row.locationId}:lot:${row.lotId ?? 'null'}:${take.toString()}`;
+        await this.ledger.appendIfAbsent(tx, idempotencyKey, {
+          companyId: order.companyId,
+          productId: line.productId,
+          lotId: row.lotId,
+          fromLocationId: row.locationId,
+          movementType: 'outbound_pick',
+          quantity: take,
+          quantityBefore: meta.before,
+          quantityAfter: meta.after,
+          referenceType: 'outbound_order',
+          referenceId: orderId,
+          operatorId: user.id,
+        });
+
+        remaining = remaining.minus(take);
+      }
+
+      if (remaining.greaterThan(0)) {
+        const agg = await tx.currentStock.aggregate({
+          where: {
+            companyId: order.companyId,
+            productId: line.productId,
+            status: 'available',
+          },
+          _sum: { quantityAvailable: true },
+        });
+        const available = agg._sum.quantityAvailable?.toString() ?? '0';
+        throw new InsufficientStockException(
+          `Insufficient stock. Available: ${available}`,
+          [
+            {
+              productId: line.productId,
+              requested: requested.toString(),
+              available,
+            },
+          ],
+        );
+      }
+
+      await tx.outboundOrderLine.update({
+        where: { id: line.id },
+        data: {
+          pickedQuantity: requested,
+          status: 'done',
+        },
+      });
+    }
   }
 
   private async findStockCandidates(

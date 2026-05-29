@@ -34,9 +34,7 @@ let ClientStockController = class ClientStockController {
 };
 exports.ClientStockController = ClientStockController;
 __decorate([
-    (0, public_decorator_1.Public)(),
     (0, common_1.Get)('availability'),
-    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
@@ -44,9 +42,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ClientStockController.prototype, "availability", null);
 __decorate([
-    (0, public_decorator_1.Public)(),
     (0, common_1.Get)(),
-    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
@@ -54,6 +50,8 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ClientStockController.prototype, "list", null);
 exports.ClientStockController = ClientStockController = __decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     (0, common_1.Controller)('client/stock'),
     __metadata("design:paramtypes", [client_stock_service_1.ClientStockService])
 ], ClientStockController);

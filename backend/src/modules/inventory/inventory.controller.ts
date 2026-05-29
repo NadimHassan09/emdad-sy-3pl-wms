@@ -3,6 +3,7 @@ import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGroup } from '../../common/auth/auth-groups';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { Roles } from '../../common/auth/roles.decorator';
 import { RolesGuard } from '../../common/auth/roles.guard';
 import { AvailabilityQueryDto } from './dto/availability-query.dto';
@@ -62,8 +63,7 @@ export class InventoryController {
   }
 
   @Post('internal-transfer')
-  @UseGuards(RolesGuard)
-  @Roles(AuthGroup.ADMIN)
+  @UseGuards(InternalAdminGuard)
   internalTransfer(
     @CurrentUser() user: AuthPrincipal,
     @Body() dto: InternalTransferDto,

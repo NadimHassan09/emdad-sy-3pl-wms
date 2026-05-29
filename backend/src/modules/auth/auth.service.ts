@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -12,6 +10,7 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { PasswordService } from '../../common/crypto/password.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
+import { RefreshSessionService } from './refresh-session.service';
 import type { JwtAccessPayload } from './strategies/jwt.strategy';
 
 const CLIENT_ROLES: UserRole[] = [UserRole.client_admin, UserRole.client_staff];
@@ -25,6 +24,7 @@ type JwtRefreshPayload = {
   typ: 'internal';
   kind: 'refresh';
   ver: number;
+  fid: string;
   jti: string;
 };
 
@@ -36,6 +36,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly audit: AuditLogService,
+    private readonly refreshSessions: RefreshSessionService,
   ) {}
 
   async login(dto: LoginDto, res?: Response) {
@@ -96,17 +97,31 @@ export class AuthService {
       this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? DEFAULT_REFRESH_EXPIRES;
     const accessMaxAgeMs = this.expiresInToMs(accessExpiresIn);
     const refreshMaxAgeMs = this.expiresInToMs(refreshExpiresIn);
-    const payload: JwtAccessPayload = {
+    const refreshExpiresAt = new Date(Date.now() + refreshMaxAgeMs);
+
+    const session = await this.refreshSessions.createSession(
+      user.id,
+      user.tokenVersion,
+      refreshExpiresAt,
+    );
+
+    const accessPayload: JwtAccessPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
       typ: 'internal',
       ver: user.tokenVersion,
     };
-    const access_token = await this.jwt.signAsync(payload, {
+    const access_token = await this.jwt.signAsync(accessPayload, {
       expiresIn: Math.max(60, Math.floor(accessMaxAgeMs / 1000)),
     });
-    const refresh_token = await this.signRefreshToken(user.id, user.tokenVersion, refreshMaxAgeMs);
+    const refresh_token = await this.signRefreshToken(
+      user.id,
+      user.tokenVersion,
+      session.familyId,
+      session.jti,
+      refreshMaxAgeMs,
+    );
 
     if (res) {
       this.setAccessCookie(res, access_token, accessMaxAgeMs);
@@ -154,6 +169,32 @@ export class AuthService {
       throw new UnauthorizedException('Session has been invalidated. Please log in again.');
     }
 
+    let rotation;
+    try {
+      rotation = await this.refreshSessions.rotateSession(
+        user.id,
+        user.tokenVersion,
+        payload.fid,
+        payload.jti,
+      );
+    } catch (err) {
+      if (err instanceof UnauthorizedException) {
+        await this.audit.log(
+          this.audit.fromPrincipal(
+            { id: user.id, email: user.email, role: user.role, companyId: user.companyId },
+            {
+              action: 'AUTH_REFRESH_REPLAY_DETECTED',
+              resourceType: 'user',
+              resourceId: user.id,
+              previousState: { familyId: payload.fid, presentedJti: payload.jti },
+              newState: { message: err.message },
+            },
+          ),
+        );
+      }
+      throw err;
+    }
+
     const now = new Date();
     await this.prisma.user.update({
       where: { id: user.id },
@@ -163,11 +204,11 @@ export class AuthService {
       this.audit.fromPrincipal(
         { id: user.id, email: user.email, role: user.role, companyId: user.companyId },
         {
-          action: 'AUTH_REFRESH_SUCCESS',
+          action: rotation.idempotent ? 'AUTH_REFRESH_REPLAY_IDEMPOTENT' : 'AUTH_REFRESH_SUCCESS',
           resourceType: 'user',
           resourceId: user.id,
-          previousState: { tokenVersion: user.tokenVersion },
-          newState: { lastActivityAt: now.toISOString() },
+          previousState: { familyId: payload.fid, jti: payload.jti },
+          newState: { familyId: rotation.familyId, jti: rotation.jti, lastActivityAt: now.toISOString() },
         },
       ),
     );
@@ -188,7 +229,13 @@ export class AuthService {
     const access_token = await this.jwt.signAsync(accessPayload, {
       expiresIn: Math.max(60, Math.floor(accessMaxAgeMs / 1000)),
     });
-    const refresh_token = await this.signRefreshToken(user.id, user.tokenVersion, refreshMaxAgeMs);
+    const refresh_token = await this.signRefreshToken(
+      user.id,
+      user.tokenVersion,
+      rotation.familyId,
+      rotation.jti,
+      refreshMaxAgeMs,
+    );
 
     if (res) {
       this.setAccessCookie(res, access_token, accessMaxAgeMs);
@@ -211,13 +258,7 @@ export class AuthService {
           where: { id: payload.sub },
           select: { tokenVersion: true, email: true, role: true, companyId: true },
         });
-        await this.prisma.user.updateMany({
-          where: { id: payload.sub },
-          data: {
-            tokenVersion: { increment: 1 },
-            lastActivityAt: new Date(),
-          },
-        });
+        const nextVersion = await this.refreshSessions.invalidateUserSessions(payload.sub);
         if (prev) {
           await this.audit.log(
             this.audit.fromPrincipal(
@@ -226,8 +267,8 @@ export class AuthService {
                 action: 'AUTH_LOGOUT',
                 resourceType: 'user',
                 resourceId: payload.sub,
-                previousState: { tokenVersion: prev.tokenVersion },
-                newState: { tokenVersion: prev.tokenVersion + 1 },
+                previousState: { tokenVersion: prev.tokenVersion, familyId: payload.fid },
+                newState: { tokenVersion: nextVersion },
               },
             ),
           );
@@ -324,13 +365,20 @@ export class AuthService {
     return typeof c === 'string' && c.length > 0 ? c : null;
   }
 
-  private async signRefreshToken(userId: string, tokenVersion: number, maxAgeMs: number): Promise<string> {
+  private async signRefreshToken(
+    userId: string,
+    tokenVersion: number,
+    familyId: string,
+    jti: string,
+    maxAgeMs: number,
+  ): Promise<string> {
     const payload: JwtRefreshPayload = {
       sub: userId,
       typ: 'internal',
       kind: 'refresh',
       ver: tokenVersion,
-      jti: randomUUID(),
+      fid: familyId,
+      jti,
     };
     return this.jwt.signAsync(payload, {
       secret: this.config.get<string>('JWT_REFRESH_SECRET') ?? this.config.get<string>('JWT_SECRET'),
@@ -343,11 +391,18 @@ export class AuthService {
       const payload = await this.jwt.verifyAsync<JwtRefreshPayload>(token, {
         secret: this.config.get<string>('JWT_REFRESH_SECRET') ?? this.config.get<string>('JWT_SECRET'),
       });
-      if (payload.typ !== 'internal' || payload.kind !== 'refresh' || typeof payload.ver !== 'number') {
+      if (
+        payload.typ !== 'internal' ||
+        payload.kind !== 'refresh' ||
+        typeof payload.ver !== 'number' ||
+        typeof payload.fid !== 'string' ||
+        typeof payload.jti !== 'string'
+      ) {
         throw new UnauthorizedException('Invalid refresh token.');
       }
       return payload;
-    } catch {
+    } catch (err) {
+      if (err instanceof UnauthorizedException) throw err;
       throw new UnauthorizedException('Invalid or expired refresh token.');
     }
   }

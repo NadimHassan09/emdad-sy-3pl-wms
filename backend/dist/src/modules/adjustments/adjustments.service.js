@@ -80,9 +80,8 @@ let AdjustmentsService = class AdjustmentsService {
     }
     list(user, query) {
         const where = {};
-        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(this.companyAccess, user, query.companyId);
-        if (companyId)
-            where.companyId = companyId;
+        const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
+        where.companyId = companyId;
         if (query.status)
             where.status = query.status;
         if (query.warehouseId)
@@ -205,11 +204,12 @@ let AdjustmentsService = class AdjustmentsService {
             });
         });
     }
-    async patchLine(adjustmentId, lineId, dto) {
+    async patchLine(user, adjustmentId, lineId, dto) {
         return this.prisma.$transaction(async (tx) => {
             const adj = await tx.stockAdjustment.findUnique({ where: { id: adjustmentId } });
             if (!adj)
                 throw new common_1.NotFoundException('Adjustment not found.');
+            this.companyAccess.validateResourceOwnership(user, adj);
             if (adj.status !== 'draft') {
                 throw new domain_exceptions_1.InvalidStateException('Lines can only be edited while adjustment is draft.');
             }
@@ -244,7 +244,9 @@ let AdjustmentsService = class AdjustmentsService {
             });
         });
     }
-    async approve(user, id) {
+    async approve(user, id, opts) {
+        const ledgerRefType = opts?.ledgerReferenceType ?? client_1.LedgerRefType.adjustment;
+        const ledgerRefId = opts?.ledgerReferenceId ?? id;
         try {
             return await this.prisma.$transaction(async (tx) => {
                 const adj = await tx.stockAdjustment.findUnique({
@@ -312,10 +314,10 @@ let AdjustmentsService = class AdjustmentsService {
                                 quantity: delta,
                                 quantityBefore: meta.before,
                                 quantityAfter: meta.after,
-                                referenceType: 'adjustment',
-                                referenceId: id,
+                                referenceType: ledgerRefType,
+                                referenceId: ledgerRefId,
                                 operatorId: user.id,
-                                idempotencyKey: `bm:adjustment:${id}:${line.productId}:line:${line.id}:loc:${line.locationId}:lot:${line.lotId ?? 'null'}:positive`,
+                                idempotencyKey: `bm:${ledgerRefType}:${ledgerRefId}:${line.productId}:line:${line.id}:loc:${line.locationId}:lot:${line.lotId ?? 'null'}:positive`,
                             },
                         });
                     }
@@ -338,10 +340,10 @@ let AdjustmentsService = class AdjustmentsService {
                                 quantity: take,
                                 quantityBefore: meta.before,
                                 quantityAfter: meta.after,
-                                referenceType: 'adjustment',
-                                referenceId: id,
+                                referenceType: ledgerRefType,
+                                referenceId: ledgerRefId,
                                 operatorId: user.id,
-                                idempotencyKey: `bm:adjustment:${id}:${line.productId}:line:${line.id}:loc:${line.locationId}:lot:${line.lotId ?? 'null'}:negative`,
+                                idempotencyKey: `bm:${ledgerRefType}:${ledgerRefId}:${line.productId}:line:${line.id}:loc:${line.locationId}:lot:${line.lotId ?? 'null'}:negative`,
                             },
                         });
                     }

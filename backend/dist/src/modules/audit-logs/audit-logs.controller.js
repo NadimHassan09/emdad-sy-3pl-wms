@@ -18,6 +18,7 @@ const throttler_1 = require("@nestjs/throttler");
 const auth_groups_1 = require("../../common/auth/auth-groups");
 const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
 const roles_decorator_1 = require("../../common/auth/roles.decorator");
+const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard");
 const roles_guard_1 = require("../../common/auth/roles.guard");
 const parse_uuid_loose_pipe_1 = require("../../common/pipes/parse-uuid-loose.pipe");
 const audit_logs_service_1 = require("./audit-logs.service");
@@ -58,6 +59,7 @@ __decorate([
 ], AuditLogsController.prototype, "getPolicy", null);
 __decorate([
     (0, common_1.Get)('export'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
     (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60_000 } }),
     (0, common_1.Header)('Cache-Control', 'no-store'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

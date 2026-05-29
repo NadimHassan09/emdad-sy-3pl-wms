@@ -17,6 +17,10 @@ import { WarehouseTasksService } from '../../modules/warehouse-workflow/warehous
 import { WorkflowOrchestrationService } from '../../modules/warehouse-workflow/workflow-orchestration.service';
 import { TaskReadCacheService } from '../../common/redis/task-read-cache.service';
 import { CacheInvalidationService } from '../../common/redis/cache-invalidation.service';
+import { ConfigService } from '@nestjs/config';
+import { OutboundService } from '../../modules/outbound/outbound.service';
+import { WorkflowBootstrapService } from '../../modules/warehouse-workflow/workflow-bootstrap.service';
+import { WorkflowEngineService } from '../../modules/warehouse-workflow/workflow-engine.service';
 
 type ServiceDeps = {
   prisma: PrismaService;
@@ -42,6 +46,30 @@ export type BaseFixture = {
   workerId: string;
 };
 
+export type DraftOutboundFixture = Pick<
+  BaseFixture,
+  | 'principal'
+  | 'companyId'
+  | 'userId'
+  | 'warehouseId'
+  | 'locationId'
+  | 'productId'
+  | 'outboundOrderId'
+  | 'outboundOrderLineId'
+>;
+
+export type OutboundServiceDeps = {
+  prisma: PrismaService;
+  outbound: OutboundService;
+  stock: StockHelpers;
+  engine: WorkflowEngineService;
+};
+
+export type WorkflowEngineDeps = {
+  prisma: PrismaService;
+  engine: WorkflowEngineService;
+};
+
 function companyAccessMock(): CompanyAccessService {
   return {
     assertSameCompany(user: AuthPrincipal, workflowCompanyId: string) {
@@ -61,6 +89,11 @@ function companyAccessMock(): CompanyAccessService {
       if (user.companyId !== resource.companyId && !user.authorizedCompanyIds.includes(resource.companyId)) {
         throw new Error('cross-tenant resource');
       }
+    },
+    requireActiveTenant(user: AuthPrincipal) {
+      const id = user.companyId;
+      if (!id) throw new Error('missing tenant');
+      return id;
     },
   } as unknown as CompanyAccessService;
 }
@@ -126,6 +159,194 @@ export async function createServiceDeps(): Promise<ServiceDeps> {
   );
 
   return { prisma, tasks, stock, consistency, realtimeCalls, notificationCalls };
+}
+
+function configMock(flags: Record<string, string>): ConfigService {
+  return {
+    get: (key: string) => flags[key] ?? '',
+  } as ConfigService;
+}
+
+export async function createOutboundServiceDeps(opts?: {
+  taskOnlyFlows?: boolean;
+  deferDeduction?: boolean;
+}): Promise<OutboundServiceDeps> {
+  const prisma = new PrismaService();
+  await prisma.$connect();
+  const companyAccess = companyAccessMock();
+  const consistency = new InventoryConsistencyService(prisma, companyAccess);
+  const stock = new StockHelpers(consistency);
+  const ledger = new LedgerIdempotencyService(prisma);
+  const config = configMock({
+    TASK_ONLY_FLOWS: opts?.taskOnlyFlows === false ? 'false' : 'true',
+    TASK_WORKFLOW_OUTBOUND_CONFIRM_DEFERS_DEDUCTION: opts?.deferDeduction ? 'true' : 'false',
+  });
+  const engine = new WorkflowEngineService(companyAccess);
+  const workflowBootstrap = new WorkflowBootstrapService(prisma, config, engine, companyAccess);
+  const realtime = {
+    emitOutboundOrderUpdated: () => undefined,
+    emitInventoryChanged: () => undefined,
+  } as unknown as RealtimeService;
+  const notifications = {
+    notifyClientOrderConfirmed: async () => undefined,
+    dismissPendingAdminNotifications: async () => undefined,
+    notifyClientOrderCompleted: async () => undefined,
+  } as unknown as NotificationsService;
+  const audit = {
+    log: async () => undefined,
+    fromPrincipal: (_principal: AuthPrincipal, patch: Record<string, unknown>) =>
+      patch as unknown as ReturnType<AuditLogService['fromPrincipal']>,
+  } as unknown as AuditLogService;
+
+  const outbound = new OutboundService(
+    prisma,
+    stock,
+    ledger,
+    config,
+    workflowBootstrap,
+    realtime,
+    notifications,
+    companyAccess,
+    audit,
+  );
+
+  return { prisma, outbound, stock, engine };
+}
+
+export async function createWorkflowEngineDeps(): Promise<WorkflowEngineDeps> {
+  const prisma = new PrismaService();
+  await prisma.$connect();
+  const companyAccess = companyAccessMock();
+  const engine = new WorkflowEngineService(companyAccess);
+  return { prisma, engine };
+}
+
+export async function createDraftOutboundFixture(prisma: PrismaService): Promise<DraftOutboundFixture> {
+  const tag = `oc-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  const companyId = randomUUID();
+  const warehouseId = randomUUID();
+  const userId = randomUUID();
+  const locationId = randomUUID();
+  const productId = randomUUID();
+  const outboundOrderId = randomUUID();
+  const outboundOrderLineId = randomUUID();
+
+  await prisma.company.create({
+    data: {
+      id: companyId,
+      name: `IT ${tag}`,
+      contactEmail: `${tag}@example.com`,
+    },
+  });
+  await prisma.user.create({
+    data: {
+      id: userId,
+      companyId: null,
+      email: `${tag}.user@example.com`,
+      passwordHash: 'x',
+      fullName: `User ${tag}`,
+      role: 'super_admin',
+      status: 'active',
+    },
+  });
+  await prisma.warehouse.create({
+    data: {
+      id: warehouseId,
+      name: `WH ${tag}`,
+      code: `WH${tag}`.slice(0, 20),
+      status: 'active',
+    },
+  });
+  await prisma.location.create({
+    data: {
+      id: locationId,
+      warehouseId,
+      name: `LOC ${tag}`,
+      fullPath: `/A/${tag}`,
+      type: 'internal',
+      barcode: `BC${tag}`,
+      status: 'active',
+    },
+  });
+  await prisma.product.create({
+    data: {
+      id: productId,
+      companyId,
+      name: `P ${tag}`,
+      sku: `SKU-${tag}`,
+      trackingType: 'none',
+      uom: 'piece',
+      status: 'active',
+    },
+  });
+  await prisma.outboundOrder.create({
+    data: {
+      id: outboundOrderId,
+      companyId,
+      destinationAddress: `ADDR ${tag}`,
+      requiredShipDate: new Date(),
+      createdBy: userId,
+      status: 'draft',
+      requiresPacking: false,
+    },
+  });
+  await prisma.outboundOrderLine.create({
+    data: {
+      id: outboundOrderLineId,
+      outboundOrderId,
+      productId,
+      requestedQuantity: new Prisma.Decimal('5'),
+      pickedQuantity: new Prisma.Decimal('0'),
+      lineNumber: 1,
+      status: 'pending',
+    },
+  });
+
+  const principal: AuthPrincipal = {
+    id: userId,
+    companyId,
+    role: 'super_admin',
+    tenantScope: 'all',
+    authorizedCompanyIds: [companyId],
+    email: `${tag}.user@example.com`,
+  };
+
+  return {
+    principal,
+    companyId,
+    userId,
+    warehouseId,
+    locationId,
+    productId,
+    outboundOrderId,
+    outboundOrderLineId,
+  };
+}
+
+export async function cleanupDraftOutboundFixture(
+  prisma: PrismaService,
+  f: DraftOutboundFixture,
+): Promise<void> {
+  const wfIds = (
+    await prisma.workflowInstance.findMany({
+      where: { referenceType: 'outbound_order', referenceId: f.outboundOrderId },
+      select: { id: true },
+    })
+  ).map((w) => w.id);
+  if (wfIds.length > 0) {
+    await prisma.taskEvent.deleteMany({ where: { task: { workflowInstanceId: { in: wfIds } } } });
+    await prisma.taskAssignment.deleteMany({ where: { task: { workflowInstanceId: { in: wfIds } } } });
+    await prisma.warehouseTaskRequiredSkill.deleteMany({
+      where: { task: { workflowInstanceId: { in: wfIds } } },
+    });
+    await prisma.warehouseTask.deleteMany({ where: { workflowInstanceId: { in: wfIds } } });
+    await prisma.workflowNode.deleteMany({ where: { instanceId: { in: wfIds } } });
+    await prisma.workflowInstance.deleteMany({ where: { id: { in: wfIds } } });
+  }
+  // inventory_ledger is append-only; product/company cannot be removed when ledger rows exist.
+  await prisma.outboundOrderLine.deleteMany({ where: { outboundOrderId: f.outboundOrderId } });
+  await prisma.outboundOrder.deleteMany({ where: { id: f.outboundOrderId } });
+  await prisma.currentStock.deleteMany({ where: { companyId: f.companyId } });
 }
 
 export async function createBaseFixture(
@@ -293,7 +514,7 @@ export async function createBaseFixture(
 export async function seedOnHand(
   stock: StockHelpers,
   prisma: PrismaService,
-  f: BaseFixture,
+  f: Pick<BaseFixture, 'companyId' | 'productId' | 'locationId' | 'warehouseId'>,
   qty: string,
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {

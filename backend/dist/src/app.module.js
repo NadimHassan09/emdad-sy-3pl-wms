@@ -18,6 +18,7 @@ const crypto_module_1 = require("./common/crypto/crypto.module");
 const prisma_module_1 = require("./common/prisma/prisma.module");
 const redis_module_1 = require("./common/redis/redis.module");
 const adjustments_module_1 = require("./modules/adjustments/adjustments.module");
+const cycle_count_module_1 = require("./modules/cycle-count/cycle-count.module");
 const audit_logs_module_1 = require("./modules/audit-logs/audit-logs.module");
 const auth_module_1 = require("./modules/auth/auth.module");
 const jwt_auth_guard_1 = require("./modules/auth/guards/jwt-auth.guard");
@@ -29,6 +30,7 @@ const inventory_module_1 = require("./modules/inventory/inventory.module");
 const locations_module_1 = require("./modules/locations/locations.module");
 const observability_module_1 = require("./modules/observability/observability.module");
 const outbound_module_1 = require("./modules/outbound/outbound.module");
+const returns_module_1 = require("./modules/returns/returns.module");
 const products_module_1 = require("./modules/products/products.module");
 const users_module_1 = require("./modules/users/users.module");
 const warehouses_module_1 = require("./modules/warehouses/warehouses.module");
@@ -73,7 +75,9 @@ exports.AppModule = AppModule = __decorate([
             observability_module_1.ObservabilityModule,
             inbound_module_1.InboundModule,
             outbound_module_1.OutboundModule,
+            returns_module_1.ReturnsModule,
             adjustments_module_1.AdjustmentsModule,
+            cycle_count_module_1.CycleCountModule,
             audit_logs_module_1.AuditLogsModule,
             warehouse_workflow_module_1.WarehouseWorkflowModule,
             realtime_module_1.RealtimeModule,

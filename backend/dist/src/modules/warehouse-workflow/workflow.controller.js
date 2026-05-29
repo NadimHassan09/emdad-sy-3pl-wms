@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkflowController = void 0;
 const common_1 = require("@nestjs/common");
 const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
+const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard");
 const start_workflow_dto_1 = require("./dto/start-workflow.dto");
 const workflow_bootstrap_service_1 = require("./workflow-bootstrap.service");
 const workflow_recovery_service_1 = require("./workflow-recovery.service");
@@ -114,6 +115,7 @@ __decorate([
 ], WorkflowController.prototype, "startOutbound", null);
 __decorate([
     (0, common_1.Post)('instances/:instanceId/recover'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('instanceId')),
     __param(2, (0, common_1.Body)()),

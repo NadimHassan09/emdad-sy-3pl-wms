@@ -10,7 +10,6 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthService = void 0;
-const node_crypto_1 = require("node:crypto");
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const jwt_1 = require("@nestjs/jwt");
@@ -19,6 +18,7 @@ const auth_groups_1 = require("../../common/auth/auth-groups");
 const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const password_service_1 = require("../../common/crypto/password.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const refresh_session_service_1 = require("./refresh-session.service");
 const CLIENT_ROLES = [client_1.UserRole.client_admin, client_1.UserRole.client_staff];
 const ACCESS_COOKIE_NAME = 'access_token';
 const REFRESH_COOKIE_NAME = 'refresh_token';
@@ -30,12 +30,14 @@ let AuthService = class AuthService {
     jwt;
     config;
     audit;
-    constructor(prisma, password, jwt, config, audit) {
+    refreshSessions;
+    constructor(prisma, password, jwt, config, audit, refreshSessions) {
         this.prisma = prisma;
         this.password = password;
         this.jwt = jwt;
         this.config = config;
         this.audit = audit;
+        this.refreshSessions = refreshSessions;
     }
     async login(dto, res) {
         const email = dto.email.trim().toLowerCase();
@@ -85,17 +87,19 @@ let AuthService = class AuthService {
         const refreshExpiresIn = this.config.get('JWT_REFRESH_EXPIRES_IN') ?? DEFAULT_REFRESH_EXPIRES;
         const accessMaxAgeMs = this.expiresInToMs(accessExpiresIn);
         const refreshMaxAgeMs = this.expiresInToMs(refreshExpiresIn);
-        const payload = {
+        const refreshExpiresAt = new Date(Date.now() + refreshMaxAgeMs);
+        const session = await this.refreshSessions.createSession(user.id, user.tokenVersion, refreshExpiresAt);
+        const accessPayload = {
             sub: user.id,
             email: user.email,
             role: user.role,
             typ: 'internal',
             ver: user.tokenVersion,
         };
-        const access_token = await this.jwt.signAsync(payload, {
+        const access_token = await this.jwt.signAsync(accessPayload, {
             expiresIn: Math.max(60, Math.floor(accessMaxAgeMs / 1000)),
         });
-        const refresh_token = await this.signRefreshToken(user.id, user.tokenVersion, refreshMaxAgeMs);
+        const refresh_token = await this.signRefreshToken(user.id, user.tokenVersion, session.familyId, session.jti, refreshMaxAgeMs);
         if (res) {
             this.setAccessCookie(res, access_token, accessMaxAgeMs);
             this.setRefreshCookie(res, refresh_token, refreshMaxAgeMs);
@@ -139,17 +143,33 @@ let AuthService = class AuthService {
         if (payload.ver !== user.tokenVersion) {
             throw new common_1.UnauthorizedException('Session has been invalidated. Please log in again.');
         }
+        let rotation;
+        try {
+            rotation = await this.refreshSessions.rotateSession(user.id, user.tokenVersion, payload.fid, payload.jti);
+        }
+        catch (err) {
+            if (err instanceof common_1.UnauthorizedException) {
+                await this.audit.log(this.audit.fromPrincipal({ id: user.id, email: user.email, role: user.role, companyId: user.companyId }, {
+                    action: 'AUTH_REFRESH_REPLAY_DETECTED',
+                    resourceType: 'user',
+                    resourceId: user.id,
+                    previousState: { familyId: payload.fid, presentedJti: payload.jti },
+                    newState: { message: err.message },
+                }));
+            }
+            throw err;
+        }
         const now = new Date();
         await this.prisma.user.update({
             where: { id: user.id },
             data: { lastActivityAt: now },
         });
         await this.audit.log(this.audit.fromPrincipal({ id: user.id, email: user.email, role: user.role, companyId: user.companyId }, {
-            action: 'AUTH_REFRESH_SUCCESS',
+            action: rotation.idempotent ? 'AUTH_REFRESH_REPLAY_IDEMPOTENT' : 'AUTH_REFRESH_SUCCESS',
             resourceType: 'user',
             resourceId: user.id,
-            previousState: { tokenVersion: user.tokenVersion },
-            newState: { lastActivityAt: now.toISOString() },
+            previousState: { familyId: payload.fid, jti: payload.jti },
+            newState: { familyId: rotation.familyId, jti: rotation.jti, lastActivityAt: now.toISOString() },
         }));
         const accessExpiresIn = this.config.get('JWT_ACCESS_EXPIRES_IN') ?? DEFAULT_ACCESS_EXPIRES;
         const refreshExpiresIn = this.config.get('JWT_REFRESH_EXPIRES_IN') ?? DEFAULT_REFRESH_EXPIRES;
@@ -165,7 +185,7 @@ let AuthService = class AuthService {
         const access_token = await this.jwt.signAsync(accessPayload, {
             expiresIn: Math.max(60, Math.floor(accessMaxAgeMs / 1000)),
         });
-        const refresh_token = await this.signRefreshToken(user.id, user.tokenVersion, refreshMaxAgeMs);
+        const refresh_token = await this.signRefreshToken(user.id, user.tokenVersion, rotation.familyId, rotation.jti, refreshMaxAgeMs);
         if (res) {
             this.setAccessCookie(res, access_token, accessMaxAgeMs);
             this.setRefreshCookie(res, refresh_token, refreshMaxAgeMs);
@@ -185,20 +205,14 @@ let AuthService = class AuthService {
                     where: { id: payload.sub },
                     select: { tokenVersion: true, email: true, role: true, companyId: true },
                 });
-                await this.prisma.user.updateMany({
-                    where: { id: payload.sub },
-                    data: {
-                        tokenVersion: { increment: 1 },
-                        lastActivityAt: new Date(),
-                    },
-                });
+                const nextVersion = await this.refreshSessions.invalidateUserSessions(payload.sub);
                 if (prev) {
                     await this.audit.log(this.audit.fromPrincipal({ id: payload.sub, email: prev.email, role: prev.role, companyId: prev.companyId }, {
                         action: 'AUTH_LOGOUT',
                         resourceType: 'user',
                         resourceId: payload.sub,
-                        previousState: { tokenVersion: prev.tokenVersion },
-                        newState: { tokenVersion: prev.tokenVersion + 1 },
+                        previousState: { tokenVersion: prev.tokenVersion, familyId: payload.fid },
+                        newState: { tokenVersion: nextVersion },
                     }));
                 }
             }
@@ -282,13 +296,14 @@ let AuthService = class AuthService {
         const c = req?.cookies?.[REFRESH_COOKIE_NAME];
         return typeof c === 'string' && c.length > 0 ? c : null;
     }
-    async signRefreshToken(userId, tokenVersion, maxAgeMs) {
+    async signRefreshToken(userId, tokenVersion, familyId, jti, maxAgeMs) {
         const payload = {
             sub: userId,
             typ: 'internal',
             kind: 'refresh',
             ver: tokenVersion,
-            jti: (0, node_crypto_1.randomUUID)(),
+            fid: familyId,
+            jti,
         };
         return this.jwt.signAsync(payload, {
             secret: this.config.get('JWT_REFRESH_SECRET') ?? this.config.get('JWT_SECRET'),
@@ -300,12 +315,18 @@ let AuthService = class AuthService {
             const payload = await this.jwt.verifyAsync(token, {
                 secret: this.config.get('JWT_REFRESH_SECRET') ?? this.config.get('JWT_SECRET'),
             });
-            if (payload.typ !== 'internal' || payload.kind !== 'refresh' || typeof payload.ver !== 'number') {
+            if (payload.typ !== 'internal' ||
+                payload.kind !== 'refresh' ||
+                typeof payload.ver !== 'number' ||
+                typeof payload.fid !== 'string' ||
+                typeof payload.jti !== 'string') {
                 throw new common_1.UnauthorizedException('Invalid refresh token.');
             }
             return payload;
         }
-        catch {
+        catch (err) {
+            if (err instanceof common_1.UnauthorizedException)
+                throw err;
             throw new common_1.UnauthorizedException('Invalid or expired refresh token.');
         }
     }
@@ -325,6 +346,7 @@ exports.AuthService = AuthService = __decorate([
         password_service_1.PasswordService,
         jwt_1.JwtService,
         config_1.ConfigService,
-        audit_log_service_1.AuditLogService])
+        audit_log_service_1.AuditLogService,
+        refresh_session_service_1.RefreshSessionService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

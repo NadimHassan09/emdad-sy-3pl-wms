@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsersService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const internal_rbac_1 = require("../../common/auth/internal-rbac");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const password_service_1 = require("../../common/crypto/password.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
@@ -98,6 +99,7 @@ let UsersService = class UsersService {
         return this.toListRow(u);
     }
     async create(dto, actor) {
+        (0, internal_rbac_1.assertInternalAdmin)(actor);
         const email = dto.email.trim().toLowerCase();
         const existing = await this.prisma.user.count({ where: { email } });
         if (existing) {
@@ -158,6 +160,7 @@ let UsersService = class UsersService {
         return this.toListRow(u);
     }
     async update(id, dto, actor) {
+        (0, internal_rbac_1.assertInternalAdmin)(actor);
         const keys = Object.keys(dto).filter((k) => dto[k] !== undefined);
         if (keys.length === 0) {
             throw new common_1.BadRequestException('No changes provided.');
@@ -227,6 +230,12 @@ let UsersService = class UsersService {
                 data,
                 select: USER_LIST_SELECT,
             });
+            if (dto.status === client_1.UserStatus.inactive) {
+                await tx.authRefreshSession.updateMany({
+                    where: { userId: id, revokedAt: null },
+                    data: { revokedAt: new Date() },
+                });
+            }
             if (isSystem) {
                 await this.syncWorkerForSystemUser(tx, id, effectiveRole, effectiveName, effectiveStatus, actor);
             }
@@ -237,6 +246,7 @@ let UsersService = class UsersService {
         return this.update(id, { status: client_1.UserStatus.inactive }, actor);
     }
     async remove(id, actor) {
+        (0, internal_rbac_1.assertInternalAdmin)(actor);
         if (actor.id === id) {
             throw new common_1.ForbiddenException('You cannot delete your own user account.');
         }

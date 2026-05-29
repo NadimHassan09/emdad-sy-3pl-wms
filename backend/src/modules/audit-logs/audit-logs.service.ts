@@ -9,6 +9,7 @@ import { Prisma } from '@prisma/client';
 import { redactAuditState } from '../../common/audit/audit-log-redaction.util';
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
+import { assertInternalAdmin } from '../../common/auth/internal-rbac';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -197,6 +198,7 @@ export class AuditLogsService {
   }
 
   async export(user: AuthPrincipal, query: ExportAuditLogsQueryDto): Promise<AuditLogExportResult> {
+    assertInternalAdmin(user);
     if (!this.policy.exportEnabled) {
       throw new ForbiddenException('Audit export is disabled.');
     }

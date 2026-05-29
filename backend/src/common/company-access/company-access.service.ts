@@ -7,6 +7,7 @@ import {
 import { UserRole } from '@prisma/client';
 
 import { AuthPrincipal } from '../auth/current-user.types';
+import { TENANT_SCOPE_REQUIRED_MESSAGE } from '../auth/rbac-policy';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AuthorizedCompanyScope, OwnableResource, TenantScopeMode } from './company-access.types';
 
@@ -134,10 +135,30 @@ export class CompanyAccessService {
       this.assertCompanyAccess(user, q);
       return q;
     }
+    // Active tenant from X-Company-Id (global admins keep tenantScope === 'all').
+    if (user.companyId) {
+      return user.companyId;
+    }
     if (user.tenantScope === 'all') {
       return undefined;
     }
-    return user.companyId ?? undefined;
+    return undefined;
+  }
+
+  /**
+   * Like `getReadFilterCompanyId`, but rejects global all-tenant mode without an explicit filter.
+   * Use on inventory, tasks, and other sensitive operational list APIs.
+   */
+  requireReadTenantScope(user: AuthPrincipal, queryCompanyId?: string): string {
+    const scoped = this.getReadFilterCompanyId(user, queryCompanyId);
+    if (scoped) return scoped;
+    if (user.tenantScope === 'all') {
+      throw new BadRequestException(TENANT_SCOPE_REQUIRED_MESSAGE);
+    }
+    if (!user.companyId) {
+      throw new BadRequestException(TENANT_SCOPE_REQUIRED_MESSAGE);
+    }
+    return user.companyId;
   }
 
   requireActiveTenant(user: AuthPrincipal, message?: string): string {

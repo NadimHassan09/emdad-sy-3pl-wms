@@ -10,6 +10,7 @@ import { CryptoModule } from './common/crypto/crypto.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { AdjustmentsModule } from './modules/adjustments/adjustments.module';
+import { CycleCountModule } from './modules/cycle-count/cycle-count.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
@@ -21,6 +22,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { LocationsModule } from './modules/locations/locations.module';
 import { ObservabilityModule } from './modules/observability/observability.module';
 import { OutboundModule } from './modules/outbound/outbound.module';
+import { ReturnsModule } from './modules/returns/returns.module';
 import { ProductsModule } from './modules/products/products.module';
 import { UsersModule } from './modules/users/users.module';
 import { WarehousesModule } from './modules/warehouses/warehouses.module';
@@ -62,7 +64,9 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     ObservabilityModule,
     InboundModule,
     OutboundModule,
+    ReturnsModule,
     AdjustmentsModule,
+    CycleCountModule,
     AuditLogsModule,
     WarehouseWorkflowModule,
     RealtimeModule,

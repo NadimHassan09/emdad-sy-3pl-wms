@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InboundOrderStatus, Prisma } from '@prisma/client';
 
-import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
+import { readCompanyIdFilterRequired } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { inboundIdsVisibleForWarehouse } from '../../common/utils/warehouse-order-scope';
@@ -167,8 +167,8 @@ export class InboundService {
     const baseAnd: Prisma.InboundOrderWhereInput[] = [];
     const where: Prisma.InboundOrderWhereInput = {};
 
-    const companyId = readCompanyIdFilter(this.companyAccess, user, query.companyId);
-    if (companyId) where.companyId = companyId;
+    const companyId = readCompanyIdFilterRequired(this.companyAccess, user, query.companyId);
+    where.companyId = companyId;
     if (query.status) where.status = query.status;
 
     if (query.orderSearch?.trim()) {

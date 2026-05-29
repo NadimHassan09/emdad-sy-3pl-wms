@@ -8,5 +8,6 @@ import { AdjustmentsService } from './adjustments.service';
   imports: [InventoryModule],
   controllers: [AdjustmentsController],
   providers: [AdjustmentsService],
+  exports: [AdjustmentsService],
 })
 export class AdjustmentsModule {}

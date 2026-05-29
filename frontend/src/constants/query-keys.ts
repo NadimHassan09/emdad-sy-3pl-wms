@@ -64,4 +64,16 @@ export const QK = {
     list: (params: Record<string, unknown>) => ['audit-logs', 'list', params] as const,
     detail: (id: string) => ['audit-logs', 'detail', id] as const,
   },
+  cycleCount: {
+    all: ['cycle-count'] as const,
+    list: (params: Record<string, unknown>) => ['cycle-count', 'list', params] as const,
+    detail: (id: string) => ['cycle-count', 'detail', id] as const,
+    variances: (countId: string) => ['cycle-count', 'variances', countId] as const,
+    productHistory: (warehouseId: string, filters: Record<string, unknown>) =>
+      ['cycle-count', 'product-history', warehouseId, filters] as const,
+    schedules: (warehouseId: string) => ['cycle-count', 'schedules', warehouseId] as const,
+    reasonCodes: ['cycle-count', 'reason-codes'] as const,
+    myTasks: (warehouseId: string) => ['cycle-count', 'my-tasks', warehouseId] as const,
+    execution: (id: string) => ['cycle-count', 'execution', id] as const,
+  },
 };

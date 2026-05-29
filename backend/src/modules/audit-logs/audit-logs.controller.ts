@@ -6,6 +6,7 @@ import { AuthGroup } from '../../common/auth/auth-groups';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { Roles } from '../../common/auth/roles.decorator';
+import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { RolesGuard } from '../../common/auth/roles.guard';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { AuditLogsService } from './audit-logs.service';
@@ -33,6 +34,7 @@ export class AuditLogsController {
   }
 
   @Get('export')
+  @UseGuards(InternalAdminGuard)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Header('Cache-Control', 'no-store')
   async export(

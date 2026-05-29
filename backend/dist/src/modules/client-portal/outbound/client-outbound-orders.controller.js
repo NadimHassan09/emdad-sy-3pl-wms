@@ -38,9 +38,7 @@ let ClientOutboundOrdersController = class ClientOutboundOrdersController {
 };
 exports.ClientOutboundOrdersController = ClientOutboundOrdersController;
 __decorate([
-    (0, public_decorator_1.Public)(),
     (0, common_1.Get)(),
-    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
@@ -48,9 +46,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ClientOutboundOrdersController.prototype, "list", null);
 __decorate([
-    (0, public_decorator_1.Public)(),
     (0, common_1.Get)(':id'),
-    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
@@ -58,9 +54,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ClientOutboundOrdersController.prototype, "findOne", null);
 __decorate([
-    (0, public_decorator_1.Public)(),
     (0, common_1.Post)(),
-    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -68,6 +62,8 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ClientOutboundOrdersController.prototype, "create", null);
 exports.ClientOutboundOrdersController = ClientOutboundOrdersController = __decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     (0, common_1.Controller)('client/outbound-orders'),
     __metadata("design:paramtypes", [client_outbound_orders_service_1.ClientOutboundOrdersService])
 ], ClientOutboundOrdersController);

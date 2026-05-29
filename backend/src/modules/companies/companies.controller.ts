@@ -10,11 +10,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { AuthGroup } from '../../common/auth/auth-groups';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
-import { Roles } from '../../common/auth/roles.decorator';
-import { RolesGuard } from '../../common/auth/roles.guard';
+import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CompaniesService } from './companies.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
@@ -36,15 +34,13 @@ export class CompaniesController {
   }
 
   @Post()
-  @UseGuards(RolesGuard)
-  @Roles(AuthGroup.ADMIN)
+  @UseGuards(InternalAdminGuard)
   create(@Body() dto: CreateCompanyDto) {
     return this.companies.create(dto);
   }
 
   @Patch(':id')
-  @UseGuards(RolesGuard)
-  @Roles(AuthGroup.ADMIN)
+  @UseGuards(InternalAdminGuard)
   update(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
@@ -54,22 +50,19 @@ export class CompaniesController {
   }
 
   @Post(':id/suspend')
-  @UseGuards(RolesGuard)
-  @Roles(AuthGroup.ADMIN)
+  @UseGuards(InternalAdminGuard)
   suspend(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.companies.suspend(user, id);
   }
 
   @Post(':id/close')
-  @UseGuards(RolesGuard)
-  @Roles(AuthGroup.ADMIN)
+  @UseGuards(InternalAdminGuard)
   close(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.companies.softDelete(user, id);
   }
 
   @Delete(':id')
-  @UseGuards(RolesGuard)
-  @Roles(AuthGroup.ADMIN)
+  @UseGuards(InternalAdminGuard)
   remove(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.companies.remove(user, id);
   }

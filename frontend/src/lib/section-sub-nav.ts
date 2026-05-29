@@ -112,6 +112,25 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
     ],
   },
   {
+    ariaLabelKey: 'Cycle count navigation',
+    matchSection: (p) => {
+      if (!p.startsWith('/cycle-count')) return false;
+      return !/^\/cycle-count\/[^/]+(\/execute)?$/.test(p);
+    },
+    items: [
+      {
+        labelKey: 'Dashboard',
+        to: '/cycle-count',
+        match: (p) => p === '/cycle-count',
+      },
+      {
+        labelKey: 'My tasks',
+        to: '/cycle-count/my-tasks',
+        match: (p) => p === '/cycle-count/my-tasks',
+      },
+    ],
+  },
+  {
     ariaLabelKey: 'Users navigation',
     matchSection: (p) => p.startsWith('/users'),
     items: [
@@ -151,6 +170,9 @@ export function sectionSubNavLabel(label: string, isArabic: boolean): string {
     Pack: 'تغليف',
     Delivery: 'تسليم',
     'Internal transfer': 'نقل داخلي',
+    'Cycle count navigation': 'تنقل الجرد',
+    Dashboard: 'لوحة الجرد',
+    'My tasks': 'مهامي',
     'Users navigation': 'تنقل المستخدمين',
     'Warehouse users': 'مستخدمو المستودع',
     'Client users': 'مستخدمو العملاء',

@@ -7,6 +7,7 @@ import {
   Prisma,
   WarehouseTaskStatus,
   WarehouseTaskType,
+  WorkflowReferenceType,
   WorkflowStepKind,
 } from '@prisma/client';
 
@@ -15,6 +16,12 @@ import { CompanyAccessService } from '../../common/company-access/company-access
 import { InvalidStateException } from '../../common/errors/domain-exceptions';
 import { InboundReceivingPayload, OutboundPickPayload } from './workflow-payload.contracts';
 import { defaultSlaMinutesForTaskType } from './task-sla-defaults';
+import {
+  findActiveWorkflowForReference,
+  isActiveWorkflowUniqueViolation,
+  loadWorkflowBootstrapBundle,
+  lockWorkflowReferenceOrder,
+} from './workflow-active.util';
 
 const DEF_INBOUND = 'inbound_default_v1';
 const DEF_OUTBOUND = 'outbound_default_v1';
@@ -41,6 +48,8 @@ export class WorkflowEngineService {
   }> {
     const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
 
+    await lockWorkflowReferenceOrder(tx, WorkflowReferenceType.inbound_order, orderId);
+
     const order = await tx.inboundOrder.findUnique({
       where: { id: orderId },
       include: {
@@ -55,19 +64,13 @@ export class WorkflowEngineService {
       throw new InvalidStateException('Workflow can only start for an active inbound order.');
     }
 
-    const existing = await tx.workflowInstance.findFirst({
-      where: {
-        referenceType: 'inbound_order',
-        referenceId: orderId,
-        status: { in: ['pending', 'in_progress', 'degraded'] },
-      },
-    });
+    const existing = await findActiveWorkflowForReference(
+      tx,
+      WorkflowReferenceType.inbound_order,
+      orderId,
+    );
     if (existing) {
-      const tasks = await tx.warehouseTask.findMany({
-        where: { workflowInstanceId: existing.id },
-        orderBy: { id: 'asc' },
-      });
-      return { workflowInstance: existing, nodes: [], tasks };
+      return loadWorkflowBootstrapBundle(tx, existing.id);
     }
 
     const staging = stagingOverrides ?? {};
@@ -85,54 +88,56 @@ export class WorkflowEngineService {
       };
     });
 
-    const wf = await tx.workflowInstance.create({
-      data: {
-        companyId: tenantCompanyId,
-        warehouseId,
-        referenceType: 'inbound_order',
-        referenceId: orderId,
-        definitionCode: DEF_INBOUND,
-        status: 'in_progress',
-        metadata: { createdByUserId: user.id, stage: 'receiving' } as object,
-      },
-    });
+    try {
+      const wf = await tx.workflowInstance.create({
+        data: {
+          companyId: tenantCompanyId,
+          warehouseId,
+          referenceType: WorkflowReferenceType.inbound_order,
+          referenceId: orderId,
+          definitionCode: DEF_INBOUND,
+          status: 'in_progress',
+          metadata: { createdByUserId: user.id, stage: 'receiving' } as object,
+        },
+      });
 
-    const nRecv = await tx.workflowNode.create({
-      data: {
-        instanceId: wf.id,
-        stepKind: WorkflowStepKind.receiving,
-        sequence: 1,
-        status: 'in_progress',
-      },
-    });
+      const nRecv = await tx.workflowNode.create({
+        data: {
+          instanceId: wf.id,
+          stepKind: WorkflowStepKind.receiving,
+          sequence: 1,
+          status: 'in_progress',
+        },
+      });
 
-    const recvPayload: InboundReceivingPayload = {
-      inbound_order_id: orderId,
-      lines: linesPayload,
-    };
+      const recvPayload: InboundReceivingPayload = {
+        inbound_order_id: orderId,
+        lines: linesPayload,
+      };
 
-    await tx.warehouseTask.create({
-      data: {
-        workflowInstanceId: wf.id,
-        workflowNodeId: nRecv.id,
-        taskType: WarehouseTaskType.receiving,
-        status: WarehouseTaskStatus.pending,
-        slaMinutes: defaultSlaMinutesForTaskType(WarehouseTaskType.receiving),
-        payload: recvPayload as object as Prisma.InputJsonValue,
-      },
-    });
+      await tx.warehouseTask.create({
+        data: {
+          workflowInstanceId: wf.id,
+          workflowNodeId: nRecv.id,
+          taskType: WarehouseTaskType.receiving,
+          status: WarehouseTaskStatus.pending,
+          slaMinutes: defaultSlaMinutesForTaskType(WarehouseTaskType.receiving),
+          payload: recvPayload as object as Prisma.InputJsonValue,
+        },
+      });
 
-    const tasks = await tx.warehouseTask.findMany({
-      where: { workflowInstanceId: wf.id },
-      orderBy: { id: 'asc' },
-    });
-
-    const nodes = await tx.workflowNode.findMany({
-      where: { instanceId: wf.id },
-      orderBy: { sequence: 'asc' },
-    });
-
-    return { workflowInstance: wf, nodes, tasks };
+      return loadWorkflowBootstrapBundle(tx, wf.id);
+    } catch (err) {
+      if (isActiveWorkflowUniqueViolation(err)) {
+        const replay = await findActiveWorkflowForReference(
+          tx,
+          WorkflowReferenceType.inbound_order,
+          orderId,
+        );
+        if (replay) return loadWorkflowBootstrapBundle(tx, replay.id);
+      }
+      throw err;
+    }
   }
 
   async createOutboundInstanceWithFirstPickTask(
@@ -146,6 +151,9 @@ export class WorkflowEngineService {
     tasks: unknown[];
   }> {
     const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
+
+    await lockWorkflowReferenceOrder(tx, WorkflowReferenceType.outbound_order, orderId);
+
     const order = await tx.outboundOrder.findUnique({
       where: { id: orderId },
       include: { lines: { orderBy: { lineNumber: 'asc' } } },
@@ -156,36 +164,14 @@ export class WorkflowEngineService {
       throw new InvalidStateException('Workflow requires confirmed / picking outbound order.');
     }
 
-    const existing = await tx.workflowInstance.findFirst({
-      where: {
-        referenceType: 'outbound_order',
-        referenceId: orderId,
-        status: { in: ['pending', 'in_progress', 'degraded'] },
-      },
-    });
+    const existing = await findActiveWorkflowForReference(
+      tx,
+      WorkflowReferenceType.outbound_order,
+      orderId,
+    );
     if (existing) {
-      const tasks = await tx.warehouseTask.findMany({
-        where: { workflowInstanceId: existing.id },
-        orderBy: { id: 'asc' },
-      });
-      return { workflowInstance: existing, nodes: [], tasks };
+      return loadWorkflowBootstrapBundle(tx, existing.id);
     }
-
-    const wf = await tx.workflowInstance.create({
-      data: {
-        companyId: tenantCompanyId,
-        warehouseId,
-        referenceType: 'outbound_order',
-        referenceId: orderId,
-        definitionCode: DEF_OUTBOUND,
-        status: 'in_progress',
-        metadata: { createdByUserId: user.id, stage: 'pick' } as object,
-      },
-    });
-
-    const nPick = await tx.workflowNode.create({
-      data: { instanceId: wf.id, stepKind: WorkflowStepKind.pick, sequence: 1, status: 'in_progress' },
-    });
 
     const pickPayload: OutboundPickPayload = {
       outbound_order_id: orderId,
@@ -195,25 +181,50 @@ export class WorkflowEngineService {
       })),
     };
 
-    await tx.warehouseTask.create({
-      data: {
-        workflowInstanceId: wf.id,
-        workflowNodeId: nPick.id,
-        taskType: WarehouseTaskType.pick,
-        status: WarehouseTaskStatus.pending,
-        slaMinutes: defaultSlaMinutesForTaskType(WarehouseTaskType.pick),
-        payload: pickPayload as object as Prisma.InputJsonValue,
-      },
-    });
+    try {
+      const wf = await tx.workflowInstance.create({
+        data: {
+          companyId: tenantCompanyId,
+          warehouseId,
+          referenceType: WorkflowReferenceType.outbound_order,
+          referenceId: orderId,
+          definitionCode: DEF_OUTBOUND,
+          status: 'in_progress',
+          metadata: { createdByUserId: user.id, stage: 'pick' } as object,
+        },
+      });
 
-    const tasks = await tx.warehouseTask.findMany({
-      where: { workflowInstanceId: wf.id },
-      orderBy: { id: 'asc' },
-    });
-    const nodes = await tx.workflowNode.findMany({
-      where: { instanceId: wf.id },
-      orderBy: { sequence: 'asc' },
-    });
-    return { workflowInstance: wf, nodes, tasks };
+      const nPick = await tx.workflowNode.create({
+        data: {
+          instanceId: wf.id,
+          stepKind: WorkflowStepKind.pick,
+          sequence: 1,
+          status: 'in_progress',
+        },
+      });
+
+      await tx.warehouseTask.create({
+        data: {
+          workflowInstanceId: wf.id,
+          workflowNodeId: nPick.id,
+          taskType: WarehouseTaskType.pick,
+          status: WarehouseTaskStatus.pending,
+          slaMinutes: defaultSlaMinutesForTaskType(WarehouseTaskType.pick),
+          payload: pickPayload as object as Prisma.InputJsonValue,
+        },
+      });
+
+      return loadWorkflowBootstrapBundle(tx, wf.id);
+    } catch (err) {
+      if (isActiveWorkflowUniqueViolation(err)) {
+        const replay = await findActiveWorkflowForReference(
+          tx,
+          WorkflowReferenceType.outbound_order,
+          orderId,
+        );
+        if (replay) return loadWorkflowBootstrapBundle(tx, replay.id);
+      }
+      throw err;
+    }
   }
 }

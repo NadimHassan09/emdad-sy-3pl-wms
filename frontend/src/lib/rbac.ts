@@ -40,6 +40,13 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     roles: ['super_admin', 'wh_manager', 'wh_operator'],
   },
   {
+    labelKey: 'Cycle count',
+    iconKey: 'Inventory',
+    to: '/cycle-count',
+    match: (p) => p.startsWith('/cycle-count'),
+    roles: ['super_admin', 'wh_manager', 'wh_operator'],
+  },
+  {
     labelKey: 'Products',
     iconKey: 'Products',
     to: '/products',
@@ -92,6 +99,7 @@ function routeGroup(pathname: string): string {
   if (p.startsWith('/inventory') || p === '/adjustments') return 'inventory';
   if (p === '/internal') return 'internal';
   if (p.startsWith('/tasks')) return 'tasks';
+  if (p.startsWith('/cycle-count')) return 'cycle-count';
   if (p.startsWith('/products')) return 'products';
   if (p.startsWith('/locations')) return 'locations';
   if (p.startsWith('/clients')) return 'clients';
@@ -106,6 +114,7 @@ const ROUTE_GROUP_ROLES: Record<string, InternalRole[]> = {
   orders: ['super_admin', 'wh_manager', 'finance'],
   inventory: ['super_admin', 'wh_manager', 'finance'],
   tasks: ['super_admin', 'wh_manager', 'wh_operator'],
+  'cycle-count': ['super_admin', 'wh_manager', 'wh_operator'],
   internal: ['super_admin', 'wh_manager'],
   products: ['super_admin', 'wh_manager'],
   locations: ['super_admin', 'wh_manager'],
@@ -152,4 +161,9 @@ export function navItemsForRole(role: string | undefined): NavItemDef[] {
 
 export function isOperatorRole(role: string | undefined): boolean {
   return normalizeInternalRole(role) === 'wh_operator';
+}
+
+/** Blind count execution APIs require a linked Worker profile (`/auth/me` → workerId). */
+export function canExecuteCycleCount(user: { workerId?: string | null } | null | undefined): boolean {
+  return !!user?.workerId?.trim();
 }

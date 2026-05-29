@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CompanyAccessService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const rbac_policy_1 = require("../auth/rbac-policy");
 const prisma_service_1 = require("../prisma/prisma.service");
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const GLOBAL_TENANT_ROLES = new Set([
@@ -97,10 +98,25 @@ let CompanyAccessService = class CompanyAccessService {
             this.assertCompanyAccess(user, q);
             return q;
         }
+        if (user.companyId) {
+            return user.companyId;
+        }
         if (user.tenantScope === 'all') {
             return undefined;
         }
-        return user.companyId ?? undefined;
+        return undefined;
+    }
+    requireReadTenantScope(user, queryCompanyId) {
+        const scoped = this.getReadFilterCompanyId(user, queryCompanyId);
+        if (scoped)
+            return scoped;
+        if (user.tenantScope === 'all') {
+            throw new common_1.BadRequestException(rbac_policy_1.TENANT_SCOPE_REQUIRED_MESSAGE);
+        }
+        if (!user.companyId) {
+            throw new common_1.BadRequestException(rbac_policy_1.TENANT_SCOPE_REQUIRED_MESSAGE);
+        }
+        return user.companyId;
     }
     requireActiveTenant(user, message) {
         if (!user.companyId) {

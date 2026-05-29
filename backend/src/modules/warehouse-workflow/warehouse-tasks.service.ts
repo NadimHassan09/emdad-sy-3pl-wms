@@ -119,7 +119,7 @@ export class WarehouseTasksService {
       if (query.updatedFrom) where.updatedAt.gte = query.updatedFrom;
       if (query.updatedTo) where.updatedAt.lte = query.updatedTo;
     }
-    const listCompanyId = this.companyAccess.getReadFilterCompanyId(user);
+    const listCompanyId = this.companyAccess.requireReadTenantScope(user);
     if (listCompanyId) {
       and.push({
         workflowInstance: { companyId: listCompanyId },

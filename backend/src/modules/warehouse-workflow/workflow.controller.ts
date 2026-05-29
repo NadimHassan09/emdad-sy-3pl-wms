@@ -6,10 +6,12 @@ import {
   Param,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
+import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { StartWorkflowBodyDto } from './dto/start-workflow.dto';
 import { WorkflowBootstrapService } from './workflow-bootstrap.service';
 import { WorkflowRecoveryService } from './workflow-recovery.service';
@@ -81,6 +83,7 @@ export class WorkflowController {
 
   /** Part III — manual compensation / ledger recovery actions (validated in service via Zod). */
   @Post('instances/:instanceId/recover')
+  @UseGuards(InternalAdminGuard)
   recoverWorkflowInstance(
     @CurrentUser() user: AuthPrincipal,
     @Param('instanceId') instanceId: string,

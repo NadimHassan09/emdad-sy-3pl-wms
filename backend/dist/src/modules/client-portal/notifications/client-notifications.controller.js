@@ -37,9 +37,7 @@ let ClientNotificationsController = class ClientNotificationsController {
 };
 exports.ClientNotificationsController = ClientNotificationsController;
 __decorate([
-    (0, public_decorator_1.Public)(),
     (0, common_1.Get)(),
-    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Query)('limit')),
     __metadata("design:type", Function),
@@ -47,9 +45,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ClientNotificationsController.prototype, "list", null);
 __decorate([
-    (0, public_decorator_1.Public)(),
     (0, common_1.Patch)(':id/read'),
-    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
@@ -57,15 +53,15 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ClientNotificationsController.prototype, "markRead", null);
 __decorate([
-    (0, public_decorator_1.Public)(),
     (0, common_1.Post)('read-all'),
-    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], ClientNotificationsController.prototype, "markAllRead", null);
 exports.ClientNotificationsController = ClientNotificationsController = __decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     (0, common_1.Controller)('client/notifications'),
     __metadata("design:paramtypes", [client_notifications_service_1.ClientNotificationsService])
 ], ClientNotificationsController);

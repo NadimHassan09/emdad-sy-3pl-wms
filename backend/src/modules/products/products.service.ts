@@ -8,7 +8,7 @@ import { Prisma } from '@prisma/client';
 
 import { coerceOptionalBool } from '../../common/utils/coerce-boolean';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
-import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
+import { readCompanyIdFilterRequired } from '../../common/auth/company-read-scope';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import {
   generateBarcodeCandidate,
@@ -140,10 +140,8 @@ export class ProductsService {
     if (!includeArchived) {
       where.status = { in: ['active', 'suspended'] };
     }
-    const companyId = readCompanyIdFilter(this.companyAccess, user, query.companyId);
-    if (companyId) {
-      where.companyId = companyId;
-    }
+    const companyId = readCompanyIdFilterRequired(this.companyAccess, user, query.companyId);
+    where.companyId = companyId;
 
     const and: Prisma.ProductWhereInput[] = [];
     if (query.search?.trim()) {

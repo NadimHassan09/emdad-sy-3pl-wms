@@ -10,27 +10,23 @@ import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ClientInboundOrdersService } from './client-inbound-orders.service';
 
+@Public()
+@UseGuards(JwtClientAuthGuard)
 @Controller('client/inbound-orders')
 export class ClientInboundOrdersController {
   constructor(private readonly inbound: ClientInboundOrdersService) {}
 
-  @Public()
   @Get()
-  @UseGuards(JwtClientAuthGuard)
   list(@ClientUser() client: ClientPrincipal, @Query() query: ListInboundQueryDto) {
     return this.inbound.list(client, query);
   }
 
-  @Public()
   @Get(':id')
-  @UseGuards(JwtClientAuthGuard)
   findOne(@ClientUser() client: ClientPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.inbound.findOne(client, id);
   }
 
-  @Public()
   @Post()
-  @UseGuards(JwtClientAuthGuard)
   create(@ClientUser() client: ClientPrincipal, @Body() body: CreateInboundOrderDto) {
     return this.inbound.create(client, body);
   }

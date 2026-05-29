@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdjustmentsController = void 0;
 const common_1 = require("@nestjs/common");
+const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard");
 const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
 const parse_uuid_loose_pipe_1 = require("../../common/pipes/parse-uuid-loose.pipe");
 const adjustments_service_1 = require("./adjustments.service");
@@ -42,8 +43,8 @@ let AdjustmentsController = class AdjustmentsController {
     addLine(user, id, dto) {
         return this.adjustments.addLine(user, id, dto);
     }
-    patchLine(id, lineId, dto) {
-        return this.adjustments.patchLine(id, lineId, dto);
+    patchLine(user, id, lineId, dto) {
+        return this.adjustments.patchLine(user, id, lineId, dto);
     }
     approve(user, id) {
         return this.adjustments.approve(user, id);
@@ -97,15 +98,17 @@ __decorate([
 ], AdjustmentsController.prototype, "addLine", null);
 __decorate([
     (0, common_1.Patch)(':id/lines/:lineId'),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
-    __param(1, (0, common_1.Param)('lineId', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
-    __param(2, (0, common_1.Body)()),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Param)('lineId', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(3, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, patch_adjustment_line_dto_1.PatchAdjustmentLineDto]),
+    __metadata("design:paramtypes", [Object, String, String, patch_adjustment_line_dto_1.PatchAdjustmentLineDto]),
     __metadata("design:returntype", void 0)
 ], AdjustmentsController.prototype, "patchLine", null);
 __decorate([
     (0, common_1.Post)(':id/approve'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),

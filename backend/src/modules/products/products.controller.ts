@@ -10,11 +10,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { AuthGroup } from '../../common/auth/auth-groups';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
-import { Roles } from '../../common/auth/roles.decorator';
-import { RolesGuard } from '../../common/auth/roles.guard';
+import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ListProductsQueryDto } from './dto/list-products-query.dto';
@@ -26,8 +24,7 @@ export class ProductsController {
   constructor(private readonly products: ProductsService) {}
 
   @Post()
-  @UseGuards(RolesGuard)
-  @Roles(AuthGroup.ADMIN)
+  @UseGuards(InternalAdminGuard)
   create(@CurrentUser() user: AuthPrincipal, @Body() dto: CreateProductDto) {
     return this.products.create(user, dto);
   }
@@ -38,8 +35,7 @@ export class ProductsController {
   }
 
   @Get('next-sku')
-  @UseGuards(RolesGuard)
-  @Roles(AuthGroup.ADMIN)
+  @UseGuards(InternalAdminGuard)
   nextSku(
     @CurrentUser() user: AuthPrincipal,
     @Query('companyId') companyIdParam?: string,
@@ -48,8 +44,7 @@ export class ProductsController {
   }
 
   @Post(':id/suspend')
-  @UseGuards(RolesGuard)
-  @Roles(AuthGroup.ADMIN)
+  @UseGuards(InternalAdminGuard)
   suspend(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
@@ -58,8 +53,7 @@ export class ProductsController {
   }
 
   @Post(':id/unsuspend')
-  @UseGuards(RolesGuard)
-  @Roles(AuthGroup.ADMIN)
+  @UseGuards(InternalAdminGuard)
   unsuspend(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
@@ -68,8 +62,7 @@ export class ProductsController {
   }
 
   @Delete(':id/hard')
-  @UseGuards(RolesGuard)
-  @Roles(AuthGroup.ADMIN)
+  @UseGuards(InternalAdminGuard)
   hardDelete(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
@@ -86,8 +79,7 @@ export class ProductsController {
   }
 
   @Patch(':id')
-  @UseGuards(RolesGuard)
-  @Roles(AuthGroup.ADMIN)
+  @UseGuards(InternalAdminGuard)
   update(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
@@ -97,8 +89,7 @@ export class ProductsController {
   }
 
   @Delete(':id')
-  @UseGuards(RolesGuard)
-  @Roles(AuthGroup.ADMIN)
+  @UseGuards(InternalAdminGuard)
   archive(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,

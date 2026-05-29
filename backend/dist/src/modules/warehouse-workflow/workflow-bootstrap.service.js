@@ -19,6 +19,7 @@ const feature_flags_1 = require("./feature-flags");
 const task_runnable_util_1 = require("./task-runnable.util");
 const workflow_timeline_helpers_1 = require("./workflow-timeline.helpers");
 const workflow_engine_service_1 = require("./workflow-engine.service");
+const workflow_active_util_1 = require("./workflow-active.util");
 let WorkflowBootstrapService = class WorkflowBootstrapService {
     prisma;
     config;
@@ -159,7 +160,7 @@ let WorkflowBootstrapService = class WorkflowBootstrapService {
                 referenceType,
                 referenceId,
                 companyId: tenantCompanyId,
-                status: { in: ['pending', 'in_progress', 'degraded'] },
+                status: { in: workflow_active_util_1.WORKFLOW_ACTIVE_STATUSES },
             },
             orderBy: { createdAt: 'desc' },
         });

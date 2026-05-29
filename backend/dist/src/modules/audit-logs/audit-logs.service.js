@@ -15,6 +15,7 @@ const client_1 = require("@prisma/client");
 const audit_log_redaction_util_1 = require("../../common/audit/audit-log-redaction.util");
 const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const company_read_scope_1 = require("../../common/auth/company-read-scope");
+const internal_rbac_1 = require("../../common/auth/internal-rbac");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const audit_log_policy_config_1 = require("./audit-log-policy.config");
@@ -120,6 +121,7 @@ let AuditLogsService = class AuditLogsService {
         return this.toDetail(row);
     }
     async export(user, query) {
+        (0, internal_rbac_1.assertInternalAdmin)(user);
         if (!this.policy.exportEnabled) {
             throw new common_1.ForbiddenException('Audit export is disabled.');
         }

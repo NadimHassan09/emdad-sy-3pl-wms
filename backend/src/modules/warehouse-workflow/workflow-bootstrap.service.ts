@@ -9,6 +9,7 @@ import { taskOnlyFlows } from './feature-flags';
 import { getFrontierBlockedReason } from './task-runnable.util';
 import { buildWorkflowTimelineSteps } from './workflow-timeline.helpers';
 import { WorkflowEngineService } from './workflow-engine.service';
+import { WORKFLOW_ACTIVE_STATUSES } from './workflow-active.util';
 
 export type {
   InboundPutawayPayload,
@@ -201,7 +202,7 @@ export class WorkflowBootstrapService {
         referenceType,
         referenceId,
         companyId: tenantCompanyId,
-        status: { in: ['pending', 'in_progress', 'degraded'] },
+        status: { in: WORKFLOW_ACTIVE_STATUSES },
       },
       orderBy: { createdAt: 'desc' },
     });

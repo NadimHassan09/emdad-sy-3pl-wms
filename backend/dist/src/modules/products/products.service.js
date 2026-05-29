@@ -110,10 +110,8 @@ let ProductsService = class ProductsService {
         if (!includeArchived) {
             where.status = { in: ['active', 'suspended'] };
         }
-        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(this.companyAccess, user, query.companyId);
-        if (companyId) {
-            where.companyId = companyId;
-        }
+        const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
+        where.companyId = companyId;
         const and = [];
         if (query.search?.trim()) {
             const q = query.search.trim();

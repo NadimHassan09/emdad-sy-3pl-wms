@@ -5,8 +5,12 @@ import { Prisma, WarehouseTaskStatus } from '@prisma/client';
 
 import {
   assertEq,
+  cleanupDraftOutboundFixture,
   cleanupFixture,
   createBaseFixture,
+  createDraftOutboundFixture,
+  createOutboundServiceDeps,
+  createWorkflowEngineDeps,
   createServiceDeps,
   readReserved,
   reserveWithSnapshot,
@@ -330,6 +334,141 @@ async function testWebsocketReplaySafety() {
   }
 }
 
+async function testConcurrentOutboundConfirmTaskFlow() {
+  const deps = await createOutboundServiceDeps({ taskOnlyFlows: true });
+  const f = await createDraftOutboundFixture(deps.prisma);
+  try {
+    const body = { warehouseId: f.warehouseId };
+    await Promise.all([
+      deps.outbound.confirmAndDeduct(f.principal, f.outboundOrderId, body),
+      deps.outbound.confirmAndDeduct(f.principal, f.outboundOrderId, body),
+    ]);
+
+    const order = await deps.prisma.outboundOrder.findUniqueOrThrow({
+      where: { id: f.outboundOrderId },
+    });
+    assertEq(order.status, 'picking', 'concurrent confirm must claim order once');
+
+    const workflows = await deps.prisma.workflowInstance.findMany({
+      where: { referenceType: 'outbound_order', referenceId: f.outboundOrderId },
+    });
+    assert.equal(workflows.length, 1, 'concurrent confirm must not create duplicate workflows');
+
+    const pickTasks = await deps.prisma.warehouseTask.count({
+      where: { workflowInstanceId: workflows[0]!.id, taskType: 'pick' },
+    });
+    assertEq(pickTasks, 1, 'concurrent confirm must bootstrap exactly one pick task');
+  } finally {
+    await cleanupDraftOutboundFixture(deps.prisma, f);
+    await deps.prisma.$disconnect();
+  }
+}
+
+async function testConcurrentOutboundConfirmAtomicShip() {
+  const deps = await createOutboundServiceDeps({ taskOnlyFlows: false, deferDeduction: false });
+  const f = await createDraftOutboundFixture(deps.prisma);
+  try {
+    await seedOnHand(deps.stock, deps.prisma, f, '50');
+
+    await Promise.all([
+      deps.outbound.confirmAndDeduct(f.principal, f.outboundOrderId),
+      deps.outbound.confirmAndDeduct(f.principal, f.outboundOrderId),
+    ]);
+
+    const order = await deps.prisma.outboundOrder.findUniqueOrThrow({
+      where: { id: f.outboundOrderId },
+    });
+    assertEq(order.status, 'shipped', 'concurrent atomic confirm must ship once');
+
+    const stock = await deps.prisma.currentStock.findFirstOrThrow({
+      where: {
+        companyId: f.companyId,
+        productId: f.productId,
+        locationId: f.locationId,
+        lotId: null,
+        packageId: null,
+      },
+      select: { quantityAvailable: true },
+    });
+    assertEq(stock.quantityAvailable.toString(), '45', 'concurrent confirm must deduct stock exactly once');
+
+    const ledgerCount = await deps.prisma.inventoryLedger.count({
+      where: {
+        companyId: f.companyId,
+        referenceType: 'outbound_order',
+        referenceId: f.outboundOrderId,
+        movementType: 'outbound_pick',
+      },
+    });
+    assertEq(ledgerCount, 1, 'concurrent confirm must write one outbound_pick ledger row');
+  } finally {
+    await cleanupDraftOutboundFixture(deps.prisma, f);
+    await deps.prisma.$disconnect();
+  }
+}
+
+async function testConcurrentWorkflowBootstrap() {
+  const deps = await createWorkflowEngineDeps();
+  const f = await createDraftOutboundFixture(deps.prisma);
+  try {
+    await deps.prisma.outboundOrder.update({
+      where: { id: f.outboundOrderId },
+      data: { status: 'picking', confirmedAt: new Date(), pickingStartedAt: new Date() },
+    });
+
+    await Promise.all([
+      deps.prisma.$transaction((tx) =>
+        deps.engine.createOutboundInstanceWithFirstPickTask(tx, f.principal, f.outboundOrderId, f.warehouseId),
+      ),
+      deps.prisma.$transaction((tx) =>
+        deps.engine.createOutboundInstanceWithFirstPickTask(tx, f.principal, f.outboundOrderId, f.warehouseId),
+      ),
+    ]);
+
+    const workflows = await deps.prisma.workflowInstance.findMany({
+      where: {
+        referenceType: 'outbound_order',
+        referenceId: f.outboundOrderId,
+        status: { in: ['pending', 'in_progress', 'degraded'] },
+      },
+    });
+    assert.equal(workflows.length, 1, 'concurrent bootstrap must leave one active workflow');
+
+    const pickTasks = await deps.prisma.warehouseTask.count({
+      where: { workflowInstanceId: workflows[0]!.id, taskType: 'pick' },
+    });
+    assertEq(pickTasks, 1, 'concurrent bootstrap must create exactly one pick task');
+  } finally {
+    await cleanupDraftOutboundFixture(deps.prisma, f);
+    await deps.prisma.$disconnect();
+  }
+}
+
+async function testDuplicateOutboundConfirmReplay() {
+  const deps = await createOutboundServiceDeps({ taskOnlyFlows: false, deferDeduction: false });
+  const f = await createDraftOutboundFixture(deps.prisma);
+  try {
+    await seedOnHand(deps.stock, deps.prisma, f, '50');
+    await deps.outbound.confirmAndDeduct(f.principal, f.outboundOrderId);
+    await deps.outbound.confirmAndDeduct(f.principal, f.outboundOrderId);
+
+    const stock = await deps.prisma.currentStock.findFirstOrThrow({
+      where: {
+        companyId: f.companyId,
+        productId: f.productId,
+        locationId: f.locationId,
+        lotId: null,
+        packageId: null,
+      },
+      select: { quantityAvailable: true },
+    });
+    assertEq(stock.quantityAvailable.toString(), '45', 'replay confirm must not double-deduct');
+  } finally {
+    await cleanupDraftOutboundFixture(deps.prisma, f);
+    await deps.prisma.$disconnect();
+  }
+}
+
 async function runAll() {
   const tests: TestCase[] = [
     { name: 'concurrent pick.start()', run: testConcurrentPickStart },
@@ -343,6 +482,10 @@ async function runAll() {
     { name: 'inventory consistency validate', run: testInventoryConsistencyValidate },
     { name: 'reservation invariant rollback', run: testReservationInvariantRollback },
     { name: 'websocket replay safety', run: testWebsocketReplaySafety },
+    { name: 'concurrent workflow bootstrap', run: testConcurrentWorkflowBootstrap },
+    { name: 'concurrent outbound confirm (task flow)', run: testConcurrentOutboundConfirmTaskFlow },
+    { name: 'concurrent outbound confirm (atomic ship)', run: testConcurrentOutboundConfirmAtomicShip },
+    { name: 'duplicate outbound confirm replay', run: testDuplicateOutboundConfirmReplay },
   ];
 
   const failures: Array<{ name: string; error: unknown }> = [];

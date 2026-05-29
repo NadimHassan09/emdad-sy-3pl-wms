@@ -204,6 +204,42 @@ enum OutboundLineStatus {
   @@map("outbound_line_status")
 }
 
+enum ReturnOrderStatus {
+  draft
+  confirmed
+  receiving
+  completed
+  cancelled
+
+  @@map("return_order_status")
+}
+
+enum ReturnItemCondition {
+  new
+  good
+  damaged
+  unusable
+
+  @@map("return_item_condition")
+}
+
+enum ReturnItemDisposition {
+  restock
+  quarantine
+  scrap
+
+  @@map("return_item_disposition")
+}
+
+enum PackageStatus {
+  in_warehouse
+  shipped
+  returned
+  scrapped
+
+  @@map("package_status")
+}
+
 enum NotificationChannel {
   in_app
   email
@@ -218,6 +254,52 @@ enum AdjustmentStatus {
   cancelled
 
   @@map("adjustment_status")
+}
+
+enum CycleCountStatus {
+  scheduled
+  in_progress
+  pending_review
+  completed
+  cancelled
+
+  @@map("cycle_count_status")
+}
+
+enum CycleCountLineStatus {
+  pending
+  counted
+  skipped
+
+  @@map("cycle_count_line_status")
+}
+
+enum CycleCountSource {
+  scheduled
+  manual
+
+  @@map("cycle_count_source")
+}
+
+enum VarianceReasonCode {
+  damaged
+  lost
+  misplaced
+  theft_suspected
+  counting_mistake
+  operational_correction
+  unknown
+
+  @@map("variance_reason_code")
+}
+
+enum CycleCountVarianceStatus {
+  pending_review
+  approved
+  rejected
+  posted
+
+  @@map("cycle_count_variance_status")
 }
 
 enum WorkerOperationalStatus {
@@ -327,13 +409,18 @@ model Company {
   products       Product[]
   inboundOrders  InboundOrder[]
   outboundOrders OutboundOrder[]
+  returnOrders   ReturnOrder[]
   currentStock   CurrentStock[]
   ledgerEntries     InventoryLedger[]
-  stockAdjustments  StockAdjustment[]
-  workers           Worker[]
-  workflowInstances WorkflowInstance[]
-  notifications     Notification[]
-  userCompanyAccess UserCompanyAccess[]
+  stockAdjustments       StockAdjustment[]
+  cycleCountSchedules    CycleCountSchedule[]
+  cycleCounts            CycleCount[]
+  cycleCountVariances    CycleCountVariance[]
+  cycleCountProductHistory CycleCountProductHistory[]
+  workers                Worker[]
+  workflowInstances      WorkflowInstance[]
+  notifications          Notification[]
+  userCompanyAccess      UserCompanyAccess[]
 
   @@map("companies")
 }
@@ -370,6 +457,8 @@ model User {
   company             Company?         @relation(fields: [companyId], references: [id])
   inboundOrdersOwned           InboundOrder[]           @relation("InboundCreatedBy")
   outboundOrdersOwned          OutboundOrder[]          @relation("OutboundCreatedBy")
+  returnOrdersOwned            ReturnOrder[]            @relation("ReturnCreatedBy")
+  returnOrdersCancelled        ReturnOrder[]            @relation("ReturnCancelledBy")
   ledgerEntries                InventoryLedger[]
   stockAdjustmentsCreated      StockAdjustment[]        @relation("AdjustmentCreatedBy")
   stockAdjustmentsApproved     StockAdjustment[]        @relation("AdjustmentApprovedBy")
@@ -379,8 +468,45 @@ model User {
   warehouseTasksCompleted WarehouseTask[]            @relation("WarehouseTaskCompleter")
   notifications           Notification[]
   companyAccess           UserCompanyAccess[]
+  authRefreshSessions     AuthRefreshSession[]
+  cycleCountSchedulesCreated CycleCountSchedule[] @relation("CycleCountScheduleCreator")
+  cycleCountsCreated         CycleCount[]         @relation("CycleCountCreator")
+  cycleCountLinesCounted     CycleCountLine[]     @relation("CycleCountLineCounter")
+  cycleCountVariancesReviewed CycleCountVariance[] @relation("CycleCountVarianceReviewer")
 
   @@map("users")
+}
+
+/// Server-side refresh token family (Phase 6.5 replay protection).
+model AuthRefreshSession {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  currentJti   String    @unique @map("current_jti") @db.Uuid
+  tokenVersion Int       @map("token_version")
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  rotatedAt    DateTime  @default(now()) @map("rotated_at") @db.Timestamptz(6)
+
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rotations  AuthRefreshRotation[]
+
+  @@index([userId])
+  @@index([userId, revokedAt])
+  @@map("auth_refresh_sessions")
+}
+
+/// Idempotent replay of parallel refresh with the same presented JTI.
+model AuthRefreshRotation {
+  sessionId String   @map("session_id") @db.Uuid
+  fromJti   String   @map("from_jti") @db.Uuid
+  toJti     String   @map("to_jti") @db.Uuid
+  rotatedAt DateTime @default(now()) @map("rotated_at") @db.Timestamptz(6)
+
+  session AuthRefreshSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, fromJti])
+  @@map("auth_refresh_rotations")
 }
 
 model Warehouse {
@@ -397,9 +523,13 @@ model Warehouse {
 
   locations           Location[]
   currentStock        CurrentStock[]
-  stockAdjustments    StockAdjustment[]
-  workers             Worker[]
-  workflowInstances   WorkflowInstance[]
+  stockAdjustments      StockAdjustment[]
+  cycleCountSchedules   CycleCountSchedule[]
+  cycleCounts           CycleCount[]
+  cycleCountVariances   CycleCountVariance[]
+  cycleCountProductHistory CycleCountProductHistory[]
+  workers               Worker[]
+  workflowInstances     WorkflowInstance[]
 
   @@map("warehouses")
 }
@@ -430,6 +560,9 @@ model Location {
   children     Location[]   @relation("LocationParent")
   currentStock           CurrentStock[]
   stockAdjustmentLines   StockAdjustmentLine[]
+  cycleCountLines        CycleCountLine[]
+  cycleCountVariances    CycleCountVariance[]
+  packages               Package[]
 
   @@map("locations")
 }
@@ -460,8 +593,13 @@ model Product {
   currentStock      CurrentStock[]
   inboundLines         InboundOrderLine[]
   outboundLines        OutboundOrderLine[]
+  returnOrderLines     ReturnOrderLine[]
+  packages             Package[]
   ledgerEntries        InventoryLedger[]
-  stockAdjustmentLines StockAdjustmentLine[]
+  stockAdjustmentLines       StockAdjustmentLine[]
+  cycleCountLines            CycleCountLine[]
+  cycleCountVariances        CycleCountVariance[]
+  cycleCountProductHistory   CycleCountProductHistory[]
 
   @@unique([companyId, sku], map: "uq_product_sku_per_company")
   @@map("products")
@@ -480,6 +618,10 @@ model Lot {
   currentStock  CurrentStock[]
   ledgerEntries          InventoryLedger[]
   stockAdjustmentLines   StockAdjustmentLine[]
+  cycleCountLines        CycleCountLine[]
+  cycleCountVariances    CycleCountVariance[]
+  returnOrderLines       ReturnOrderLine[]
+  packages               Package[]
 
   @@unique([productId, lotNumber], map: "uq_lot_per_product")
   @@map("lots")
@@ -543,42 +685,204 @@ model InventoryLedger {
 }
 
 model StockAdjustment {
-  id         String           @id @default(uuid()) @db.Uuid
-  companyId  String           @map("company_id") @db.Uuid
-  warehouseId String          @map("warehouse_id") @db.Uuid
-  reason     String
-  status     AdjustmentStatus @default(draft)
-  approvedBy String?        @map("approved_by") @db.Uuid
-  approvedAt DateTime?       @map("approved_at") @db.Timestamptz(6)
-  createdBy  String           @map("created_by") @db.Uuid
-  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id            String           @id @default(uuid()) @db.Uuid
+  companyId     String           @map("company_id") @db.Uuid
+  warehouseId   String           @map("warehouse_id") @db.Uuid
+  cycleCountId  String?          @map("cycle_count_id") @db.Uuid
+  reason        String
+  status        AdjustmentStatus @default(draft)
+  approvedBy    String?          @map("approved_by") @db.Uuid
+  approvedAt    DateTime?        @map("approved_at") @db.Timestamptz(6)
+  createdBy     String           @map("created_by") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  company   Company              @relation(fields: [companyId], references: [id])
-  warehouse Warehouse            @relation(fields: [warehouseId], references: [id])
-  creator   User                 @relation("AdjustmentCreatedBy", fields: [createdBy], references: [id])
-  approver  User?                @relation("AdjustmentApprovedBy", fields: [approvedBy], references: [id])
-  lines     StockAdjustmentLine[]
+  company    Company              @relation(fields: [companyId], references: [id])
+  warehouse  Warehouse            @relation(fields: [warehouseId], references: [id])
+  cycleCount CycleCount?          @relation(fields: [cycleCountId], references: [id])
+  creator    User                 @relation("AdjustmentCreatedBy", fields: [createdBy], references: [id])
+  approver   User?                @relation("AdjustmentApprovedBy", fields: [approvedBy], references: [id])
+  lines      StockAdjustmentLine[]
+  variances  CycleCountVariance[]
 
+  @@index([cycleCountId])
   @@map("stock_adjustments")
 }
 
 model StockAdjustmentLine {
-  id              String   @id @default(uuid()) @db.Uuid
-  adjustmentId    String   @map("adjustment_id") @db.Uuid
-  productId       String   @map("product_id") @db.Uuid
-  locationId      String   @map("location_id") @db.Uuid
-  lotId           String?  @map("lot_id") @db.Uuid
-  quantityBefore  Decimal  @map("quantity_before") @db.Decimal(15, 4)
-  quantityAfter   Decimal  @map("quantity_after") @db.Decimal(15, 4)
-  reasonNote      String?  @map("reason_note")
+  id                   String   @id @default(uuid()) @db.Uuid
+  adjustmentId         String   @map("adjustment_id") @db.Uuid
+  productId            String   @map("product_id") @db.Uuid
+  locationId           String   @map("location_id") @db.Uuid
+  lotId                String?  @map("lot_id") @db.Uuid
+  quantityBefore       Decimal  @map("quantity_before") @db.Decimal(15, 4)
+  quantityAfter        Decimal  @map("quantity_after") @db.Decimal(15, 4)
+  reasonNote           String?  @map("reason_note")
+  cycleCountVarianceId String?  @unique @map("cycle_count_variance_id") @db.Uuid
 
-  adjustment StockAdjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
-  product    Product          @relation(fields: [productId], references: [id])
-  location   Location         @relation(fields: [locationId], references: [id])
-  lot        Lot?             @relation(fields: [lotId], references: [id])
+  adjustment         StockAdjustment      @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  product            Product              @relation(fields: [productId], references: [id])
+  location           Location             @relation(fields: [locationId], references: [id])
+  lot                Lot?                 @relation(fields: [lotId], references: [id])
+  cycleCountVariance CycleCountVariance?  @relation(fields: [cycleCountVarianceId], references: [id])
 
   @@map("stock_adjustment_lines")
+}
+
+// ---------------------------------------------------------------------------
+// CYCLE COUNT (Phase 7.1)
+// ---------------------------------------------------------------------------
+
+/// Warehouse admin recurrence config — one row per company + warehouse.
+model CycleCountSchedule {
+  id                 String   @id @default(uuid()) @db.Uuid
+  companyId          String   @map("company_id") @db.Uuid
+  warehouseId        String   @map("warehouse_id") @db.Uuid
+  intervalDays       Int      @map("interval_days")
+  enabled            Boolean  @default(true)
+  includeZeroOnHand  Boolean  @default(false) @map("include_zero_on_hand")
+  lastRunAt          DateTime? @map("last_run_at") @db.Timestamptz(6)
+  nextRunAt          DateTime? @map("next_run_at") @db.Timestamptz(6)
+  createdBy          String   @map("created_by") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  creator   User      @relation("CycleCountScheduleCreator", fields: [createdBy], references: [id])
+  counts    CycleCount[]
+
+  @@unique([companyId, warehouseId], map: "cycle_count_schedules_company_warehouse_uidx")
+  @@index([enabled, nextRunAt], map: "idx_cycle_count_schedules_due")
+  @@map("cycle_count_schedules")
+}
+
+/// Operational count session (header). Inventory is not mutated on complete in Phase 7.1.
+model CycleCount {
+  id               String           @id @default(uuid()) @db.Uuid
+  scheduleId       String?          @map("schedule_id") @db.Uuid
+  companyId        String           @map("company_id") @db.Uuid
+  warehouseId      String           @map("warehouse_id") @db.Uuid
+  status           CycleCountStatus @default(scheduled)
+  source           CycleCountSource
+  snapshotAt         DateTime?        @map("snapshot_at") @db.Timestamptz(6)
+  blindCount         Boolean          @default(true) @map("blind_count")
+  assignedWorkerId   String?          @map("assigned_worker_id") @db.Uuid
+  executingWorkerId  String?          @map("executing_worker_id") @db.Uuid
+  createdBy          String           @map("created_by") @db.Uuid
+  startedAt        DateTime?        @map("started_at") @db.Timestamptz(6)
+  completedAt      DateTime?        @map("completed_at") @db.Timestamptz(6)
+  notes            String?
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company        Company             @relation(fields: [companyId], references: [id])
+  warehouse      Warehouse           @relation(fields: [warehouseId], references: [id])
+  schedule       CycleCountSchedule? @relation(fields: [scheduleId], references: [id])
+  assignedWorker  Worker?             @relation("CycleCountSessionAssignee", fields: [assignedWorkerId], references: [id])
+  executingWorker Worker?             @relation("CycleCountExecutingWorker", fields: [executingWorkerId], references: [id])
+  creator         User                @relation("CycleCountCreator", fields: [createdBy], references: [id])
+  lines           CycleCountLine[]
+  variances       CycleCountVariance[]
+  stockAdjustments StockAdjustment[]
+
+  @@index([companyId, warehouseId, status], map: "idx_cycle_counts_company_wh_status")
+  @@index([assignedWorkerId, status], map: "idx_cycle_counts_worker_status")
+  @@index([executingWorkerId], map: "idx_cycle_counts_executing_worker")
+  @@index([scheduleId])
+  @@map("cycle_counts")
+}
+
+/// Per location / lot grain — expected qty frozen at snapshot time.
+model CycleCountLine {
+  id                  String               @id @default(uuid()) @db.Uuid
+  cycleCountId        String               @map("cycle_count_id") @db.Uuid
+  productId           String               @map("product_id") @db.Uuid
+  locationId          String               @map("location_id") @db.Uuid
+  lotId               String?              @map("lot_id") @db.Uuid
+  expectedQuantity    Decimal              @map("expected_quantity") @db.Decimal(15, 4)
+  actualQuantity      Decimal?             @map("actual_quantity") @db.Decimal(15, 4)
+  discrepancyQuantity Decimal?             @map("discrepancy_quantity") @db.Decimal(15, 4)
+  status              CycleCountLineStatus @default(pending)
+  assignedWorkerId    String?              @map("assigned_worker_id") @db.Uuid
+  countedBy           String?              @map("counted_by") @db.Uuid
+  countedAt           DateTime?            @map("counted_at") @db.Timestamptz(6)
+  countNotes          String?              @map("count_notes")
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cycleCount     CycleCount @relation(fields: [cycleCountId], references: [id], onDelete: Cascade)
+  product        Product    @relation(fields: [productId], references: [id])
+  location       Location   @relation(fields: [locationId], references: [id])
+  lot            Lot?       @relation(fields: [lotId], references: [id])
+  assignedWorker Worker?    @relation("CycleCountLineAssignee", fields: [assignedWorkerId], references: [id])
+  counter        User?      @relation("CycleCountLineCounter", fields: [countedBy], references: [id])
+  variance       CycleCountVariance?
+
+  @@index([cycleCountId])
+  @@index([productId])
+  @@index([assignedWorkerId, status], map: "idx_cycle_count_lines_worker_status")
+  @@map("cycle_count_lines")
+}
+
+/// Inventory discrepancy from a counted cycle count line — review before adjustment.
+model CycleCountVariance {
+  id                   String                   @id @default(uuid()) @db.Uuid
+  cycleCountId         String                   @map("cycle_count_id") @db.Uuid
+  cycleCountLineId     String                   @unique @map("cycle_count_line_id") @db.Uuid
+  companyId            String                   @map("company_id") @db.Uuid
+  warehouseId          String                   @map("warehouse_id") @db.Uuid
+  productId            String                   @map("product_id") @db.Uuid
+  locationId           String                   @map("location_id") @db.Uuid
+  lotId                String?                  @map("lot_id") @db.Uuid
+  expectedQuantity     Decimal                  @map("expected_quantity") @db.Decimal(15, 4)
+  actualQuantity       Decimal                  @map("actual_quantity") @db.Decimal(15, 4)
+  discrepancyQuantity  Decimal                  @map("discrepancy_quantity") @db.Decimal(15, 4)
+  reasonCode           VarianceReasonCode?      @map("reason_code")
+  status               CycleCountVarianceStatus @default(pending_review)
+  reviewNotes          String?                  @map("review_notes")
+  reviewedBy           String?                  @map("reviewed_by") @db.Uuid
+  reviewedAt           DateTime?                @map("reviewed_at") @db.Timestamptz(6)
+  stockAdjustmentId    String?                  @map("stock_adjustment_id") @db.Uuid
+  postedAt             DateTime?                @map("posted_at") @db.Timestamptz(6)
+  createdAt            DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                 @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  cycleCount          CycleCount            @relation(fields: [cycleCountId], references: [id], onDelete: Cascade)
+  cycleCountLine      CycleCountLine        @relation(fields: [cycleCountLineId], references: [id], onDelete: Cascade)
+  company             Company               @relation(fields: [companyId], references: [id])
+  warehouse           Warehouse             @relation(fields: [warehouseId], references: [id])
+  product             Product               @relation(fields: [productId], references: [id])
+  location            Location              @relation(fields: [locationId], references: [id])
+  lot                 Lot?                  @relation(fields: [lotId], references: [id])
+  reviewer            User?                 @relation("CycleCountVarianceReviewer", fields: [reviewedBy], references: [id])
+  stockAdjustment     StockAdjustment?      @relation(fields: [stockAdjustmentId], references: [id])
+  adjustmentLine      StockAdjustmentLine?
+
+  @@index([cycleCountId, status], map: "idx_cycle_count_variances_count_status")
+  @@index([companyId, status], map: "idx_cycle_count_variances_company_status")
+  @@map("cycle_count_variances")
+}
+
+/// Product-level last count + next due for recurrence (updated when a count completes).
+model CycleCountProductHistory {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  warehouseId     String    @map("warehouse_id") @db.Uuid
+  productId       String    @map("product_id") @db.Uuid
+  lastCountedAt   DateTime  @map("last_counted_at") @db.Timestamptz(6)
+  lastCycleCountId String?  @map("last_cycle_count_id") @db.Uuid
+  nextDueAt       DateTime? @map("next_due_at") @db.Timestamptz(6)
+  completionCount Int       @default(1) @map("completion_count")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company   Company   @relation(fields: [companyId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@unique([companyId, warehouseId, productId], map: "cycle_count_product_history_uidx")
+  @@index([companyId, warehouseId, nextDueAt], map: "idx_cycle_count_product_history_due")
+  @@map("cycle_count_product_history")
 }
 
 // ---------------------------------------------------------------------------
@@ -656,9 +960,10 @@ model OutboundOrder {
   createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  company Company             @relation(fields: [companyId], references: [id])
-  creator User                @relation("OutboundCreatedBy", fields: [createdBy], references: [id])
-  lines   OutboundOrderLine[]
+  company      Company             @relation(fields: [companyId], references: [id])
+  creator      User                @relation("OutboundCreatedBy", fields: [createdBy], references: [id])
+  lines        OutboundOrderLine[]
+  returnOrders ReturnOrder[]
 
   @@map("outbound_orders")
 }
@@ -675,10 +980,92 @@ model OutboundOrderLine {
   createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  order   OutboundOrder @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
-  product Product       @relation(fields: [productId], references: [id])
+  order              OutboundOrder      @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
+  product            Product            @relation(fields: [productId], references: [id])
+  returnOrderLines   ReturnOrderLine[]
 
   @@map("outbound_order_lines")
+}
+
+// ---------------------------------------------------------------------------
+// RETURNS
+// ---------------------------------------------------------------------------
+
+model Package {
+  id          String        @id @default(uuid()) @db.Uuid
+  productId   String        @map("product_id") @db.Uuid
+  lotId       String?       @map("lot_id") @db.Uuid
+  locationId  String?       @map("location_id") @db.Uuid
+  packageCode String        @unique @map("package_code")
+  status      PackageStatus @default(in_warehouse)
+  receivedAt  DateTime      @default(now()) @map("received_at") @db.Timestamptz(6)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime      @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  product            Product           @relation(fields: [productId], references: [id])
+  lot                Lot?              @relation(fields: [lotId], references: [id])
+  location           Location?         @relation(fields: [locationId], references: [id])
+  returnOrders       ReturnOrder[]
+  returnOrderLines   ReturnOrderLine[]
+
+  @@index([productId], map: "idx_packages_product")
+  @@map("packages")
+}
+
+model ReturnOrder {
+  id                      String            @id @default(uuid()) @db.Uuid
+  companyId               String            @map("company_id") @db.Uuid
+  /// DEFAULT '' — populated by trigger fn_return_order_number on INSERT
+  orderNumber             String            @unique @default("") @map("order_number")
+  originalOutboundOrderId String?           @map("original_outbound_order_id") @db.Uuid
+  packageId               String?           @map("package_id") @db.Uuid
+  shipmentReference       String?           @map("shipment_reference")
+  clientReference         String?           @map("client_reference")
+  status                  ReturnOrderStatus @default(draft)
+  notes                   String?
+  confirmedAt             DateTime?         @map("confirmed_at") @db.Timestamptz(6)
+  receivingStartedAt      DateTime?         @map("receiving_started_at") @db.Timestamptz(6)
+  completedAt             DateTime?         @map("completed_at") @db.Timestamptz(6)
+  cancelledAt             DateTime?         @map("cancelled_at") @db.Timestamptz(6)
+  cancelledBy             String?           @map("cancelled_by") @db.Uuid
+  createdBy               String            @map("created_by") @db.Uuid
+  createdAt               DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company          Company        @relation(fields: [companyId], references: [id])
+  creator          User           @relation("ReturnCreatedBy", fields: [createdBy], references: [id])
+  canceller        User?          @relation("ReturnCancelledBy", fields: [cancelledBy], references: [id])
+  originalOutbound OutboundOrder? @relation(fields: [originalOutboundOrderId], references: [id])
+  package          Package?       @relation(fields: [packageId], references: [id])
+  lines            ReturnOrderLine[]
+
+  @@index([companyId], map: "idx_return_orders_company")
+  @@map("return_orders")
+}
+
+model ReturnOrderLine {
+  id                   String                 @id @default(uuid()) @db.Uuid
+  returnOrderId        String                 @map("return_order_id") @db.Uuid
+  productId            String                 @map("product_id") @db.Uuid
+  outboundOrderLineId  String?                @map("outbound_order_line_id") @db.Uuid
+  packageId            String?                @map("package_id") @db.Uuid
+  lotId                String?                @map("lot_id") @db.Uuid
+  expectedQuantity     Decimal                @map("expected_quantity") @db.Decimal(15, 4)
+  receivedQuantity     Decimal                @default(0) @map("received_quantity") @db.Decimal(15, 4)
+  condition            ReturnItemCondition?
+  disposition          ReturnItemDisposition?
+  lineNumber           Int                    @default(1) @map("line_number")
+  createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime               @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  returnOrder       ReturnOrder        @relation(fields: [returnOrderId], references: [id], onDelete: Cascade)
+  product           Product            @relation(fields: [productId], references: [id])
+  outboundOrderLine OutboundOrderLine? @relation(fields: [outboundOrderLineId], references: [id])
+  package           Package?           @relation(fields: [packageId], references: [id])
+  lot               Lot?               @relation(fields: [lotId], references: [id])
+
+  @@index([returnOrderId], map: "idx_return_lines")
+  @@map("return_order_lines")
 }
 
 // ---------------------------------------------------------------------------
@@ -709,8 +1096,11 @@ model Worker {
   warehouse       Warehouse?            @relation(fields: [warehouseId], references: [id])
   user            User?                 @relation(fields: [userId], references: [id])
   roles           WorkerRoleAssignment[]
-  taskAssignments TaskAssignment[]
-  skills          WorkerSkill[]
+  taskAssignments          TaskAssignment[]
+  skills                   WorkerSkill[]
+  cycleCountsAssigned      CycleCount[]     @relation("CycleCountSessionAssignee")
+  cycleCountsExecuting     CycleCount[]     @relation("CycleCountExecutingWorker")
+  cycleCountLinesAssigned  CycleCountLine[] @relation("CycleCountLineAssignee")
 
   @@index([companyId])
   @@index([warehouseId])
@@ -770,6 +1160,8 @@ model WorkflowInstance {
 
   @@index([companyId])
   @@index([referenceType, referenceId])
+  // Partial unique (migration 20260629140000): workflow_instances_one_active_per_reference_uidx
+  // — one row per reference while status ∈ pending | in_progress | degraded
   @@map("workflow_instances")
 }
 

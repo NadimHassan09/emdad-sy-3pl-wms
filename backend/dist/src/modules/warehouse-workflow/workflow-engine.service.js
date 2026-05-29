@@ -15,6 +15,7 @@ const client_1 = require("@prisma/client");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const task_sla_defaults_1 = require("./task-sla-defaults");
+const workflow_active_util_1 = require("./workflow-active.util");
 const DEF_INBOUND = 'inbound_default_v1';
 const DEF_OUTBOUND = 'outbound_default_v1';
 let WorkflowEngineService = class WorkflowEngineService {
@@ -24,6 +25,7 @@ let WorkflowEngineService = class WorkflowEngineService {
     }
     async createInboundInstanceWithFirstReceiveTask(tx, user, orderId, warehouseId, stagingOverrides) {
         const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
+        await (0, workflow_active_util_1.lockWorkflowReferenceOrder)(tx, client_1.WorkflowReferenceType.inbound_order, orderId);
         const order = await tx.inboundOrder.findUnique({
             where: { id: orderId },
             include: {
@@ -37,19 +39,9 @@ let WorkflowEngineService = class WorkflowEngineService {
         if (!['confirmed', 'in_progress', 'partially_received'].includes(order.status)) {
             throw new domain_exceptions_1.InvalidStateException('Workflow can only start for an active inbound order.');
         }
-        const existing = await tx.workflowInstance.findFirst({
-            where: {
-                referenceType: 'inbound_order',
-                referenceId: orderId,
-                status: { in: ['pending', 'in_progress', 'degraded'] },
-            },
-        });
+        const existing = await (0, workflow_active_util_1.findActiveWorkflowForReference)(tx, client_1.WorkflowReferenceType.inbound_order, orderId);
         if (existing) {
-            const tasks = await tx.warehouseTask.findMany({
-                where: { workflowInstanceId: existing.id },
-                orderBy: { id: 'asc' },
-            });
-            return { workflowInstance: existing, nodes: [], tasks };
+            return (0, workflow_active_util_1.loadWorkflowBootstrapBundle)(tx, existing.id);
         }
         const staging = stagingOverrides ?? {};
         const linesPayload = order.lines.map((l) => {
@@ -63,51 +55,54 @@ let WorkflowEngineService = class WorkflowEngineService {
                 staging_location_id: sid,
             };
         });
-        const wf = await tx.workflowInstance.create({
-            data: {
-                companyId: tenantCompanyId,
-                warehouseId,
-                referenceType: 'inbound_order',
-                referenceId: orderId,
-                definitionCode: DEF_INBOUND,
-                status: 'in_progress',
-                metadata: { createdByUserId: user.id, stage: 'receiving' },
-            },
-        });
-        const nRecv = await tx.workflowNode.create({
-            data: {
-                instanceId: wf.id,
-                stepKind: client_1.WorkflowStepKind.receiving,
-                sequence: 1,
-                status: 'in_progress',
-            },
-        });
-        const recvPayload = {
-            inbound_order_id: orderId,
-            lines: linesPayload,
-        };
-        await tx.warehouseTask.create({
-            data: {
-                workflowInstanceId: wf.id,
-                workflowNodeId: nRecv.id,
-                taskType: client_1.WarehouseTaskType.receiving,
-                status: client_1.WarehouseTaskStatus.pending,
-                slaMinutes: (0, task_sla_defaults_1.defaultSlaMinutesForTaskType)(client_1.WarehouseTaskType.receiving),
-                payload: recvPayload,
-            },
-        });
-        const tasks = await tx.warehouseTask.findMany({
-            where: { workflowInstanceId: wf.id },
-            orderBy: { id: 'asc' },
-        });
-        const nodes = await tx.workflowNode.findMany({
-            where: { instanceId: wf.id },
-            orderBy: { sequence: 'asc' },
-        });
-        return { workflowInstance: wf, nodes, tasks };
+        try {
+            const wf = await tx.workflowInstance.create({
+                data: {
+                    companyId: tenantCompanyId,
+                    warehouseId,
+                    referenceType: client_1.WorkflowReferenceType.inbound_order,
+                    referenceId: orderId,
+                    definitionCode: DEF_INBOUND,
+                    status: 'in_progress',
+                    metadata: { createdByUserId: user.id, stage: 'receiving' },
+                },
+            });
+            const nRecv = await tx.workflowNode.create({
+                data: {
+                    instanceId: wf.id,
+                    stepKind: client_1.WorkflowStepKind.receiving,
+                    sequence: 1,
+                    status: 'in_progress',
+                },
+            });
+            const recvPayload = {
+                inbound_order_id: orderId,
+                lines: linesPayload,
+            };
+            await tx.warehouseTask.create({
+                data: {
+                    workflowInstanceId: wf.id,
+                    workflowNodeId: nRecv.id,
+                    taskType: client_1.WarehouseTaskType.receiving,
+                    status: client_1.WarehouseTaskStatus.pending,
+                    slaMinutes: (0, task_sla_defaults_1.defaultSlaMinutesForTaskType)(client_1.WarehouseTaskType.receiving),
+                    payload: recvPayload,
+                },
+            });
+            return (0, workflow_active_util_1.loadWorkflowBootstrapBundle)(tx, wf.id);
+        }
+        catch (err) {
+            if ((0, workflow_active_util_1.isActiveWorkflowUniqueViolation)(err)) {
+                const replay = await (0, workflow_active_util_1.findActiveWorkflowForReference)(tx, client_1.WorkflowReferenceType.inbound_order, orderId);
+                if (replay)
+                    return (0, workflow_active_util_1.loadWorkflowBootstrapBundle)(tx, replay.id);
+            }
+            throw err;
+        }
     }
     async createOutboundInstanceWithFirstPickTask(tx, user, orderId, warehouseId) {
         const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
+        await (0, workflow_active_util_1.lockWorkflowReferenceOrder)(tx, client_1.WorkflowReferenceType.outbound_order, orderId);
         const order = await tx.outboundOrder.findUnique({
             where: { id: orderId },
             include: { lines: { orderBy: { lineNumber: 'asc' } } },
@@ -118,34 +113,10 @@ let WorkflowEngineService = class WorkflowEngineService {
         if (order.status !== 'picking' && order.status !== 'confirmed') {
             throw new domain_exceptions_1.InvalidStateException('Workflow requires confirmed / picking outbound order.');
         }
-        const existing = await tx.workflowInstance.findFirst({
-            where: {
-                referenceType: 'outbound_order',
-                referenceId: orderId,
-                status: { in: ['pending', 'in_progress', 'degraded'] },
-            },
-        });
+        const existing = await (0, workflow_active_util_1.findActiveWorkflowForReference)(tx, client_1.WorkflowReferenceType.outbound_order, orderId);
         if (existing) {
-            const tasks = await tx.warehouseTask.findMany({
-                where: { workflowInstanceId: existing.id },
-                orderBy: { id: 'asc' },
-            });
-            return { workflowInstance: existing, nodes: [], tasks };
+            return (0, workflow_active_util_1.loadWorkflowBootstrapBundle)(tx, existing.id);
         }
-        const wf = await tx.workflowInstance.create({
-            data: {
-                companyId: tenantCompanyId,
-                warehouseId,
-                referenceType: 'outbound_order',
-                referenceId: orderId,
-                definitionCode: DEF_OUTBOUND,
-                status: 'in_progress',
-                metadata: { createdByUserId: user.id, stage: 'pick' },
-            },
-        });
-        const nPick = await tx.workflowNode.create({
-            data: { instanceId: wf.id, stepKind: client_1.WorkflowStepKind.pick, sequence: 1, status: 'in_progress' },
-        });
         const pickPayload = {
             outbound_order_id: orderId,
             lines: order.lines.map((l) => ({
@@ -153,25 +124,46 @@ let WorkflowEngineService = class WorkflowEngineService {
                 requested_qty: l.requestedQuantity.toString(),
             })),
         };
-        await tx.warehouseTask.create({
-            data: {
-                workflowInstanceId: wf.id,
-                workflowNodeId: nPick.id,
-                taskType: client_1.WarehouseTaskType.pick,
-                status: client_1.WarehouseTaskStatus.pending,
-                slaMinutes: (0, task_sla_defaults_1.defaultSlaMinutesForTaskType)(client_1.WarehouseTaskType.pick),
-                payload: pickPayload,
-            },
-        });
-        const tasks = await tx.warehouseTask.findMany({
-            where: { workflowInstanceId: wf.id },
-            orderBy: { id: 'asc' },
-        });
-        const nodes = await tx.workflowNode.findMany({
-            where: { instanceId: wf.id },
-            orderBy: { sequence: 'asc' },
-        });
-        return { workflowInstance: wf, nodes, tasks };
+        try {
+            const wf = await tx.workflowInstance.create({
+                data: {
+                    companyId: tenantCompanyId,
+                    warehouseId,
+                    referenceType: client_1.WorkflowReferenceType.outbound_order,
+                    referenceId: orderId,
+                    definitionCode: DEF_OUTBOUND,
+                    status: 'in_progress',
+                    metadata: { createdByUserId: user.id, stage: 'pick' },
+                },
+            });
+            const nPick = await tx.workflowNode.create({
+                data: {
+                    instanceId: wf.id,
+                    stepKind: client_1.WorkflowStepKind.pick,
+                    sequence: 1,
+                    status: 'in_progress',
+                },
+            });
+            await tx.warehouseTask.create({
+                data: {
+                    workflowInstanceId: wf.id,
+                    workflowNodeId: nPick.id,
+                    taskType: client_1.WarehouseTaskType.pick,
+                    status: client_1.WarehouseTaskStatus.pending,
+                    slaMinutes: (0, task_sla_defaults_1.defaultSlaMinutesForTaskType)(client_1.WarehouseTaskType.pick),
+                    payload: pickPayload,
+                },
+            });
+            return (0, workflow_active_util_1.loadWorkflowBootstrapBundle)(tx, wf.id);
+        }
+        catch (err) {
+            if ((0, workflow_active_util_1.isActiveWorkflowUniqueViolation)(err)) {
+                const replay = await (0, workflow_active_util_1.findActiveWorkflowForReference)(tx, client_1.WorkflowReferenceType.outbound_order, orderId);
+                if (replay)
+                    return (0, workflow_active_util_1.loadWorkflowBootstrapBundle)(tx, replay.id);
+            }
+            throw err;
+        }
     }
 };
 exports.WorkflowEngineService = WorkflowEngineService;

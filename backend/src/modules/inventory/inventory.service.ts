@@ -7,7 +7,10 @@ import {
 } from '@nestjs/common';
 import { MovementType, Prisma, ProductTrackingType } from '@prisma/client';
 
-import { readCompanyIdFilter } from '../../common/auth/company-read-scope';
+import {
+  readCompanyIdFilter,
+  readCompanyIdFilterRequired,
+} from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { isAdjustmentStockLocationType } from '../../common/constants/storage-location-types';
@@ -144,12 +147,12 @@ export class InventoryService {
     user: AuthPrincipal,
     query: StockQueryDto,
   ): Promise<Prisma.CurrentStockWhereInput> {
-    const companyId = readCompanyIdFilter(this.companyAccess, user, query.companyId);
+    const companyId = readCompanyIdFilterRequired(this.companyAccess, user, query.companyId);
 
     const and: Prisma.CurrentStockWhereInput[] = [
       { quantityOnHand: { gt: 0 } },
+      { companyId },
     ];
-    if (companyId) and.push({ companyId });
     if (query.productId) and.push({ productId: query.productId });
     if (query.warehouseId) and.push({ warehouseId: query.warehouseId });
 
@@ -324,8 +327,8 @@ export class InventoryService {
   async ledger(user: AuthPrincipal, query: LedgerQueryDto) {
     const andParts: Prisma.InventoryLedgerWhereInput[] = [];
 
-    const companyId = readCompanyIdFilter(this.companyAccess, user, query.companyId);
-    if (companyId) andParts.push({ companyId });
+    const companyId = readCompanyIdFilterRequired(this.companyAccess, user, query.companyId);
+    andParts.push({ companyId });
     if (query.productId) {
       andParts.push({ productId: query.productId });
     } else if (query.sku?.trim()) {

@@ -107,12 +107,11 @@ let InventoryService = class InventoryService {
         }
     }
     async resolveCurrentStockWhere(user, query) {
-        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(this.companyAccess, user, query.companyId);
+        const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
         const and = [
             { quantityOnHand: { gt: 0 } },
+            { companyId },
         ];
-        if (companyId)
-            and.push({ companyId });
         if (query.productId)
             and.push({ productId: query.productId });
         if (query.warehouseId)
@@ -260,9 +259,8 @@ let InventoryService = class InventoryService {
     }
     async ledger(user, query) {
         const andParts = [];
-        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(this.companyAccess, user, query.companyId);
-        if (companyId)
-            andParts.push({ companyId });
+        const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
+        andParts.push({ companyId });
         if (query.productId) {
             andParts.push({ productId: query.productId });
         }

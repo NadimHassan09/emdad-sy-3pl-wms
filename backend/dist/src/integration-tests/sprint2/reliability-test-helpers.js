@@ -1,6 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createServiceDeps = createServiceDeps;
+exports.createOutboundServiceDeps = createOutboundServiceDeps;
+exports.createWorkflowEngineDeps = createWorkflowEngineDeps;
+exports.createDraftOutboundFixture = createDraftOutboundFixture;
+exports.cleanupDraftOutboundFixture = cleanupDraftOutboundFixture;
 exports.createBaseFixture = createBaseFixture;
 exports.seedOnHand = seedOnHand;
 exports.reserveWithSnapshot = reserveWithSnapshot;
@@ -16,6 +20,9 @@ const ledger_idempotency_service_1 = require("../../modules/inventory/ledger-ide
 const stock_helpers_1 = require("../../modules/inventory/stock.helpers");
 const task_inventory_effects_service_1 = require("../../modules/warehouse-workflow/task-inventory-effects.service");
 const warehouse_tasks_service_1 = require("../../modules/warehouse-workflow/warehouse-tasks.service");
+const outbound_service_1 = require("../../modules/outbound/outbound.service");
+const workflow_bootstrap_service_1 = require("../../modules/warehouse-workflow/workflow-bootstrap.service");
+const workflow_engine_service_1 = require("../../modules/warehouse-workflow/workflow-engine.service");
 function companyAccessMock() {
     return {
         assertSameCompany(user, workflowCompanyId) {
@@ -36,6 +43,12 @@ function companyAccessMock() {
             if (user.companyId !== resource.companyId && !user.authorizedCompanyIds.includes(resource.companyId)) {
                 throw new Error('cross-tenant resource');
             }
+        },
+        requireActiveTenant(user) {
+            const id = user.companyId;
+            if (!id)
+                throw new Error('missing tenant');
+            return id;
         },
     };
 }
@@ -80,6 +93,164 @@ async function createServiceDeps() {
     };
     const tasks = new warehouse_tasks_service_1.WarehouseTasksService(prisma, effects, cacheInv, orchestration, taskReadCache, realtime, notifications, companyAccess, audit);
     return { prisma, tasks, stock, consistency, realtimeCalls, notificationCalls };
+}
+function configMock(flags) {
+    return {
+        get: (key) => flags[key] ?? '',
+    };
+}
+async function createOutboundServiceDeps(opts) {
+    const prisma = new prisma_service_1.PrismaService();
+    await prisma.$connect();
+    const companyAccess = companyAccessMock();
+    const consistency = new inventory_consistency_service_1.InventoryConsistencyService(prisma, companyAccess);
+    const stock = new stock_helpers_1.StockHelpers(consistency);
+    const ledger = new ledger_idempotency_service_1.LedgerIdempotencyService(prisma);
+    const config = configMock({
+        TASK_ONLY_FLOWS: opts?.taskOnlyFlows === false ? 'false' : 'true',
+        TASK_WORKFLOW_OUTBOUND_CONFIRM_DEFERS_DEDUCTION: opts?.deferDeduction ? 'true' : 'false',
+    });
+    const engine = new workflow_engine_service_1.WorkflowEngineService(companyAccess);
+    const workflowBootstrap = new workflow_bootstrap_service_1.WorkflowBootstrapService(prisma, config, engine, companyAccess);
+    const realtime = {
+        emitOutboundOrderUpdated: () => undefined,
+        emitInventoryChanged: () => undefined,
+    };
+    const notifications = {
+        notifyClientOrderConfirmed: async () => undefined,
+        dismissPendingAdminNotifications: async () => undefined,
+        notifyClientOrderCompleted: async () => undefined,
+    };
+    const audit = {
+        log: async () => undefined,
+        fromPrincipal: (_principal, patch) => patch,
+    };
+    const outbound = new outbound_service_1.OutboundService(prisma, stock, ledger, config, workflowBootstrap, realtime, notifications, companyAccess, audit);
+    return { prisma, outbound, stock, engine };
+}
+async function createWorkflowEngineDeps() {
+    const prisma = new prisma_service_1.PrismaService();
+    await prisma.$connect();
+    const companyAccess = companyAccessMock();
+    const engine = new workflow_engine_service_1.WorkflowEngineService(companyAccess);
+    return { prisma, engine };
+}
+async function createDraftOutboundFixture(prisma) {
+    const tag = `oc-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    const companyId = (0, node_crypto_1.randomUUID)();
+    const warehouseId = (0, node_crypto_1.randomUUID)();
+    const userId = (0, node_crypto_1.randomUUID)();
+    const locationId = (0, node_crypto_1.randomUUID)();
+    const productId = (0, node_crypto_1.randomUUID)();
+    const outboundOrderId = (0, node_crypto_1.randomUUID)();
+    const outboundOrderLineId = (0, node_crypto_1.randomUUID)();
+    await prisma.company.create({
+        data: {
+            id: companyId,
+            name: `IT ${tag}`,
+            contactEmail: `${tag}@example.com`,
+        },
+    });
+    await prisma.user.create({
+        data: {
+            id: userId,
+            companyId: null,
+            email: `${tag}.user@example.com`,
+            passwordHash: 'x',
+            fullName: `User ${tag}`,
+            role: 'super_admin',
+            status: 'active',
+        },
+    });
+    await prisma.warehouse.create({
+        data: {
+            id: warehouseId,
+            name: `WH ${tag}`,
+            code: `WH${tag}`.slice(0, 20),
+            status: 'active',
+        },
+    });
+    await prisma.location.create({
+        data: {
+            id: locationId,
+            warehouseId,
+            name: `LOC ${tag}`,
+            fullPath: `/A/${tag}`,
+            type: 'internal',
+            barcode: `BC${tag}`,
+            status: 'active',
+        },
+    });
+    await prisma.product.create({
+        data: {
+            id: productId,
+            companyId,
+            name: `P ${tag}`,
+            sku: `SKU-${tag}`,
+            trackingType: 'none',
+            uom: 'piece',
+            status: 'active',
+        },
+    });
+    await prisma.outboundOrder.create({
+        data: {
+            id: outboundOrderId,
+            companyId,
+            destinationAddress: `ADDR ${tag}`,
+            requiredShipDate: new Date(),
+            createdBy: userId,
+            status: 'draft',
+            requiresPacking: false,
+        },
+    });
+    await prisma.outboundOrderLine.create({
+        data: {
+            id: outboundOrderLineId,
+            outboundOrderId,
+            productId,
+            requestedQuantity: new client_1.Prisma.Decimal('5'),
+            pickedQuantity: new client_1.Prisma.Decimal('0'),
+            lineNumber: 1,
+            status: 'pending',
+        },
+    });
+    const principal = {
+        id: userId,
+        companyId,
+        role: 'super_admin',
+        tenantScope: 'all',
+        authorizedCompanyIds: [companyId],
+        email: `${tag}.user@example.com`,
+    };
+    return {
+        principal,
+        companyId,
+        userId,
+        warehouseId,
+        locationId,
+        productId,
+        outboundOrderId,
+        outboundOrderLineId,
+    };
+}
+async function cleanupDraftOutboundFixture(prisma, f) {
+    const wfIds = (await prisma.workflowInstance.findMany({
+        where: { referenceType: 'outbound_order', referenceId: f.outboundOrderId },
+        select: { id: true },
+    })).map((w) => w.id);
+    if (wfIds.length > 0) {
+        await prisma.taskEvent.deleteMany({ where: { task: { workflowInstanceId: { in: wfIds } } } });
+        await prisma.taskAssignment.deleteMany({ where: { task: { workflowInstanceId: { in: wfIds } } } });
+        await prisma.warehouseTaskRequiredSkill.deleteMany({
+            where: { task: { workflowInstanceId: { in: wfIds } } },
+        });
+        await prisma.warehouseTask.deleteMany({ where: { workflowInstanceId: { in: wfIds } } });
+        await prisma.workflowNode.deleteMany({ where: { instanceId: { in: wfIds } } });
+        await prisma.workflowInstance.deleteMany({ where: { id: { in: wfIds } } });
+    }
+    await prisma.outboundOrderLine.deleteMany({ where: { outboundOrderId: f.outboundOrderId } });
+    await prisma.outboundOrder.deleteMany({ where: { id: f.outboundOrderId } });
+    await prisma.currentStock.deleteMany({ where: { companyId: f.companyId } });
 }
 async function createBaseFixture(prisma, opts) {
     const tag = `it-${Date.now()}-${Math.floor(Math.random() * 10000)}`;

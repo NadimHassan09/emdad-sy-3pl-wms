@@ -8,22 +8,19 @@ import { ListProductsQueryDto } from '../../products/dto/list-products-query.dto
 import { ClientCreateProductDto } from './dto/client-create-product.dto';
 import { ClientProductsService } from './client-products.service';
 
+@Public()
+@UseGuards(JwtClientAuthGuard)
 @Controller('client/products')
 export class ClientProductsController {
   constructor(private readonly products: ClientProductsService) {}
 
-  @Public()
   @Get()
-  @UseGuards(JwtClientAuthGuard)
   list(@ClientUser() client: ClientPrincipal, @Query() query: ListProductsQueryDto) {
     return this.products.list(client, query);
   }
 
-  @Public()
   @Post()
-  @UseGuards(JwtClientAuthGuard)
   create(@ClientUser() client: ClientPrincipal, @Body() dto: ClientCreateProductDto) {
     return this.products.create(client, dto);
   }
 }
-

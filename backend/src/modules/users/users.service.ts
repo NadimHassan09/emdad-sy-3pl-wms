@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { assertInternalAdmin } from '../../common/auth/internal-rbac';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PasswordService } from '../../common/crypto/password.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -124,6 +125,7 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto, actor: AuthPrincipal) {
+    assertInternalAdmin(actor);
     const email = dto.email.trim().toLowerCase();
     const existing = await this.prisma.user.count({ where: { email } });
     if (existing) {
@@ -198,6 +200,7 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto, actor: AuthPrincipal) {
+    assertInternalAdmin(actor);
     const keys = Object.keys(dto).filter((k) => dto[k as keyof UpdateUserDto] !== undefined);
     if (keys.length === 0) {
       throw new BadRequestException('No changes provided.');
@@ -270,6 +273,13 @@ export class UsersService {
         select: USER_LIST_SELECT,
       });
 
+      if (dto.status === UserStatus.inactive) {
+        await tx.authRefreshSession.updateMany({
+          where: { userId: id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+
       if (isSystem) {
         await this.syncWorkerForSystemUser(tx, id, effectiveRole, effectiveName, effectiveStatus, actor);
       }
@@ -287,6 +297,7 @@ export class UsersService {
   }
 
   async remove(id: string, actor: AuthPrincipal) {
+    assertInternalAdmin(actor);
     if (actor.id === id) {
       throw new ForbiddenException('You cannot delete your own user account.');
     }

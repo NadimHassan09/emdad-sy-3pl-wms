@@ -17,6 +17,8 @@ const crypto_module_1 = require("../../common/crypto/crypto.module");
 const prisma_module_1 = require("../../common/prisma/prisma.module");
 const auth_controller_1 = require("./auth.controller");
 const auth_service_1 = require("./auth.service");
+const refresh_session_service_1 = require("./refresh-session.service");
+const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard");
 const roles_guard_1 = require("../../common/auth/roles.guard");
 const jwt_strategy_1 = require("./strategies/jwt.strategy");
 const user_activity_service_1 = require("./user-activity.service");
@@ -42,8 +44,22 @@ exports.AuthModule = AuthModule = __decorate([
             crypto_module_1.CryptoModule,
         ],
         controllers: [auth_controller_1.AuthController],
-        providers: [auth_service_1.AuthService, jwt_strategy_1.JwtStrategy, roles_guard_1.RolesGuard, user_activity_service_1.UserActivityService],
-        exports: [auth_service_1.AuthService, jwt_1.JwtModule, roles_guard_1.RolesGuard, user_activity_service_1.UserActivityService],
+        providers: [
+            auth_service_1.AuthService,
+            refresh_session_service_1.RefreshSessionService,
+            jwt_strategy_1.JwtStrategy,
+            roles_guard_1.RolesGuard,
+            internal_admin_guard_1.InternalAdminGuard,
+            user_activity_service_1.UserActivityService,
+        ],
+        exports: [
+            auth_service_1.AuthService,
+            refresh_session_service_1.RefreshSessionService,
+            jwt_1.JwtModule,
+            roles_guard_1.RolesGuard,
+            internal_admin_guard_1.InternalAdminGuard,
+            user_activity_service_1.UserActivityService,
+        ],
     })
 ], AuthModule);
 //# sourceMappingURL=auth.module.js.map

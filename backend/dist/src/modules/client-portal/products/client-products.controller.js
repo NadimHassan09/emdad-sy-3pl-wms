@@ -34,9 +34,7 @@ let ClientProductsController = class ClientProductsController {
 };
 exports.ClientProductsController = ClientProductsController;
 __decorate([
-    (0, public_decorator_1.Public)(),
     (0, common_1.Get)(),
-    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
@@ -44,9 +42,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ClientProductsController.prototype, "list", null);
 __decorate([
-    (0, public_decorator_1.Public)(),
     (0, common_1.Post)(),
-    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -54,6 +50,8 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ClientProductsController.prototype, "create", null);
 exports.ClientProductsController = ClientProductsController = __decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     (0, common_1.Controller)('client/products'),
     __metadata("design:paramtypes", [client_products_service_1.ClientProductsService])
 ], ClientProductsController);

@@ -6,8 +6,10 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 
+import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
@@ -57,14 +59,16 @@ export class AdjustmentsController {
 
   @Patch(':id/lines/:lineId')
   patchLine(
+    @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
     @Param('lineId', ParseUuidLoosePipe) lineId: string,
     @Body() dto: PatchAdjustmentLineDto,
   ) {
-    return this.adjustments.patchLine(id, lineId, dto);
+    return this.adjustments.patchLine(user, id, lineId, dto);
   }
 
   @Post(':id/approve')
+  @UseGuards(InternalAdminGuard)
   approve(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.adjustments.approve(user, id);
   }

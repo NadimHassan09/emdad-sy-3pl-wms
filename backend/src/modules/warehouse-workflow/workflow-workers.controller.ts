@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 
 import type { WorkerOperationalRole } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
+import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { WorkflowWorkersService } from './workflow-workers.service';
 
 @Controller('workers')
@@ -24,6 +25,7 @@ export class WorkflowWorkersController {
   }
 
   @Post()
+  @UseGuards(InternalAdminGuard)
   create(
     @CurrentUser() user: AuthPrincipal,
     @Body()

@@ -147,9 +147,8 @@ let InboundService = class InboundService {
     async list(user, query) {
         const baseAnd = [];
         const where = {};
-        const companyId = (0, company_read_scope_1.readCompanyIdFilter)(this.companyAccess, user, query.companyId);
-        if (companyId)
-            where.companyId = companyId;
+        const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
+        where.companyId = companyId;
         if (query.status)
             where.status = query.status;
         if (query.orderSearch?.trim()) {

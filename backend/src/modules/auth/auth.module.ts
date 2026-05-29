@@ -9,6 +9,8 @@ import { CryptoModule } from '../../common/crypto/crypto.module';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { RefreshSessionService } from './refresh-session.service';
+import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { RolesGuard } from '../../common/auth/roles.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UserActivityService } from './user-activity.service';
@@ -32,7 +34,21 @@ import { UserActivityService } from './user-activity.service';
     CryptoModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, RolesGuard, UserActivityService],
-  exports: [AuthService, JwtModule, RolesGuard, UserActivityService],
+  providers: [
+    AuthService,
+    RefreshSessionService,
+    JwtStrategy,
+    RolesGuard,
+    InternalAdminGuard,
+    UserActivityService,
+  ],
+  exports: [
+    AuthService,
+    RefreshSessionService,
+    JwtModule,
+    RolesGuard,
+    InternalAdminGuard,
+    UserActivityService,
+  ],
 })
 export class AuthModule {}

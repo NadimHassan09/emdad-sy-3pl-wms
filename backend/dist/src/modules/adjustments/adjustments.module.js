@@ -19,6 +19,7 @@ exports.AdjustmentsModule = AdjustmentsModule = __decorate([
         imports: [inventory_module_1.InventoryModule],
         controllers: [adjustments_controller_1.AdjustmentsController],
         providers: [adjustments_service_1.AdjustmentsService],
+        exports: [adjustments_service_1.AdjustmentsService],
     })
 ], AdjustmentsModule);
 //# sourceMappingURL=adjustments.module.js.map
