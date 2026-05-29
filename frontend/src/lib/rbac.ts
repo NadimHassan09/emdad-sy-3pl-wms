@@ -47,6 +47,13 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     roles: ['super_admin', 'wh_manager', 'wh_operator'],
   },
   {
+    labelKey: 'Returns',
+    iconKey: 'Orders',
+    to: '/returns',
+    match: (p) => p.startsWith('/returns'),
+    roles: ['super_admin', 'wh_manager', 'wh_operator'],
+  },
+  {
     labelKey: 'Products',
     iconKey: 'Products',
     to: '/products',
@@ -100,6 +107,7 @@ function routeGroup(pathname: string): string {
   if (p === '/internal') return 'internal';
   if (p.startsWith('/tasks')) return 'tasks';
   if (p.startsWith('/cycle-count')) return 'cycle-count';
+  if (p.startsWith('/returns')) return 'returns';
   if (p.startsWith('/products')) return 'products';
   if (p.startsWith('/locations')) return 'locations';
   if (p.startsWith('/clients')) return 'clients';
@@ -115,6 +123,7 @@ const ROUTE_GROUP_ROLES: Record<string, InternalRole[]> = {
   inventory: ['super_admin', 'wh_manager', 'finance'],
   tasks: ['super_admin', 'wh_manager', 'wh_operator'],
   'cycle-count': ['super_admin', 'wh_manager', 'wh_operator'],
+  returns: ['super_admin', 'wh_manager', 'wh_operator'],
   internal: ['super_admin', 'wh_manager'],
   products: ['super_admin', 'wh_manager'],
   locations: ['super_admin', 'wh_manager'],

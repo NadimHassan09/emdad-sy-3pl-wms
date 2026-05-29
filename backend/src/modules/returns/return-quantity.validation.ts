@@ -11,9 +11,90 @@ export type ReturnLineQuantityInput = {
   expectedQuantity: Prisma.Decimal;
 };
 
+export type OutboundReturnQuotaLine = {
+  outboundOrderLineId: string;
+  productId: string;
+  sku: string;
+  shippedQuantity: string;
+  alreadyReturned: string;
+  remaining: string;
+};
+
+export type OutboundReturnQuota = {
+  outboundOrderId: string;
+  orderNumber: string;
+  status: string;
+  lines: OutboundReturnQuotaLine[];
+};
+
 @Injectable()
 export class ReturnQuantityValidation {
   constructor(private readonly prisma: PrismaService) {}
+
+  private client(tx?: Prisma.TransactionClient) {
+    return tx ?? this.prisma;
+  }
+
+  /**
+   * Remaining returnable quantity per outbound line (for create UI / abuse visibility).
+   */
+  async getOutboundReturnQuota(
+    originalOutboundOrderId: string,
+    excludeReturnOrderId?: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<OutboundReturnQuota> {
+    const outbound = await this.client(tx).outboundOrder.findUnique({
+      where: { id: originalOutboundOrderId },
+      include: {
+        lines: {
+          select: {
+            id: true,
+            productId: true,
+            pickedQuantity: true,
+            product: { select: { sku: true } },
+          },
+          orderBy: { lineNumber: 'asc' },
+        },
+      },
+    });
+    if (!outbound) {
+      throw new NotFoundException('Original outbound order not found.');
+    }
+    if (outbound.status !== OutboundOrderStatus.shipped) {
+      throw new BadRequestException(
+        'Return quota is only available for shipped outbound orders.',
+      );
+    }
+
+    const quotaLines: OutboundReturnQuotaLine[] = [];
+    for (const line of outbound.lines) {
+      const alreadyReturned = await this.sumActiveReturnQuantity(
+        originalOutboundOrderId,
+        `line:${line.id}`,
+        excludeReturnOrderId,
+        tx,
+      );
+      const remaining = Prisma.Decimal.max(
+        line.pickedQuantity.sub(alreadyReturned),
+        new Prisma.Decimal(0),
+      );
+      quotaLines.push({
+        outboundOrderLineId: line.id,
+        productId: line.productId,
+        sku: line.product.sku,
+        shippedQuantity: line.pickedQuantity.toString(),
+        alreadyReturned: alreadyReturned.toString(),
+        remaining: remaining.toString(),
+      });
+    }
+
+    return {
+      outboundOrderId: outbound.id,
+      orderNumber: outbound.orderNumber,
+      status: outbound.status,
+      lines: quotaLines,
+    };
+  }
 
   /**
    * Ensures cumulative return quantities do not exceed quantities shipped on the
@@ -23,8 +104,9 @@ export class ReturnQuantityValidation {
     originalOutboundOrderId: string,
     lines: ReturnLineQuantityInput[],
     excludeReturnOrderId?: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<void> {
-    const outbound = await this.prisma.outboundOrder.findUnique({
+    const outbound = await this.client(tx).outboundOrder.findUnique({
       where: { id: originalOutboundOrderId },
       include: {
         lines: {
@@ -102,6 +184,7 @@ export class ReturnQuantityValidation {
         originalOutboundOrderId,
         key,
         excludeReturnOrderId,
+        tx,
       );
       const total = alreadyReturned.add(add);
       if (total.gt(max)) {
@@ -117,6 +200,7 @@ export class ReturnQuantityValidation {
     outboundOrderId: string,
     bucketKey: string,
     excludeReturnOrderId?: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<Prisma.Decimal> {
     const isLineBucket = bucketKey.startsWith('line:');
     const outboundOrderLineId = isLineBucket ? bucketKey.slice(5) : undefined;
@@ -126,7 +210,7 @@ export class ReturnQuantityValidation {
     const lotId = !isLineBucket && bucketKey.includes(':lot:')
       ? bucketKey.split(':lot:')[1]
       : undefined;
-    const rows = await this.prisma.returnOrderLine.findMany({
+    const rows = await this.client(tx).returnOrderLine.findMany({
       where: {
         returnOrder: {
           originalOutboundOrderId: outboundOrderId,

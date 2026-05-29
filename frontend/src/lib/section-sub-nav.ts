@@ -112,6 +112,17 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
     ],
   },
   {
+    ariaLabelKey: 'Returns navigation',
+    matchSection: (p) => p.startsWith('/returns') && !/^\/returns\/[^/]+(\/process)?$/.test(p),
+    items: [
+      {
+        labelKey: 'Dashboard',
+        to: '/returns',
+        match: (p) => p === '/returns',
+      },
+    ],
+  },
+  {
     ariaLabelKey: 'Cycle count navigation',
     matchSection: (p) => {
       if (!p.startsWith('/cycle-count')) return false;
@@ -170,6 +181,7 @@ export function sectionSubNavLabel(label: string, isArabic: boolean): string {
     Pack: 'تغليف',
     Delivery: 'تسليم',
     'Internal transfer': 'نقل داخلي',
+    'Returns navigation': 'تنقل الإرجاعات',
     'Cycle count navigation': 'تنقل الجرد',
     Dashboard: 'لوحة الجرد',
     'My tasks': 'مهامي',

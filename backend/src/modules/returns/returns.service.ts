@@ -6,9 +6,11 @@ import {
 import {
   Prisma,
   ProductTrackingType,
+  ReturnLineStatus,
   ReturnOrderStatus,
 } from '@prisma/client';
 
+import { AuditLogService } from '../../common/audit/audit-log.service';
 import { readCompanyIdFilterRequired } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
@@ -21,7 +23,15 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateReturnOrderDto } from './dto/create-return-order.dto';
 import { ListReturnOrdersQueryDto } from './dto/list-return-orders-query.dto';
 import { ReceiveReturnLineDto } from './dto/receive-return-line.dto';
+import { ApplyReturnDispositionDto } from './dto/apply-return-disposition.dto';
+import { InspectReturnLineDto } from './dto/inspect-return-line.dto';
+import { lockOutboundOrderRow } from '../outbound/outbound-confirm-lock.util';
+import {
+  assertUniqueReturnLineBuckets,
+  buildReturnListSummary,
+} from './return-line-integrity.util';
 import { ReturnQuantityValidation } from './return-quantity.validation';
+import { ReturnWorkflowService } from './return-workflow.service';
 import {
   isReturnCompletable,
   isReturnConfirmable,
@@ -40,6 +50,7 @@ const ORDER_INCLUDE = {
       shippedAt: true,
     },
   },
+  warehouse: { select: { id: true, code: true, name: true } },
   package: { select: { id: true, packageCode: true, status: true } },
   lines: {
     orderBy: { lineNumber: 'asc' as const },
@@ -58,6 +69,7 @@ const ORDER_INCLUDE = {
       lot: { select: { id: true, lotNumber: true } },
       outboundOrderLine: { select: { id: true, lineNumber: true, pickedQuantity: true } },
       package: { select: { id: true, packageCode: true } },
+      targetLocation: { select: { id: true, fullPath: true, type: true } },
     },
   },
 } satisfies Prisma.ReturnOrderInclude;
@@ -68,10 +80,13 @@ export class ReturnsService {
     private readonly prisma: PrismaService,
     private readonly companyAccess: CompanyAccessService,
     private readonly quantityGuard: ReturnQuantityValidation,
+    private readonly workflow: ReturnWorkflowService,
+    private readonly audit: AuditLogService,
   ) {}
 
   async create(user: AuthPrincipal, dto: CreateReturnOrderDto) {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
+    assertUniqueReturnLineBuckets(dto.lines);
 
     if (dto.originalOutboundOrderId) {
       const outbound = await this.prisma.outboundOrder.findUnique({
@@ -88,6 +103,9 @@ export class ReturnsService {
 
     if (dto.packageId) {
       await this.assertPackageForCompany(dto.packageId, companyId);
+    }
+    if (dto.warehouseId) {
+      await this.assertWarehouse(dto.warehouseId);
     }
 
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
@@ -166,9 +184,10 @@ export class ReturnsService {
       );
     }
 
-    return this.prisma.returnOrder.create({
+    const order = await this.prisma.returnOrder.create({
       data: {
         companyId,
+        warehouseId: dto.warehouseId ?? null,
         originalOutboundOrderId: dto.originalOutboundOrderId ?? null,
         packageId: dto.packageId ?? null,
         shipmentReference: dto.shipmentReference?.trim() || null,
@@ -179,6 +198,18 @@ export class ReturnsService {
       },
       include: ORDER_INCLUDE,
     });
+
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        companyId,
+        action: 'return.created',
+        resourceType: 'return_order',
+        resourceId: order.id,
+        newState: { orderNumber: order.orderNumber, lineCount: order.lines.length },
+      }),
+    );
+
+    return order;
   }
 
   async list(user: AuthPrincipal, query: ListReturnOrdersQueryDto) {
@@ -218,12 +249,42 @@ export class ReturnsService {
           company: { select: { id: true, name: true } },
           originalOutbound: { select: { id: true, orderNumber: true, status: true } },
           _count: { select: { lines: true } },
+          lines: {
+            select: {
+              expectedQuantity: true,
+              receivedQuantity: true,
+              disposition: true,
+              product: { select: { sku: true } },
+            },
+          },
         },
         take: query.limit,
         skip: query.offset,
       }),
       this.prisma.returnOrder.count({ where }),
-    ]).then(([items, total]) => ({ items, total, limit: query.limit, offset: query.offset }));
+    ]).then(([rows, total]) => ({
+      items: rows.map(({ lines, ...order }) => ({
+        ...order,
+        summary: buildReturnListSummary(lines),
+      })),
+      total,
+      limit: query.limit,
+      offset: query.offset,
+    }));
+  }
+
+  async getOutboundReturnQuota(
+    user: AuthPrincipal,
+    outboundOrderId: string,
+    excludeReturnOrderId?: string,
+  ) {
+    const outbound = await this.prisma.outboundOrder.findUnique({
+      where: { id: outboundOrderId },
+      select: { id: true, companyId: true },
+    });
+    if (!outbound) throw new NotFoundException('Outbound order not found.');
+    this.companyAccess.validateResourceOwnership(user, outbound);
+    return this.quantityGuard.getOutboundReturnQuota(outboundOrderId, excludeReturnOrderId);
   }
 
   async findById(id: string, user: AuthPrincipal) {
@@ -249,24 +310,39 @@ export class ReturnsService {
     for (const line of order.lines) {
       assertProductOrderableForOrders(line.product.status);
     }
-    if (order.originalOutboundOrderId) {
-      await this.quantityGuard.assertWithinShippedLimits(
-        order.originalOutboundOrderId,
-        order.lines.map((l) => ({
-          productId: l.productId,
-          lotId: l.lotId,
-          outboundOrderLineId: l.outboundOrderLineId,
-          expectedQuantity: l.expectedQuantity,
-        })),
-        id,
-      );
-    }
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (order.originalOutboundOrderId) {
+        await lockOutboundOrderRow(tx, order.originalOutboundOrderId);
+        await this.quantityGuard.assertWithinShippedLimits(
+          order.originalOutboundOrderId,
+          order.lines.map((l) => ({
+            productId: l.productId,
+            lotId: l.lotId,
+            outboundOrderLineId: l.outboundOrderLineId,
+            expectedQuantity: l.expectedQuantity,
+          })),
+          id,
+          tx,
+        );
+      }
 
-    return this.prisma.returnOrder.update({
-      where: { id },
-      data: { status: ReturnOrderStatus.confirmed, confirmedAt: new Date() },
-      include: ORDER_INCLUDE,
+      return tx.returnOrder.update({
+        where: { id },
+        data: { status: ReturnOrderStatus.confirmed, confirmedAt: new Date() },
+        include: ORDER_INCLUDE,
+      });
     });
+
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        companyId: order.companyId,
+        action: 'return.confirmed',
+        resourceType: 'return_order',
+        resourceId: id,
+      }),
+    );
+
+    return updated;
   }
 
   async startReceiving(user: AuthPrincipal, id: string) {
@@ -310,29 +386,60 @@ export class ReturnsService {
       );
     }
 
-    const now = new Date();
+    const lineStatus =
+      nextReceived.gt(0) ? ReturnLineStatus.received : ReturnLineStatus.pending;
+
     const data: Prisma.ReturnOrderLineUpdateInput = {
       receivedQuantity: nextReceived,
+      lineStatus,
       ...(dto.condition !== undefined ? { condition: dto.condition } : {}),
-      ...(dto.disposition !== undefined ? { disposition: dto.disposition } : {}),
     };
 
-    return this.prisma.$transaction(async (tx) => {
-      if (order.status === ReturnOrderStatus.confirmed) {
-        await tx.returnOrder.update({
-          where: { id: returnOrderId },
-          data: {
-            status: ReturnOrderStatus.receiving,
-            receivingStartedAt: order.receivingStartedAt ?? now,
-          },
-        });
-      }
+    const result = await this.prisma.$transaction(async (tx) => {
+      await this.workflow.syncOrderWorkflowStatus(tx, returnOrderId, { receiving: true });
       await tx.returnOrderLine.update({ where: { id: lineId }, data });
       return tx.returnOrder.findUniqueOrThrow({
         where: { id: returnOrderId },
         include: ORDER_INCLUDE,
       });
     });
+
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        companyId: order.companyId,
+        action: 'return.line.received',
+        resourceType: 'return_order_line',
+        resourceId: lineId,
+        newState: {
+          returnOrderId,
+          receivedQuantity: nextReceived.toString(),
+        },
+      }),
+    );
+
+    return result;
+  }
+
+  inspectLine(
+    user: AuthPrincipal,
+    returnOrderId: string,
+    lineId: string,
+    dto: InspectReturnLineDto,
+  ) {
+    return this.workflow.inspectLine(user, returnOrderId, lineId, dto);
+  }
+
+  applyDisposition(
+    user: AuthPrincipal,
+    returnOrderId: string,
+    lineId: string,
+    dto: ApplyReturnDispositionDto,
+  ) {
+    return this.workflow.applyDisposition(user, returnOrderId, lineId, dto);
+  }
+
+  postAllInventory(user: AuthPrincipal, returnOrderId: string) {
+    return this.workflow.postAllEligibleLines(user, returnOrderId);
   }
 
   async complete(user: AuthPrincipal, id: string) {
@@ -348,18 +455,24 @@ export class ReturnsService {
         'All lines must be fully received before completing the return order.',
       );
     }
-    const missingDisposition = order.lines.find((l) => !l.disposition);
-    if (missingDisposition) {
-      throw new BadRequestException(
-        'Each line must have a disposition before completing the return.',
-      );
-    }
+    this.workflow.assertAllLinesPosted(order.lines);
 
-    return this.prisma.returnOrder.update({
+    const updated = await this.prisma.returnOrder.update({
       where: { id },
       data: { status: ReturnOrderStatus.completed, completedAt: new Date() },
       include: ORDER_INCLUDE,
     });
+
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        companyId: order.companyId,
+        action: 'return.completed',
+        resourceType: 'return_order',
+        resourceId: id,
+      }),
+    );
+
+    return updated;
   }
 
   async cancel(user: AuthPrincipal, id: string) {
@@ -375,7 +488,7 @@ export class ReturnsService {
       );
     }
 
-    return this.prisma.returnOrder.update({
+    const updated = await this.prisma.returnOrder.update({
       where: { id },
       data: {
         status: ReturnOrderStatus.cancelled,
@@ -384,6 +497,27 @@ export class ReturnsService {
       },
       include: ORDER_INCLUDE,
     });
+
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        companyId: order.companyId,
+        action: 'return.cancelled',
+        resourceType: 'return_order',
+        resourceId: id,
+      }),
+    );
+
+    return updated;
+  }
+
+  private async assertWarehouse(warehouseId: string) {
+    const wh = await this.prisma.warehouse.findUnique({
+      where: { id: warehouseId },
+      select: { id: true, status: true },
+    });
+    if (!wh || wh.status !== 'active') {
+      throw new NotFoundException('Warehouse not found.');
+    }
   }
 
   private async assertPackageForCompany(packageId: string, companyId: string) {

@@ -208,10 +208,20 @@ enum ReturnOrderStatus {
   draft
   confirmed
   receiving
+  inspecting
   completed
   cancelled
 
   @@map("return_order_status")
+}
+
+enum ReturnLineStatus {
+  pending
+  received
+  inspected
+  posted
+
+  @@map("return_line_status")
 }
 
 enum ReturnItemCondition {
@@ -227,6 +237,9 @@ enum ReturnItemDisposition {
   restock
   quarantine
   scrap
+  damaged
+  discard
+  inspection_required
 
   @@map("return_item_disposition")
 }
@@ -473,6 +486,7 @@ model User {
   cycleCountsCreated         CycleCount[]         @relation("CycleCountCreator")
   cycleCountLinesCounted     CycleCountLine[]     @relation("CycleCountLineCounter")
   cycleCountVariancesReviewed CycleCountVariance[] @relation("CycleCountVarianceReviewer")
+  returnLinesInspected        ReturnOrderLine[]    @relation("ReturnLineInspector")
 
   @@map("users")
 }
@@ -530,6 +544,7 @@ model Warehouse {
   cycleCountProductHistory CycleCountProductHistory[]
   workers               Worker[]
   workflowInstances     WorkflowInstance[]
+  returnOrders            ReturnOrder[]
 
   @@map("warehouses")
 }
@@ -563,6 +578,7 @@ model Location {
   cycleCountLines        CycleCountLine[]
   cycleCountVariances    CycleCountVariance[]
   packages               Package[]
+  returnOrderLines       ReturnOrderLine[]
 
   @@map("locations")
 }
@@ -1015,6 +1031,7 @@ model Package {
 model ReturnOrder {
   id                      String            @id @default(uuid()) @db.Uuid
   companyId               String            @map("company_id") @db.Uuid
+  warehouseId             String?           @map("warehouse_id") @db.Uuid
   /// DEFAULT '' — populated by trigger fn_return_order_number on INSERT
   orderNumber             String            @unique @default("") @map("order_number")
   originalOutboundOrderId String?           @map("original_outbound_order_id") @db.Uuid
@@ -1025,6 +1042,7 @@ model ReturnOrder {
   notes                   String?
   confirmedAt             DateTime?         @map("confirmed_at") @db.Timestamptz(6)
   receivingStartedAt      DateTime?         @map("receiving_started_at") @db.Timestamptz(6)
+  inspectingStartedAt     DateTime?         @map("inspecting_started_at") @db.Timestamptz(6)
   completedAt             DateTime?         @map("completed_at") @db.Timestamptz(6)
   cancelledAt             DateTime?         @map("cancelled_at") @db.Timestamptz(6)
   cancelledBy             String?           @map("cancelled_by") @db.Uuid
@@ -1033,6 +1051,7 @@ model ReturnOrder {
   updatedAt               DateTime          @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   company          Company        @relation(fields: [companyId], references: [id])
+  warehouse        Warehouse?     @relation(fields: [warehouseId], references: [id])
   creator          User           @relation("ReturnCreatedBy", fields: [createdBy], references: [id])
   canceller        User?          @relation("ReturnCancelledBy", fields: [cancelledBy], references: [id])
   originalOutbound OutboundOrder? @relation(fields: [originalOutboundOrderId], references: [id])
@@ -1052,8 +1071,15 @@ model ReturnOrderLine {
   lotId                String?                @map("lot_id") @db.Uuid
   expectedQuantity     Decimal                @map("expected_quantity") @db.Decimal(15, 4)
   receivedQuantity     Decimal                @default(0) @map("received_quantity") @db.Decimal(15, 4)
+  postedQuantity       Decimal                @default(0) @map("posted_quantity") @db.Decimal(15, 4)
+  lineStatus           ReturnLineStatus       @default(pending) @map("line_status")
   condition            ReturnItemCondition?
   disposition          ReturnItemDisposition?
+  targetLocationId     String?                @map("target_location_id") @db.Uuid
+  inspectionNotes      String?                @map("inspection_notes")
+  inspectedAt          DateTime?              @map("inspected_at") @db.Timestamptz(6)
+  inspectedBy          String?                @map("inspected_by") @db.Uuid
+  postedAt             DateTime?              @map("posted_at") @db.Timestamptz(6)
   lineNumber           Int                    @default(1) @map("line_number")
   createdAt            DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime               @default(now()) @map("updated_at") @db.Timestamptz(6)
@@ -1063,8 +1089,11 @@ model ReturnOrderLine {
   outboundOrderLine OutboundOrderLine? @relation(fields: [outboundOrderLineId], references: [id])
   package           Package?           @relation(fields: [packageId], references: [id])
   lot               Lot?               @relation(fields: [lotId], references: [id])
+  targetLocation    Location?          @relation(fields: [targetLocationId], references: [id])
+  inspector         User?              @relation("ReturnLineInspector", fields: [inspectedBy], references: [id])
 
   @@index([returnOrderId], map: "idx_return_lines")
+  @@index([returnOrderId, lineStatus], map: "idx_return_lines_status")
   @@map("return_order_lines")
 }
 

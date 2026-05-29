@@ -12,6 +12,8 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CreateReturnOrderDto } from './dto/create-return-order.dto';
 import { ListReturnOrdersQueryDto } from './dto/list-return-orders-query.dto';
+import { ApplyReturnDispositionDto } from './dto/apply-return-disposition.dto';
+import { InspectReturnLineDto } from './dto/inspect-return-line.dto';
 import { ReceiveReturnLineDto } from './dto/receive-return-line.dto';
 import { ReturnsService } from './returns.service';
 
@@ -27,6 +29,15 @@ export class ReturnsController {
   @Get()
   list(@CurrentUser() user: AuthPrincipal, @Query() query: ListReturnOrdersQueryDto) {
     return this.returns.list(user, query);
+  }
+
+  @Get('outbound-quota/:outboundId')
+  getOutboundQuota(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('outboundId', ParseUuidLoosePipe) outboundId: string,
+    @Query('excludeReturnOrderId') excludeReturnOrderId?: string,
+  ) {
+    return this.returns.getOutboundReturnQuota(user, outboundId, excludeReturnOrderId);
   }
 
   @Get(':id')
@@ -65,5 +76,33 @@ export class ReturnsController {
     @Body() dto: ReceiveReturnLineDto,
   ) {
     return this.returns.receiveLine(user, id, lineId, dto);
+  }
+
+  @Post(':id/lines/:lineId/inspect')
+  inspectLine(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Param('lineId', ParseUuidLoosePipe) lineId: string,
+    @Body() dto: InspectReturnLineDto,
+  ) {
+    return this.returns.inspectLine(user, id, lineId, dto);
+  }
+
+  @Post(':id/lines/:lineId/apply-disposition')
+  applyDisposition(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Param('lineId', ParseUuidLoosePipe) lineId: string,
+    @Body() dto: ApplyReturnDispositionDto,
+  ) {
+    return this.returns.applyDisposition(user, id, lineId, dto);
+  }
+
+  @Post(':id/post-inventory')
+  postInventory(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.returns.postAllInventory(user, id);
   }
 }

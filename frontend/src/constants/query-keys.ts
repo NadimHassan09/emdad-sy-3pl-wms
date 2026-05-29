@@ -64,6 +64,12 @@ export const QK = {
     list: (params: Record<string, unknown>) => ['audit-logs', 'list', params] as const,
     detail: (id: string) => ['audit-logs', 'detail', id] as const,
   },
+  returns: {
+    all: ['return-orders'] as const,
+    list: (params: Record<string, unknown>) => ['return-orders', 'list', params] as const,
+    detail: (id: string) => ['return-orders', 'detail', id] as const,
+    outboundQuota: (outboundId: string) => ['return-orders', 'outbound-quota', outboundId] as const,
+  },
   cycleCount: {
     all: ['cycle-count'] as const,
     list: (params: Record<string, unknown>) => ['cycle-count', 'list', params] as const,

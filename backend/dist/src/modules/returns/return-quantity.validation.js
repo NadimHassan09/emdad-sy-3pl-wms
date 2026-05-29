@@ -19,8 +19,52 @@ let ReturnQuantityValidation = class ReturnQuantityValidation {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async assertWithinShippedLimits(originalOutboundOrderId, lines, excludeReturnOrderId) {
-        const outbound = await this.prisma.outboundOrder.findUnique({
+    client(tx) {
+        return tx ?? this.prisma;
+    }
+    async getOutboundReturnQuota(originalOutboundOrderId, excludeReturnOrderId, tx) {
+        const outbound = await this.client(tx).outboundOrder.findUnique({
+            where: { id: originalOutboundOrderId },
+            include: {
+                lines: {
+                    select: {
+                        id: true,
+                        productId: true,
+                        pickedQuantity: true,
+                        product: { select: { sku: true } },
+                    },
+                    orderBy: { lineNumber: 'asc' },
+                },
+            },
+        });
+        if (!outbound) {
+            throw new common_1.NotFoundException('Original outbound order not found.');
+        }
+        if (outbound.status !== client_1.OutboundOrderStatus.shipped) {
+            throw new common_1.BadRequestException('Return quota is only available for shipped outbound orders.');
+        }
+        const quotaLines = [];
+        for (const line of outbound.lines) {
+            const alreadyReturned = await this.sumActiveReturnQuantity(originalOutboundOrderId, `line:${line.id}`, excludeReturnOrderId, tx);
+            const remaining = client_1.Prisma.Decimal.max(line.pickedQuantity.sub(alreadyReturned), new client_1.Prisma.Decimal(0));
+            quotaLines.push({
+                outboundOrderLineId: line.id,
+                productId: line.productId,
+                sku: line.product.sku,
+                shippedQuantity: line.pickedQuantity.toString(),
+                alreadyReturned: alreadyReturned.toString(),
+                remaining: remaining.toString(),
+            });
+        }
+        return {
+            outboundOrderId: outbound.id,
+            orderNumber: outbound.orderNumber,
+            status: outbound.status,
+            lines: quotaLines,
+        };
+    }
+    async assertWithinShippedLimits(originalOutboundOrderId, lines, excludeReturnOrderId, tx) {
+        const outbound = await this.client(tx).outboundOrder.findUnique({
             where: { id: originalOutboundOrderId },
             include: {
                 lines: {
@@ -81,7 +125,7 @@ let ReturnQuantityValidation = class ReturnQuantityValidation {
             buckets.set(bucketKey, cur);
         }
         for (const [key, { max, add }] of buckets) {
-            const alreadyReturned = await this.sumActiveReturnQuantity(originalOutboundOrderId, key, excludeReturnOrderId);
+            const alreadyReturned = await this.sumActiveReturnQuantity(originalOutboundOrderId, key, excludeReturnOrderId, tx);
             const total = alreadyReturned.add(add);
             if (total.gt(max)) {
                 throw new common_1.BadRequestException(`Return quantity exceeds shipped quantity for ${key.replace(/^line:|^product:/, '')} ` +
@@ -89,7 +133,7 @@ let ReturnQuantityValidation = class ReturnQuantityValidation {
             }
         }
     }
-    async sumActiveReturnQuantity(outboundOrderId, bucketKey, excludeReturnOrderId) {
+    async sumActiveReturnQuantity(outboundOrderId, bucketKey, excludeReturnOrderId, tx) {
         const isLineBucket = bucketKey.startsWith('line:');
         const outboundOrderLineId = isLineBucket ? bucketKey.slice(5) : undefined;
         const productId = !isLineBucket
@@ -98,7 +142,7 @@ let ReturnQuantityValidation = class ReturnQuantityValidation {
         const lotId = !isLineBucket && bucketKey.includes(':lot:')
             ? bucketKey.split(':lot:')[1]
             : undefined;
-        const rows = await this.prisma.returnOrderLine.findMany({
+        const rows = await this.client(tx).returnOrderLine.findMany({
             where: {
                 returnOrder: {
                     originalOutboundOrderId: outboundOrderId,

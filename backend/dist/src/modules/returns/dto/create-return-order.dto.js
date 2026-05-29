@@ -12,10 +12,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateReturnOrderDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
+const returns_constants_1 = require("../returns.constants");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
 const create_return_order_line_dto_1 = require("./create-return-order-line.dto");
 class CreateReturnOrderDto {
     companyId;
+    warehouseId;
     originalOutboundOrderId;
     packageId;
     shipmentReference;
@@ -29,6 +31,11 @@ __decorate([
     (0, is_uuid_loose_1.IsUuidLoose)(),
     __metadata("design:type", String)
 ], CreateReturnOrderDto.prototype, "companyId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, is_uuid_loose_1.IsUuidLoose)(),
+    __metadata("design:type", String)
+], CreateReturnOrderDto.prototype, "warehouseId", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, is_uuid_loose_1.IsUuidLoose)(),
@@ -59,6 +66,7 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.ArrayMinSize)(1),
+    (0, class_validator_1.ArrayMaxSize)(returns_constants_1.MAX_RETURN_LINES_PER_ORDER),
     (0, class_validator_1.ValidateNested)({ each: true }),
     (0, class_transformer_1.Type)(() => create_return_order_line_dto_1.CreateReturnOrderLineDto),
     __metadata("design:type", Array)

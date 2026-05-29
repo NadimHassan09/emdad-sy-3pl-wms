@@ -55,6 +55,9 @@ const CycleCountListPage      = lazyPage(() => import('./pages/cycle-count/Cycle
 const CycleCountDetailPage    = lazyPage(() => import('./pages/cycle-count/CycleCountDetailPage'), 'CycleCountDetailPage');
 const CycleCountExecutePage   = lazyPage(() => import('./pages/cycle-count/CycleCountExecutePage'), 'CycleCountExecutePage');
 const CycleCountMyTasksPage   = lazyPage(() => import('./pages/cycle-count/CycleCountMyTasksPage'), 'CycleCountMyTasksPage');
+const ReturnsListPage         = lazyPage(() => import('./pages/returns/ReturnsListPage'), 'ReturnsListPage');
+const ReturnDetailPage        = lazyPage(() => import('./pages/returns/ReturnDetailPage'), 'ReturnDetailPage');
+const ReturnProcessPage       = lazyPage(() => import('./pages/returns/ReturnProcessPage'), 'ReturnProcessPage');
 
 /** Data router required for `useBlocker` (task execution exit guard). */
 export const router = createBrowserRouter([
@@ -96,6 +99,9 @@ export const router = createBrowserRouter([
       { path: 'cycle-count/my-tasks', element: <CycleCountMyTasksPage /> },
       { path: 'cycle-count/:id/execute', element: <CycleCountExecutePage /> },
       { path: 'cycle-count/:id', element: <CycleCountDetailPage /> },
+      { path: 'returns', element: <ReturnsListPage /> },
+      { path: 'returns/:id/process', element: <ReturnProcessPage /> },
+      { path: 'returns/:id', element: <ReturnDetailPage /> },
       { path: 'internal', element: <InternalTransferPage /> },
       {
         path: 'reports',

@@ -88,6 +88,10 @@ function sidebarLabel(label: string, isArabic: boolean): string {
 
     Tasks: 'المهام',
 
+    'Cycle count': 'الجرد الدوري',
+
+    Returns: 'الإرجاعات',
+
     Products: 'المنتجات',
 
     Locations: 'المواقع التخزينية',
