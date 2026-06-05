@@ -1,0 +1,23 @@
+API security headers (GET /api/auth/me — 401 unauthenticated)
+Captured: 2026-06-05
+
+Content-Security-Policy: default-src 'self'; ...
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-Frame-Options: SAMEORIGIN
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+
+Refresh without cookie (POST /api/auth/refresh):
+{"success":false,"error":{"code":"UNAUTHORIZED","message":"Missing refresh token."}}
+
+Internal login Set-Cookie (excerpt):
+refresh_token=...; Path=/api/auth/refresh; HttpOnly; Secure; SameSite=Strict
+access_token=...; Path=/; HttpOnly; Secure; SameSite=Strict
+
+Client login Set-Cookie (excerpt):
+client_access_token=...; Path=/; HttpOnly; Secure; SameSite=Lax
+
+Note: Static SPA HTML at staging-admin/client is served by Cloudflare/nginx without
+duplicate helmet headers on index.html; API routes inherit helmet from NestJS.

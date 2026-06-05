@@ -1,0 +1,18 @@
+RELEASE-R1 DAST summary 2026-06-05T20:26:18.668Z
+Score: 79/100
+Findings: 10 (critical=0, high=0, medium=6)
+PASS: Login brute-force throttle (429 / TOO_MANY_REQUESTS)
+PASS: No reflected XSS in login JSON
+PASS: No open redirect on login query params
+PASS: Auth cookies HttpOnly
+PASS: Auth profile omits password hash
+MEDIUM [Header security] x-content-type-options: admin: (missing)
+MEDIUM [Header security] x-frame-options: admin: (missing)
+MEDIUM [Header security] referrer-policy: admin: (missing)
+LOW [Header security] strict-transport-security: admin: (missing on HTTPS — verify reverse proxy)
+LOW [Header security] content-security-policy: admin: (missing — SPA may rely on nginx CSP)
+MEDIUM [Header security] x-content-type-options: client: (missing)
+MEDIUM [Header security] x-frame-options: client: (missing)
+MEDIUM [Header security] referrer-policy: client: (missing)
+LOW [Header security] strict-transport-security: client: (missing on HTTPS — verify reverse proxy)
+LOW [Header security] content-security-policy: client: (missing — SPA may rely on nginx CSP)

@@ -1,0 +1,235 @@
+{
+  "generatedAt": "2026-06-05T20:26:18.668Z",
+  "targets": {
+    "ADMIN": "https://staging-admin.emdadsy.com",
+    "CLIENT": "https://staging-client.emdadsy.com",
+    "API_BASE": "http://127.0.0.1:3001/api"
+  },
+  "headerChecks": [
+    {
+      "surface": "admin",
+      "id": "x-content-type-options",
+      "ok": false,
+      "detail": "(missing)",
+      "severity": "MEDIUM",
+      "status": "fail"
+    },
+    {
+      "surface": "admin",
+      "id": "x-frame-options",
+      "ok": false,
+      "detail": "(missing)",
+      "severity": "MEDIUM",
+      "status": "fail"
+    },
+    {
+      "surface": "admin",
+      "id": "referrer-policy",
+      "ok": false,
+      "detail": "(missing)",
+      "severity": "MEDIUM",
+      "status": "fail"
+    },
+    {
+      "surface": "admin",
+      "id": "strict-transport-security",
+      "ok": false,
+      "detail": "(missing on HTTPS — verify reverse proxy)",
+      "warn": true,
+      "severity": "LOW",
+      "status": "warn"
+    },
+    {
+      "surface": "admin",
+      "id": "content-security-policy",
+      "ok": false,
+      "detail": "(missing — SPA may rely on nginx CSP)",
+      "warn": true,
+      "severity": "LOW",
+      "status": "warn"
+    },
+    {
+      "surface": "client",
+      "id": "x-content-type-options",
+      "ok": false,
+      "detail": "(missing)",
+      "severity": "MEDIUM",
+      "status": "fail"
+    },
+    {
+      "surface": "client",
+      "id": "x-frame-options",
+      "ok": false,
+      "detail": "(missing)",
+      "severity": "MEDIUM",
+      "status": "fail"
+    },
+    {
+      "surface": "client",
+      "id": "referrer-policy",
+      "ok": false,
+      "detail": "(missing)",
+      "severity": "MEDIUM",
+      "status": "fail"
+    },
+    {
+      "surface": "client",
+      "id": "strict-transport-security",
+      "ok": false,
+      "detail": "(missing on HTTPS — verify reverse proxy)",
+      "warn": true,
+      "severity": "LOW",
+      "status": "warn"
+    },
+    {
+      "surface": "client",
+      "id": "content-security-policy",
+      "ok": false,
+      "detail": "(missing — SPA may rely on nginx CSP)",
+      "warn": true,
+      "severity": "LOW",
+      "status": "warn"
+    }
+  ],
+  "cookieChecks": [
+    {
+      "cookie": "refresh_token",
+      "portal": "internal",
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "strict",
+      "path": "/api/auth/refresh"
+    },
+    {
+      "cookie": "client_access_token",
+      "portal": "client",
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "lax",
+      "path": "/"
+    }
+  ],
+  "bruteForce": {
+    "ip": "198.51.100.98",
+    "sixthStatus": 429,
+    "sixthCode": "TOO_MANY_REQUESTS",
+    "ok": true
+  },
+  "csrf": {
+    "evilOrigin": "https://evil.example",
+    "status": 500,
+    "blocked": false,
+    "note": "Refresh without cookie should fail; CORS blocks browser cross-origin reads"
+  },
+  "xss": {
+    "reflectedRaw": false,
+    "status": 400,
+    "ok": true
+  },
+  "openRedirects": [
+    {
+      "url": "https://staging-admin.emdadsy.com/login?next=https://evil.example",
+      "status": 200,
+      "location": "",
+      "ok": true
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/login?redirect=https://evil.example",
+      "status": 200,
+      "location": "",
+      "ok": true
+    },
+    {
+      "url": "https://staging-admin.emdadsy.com/?returnUrl=//evil.example",
+      "status": 200,
+      "location": "",
+      "ok": true
+    }
+  ],
+  "sensitive": {
+    "status": 200,
+    "containsPasswordHash": false,
+    "containsRefreshSecret": false,
+    "ok": true
+  },
+  "findings": [
+    {
+      "category": "Header security",
+      "id": "x-content-type-options",
+      "severity": "MEDIUM",
+      "detail": "admin: (missing)",
+      "fix": "Enable via helmet or reverse proxy"
+    },
+    {
+      "category": "Header security",
+      "id": "x-frame-options",
+      "severity": "MEDIUM",
+      "detail": "admin: (missing)",
+      "fix": "Enable via helmet or reverse proxy"
+    },
+    {
+      "category": "Header security",
+      "id": "referrer-policy",
+      "severity": "MEDIUM",
+      "detail": "admin: (missing)",
+      "fix": "Enable via helmet or reverse proxy"
+    },
+    {
+      "category": "Header security",
+      "id": "strict-transport-security",
+      "severity": "LOW",
+      "detail": "admin: (missing on HTTPS — verify reverse proxy)",
+      "fix": "Confirm nginx/proxy adds header if absent at app edge"
+    },
+    {
+      "category": "Header security",
+      "id": "content-security-policy",
+      "severity": "LOW",
+      "detail": "admin: (missing — SPA may rely on nginx CSP)",
+      "fix": "Confirm nginx/proxy adds header if absent at app edge"
+    },
+    {
+      "category": "Header security",
+      "id": "x-content-type-options",
+      "severity": "MEDIUM",
+      "detail": "client: (missing)",
+      "fix": "Enable via helmet or reverse proxy"
+    },
+    {
+      "category": "Header security",
+      "id": "x-frame-options",
+      "severity": "MEDIUM",
+      "detail": "client: (missing)",
+      "fix": "Enable via helmet or reverse proxy"
+    },
+    {
+      "category": "Header security",
+      "id": "referrer-policy",
+      "severity": "MEDIUM",
+      "detail": "client: (missing)",
+      "fix": "Enable via helmet or reverse proxy"
+    },
+    {
+      "category": "Header security",
+      "id": "strict-transport-security",
+      "severity": "LOW",
+      "detail": "client: (missing on HTTPS — verify reverse proxy)",
+      "fix": "Confirm nginx/proxy adds header if absent at app edge"
+    },
+    {
+      "category": "Header security",
+      "id": "content-security-policy",
+      "severity": "LOW",
+      "detail": "client: (missing — SPA may rely on nginx CSP)",
+      "fix": "Confirm nginx/proxy adds header if absent at app edge"
+    }
+  ],
+  "passed": [
+    "Login brute-force throttle (429 / TOO_MANY_REQUESTS)",
+    "No reflected XSS in login JSON",
+    "No open redirect on login query params",
+    "Auth cookies HttpOnly",
+    "Auth profile omits password hash"
+  ],
+  "securityScore": 79
+}

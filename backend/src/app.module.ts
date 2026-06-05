@@ -9,9 +9,11 @@ import { CompanyAccessModule } from './common/company-access/company-access.modu
 import { CryptoModule } from './common/crypto/crypto.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
+import { SecurityModule } from './common/security/security.module';
 import { AdjustmentsModule } from './modules/adjustments/adjustments.module';
 import { CycleCountModule } from './modules/cycle-count/cycle-count.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
+import { BackupsModule } from './modules/backups/backups.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { ClientPortalModule } from './modules/client-portal/client-portal.module';
@@ -49,6 +51,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     }),
     CompanyAccessModule,
     CryptoModule,
+    SecurityModule,
     AuthModule,
     PrismaModule,
     RedisModule,
@@ -68,6 +71,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     AdjustmentsModule,
     CycleCountModule,
     AuditLogsModule,
+    BackupsModule,
     WarehouseWorkflowModule,
     RealtimeModule,
   ],

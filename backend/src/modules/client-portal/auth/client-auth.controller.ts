@@ -1,5 +1,5 @@
-import { Body, Controller, Get, HttpCode, Post, Res, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
 
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientUser } from './client-user.decorator';
@@ -22,8 +22,12 @@ export class ClientAuthController {
   @Public()
   @Post('login')
   @HttpCode(200)
-  login(@Body() dto: ClientLoginDto, @Res({ passthrough: true }) res: Response) {
-    return this.auth.login(dto, res);
+  login(
+    @Body() dto: ClientLoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.auth.login(dto, req, res);
   }
 
   @Public()

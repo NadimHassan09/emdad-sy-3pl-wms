@@ -2,11 +2,13 @@ import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/c
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { UserRole, UserStatus } from '@prisma/client';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { PasswordService } from '../../../common/crypto/password.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { LoginBruteForceService } from '../../../common/security/login-brute-force.service';
+import { getClientIp } from '../../../common/security/request-ip.util';
 import { ClientLoginDto } from './dto/client-login.dto';
 import type { JwtClientAccessPayload } from './strategies/jwt-client.strategy';
 
@@ -19,9 +21,18 @@ export class ClientAuthService {
     private readonly password: PasswordService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly loginBruteForce: LoginBruteForceService,
   ) {}
 
-  async login(dto: ClientLoginDto, res?: Response) {
+  async login(dto: ClientLoginDto, req?: Request, res?: Response) {
+    const ip = getClientIp(req);
+    this.loginBruteForce.assertAllowed('client', ip);
+    const attemptCtx = {
+      ipAddress: ip,
+      email: dto.email,
+      userAgent: req?.headers['user-agent'] ?? null,
+    };
+
     const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -37,10 +48,12 @@ export class ClientAuthService {
     });
 
     if (!user || user.status !== UserStatus.active) {
+      this.loginBruteForce.recordFailure('client', attemptCtx);
       throw new UnauthorizedException('Invalid email or password.');
     }
 
     if (user.companyId === null || !CLIENT_ROLES.includes(user.role)) {
+      this.loginBruteForce.recordFailure('client', attemptCtx);
       throw new ForbiddenException(
         'This portal is only for client users. Internal staff must use the WMS application.',
       );
@@ -48,6 +61,7 @@ export class ClientAuthService {
 
     const valid = await this.password.verify(dto.password, user.passwordHash);
     if (!valid) {
+      this.loginBruteForce.recordFailure('client', attemptCtx);
       throw new UnauthorizedException('Invalid email or password.');
     }
 
@@ -84,6 +98,8 @@ export class ClientAuthService {
         path: '/',
       });
     }
+
+    this.loginBruteForce.recordSuccess('client', ip);
 
     const company = await this.prisma.company.findUnique({
       where: { id: user.companyId },

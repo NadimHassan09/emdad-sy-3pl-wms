@@ -1,0 +1,15 @@
+RELEASE-R1 brute-force throttle evidence (2026-06-05)
+IP: 203.0.113.99 via X-Forwarded-For
+
+attempt 1: HTTP 401
+attempt 2: HTTP 401
+attempt 3: HTTP 401
+attempt 4: HTTP 401
+attempt 5: HTTP 401
+attempt 6: HTTP 429
+
+Response body (attempt 6):
+{"success":false,"error":{"code":"TOO_MANY_REQUESTS","message":"Too many failed sign-in attempts. Please wait about a minute before trying again."}}
+
+Playwright: tests/api/login-brute-force.spec.ts — 3/3 PASS
+Unit: login-brute-force.service.unit.spec.ts — 3/3 PASS

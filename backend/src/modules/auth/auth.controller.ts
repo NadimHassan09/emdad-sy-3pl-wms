@@ -25,8 +25,12 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(200)
-  login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    return this.auth.login(dto, res);
+  login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.auth.login(dto, req, res);
   }
 
   @Public()

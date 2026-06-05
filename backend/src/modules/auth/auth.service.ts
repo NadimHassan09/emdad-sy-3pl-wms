@@ -9,6 +9,9 @@ import { AuditLogService } from '../../common/audit/audit-log.service';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { PasswordService } from '../../common/crypto/password.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { LoginBruteForceService } from '../../common/security/login-brute-force.service';
+import { getClientIp } from '../../common/security/request-ip.util';
+import { RealtimeService } from '../realtime/realtime.service';
 import { LoginDto } from './dto/login.dto';
 import { RefreshSessionService } from './refresh-session.service';
 import type { JwtAccessPayload } from './strategies/jwt.strategy';
@@ -37,9 +40,19 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly audit: AuditLogService,
     private readonly refreshSessions: RefreshSessionService,
+    private readonly realtime: RealtimeService,
+    private readonly loginBruteForce: LoginBruteForceService,
   ) {}
 
-  async login(dto: LoginDto, res?: Response) {
+  async login(dto: LoginDto, req?: Request, res?: Response) {
+    const ip = getClientIp(req);
+    this.loginBruteForce.assertAllowed('internal', ip);
+    const attemptCtx = {
+      ipAddress: ip,
+      email: dto.email,
+      userAgent: req?.headers['user-agent'] ?? null,
+    };
+
     const email = dto.email.trim().toLowerCase();
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -56,14 +69,17 @@ export class AuthService {
     });
 
     if (!user || user.status !== UserStatus.active) {
+      this.loginBruteForce.recordFailure('internal', attemptCtx);
       throw new UnauthorizedException('Invalid email or password.');
     }
     if (user.companyId !== null || CLIENT_ROLES.includes(user.role)) {
+      this.loginBruteForce.recordFailure('internal', attemptCtx);
       throw new ForbiddenException('Client accounts cannot access this system.');
     }
 
     const valid = await this.password.verify(dto.password, user.passwordHash);
     if (!valid) {
+      this.loginBruteForce.recordFailure('internal', attemptCtx);
       throw new UnauthorizedException('Invalid email or password.');
     }
 
@@ -128,6 +144,9 @@ export class AuthService {
       this.setRefreshCookie(res, refresh_token, refreshMaxAgeMs);
     }
 
+    this.loginBruteForce.recordSuccess('internal', ip);
+    this.realtime.emitAuthSessionChanged(user.id, { type: 'login', userId: user.id });
+
     return {
       access_token,
       token_type: 'Bearer' as const,
@@ -166,6 +185,11 @@ export class AuthService {
       throw new ForbiddenException('Client accounts cannot access this system.');
     }
     if (payload.ver !== user.tokenVersion) {
+      this.realtime.emitAuthSessionChanged(user.id, {
+        type: 'expired',
+        userId: user.id,
+        reason: 'token_version_mismatch',
+      });
       throw new UnauthorizedException('Session has been invalidated. Please log in again.');
     }
 
@@ -191,6 +215,11 @@ export class AuthService {
             },
           ),
         );
+        this.realtime.emitAuthSessionChanged(user.id, {
+          type: 'forced_logout',
+          userId: user.id,
+          reason: 'refresh_replay',
+        });
       }
       throw err;
     }
@@ -242,6 +271,8 @@ export class AuthService {
       this.setRefreshCookie(res, refresh_token, refreshMaxAgeMs);
     }
 
+    this.realtime.emitAuthSessionChanged(user.id, { type: 'refresh', userId: user.id });
+
     return {
       access_token,
       token_type: 'Bearer' as const,
@@ -272,6 +303,10 @@ export class AuthService {
               },
             ),
           );
+          this.realtime.emitAuthSessionChanged(payload.sub, {
+            type: 'logout',
+            userId: payload.sub,
+          });
         }
       }
     }

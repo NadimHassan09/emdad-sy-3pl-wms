@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { LoginScreen } from '@ds';
 import { useAuth } from '../auth/AuthContext';
 import { canAccessPath, defaultHomePath } from '../lib/rbac';
+import { getLoginErrorMessage } from '../lib/loginError';
 
 export function LoginPage() {
   const { user, booting, login } = useAuth();
@@ -54,8 +55,7 @@ export function LoginPage() {
       const target = fromState && canAccessPath(loggedIn.role, fromState) ? fromState : home;
       navigate(target, { replace: true });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Login failed.';
-      setError(msg);
+      setError(getLoginErrorMessage(err, isArabic));
     } finally {
       setSubmitting(false);
     }

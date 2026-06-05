@@ -78,19 +78,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const response = exception.getResponse();
       let message = exception.message;
       let details: unknown;
+      let customCode: string | undefined;
       if (typeof response === 'string') {
         message = response;
       } else if (response && typeof response === 'object') {
         const r = response as Record<string, unknown>;
         message = (r.message as string) ?? message;
         details = r.message ?? r.error ?? response;
+        if (typeof r.code === 'string' && r.code.trim()) {
+          customCode = r.code.trim();
+        }
       }
       return {
         status,
         body: {
           success: false,
           error: {
-            code: this.codeFromStatus(status),
+            code: customCode ?? this.codeFromStatus(status),
             message: this.sanitizeMessage(
               Array.isArray(message) ? message.join('; ') : message,
               isProd,
@@ -330,6 +334,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
         return 'CONFLICT';
       case 422:
         return 'UNPROCESSABLE_ENTITY';
+      case 429:
+        return 'TOO_MANY_REQUESTS';
       default:
         return 'ERROR';
     }

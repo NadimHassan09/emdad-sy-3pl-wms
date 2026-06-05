@@ -4,7 +4,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 
 import { LoginScreen } from '@ds';
 import { useAuth } from '../auth/AuthContext';
-import { getApiErrorMessage } from '../utils/apiError';
+import { getLoginErrorMessage } from '../utils/loginError';
 
 export function LoginPage(): ReactElement {
   const { user, bootstrapped, login } = useAuth();
@@ -50,7 +50,7 @@ export function LoginPage(): ReactElement {
     try {
       await login(email.trim(), password);
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Sign-in failed.'));
+      setError(getLoginErrorMessage(err, isArabic));
     } finally {
       setSubmitting(false);
     }
