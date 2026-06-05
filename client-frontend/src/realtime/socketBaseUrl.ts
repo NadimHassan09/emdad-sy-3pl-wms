@@ -1,10 +1,14 @@
+import { getClientApiBaseUrl } from '../services/apiBaseUrl';
+
 export function socketHttpOrigin(): string {
-  const raw =
-    (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3000/api/client';
+  const apiBase = getClientApiBaseUrl();
+  if (apiBase.startsWith('/')) {
+    return typeof window !== 'undefined' ? window.location.origin : '';
+  }
   try {
-    const u = new URL(raw);
+    const u = new URL(apiBase);
     return `${u.protocol}//${u.host}`;
   } catch {
-    return 'http://localhost:3000';
+    return typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
   }
 }

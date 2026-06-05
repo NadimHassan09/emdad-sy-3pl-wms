@@ -175,6 +175,9 @@ export class CycleCountExecutionService {
         include: EXECUTION_COUNT_INCLUDE,
       });
       return presentBlindCycleCountTask(full);
+    }).then(async (task) => {
+      await this.cycleCounts.publishRealtimeUpdate(countId);
+      return task;
     });
   }
 
@@ -202,6 +205,7 @@ export class CycleCountExecutionService {
       });
     });
 
+    await this.cycleCounts.publishRealtimeUpdate(countId);
     return this.getTask(user, countId);
   }
 
@@ -229,6 +233,7 @@ export class CycleCountExecutionService {
       });
     });
 
+    await this.cycleCounts.publishRealtimeUpdate(countId);
     return this.getTask(user, countId);
   }
 

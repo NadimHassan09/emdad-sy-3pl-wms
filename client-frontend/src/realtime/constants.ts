@@ -6,4 +6,10 @@ export const RealtimeEvents = {
   OUTBOUND_ORDER_UPDATED: 'order.outbound.updated',
   TASK_UPDATED: 'task.updated',
   INVENTORY_CHANGED: 'inventory.changed',
+  PRODUCT_CREATED: 'product.created',
+  PRODUCT_UPDATED: 'product.updated',
+  PRODUCT_ARCHIVED: 'product.archived',
+  NOTIFICATION_CREATED: 'notification.created',
+  NOTIFICATION_READ: 'notification.read',
+  NOTIFICATION_DELETED: 'notification.deleted',
 } as const;

@@ -23,6 +23,13 @@ export function companyRoomName(companyId: string): string {
   return `tenant:company:${companyId}`;
 }
 
+export function userRoomName(userId: string): string {
+  return `room:user:${userId}`;
+}
+
+/** Shared by all internal admin sockets — warehouses/locations/users (system). */
+export const INTERNAL_MASTER_DATA_ROOM = 'room:internal:master-data';
+
 function tryVerify(token: string, secret: string): jwt.JwtPayload | null {
   try {
     const p = jwt.verify(token, secret);

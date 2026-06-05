@@ -14,10 +14,13 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   authenticateSocketConnection,
   companyRoomName,
+  INTERNAL_MASTER_DATA_ROOM,
   normalizeCompanyId,
+  userRoomName,
 } from './realtime-socket-auth';
 import type { SocketPrincipal } from './realtime-socket-auth';
 import { RealtimeService } from './realtime.service';
+import { PresenceService } from './presence.service';
 
 @WebSocketGateway({
   namespace: '/realtime',
@@ -34,6 +37,7 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     private readonly prisma: PrismaService,
     private readonly companyAccess: CompanyAccessService,
     private readonly realtime: RealtimeService,
+    private readonly presence: PresenceService,
   ) {}
 
   afterInit(server: Server): void {
@@ -70,7 +74,9 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
         return;
       }
       client.join(companyRoomName(principal.companyId));
+      client.join(userRoomName(principal.userId));
       (client.data as { roomCompanyId?: string }).roomCompanyId = principal.companyId;
+      this.presence.handleConnect(client, principal);
       this.log.debug(
         `Client socket ${client.id} joined ${companyRoomName(principal.companyId)}`,
       );
@@ -103,13 +109,17 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     }
 
     client.join(companyRoomName(tenantScope.activeCompanyId));
+    client.join(INTERNAL_MASTER_DATA_ROOM);
+    client.join(userRoomName(principal.userId));
     (client.data as { roomCompanyId?: string }).roomCompanyId = tenantScope.activeCompanyId;
+    this.presence.handleConnect(client, principal);
     this.log.debug(
-      `Internal socket ${client.id} joined ${companyRoomName(tenantScope.activeCompanyId)}`,
+      `Internal socket ${client.id} joined ${companyRoomName(tenantScope.activeCompanyId)} and ${INTERNAL_MASTER_DATA_ROOM}`,
     );
   }
 
   handleDisconnect(client: Socket): void {
+    this.presence.handleDisconnect(client);
     const p = (client.data as { principal?: SocketPrincipal }).principal;
     this.log.debug(`Socket disconnected ${client.id} (${p?.kind ?? '?'})`);
   }

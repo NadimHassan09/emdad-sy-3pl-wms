@@ -14,10 +14,19 @@ import {
   generateBarcodeCandidate,
   generateSkuCandidate,
 } from '../../common/generators/identifiers';
+import { AuditLogService } from '../../common/audit/audit-log.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
+import { productRealtimePayload } from '../realtime/realtime-master-data.payload';
 import { CreateProductDto } from './dto/create-product.dto';
+import { productAuditSnapshot } from './product-audit.util';
 import { ListProductsQueryDto } from './dto/list-products-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import {
+  assertCompanyBarcodeAvailable,
+  barcodeChanged,
+  normalizeProductBarcode,
+} from './product-barcode.util';
 
 const SKU_RETRY_LIMIT = 5;
 const BARCODE_RETRY_LIMIT = 8;
@@ -34,6 +43,8 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly companyAccess: CompanyAccessService,
+    private readonly audit: AuditLogService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /**
@@ -66,18 +77,19 @@ export class ProductsService {
     const db = tx ?? this.prisma;
     for (let i = 0; i < BARCODE_RETRY_LIMIT; i++) {
       const candidate = generateBarcodeCandidate();
-      const exists = await db.product.findFirst({
-        where: { companyId, barcode: candidate },
-        select: { id: true },
-      });
-      if (!exists) return candidate;
+      try {
+        await assertCompanyBarcodeAvailable(db, companyId, candidate);
+        return candidate;
+      } catch (err) {
+        if (!(err instanceof ConflictException)) throw err;
+      }
     }
     return generateBarcodeCandidate();
   }
 
   async create(user: AuthPrincipal, dto: CreateProductDto) {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
-    const clientBarcode = dto.barcode?.trim();
+    const clientBarcode = normalizeProductBarcode(dto.barcode);
 
     let lastError: unknown;
     const attempts = dto.sku?.trim() ? 1 : SKU_RETRY_LIMIT;
@@ -85,7 +97,10 @@ export class ProductsService {
     for (let attempt = 0; attempt < attempts; attempt++) {
       const sku = (dto.sku?.trim() ? dto.sku.trim() : generateSkuCandidate()).toUpperCase();
       try {
-        return await this.withProductCatalogRls(user, async (tx) => {
+        const created = await this.withProductCatalogRls(user, async (tx) => {
+          if (clientBarcode) {
+            await assertCompanyBarcodeAvailable(tx, companyId, clientBarcode);
+          }
           const barcode =
             clientBarcode || (await this.allocateUniqueBarcode(companyId, tx));
           return tx.product.create({
@@ -119,6 +134,20 @@ export class ProductsService {
             include: { company: { select: { id: true, name: true } } },
           });
         });
+        await this.audit.log(
+          this.audit.fromPrincipal(user, {
+            action: 'PRODUCT_CREATED',
+            resourceType: 'product',
+            resourceId: created.id,
+            companyId: created.companyId,
+            newState: productAuditSnapshot(created),
+          }),
+        );
+        this.realtime.emitProductCreated(
+          created.companyId,
+          productRealtimePayload(created),
+        );
+        return created;
       } catch (err) {
         lastError = err;
         if (
@@ -126,9 +155,14 @@ export class ProductsService {
           err.code === 'P2002' &&
           !dto.sku
         ) {
-          continue;
+          const target = Array.isArray(err.meta?.target)
+            ? (err.meta.target as string[])
+            : [];
+          if (!target.some((f) => f.includes('barcode'))) {
+            continue;
+          }
         }
-        throw err;
+        this.throwUniqueViolation(err);
       }
     }
     throw lastError;
@@ -242,13 +276,25 @@ export class ProductsService {
   }
 
   async update(id: string, dto: UpdateProductDto, user: AuthPrincipal) {
-    await this.findById(id, user);
+    const product = await this.findById(id, user);
     const data: Prisma.ProductUpdateInput = {};
     if (dto.expiryTracking !== undefined) data.expiryTracking = dto.expiryTracking;
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.sku !== undefined) data.sku = dto.sku.trim().toUpperCase();
+    let nextBarcode: string | null | undefined;
     if (dto.barcode !== undefined) {
-      data.barcode = dto.barcode.trim() ? dto.barcode.trim() : null;
+      nextBarcode = normalizeProductBarcode(dto.barcode);
+      if (barcodeChanged(product.barcode, nextBarcode)) {
+        if (nextBarcode) {
+          await assertCompanyBarcodeAvailable(
+            this.prisma,
+            product.companyId,
+            nextBarcode,
+            id,
+          );
+        }
+      }
+      data.barcode = nextBarcode;
     }
     if (dto.description !== undefined) {
       data.description = dto.description?.trim()
@@ -278,21 +324,49 @@ export class ProductsService {
     if (Object.keys(data).length === 0) {
       return this.findById(id, user);
     }
+    const previousState = productAuditSnapshot(product);
     try {
-      return await this.prisma.product.update({
+      const updated = await this.prisma.product.update({
         where: { id },
         data,
         include: { company: { select: { id: true, name: true } } },
       });
+      await this.audit.log(
+        this.audit.fromPrincipal(user, {
+          action: 'PRODUCT_UPDATED',
+          resourceType: 'product',
+          resourceId: updated.id,
+          companyId: updated.companyId,
+          previousState,
+          newState: productAuditSnapshot(updated),
+        }),
+      );
+      this.realtime.emitProductUpdated(
+        updated.companyId,
+        productRealtimePayload(updated),
+      );
+      return updated;
     } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === 'P2002'
-      ) {
-        throw new ConflictException('SKU already in use for this company.');
-      }
-      throw err;
+      this.throwUniqueViolation(err);
     }
+  }
+
+  private throwUniqueViolation(err: unknown): never {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === 'P2002'
+    ) {
+      const target = Array.isArray(err.meta?.target)
+        ? (err.meta.target as string[])
+        : [];
+      if (target.some((f) => f.includes('barcode'))) {
+        throw new ConflictException(
+          'Barcode already in use for an active product in this company.',
+        );
+      }
+      throw new ConflictException('SKU already in use for this company.');
+    }
+    throw err;
   }
 
   async softDelete(id: string, user: AuthPrincipal) {
@@ -320,11 +394,23 @@ export class ProductsService {
       );
     }
 
-    return this.prisma.product.update({
+    const archived = await this.prisma.product.update({
       where: { id },
       data: { status: 'archived' },
       include: { company: { select: { id: true, name: true } } },
     });
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'PRODUCT_ARCHIVED',
+        resourceType: 'product',
+        resourceId: archived.id,
+        companyId: archived.companyId,
+        previousState: productAuditSnapshot(product),
+        newState: productAuditSnapshot(archived),
+      }),
+    );
+    this.realtime.emitProductArchived(archived.companyId, archived.id);
+    return archived;
   }
 
   async suspend(id: string, user: AuthPrincipal) {
@@ -332,11 +418,16 @@ export class ProductsService {
     if (product.status !== 'active') {
       throw new BadRequestException('Only active products can be suspended.');
     }
-    return this.prisma.product.update({
+    const updated = await this.prisma.product.update({
       where: { id },
       data: { status: 'suspended' },
       include: { company: { select: { id: true, name: true } } },
     });
+    this.realtime.emitProductUpdated(
+      updated.companyId,
+      productRealtimePayload(updated),
+    );
+    return updated;
   }
 
   async unsuspend(id: string, user: AuthPrincipal) {
@@ -344,11 +435,28 @@ export class ProductsService {
     if (product.status !== 'suspended') {
       throw new BadRequestException('Only suspended products can be reactivated this way.');
     }
-    return this.prisma.product.update({
-      where: { id },
-      data: { status: 'active' },
-      include: { company: { select: { id: true, name: true } } },
-    });
+    if (product.barcode) {
+      await assertCompanyBarcodeAvailable(
+        this.prisma,
+        product.companyId,
+        product.barcode,
+        id,
+      );
+    }
+    try {
+      const updated = await this.prisma.product.update({
+        where: { id },
+        data: { status: 'active' },
+        include: { company: { select: { id: true, name: true } } },
+      });
+      this.realtime.emitProductUpdated(
+        updated.companyId,
+        productRealtimePayload(updated),
+      );
+      return updated;
+    } catch (err) {
+      this.throwUniqueViolation(err);
+    }
   }
 
   /**
@@ -395,6 +503,8 @@ export class ProductsService {
       this.prisma.lot.deleteMany({ where: { productId: id } }),
       this.prisma.product.delete({ where: { id } }),
     ]);
+
+    this.realtime.emitProductDeleted(product.companyId, id);
 
     return { id, deleted: true as const };
   }
