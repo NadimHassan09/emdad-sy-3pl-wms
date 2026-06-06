@@ -1,0 +1,31 @@
+RELEASE-R4 DR Certification 2026-06-06T02:06:22.972Z
+Duration: 1.3 min
+RPO: 12s · RTO: 9s
+Readiness score: 77/100
+
+PASS     [config] gdrive_env
+BLOCKED  [config] oauth_client
+PASS     [config] auth
+PASS     [drive] status_api
+BLOCKED  [drive] connect_auth_url
+BLOCKED  [drive] test_connection
+PASS     [drive] disconnect
+BLOCKED  [drive] reconnect_auth_url
+PASS     [policies] local_only
+PASS     [policies] local_and_drive
+PASS     [policies] drive_only
+PASS     [retry] backoff_math
+BLOCKED  [retry] forced_failure
+BLOCKED  [retry] retry_scheduled
+PASS     [retention] local_preview
+FAIL     [retention] local_cleanup
+PASS     [retention] drive_preview
+FAIL     [retention] drive_cleanup
+PASS     [dr] create_backup
+PASS     [dr] restore
+PASS     [dr] verify_products
+PASS     [dr] verify_inventory
+PASS     [dr] verify_orders
+PASS     [dr] verify_tasks
+PASS     [dr] verify_users
+PASS     [dr] entity_integrity

@@ -1,0 +1,66 @@
+{
+  "restore": {
+    "status": 201,
+    "data": {
+      "success": true,
+      "data": {
+        "restoreJobId": "ce58ab21-2901-4dfb-a777-aba5d6e2dd97",
+        "sourceBackupId": "29d13075-6725-40e6-a28f-fccb35c609be",
+        "status": "pending"
+      }
+    },
+    "elapsedMs": 12
+  },
+  "restoreJobId": "ce58ab21-2901-4dfb-a777-aba5d6e2dd97",
+  "restoreStatus": {
+    "id": "ce58ab21-2901-4dfb-a777-aba5d6e2dd97",
+    "type": "restore",
+    "status": "completed",
+    "label": "restore:29d13075-6725-40e6-a28f-fccb35c609be",
+    "triggered_by_user_id": "00000000-0000-4000-8000-0000000000ab",
+    "artifact_path": null,
+    "dump_filename": null,
+    "manifest": {
+      "label": "restore:29d13075-6725-40e6-a28f-fccb35c609be",
+      "preSnapshotId": "53dd4fa4-35ae-4cf2-908e-b82728e0ce05",
+      "sourceBackupId": "29d13075-6725-40e6-a28f-fccb35c609be"
+    },
+    "progress_percent": 100,
+    "bytes_written": 2345220,
+    "error_message": null,
+    "started_at": "2026-06-06T02:06:19.681+00:00",
+    "completed_at": "2026-06-06T02:06:19.677+00:00",
+    "created_at": "2026-06-06T02:06:19.682+00:00",
+    "updated_at": "2026-06-06T02:06:19.682+00:00",
+    "parent_job_id": null,
+    "backup_schedule_id": null,
+    "storage_destination": "local",
+    "gdrive_file_id": null,
+    "gdrive_synced_at": null,
+    "gdrive_sync_status": null,
+    "gdrive_sync_error": null,
+    "storage_policy": "local_and_drive",
+    "local_artifact_purged": false,
+    "gdrive_sync_attempts": 0,
+    "gdrive_next_retry_at": null
+  },
+  "restoreMs": 9316,
+  "baseline": {
+    "products": 93,
+    "inventory": 77,
+    "inboundOrders": 66,
+    "outboundOrders": 33,
+    "tasks": 194,
+    "users": 7,
+    "capturedAt": "2026-06-06T02:05:05.102Z"
+  },
+  "after": {
+    "products": 93,
+    "inventory": 77,
+    "inboundOrders": 66,
+    "outboundOrders": 33,
+    "tasks": 194,
+    "users": 7,
+    "capturedAt": "2026-06-06T02:06:22.917Z"
+  }
+}

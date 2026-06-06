@@ -1,0 +1,6 @@
+     action      |       actor_email        |             resource_id              |                                    message                                    |          created_at           
+-----------------+--------------------------+--------------------------------------+-------------------------------------------------------------------------------+-------------------------------
+ backup.restored | superadmin@emdad.example | ce58ab21-2901-4dfb-a777-aba5d6e2dd97 | superadmin@emdad.example restored backup 29d13075-6725-40e6-a28f-fccb35c609be | 2026-06-06 02:06:19.68587+00
+ backup.restored | superadmin@emdad.example | 4f22c0fc-2228-48a2-87e9-419c4bf4bd43 | superadmin@emdad.example restored backup 08fd4a90-6f3f-49b8-b0d3-d49818fb1630 | 2026-06-06 02:04:25.107368+00
+(2 rows)
+

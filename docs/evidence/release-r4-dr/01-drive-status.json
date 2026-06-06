@@ -1,0 +1,20 @@
+{
+  "status": 200,
+  "data": {
+    "success": true,
+    "data": {
+      "connected": false,
+      "folderId": null,
+      "connectedAt": null,
+      "connectedBy": null,
+      "rootFolderName": "EMDAD WMS Backups",
+      "gdriveEnabled": true,
+      "gdriveConfigured": false,
+      "lastSyncedAt": null,
+      "pendingSyncCount": 0,
+      "failedSyncCount": 0,
+      "syncFailures": []
+    }
+  },
+  "elapsedMs": 42
+}

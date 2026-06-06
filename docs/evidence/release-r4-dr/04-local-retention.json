@@ -1,0 +1,282 @@
+{
+  "localPreview": {
+    "status": 200,
+    "data": {
+      "success": true,
+      "data": {
+        "dryRun": true,
+        "policies": {
+          "keepLastDaily": 7,
+          "keepLastWeekly": 4,
+          "keepLastMonthly": 12,
+          "preSnapshotProtectDays": 7
+        },
+        "buckets": [
+          {
+            "bucket": "daily",
+            "keepLast": 7,
+            "totalEligible": 7,
+            "retainedCount": 7,
+            "expiredCount": 0,
+            "retainedJobIds": [
+              "fbade80f-23fa-408a-b05e-256654dede26",
+              "40a5c694-7b1e-4d51-9da5-1e37fd9a7ce9",
+              "5ca756c6-257e-436d-b960-02b2db8a3b8e",
+              "3a53a186-1c93-4031-814c-b495eca49be2",
+              "68a33af8-4dd8-48ec-8c6b-3fea43b3c4ac",
+              "212a7293-114f-4e94-b9e9-3f16f42e8e22",
+              "ea293f84-773f-4e0f-ae71-3367f26c9d4e"
+            ],
+            "expiredJobIds": []
+          },
+          {
+            "bucket": "weekly",
+            "keepLast": 4,
+            "totalEligible": 0,
+            "retainedCount": 0,
+            "expiredCount": 0,
+            "retainedJobIds": [],
+            "expiredJobIds": []
+          },
+          {
+            "bucket": "monthly",
+            "keepLast": 12,
+            "totalEligible": 0,
+            "retainedCount": 0,
+            "expiredCount": 0,
+            "retainedJobIds": [],
+            "expiredJobIds": []
+          }
+        ],
+        "protected": [
+          {
+            "jobId": "08fd4a90-6f3f-49b8-b0d3-d49818fb1630",
+            "type": "manual",
+            "label": "RELEASE-R4-DR snapshot",
+            "completedAt": null,
+            "reasons": [
+              "active_operation"
+            ]
+          },
+          {
+            "jobId": "212a7293-114f-4e94-b9e9-3f16f42e8e22",
+            "type": "upload",
+            "label": "3aa6047e-657f-4038-b654-8a5cf6ec1b59.dump",
+            "completedAt": "2026-06-05T20:26:38.551Z",
+            "reasons": [
+              "retained_in_bucket"
+            ]
+          },
+          {
+            "jobId": "3a53a186-1c93-4031-814c-b495eca49be2",
+            "type": "scheduled",
+            "label": "scheduled:daily@03:45",
+            "completedAt": "2026-06-05T20:41:49.159Z",
+            "reasons": [
+              "retained_in_bucket"
+            ]
+          },
+          {
+            "jobId": "40a5c694-7b1e-4d51-9da5-1e37fd9a7ce9",
+            "type": "scheduled",
+            "label": "scheduled:daily@03:45",
+            "completedAt": "2026-06-06T01:56:19.890Z",
+            "reasons": [
+              "retained_in_bucket"
+            ]
+          },
+          {
+            "jobId": "5ca756c6-257e-436d-b960-02b2db8a3b8e",
+            "type": "scheduled",
+            "label": "scheduled:daily@03:45",
+            "completedAt": "2026-06-06T01:54:45.996Z",
+            "reasons": [
+              "retained_in_bucket"
+            ]
+          },
+          {
+            "jobId": "68a33af8-4dd8-48ec-8c6b-3fea43b3c4ac",
+            "type": "scheduled",
+            "label": "scheduled:daily@03:45",
+            "completedAt": "2026-06-05T20:41:28.697Z",
+            "reasons": [
+              "retained_in_bucket"
+            ]
+          },
+          {
+            "jobId": "7c20f788-096b-4541-9081-d417d04be5b1",
+            "type": "pre_snapshot",
+            "label": "pre-reset:ec565c68-cb6d-489c-b1ab-aa1b1c1827be",
+            "completedAt": "2026-06-05T19:47:31.357Z",
+            "reasons": [
+              "pre_snapshot_age"
+            ]
+          },
+          {
+            "jobId": "ea293f84-773f-4e0f-ae71-3367f26c9d4e",
+            "type": "upload",
+            "label": "7c20f788-096b-4541-9081-d417d04be5b1.dump",
+            "completedAt": "2026-06-05T20:25:44.141Z",
+            "reasons": [
+              "retained_in_bucket"
+            ]
+          },
+          {
+            "jobId": "fbade80f-23fa-408a-b05e-256654dede26",
+            "type": "scheduled",
+            "label": "scheduled:daily@03:45",
+            "completedAt": "2026-06-06T01:58:25.024Z",
+            "reasons": [
+              "latest_successful",
+              "retained_in_bucket"
+            ]
+          }
+        ],
+        "deletedCount": 0,
+        "bytesReclaimed": 0,
+        "deletedJobIds": []
+      }
+    },
+    "elapsedMs": 24
+  },
+  "localCleanup": {
+    "status": 201,
+    "data": {
+      "success": true,
+      "data": {
+        "dryRun": false,
+        "policies": {
+          "keepLastDaily": 7,
+          "keepLastWeekly": 4,
+          "keepLastMonthly": 12,
+          "preSnapshotProtectDays": 7
+        },
+        "buckets": [
+          {
+            "bucket": "daily",
+            "keepLast": 7,
+            "totalEligible": 7,
+            "retainedCount": 7,
+            "expiredCount": 0,
+            "retainedJobIds": [
+              "fbade80f-23fa-408a-b05e-256654dede26",
+              "40a5c694-7b1e-4d51-9da5-1e37fd9a7ce9",
+              "5ca756c6-257e-436d-b960-02b2db8a3b8e",
+              "3a53a186-1c93-4031-814c-b495eca49be2",
+              "68a33af8-4dd8-48ec-8c6b-3fea43b3c4ac",
+              "212a7293-114f-4e94-b9e9-3f16f42e8e22",
+              "ea293f84-773f-4e0f-ae71-3367f26c9d4e"
+            ],
+            "expiredJobIds": []
+          },
+          {
+            "bucket": "weekly",
+            "keepLast": 4,
+            "totalEligible": 0,
+            "retainedCount": 0,
+            "expiredCount": 0,
+            "retainedJobIds": [],
+            "expiredJobIds": []
+          },
+          {
+            "bucket": "monthly",
+            "keepLast": 12,
+            "totalEligible": 0,
+            "retainedCount": 0,
+            "expiredCount": 0,
+            "retainedJobIds": [],
+            "expiredJobIds": []
+          }
+        ],
+        "protected": [
+          {
+            "jobId": "08fd4a90-6f3f-49b8-b0d3-d49818fb1630",
+            "type": "manual",
+            "label": "RELEASE-R4-DR snapshot",
+            "completedAt": null,
+            "reasons": [
+              "active_operation"
+            ]
+          },
+          {
+            "jobId": "212a7293-114f-4e94-b9e9-3f16f42e8e22",
+            "type": "upload",
+            "label": "3aa6047e-657f-4038-b654-8a5cf6ec1b59.dump",
+            "completedAt": "2026-06-05T20:26:38.551Z",
+            "reasons": [
+              "retained_in_bucket"
+            ]
+          },
+          {
+            "jobId": "3a53a186-1c93-4031-814c-b495eca49be2",
+            "type": "scheduled",
+            "label": "scheduled:daily@03:45",
+            "completedAt": "2026-06-05T20:41:49.159Z",
+            "reasons": [
+              "retained_in_bucket"
+            ]
+          },
+          {
+            "jobId": "40a5c694-7b1e-4d51-9da5-1e37fd9a7ce9",
+            "type": "scheduled",
+            "label": "scheduled:daily@03:45",
+            "completedAt": "2026-06-06T01:56:19.890Z",
+            "reasons": [
+              "retained_in_bucket"
+            ]
+          },
+          {
+            "jobId": "5ca756c6-257e-436d-b960-02b2db8a3b8e",
+            "type": "scheduled",
+            "label": "scheduled:daily@03:45",
+            "completedAt": "2026-06-06T01:54:45.996Z",
+            "reasons": [
+              "retained_in_bucket"
+            ]
+          },
+          {
+            "jobId": "68a33af8-4dd8-48ec-8c6b-3fea43b3c4ac",
+            "type": "scheduled",
+            "label": "scheduled:daily@03:45",
+            "completedAt": "2026-06-05T20:41:28.697Z",
+            "reasons": [
+              "retained_in_bucket"
+            ]
+          },
+          {
+            "jobId": "7c20f788-096b-4541-9081-d417d04be5b1",
+            "type": "pre_snapshot",
+            "label": "pre-reset:ec565c68-cb6d-489c-b1ab-aa1b1c1827be",
+            "completedAt": "2026-06-05T19:47:31.357Z",
+            "reasons": [
+              "pre_snapshot_age"
+            ]
+          },
+          {
+            "jobId": "ea293f84-773f-4e0f-ae71-3367f26c9d4e",
+            "type": "upload",
+            "label": "7c20f788-096b-4541-9081-d417d04be5b1.dump",
+            "completedAt": "2026-06-05T20:25:44.141Z",
+            "reasons": [
+              "retained_in_bucket"
+            ]
+          },
+          {
+            "jobId": "fbade80f-23fa-408a-b05e-256654dede26",
+            "type": "scheduled",
+            "label": "scheduled:daily@03:45",
+            "completedAt": "2026-06-06T01:58:25.024Z",
+            "reasons": [
+              "latest_successful",
+              "retained_in_bucket"
+            ]
+          }
+        ],
+        "deletedCount": 0,
+        "bytesReclaimed": 0,
+        "deletedJobIds": []
+      }
+    },
+    "elapsedMs": 22
+  }
+}

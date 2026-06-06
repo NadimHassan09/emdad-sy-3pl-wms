@@ -1,0 +1,270 @@
+{
+  "generatedAt": "2026-06-06T02:06:22.972Z",
+  "elapsedMs": 80613,
+  "recoveryPointObjectiveSec": 12,
+  "recoveryTimeObjectiveSec": 9,
+  "readinessScore": 77,
+  "config": {
+    "gdriveEnabled": "true",
+    "gdriveClientId": null,
+    "gdriveClientSecret": null,
+    "gdriveRedirectUri": "https://staging-admin.emdadsy.com/api/integrations/google-drive/callback",
+    "gdriveConnectSuccessUrl": "https://staging-admin.emdadsy.com/settings/backups/google-drive",
+    "encryptionKey": "[set]",
+    "defaultStoragePolicy": "local_and_drive"
+  },
+  "results": [
+    {
+      "phase": "config",
+      "name": "gdrive_env",
+      "outcome": "pass",
+      "at": "2026-06-06T02:05:02.383Z",
+      "gdriveEnabled": "true",
+      "gdriveClientId": null,
+      "gdriveClientSecret": null,
+      "gdriveRedirectUri": "https://staging-admin.emdadsy.com/api/integrations/google-drive/callback",
+      "gdriveConnectSuccessUrl": "https://staging-admin.emdadsy.com/settings/backups/google-drive",
+      "encryptionKey": "[set]",
+      "defaultStoragePolicy": "local_and_drive"
+    },
+    {
+      "phase": "config",
+      "name": "oauth_client",
+      "outcome": "blocked",
+      "at": "2026-06-06T02:05:02.383Z",
+      "note": "BACKUP_GDRIVE_CLIENT_ID/SECRET required for OAuth connect"
+    },
+    {
+      "phase": "config",
+      "name": "auth",
+      "outcome": "pass",
+      "at": "2026-06-06T02:05:02.701Z",
+      "email": "superadmin@emdad.example"
+    },
+    {
+      "phase": "drive",
+      "name": "status_api",
+      "outcome": "pass",
+      "at": "2026-06-06T02:05:02.755Z",
+      "gdriveEnabled": true,
+      "gdriveConfigured": false,
+      "connected": false
+    },
+    {
+      "phase": "drive",
+      "name": "connect_auth_url",
+      "outcome": "blocked",
+      "at": "2026-06-06T02:05:02.766Z",
+      "status": 503,
+      "hasUrl": false
+    },
+    {
+      "phase": "drive",
+      "name": "test_connection",
+      "outcome": "blocked",
+      "at": "2026-06-06T02:05:02.775Z",
+      "status": 201
+    },
+    {
+      "phase": "drive",
+      "name": "disconnect",
+      "outcome": "pass",
+      "at": "2026-06-06T02:05:02.786Z",
+      "status": 200
+    },
+    {
+      "phase": "drive",
+      "name": "reconnect_auth_url",
+      "outcome": "blocked",
+      "at": "2026-06-06T02:05:02.794Z",
+      "status": 503
+    },
+    {
+      "phase": "policies",
+      "name": "local_only",
+      "outcome": "pass",
+      "at": "2026-06-06T02:05:04.434Z",
+      "status": 200,
+      "message": "local_only"
+    },
+    {
+      "phase": "policies",
+      "name": "local_and_drive",
+      "outcome": "pass",
+      "at": "2026-06-06T02:05:04.434Z",
+      "status": 200,
+      "message": "local_and_drive"
+    },
+    {
+      "phase": "policies",
+      "name": "drive_only",
+      "outcome": "pass",
+      "at": "2026-06-06T02:05:04.434Z",
+      "status": 200,
+      "message": "drive_only"
+    },
+    {
+      "phase": "retry",
+      "name": "backoff_math",
+      "outcome": "pass",
+      "at": "2026-06-06T02:05:04.453Z",
+      "attempt1": 60000,
+      "attempt2": 120000,
+      "attempt3": 240000
+    },
+    {
+      "phase": "retry",
+      "name": "forced_failure",
+      "outcome": "blocked",
+      "at": "2026-06-06T02:05:04.453Z",
+      "simulated": false,
+      "note": "Drive not connected — retry upload not executed"
+    },
+    {
+      "phase": "retry",
+      "name": "retry_scheduled",
+      "outcome": "blocked",
+      "at": "2026-06-06T02:05:04.453Z",
+      "simulated": false,
+      "note": "Drive not connected — retry upload not executed"
+    },
+    {
+      "phase": "retention",
+      "name": "local_preview",
+      "outcome": "pass",
+      "at": "2026-06-06T02:05:04.575Z",
+      "status": 200
+    },
+    {
+      "phase": "retention",
+      "name": "local_cleanup",
+      "outcome": "fail",
+      "at": "2026-06-06T02:05:04.575Z",
+      "status": 201,
+      "deletedCount": 0
+    },
+    {
+      "phase": "retention",
+      "name": "drive_preview",
+      "outcome": "pass",
+      "at": "2026-06-06T02:05:04.614Z",
+      "status": 200
+    },
+    {
+      "phase": "retention",
+      "name": "drive_cleanup",
+      "outcome": "fail",
+      "at": "2026-06-06T02:05:04.614Z",
+      "status": 201
+    },
+    {
+      "phase": "dr",
+      "name": "create_backup",
+      "outcome": "pass",
+      "at": "2026-06-06T02:06:13.210Z",
+      "jobId": "29d13075-6725-40e6-a28f-fccb35c609be",
+      "durationMs": 68060,
+      "bytesWritten": 2345220
+    },
+    {
+      "phase": "dr",
+      "name": "restore",
+      "outcome": "pass",
+      "at": "2026-06-06T02:06:22.972Z",
+      "restoreJobId": "ce58ab21-2901-4dfb-a777-aba5d6e2dd97",
+      "durationMs": 9316
+    },
+    {
+      "phase": "dr",
+      "name": "verify_products",
+      "outcome": "pass",
+      "at": "2026-06-06T02:06:22.972Z",
+      "before": 93,
+      "after": 93
+    },
+    {
+      "phase": "dr",
+      "name": "verify_inventory",
+      "outcome": "pass",
+      "at": "2026-06-06T02:06:22.972Z",
+      "before": 77,
+      "after": 77
+    },
+    {
+      "phase": "dr",
+      "name": "verify_orders",
+      "outcome": "pass",
+      "at": "2026-06-06T02:06:22.972Z",
+      "inbound": {
+        "before": 66,
+        "after": 66
+      },
+      "outbound": {
+        "before": 33,
+        "after": 33
+      }
+    },
+    {
+      "phase": "dr",
+      "name": "verify_tasks",
+      "outcome": "pass",
+      "at": "2026-06-06T02:06:22.972Z",
+      "before": 194,
+      "after": 194
+    },
+    {
+      "phase": "dr",
+      "name": "verify_users",
+      "outcome": "pass",
+      "at": "2026-06-06T02:06:22.972Z",
+      "before": 7,
+      "after": 7
+    },
+    {
+      "phase": "dr",
+      "name": "entity_integrity",
+      "outcome": "pass",
+      "at": "2026-06-06T02:06:22.972Z",
+      "baseline": {
+        "products": 93,
+        "inventory": 77,
+        "inboundOrders": 66,
+        "outboundOrders": 33,
+        "tasks": 194,
+        "users": 7,
+        "capturedAt": "2026-06-06T02:05:05.102Z"
+      },
+      "after": {
+        "products": 93,
+        "inventory": 77,
+        "inboundOrders": 66,
+        "outboundOrders": 33,
+        "tasks": 194,
+        "users": 7,
+        "capturedAt": "2026-06-06T02:06:22.917Z"
+      }
+    }
+  ],
+  "metrics": {
+    "drBackupCreateMs": 68060,
+    "drRestoreMs": 9316,
+    "baseline": {
+      "products": 93,
+      "inventory": 77,
+      "inboundOrders": 66,
+      "outboundOrders": 33,
+      "tasks": 194,
+      "users": 7,
+      "capturedAt": "2026-06-06T02:05:05.102Z"
+    },
+    "after": {
+      "products": 93,
+      "inventory": 77,
+      "inboundOrders": 66,
+      "outboundOrders": 33,
+      "tasks": 194,
+      "users": 7,
+      "capturedAt": "2026-06-06T02:06:22.917Z"
+    }
+  }
+}

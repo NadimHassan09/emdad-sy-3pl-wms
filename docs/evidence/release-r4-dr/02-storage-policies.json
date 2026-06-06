@@ -1,0 +1,14 @@
+{
+  "local_only": {
+    "status": 200,
+    "message": "local_only"
+  },
+  "local_and_drive": {
+    "status": 200,
+    "message": "local_and_drive"
+  },
+  "drive_only": {
+    "status": 200,
+    "message": "drive_only"
+  }
+}

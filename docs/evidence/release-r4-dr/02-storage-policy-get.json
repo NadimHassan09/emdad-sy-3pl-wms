@@ -1,0 +1,14 @@
+{
+  "status": 200,
+  "data": {
+    "success": true,
+    "data": {
+      "defaultPolicy": "local_only",
+      "envFallbackPolicy": "local_and_drive",
+      "effectiveDefaultPolicy": "local_only",
+      "updatedAt": "2026-06-06T02:04:15.302Z",
+      "updatedByUserId": "00000000-0000-4000-8000-0000000000ab"
+    }
+  },
+  "elapsedMs": 13
+}
