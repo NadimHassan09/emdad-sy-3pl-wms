@@ -1,0 +1,230 @@
+{
+  "generatedAt": "2026-06-06T01:58:33.037Z",
+  "elapsedMs": 86610,
+  "elapsedHuman": "1.4 min",
+  "totalSteps": 20,
+  "totalTests": 20,
+  "passed": 19,
+  "failed": 0,
+  "skipped": 1,
+  "coveragePct": 98,
+  "exitCode": 0,
+  "accounts": {
+    "supervisor": "r3-supervisor@emdad.example",
+    "operator": "r3-operator@emdad.example",
+    "backups": "superadmin@emdad.example"
+  },
+  "steps": [
+    {
+      "id": "inbound-create-asn",
+      "area": "Inbound",
+      "label": "Create ASN"
+    },
+    {
+      "id": "inbound-confirm",
+      "area": "Inbound",
+      "label": "Confirm"
+    },
+    {
+      "id": "inbound-receive",
+      "area": "Inbound",
+      "label": "Receive"
+    },
+    {
+      "id": "inbound-qc",
+      "area": "Inbound",
+      "label": "QC"
+    },
+    {
+      "id": "inbound-putaway",
+      "area": "Inbound",
+      "label": "Putaway"
+    },
+    {
+      "id": "inbound-complete",
+      "area": "Inbound",
+      "label": "Complete"
+    },
+    {
+      "id": "outbound-create",
+      "area": "Outbound",
+      "label": "Create order"
+    },
+    {
+      "id": "outbound-allocate",
+      "area": "Outbound",
+      "label": "Allocate"
+    },
+    {
+      "id": "outbound-pick",
+      "area": "Outbound",
+      "label": "Pick"
+    },
+    {
+      "id": "outbound-pack",
+      "area": "Outbound",
+      "label": "Pack"
+    },
+    {
+      "id": "outbound-dispatch",
+      "area": "Outbound",
+      "label": "Dispatch"
+    },
+    {
+      "id": "outbound-complete",
+      "area": "Outbound",
+      "label": "Complete"
+    },
+    {
+      "id": "inventory-adjustment",
+      "area": "Inventory",
+      "label": "Adjustment"
+    },
+    {
+      "id": "inventory-adjustment-approval",
+      "area": "Inventory",
+      "label": "Approval"
+    },
+    {
+      "id": "inventory-cycle-count",
+      "area": "Inventory",
+      "label": "Cycle count"
+    },
+    {
+      "id": "inventory-cycle-approval",
+      "area": "Inventory",
+      "label": "Cycle approval"
+    },
+    {
+      "id": "backup-manual",
+      "area": "Backups",
+      "label": "Manual backup"
+    },
+    {
+      "id": "backup-upload",
+      "area": "Backups",
+      "label": "Upload"
+    },
+    {
+      "id": "backup-restore",
+      "area": "Backups",
+      "label": "Restore simulation"
+    },
+    {
+      "id": "backup-retention",
+      "area": "Backups",
+      "label": "Retention cleanup"
+    }
+  ],
+  "tests": [
+    {
+      "title": "01 — Inbound: Create ASN",
+      "status": "passed",
+      "duration": 4758
+    },
+    {
+      "title": "02 — Inbound: Confirm ASN (supervisor)",
+      "status": "passed",
+      "duration": 3075
+    },
+    {
+      "title": "03 — Inbound: Receive (operator)",
+      "status": "passed",
+      "duration": 6843
+    },
+    {
+      "title": "04 — Inbound: QC (operator, if present)",
+      "status": "skipped",
+      "duration": 2569
+    },
+    {
+      "title": "05 — Inbound: Putaway (operator)",
+      "status": "passed",
+      "duration": 6126
+    },
+    {
+      "title": "06 — Inbound: Complete order",
+      "status": "passed",
+      "duration": 6451
+    },
+    {
+      "title": "07 — Outbound: Create order",
+      "status": "passed",
+      "duration": 4294
+    },
+    {
+      "title": "08 — Outbound: Allocate / confirm workflow",
+      "status": "passed",
+      "duration": 2702
+    },
+    {
+      "title": "09 — Outbound: Pick",
+      "status": "passed",
+      "duration": 6530
+    },
+    {
+      "title": "10 — Outbound: Pack",
+      "status": "passed",
+      "duration": 5839
+    },
+    {
+      "title": "11 — Outbound: Dispatch",
+      "status": "passed",
+      "duration": 6879
+    },
+    {
+      "title": "12 — Outbound: Complete order",
+      "status": "passed",
+      "duration": 2578
+    },
+    {
+      "title": "13 — Inventory: Adjustment create",
+      "status": "passed",
+      "duration": 5254
+    },
+    {
+      "title": "14 — Inventory: Adjustment approval",
+      "status": "passed",
+      "duration": 3011
+    },
+    {
+      "title": "15 — Inventory: Cycle count execute (operator)",
+      "status": "passed",
+      "duration": 3225
+    },
+    {
+      "title": "16 — Inventory: Cycle count approval (supervisor)",
+      "status": "passed",
+      "duration": 2808
+    },
+    {
+      "title": "17 — Backups: Manual backup (schedule run now)",
+      "status": "passed",
+      "duration": 2959
+    },
+    {
+      "title": "18 — Backups: Upload page validation",
+      "status": "passed",
+      "duration": 2357
+    },
+    {
+      "title": "19 — Backups: Restore simulation (type RESTORE)",
+      "status": "passed",
+      "duration": 2470
+    },
+    {
+      "title": "20 — Backups: Retention cleanup preview",
+      "status": "passed",
+      "duration": 2771
+    }
+  ],
+  "stats": {
+    "startTime": "2026-06-06T01:57:07.453Z",
+    "duration": 85548.075,
+    "expected": 19,
+    "skipped": 1,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "playwrightTail": "\nRunning 20 tests using 1 worker\n\n\u001b[1A\u001b[2K[1/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:42:7 › RELEASE-R3 Warehouse Workflow E2E › 01 — Inbound: Create ASN\n\u001b[1A\u001b[2K[2/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:64:7 › RELEASE-R3 Warehouse Workflow E2E › 02 — Inbound: Confirm ASN (supervisor)\n\u001b[1A\u001b[2K[3/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:74:7 › RELEASE-R3 Warehouse Workflow E2E › 03 — Inbound: Receive (operator)\n\u001b[1A\u001b[2K[4/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:88:7 › RELEASE-R3 Warehouse Workflow E2E › 04 — Inbound: QC (operator, if present)\n\u001b[1A\u001b[2K[5/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:107:7 › RELEASE-R3 Warehouse Workflow E2E › 05 — Inbound: Putaway (operator)\n\u001b[1A\u001b[2K[6/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:128:7 › RELEASE-R3 Warehouse Workflow E2E › 06 — Inbound: Complete order\n\u001b[1A\u001b[2K[7/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:137:7 › RELEASE-R3 Warehouse Workflow E2E › 07 — Outbound: Create order\n\u001b[1A\u001b[2K[8/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:154:7 › RELEASE-R3 Warehouse Workflow E2E › 08 — Outbound: Allocate / confirm workflow\n\u001b[1A\u001b[2K[9/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:162:7 › RELEASE-R3 Warehouse Workflow E2E › 09 — Outbound: Pick\n\u001b[1A\u001b[2K[10/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:174:7 › RELEASE-R3 Warehouse Workflow E2E › 10 — Outbound: Pack\n\u001b[1A\u001b[2K[11/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:186:7 › RELEASE-R3 Warehouse Workflow E2E › 11 — Outbound: Dispatch\n\u001b[1A\u001b[2K[12/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:198:7 › RELEASE-R3 Warehouse Workflow E2E › 12 — Outbound: Complete order\n\u001b[1A\u001b[2K[13/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:207:7 › RELEASE-R3 Warehouse Workflow E2E › 13 — Inventory: Adjustment create\n\u001b[1A\u001b[2K[14/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:271:7 › RELEASE-R3 Warehouse Workflow E2E › 14 — Inventory: Adjustment approval\n\u001b[1A\u001b[2K[15/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:280:7 › RELEASE-R3 Warehouse Workflow E2E › 15 — Inventory: Cycle count execute (operator)\n\u001b[1A\u001b[2K[16/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:307:7 › RELEASE-R3 Warehouse Workflow E2E › 16 — Inventory: Cycle count approval (supervisor)\n\u001b[1A\u001b[2K[17/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:325:7 › RELEASE-R3 Warehouse Workflow E2E › 17 — Backups: Manual backup (schedule run now)\n\u001b[1A\u001b[2K[18/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:340:7 › RELEASE-R3 Warehouse Workflow E2E › 18 — Backups: Upload page validation\n\u001b[1A\u001b[2K[19/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:356:7 › RELEASE-R3 Warehouse Workflow E2E › 19 — Backups: Restore simulation (type RESTORE)\n\u001b[1A\u001b[2K[20/20] [admin-desktop] › tests/e2e/admin/release-r3-workflow.spec.ts:368:7 › RELEASE-R3 Warehouse Workflow E2E › 20 — Backups: Retention cleanup preview\n\u001b[1A\u001b[2K  1 skipped\n  19 passed (1.4m)\n\n"
+}

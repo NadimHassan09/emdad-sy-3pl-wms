@@ -1,0 +1,890 @@
+{
+  "config": {
+    "configFile": "/var/www/emdad-sy-3pl-wms-staging/playwright.config.ts",
+    "rootDir": "/var/www/emdad-sy-3pl-wms-staging/tests",
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/var/www/emdad-sy-3pl-wms-staging/qa-results/test-output",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "workflows-staging",
+        "name": "workflows-staging",
+        "testDir": "/var/www/emdad-sy-3pl-wms-staging/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/workflows\\/.*\\.spec\\.ts/"
+        ],
+        "timeout": 120000
+      },
+      {
+        "outputDir": "/var/www/emdad-sy-3pl-wms-staging/qa-results/test-output",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "admin-desktop",
+        "name": "admin-desktop",
+        "testDir": "/var/www/emdad-sy-3pl-wms-staging/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e\\/admin\\/.*\\.spec\\.ts/"
+        ],
+        "timeout": 120000
+      },
+      {
+        "outputDir": "/var/www/emdad-sy-3pl-wms-staging/qa-results/test-output",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "client-desktop",
+        "name": "client-desktop",
+        "testDir": "/var/www/emdad-sy-3pl-wms-staging/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/e2e\\/client\\/.*\\.spec\\.ts/"
+        ],
+        "timeout": 120000
+      },
+      {
+        "outputDir": "/var/www/emdad-sy-3pl-wms-staging/qa-results/test-output",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "api-staging",
+        "name": "api-staging",
+        "testDir": "/var/www/emdad-sy-3pl-wms-staging/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/api\\/.*\\.spec\\.ts/"
+        ],
+        "timeout": 120000
+      },
+      {
+        "outputDir": "/var/www/emdad-sy-3pl-wms-staging/qa-results/test-output",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-iphone",
+        "name": "mobile-iphone",
+        "testDir": "/var/www/emdad-sy-3pl-wms-staging/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/mobile\\/.*\\.spec\\.ts/"
+        ],
+        "timeout": 120000
+      },
+      {
+        "outputDir": "/var/www/emdad-sy-3pl-wms-staging/qa-results/test-output",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-android",
+        "name": "mobile-android",
+        "testDir": "/var/www/emdad-sy-3pl-wms-staging/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/mobile\\/.*\\.spec\\.ts/"
+        ],
+        "timeout": 120000
+      },
+      {
+        "outputDir": "/var/www/emdad-sy-3pl-wms-staging/qa-results/test-output",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile-tablet",
+        "name": "mobile-tablet",
+        "testDir": "/var/www/emdad-sy-3pl-wms-staging/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "/mobile\\/.*\\.spec\\.ts/"
+        ],
+        "timeout": 120000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "line"
+      ],
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.60.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "e2e/admin/release-r3-workflow.spec.ts",
+      "file": "e2e/admin/release-r3-workflow.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "RELEASE-R3 Warehouse Workflow E2E",
+          "file": "e2e/admin/release-r3-workflow.spec.ts",
+          "line": 41,
+          "column": 6,
+          "specs": [
+            {
+              "title": "01 — Inbound: Create ASN",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [
+                    {
+                      "type": "duration_ms",
+                      "description": "4494"
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4758,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:57:08.397Z",
+                      "annotations": [
+                        {
+                          "type": "duration_ms",
+                          "description": "4494"
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-1be5bedfad2f4537de7a",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 42,
+              "column": 7
+            },
+            {
+              "title": "02 — Inbound: Confirm ASN (supervisor)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3075,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:57:13.793Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-6609e34e7b9aa22cb958",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 64,
+              "column": 7
+            },
+            {
+              "title": "03 — Inbound: Receive (operator)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6843,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:57:16.884Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-3e4ffe0ba19af226a5a1",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 74,
+              "column": 7
+            },
+            {
+              "title": "04 — Inbound: QC (operator, if present)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "QC step not in workflow for this product",
+                      "location": {
+                        "file": "/var/www/emdad-sy-3pl-wms-staging/tests/e2e/admin/release-r3-workflow.spec.ts",
+                        "line": 94,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "skipped",
+                      "duration": 2569,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:57:23.742Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "QC step not in workflow for this product",
+                          "location": {
+                            "file": "/var/www/emdad-sy-3pl-wms-staging/tests/e2e/admin/release-r3-workflow.spec.ts",
+                            "line": 94,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-e974dde7576385498061",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 88,
+              "column": 7
+            },
+            {
+              "title": "05 — Inbound: Putaway (operator)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6126,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:57:26.326Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-195456234c401c7f1dd2",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 107,
+              "column": 7
+            },
+            {
+              "title": "06 — Inbound: Complete order",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6451,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:57:32.465Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-cade9d01b3a88bf2134b",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 128,
+              "column": 7
+            },
+            {
+              "title": "07 — Outbound: Create order",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4294,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:57:38.934Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-e3cad8152b66c5d006df",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 137,
+              "column": 7
+            },
+            {
+              "title": "08 — Outbound: Allocate / confirm workflow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2702,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:57:43.242Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-ac6b941e2c3c74bf3b99",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 154,
+              "column": 7
+            },
+            {
+              "title": "09 — Outbound: Pick",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6530,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:57:45.956Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-284d558f3fb93b60d120",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 162,
+              "column": 7
+            },
+            {
+              "title": "10 — Outbound: Pack",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5839,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:57:52.498Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-97768298de3aee16ece5",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 174,
+              "column": 7
+            },
+            {
+              "title": "11 — Outbound: Dispatch",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6879,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:57:58.348Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-ee077696ed073af1f803",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 186,
+              "column": 7
+            },
+            {
+              "title": "12 — Outbound: Complete order",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2578,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:58:05.238Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-39f8bbd60659486cc0c0",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 198,
+              "column": 7
+            },
+            {
+              "title": "13 — Inventory: Adjustment create",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5254,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:58:07.834Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-b95946d6ad7ac6d46281",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 207,
+              "column": 7
+            },
+            {
+              "title": "14 — Inventory: Adjustment approval",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3011,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:58:13.106Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-fbd8c53a27fe58e1541d",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 271,
+              "column": 7
+            },
+            {
+              "title": "15 — Inventory: Cycle count execute (operator)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3225,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:58:16.127Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-075b8834f07345e79fdd",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 280,
+              "column": 7
+            },
+            {
+              "title": "16 — Inventory: Cycle count approval (supervisor)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2808,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:58:19.366Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-6092c0e2f636d1f6f3f6",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 307,
+              "column": 7
+            },
+            {
+              "title": "17 — Backups: Manual backup (schedule run now)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2959,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:58:22.182Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-c64d8e4911965c53fb8c",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 325,
+              "column": 7
+            },
+            {
+              "title": "18 — Backups: Upload page validation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2357,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:58:25.181Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-204aeee8884c33544c4e",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 340,
+              "column": 7
+            },
+            {
+              "title": "19 — Backups: Restore simulation (type RESTORE)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2470,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:58:27.551Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-ff60ab2d1aad8bb9b06c",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 356,
+              "column": 7
+            },
+            {
+              "title": "20 — Backups: Retention cleanup preview",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "admin-desktop",
+                  "projectName": "admin-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2771,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-06-06T01:58:30.038Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2aebdf07f60ca5ffc60f-822564a196ace2bec4ed",
+              "file": "e2e/admin/release-r3-workflow.spec.ts",
+              "line": 368,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-06-06T01:57:07.453Z",
+    "duration": 85548.075,
+    "expected": 19,
+    "skipped": 1,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

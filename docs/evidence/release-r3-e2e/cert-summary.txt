@@ -1,0 +1,25 @@
+RELEASE-R3 E2E Certification 2026-06-06T01:58:33.037Z
+Duration: 1.4 min
+Results: 19/20 passed, 0 failed, 1 skipped
+Coverage: 98%
+
+PASSED   01 — Inbound: Create ASN (4758ms)
+PASSED   02 — Inbound: Confirm ASN (supervisor) (3075ms)
+PASSED   03 — Inbound: Receive (operator) (6843ms)
+SKIPPED  04 — Inbound: QC (operator, if present) (2569ms)
+PASSED   05 — Inbound: Putaway (operator) (6126ms)
+PASSED   06 — Inbound: Complete order (6451ms)
+PASSED   07 — Outbound: Create order (4294ms)
+PASSED   08 — Outbound: Allocate / confirm workflow (2702ms)
+PASSED   09 — Outbound: Pick (6530ms)
+PASSED   10 — Outbound: Pack (5839ms)
+PASSED   11 — Outbound: Dispatch (6879ms)
+PASSED   12 — Outbound: Complete order (2578ms)
+PASSED   13 — Inventory: Adjustment create (5254ms)
+PASSED   14 — Inventory: Adjustment approval (3011ms)
+PASSED   15 — Inventory: Cycle count execute (operator) (3225ms)
+PASSED   16 — Inventory: Cycle count approval (supervisor) (2808ms)
+PASSED   17 — Backups: Manual backup (schedule run now) (2959ms)
+PASSED   18 — Backups: Upload page validation (2357ms)
+PASSED   19 — Backups: Restore simulation (type RESTORE) (2470ms)
+PASSED   20 — Backups: Retention cleanup preview (2771ms)
