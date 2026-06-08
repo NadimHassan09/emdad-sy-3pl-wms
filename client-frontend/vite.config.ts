@@ -7,26 +7,19 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      /** Shared WMS design-system primitive barrel — see shared/design-system/ui. */
       '@ds': fileURLToPath(
         new NodeURL('../shared/design-system/ui/index.ts', import.meta.url),
       ),
-      /** Admin list UI (DataTable, FilterPanel, fields) — shared with WMS frontend. */
       '@wms/components': fileURLToPath(
         new NodeURL('../frontend/src/components', import.meta.url),
       ),
       '@wms/hooks': fileURLToPath(new NodeURL('../frontend/src/hooks', import.meta.url)),
-      /**
-       * Shared design-system files live outside this app's directory.
-       * Rolldown needs an explicit alias so all shared TSX resolves to the
-       * same react copy as the app (prevents "two Reacts" and resolution errors).
-       */
       'react': pathResolve('./node_modules/react'),
       'react-dom': pathResolve('./node_modules/react-dom'),
       'react/jsx-runtime': pathResolve('./node_modules/react/jsx-runtime.js'),
+      '@tanstack/react-query': pathResolve('./node_modules/@tanstack/react-query'),
     },
-    // Also dedupe to guarantee a single react instance at runtime
-    dedupe: ['react', 'react-dom'],
+    dedupe: ['react', 'react-dom', '@tanstack/react-query'],
   },
   server: {
     port: 5174,

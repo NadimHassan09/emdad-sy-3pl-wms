@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactElement } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { Alert, Button } from '@ds';
 import type { Column } from '@wms/components/DataTable';
@@ -7,6 +7,10 @@ import { DataTable } from '@wms/components/DataTable';
 import { FILTER_PRIMARY_BUTTON_CLASS, FilterPanel } from '@wms/components/FilterPanel';
 import { TextField } from '@wms/components/TextField';
 import { useFilters } from '@wms/hooks/useFilters';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '@wms/hooks/useChunkedServerPagination';
 
 import { useAuth } from '../auth/AuthContext';
 import { CreateClientProductModal } from '../components/CreateClientProductModal';
@@ -17,8 +21,6 @@ import {
   fetchClientProducts,
   type ClientProductRow,
 } from '../services/clientProductsService';
-
-const LIST_LIMIT = 200;
 
 const UOM_LABELS: Record<string, { en: string; ar: string }> = {
   piece: { en: 'Piece', ar: 'قطعة' },
@@ -90,10 +92,8 @@ export function ProductsPage(): ReactElement {
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters(initialFilters);
 
-  const listParams = useMemo(
+  const filterKey = useMemo(
     () => ({
-      limit: LIST_LIMIT,
-      offset: 0,
       productName: appliedFilters.name.trim() || undefined,
       sku: appliedFilters.sku.trim() || undefined,
       productBarcode: appliedFilters.barcode.trim() || undefined,
@@ -101,9 +101,12 @@ export function ProductsPage(): ReactElement {
     [appliedFilters],
   );
 
-  const list = useQuery({
-    queryKey: ['client', 'products', listParams],
-    queryFn: () => fetchClientProducts(listParams),
+  const pagination = useChunkedServerPagination<ClientProductRow>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey,
+    fetchChunk: (offset, limit) => fetchClientProducts({ ...filterKey, offset, limit }),
+    rtQueryKeyPrefix: ['client', 'products'],
+    chunkQueryKeyPrefix: 'client-products-chunk',
   });
 
   const createMut = useMutation({
@@ -168,7 +171,7 @@ export function ProductsPage(): ReactElement {
 
   return (
     <>
-      <p className="mb-4 text-sm text-slate-600">
+      <p className="mb-3 text-sm text-slate-600">
         {t('Your product catalog for inbound and outbound orders.')}
       </p>
 
@@ -186,17 +189,17 @@ export function ProductsPage(): ReactElement {
         />
       )}
 
-      {list.isError && (
+      {pagination.isError && (
         <Alert
           variant="error"
           title={t('Could not load products')}
           description="Check your connection and try refreshing the page."
           action={
-            <Alert.Action variant="error" onClick={() => list.refetch()}>
+            <Alert.Action variant="error" onClick={() => pagination.refetch()}>
               Retry
             </Alert.Action>
           }
-          className="mb-4"
+          className="mb-3"
         />
       )}
 
@@ -204,11 +207,11 @@ export function ProductsPage(): ReactElement {
         title={t('Product filters')}
         onApply={applyFilters}
         onReset={resetFilters}
-        loading={list.isFetching}
+        loading={pagination.isFetching}
         applyLabel={t('Apply filters')}
         resetLabel={t('Reset filters')}
       >
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
           <TextField
             label={t('Name')}
             value={draftFilters.name}
@@ -252,10 +255,11 @@ export function ProductsPage(): ReactElement {
           ) : undefined
         }
         columns={columns}
-        rows={list.data?.items ?? []}
+        rows={pagination.rows}
         rowKey={(p) => p.id}
-        loading={list.isLoading}
+        loading={pagination.isInitialLoading}
         empty={t('No products found.')}
+        serverPagination={pagination.serverPagination}
         labels={{
           rowsSuffix: t('rows'),
           resultsSuffix: t('results'),

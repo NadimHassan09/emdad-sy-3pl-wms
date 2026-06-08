@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
@@ -22,7 +22,19 @@ export class ClientBillingController {
   }
 
   @Get('invoices')
-  listInvoices(@ClientUser() client: ClientPrincipal) {
+  listInvoices(
+    @ClientUser() client: ClientPrincipal,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const parsedLimit = limit != null ? Number(limit) : undefined;
+    const parsedOffset = offset != null ? Number(offset) : undefined;
+    if (parsedLimit != null || parsedOffset != null) {
+      return this.billing.listInvoicesPage(client, {
+        limit: Number.isFinite(parsedLimit) ? parsedLimit! : 50,
+        offset: Number.isFinite(parsedOffset) ? parsedOffset! : 0,
+      });
+    }
     return this.billing.listInvoices(client);
   }
 

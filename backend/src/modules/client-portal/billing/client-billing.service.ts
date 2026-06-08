@@ -93,6 +93,50 @@ export class ClientBillingService {
     };
   }
 
+  async listInvoicesPage(
+    client: ClientPrincipal,
+    params: { limit: number; offset: number },
+  ) {
+    this.assertBillingAccess(client);
+    const companyId = client.companyId;
+    const limit = Math.min(Math.max(params.limit, 1), 200);
+    const offset = Math.max(params.offset, 0);
+
+    const where = { companyId };
+    const [items, total] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
+        select: {
+          id: true,
+          companyId: true,
+          billingCycleId: true,
+          invoiceNumber: true,
+          status: true,
+          totalAmount: true,
+          issuedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          billingCycle: {
+            select: {
+              id: true,
+              startsAt: true,
+              endsAt: true,
+              status: true,
+              rateSnapshot: true,
+              billingPlanId: true,
+            },
+          },
+        },
+      }),
+      this.prisma.invoice.count({ where }),
+    ]);
+
+    return { items, total, limit, offset };
+  }
+
   async listInvoices(client: ClientPrincipal) {
     this.assertBillingAccess(client);
     const user = clientAuthPrincipal(client);

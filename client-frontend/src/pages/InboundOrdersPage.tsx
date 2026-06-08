@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
 import { Alert, Button } from '@ds';
@@ -11,6 +11,10 @@ import { SelectField } from '@wms/components/SelectField';
 import { StatusBadge } from '@wms/components/StatusBadge';
 import { TextField } from '@wms/components/TextField';
 import { useFilters } from '@wms/hooks/useFilters';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '@wms/hooks/useChunkedServerPagination';
 
 import { CreateClientInboundModal } from '../components/CreateClientInboundModal';
 import { isClientArabic } from '../lib/client-ui-language';
@@ -19,8 +23,6 @@ import {
   fetchClientInboundOrders,
   type ClientInboundOrderRow,
 } from '../services/clientInboundOrdersService';
-
-const LIST_LIMIT = 200;
 
 const INBOUND_STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
@@ -95,19 +97,20 @@ export function InboundOrdersPage(): ReactElement {
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters(initialList);
 
-  const listParams = useMemo(
+  const filterKey = useMemo(
     () => ({
-      limit: LIST_LIMIT,
-      offset: 0,
       orderSearch: appliedFilters.orderSearch.trim() || undefined,
       status: appliedFilters.status.trim() || undefined,
     }),
     [appliedFilters],
   );
 
-  const list = useQuery({
-    queryKey: ['client', 'inbound-orders', listParams],
-    queryFn: () => fetchClientInboundOrders(listParams),
+  const pagination = useChunkedServerPagination<ClientInboundOrderRow>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey,
+    fetchChunk: (offset, limit) => fetchClientInboundOrders({ ...filterKey, offset, limit }),
+    rtQueryKeyPrefix: ['client', 'inbound-orders'],
+    chunkQueryKeyPrefix: 'client-inbound-orders-chunk',
   });
 
   const statusOptions = useMemo(
@@ -147,17 +150,17 @@ export function InboundOrdersPage(): ReactElement {
 
   return (
     <>
-      {list.isError && (
+      {pagination.isError && (
         <Alert
           variant="error"
           title={t('Could not load inbound orders')}
           description="Check your connection and try refreshing the page."
           action={
-            <Alert.Action variant="error" onClick={() => list.refetch()}>
+            <Alert.Action variant="error" onClick={() => pagination.refetch()}>
               Retry
             </Alert.Action>
           }
-          className="mb-4"
+          className="mb-3"
         />
       )}
 
@@ -165,11 +168,11 @@ export function InboundOrdersPage(): ReactElement {
         title={t('Order filters')}
         onApply={applyFilters}
         onReset={resetFilters}
-        loading={list.isFetching}
+        loading={pagination.isFetching}
         applyLabel={t('Apply filters')}
         resetLabel={t('Reset filters')}
       >
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
           <TextField
             label={t('Order #')}
             value={draftFilters.orderSearch}
@@ -203,11 +206,12 @@ export function InboundOrdersPage(): ReactElement {
           </Button>
         }
         columns={columns}
-        rows={list.data?.items ?? []}
+        rows={pagination.rows}
         rowKey={(o) => o.id}
-        loading={list.isLoading}
+        loading={pagination.isInitialLoading}
         onRowClick={(o) => navigate(`/inbound-orders/${o.id}`)}
         empty={t('No inbound orders found.')}
+        serverPagination={pagination.serverPagination}
         labels={{
           rowsSuffix: t('rows'),
           resultsSuffix: t('results'),

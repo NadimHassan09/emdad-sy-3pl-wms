@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosInstance } from 'axios';
+import axios, { AxiosError, type AxiosInstance } from 'axios';
 
 import { getAccessToken, setAccessToken } from '../auth/authStorage';
 import { getApiBaseUrl } from './apiBaseUrl';

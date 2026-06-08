@@ -9,7 +9,7 @@ import { getLoginErrorMessage } from '../utils/loginError';
 export function LoginPage(): ReactElement {
   const { user, bootstrapped, login } = useAuth();
   const location = useLocation();
-  const from = (location.state as { from?: string } | null)?.from ?? '/';
+  const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,7 +22,7 @@ export function LoginPage(): ReactElement {
       document.documentElement.dir === 'rtl');
 
   if (bootstrapped && user) {
-    return <Navigate to={from === '/login' ? '/' : from} replace />;
+    return <Navigate to={from === '/login' ? '/dashboard' : from} replace />;
   }
 
   if (!bootstrapped) {

@@ -26,6 +26,8 @@ import { ClientStockController } from './stock/client-stock.controller';
 import { ClientStockService } from './stock/client-stock.service';
 import { ClientBillingController } from './billing/client-billing.controller';
 import { ClientBillingService } from './billing/client-billing.service';
+import { ClientDashboardController } from './dashboard/client-dashboard.controller';
+import { ClientDashboardService } from './dashboard/client-dashboard.service';
 
 @Module({
   imports: [
@@ -58,6 +60,7 @@ import { ClientBillingService } from './billing/client-billing.service';
     ClientOutboundOrdersController,
     ClientNotificationsController,
     ClientBillingController,
+    ClientDashboardController,
   ],
   providers: [
     ClientAuthService,
@@ -67,6 +70,7 @@ import { ClientBillingService } from './billing/client-billing.service';
     ClientOutboundOrdersService,
     ClientNotificationsService,
     ClientBillingService,
+    ClientDashboardService,
     JwtClientStrategy,
     JwtClientAuthGuard,
   ],

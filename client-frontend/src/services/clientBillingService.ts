@@ -79,6 +79,21 @@ export async function fetchClientBillingSummary(): Promise<ClientBillingSummary>
   return data;
 }
 
+export type ClientInvoicesPage = {
+  items: ClientInvoice[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export async function fetchClientInvoicesPage(params: {
+  limit?: number;
+  offset?: number;
+}): Promise<ClientInvoicesPage> {
+  const { data } = await apiClient.get<ClientInvoicesPage>('/billing/invoices', { params });
+  return data;
+}
+
 export async function fetchClientInvoices(): Promise<ClientInvoice[]> {
   const { data } = await apiClient.get<ClientInvoice[]>('/billing/invoices');
   return data;

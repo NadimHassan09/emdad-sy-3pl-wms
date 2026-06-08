@@ -30,7 +30,7 @@ const OutboundOrdersPage    = lazyPage(() => import('./pages/OutboundOrdersPage'
 const OutboundOrderDetailPage = lazyPage(() => import('./pages/OutboundOrderDetailPage'), 'OutboundOrderDetailPage');
 const ProductsPage          = lazyPage(() => import('./pages/ProductsPage'),          'ProductsPage');
 const StockPage             = lazyPage(() => import('./pages/StockPage'),             'StockPage');
-const WelcomePage           = lazyPage(() => import('./pages/WelcomePage'),           'WelcomePage');
+const DashboardPage         = lazyPage(() => import('./pages/DashboardPage'),         'DashboardPage');
 const BillingPage           = lazyPage(() => import('./pages/BillingPage'),           'BillingPage');
 const BillingInvoiceDetailPage = lazyPage(() => import('./pages/BillingInvoiceDetailPage'), 'BillingInvoiceDetailPage');
 
@@ -55,13 +55,14 @@ function AppRoutes(): ReactElement {
             }
           >
             <Route
-              index
+              path="dashboard"
               element={
                 <RequireRouteAccess>
-                  <WelcomePage />
+                  <DashboardPage />
                 </RequireRouteAccess>
               }
             />
+            <Route index element={<Navigate to="/dashboard" replace />} />
             <Route
               path="products"
               element={
@@ -127,7 +128,7 @@ function AppRoutes(): ReactElement {
               }
             />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </RealtimeProvider>
     </AuthProvider>

@@ -43,6 +43,7 @@ export function PortalLayout(): ReactElement {
   const { pathname } = useLocation();
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [topbarPanel, setTopbarPanel] = useState<'notifications' | 'user' | null>(null);
   const { language, setLanguage, isArabic, isSwitching } = useUiLanguage({
     storageKey: 'client-ui-language',
     eventName: 'client-ui-language-changed',
@@ -119,7 +120,7 @@ export function PortalLayout(): ReactElement {
   return (
     <>
       <LanguageSwitchOverlay open={isSwitching} language={language} />
-      <div key={language} className="h-dvh max-h-dvh overflow-hidden">
+      <div key={language} id="client-portal-root" className="h-dvh max-h-dvh overflow-hidden">
       <AppShell>
         <AppShell.SkipNav />
 
@@ -155,6 +156,8 @@ export function PortalLayout(): ReactElement {
                       formatTime={formatNotificationTime}
                       onMarkAllRead={() => void notifications.markAllRead()}
                       onItemClick={(item) => void onNotificationClick(item)}
+                      open={topbarPanel === 'notifications'}
+                      onOpenChange={(next) => setTopbarPanel(next ? 'notifications' : null)}
                     />
                     <TopbarUserMenu
                     name={displayName}
@@ -164,6 +167,8 @@ export function PortalLayout(): ReactElement {
                     onSignOut={() => void onLogout()}
                     signOutLabel={isArabic ? 'تسجيل الخروج' : 'Sign out'}
                     languageLabel={isArabic ? 'اللغة' : 'Language'}
+                    open={topbarPanel === 'user'}
+                    onOpenChange={(next) => setTopbarPanel(next ? 'user' : null)}
                   />
                   </>
                 )}

@@ -1,1 +1,10 @@
 @import '../../shared/design-system/globals.css';
+
+/* CLIENT-UX-1 — tighter portal content density */
+#client-portal-root .card__subtitle {
+  margin-bottom: 0.75rem;
+}
+
+#client-portal-root .details__row {
+  padding: 0.35rem 0;
+}

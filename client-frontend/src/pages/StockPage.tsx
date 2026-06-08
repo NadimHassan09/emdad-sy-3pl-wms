@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import type { ReactElement } from 'react';
-import { useQuery } from '@tanstack/react-query';
 
 import { Alert } from '@ds';
 import type { Column } from '@wms/components/DataTable';
@@ -8,12 +7,14 @@ import { DataTable } from '@wms/components/DataTable';
 import { FilterPanel } from '@wms/components/FilterPanel';
 import { TextField } from '@wms/components/TextField';
 import { useFilters } from '@wms/hooks/useFilters';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '@wms/hooks/useChunkedServerPagination';
 
 import { useAuth } from '../auth/AuthContext';
 import { isClientArabic } from '../lib/client-ui-language';
 import { fetchStockPage, type ClientStockRow } from '../services/stockService';
-
-const LIST_LIMIT = 200;
 
 type StockListDraft = {
   productSearch: string;
@@ -67,18 +68,19 @@ export function StockPage(): ReactElement {
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters(initialFilters);
 
-  const listParams = useMemo(
+  const filterKey = useMemo(
     () => ({
-      limit: LIST_LIMIT,
-      offset: 0,
       productSearch: appliedFilters.productSearch.trim() || undefined,
     }),
     [appliedFilters],
   );
 
-  const list = useQuery({
-    queryKey: ['client', 'stock', listParams],
-    queryFn: () => fetchStockPage(listParams),
+  const pagination = useChunkedServerPagination<ClientStockRow>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey,
+    fetchChunk: (offset, limit) => fetchStockPage({ ...filterKey, offset, limit }),
+    rtQueryKeyPrefix: ['client', 'stock'],
+    chunkQueryKeyPrefix: 'client-stock-chunk',
   });
 
   const columns: Column<ClientStockRow>[] = useMemo(
@@ -115,20 +117,28 @@ export function StockPage(): ReactElement {
   );
 
   const description = user?.companyName ? user.companyName : undefined;
+  const tableLabels = {
+    rowsSuffix: t('rows'),
+    resultsSuffix: t('results'),
+    ofWord: t('of'),
+    previous: t('Previous'),
+    next: t('Next'),
+    rowsPerPageAria: t('Rows per page'),
+  };
 
   return (
     <>
-      {list.isError && (
+      {pagination.isError && (
         <Alert
           variant="error"
           title={t('Could not load stock')}
           description="Check your connection and try refreshing the page."
           action={
-            <Alert.Action variant="error" onClick={() => list.refetch()}>
+            <Alert.Action variant="error" onClick={() => pagination.refetch()}>
               Retry
             </Alert.Action>
           }
-          className="mb-4"
+          className="mb-3"
         />
       )}
 
@@ -136,11 +146,11 @@ export function StockPage(): ReactElement {
         title={t('Stock filters')}
         onApply={applyFilters}
         onReset={resetFilters}
-        loading={list.isFetching}
+        loading={pagination.isFetching}
         applyLabel={t('Apply filters')}
         resetLabel={t('Reset filters')}
       >
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
           <TextField
             label={t('Search products')}
             value={draftFilters.productSearch}
@@ -155,18 +165,12 @@ export function StockPage(): ReactElement {
         titleAs="h1"
         description={description}
         columns={columns}
-        rows={list.data?.items ?? []}
+        rows={pagination.rows}
         rowKey={(r) => `${r.productId}-${r.expiryDate ?? 'none'}`}
-        loading={list.isLoading}
+        loading={pagination.isInitialLoading}
         empty={t('No stock found.')}
-        labels={{
-          rowsSuffix: t('rows'),
-          resultsSuffix: t('results'),
-          ofWord: t('of'),
-          previous: t('Previous'),
-          next: t('Next'),
-          rowsPerPageAria: t('Rows per page'),
-        }}
+        serverPagination={pagination.serverPagination}
+        labels={tableLabels}
       />
     </>
   );

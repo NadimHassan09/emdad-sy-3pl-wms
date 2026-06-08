@@ -1,10 +1,15 @@
 import type { ReactElement } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 import { Alert } from '@ds';
 import type { Column } from '@wms/components/DataTable';
 import { DataTable } from '@wms/components/DataTable';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '@wms/hooks/useChunkedServerPagination';
 
 import { isClientArabic } from '../lib/client-ui-language';
 import {
@@ -19,7 +24,7 @@ import {
 } from '../lib/billing-display';
 import {
   fetchClientBillingSummary,
-  fetchClientInvoices,
+  fetchClientInvoicesPage,
   type ClientInvoice,
 } from '../services/clientBillingService';
 
@@ -47,7 +52,7 @@ function billingLabel(label: string, isArabic: boolean): string {
     CBM: 'م³',
     kg: 'كغ',
     'Current invoice': 'الفاتورة الحالية',
-    'No invoice for the current billing cycle yet.': 'لا توجد فatura للدورة الحالية بعد.',
+    'No invoice for the current billing cycle yet.': 'لا توجد فاتورة للدورة الحالية بعد.',
     'View invoice': 'عرض الفاتورة',
     'Invoice history': 'سجل الفواتير',
     'No invoices yet.': 'لا توجد فواتير بعد.',
@@ -58,6 +63,12 @@ function billingLabel(label: string, isArabic: boolean): string {
     Status: 'الحالة',
     Created: 'تاريخ الإنشاء',
     Current: 'الحالية',
+    rows: 'صف',
+    results: 'نتيجة',
+    of: 'من',
+    Previous: 'السابق',
+    Next: 'التالي',
+    'Rows per page': 'عدد الصفوف لكل صفحة',
   };
   return ar[label] ?? label;
 }
@@ -81,13 +92,25 @@ export function BillingPage(): ReactElement {
     queryFn: fetchClientBillingSummary,
   });
 
-  const invoicesQuery = useQuery({
-    queryKey: ['client', 'billing', 'invoices'],
-    queryFn: fetchClientInvoices,
+  const invoicePagination = useChunkedServerPagination<ClientInvoice>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey: useMemo(() => ({}), []),
+    fetchChunk: (offset, limit) => fetchClientInvoicesPage({ offset, limit }),
+    rtQueryKeyPrefix: ['client', 'billing', 'invoices'],
+    chunkQueryKeyPrefix: 'client-billing-invoices-chunk',
   });
 
   const summary = summaryQuery.data;
   const currentCycleId = summary?.currentCycle?.id;
+
+  const tableLabels = {
+    rowsSuffix: t('rows'),
+    resultsSuffix: t('results'),
+    ofWord: t('of'),
+    previous: t('Previous'),
+    next: t('Next'),
+    rowsPerPageAria: t('Rows per page'),
+  };
 
   const columns: Column<ClientInvoice>[] = [
     {
@@ -131,7 +154,7 @@ export function BillingPage(): ReactElement {
   ];
 
   return (
-    <main className="main">
+    <div className="space-y-4">
       <div className="card">
         <h1 className="card__title">{t('Billing')}</h1>
 
@@ -239,24 +262,20 @@ export function BillingPage(): ReactElement {
 
             <section>
               <h2 className="card__subtitle">{t('Invoice history')}</h2>
-              {invoicesQuery.isPending ? (
-                <p className="muted">Loading invoices…</p>
-              ) : (invoicesQuery.data?.length ?? 0) === 0 ? (
-                <p className="muted">{t('No invoices yet.')}</p>
-              ) : (
-                <DataTable
-                  columns={columns}
-                  rows={invoicesQuery.data ?? []}
-                  rowKey={(row) => row.id}
-                  loading={invoicesQuery.isLoading}
-                  onRowClick={(row) => navigate(`/billing/invoices/${row.id}`)}
-                  empty={t('No invoices yet.')}
-                />
-              )}
+              <DataTable
+                columns={columns}
+                rows={invoicePagination.rows}
+                rowKey={(row) => row.id}
+                loading={invoicePagination.isInitialLoading}
+                onRowClick={(row) => navigate(`/billing/invoices/${row.id}`)}
+                empty={t('No invoices yet.')}
+                serverPagination={invoicePagination.serverPagination}
+                labels={tableLabels}
+              />
             </section>
           </>
         ) : null}
       </div>
-    </main>
+    </div>
   );
 }
