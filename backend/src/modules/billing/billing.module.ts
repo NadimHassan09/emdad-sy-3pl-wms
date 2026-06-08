@@ -32,6 +32,9 @@ import { BillingUsageService } from './billing-usage.service';
     BillingAccessService,
     BillingVolumeCapacityService,
     BillingInvoiceCalculationService,
+    BillingPlansService,
+    BillingCyclesService,
+    BillingInvoicesService,
   ],
 })
 export class BillingModule {}

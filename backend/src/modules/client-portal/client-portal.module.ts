@@ -9,6 +9,7 @@ import { InboundModule } from '../inbound/inbound.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { OutboundModule } from '../outbound/outbound.module';
 import { ProductsModule } from '../products/products.module';
+import { BillingModule } from '../billing/billing.module';
 import { ClientAuthController } from './auth/client-auth.controller';
 import { ClientAuthService } from './auth/client-auth.service';
 import { JwtClientAuthGuard } from './auth/jwt-client-auth.guard';
@@ -23,6 +24,8 @@ import { ClientNotificationsController } from './notifications/client-notificati
 import { ClientNotificationsService } from './notifications/client-notifications.service';
 import { ClientStockController } from './stock/client-stock.controller';
 import { ClientStockService } from './stock/client-stock.service';
+import { ClientBillingController } from './billing/client-billing.controller';
+import { ClientBillingService } from './billing/client-billing.service';
 
 @Module({
   imports: [
@@ -45,6 +48,7 @@ import { ClientStockService } from './stock/client-stock.service';
     ProductsModule,
     InboundModule,
     OutboundModule,
+    BillingModule,
   ],
   controllers: [
     ClientAuthController,
@@ -53,6 +57,7 @@ import { ClientStockService } from './stock/client-stock.service';
     ClientInboundOrdersController,
     ClientOutboundOrdersController,
     ClientNotificationsController,
+    ClientBillingController,
   ],
   providers: [
     ClientAuthService,
@@ -61,6 +66,7 @@ import { ClientStockService } from './stock/client-stock.service';
     ClientInboundOrdersService,
     ClientOutboundOrdersService,
     ClientNotificationsService,
+    ClientBillingService,
     JwtClientStrategy,
     JwtClientAuthGuard,
   ],

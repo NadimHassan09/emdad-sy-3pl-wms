@@ -13,6 +13,7 @@ export const ADMIN_NAV_ICONS: Record<string, string> = {
   Customers: 'fa-solid fa-users',
     Users: 'fa-solid fa-user-gear',
   AuditLogs: 'fa-solid fa-clock-rotate-left',
+  Settings: 'fa-solid fa-gear',
 };
 
 /** Font Awesome class names for client portal sidebar (English label key). */
@@ -21,6 +22,7 @@ export const CLIENT_NAV_ICONS: Record<string, string> = {
   Orders: 'fa-solid fa-clipboard-list',
   Products: 'fa-solid fa-cube',
   Stock: 'fa-solid fa-warehouse',
+  Billing: 'fa-solid fa-file-invoice-dollar',
 };
 
 export function renderSidebarNavIcon(iconKey: string): ReactNode {
