@@ -4,6 +4,7 @@ import { AuditModule } from '../../common/audit/audit.module';
 import { RedisModule } from '../../common/redis/redis.module';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
+import { BillingModule } from '../billing/billing.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { WorkflowBootstrapService } from './workflow-bootstrap.service';
 import { WorkflowOrchestrationService } from './workflow-orchestration.service';
@@ -20,7 +21,7 @@ import { WorkflowRecoveryService } from './workflow-recovery.service';
 import { WorkflowEngineService } from './workflow-engine.service';
 
 @Module({
-  imports: [PrismaModule, InventoryModule, RedisModule, AuthModule, AuditModule],
+  imports: [PrismaModule, InventoryModule, RedisModule, AuthModule, AuditModule, BillingModule],
   controllers: [
     WorkflowController,
     WarehouseTasksController,

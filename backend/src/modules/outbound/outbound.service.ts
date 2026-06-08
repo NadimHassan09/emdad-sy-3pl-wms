@@ -36,6 +36,7 @@ import {
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { BillingAccessService } from '../billing/billing-access.service';
+import { BillingInvoiceCalculationService } from '../billing/billing-invoice-calculation.service';
 import { adminOutboundListItem } from '../realtime/realtime-client.payload';
 import { WorkflowBootstrapService } from '../warehouse-workflow/workflow-bootstrap.service';
 import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
@@ -94,6 +95,7 @@ export class OutboundService {
     private readonly companyAccess: CompanyAccessService,
     private readonly audit: AuditLogService,
     private readonly billingAccess: BillingAccessService,
+    private readonly billingInvoiceCalc: BillingInvoiceCalculationService,
   ) {}
 
   /**
@@ -590,6 +592,10 @@ export class OutboundService {
         companyId: shipped.companyId,
         newState: { source: 'confirm_and_deduct', movementType: 'outbound_pick' },
       }),
+    );
+    void this.billingInvoiceCalc.recalculateForCompany(
+      shipped.companyId,
+      'outbound_completed',
     );
     return shipped;
   }

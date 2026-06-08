@@ -9,6 +9,24 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { InvalidStateException } from '../../common/errors/domain-exceptions';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import {
+  buildRateSnapshotFromPlan,
+} from './billing-rate-snapshot.util';
+
+const PLAN_RATE_SELECT = {
+  id: true,
+  active: true,
+  cycleLengthDays: true,
+  fixedSubscriptionFee: true,
+  inboundOrderFee: true,
+  outboundOrderFee: true,
+  packagingFee: true,
+  qualityCheckFee: true,
+  excessVolumeFeePerDay: true,
+  excessWeightFeePerDay: true,
+  reservedVolume: true,
+  reservedWeight: true,
+} satisfies Prisma.BillingPlanSelect;
 
 const CYCLE_SELECT = {
   id: true,
@@ -17,6 +35,7 @@ const CYCLE_SELECT = {
   startsAt: true,
   endsAt: true,
   status: true,
+  rateSnapshot: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.BillingCycleSelect;
@@ -87,7 +106,7 @@ export class BillingCyclesService {
   ) {
     const plan = await tx.billingPlan.findUnique({
       where: { id: expiredCycle.billingPlanId },
-      select: { id: true, active: true, cycleLengthDays: true },
+      select: PLAN_RATE_SELECT,
     });
     if (!plan?.active) return null;
 
@@ -102,6 +121,7 @@ export class BillingCyclesService {
         startsAt,
         endsAt,
         status: 'active',
+        rateSnapshot: buildRateSnapshotFromPlan(plan),
       },
       select: CYCLE_SELECT,
     });

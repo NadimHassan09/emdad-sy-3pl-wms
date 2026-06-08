@@ -36,6 +36,8 @@ import type {
 } from './workflow-payload.contracts';
 import type { ResolveTaskDto } from './dto/resolve-task.dto';
 import { WorkflowOrchestrationService } from './workflow-orchestration.service';
+import { BillingInvoiceCalculationService } from '../billing/billing-invoice-calculation.service';
+import { billingTriggerForWarehouseTask } from '../billing/billing-recalculation-triggers.util';
 import { TaskCompleteBody, safeParseTaskComplete, taskProgressRequestSchema } from './task-payload.schema';
 import { canTransitionTask } from './task-transitions';
 import {
@@ -64,6 +66,7 @@ export class WarehouseTasksService {
     private readonly notifications: NotificationsService,
     private readonly companyAccess: CompanyAccessService,
     private readonly audit: AuditLogService,
+    private readonly billingInvoiceCalc: BillingInvoiceCalculationService,
   ) {}
 
   private assertTaskWorkflowTenant(
@@ -792,6 +795,25 @@ export class WarehouseTasksService {
         });
       }
       await this.appendEvent(tx, taskId, 'started', user.id, { workerId: activeWorker });
+      const started = await tx.warehouseTask.findUniqueOrThrow({
+        where: { id: taskId },
+        include: { workflowInstance: true },
+      });
+      await this.audit.logTx(
+        tx,
+        this.audit.fromPrincipal(user, {
+          action: 'TASK_STARTED',
+          resourceType: 'warehouse_task',
+          resourceId: taskId,
+          companyId: started.workflowInstance.companyId,
+          previousState: { status: task.status },
+          newState: {
+            status: WarehouseTaskStatus.in_progress,
+            taskType: task.taskType,
+            workerId: activeWorker,
+          },
+        }),
+      );
     });
     await this.cacheInv.afterTaskAndStockMutation();
     void this.realtime.emitTaskUpdatedByTaskId(taskId);
@@ -823,6 +845,8 @@ export class WarehouseTasksService {
     //   we should not re-run side effects or emit duplicate completion signals.
     let idempotentPickNoop = false;
     let idempotentDispatchNoop = false;
+    let billingCompanyId: string | null = null;
+    let billingTaskType: WarehouseTaskType | null = null;
 
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
@@ -865,6 +889,8 @@ export class WarehouseTasksService {
 
       const exec = this.parseExecState(task.executionState);
       const companyId = task.workflowInstance.companyId;
+      billingCompanyId = companyId;
+      billingTaskType = body.task_type;
 
       switch (body.task_type) {
         case 'receiving': {
@@ -1001,6 +1027,22 @@ export class WarehouseTasksService {
           },
         }),
       );
+      if (body.task_type === 'receiving') {
+        const inboundId = receivingOrderId(task.payload as unknown);
+        await this.audit.logTx(
+          tx,
+          this.audit.fromPrincipal(user, {
+            action: 'INBOUND_RECEIVED',
+            resourceType: 'inbound_order',
+            resourceId: inboundId,
+            companyId: finalized.workflowInstance.companyId,
+            newState: {
+              receivingTaskId: taskId,
+              taskType: body.task_type,
+            },
+          }),
+        );
+      }
       if (body.task_type === 'dispatch') {
         const dispatchPayload = parseDispatchTaskPayloadAllowLegacy(task.payload);
         await this.audit.logTx(
@@ -1057,6 +1099,17 @@ export class WarehouseTasksService {
 
       await this.cacheInv.afterTaskAndStockMutation();
       void this.realtime.emitTaskUpdatedByTaskId(taskId, { inventorySource: 'task_complete' });
+
+      if (billingCompanyId && billingTaskType) {
+        const trigger = billingTriggerForWarehouseTask({
+          taskType: billingTaskType,
+          inboundCompleted: !!inboundCompleted,
+          outboundCompleted: !!outboundCompleted,
+        });
+        if (trigger) {
+          void this.billingInvoiceCalc.recalculateForCompany(billingCompanyId, trigger);
+        }
+      }
     }
 
     return this.loadTaskEnvelope(taskId, user);

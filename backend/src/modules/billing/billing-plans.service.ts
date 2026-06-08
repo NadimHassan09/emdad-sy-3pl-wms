@@ -9,6 +9,8 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BillingVolumeCapacityService } from './billing-access.service';
+import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
+import { buildRateSnapshotFromPlan } from './billing-rate-snapshot.util';
 import { CreateBillingPlanDto } from './dto/create-billing-plan.dto';
 import { UpdateBillingPlanDto } from './dto/update-billing-plan.dto';
 
@@ -36,6 +38,7 @@ export class BillingPlansService {
     private readonly prisma: PrismaService,
     private readonly companyAccess: CompanyAccessService,
     private readonly volumeCapacity: BillingVolumeCapacityService,
+    private readonly invoiceCalc: BillingInvoiceCalculationService,
   ) {}
 
   list(user: AuthPrincipal, companyId?: string) {
@@ -107,19 +110,24 @@ export class BillingPlansService {
           startsAt,
           endsAt,
           status: 'active',
+          rateSnapshot: buildRateSnapshotFromPlan(plan),
         },
       });
 
+      return plan;
+    }).then(async (plan) => {
+      void this.invoiceCalc.recalculateForCompany(plan.companyId, 'cycle_started');
       return plan;
     });
   }
 
   async update(user: AuthPrincipal, id: string, dto: UpdateBillingPlanDto) {
-    const existing = await this.findById(user, id);
+    await this.findById(user, id);
     if (dto.reservedVolume != null) {
       await this.volumeCapacity.assertVolumeAllocation(dto.reservedVolume, id);
     }
 
+    // Plan updates apply to future cycles only; active cycle invoices use rate_snapshot.
     return this.prisma.billingPlan.update({
       where: { id },
       data: {

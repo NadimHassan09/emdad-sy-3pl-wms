@@ -4,6 +4,7 @@ import { CompanyStatus } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BillingCyclesService } from './billing-cycles.service';
+import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
 
 /**
  * Processes billing cycle expiry, account restriction, and deferred renewals.
@@ -15,6 +16,7 @@ export class BillingCycleProcessorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly billingCycles: BillingCyclesService,
+    private readonly invoiceCalc: BillingInvoiceCalculationService,
   ) {}
 
   @Cron('*/15 * * * *')
@@ -46,7 +48,10 @@ export class BillingCycleProcessorService {
     });
 
     for (const cycle of due) {
+      let renewedCompanyId: string | null = null;
       await this.prisma.$transaction(async (tx) => {
+        await this.invoiceCalc.finalizeCycleInvoice(tx, cycle.id);
+
         await tx.billingCycle.update({
           where: { id: cycle.id },
           data: { status: 'expired' },
@@ -59,6 +64,7 @@ export class BillingCycleProcessorService {
               where: { id: cycle.companyId },
               data: { status: CompanyStatus.active },
             });
+            renewedCompanyId = cycle.companyId;
             this.log.log(
               `Renewed billing cycle for company ${cycle.companyId}: ${next.id}`,
             );
@@ -74,6 +80,10 @@ export class BillingCycleProcessorService {
           `Restricted company ${cycle.companyId} — billing cycle ${cycle.id} expired without renewal.`,
         );
       });
+
+      if (renewedCompanyId) {
+        void this.invoiceCalc.recalculateForCompany(renewedCompanyId, 'cycle_started');
+      }
     }
 
     return due.length;

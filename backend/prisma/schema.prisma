@@ -554,6 +554,7 @@ model BillingCycle {
   startsAt      DateTime           @map("starts_at") @db.Timestamptz(6)
   endsAt        DateTime           @map("ends_at") @db.Timestamptz(6)
   status        BillingCycleStatus @default(active)
+  rateSnapshot  Json               @default("{}") @map("rate_snapshot") @db.JsonB
   createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
 
