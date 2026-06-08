@@ -27,11 +27,14 @@ import {
   assertDiscreteUomPositiveIntegerDecimal,
   assertDiscreteUomPositiveIntegerQuantity,
 } from '../../common/utils/discrete-uom-quantity';
+import { AuditLogService } from '../../common/audit/audit-log.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { StockHelpers } from '../inventory/stock.helpers';
 import { inboundReceiveDefersPutaway, taskOnlyFlows } from '../warehouse-workflow/feature-flags';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { BillingAccessService } from '../billing/billing-access.service';
+import { adminInboundListItem } from '../realtime/realtime-client.payload';
 import { WorkflowBootstrapService } from '../warehouse-workflow/workflow-bootstrap.service';
 import { ConfirmInboundBodyDto } from './dto/confirm-inbound-body.dto';
 import { CreateInboundOrderDto } from './dto/create-inbound.dto';
@@ -81,6 +84,8 @@ export class InboundService {
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
     private readonly companyAccess: CompanyAccessService,
+    private readonly audit: AuditLogService,
+    private readonly billingAccess: BillingAccessService,
   ) {}
 
   async create(
@@ -89,6 +94,7 @@ export class InboundService {
     opts?: { pendingClientApproval?: boolean },
   ) {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
+    await this.billingAccess.assertOperationalBilling(companyId);
 
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
     const products = await this.prisma.product.findMany({
@@ -150,6 +156,7 @@ export class InboundService {
     this.realtime.emitInboundOrderCreated(order.companyId, {
       orderId: order.id,
       status: order.status,
+      listItem: adminInboundListItem(order),
     });
     if (opts?.pendingClientApproval) {
       await this.notifications.notifyAdminsPendingApproval({
@@ -160,6 +167,20 @@ export class InboundService {
         orderNumber: order.orderNumber,
       });
     }
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'INBOUND_CREATED',
+        resourceType: 'inbound_order',
+        resourceId: order.id,
+        companyId: order.companyId,
+        newState: {
+          orderNumber: order.orderNumber,
+          status: order.status,
+          lineCount: order.lines.length,
+          expectedArrivalDate: order.expectedArrivalDate.toISOString(),
+        },
+      }),
+    );
     return order;
   }
 
@@ -244,6 +265,7 @@ export class InboundService {
           'When TASK_ONLY_FLOWS=true, confirm body must include warehouseId and stagingByLineId (per line).',
         );
       }
+      const previousStatus = order.status;
       await this.prisma.$transaction(async (tx) => {
         const wh = body.warehouseId!;
         const cur = await tx.inboundOrder.findUnique({ where: { id } });
@@ -259,12 +281,28 @@ export class InboundService {
           data: { status: 'in_progress', confirmedAt: new Date() },
         });
         await this.workflowBootstrap.startInboundWorkflowTx(tx, user, id, wh, body.stagingByLineId);
+        await this.audit.logTx(
+          tx,
+          this.audit.fromPrincipal(user, {
+            action: 'INBOUND_CONFIRMED',
+            resourceType: 'inbound_order',
+            resourceId: id,
+            companyId: cur.companyId,
+            previousState: { status: previousStatus },
+            newState: {
+              status: 'in_progress',
+              warehouseId: wh,
+              stagingByLineId: body.stagingByLineId,
+            },
+          }),
+        );
       });
       const updated = await this.findById(id, user);
       this.realtime.emitInboundOrderUpdated(updated.companyId, {
         orderId: updated.id,
         status: updated.status,
         reason: 'confirm',
+        listItem: adminInboundListItem(updated),
       });
       if (wasPendingApproval) {
         await this.notifications.notifyClientOrderConfirmed({
@@ -278,16 +316,28 @@ export class InboundService {
       return updated;
     }
 
+    const previousStatus = order.status;
     await this.prisma.inboundOrder.update({
       where: { id },
       data: { status: 'confirmed', confirmedAt: new Date() },
     });
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'INBOUND_CONFIRMED',
+        resourceType: 'inbound_order',
+        resourceId: id,
+        companyId: order.companyId,
+        previousState: { status: previousStatus },
+        newState: { status: 'confirmed' },
+      }),
+    );
 
     const confirmed = await this.findById(id, user);
     this.realtime.emitInboundOrderUpdated(confirmed.companyId, {
       orderId: confirmed.id,
       status: confirmed.status,
       reason: 'confirm',
+      listItem: adminInboundListItem(confirmed),
     });
     if (wasPendingApproval) {
       await this.notifications.notifyClientOrderConfirmed({
@@ -321,6 +371,7 @@ export class InboundService {
       orderId: cancelled.id,
       status: cancelled.status,
       reason: 'cancel',
+      listItem: adminInboundListItem(cancelled),
     });
     return cancelled;
   }
@@ -510,14 +561,17 @@ export class InboundService {
       });
     });
     if (received) {
+      const receivedLine = received.lines.find((l) => l.id === lineId);
       this.realtime.emitInboundOrderUpdated(received.companyId, {
         orderId: received.id,
         status: received.status,
         reason: 'receive_line',
+        listItem: adminInboundListItem(received),
       });
       this.realtime.emitInventoryChanged(received.companyId, {
         source: 'inbound_receive_line',
         orderId: received.id,
+        productId: receivedLine?.productId,
       });
     }
     return received;

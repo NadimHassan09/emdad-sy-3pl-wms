@@ -17,6 +17,7 @@ import {
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { BillingAccessService } from '../billing/billing-access.service';
 import { productRealtimePayload } from '../realtime/realtime-master-data.payload';
 import { CreateProductDto } from './dto/create-product.dto';
 import { productAuditSnapshot } from './product-audit.util';
@@ -45,6 +46,7 @@ export class ProductsService {
     private readonly companyAccess: CompanyAccessService,
     private readonly audit: AuditLogService,
     private readonly realtime: RealtimeService,
+    private readonly billingAccess: BillingAccessService,
   ) {}
 
   /**
@@ -89,6 +91,7 @@ export class ProductsService {
 
   async create(user: AuthPrincipal, dto: CreateProductDto) {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
+    await this.billingAccess.assertOperationalBilling(companyId);
     const clientBarcode = normalizeProductBarcode(dto.barcode);
 
     let lastError: unknown;

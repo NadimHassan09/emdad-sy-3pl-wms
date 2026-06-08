@@ -17,6 +17,7 @@ import { BackupsModule } from './modules/backups/backups.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { ClientPortalModule } from './modules/client-portal/client-portal.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { InboundModule } from './modules/inbound/inbound.module';
@@ -57,6 +58,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     RedisModule,
     NotificationsModule,
     CompaniesModule,
+    BillingModule,
     DashboardModule,
     ClientPortalModule,
     UsersModule,

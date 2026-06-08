@@ -35,6 +35,8 @@ import {
 } from '../warehouse-workflow/feature-flags';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
+import { BillingAccessService } from '../billing/billing-access.service';
+import { adminOutboundListItem } from '../realtime/realtime-client.payload';
 import { WorkflowBootstrapService } from '../warehouse-workflow/workflow-bootstrap.service';
 import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
 import { ConfirmOutboundBodyDto } from './dto/confirm-outbound-body.dto';
@@ -91,6 +93,7 @@ export class OutboundService {
     private readonly notifications: NotificationsService,
     private readonly companyAccess: CompanyAccessService,
     private readonly audit: AuditLogService,
+    private readonly billingAccess: BillingAccessService,
   ) {}
 
   /**
@@ -109,6 +112,7 @@ export class OutboundService {
     opts?: { pendingClientApproval?: boolean },
   ) {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
+    await this.billingAccess.assertOperationalBilling(companyId);
 
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
     const products = await this.prisma.product.findMany({
@@ -170,6 +174,7 @@ export class OutboundService {
     this.realtime.emitOutboundOrderCreated(created.companyId, {
       orderId: created.id,
       status: created.status,
+      listItem: adminOutboundListItem(created),
     });
     if (opts?.pendingClientApproval) {
       await this.notifications.notifyAdminsPendingApproval({
@@ -328,6 +333,7 @@ export class OutboundService {
     this.realtime.emitOutboundOrderUpdated(cancelled.companyId, {
       orderId: cancelled.id,
       status: cancelled.status,
+      listItem: adminOutboundListItem(cancelled),
       reason: 'cancel',
     });
     await this.audit.log(
@@ -396,6 +402,7 @@ export class OutboundService {
       orderId: updated.id,
       status: updated.status,
       reason: 'confirm_without_deduction',
+      listItem: adminOutboundListItem(updated),
     });
     if (before?.status === OutboundOrderStatus.pending_approval) {
       await this.notifications.notifyClientOrderConfirmed({
@@ -472,6 +479,7 @@ export class OutboundService {
         orderId: wfConfirmed.id,
         status: wfConfirmed.status,
         reason: 'confirm_task_flow',
+        listItem: adminOutboundListItem(wfConfirmed),
       });
       if (before.status === OutboundOrderStatus.pending_approval) {
         await this.notifications.notifyClientOrderConfirmed({
@@ -542,10 +550,12 @@ export class OutboundService {
       orderId: shipped.id,
       status: shipped.status,
       reason: 'confirm_and_deduct',
+      listItem: adminOutboundListItem(shipped),
     });
     this.realtime.emitInventoryChanged(shipped.companyId, {
       source: 'outbound_ship',
       orderId: shipped.id,
+      productId: shipped.lines[0]?.productId,
     });
     if (before?.status === OutboundOrderStatus.pending_approval) {
       await this.notifications.notifyClientOrderConfirmed({

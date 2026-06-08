@@ -25,8 +25,38 @@ enum CompanyStatus {
   paused
   offboarding
   closed
+  restricted
 
   @@map("company_status")
+}
+
+enum BillingCycleStatus {
+  active
+  expired
+  renewed
+
+  @@map("billing_cycle_status")
+}
+
+enum BillingInvoiceStatus {
+  draft
+  open
+  paid
+  cancelled
+
+  @@map("billing_invoice_status")
+}
+
+enum BillingInvoiceLineType {
+  subscription
+  inbound
+  outbound
+  packaging
+  quality_check
+  excess_volume
+  excess_weight
+
+  @@map("billing_invoice_line_type")
 }
 
 enum BillingCycleType {
@@ -52,6 +82,58 @@ enum UserStatus {
   inactive
 
   @@map("user_status")
+}
+
+enum BackupJobType {
+  manual
+  scheduled
+  upload
+  restore
+  factory_reset
+  pre_snapshot
+
+  @@map("backup_job_type")
+}
+
+enum BackupJobStatus {
+  pending
+  running
+  completed
+  failed
+  cancelled
+
+  @@map("backup_job_status")
+}
+
+enum BackupScheduleFrequency {
+  daily
+  weekly
+  monthly
+
+  @@map("backup_schedule_frequency")
+}
+
+enum BackupStorageDestination {
+  local
+  google_drive
+
+  @@map("backup_storage_destination")
+}
+
+enum BackupStoragePolicy {
+  local_only
+  drive_only
+  local_and_drive
+
+  @@map("backup_storage_policy")
+}
+
+enum BackupDriveSyncStatus {
+  pending
+  synced
+  failed
+
+  @@map("backup_drive_sync_status")
 }
 
 enum WarehouseStatus {
@@ -434,8 +516,88 @@ model Company {
   workflowInstances      WorkflowInstance[]
   notifications          Notification[]
   userCompanyAccess      UserCompanyAccess[]
+  billingPlans           BillingPlan[]
+  billingCycles          BillingCycle[]
+  invoices               Invoice[]
 
   @@map("companies")
+}
+
+model BillingPlan {
+  id                      String   @id @default(uuid()) @db.Uuid
+  companyId               String   @map("company_id") @db.Uuid
+  active                  Boolean  @default(true)
+  cycleLengthDays         Int      @map("cycle_length_days")
+  fixedSubscriptionFee    Decimal  @default(0) @map("fixed_subscription_fee") @db.Decimal(12, 2)
+  inboundOrderFee         Decimal  @default(0) @map("inbound_order_fee") @db.Decimal(10, 4)
+  outboundOrderFee        Decimal  @default(0) @map("outbound_order_fee") @db.Decimal(10, 4)
+  packagingFee            Decimal  @default(0) @map("packaging_fee") @db.Decimal(10, 4)
+  qualityCheckFee         Decimal  @default(0) @map("quality_check_fee") @db.Decimal(10, 4)
+  excessVolumeFeePerDay   Decimal  @default(0) @map("excess_volume_fee_per_day") @db.Decimal(10, 4)
+  excessWeightFeePerDay   Decimal  @default(0) @map("excess_weight_fee_per_day") @db.Decimal(10, 4)
+  reservedVolume          Decimal  @default(0) @map("reserved_volume") @db.Decimal(14, 4)
+  reservedWeight          Decimal  @default(0) @map("reserved_weight") @db.Decimal(14, 4)
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company       Company        @relation(fields: [companyId], references: [id])
+  billingCycles BillingCycle[]
+
+  @@index([companyId], map: "idx_billing_plans_company")
+  @@map("billing_plans")
+}
+
+model BillingCycle {
+  id            String             @id @default(uuid()) @db.Uuid
+  companyId     String             @map("company_id") @db.Uuid
+  billingPlanId String             @map("billing_plan_id") @db.Uuid
+  startsAt      DateTime           @map("starts_at") @db.Timestamptz(6)
+  endsAt        DateTime           @map("ends_at") @db.Timestamptz(6)
+  status        BillingCycleStatus @default(active)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company     Company     @relation(fields: [companyId], references: [id])
+  billingPlan BillingPlan @relation(fields: [billingPlanId], references: [id])
+  invoices    Invoice[]
+
+  @@index([companyId, status], map: "idx_billing_cycles_company")
+  @@map("billing_cycles")
+}
+
+model Invoice {
+  id             String               @id @default(uuid()) @db.Uuid
+  companyId      String               @map("company_id") @db.Uuid
+  billingCycleId String               @map("billing_cycle_id") @db.Uuid
+  invoiceNumber  String               @unique @default("") @map("invoice_number")
+  status         BillingInvoiceStatus @default(draft)
+  totalAmount    Decimal              @default(0) @map("total_amount") @db.Decimal(14, 2)
+  issuedAt       DateTime?            @map("issued_at") @db.Timestamptz(6)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  billingCycle BillingCycle  @relation(fields: [billingCycleId], references: [id])
+  lines        InvoiceLine[]
+
+  @@index([companyId], map: "idx_invoices_company")
+  @@index([billingCycleId], map: "idx_invoices_cycle")
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id         String                 @id @default(uuid()) @db.Uuid
+  invoiceId  String                 @map("invoice_id") @db.Uuid
+  type       BillingInvoiceLineType
+  quantity   Decimal                @db.Decimal(15, 4)
+  unitPrice  Decimal                @map("unit_price") @db.Decimal(10, 4)
+  totalPrice Decimal                @map("total_price") @db.Decimal(14, 2)
+  createdAt  DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId], map: "idx_invoice_lines_invoice")
+  @@map("invoice_lines")
 }
 
 /// Explicit internal-user grants to operate on a 3PL client tenant (Phase 1.1).
@@ -487,8 +649,100 @@ model User {
   cycleCountLinesCounted     CycleCountLine[]     @relation("CycleCountLineCounter")
   cycleCountVariancesReviewed CycleCountVariance[] @relation("CycleCountVarianceReviewer")
   returnLinesInspected        ReturnOrderLine[]    @relation("ReturnLineInspector")
+  backupJobsTriggered         BackupJob[]          @relation("BackupTriggeredBy")
+  backupSchedulesCreated      BackupSchedule[]     @relation("BackupScheduleCreatedBy")
+  backupSchedulesUpdated      BackupSchedule[]     @relation("BackupScheduleUpdatedBy")
+  backupDriveIntegrations     BackupDriveIntegration[] @relation("BackupDriveConnectedBy")
+  backupStorageSettingsUpdated BackupStorageSettings[] @relation("BackupStorageSettingsUpdatedBy")
 
   @@map("users")
+}
+
+model BackupStorageSettings {
+  id               String              @id @default("00000000-0000-4000-8000-0000000000d1") @db.Uuid
+  defaultPolicy    BackupStoragePolicy @default(local_and_drive) @map("default_policy")
+  updatedByUserId  String?             @map("updated_by_user_id") @db.Uuid
+  updatedAt        DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  updatedBy User? @relation("BackupStorageSettingsUpdatedBy", fields: [updatedByUserId], references: [id])
+
+  @@map("backup_storage_settings")
+}
+
+model BackupSchedule {
+  id             String                  @id @default(uuid()) @db.Uuid
+  enabled        Boolean                 @default(true)
+  frequency      BackupScheduleFrequency
+  hour           Int                     @db.SmallInt
+  minute         Int                     @db.SmallInt
+  retentionDays  Int                     @default(7) @map("retention_days")
+  storagePolicy  BackupStoragePolicy?    @map("storage_policy")
+  lastRunAt      DateTime?               @map("last_run_at") @db.Timestamptz(6)
+  createdByUserId String                 @map("created_by_user_id") @db.Uuid
+  updatedByUserId String                 @map("updated_by_user_id") @db.Uuid
+  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  createdBy User        @relation("BackupScheduleCreatedBy", fields: [createdByUserId], references: [id])
+  updatedBy User        @relation("BackupScheduleUpdatedBy", fields: [updatedByUserId], references: [id])
+  backupJobs  BackupJob[]
+
+  @@index([enabled], map: "idx_backup_schedules_enabled")
+  @@map("backup_schedules")
+}
+
+model BackupDriveIntegration {
+  id                    String   @id @default(uuid()) @db.Uuid
+  encryptedRefreshToken String   @map("encrypted_refresh_token") @db.Text
+  encryptedFolderId     String   @map("encrypted_folder_id") @db.Text
+  connectedByUserId     String   @map("connected_by_user_id") @db.Uuid
+  connectedAt           DateTime @map("connected_at") @db.Timestamptz(6)
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  connectedBy User @relation("BackupDriveConnectedBy", fields: [connectedByUserId], references: [id])
+
+  @@map("backup_drive_integrations")
+}
+
+model BackupJob {
+  id                String          @id @default(uuid()) @db.Uuid
+  type              BackupJobType
+  status            BackupJobStatus @default(pending)
+  label             String?
+  triggeredByUserId String          @map("triggered_by_user_id") @db.Uuid
+  artifactPath      String?         @map("artifact_path")
+  dumpFilename      String?         @map("dump_filename")
+  manifest          Json?           @db.JsonB
+  progressPercent   Int             @default(0) @map("progress_percent") @db.SmallInt
+  bytesWritten      BigInt          @default(0) @map("bytes_written")
+  errorMessage      String?         @map("error_message")
+  parentJobId       String?         @map("parent_job_id") @db.Uuid
+  backupScheduleId  String?         @map("backup_schedule_id") @db.Uuid
+  storagePolicy      BackupStoragePolicy @default(local_and_drive) @map("storage_policy")
+  storageDestination BackupStorageDestination @default(local) @map("storage_destination")
+  localArtifactPurged Boolean        @default(false) @map("local_artifact_purged")
+  gdriveFileId       String?         @map("gdrive_file_id")
+  gdriveSyncedAt     DateTime?       @map("gdrive_synced_at") @db.Timestamptz(6)
+  gdriveSyncStatus   BackupDriveSyncStatus? @map("gdrive_sync_status")
+  gdriveSyncError    String?         @map("gdrive_sync_error")
+  gdriveSyncAttempts Int             @default(0) @map("gdrive_sync_attempts")
+  gdriveNextRetryAt  DateTime?       @map("gdrive_next_retry_at") @db.Timestamptz(6)
+  startedAt         DateTime?       @map("started_at") @db.Timestamptz(6)
+  completedAt       DateTime?       @map("completed_at") @db.Timestamptz(6)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  triggeredBy User      @relation("BackupTriggeredBy", fields: [triggeredByUserId], references: [id])
+  parentJob      BackupJob?     @relation("BackupJobParent", fields: [parentJobId], references: [id], onDelete: SetNull)
+  childJobs      BackupJob[]    @relation("BackupJobParent")
+  backupSchedule BackupSchedule? @relation(fields: [backupScheduleId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt(sort: Desc)], map: "idx_backup_jobs_status_created")
+  @@index([triggeredByUserId, createdAt(sort: Desc)], map: "idx_backup_jobs_triggered_by")
+  @@index([parentJobId], map: "idx_backup_jobs_parent_job")
+  @@index([backupScheduleId, createdAt(sort: Desc)], map: "idx_backup_jobs_schedule")
+  @@map("backup_jobs")
 }
 
 /// Server-side refresh token family (Phase 6.5 replay protection).
@@ -580,6 +834,7 @@ model Location {
   packages               Package[]
   returnOrderLines       ReturnOrderLine[]
 
+  @@index([warehouseId, parentId, sortOrder], map: "idx_locations_wh_parent_sort")
   @@map("locations")
 }
 
