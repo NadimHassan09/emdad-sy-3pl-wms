@@ -1,8 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactElement } from 'react';
 
-import { Button } from '@ds';
+import { Button, Modal } from '@ds';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '@wms/components/FilterPanel';
-import { Modal } from '@wms/components/Modal';
 import { SelectField } from '@wms/components/SelectField';
 import { TextField } from '@wms/components/TextField';
 
@@ -127,7 +126,7 @@ export function CreateClientProductModal({
       <form
         id="create-client-product"
         onSubmit={submit}
-        className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1"
+        className="space-y-3"
       >
         {submitError ? (
           <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
@@ -135,17 +134,20 @@ export function CreateClientProductModal({
           </p>
         ) : null}
         <TextField label={t('Name')} required value={name} onChange={(e) => setName(e.target.value)} />
-        <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-          <TextField
-            label={t('SKU (optional)')}
-            value={sku}
-            onChange={(e) => setSku(e.target.value)}
-            className="font-mono text-xs"
-          />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
+            <TextField
+              label={t('SKU (optional)')}
+              value={sku}
+              onChange={(e) => setSku(e.target.value)}
+              className="font-mono text-xs"
+            />
+          </div>
           <Button
             type="button"
             size="sm"
             variant="secondary"
+            className="shrink-0 sm:mb-0"
             onClick={() => setSku(generateSku())}
           >
             {t('Generate SKU')}

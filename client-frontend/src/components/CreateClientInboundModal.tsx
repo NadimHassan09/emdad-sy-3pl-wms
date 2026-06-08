@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-import { Button, Textarea } from '@ds';
+import { Button, Modal, Textarea } from '@ds';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '@wms/components/FilterPanel';
-import { Modal } from '@wms/components/Modal';
 import { TextField } from '@wms/components/TextField';
 
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../lib/order-planning-dates';
@@ -191,14 +190,14 @@ export function CreateClientInboundModal({
         )
       }
     >
-      <form id="create-client-inbound" onSubmit={submit} className="space-y-4">
+      <form id="create-client-inbound" onSubmit={submit} className="space-y-3">
         {error || submitError ? (
           <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
             {error ?? submitError}
           </p>
         ) : null}
         {step === 1 ? (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <TextField
               label={t('Expected arrival date')}
               type="date"
