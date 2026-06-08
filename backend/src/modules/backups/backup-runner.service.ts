@@ -90,7 +90,7 @@ export class BackupRunnerService {
         data: {
           status: BackupJobStatus.running,
           startedAt: new Date(),
-          progressPercent: 5,
+          progressPercent: 0,
           artifactPath,
           dumpFilename,
         },
@@ -182,10 +182,10 @@ export class BackupRunnerService {
 
   private estimateProgress(bytesWritten: number, estimatedBytes: number): number {
     if (estimatedBytes > 0 && bytesWritten > 0) {
-      return Math.min(90, 5 + Math.floor((bytesWritten / estimatedBytes) * 85));
+      return Math.min(90, Math.floor((bytesWritten / estimatedBytes) * 90));
     }
     if (bytesWritten > 0) return Math.min(85, 10 + Math.floor(bytesWritten / 1_000_000) * 5);
-    return 10;
+    return 0;
   }
 
   private async updateProgress(

@@ -26,7 +26,7 @@ import { BackupRunnerService } from './backup-runner.service';
 import { BackupStoragePolicyService } from './backup-storage-policy.service';
 import { CreateBackupDto } from './dto/create-backup.dto';
 import { FactoryResetDto } from './dto/factory-reset.dto';
-import { ListBackupsQueryDto } from './dto/list-backups-query.dto';
+import { ListBackupsQueryDto, BACKUP_HISTORY_JOB_TYPES } from './dto/list-backups-query.dto';
 import { RestoreBackupDto } from './dto/restore-backup.dto';
 
 const DOWNLOADABLE_BACKUP_TYPES: BackupJobType[] = [
@@ -150,12 +150,11 @@ export class BackupsService {
     this.assertCanRead(user);
     const limit = query.limit ?? 20;
     const offset = query.offset ?? 0;
+    const where = this.buildHistoryListWhere(query);
 
     const [items, total] = await Promise.all([
       this.prisma.backupJob.findMany({
-        where: {
-          type: { in: [BackupJobType.manual, BackupJobType.upload, BackupJobType.restore, BackupJobType.pre_snapshot] },
-        },
+        where,
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
@@ -163,11 +162,7 @@ export class BackupsService {
           triggeredBy: { select: { id: true, email: true, fullName: true } },
         },
       }),
-      this.prisma.backupJob.count({
-        where: {
-          type: { in: [BackupJobType.manual, BackupJobType.upload, BackupJobType.restore, BackupJobType.pre_snapshot] },
-        },
-      }),
+      this.prisma.backupJob.count({ where }),
     ]);
 
     return {
@@ -176,6 +171,31 @@ export class BackupsService {
       limit,
       offset,
     };
+  }
+
+  private buildHistoryListWhere(query: ListBackupsQueryDto): Prisma.BackupJobWhereInput {
+    const where: Prisma.BackupJobWhereInput = {
+      type: query.type ? query.type : { in: BACKUP_HISTORY_JOB_TYPES },
+    };
+
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    const search = query.search?.trim();
+    if (search) {
+      const or: Prisma.BackupJobWhereInput[] = [
+        { label: { contains: search, mode: 'insensitive' } },
+        { triggeredBy: { email: { contains: search, mode: 'insensitive' } } },
+        { triggeredBy: { fullName: { contains: search, mode: 'insensitive' } } },
+      ];
+      if (/^[0-9a-f-]{36}$/i.test(search)) {
+        or.unshift({ id: search });
+      }
+      where.OR = or;
+    }
+
+    return where;
   }
 
   async findById(user: AuthPrincipal, id: string) {

@@ -1,13 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { ReturnsApi, type ReturnOrderListItem, type ReturnOrderStatus } from '../../api/returns';
+import { Alert, FILTER_APPLY_BUTTON_CLASS } from '@ds';
 import { Button } from '../../components/Button';
 import { Column, DataTable } from '../../components/DataTable';
 import { FilterPanel } from '../../components/FilterPanel';
 import { NewReturnModal } from '../../components/returns/NewReturnModal';
-import { PageHeader } from '../../components/PageHeader';
 import { SelectField } from '../../components/SelectField';
 import { StatusBadge } from '../../components/StatusBadge';
 import { TextField } from '../../components/TextField';
@@ -16,6 +16,10 @@ import { QK } from '../../constants/query-keys';
 import { useDefaultWarehouseId } from '../../hooks/useDefaultWarehouse';
 import { useTenantCompanyId } from '../../hooks/useTenantCompanyId';
 import { useFilters } from '../../hooks/useFilters';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '../../hooks/useChunkedServerPagination';
 import {
   formatReturnListDisposition,
   formatReturnListQuantities,
@@ -65,14 +69,16 @@ export function ReturnsListPage() {
       orderSearch: appliedFilters.orderSearch.trim() || undefined,
       createdFrom: appliedFilters.createdFrom || undefined,
       createdTo: appliedFilters.createdTo || undefined,
-      limit: 200,
     }),
     [appliedFilters, companyId],
   );
 
-  const listQuery = useQuery({
-    queryKey: QK.returns.list(listParams),
-    queryFn: () => ReturnsApi.list(listParams),
+  const pagination = useChunkedServerPagination<ReturnOrderListItem>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey: listParams,
+    fetchChunk: (offset, limit) => ReturnsApi.list({ ...listParams, offset, limit }),
+    rtQueryKeyPrefix: QK.returns.all,
+    chunkQueryKeyPrefix: 'return-orders-chunk',
     enabled: !!companyId,
   });
 
@@ -183,8 +189,6 @@ export function ReturnsListPage() {
     [isArabic, locale],
   );
 
-  const rows = listQuery.data?.items ?? [];
-
   const statusOptions = useMemo(
     () => [
       { value: '', label: t('All', 'الكل') },
@@ -200,66 +204,90 @@ export function ReturnsListPage() {
 
   return (
     <div>
-      <PageHeader
-        title={t('Returns', 'الإرجاعات')}
-        description={t('Receive, inspect, and restock customer returns.', 'استلام وفحص وإعادة مخزون إرجاعات العملاء.')}
-        actions={
-          <Button variant="primary" onClick={() => setCreateOpen(true)} disabled={!companyId || !wid}>
-            {t('+ New return', '+ إرجاع جديد')}
-          </Button>
-        }
-      />
-
       {!companyId ? (
-        <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          {t('Select a tenant company to list returns.', 'حدد شركة المستأجر لعرض الإرجاعات.')}
-        </p>
+        <Alert
+          variant="warning"
+          title={t('Select a tenant company to list returns.', 'حدد شركة المستأجر لعرض الإرجاعات.')}
+          className="mb-4"
+        />
       ) : null}
 
       <FilterPanel
         title={t('Filters', 'الفلاتر')}
         onApply={applyFilters}
         onReset={resetFilters}
+        loading={pagination.isFetching}
+        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
+        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
         className="mb-4"
       >
-        <TextField
-          label={t('Search', 'بحث')}
-          value={draftFilters.orderSearch}
-          onChange={(e) => setDraft({ ...draftFilters, orderSearch: e.target.value })}
-          placeholder={t('Return #, reference…', 'رقم الإرجاع، مرجع…')}
-        />
-        <SelectField
-          label={t('Status', 'الحالة')}
-          value={draftFilters.status}
-          onChange={(e) => setDraft({ ...draftFilters, status: e.target.value })}
-          options={statusOptions}
-        />
-        <TextField
-          label={t('Created from', 'من تاريخ')}
-          type="date"
-          value={draftFilters.createdFrom}
-          onChange={(e) => setDraft({ ...draftFilters, createdFrom: e.target.value })}
-        />
-        <TextField
-          label={t('Created to', 'إلى تاريخ')}
-          type="date"
-          value={draftFilters.createdTo}
-          onChange={(e) => setDraft({ ...draftFilters, createdTo: e.target.value })}
-        />
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <TextField
+            label={t('Search', 'بحث')}
+            value={draftFilters.orderSearch}
+            onChange={(e) => setDraft({ ...draftFilters, orderSearch: e.target.value })}
+            placeholder={t('Return #, reference…', 'رقم الإرجاع، مرجع…')}
+          />
+          <SelectField
+            label={t('Status', 'الحالة')}
+            value={draftFilters.status}
+            onChange={(e) => setDraft({ ...draftFilters, status: e.target.value })}
+            options={statusOptions}
+          />
+          <TextField
+            label={t('Created from', 'من تاريخ')}
+            type="date"
+            value={draftFilters.createdFrom}
+            onChange={(e) => setDraft({ ...draftFilters, createdFrom: e.target.value })}
+          />
+          <TextField
+            label={t('Created to', 'إلى تاريخ')}
+            type="date"
+            value={draftFilters.createdTo}
+            onChange={(e) => setDraft({ ...draftFilters, createdTo: e.target.value })}
+          />
+        </div>
       </FilterPanel>
 
-      {listQuery.isLoading ? (
-        <p className="text-sm text-slate-500">{t('Loading…', 'جاري التحميل…')}</p>
-      ) : listQuery.isError ? (
-        <p className="text-sm text-red-600">{(listQuery.error as Error).message}</p>
-      ) : (
-        <>
-          <div className="hidden md:block">
-            <DataTable columns={cols} rows={rows} rowKey={(r) => r.id} />
-          </div>
+      {pagination.isError ? (
+        <Alert
+          variant="error"
+          title={t('Could not load returns', 'تعذر تحميل الإرجاعات')}
+          description={(pagination.error as Error).message}
+          className="mb-4"
+        />
+      ) : null}
+
+      <div className="hidden md:block">
+        <DataTable
+          title={t('Returns', 'الإرجاعات')}
+          description={t(
+            'Receive, inspect, and restock customer returns.',
+            'استلام وفحص وإعادة مخزون إرجاعات العملاء.',
+          )}
+          actions={
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => setCreateOpen(true)}
+              disabled={!companyId || !wid}
+              className={FILTER_APPLY_BUTTON_CLASS}
+            >
+              {t('+ New return', '+ إرجاع جديد')}
+            </Button>
+          }
+          columns={cols}
+          rows={pagination.rows}
+          rowKey={(r) => r.id}
+          loading={pagination.isInitialLoading || !companyId}
+          onRowClick={(r) => navigate(`/returns/${r.id}`)}
+          serverPagination={pagination.serverPagination}
+          empty={t('No returns match the filters.', 'لا توجد إرجاعات مطابقة.')}
+        />
+      </div>
 
           <div className="space-y-2 md:hidden">
-            {rows.map((r) => (
+        {pagination.rows.map((r) => (
               <article
                 key={r.id}
                 className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
@@ -313,13 +341,11 @@ export function ReturnsListPage() {
                   )}
                 </div>
               </article>
-            ))}
-            {rows.length === 0 ? (
-              <p className="text-center text-sm text-slate-500">{t('No returns found.', 'لا إرجاعات.')}</p>
-            ) : null}
-          </div>
-        </>
-      )}
+        ))}
+        {pagination.rows.length === 0 ? (
+          <p className="text-center text-sm text-slate-500">{t('No returns found.', 'لا إرجاعات.')}</p>
+        ) : null}
+      </div>
 
       <NewReturnModal
         open={createOpen}

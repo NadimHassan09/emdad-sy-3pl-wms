@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import {
   CycleCountApi,
@@ -9,19 +9,20 @@ import {
   type CycleCountStatus,
 } from '../../api/cycle-count';
 import { WorkersApi } from '../../api/workers';
-import { Button } from '../../components/Button';
 import { Column, DataTable } from '../../components/DataTable';
 import { FilterPanel } from '../../components/FilterPanel';
-import { PageHeader } from '../../components/PageHeader';
+import { PillSubNav } from '../../components/PillSubNav';
 import { SelectField } from '../../components/SelectField';
 import { StatusBadge } from '../../components/StatusBadge';
 import { TextField } from '../../components/TextField';
 import { QK } from '../../constants/query-keys';
-import { useAuth } from '../../auth/AuthContext';
 import { useDefaultWarehouseId } from '../../hooks/useDefaultWarehouse';
 import { useTenantCompanyId } from '../../hooks/useTenantCompanyId';
 import { useFilters } from '../../hooks/useFilters';
-import { canExecuteCycleCount, isOperatorRole } from '../../lib/rbac';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '../../hooks/useChunkedServerPagination';
 
 type Tab = 'sessions' | 'schedule';
 
@@ -45,9 +46,6 @@ function hasDiscrepancy(count: CycleCountListItem): boolean {
 
 export function CycleCountListPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const isOperator = isOperatorRole(user?.role);
-  const canExecute = canExecuteCycleCount(user);
   const isArabic =
     typeof window !== 'undefined' &&
     (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
@@ -76,14 +74,16 @@ export function CycleCountListPage() {
       companyId: companyId || undefined,
       warehouseId: wid || undefined,
       status: (appliedFilters.status as CycleCountStatus) || undefined,
-      limit: 200,
     }),
     [appliedFilters.status, companyId, wid],
   );
 
-  const countsQuery = useQuery({
-    queryKey: QK.cycleCount.list(listParams),
-    queryFn: () => CycleCountApi.listCounts(listParams),
+  const countsPagination = useChunkedServerPagination<CycleCountListItem>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey: listParams,
+    fetchChunk: (offset, limit) => CycleCountApi.listCounts({ ...listParams, offset, limit }),
+    rtQueryKeyPrefix: QK.cycleCount.all,
+    chunkQueryKeyPrefix: 'cycle-count-chunk',
     enabled: !!wid && !!companyId && tab === 'sessions',
   });
 
@@ -121,7 +121,7 @@ export function CycleCountListPage() {
   }, [scheduleQuery.data]);
 
   const filteredCounts = useMemo(() => {
-    let rows = countsQuery.data ?? [];
+    let rows = countsPagination.rows;
     if (appliedFilters.assignedWorkerId) {
       rows = rows.filter((r) => r.assignedWorker?.id === appliedFilters.assignedWorkerId);
     }
@@ -137,7 +137,7 @@ export function CycleCountListPage() {
       rows = rows.filter((r) => new Date(r.createdAt).getTime() <= to);
     }
     return rows;
-  }, [countsQuery.data, appliedFilters]);
+  }, [countsPagination.rows, appliedFilters]);
 
   const filteredHistory = useMemo(() => {
     let rows = historyQuery.data ?? [];
@@ -285,34 +285,15 @@ export function CycleCountListPage() {
 
   return (
     <div>
-      <PageHeader
-        title={t('Cycle count', 'الجرد الدوري')}
-        description={t(
-          'Operational inventory verification — sessions, schedules, and discrepancies.',
-          'التحقق التشغيلي من المخزون — الجلسات والجداول والفروقات.',
-        )}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            {canExecute ? (
-              <Link to="/cycle-count/my-tasks">
-                <Button variant={isOperator ? 'primary' : 'secondary'}>
-                  {isOperator ? t('My count tasks', 'مهام الجرد') : t('Worker view', 'واجهة العامل')}
-                </Button>
-              </Link>
-            ) : null}
-          </div>
-        }
-      />
-
       <FilterPanel
         title={t('Filters', 'الفلاتر')}
         onApply={applyFilters}
         onReset={resetFilters}
-        loading={countsQuery.isFetching || historyQuery.isFetching}
-        applyLabel={t('Apply', 'تطبيق')}
-        resetLabel={t('Reset', 'إعادة')}
+        loading={countsPagination.isFetching || historyQuery.isFetching}
+        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
+        resetLabel={t('Reset filters', 'إعادة تعيين')}
       >
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {tab === 'sessions' ? (
             <>
               <SelectField
@@ -361,36 +342,42 @@ export function CycleCountListPage() {
         </div>
       </FilterPanel>
 
-      <div className="mb-3 flex gap-1 border-b border-slate-200">
-        {(['sessions', 'schedule'] as Tab[]).map((key) => (
-          <button
-            key={key}
-            type="button"
-            className={`px-3 py-2 text-sm font-medium ${
-              tab === key
-                ? 'border-b-2 border-slate-900 text-slate-900'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-            onClick={() => setTab(key)}
-          >
-            {key === 'sessions'
-              ? t('Count sessions', 'جلسات الجرد')
-              : t('Product schedule', 'جدول المنتجات')}
-          </button>
-        ))}
-      </div>
+      <PillSubNav
+        ariaLabel={t('Cycle count views', 'عروض الجرد الدوري')}
+        items={[
+          {
+            key: 'sessions',
+            label: t('Count sessions', 'جلسات الجرد'),
+            onClick: () => setTab('sessions'),
+            active: tab === 'sessions',
+          },
+          {
+            key: 'schedule',
+            label: t('Product schedule', 'جدول المنتجات'),
+            onClick: () => setTab('schedule'),
+            active: tab === 'schedule',
+          },
+        ]}
+      />
 
       {tab === 'sessions' ? (
         <DataTable<CycleCountListItem>
+          title={t('Cycle count', 'الجرد الدوري')}
+          description={t(
+            'Operational inventory verification — sessions, schedules, and discrepancies.',
+            'التحقق التشغيلي من المخزون — الجلسات والجداول والفروقات.',
+          )}
           columns={sessionCols}
           rows={filteredCounts}
-          loading={countsQuery.isLoading}
+          loading={countsPagination.isInitialLoading}
+          serverPagination={countsPagination.serverPagination}
           empty={t('No cycle counts for this warehouse.', 'لا توجد جلسات جرد.')}
           onRowClick={(r) => navigate(`/cycle-count/${r.id}`)}
           rowKey={(r) => r.id}
         />
       ) : (
         <DataTable<CycleCountProductHistoryRow>
+          title={t('Product schedule', 'جدول المنتجات')}
           columns={scheduleCols}
           rows={filteredHistory}
           loading={historyQuery.isLoading}

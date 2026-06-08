@@ -2,7 +2,6 @@ import { Outlet } from 'react-router-dom';
 
 import { Alert, AppPageHeader } from '@ds';
 
-import { PANEL_CARD_CLASS } from '../../components/FilterPanel';
 import { ReportsNav } from '../../components/reports/ReportsNav';
 import { useDefaultWarehouseId } from '../../hooks/useDefaultWarehouse';
 
@@ -41,9 +40,7 @@ export function ReportsLayout() {
         />
       )}
 
-      <section className={PANEL_CARD_CLASS}>
-        <ReportsNav isArabic={isArabic} />
-      </section>
+      <ReportsNav isArabic={isArabic} />
 
       <Outlet context={{ isArabic }} />
     </div>
