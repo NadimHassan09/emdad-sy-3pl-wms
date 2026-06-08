@@ -20,6 +20,7 @@ export const QK = {
   notifications: ['notifications'] as const,
   dashboardOverview: ['dashboard', 'overview'] as const,
   dashboardOpenOrdersCharts: ['dashboard', 'open-orders-charts'] as const,
+  presenceOnlineUsers: ['presence', 'online-users'] as const,
   reports: {
     all: ['reports'] as const,
     preview: (reportId: string, params: Record<string, unknown>) =>
@@ -28,6 +29,20 @@ export const QK = {
   adjustments: ['adjustments'] as const,
   availability: (productId: string, companyId: string) =>
     ['availability', productId, companyId] as const,
+  locations: {
+    all: ['locations'] as const,
+    children: (
+      warehouseId: string,
+      parentId: string | null,
+      filters: Record<string, unknown>,
+    ) => ['locations', 'children', warehouseId, parentId ?? 'root', filters] as const,
+    lookup: (warehouseId: string, search: string) =>
+      ['locations', 'lookup', warehouseId, search] as const,
+    byId: (id: string) => ['locations', 'detail', id] as const,
+    putawayLookup: (warehouseId: string, taskType: string, search: string) =>
+      ['locations', 'lookup', 'putaway', warehouseId, taskType, search] as const,
+  },
+  /** @deprecated Full tree — do not use on Locations page */
   locationsTree: (warehouseId: string) => ['locations', 'tree', warehouseId] as const,
   locationsPurgeContext: (warehouseId: string) => ['locations', 'purge-context', warehouseId] as const,
   locationsFlat: (warehouseId: string, includeArchived: boolean) =>
@@ -70,6 +85,22 @@ export const QK = {
     detail: (id: string) => ['return-orders', 'detail', id] as const,
     outboundQuota: (outboundId: string) => ['return-orders', 'outbound-quota', outboundId] as const,
   },
+  backups: {
+    all: ['backups'] as const,
+    list: (params: Record<string, unknown>) => ['backups', 'list', params] as const,
+    restorable: ['backups', 'restorable'] as const,
+    detail: (id: string) => ['backups', 'detail', id] as const,
+    status: (id: string) => ['backups', 'status', id] as const,
+    activeOperation: ['backups', 'operations', 'active'] as const,
+    auditRecent: ['backups', 'audit', 'recent'] as const,
+    schedules: ['backups', 'schedules'] as const,
+    retentionPolicies: ['backups', 'retention', 'policies'] as const,
+    retentionPreview: ['backups', 'retention', 'preview'] as const,
+    health: ['backups', 'health'] as const,
+    healthAudit: ['backups', 'audit', 'health'] as const,
+    storagePolicy: ['backups', 'storage-policy'] as const,
+    googleDrive: ['integrations', 'google-drive'] as const,
+  },
   cycleCount: {
     all: ['cycle-count'] as const,
     list: (params: Record<string, unknown>) => ['cycle-count', 'list', params] as const,
@@ -81,5 +112,11 @@ export const QK = {
     reasonCodes: ['cycle-count', 'reason-codes'] as const,
     myTasks: (warehouseId: string) => ['cycle-count', 'my-tasks', warehouseId] as const,
     execution: (id: string) => ['cycle-count', 'execution', id] as const,
+  },
+  billing: {
+    all: ['billing'] as const,
+    plans: ['billing', 'plans'] as const,
+    cycles: ['billing', 'cycles'] as const,
+    capacity: ['billing', 'capacity'] as const,
   },
 };

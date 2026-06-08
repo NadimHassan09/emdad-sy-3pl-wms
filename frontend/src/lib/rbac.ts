@@ -82,6 +82,13 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     roles: ['super_admin', 'wh_manager'],
   },
   {
+    labelKey: 'Billing',
+    iconKey: 'Reports',
+    to: '/billing/plans',
+    match: (p) => p.startsWith('/billing'),
+    roles: ['super_admin', 'wh_manager', 'finance'],
+  },
+  {
     labelKey: 'Users',
     iconKey: 'Users',
     to: '/users/warehouse_users',
@@ -94,6 +101,13 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/audit-logs',
     match: (p) => p.startsWith('/audit-logs'),
     roles: ['super_admin', 'wh_manager', 'finance'],
+  },
+  {
+    labelKey: 'Settings',
+    iconKey: 'Settings',
+    to: '/settings/backups',
+    match: (p) => p.startsWith('/settings'),
+    roles: ['super_admin', 'wh_manager'],
   },
 ];
 
@@ -111,8 +125,10 @@ function routeGroup(pathname: string): string {
   if (p.startsWith('/products')) return 'products';
   if (p.startsWith('/locations')) return 'locations';
   if (p.startsWith('/clients')) return 'clients';
+  if (p.startsWith('/billing')) return 'billing';
   if (p.startsWith('/users')) return 'users';
   if (p.startsWith('/audit-logs')) return 'audit-logs';
+  if (p.startsWith('/settings')) return 'settings';
   return 'other';
 }
 
@@ -128,8 +144,10 @@ const ROUTE_GROUP_ROLES: Record<string, InternalRole[]> = {
   products: ['super_admin', 'wh_manager'],
   locations: ['super_admin', 'wh_manager'],
   clients: ['super_admin', 'wh_manager'],
+  billing: ['super_admin', 'wh_manager', 'finance'],
   users: ['super_admin', 'wh_manager'],
   'audit-logs': ['super_admin', 'wh_manager', 'finance'],
+  settings: ['super_admin', 'wh_manager'],
   other: ALL_ROLES,
 };
 

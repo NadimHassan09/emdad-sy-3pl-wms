@@ -1,6 +1,6 @@
 import { api } from './client';
 
-export type CompanyStatus = 'active' | 'paused' | 'offboarding' | 'closed';
+export type CompanyStatus = 'active' | 'paused' | 'offboarding' | 'closed' | 'restricted';
 
 export type CompanyListRow = {
   id: string;

@@ -17,7 +17,8 @@ api.interceptors.request.use((cfg) => {
   const url = typeof cfg.url === 'string' ? cfg.url : '';
   const isDashboard = url.includes('/dashboard/');
   const isCompaniesList = url.includes('/companies');
-  if (mockCompanyId && !isDashboard && !isCompaniesList && !cfg.headers['X-Company-Id']) {
+  const isBillingAdmin = url.includes('/billing/');
+  if (mockCompanyId && !isDashboard && !isCompaniesList && !isBillingAdmin && !cfg.headers['X-Company-Id']) {
     cfg.headers['X-Company-Id'] = mockCompanyId;
   }
   return cfg;

@@ -51,6 +51,15 @@ const WarehouseUserDetailPage = lazyPage(() => import('./pages/UserDetailPage'),
 const ClientUserDetailPage    = lazyPage(() => import('./pages/UserDetailPage'),          'ClientUserDetailPage');
 const LoginPage               = lazyPage(() => import('./pages/LoginPage'),               'LoginPage');
 const AuditLogsPage           = lazyPage(() => import('./pages/AuditLogsPage'),           'AuditLogsPage');
+const SettingsLayout          = lazyPage(() => import('./pages/settings/SettingsLayout'), 'SettingsLayout');
+const BackupHistoryPage       = lazyPage(() => import('./pages/settings/BackupHistoryPage'), 'BackupHistoryPage');
+const BackupUploadPage        = lazyPage(() => import('./pages/settings/BackupUploadPage'), 'BackupUploadPage');
+const BackupRestorePage       = lazyPage(() => import('./pages/settings/BackupRestorePage'), 'BackupRestorePage');
+const BackupFactoryResetPage  = lazyPage(() => import('./pages/settings/BackupFactoryResetPage'), 'BackupFactoryResetPage');
+const BackupSchedulesPage     = lazyPage(() => import('./pages/settings/BackupSchedulesPage'), 'BackupSchedulesPage');
+const BackupRetentionPage     = lazyPage(() => import('./pages/settings/BackupRetentionPage'), 'BackupRetentionPage');
+const BackupHealthPage        = lazyPage(() => import('./pages/settings/BackupHealthPage'), 'BackupHealthPage');
+const BackupGoogleDrivePage   = lazyPage(() => import('./pages/settings/BackupGoogleDrivePage'), 'BackupGoogleDrivePage');
 const CycleCountListPage      = lazyPage(() => import('./pages/cycle-count/CycleCountListPage'), 'CycleCountListPage');
 const CycleCountDetailPage    = lazyPage(() => import('./pages/cycle-count/CycleCountDetailPage'), 'CycleCountDetailPage');
 const CycleCountExecutePage   = lazyPage(() => import('./pages/cycle-count/CycleCountExecutePage'), 'CycleCountExecutePage');
@@ -58,6 +67,8 @@ const CycleCountMyTasksPage   = lazyPage(() => import('./pages/cycle-count/Cycle
 const ReturnsListPage         = lazyPage(() => import('./pages/returns/ReturnsListPage'), 'ReturnsListPage');
 const ReturnDetailPage        = lazyPage(() => import('./pages/returns/ReturnDetailPage'), 'ReturnDetailPage');
 const ReturnProcessPage       = lazyPage(() => import('./pages/returns/ReturnProcessPage'), 'ReturnProcessPage');
+const BillingPlansPage        = lazyPage(() => import('./pages/billing/BillingPlansPage'), 'BillingPlansPage');
+const BillingPlanDetailPage   = lazyPage(() => import('./pages/billing/BillingPlanDetailPage'), 'BillingPlanDetailPage');
 
 /** Data router required for `useBlocker` (task execution exit guard). */
 export const router = createBrowserRouter([
@@ -115,12 +126,29 @@ export const router = createBrowserRouter([
       },
       { path: 'clients', element: <ClientsPage /> },
       { path: 'clients/:id', element: <CompanyDetailPage /> },
+      { path: 'billing/plans', element: <BillingPlansPage /> },
+      { path: 'billing/plans/:clientId', element: <BillingPlanDetailPage /> },
       { path: 'users', element: <Navigate to="/users/warehouse_users" replace /> },
       { path: 'users/warehouse_users', element: <WarehouseUsersPage /> },
       { path: 'users/warehouse_users/:id', element: <WarehouseUserDetailPage /> },
       { path: 'users/client_users', element: <ClientUsersPage /> },
       { path: 'users/client_users/:id', element: <ClientUserDetailPage /> },
       { path: 'audit-logs', element: <AuditLogsPage /> },
+      {
+        path: 'settings',
+        element: <SettingsLayout />,
+        children: [
+          { index: true, element: <Navigate to="/settings/backups" replace /> },
+          { path: 'backups', element: <BackupHistoryPage /> },
+          { path: 'backups/upload', element: <BackupUploadPage /> },
+          { path: 'backups/restore', element: <BackupRestorePage /> },
+          { path: 'backups/factory-reset', element: <BackupFactoryResetPage /> },
+          { path: 'backups/schedules', element: <BackupSchedulesPage /> },
+          { path: 'backups/retention', element: <BackupRetentionPage /> },
+          { path: 'backups/health', element: <BackupHealthPage /> },
+          { path: 'backups/google-drive', element: <BackupGoogleDrivePage /> },
+        ],
+      },
       { path: '*', element: <RoleHomeRedirect /> },
     ],
   },
