@@ -95,6 +95,36 @@ export class BillingCyclesService {
     });
   }
 
+  /** Active/renewed cycles ending soonest — for dashboard widget. */
+  async listExpiringSoon(user: AuthPrincipal, limit = 5) {
+    const now = new Date();
+    const where: Prisma.BillingCycleWhereInput = {
+      status: { in: ['active', 'renewed'] },
+      endsAt: { gt: now },
+    };
+    if (user.tenantScope === 'restricted') {
+      where.companyId = { in: user.authorizedCompanyIds };
+    }
+
+    const cycles = await this.prisma.billingCycle.findMany({
+      where,
+      orderBy: { endsAt: 'asc' },
+      take: Math.min(Math.max(limit, 1), 20),
+      select: {
+        ...CYCLE_SELECT,
+        company: { select: { id: true, name: true } },
+      },
+    });
+
+    return cycles.map((cycle) => ({
+      ...cycle,
+      daysRemaining: Math.max(
+        0,
+        Math.ceil((cycle.endsAt.getTime() - now.getTime()) / 86_400_000),
+      ),
+    }));
+  }
+
   /** Called by the expiry processor — not exposed via HTTP. */
   async createNextCycleFromPlan(
     tx: Prisma.TransactionClient,

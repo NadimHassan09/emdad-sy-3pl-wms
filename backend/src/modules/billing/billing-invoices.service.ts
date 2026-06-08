@@ -16,6 +16,16 @@ const INVOICE_SELECT = {
   issuedAt: true,
   createdAt: true,
   updatedAt: true,
+  billingCycle: {
+    select: {
+      id: true,
+      startsAt: true,
+      endsAt: true,
+      status: true,
+      rateSnapshot: true,
+      billingPlanId: true,
+    },
+  },
   lines: {
     select: {
       id: true,

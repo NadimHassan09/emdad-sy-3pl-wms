@@ -157,6 +157,22 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
       },
     ],
   },
+  {
+    ariaLabelKey: 'Billing navigation',
+    matchSection: (p) => p.startsWith('/billing'),
+    items: [
+      {
+        labelKey: 'Plans',
+        to: '/billing/plans',
+        match: (p) => p.startsWith('/billing/plans'),
+      },
+      {
+        labelKey: 'Invoices',
+        to: '/billing/invoices',
+        match: (p) => p.startsWith('/billing/invoices'),
+      },
+    ],
+  },
 ];
 
 export function resolveSectionSubNav(pathname: string): SectionSubNavConfig | null {
@@ -188,6 +204,9 @@ export function sectionSubNavLabel(label: string, isArabic: boolean): string {
     'Users navigation': 'تنقل المستخدمين',
     'Warehouse users': 'مستخدمو المستودع',
     'Client users': 'مستخدمو العملاء',
+    'Billing navigation': 'تنقل الفوترة',
+    Plans: 'الخطط',
+    Invoices: 'الفواتير',
   };
   return ar[label] ?? label;
 }

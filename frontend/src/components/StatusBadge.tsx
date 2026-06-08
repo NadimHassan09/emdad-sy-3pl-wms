@@ -37,6 +37,8 @@ const STATUS_CLASS: Record<string, string> = {
   offboarding: 'badge-progress',
   closed: 'badge-cancelled',
   restricted: 'badge-cancelled',
+  open: 'badge-progress',
+  paid: 'badge-complete',
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {
@@ -80,6 +82,8 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     offboarding: 'إنهاء الخدمة',
     closed: 'مغلق',
     restricted: 'مقيّد',
+    open: 'مفتوحة',
+    paid: 'مدفوعة',
   };
   return <span className={`badge w-fit ${cls}`}>{isArabic ? ar[key] ?? key : key}</span>;
 }

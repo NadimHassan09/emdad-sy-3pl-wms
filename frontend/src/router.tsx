@@ -67,8 +67,10 @@ const CycleCountMyTasksPage   = lazyPage(() => import('./pages/cycle-count/Cycle
 const ReturnsListPage         = lazyPage(() => import('./pages/returns/ReturnsListPage'), 'ReturnsListPage');
 const ReturnDetailPage        = lazyPage(() => import('./pages/returns/ReturnDetailPage'), 'ReturnDetailPage');
 const ReturnProcessPage       = lazyPage(() => import('./pages/returns/ReturnProcessPage'), 'ReturnProcessPage');
-const BillingPlansPage        = lazyPage(() => import('./pages/billing/BillingPlansPage'), 'BillingPlansPage');
-const BillingPlanDetailPage   = lazyPage(() => import('./pages/billing/BillingPlanDetailPage'), 'BillingPlanDetailPage');
+const BillingPlansPage          = lazyPage(() => import('./pages/billing/BillingPlansPage'), 'BillingPlansPage');
+const BillingPlanDetailPage     = lazyPage(() => import('./pages/billing/BillingPlanDetailPage'), 'BillingPlanDetailPage');
+const BillingInvoicesPage       = lazyPage(() => import('./pages/billing/BillingInvoicesPage'), 'BillingInvoicesPage');
+const BillingInvoiceDetailPage  = lazyPage(() => import('./pages/billing/BillingInvoiceDetailPage'), 'BillingInvoiceDetailPage');
 
 /** Data router required for `useBlocker` (task execution exit guard). */
 export const router = createBrowserRouter([
@@ -128,6 +130,8 @@ export const router = createBrowserRouter([
       { path: 'clients/:id', element: <CompanyDetailPage /> },
       { path: 'billing/plans', element: <BillingPlansPage /> },
       { path: 'billing/plans/:clientId', element: <BillingPlanDetailPage /> },
+      { path: 'billing/invoices', element: <BillingInvoicesPage /> },
+      { path: 'billing/invoices/:id', element: <BillingInvoiceDetailPage /> },
       { path: 'users', element: <Navigate to="/users/warehouse_users" replace /> },
       { path: 'users/warehouse_users', element: <WarehouseUsersPage /> },
       { path: 'users/warehouse_users/:id', element: <WarehouseUserDetailPage /> },

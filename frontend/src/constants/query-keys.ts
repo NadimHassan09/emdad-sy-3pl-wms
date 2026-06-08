@@ -118,5 +118,7 @@ export const QK = {
     plans: ['billing', 'plans'] as const,
     cycles: ['billing', 'cycles'] as const,
     capacity: ['billing', 'capacity'] as const,
+    invoices: ['billing', 'invoices'] as const,
+    expiringSoon: ['billing', 'expiring-soon'] as const,
   },
 };

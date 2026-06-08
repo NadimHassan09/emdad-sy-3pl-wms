@@ -33,6 +33,7 @@ import {
   WarehouseOverviewMetricCard,
   WarehouseOverviewMetricCardSkeleton,
 } from '../components/dashboard/WarehouseOverviewMetricCard';
+import { BillingExpiringClientsCard } from '../components/dashboard/BillingExpiringClientsCard';
 import { Alert, AppPageHeader } from '@ds';
 import { QK } from '../constants/query-keys';
 
@@ -44,7 +45,7 @@ function dashboardLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
     'Items in catalog': 'العناصر في الكتالوج',
-    'Total items in stock': 'إجمالي العناصر في المخزون',
+    'Total customers': 'إجمالي العملاء',
     'Total customers (companies)': 'إجمالي العملاء (الشركات)',
     'Open inbound orders': 'طلبات الوارد المفتوحة',
     'Open outbound orders': 'طلبات الصادر المفتوحة',
@@ -79,12 +80,19 @@ function dashboardLabel(label: string, isArabic: boolean): string {
     Overview: 'نظرة عامة',
     'Warehouse overview': 'نظرة عامة على المستودع',
     'Could not load dashboard': 'تعذر تحميل لوحة التحكم',
-    'Open orders in pipeline': 'طلبات مفتوحة قيد التنفيذ',
     'Active warehouse tasks': 'مهام مستودع نشطة',
     'Registered client companies': 'شركات عملاء مسجلة',
     'in progress': 'قيد التنفيذ',
     'not started': 'لم تبدأ',
     'No open tasks': 'لا توجد مهام مفتوحة',
+    'Billing cycles expiring soon': 'دورات الفوترة التي تنتهي قريبًا',
+    'View billing plans': 'عرض خطط الفوترة',
+    'Loading…': 'جاري التحميل…',
+    'No active billing cycles expiring soon.': 'لا توجد دورات فوترة نشطة تنتهي قريبًا.',
+    Ends: 'تنتهي',
+    'days remaining': 'يوم متبقٍ',
+    renewed: 'مجدّد',
+    Renew: 'تجديد',
   };
   return ar[label] ?? label;
 }
@@ -134,21 +142,7 @@ export function DashboardOverviewPage() {
     queryFn: () => DashboardApi.overview(),
   });
 
-  const chartsQuery = useQuery({
-    queryKey: QK.dashboardOpenOrdersCharts,
-    queryFn: () => DashboardApi.openOrdersCharts(),
-  });
-
   const data = query.data;
-
-  const inboundCharts = chartsQuery.data?.inbound;
-  const outboundCharts = chartsQuery.data?.outbound;
-
-  function openOrdersSubtitle(total: number): string {
-    if (total === 0) return t('No open orders');
-    if (total === 1) return t('1 open order');
-    return `${numberFmt(total)} ${t('open orders')}`;
-  }
 
   function formatPercent(value: number): string {
     return Number.isFinite(value) ? value.toFixed(1) : '0.0';
@@ -161,8 +155,7 @@ export function DashboardOverviewPage() {
       {/* ── Loading skeleton ──────────────────────────────────────── */}
       {query.isPending && (
         <div className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <WarehouseOverviewMetricCardSkeleton primary />
+          <div className="grid gap-3 sm:grid-cols-2">
             <WarehouseOverviewMetricCardSkeleton />
             <WarehouseOverviewMetricCardSkeleton />
           </div>
@@ -199,38 +192,26 @@ export function DashboardOverviewPage() {
           {/* ── Warehouse overview (reference metric cards) ───────── */}
           <section>
             <SectionHeading>{t('Warehouse overview')}</SectionHeading>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <WarehouseOverviewMetricCard
-                variant="primary"
-                title={t('Total items in stock')}
-                value={numberFmt(data.counters.totalItemsInStock)}
-                to="/inventory/stock"
-                footer={{
-                  kind: 'trend',
-                  value: data.openOrders.inbound + data.openOrders.outbound,
-                  caption: t('Open orders in pipeline'),
-                }}
-              />
+            <div className="grid gap-3 sm:grid-cols-2">
               <WarehouseOverviewMetricCard
                 title={t('Items in catalog')}
                 value={numberFmt(data.counters.itemsInCatalog)}
                 to="/products"
-                footer={{
-                  kind: 'trend',
-                  value: data.openTasksByType.reduce((sum, task) => sum + task.openCount, 0),
-                  caption: t('Active warehouse tasks'),
-                }}
+                icon="fa-solid fa-boxes-stacked"
               />
               <WarehouseOverviewMetricCard
-                title={t('Total customers (companies)')}
+                title={t('Total customers')}
                 value={numberFmt(data.counters.totalCustomers)}
                 to="/clients"
-                footer={{
-                  kind: 'status',
-                  text: t('Registered client companies'),
-                }}
+                icon="fa-solid fa-building"
               />
             </div>
+          </section>
+
+          {/* ── Billing cycles expiring soon ─────────────────────────── */}
+          <section>
+            <SectionHeading>{t('Billing cycles expiring soon')}</SectionHeading>
+            <BillingExpiringClientsCard translateLabel={t} />
           </section>
 
           {/* ── Open orders (stage bar cards) ───────────────────────── */}
@@ -239,25 +220,15 @@ export function DashboardOverviewPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <OpenOrdersStageBarCard
                 title={t('Open inbound orders')}
-                slices={inboundCharts?.stages}
-                inProgress={inboundCharts?.inProgress}
-                notInProgress={inboundCharts?.notInProgress}
                 openOrderCount={data.openOrders.inbound}
                 to="/orders/inbound"
-                isLoading={chartsQuery.isPending}
-                translateLabel={t}
-                openOrdersSubtitle={openOrdersSubtitle}
+                isLoading={query.isPending}
               />
               <OpenOrdersStageBarCard
                 title={t('Open outbound orders')}
-                slices={outboundCharts?.stages}
-                inProgress={outboundCharts?.inProgress}
-                notInProgress={outboundCharts?.notInProgress}
                 openOrderCount={data.openOrders.outbound}
                 to="/orders/outbound"
-                isLoading={chartsQuery.isPending}
-                translateLabel={t}
-                openOrdersSubtitle={openOrdersSubtitle}
+                isLoading={query.isPending}
               />
             </div>
           </section>

@@ -59,6 +59,76 @@ export type UpdateBillingPlanPayload = Partial<
   Omit<CreateBillingPlanPayload, 'companyId' | 'cycleStartsAt'>
 >;
 
+export type BillingInvoiceStatus = 'draft' | 'open' | 'paid' | 'cancelled';
+
+export type BillingInvoiceLineType =
+  | 'subscription'
+  | 'inbound'
+  | 'outbound'
+  | 'packaging'
+  | 'quality_check'
+  | 'excess_volume'
+  | 'excess_weight';
+
+export type BillingInvoiceLineRow = {
+  id: string;
+  type: BillingInvoiceLineType;
+  quantity: string;
+  unitPrice: string;
+  totalPrice: string;
+};
+
+export type BillingInvoiceCycleSummary = {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  status: BillingCycleStatus;
+  rateSnapshot: unknown;
+  billingPlanId: string;
+};
+
+export type BillingRateSnapshot = {
+  billingPlanId: string;
+  fixedSubscriptionFee: string;
+  inboundOrderFee: string;
+  outboundOrderFee: string;
+  packagingFee: string;
+  qualityCheckFee: string;
+  excessVolumeFeePerDay: string;
+  excessWeightFeePerDay: string;
+  reservedVolume: string;
+  reservedWeight: string;
+  snapshottedAt: string;
+};
+
+export type BillingInvoiceRow = {
+  id: string;
+  companyId: string;
+  billingCycleId: string;
+  invoiceNumber: string;
+  status: BillingInvoiceStatus;
+  totalAmount: string;
+  issuedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  billingCycle?: BillingInvoiceCycleSummary;
+  lines?: BillingInvoiceLineRow[];
+};
+
+export type BillingExpiringCycleRow = {
+  id: string;
+  companyId: string;
+  billingPlanId: string;
+  startsAt: string;
+  endsAt: string;
+  status: BillingCycleStatus;
+  rateSnapshot: unknown;
+  createdAt: string;
+  updatedAt: string;
+  daysRemaining: number;
+  company: { id: string; name: string };
+};
+
 export const BillingApi = {
   async listPlans(companyId?: string): Promise<BillingPlanRow[]> {
     const params = companyId ? { companyId } : {};
@@ -94,6 +164,24 @@ export const BillingApi = {
 
   async getCapacitySummary(): Promise<BillingCapacitySummary> {
     const { data } = await api.get<BillingCapacitySummary>('/billing/capacity');
+    return data;
+  },
+
+  async listInvoices(companyId?: string): Promise<BillingInvoiceRow[]> {
+    const params = companyId ? { companyId } : {};
+    const { data } = await api.get<BillingInvoiceRow[]>('/billing/invoices', { params });
+    return data;
+  },
+
+  async getInvoice(id: string): Promise<BillingInvoiceRow> {
+    const { data } = await api.get<BillingInvoiceRow>(`/billing/invoices/${id}`);
+    return data;
+  },
+
+  async listExpiringSoon(limit = 5): Promise<BillingExpiringCycleRow[]> {
+    const { data } = await api.get<BillingExpiringCycleRow[]>('/billing/cycles/expiring-soon', {
+      params: { limit },
+    });
     return data;
   },
 };

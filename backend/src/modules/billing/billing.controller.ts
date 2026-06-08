@@ -65,6 +65,15 @@ export class BillingController {
     return this.cycles.list(user, companyId);
   }
 
+  @Get('cycles/expiring-soon')
+  listExpiringSoon(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('limit') limit?: string,
+  ) {
+    const n = limit ? Number.parseInt(limit, 10) : 5;
+    return this.cycles.listExpiringSoon(user, Number.isFinite(n) ? n : 5);
+  }
+
   @Get('cycles/:id')
   getCycle(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.cycles.findById(user, id);
