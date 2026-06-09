@@ -6,6 +6,7 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { STORAGE_SETTINGS_ID } from './backup-bootstrap.constants';
 import { BackupConfig } from './backup-config';
+import { BackupDriveIntegrationService } from './backup-drive-integration.service';
 import { UpdateBackupStoragePolicyDto } from './dto/update-backup-storage-policy.dto';
 
 @Injectable()
@@ -14,6 +15,7 @@ export class BackupStoragePolicyService {
     private readonly prisma: PrismaService,
     private readonly backupConfig: BackupConfig,
     private readonly audit: AuditLogService,
+    private readonly driveIntegration: BackupDriveIntegrationService,
   ) {}
 
   async getSettings() {
@@ -28,7 +30,7 @@ export class BackupStoragePolicyService {
   }
 
   async updateDefaultPolicy(user: AuthPrincipal, dto: UpdateBackupStoragePolicyDto) {
-    this.assertDrivePolicyAllowed(dto.defaultPolicy);
+    await this.assertDrivePolicyAllowed(dto.defaultPolicy);
 
     const row = await this.prisma.backupStorageSettings.upsert({
       where: { id: STORAGE_SETTINGS_ID },
@@ -100,11 +102,17 @@ export class BackupStoragePolicyService {
     });
   }
 
-  private assertDrivePolicyAllowed(policy: BackupStoragePolicy): void {
+  private async assertDrivePolicyAllowed(policy: BackupStoragePolicy): Promise<void> {
     if (policy === BackupStoragePolicy.local_only) return;
     if (!this.backupConfig.gdriveEnabled) {
       throw new BadRequestException(
         'Drive storage policies require BACKUP_GDRIVE_ENABLED=true and a connected Google Drive account.',
+      );
+    }
+    const connected = await this.driveIntegration.isConnected();
+    if (!connected) {
+      throw new BadRequestException(
+        'Drive storage policies require a connected Google Drive account.',
       );
     }
   }

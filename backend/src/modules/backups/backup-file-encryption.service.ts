@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createCipheriv, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 
 const ALGORITHM = 'aes-256-gcm';
@@ -25,6 +25,31 @@ export class BackupFileEncryptionService {
     const output = Buffer.concat([MAGIC, iv, encrypted, authTag]);
     await writeFile(targetPath, output, { mode: 0o600 });
     return output.length;
+  }
+
+  /**
+   * Decrypts `.dump.enc` back to plain `.dump` (AES-256-GCM).
+   * Format: MAGIC(8) + IV(12) + ciphertext + authTag(16)
+   */
+  async decryptDumpFile(sourceEncPath: string, targetPath: string): Promise<number> {
+    const key = this.resolveKey();
+    const input = await readFile(sourceEncPath);
+    const minSize = MAGIC.length + IV_BYTES + 16;
+    if (input.length < minSize) {
+      throw new ServiceUnavailableException('Encrypted backup file is too short or corrupt.');
+    }
+    if (!input.subarray(0, MAGIC.length).equals(MAGIC)) {
+      throw new ServiceUnavailableException('Encrypted backup file has invalid format.');
+    }
+
+    const iv = input.subarray(MAGIC.length, MAGIC.length + IV_BYTES);
+    const authTag = input.subarray(input.length - 16);
+    const ciphertext = input.subarray(MAGIC.length + IV_BYTES, input.length - 16);
+    const decipher = createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
+    const plain = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    await writeFile(targetPath, plain, { mode: 0o600 });
+    return plain.length;
   }
 
   private resolveKey(): Buffer {

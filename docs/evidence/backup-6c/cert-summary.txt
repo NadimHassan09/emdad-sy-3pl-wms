@@ -1,0 +1,22 @@
+BACKUP-6C Certification 2026-06-09T01:12:34.238Z
+Duration: 0.0 min
+Readiness score: 58/100
+Drive connected: false
+
+PASS     [config] gdrive_env
+BLOCKED  [config] oauth_client
+PASS     [config] auth
+PASS     [drive] status_api
+BLOCKED  [drive] connect_auth_url
+BLOCKED  [drive] test_connection
+BLOCKED  [drive] encrypted_credentials
+PASS     [policies] local_only
+BLOCKED  [policies] local_and_drive
+BLOCKED  [policies] drive_only
+BLOCKED  [upload] gdrive_synced
+BLOCKED  [upload] enc_not_retained_locally
+BLOCKED  [drive_only] local_purged_after_sync
+BLOCKED  [retry] forced_failure
+PASS     [retention] drive_preview
+PASS     [retention] drive_cleanup
+BLOCKED  [restore] drive_backed

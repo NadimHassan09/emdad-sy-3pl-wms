@@ -1,0 +1,149 @@
+{
+  "generatedAt": "2026-06-09T01:12:34.238Z",
+  "elapsedMs": 1407,
+  "readinessScore": 58,
+  "config": {
+    "gdriveEnabled": "true",
+    "gdriveClientId": null,
+    "gdriveClientSecret": null,
+    "gdriveRedirectUri": "https://staging-admin.emdadsy.com/api/integrations/google-drive/callback",
+    "gdriveConnectSuccessUrl": "https://staging-admin.emdadsy.com/settings/backups/google-drive",
+    "encryptionKey": "[set]",
+    "defaultStoragePolicy": "local_and_drive",
+    "retryMaxAttempts": "8",
+    "retentionDaily": "14"
+  },
+  "connected": false,
+  "results": [
+    {
+      "phase": "config",
+      "name": "gdrive_env",
+      "outcome": "pass",
+      "at": "2026-06-09T01:12:32.838Z",
+      "gdriveEnabled": "true",
+      "gdriveClientId": null,
+      "gdriveClientSecret": null,
+      "gdriveRedirectUri": "https://staging-admin.emdadsy.com/api/integrations/google-drive/callback",
+      "gdriveConnectSuccessUrl": "https://staging-admin.emdadsy.com/settings/backups/google-drive",
+      "encryptionKey": "[set]",
+      "defaultStoragePolicy": "local_and_drive",
+      "retryMaxAttempts": "8",
+      "retentionDaily": "14"
+    },
+    {
+      "phase": "config",
+      "name": "oauth_client",
+      "outcome": "blocked",
+      "at": "2026-06-09T01:12:32.838Z",
+      "note": "Set BACKUP_GDRIVE_CLIENT_ID/SECRET in backend/.env"
+    },
+    {
+      "phase": "config",
+      "name": "auth",
+      "outcome": "pass",
+      "at": "2026-06-09T01:12:32.960Z",
+      "email": "superadmin@emdad.example"
+    },
+    {
+      "phase": "drive",
+      "name": "status_api",
+      "outcome": "pass",
+      "at": "2026-06-09T01:12:32.992Z",
+      "gdriveEnabled": true,
+      "gdriveConfigured": false,
+      "connected": false
+    },
+    {
+      "phase": "drive",
+      "name": "connect_auth_url",
+      "outcome": "blocked",
+      "at": "2026-06-09T01:12:33.004Z",
+      "status": 503
+    },
+    {
+      "phase": "drive",
+      "name": "test_connection",
+      "outcome": "blocked",
+      "at": "2026-06-09T01:12:33.015Z",
+      "status": 201
+    },
+    {
+      "phase": "drive",
+      "name": "encrypted_credentials",
+      "outcome": "blocked",
+      "at": "2026-06-09T01:12:33.187Z",
+      "note": "encrypted_refresh_token uses v1: AES-GCM prefix"
+    },
+    {
+      "phase": "policies",
+      "name": "local_only",
+      "outcome": "pass",
+      "at": "2026-06-09T01:12:34.202Z",
+      "status": 200,
+      "message": "local_only"
+    },
+    {
+      "phase": "policies",
+      "name": "local_and_drive",
+      "outcome": "blocked",
+      "at": "2026-06-09T01:12:34.202Z",
+      "status": 400,
+      "message": "Drive storage policies require a connected Google Drive account."
+    },
+    {
+      "phase": "policies",
+      "name": "drive_only",
+      "outcome": "blocked",
+      "at": "2026-06-09T01:12:34.202Z",
+      "status": 400,
+      "message": "Drive storage policies require a connected Google Drive account."
+    },
+    {
+      "phase": "upload",
+      "name": "gdrive_synced",
+      "outcome": "blocked",
+      "at": "2026-06-09T01:12:34.202Z",
+      "note": "Drive not connected — upload skipped"
+    },
+    {
+      "phase": "upload",
+      "name": "enc_not_retained_locally",
+      "outcome": "blocked",
+      "at": "2026-06-09T01:12:34.202Z",
+      "note": "Drive not connected — upload skipped"
+    },
+    {
+      "phase": "drive_only",
+      "name": "local_purged_after_sync",
+      "outcome": "blocked",
+      "at": "2026-06-09T01:12:34.202Z",
+      "note": "Drive not connected"
+    },
+    {
+      "phase": "retry",
+      "name": "forced_failure",
+      "outcome": "blocked",
+      "at": "2026-06-09T01:12:34.202Z",
+      "note": "Drive not connected"
+    },
+    {
+      "phase": "retention",
+      "name": "drive_preview",
+      "outcome": "pass",
+      "at": "2026-06-09T01:12:34.226Z"
+    },
+    {
+      "phase": "retention",
+      "name": "drive_cleanup",
+      "outcome": "pass",
+      "at": "2026-06-09T01:12:34.226Z"
+    },
+    {
+      "phase": "restore",
+      "name": "drive_backed",
+      "outcome": "blocked",
+      "at": "2026-06-09T01:12:34.226Z",
+      "note": "Requires connected Drive + drive_only backup"
+    }
+  ]
+}

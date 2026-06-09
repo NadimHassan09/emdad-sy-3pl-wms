@@ -1,0 +1,14 @@
+{
+  "local_only": {
+    "status": 200,
+    "message": "local_only"
+  },
+  "local_and_drive": {
+    "status": 400,
+    "message": "Drive storage policies require a connected Google Drive account."
+  },
+  "drive_only": {
+    "status": 400,
+    "message": "Drive storage policies require a connected Google Drive account."
+  }
+}

@@ -4,7 +4,9 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { createReadStream } from 'node:fs';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
 import { google } from 'googleapis';
 
 import { BackupConfig } from './backup-config';
@@ -159,6 +161,27 @@ export class BackupDriveService {
     });
     if (!created.data.id) throw new Error(`Failed to create Drive folder "${name}".`);
     return created.data.id;
+  }
+
+  async downloadEncryptedDump(input: {
+    refreshToken: string;
+    fileId: string;
+    targetPath: string;
+  }): Promise<number> {
+    const drive = google.drive({ version: 'v3', auth: this.createOAuthClient(input.refreshToken) });
+    const dest = createWriteStream(input.targetPath, { mode: 0o600 });
+    const res = await drive.files.get(
+      {
+        fileId: input.fileId,
+        alt: 'media',
+        supportsAllDrives: true,
+      },
+      { responseType: 'stream' },
+    );
+    await pipeline(res.data as NodeJS.ReadableStream, dest);
+    const fileStat = await stat(input.targetPath);
+    this.logger.log(`Downloaded encrypted backup from Drive file ${input.fileId}`);
+    return fileStat.size;
   }
 
   async deleteFile(refreshToken: string, fileId: string): Promise<void> {

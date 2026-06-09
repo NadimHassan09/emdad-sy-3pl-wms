@@ -1,10 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { BackupJobStatus, BackupJobType, Prisma } from '@prisma/client';
+import { BackupDriveSyncStatus, BackupJobStatus, BackupJobType, Prisma } from '@prisma/client';
+import { unlink } from 'node:fs/promises';
+import * as path from 'node:path';
 
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BackupConfig } from './backup-config';
+import { BackupDriveIntegrationService } from './backup-drive-integration.service';
+import { BackupDriveService } from './backup-drive.service';
+import { BackupFileEncryptionService } from './backup-file-encryption.service';
 import { BackupMaintenanceService } from './backup-maintenance.service';
 import { BackupManifest, BackupStorageService } from './backup-storage.service';
 import { BackupOperationsService } from './backup-operations.service';
@@ -26,6 +31,9 @@ export class BackupRestoreRunnerService {
     private readonly maintenance: BackupMaintenanceService,
     private readonly operations: BackupOperationsService,
     private readonly audit: AuditLogService,
+    private readonly driveIntegration: BackupDriveIntegrationService,
+    private readonly drive: BackupDriveService,
+    private readonly fileEncryption: BackupFileEncryptionService,
   ) {}
 
   enqueueRestore(
@@ -52,6 +60,8 @@ export class BackupRestoreRunnerService {
     createPreSnapshot: boolean,
   ): Promise<void> {
     let preSnapshotId: string | null = null;
+    let tempEncPath: string | null = null;
+    let tempDumpPath: string | null = null;
 
     try {
       this.maintenance.enable('backup_restore');
@@ -61,11 +71,10 @@ export class BackupRestoreRunnerService {
         throw new Error('Source backup is not available for restore.');
       }
 
-      const sourcePath = this.storage.resolveDumpPath(
-        source.artifactPath,
-        source.dumpFilename,
-        sourceBackupId,
-      );
+      const resolved = await this.resolveSourceDumpPath(sourceBackupId, source);
+      const sourcePath = resolved.path;
+      tempEncPath = resolved.tempEncPath;
+      tempDumpPath = resolved.tempDumpPath;
       const sourceSize = await this.storage.fileSize(sourcePath);
       if (sourceSize <= 0) throw new Error('Source dump file is missing on disk.');
 
@@ -167,7 +176,69 @@ export class BackupRestoreRunnerService {
           newState: { message, preSnapshotId, sourceBackupId },
         }),
       );
+    } finally {
+      await this.cleanupTempRestoreFiles(tempEncPath, tempDumpPath);
     }
+  }
+
+  private async resolveSourceDumpPath(
+    sourceBackupId: string,
+    source: {
+      artifactPath: string | null;
+      dumpFilename: string | null;
+      gdriveFileId: string | null;
+      gdriveSyncStatus: BackupDriveSyncStatus | null;
+    },
+  ): Promise<{ path: string; tempEncPath: string | null; tempDumpPath: string | null }> {
+    const localPath = this.storage.resolveDumpPath(
+      source.artifactPath,
+      source.dumpFilename,
+      sourceBackupId,
+    );
+    const localSize = await this.storage.fileSize(localPath);
+    if (localSize > 0) {
+      return { path: localPath, tempEncPath: null, tempDumpPath: null };
+    }
+
+    if (
+      !source.gdriveFileId ||
+      source.gdriveSyncStatus !== BackupDriveSyncStatus.synced ||
+      !this.backupConfig.gdriveEnabled
+    ) {
+      return { path: localPath, tempEncPath: null, tempDumpPath: null };
+    }
+
+    const connected = await this.driveIntegration.isConnected();
+    if (!connected) {
+      throw new Error('Source dump is on Google Drive but Drive is not connected.');
+    }
+
+    const refreshToken = await this.driveIntegration.getRefreshToken();
+    if (!refreshToken) {
+      throw new Error('Source dump is on Google Drive but Drive credentials are missing.');
+    }
+
+    await this.storage.ensureJobDir(sourceBackupId);
+    const tempEnc = path.join(this.storage.jobDirectory(sourceBackupId), `${sourceBackupId}.restore.enc`);
+    const tempDump = this.storage.dumpPath(sourceBackupId);
+
+    this.logger.log(`Downloading encrypted backup ${sourceBackupId} from Google Drive for restore`);
+    await this.drive.downloadEncryptedDump({
+      refreshToken,
+      fileId: source.gdriveFileId,
+      targetPath: tempEnc,
+    });
+    await this.fileEncryption.decryptDumpFile(tempEnc, tempDump);
+
+    return { path: tempDump, tempEncPath: tempEnc, tempDumpPath: tempDump };
+  }
+
+  private async cleanupTempRestoreFiles(
+    tempEncPath: string | null,
+    tempDumpPath: string | null,
+  ): Promise<void> {
+    await unlink(tempEncPath ?? '').catch(() => undefined);
+    await unlink(tempDumpPath ?? '').catch(() => undefined);
   }
 
   private async rollbackFromSnapshot(preSnapshotId: string, restoreJobId: string): Promise<void> {
