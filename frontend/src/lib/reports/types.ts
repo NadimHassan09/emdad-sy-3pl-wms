@@ -96,7 +96,9 @@ export type ReportDefinition = {
   chartLabelKey?: string;
   chartValueKey?: string;
   exportFileName: string;
+  /** @deprecated Replaced by server-side reports API. */
   usesClientAggregation?: boolean;
+  serverSide?: boolean;
   missingBackendNotes?: string[];
   loadsWarehouseKpis?: boolean;
   /** @deprecated Legacy category nav only. */

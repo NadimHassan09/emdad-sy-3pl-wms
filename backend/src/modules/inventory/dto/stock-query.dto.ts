@@ -1,4 +1,4 @@
-import { LedgerRefType, MovementType } from '@prisma/client';
+import { LedgerRefType, MovementType, StockStatus } from '@prisma/client';
 import { IsIn, IsOptional, IsString, Matches } from 'class-validator';
 
 import { PaginationDto } from '../../../common/dto/pagination.dto';
@@ -35,6 +35,11 @@ export class StockQueryDto extends PaginationDto {
   @IsOptional()
   @IsString()
   sku?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(Object.values(StockStatus))
+  status?: StockStatus;
 
   /** Matches product name or SKU (case-insensitive substring). */
   @EmptyToUndefined()

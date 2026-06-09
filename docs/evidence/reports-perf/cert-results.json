@@ -1,0 +1,89 @@
+{
+  "passCount": 9,
+  "total": 9,
+  "results": [
+    {
+      "phase": "auth",
+      "name": "login",
+      "outcome": "pass",
+      "detail": {},
+      "at": "2026-06-09T03:33:57.282Z"
+    },
+    {
+      "phase": "policy",
+      "name": "get",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:33:57.308Z"
+    },
+    {
+      "phase": "run",
+      "name": "inventory_paginated",
+      "outcome": "pass",
+      "detail": {
+        "status": 200,
+        "total": 35,
+        "items": 25
+      },
+      "at": "2026-06-09T03:33:57.332Z"
+    },
+    {
+      "phase": "run",
+      "name": "product_moves_paginated",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:33:57.373Z"
+    },
+    {
+      "phase": "run",
+      "name": "warehouse_analysis",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:33:57.934Z"
+    },
+    {
+      "phase": "aggregate",
+      "name": "inventory_by_client",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:33:57.954Z"
+    },
+    {
+      "phase": "kpis",
+      "name": "warehouse_analysis",
+      "outcome": "pass",
+      "detail": {
+        "status": 200,
+        "count": 8
+      },
+      "at": "2026-06-09T03:33:58.243Z"
+    },
+    {
+      "phase": "export",
+      "name": "inventory_csv",
+      "outcome": "pass",
+      "detail": {
+        "status": 200,
+        "rows": "35"
+      },
+      "at": "2026-06-09T03:33:58.256Z"
+    },
+    {
+      "phase": "export",
+      "name": "inventory_xls",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:33:58.271Z"
+    }
+  ]
+}

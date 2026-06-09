@@ -201,6 +201,10 @@ export class InventoryService {
       });
     }
 
+    if (query.status) {
+      and.push({ status: query.status });
+    }
+
     if (query.productName?.trim()) {
       and.push({
         product: {

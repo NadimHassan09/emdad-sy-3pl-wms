@@ -6,6 +6,15 @@ import { Column, DataTable } from '../DataTable';
 
 type SortState = { columnId: string; direction: 'asc' | 'desc' } | null;
 
+type ServerPagination = {
+  total: number;
+  page: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+  pageSizeOptions?: number[];
+};
+
 type ReportPreviewTableProps = {
   reportId: string;
   columns: ReportColumnDef[];
@@ -13,6 +22,7 @@ type ReportPreviewTableProps = {
   loading?: boolean;
   empty?: string;
   isArabic: boolean;
+  serverPagination?: ServerPagination;
 };
 
 export function ReportPreviewTable({
@@ -22,6 +32,7 @@ export function ReportPreviewTable({
   loading,
   empty,
   isArabic,
+  serverPagination,
 }: ReportPreviewTableProps) {
   const [sort, setSort] = useState<SortState>(null);
 
@@ -45,10 +56,11 @@ export function ReportPreviewTable({
     <div className="report-preview-table overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-slate-50">
     <DataTable
       columns={dataColumns}
-      rows={sortedRows}
+      rows={serverPagination ? rows : sortedRows}
       rowKey={(r) => String(r.id ?? `${r.sku}-${r.location}`)}
       loading={loading}
       empty={empty}
+      serverPagination={serverPagination}
       labels={{
         rowsSuffix: isArabic ? 'صف' : 'rows',
         resultsSuffix: isArabic ? 'نتيجة' : 'results',

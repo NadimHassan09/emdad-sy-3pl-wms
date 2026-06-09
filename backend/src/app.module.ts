@@ -32,6 +32,7 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module';
 import { WarehouseWorkflowModule } from './modules/warehouse-workflow/warehouse-workflow.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     BackupsModule,
     WarehouseWorkflowModule,
     RealtimeModule,
+    ReportsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

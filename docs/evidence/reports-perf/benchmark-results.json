@@ -1,0 +1,204 @@
+{
+  "generatedAt": "2026-06-09T03:33:35.131Z",
+  "warehouseId": "00000000-0000-4000-8000-000000000010",
+  "benchmarks": [
+    {
+      "label": "BEFORE inventory stock limit=500",
+      "url": "http://127.0.0.1:3001/api/inventory/stock?warehouseId=00000000-0000-4000-8000-000000000010&limit=500&offset=0",
+      "samples": [
+        {
+          "status": 200,
+          "bytes": 33024,
+          "ms": 21,
+          "itemCount": 35,
+          "total": 35
+        },
+        {
+          "status": 200,
+          "bytes": 33024,
+          "ms": 15,
+          "itemCount": 35,
+          "total": 35
+        },
+        {
+          "status": 200,
+          "bytes": 33024,
+          "ms": 11,
+          "itemCount": 35,
+          "total": 35
+        }
+      ],
+      "avgMs": 16,
+      "avgBytes": 33024
+    },
+    {
+      "label": "AFTER reports/inventory/run limit=50",
+      "url": "http://127.0.0.1:3001/api/reports/inventory/run?warehouseId=00000000-0000-4000-8000-000000000010&limit=50&offset=0",
+      "samples": [
+        {
+          "status": 200,
+          "bytes": 11042,
+          "ms": 16,
+          "itemCount": 35,
+          "total": 35
+        },
+        {
+          "status": 200,
+          "bytes": 11041,
+          "ms": 11,
+          "itemCount": 35,
+          "total": 35
+        },
+        {
+          "status": 200,
+          "bytes": 11041,
+          "ms": 7,
+          "itemCount": 35,
+          "total": 35
+        }
+      ],
+      "avgMs": 11,
+      "avgBytes": 11041
+    },
+    {
+      "label": "BEFORE ledger limit=500",
+      "url": "http://127.0.0.1:3001/api/inventory/ledger?warehouseId=00000000-0000-4000-8000-000000000010&limit=500&offset=0",
+      "samples": [
+        {
+          "status": 200,
+          "bytes": 67041,
+          "ms": 48,
+          "itemCount": 60,
+          "total": 60
+        },
+        {
+          "status": 200,
+          "bytes": 67041,
+          "ms": 38,
+          "itemCount": 60,
+          "total": 60
+        },
+        {
+          "status": 200,
+          "bytes": 67041,
+          "ms": 28,
+          "itemCount": 60,
+          "total": 60
+        }
+      ],
+      "avgMs": 38,
+      "avgBytes": 67041
+    },
+    {
+      "label": "AFTER reports/product-moves/run limit=50",
+      "url": "http://127.0.0.1:3001/api/reports/product-moves/run?warehouseId=00000000-0000-4000-8000-000000000010&limit=50&offset=0",
+      "samples": [
+        {
+          "status": 200,
+          "bytes": 17590,
+          "ms": 25,
+          "itemCount": 50,
+          "total": 60
+        },
+        {
+          "status": 200,
+          "bytes": 17589,
+          "ms": 6,
+          "itemCount": 50,
+          "total": 60
+        },
+        {
+          "status": 200,
+          "bytes": 17589,
+          "ms": 5,
+          "itemCount": 50,
+          "total": 60
+        }
+      ],
+      "avgMs": 12,
+      "avgBytes": 17589
+    },
+    {
+      "label": "AFTER reports/inventory/export csv",
+      "url": "http://127.0.0.1:3001/api/reports/inventory/export?warehouseId=00000000-0000-4000-8000-000000000010&format=csv",
+      "samples": [
+        {
+          "status": 200,
+          "bytes": 4616,
+          "ms": 16,
+          "itemCount": null,
+          "total": null
+        },
+        {
+          "status": 200,
+          "bytes": 4616,
+          "ms": 14,
+          "itemCount": null,
+          "total": null
+        },
+        {
+          "status": 200,
+          "bytes": 4616,
+          "ms": 11,
+          "itemCount": null,
+          "total": null
+        }
+      ],
+      "avgMs": 14,
+      "avgBytes": 4616
+    }
+  ],
+  "summary": [
+    {
+      "label": "BEFORE inventory stock limit=500",
+      "avgMs": 16,
+      "avgBytes": 33024,
+      "avgKb": 32.3,
+      "itemCount": 35,
+      "total": 35
+    },
+    {
+      "label": "AFTER reports/inventory/run limit=50",
+      "avgMs": 11,
+      "avgBytes": 11041,
+      "avgKb": 10.8,
+      "itemCount": 35,
+      "total": 35
+    },
+    {
+      "label": "BEFORE ledger limit=500",
+      "avgMs": 38,
+      "avgBytes": 67041,
+      "avgKb": 65.5,
+      "itemCount": 60,
+      "total": 60
+    },
+    {
+      "label": "AFTER reports/product-moves/run limit=50",
+      "avgMs": 12,
+      "avgBytes": 17589,
+      "avgKb": 17.2,
+      "itemCount": 50,
+      "total": 60
+    },
+    {
+      "label": "AFTER reports/inventory/export csv",
+      "avgMs": 14,
+      "avgBytes": 4616,
+      "avgKb": 4.5,
+      "itemCount": null,
+      "total": null
+    }
+  ],
+  "analysis": {
+    "inventory": {
+      "payloadReductionPct": 67,
+      "latencyReductionPct": 31
+    },
+    "productMoves": {
+      "payloadReductionPct": 74,
+      "latencyReductionPct": 68
+    },
+    "memoryNote": "Browser memory no longer holds full 500-row datasets; preview holds one server page (50 rows max)."
+  }
+}

@@ -1,26 +1,22 @@
-import { useMutation } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 
 import { Alert, Button, cn } from '@ds';
 
+import { ReportsApi } from '../../api/reports';
 import { FILTER_PRIMARY_BUTTON_CLASS, PANEL_CARD_CLASS } from '../FilterPanel';
 import { TextField } from '../TextField';
 import { useToast } from '../ToastProvider';
 import { useDefaultWarehouseId } from '../../hooks/useDefaultWarehouse';
 import { useFilters } from '../../hooks/useFilters';
-import { exportReportCsv } from '../../lib/reports/csv-export';
-import { exportReportExcel } from '../../lib/reports/excel-export';
+import { useReportServerData } from '../../hooks/useReportServerData';
 import { defaultReportDateRange } from '../../lib/reports/format';
-import { generateReport } from '../../lib/reports/report-engine';
 import { getReportById } from '../../lib/reports/registry';
 import type { ReportCatalogId } from '../../lib/reports/report-catalog';
 import {
   EMPTY_REPORT_FILTERS,
   type ReportChartKind,
   type ReportFilterValues,
-  type ReportRow,
   type ReportViewMode,
-  type WarehouseKpi,
 } from '../../lib/reports/types';
 import { ReportChartPanel } from './ReportChartPanel';
 import { ReportFiltersPanel } from './ReportFiltersPanel';
@@ -47,10 +43,11 @@ function t(label: string, isArabic: boolean): string {
     'Report workspace': 'مساحة التقرير',
     'Generate a report to preview results.': 'أنشئ تقريراً لمعاينة النتائج.',
     'No rows match filters.': 'لا توجد صفوف مطابقة.',
-    'Client aggregation': 'تجميع من الواجهة',
-    'Rows capped at 2,000 per query.': 'الصفوف محدودة بـ 2000 لكل استعلام.',
+    'Server-side reporting': 'تقارير من الخادم',
+    'Paginated preview and export — no bulk client fetch.': 'معاينة مقسمة وتصدير من الخادم — بدون تحميل ضخم في المتصفح.',
     'No rows match the current filters.': 'لا توجد صفوف مطابقة للفلاتر الحالية.',
     'Select a warehouse or configure a default warehouse.': 'اختر مستودعاً أو عيّن مستودعاً افتراضياً.',
+    'Exporting…': 'جارٍ التصدير…',
   };
   return ar[label] ?? label;
 }
@@ -78,25 +75,25 @@ export function ReportWorkspace({ reportId, isArabic = false }: Props) {
   const report = useMemo(() => getReportById(reportId)!, [reportId]);
 
   const reportFiltersInitial = useMemo(() => initialFiltersForReport(reportId), [reportId]);
-  const { draftFilters, setDraft, applyFilters, resetFilters, applyPatch } =
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters, applyPatch } =
     useFilters<ReportFilterValues>(reportFiltersInitial);
 
-  const [previewRows, setPreviewRows] = useState<ReportRow[]>([]);
-  const [kpis, setKpis] = useState<WarehouseKpi[]>([]);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ReportViewMode>(report.defaultView);
   const [chartKind, setChartKind] = useState<ReportChartKind>(report.defaultChartKind ?? 'bar');
   const [filtersOpen, setFiltersOpen] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [exporting, setExporting] = useState<'csv' | 'xls' | null>(null);
 
   useEffect(() => {
     applyPatch(initialFiltersForReport(reportId));
-    setPreviewRows([]);
-    setKpis([]);
     setHasGenerated(false);
     setGenerationError(null);
     setViewMode(report.defaultView);
     setChartKind(report.defaultChartKind ?? 'bar');
+    setPage(1);
   }, [reportId, applyPatch, report.defaultView, report.defaultChartKind]);
 
   useEffect(() => {
@@ -105,76 +102,83 @@ export function ReportWorkspace({ reportId, isArabic = false }: Props) {
     }
   }, [warehouseId, draftFilters.warehouseId, setDraft]);
 
-  const effectiveWarehouseId = draftFilters.warehouseId.trim() || warehouseId;
+  const effectiveWarehouseId = appliedFilters.warehouseId.trim() || warehouseId;
 
-  const generateMut = useMutation({
-    mutationFn: async (filters: ReportFilterValues) =>
-      generateReport(
-        reportId,
-        { ...filters, warehouseId: filters.warehouseId.trim() || warehouseId },
-        { defaultWarehouseId: warehouseId },
-      ),
-    onSuccess: (result) => {
-      if (result.error) {
-        const msg = result.error;
-        setGenerationError(msg);
-        toast.error(msg);
-        setPreviewRows([]);
-        setKpis([]);
-        setHasGenerated(false);
-        return;
-      }
-      setGenerationError(result.kpiError ?? null);
-      setPreviewRows(result.rows);
-      setKpis(result.kpis ?? []);
-      setHasGenerated(true);
-      if (result.kpiError) {
-        toast.error(result.kpiError);
-      } else {
-        const n = result.rows.length;
-        toast.success(
-          isArabic
-            ? `تم إنشاء التقرير — ${n} صف`
-            : `Report generated — ${n} row${n === 1 ? '' : 's'}`,
-        );
-      }
-    },
-    onError: (e: Error) => {
-      setGenerationError(e.message);
-      toast.error(e.message);
-      setHasGenerated(false);
-    },
+  const serverData = useReportServerData({
+    reportId,
+    filters: appliedFilters,
+    warehouseId: effectiveWarehouseId,
+    enabled: hasGenerated && !!effectiveWarehouseId,
+    viewMode,
+    page,
+    pageSize,
+    loadsKpis: report.loadsWarehouseKpis,
   });
 
+  useEffect(() => {
+    if (serverData.error) {
+      setGenerationError(serverData.error);
+    }
+  }, [serverData.error]);
+
   const handleGenerate = () => {
-    if (!effectiveWarehouseId) {
-      const msg = isArabic
-        ? 'اختر مستودعاً أو عيّن مستودعاً افتراضياً.'
-        : 'Select a warehouse or configure a default warehouse.';
+    const wid = draftFilters.warehouseId.trim() || warehouseId;
+    if (!wid) {
+      const msg = tr('Select a warehouse or configure a default warehouse.');
       setGenerationError(msg);
       toast.error(msg);
       return;
     }
     setGenerationError(null);
-    const filters = { ...draftFilters, warehouseId: effectiveWarehouseId };
+    setDraft({ warehouseId: wid });
     applyFilters();
-    generateMut.mutate(filters);
+    setPage(1);
+    setHasGenerated(true);
+    toast.success(isArabic ? 'جارٍ تحميل التقرير من الخادم…' : 'Loading report from server…');
   };
 
-  const handleExportCsv = () => {
-    if (!hasGenerated || previewRows.length === 0) return;
-    const stamp = new Date().toISOString().slice(0, 10);
-    exportReportCsv(report.columns, previewRows, `${report.exportFileName}-${stamp}`, isArabic);
-  };
+  const exportParams = useMemo(
+    () => ({
+      warehouseId: effectiveWarehouseId,
+      companyId: appliedFilters.companyId.trim() || undefined,
+      status: appliedFilters.status.trim() || undefined,
+      sku: appliedFilters.sku.trim() || undefined,
+      dateFrom: appliedFilters.dateFrom.trim() || undefined,
+      dateTo: appliedFilters.dateTo.trim() || undefined,
+    }),
+    [appliedFilters, effectiveWarehouseId],
+  );
 
-  const handleExportExcel = () => {
-    if (!hasGenerated || previewRows.length === 0) return;
-    const stamp = new Date().toISOString().slice(0, 10);
-    exportReportExcel(report.columns, previewRows, `${report.exportFileName}-${stamp}`, isArabic);
+  const handleExport = async (format: 'csv' | 'xls') => {
+    if (!hasGenerated || !effectiveWarehouseId) return;
+    setExporting(format);
+    try {
+      await ReportsApi.exportDownload(reportId, { ...exportParams, format });
+      toast.success(
+        isArabic
+          ? `تم التصدير (${format.toUpperCase()})`
+          : `Export complete (${format.toUpperCase()})`,
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Export failed');
+    } finally {
+      setExporting(null);
+    }
   };
 
   const showDateRange = report.filterKeys.includes('dateRange');
   const showGroupBy = report.filterKeys.includes('groupBy') && report.groupByOptions?.length;
+
+  const chartRows = useMemo(() => {
+    if (!appliedFilters.groupBy.trim()) return serverData.rows;
+    const labelKey = report.chartLabelKey ?? 'group';
+    const valueKey = report.chartValueKey ?? 'total';
+    return serverData.rows.map((row) => ({
+      ...row,
+      [labelKey]: row.group ?? row[labelKey],
+      [valueKey]: row.total ?? row[valueKey],
+    }));
+  }, [serverData.rows, appliedFilters.groupBy, report.chartLabelKey, report.chartValueKey]);
 
   const toolbarBtn = (active: boolean) =>
     cn(
@@ -185,7 +189,15 @@ export function ReportWorkspace({ reportId, isArabic = false }: Props) {
   return (
     <div className="space-y-6">
       {report.loadsWarehouseKpis && (
-        <ReportKpiGrid kpis={kpis} isArabic={isArabic} loading={generateMut.isPending && !hasGenerated} />
+        <ReportKpiGrid
+          kpis={serverData.kpis.map((k) => ({
+            ...k,
+            labelAr: k.label,
+            hintAr: k.hint,
+          }))}
+          isArabic={isArabic}
+          loading={serverData.kpisLoading && !hasGenerated}
+        />
       )}
 
       <section className={PANEL_CARD_CLASS}>
@@ -259,8 +271,9 @@ export function ReportWorkspace({ reportId, isArabic = false }: Props) {
             type="button"
             variant="secondary"
             size="md"
-            disabled={!hasGenerated || previewRows.length === 0}
-            onClick={handleExportCsv}
+            disabled={!hasGenerated || !!exporting}
+            loading={exporting === 'csv'}
+            onClick={() => void handleExport('csv')}
           >
             {tr('Export CSV')}
           </Button>
@@ -268,8 +281,9 @@ export function ReportWorkspace({ reportId, isArabic = false }: Props) {
             type="button"
             variant="secondary"
             size="md"
-            disabled={!hasGenerated || previewRows.length === 0}
-            onClick={handleExportExcel}
+            disabled={!hasGenerated || !!exporting}
+            loading={exporting === 'xls'}
+            onClick={() => void handleExport('xls')}
           >
             {tr('Export Excel')}
           </Button>
@@ -278,8 +292,8 @@ export function ReportWorkspace({ reportId, isArabic = false }: Props) {
             variant="primary"
             size="md"
             className={FILTER_PRIMARY_BUTTON_CLASS}
-            disabled={warehouseLoading || generateMut.isPending}
-            loading={generateMut.isPending || warehouseLoading}
+            disabled={warehouseLoading || serverData.isLoading}
+            loading={serverData.isLoading || warehouseLoading}
             onClick={handleGenerate}
           >
             {tr('Generate')}
@@ -303,21 +317,14 @@ export function ReportWorkspace({ reportId, isArabic = false }: Props) {
           </div>
         )}
 
-        {(report.usesClientAggregation || report.missingBackendNotes?.length) && (
-          <div className="mt-4 space-y-2">
-            {report.usesClientAggregation && (
-              <Alert
-                variant="info"
-                compact
-                title={tr('Client aggregation')}
-                description={tr('Rows capped at 2,000 per query.')}
-              />
-            )}
-            {report.missingBackendNotes?.map((note) => (
-              <Alert key={note} variant="warning" compact title="API gap" description={note} />
-            ))}
-          </div>
-        )}
+        <div className="mt-4">
+          <Alert
+            variant="info"
+            compact
+            title={tr('Server-side reporting')}
+            description={tr('Paginated preview and export — no bulk client fetch.')}
+          />
+        </div>
       </section>
 
       {filtersOpen && (
@@ -328,12 +335,11 @@ export function ReportWorkspace({ reportId, isArabic = false }: Props) {
           onApply={handleGenerate}
           onReset={() => {
             resetFilters();
-            setPreviewRows([]);
-            setKpis([]);
             setHasGenerated(false);
             setGenerationError(null);
+            setPage(1);
           }}
-          loading={generateMut.isPending}
+          loading={serverData.isLoading}
           isArabic={isArabic}
           warehouses={warehouses}
         />
@@ -348,27 +354,51 @@ export function ReportWorkspace({ reportId, isArabic = false }: Props) {
           <Alert variant="error" compact className="mb-4" description={generationError} />
         )}
 
+        {serverData.cached && hasGenerated && (
+          <Alert
+            variant="info"
+            compact
+            className="mb-4"
+            description={isArabic ? 'نتيجة من ذاكرة التخزين المؤقت للخادم.' : 'Served from server cache.'}
+          />
+        )}
+
         {viewMode === 'table' && (
           <ReportPreviewTable
             reportId={reportId}
             columns={report.columns}
-            rows={previewRows}
-            loading={generateMut.isPending}
+            rows={serverData.rows}
+            loading={serverData.isLoading}
             empty={
               hasGenerated
                 ? tr('No rows match the current filters.')
                 : tr('Generate a report to preview results.')
             }
             isArabic={isArabic}
+            serverPagination={
+              hasGenerated
+                ? {
+                    total: serverData.total,
+                    page,
+                    pageSize,
+                    onPageChange: setPage,
+                    onPageSizeChange: (size) => {
+                      setPageSize(size);
+                      setPage(1);
+                    },
+                    pageSizeOptions: [25, 50, 100, 200],
+                  }
+                : undefined
+            }
           />
         )}
 
         {viewMode === 'graph' && report.supportedViews.includes('graph') && (
           hasGenerated ? (
-            previewRows.length > 0 ? (
+            chartRows.length > 0 ? (
               <ReportChartPanel
                 report={report}
-                rows={previewRows}
+                rows={chartRows}
                 isArabic={isArabic}
                 chartKind={chartKind}
               />
@@ -382,11 +412,11 @@ export function ReportWorkspace({ reportId, isArabic = false }: Props) {
 
         {viewMode === 'pivot' && report.supportedViews.includes('pivot') && (
           hasGenerated ? (
-            previewRows.length > 0 ? (
+            chartRows.length > 0 ? (
               <ReportPivotPanel
                 report={report}
-                rows={previewRows}
-                filters={draftFilters}
+                rows={chartRows}
+                filters={appliedFilters}
                 columns={report.columns}
                 isArabic={isArabic}
               />
