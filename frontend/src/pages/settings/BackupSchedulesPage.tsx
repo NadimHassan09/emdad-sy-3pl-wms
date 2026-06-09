@@ -22,6 +22,7 @@ import {
   formatScheduleTime,
   getNextBackupScheduleRun,
 } from '../../lib/backup-schedule-display';
+import { localizedScheduleStoragePolicyLabel } from '../../lib/ui-labels/settings-backup';
 import { defaultHomePath } from '../../lib/rbac';
 import { useWmsTranslation } from '../../lib/ui-i18n';
 
@@ -105,6 +106,10 @@ export function BackupSchedulesPage() {
       {
         header: t(['Retention days', 'أيام الاحتفاظ']),
         accessor: (row) => String(row.retentionDays),
+      },
+      {
+        header: t(['Storage policy', 'سياسة التخزين']),
+        accessor: (row) => localizedScheduleStoragePolicyLabel(row.storagePolicy, t),
       },
       {
         header: t(['Enabled', 'مفعّل']),

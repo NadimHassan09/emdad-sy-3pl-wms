@@ -120,6 +120,23 @@ export function localizedBackupStoragePolicyOptions(t: T) {
   ] as const;
 }
 
+export function localizedScheduleStoragePolicyLabel(
+  policy: string | null | undefined,
+  t: T,
+): string {
+  if (policy == null) {
+    return t(['Global default', 'الافتراضي العام']);
+  }
+  return localizedBackupStoragePolicyLabel(policy, t);
+}
+
+export function localizedScheduleStoragePolicyOptions(t: T) {
+  return [
+    { value: '', label: localizedScheduleStoragePolicyLabel(null, t) },
+    ...localizedBackupStoragePolicyOptions(t),
+  ] as const;
+}
+
 export function localizedGoogleDriveSyncStatus(
   status: 'disabled' | 'not_connected' | 'failed' | 'pending' | 'healthy' | 'idle',
   t: T,

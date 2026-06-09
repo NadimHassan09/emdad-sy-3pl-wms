@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "data": {
+    "success": true,
+    "data": {
+      "keepLastDaily": 14,
+      "keepLastWeekly": 8,
+      "keepLastMonthly": 24,
+      "driveRetentionCleanupEnabled": true
+    }
+  },
+  "elapsedMs": 9
+}

@@ -1,16 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const SUPER_EMAIL = 'superadmin@emdad.example';
-const MANAGER_EMAIL = 'manager@emdad.example';
-const PASSWORD = 'demo123';
-
-async function login(page: import('@playwright/test').Page, email: string) {
-  await page.goto('/login', { waitUntil: 'domcontentloaded' });
-  await page.locator('#login-email, input[type="email"]').first().fill(email);
-  await page.locator('#login-password').fill(PASSWORD);
-  await page.getByRole('button', { name: /sign in|log in|login/i }).click();
-  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 20_000 });
-}
+import { MANAGER_USER, setupBackupAdminTest, SUPER_USER } from './helpers/mock-internal-auth';
 
 function settingsNav(page: import('@playwright/test').Page) {
   return page.getByRole('navigation', { name: /Settings navigation/i });
@@ -22,7 +12,7 @@ function settingsTab(page: import('@playwright/test').Page, label: string | RegE
 
 test.describe('BACKUP-6C Google Drive admin UI — super_admin', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page, SUPER_EMAIL);
+    await setupBackupAdminTest(page, SUPER_USER);
   });
 
   test('settings nav includes Google Drive tab', async ({ page }) => {
@@ -30,14 +20,14 @@ test.describe('BACKUP-6C Google Drive admin UI — super_admin', () => {
     await expect(settingsTab(page, /Google Drive/i)).toBeVisible();
   });
 
-  test('Google Drive page shows connection panel and storage policy', async ({ page }) => {
+  test('Google Drive page shows connection panel and storage policy link', async ({ page }) => {
     await page.goto('/settings/backups/google-drive');
     await expect(page.getByRole('heading', { name: /^Google Drive$/i })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Connect Drive', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Test connection', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Disconnect Drive', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: /Storage policy/i })).toBeVisible();
-    await expect(page.getByLabel(/Default policy/i)).toBeVisible();
+    await expect(page.getByRole('link', { name: /Open storage policy/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /Backup sync failures/i })).toBeVisible();
     await expect(page.getByText(/No failed Drive sync jobs/i)).toBeVisible();
   });
@@ -51,29 +41,37 @@ test.describe('BACKUP-6C Google Drive admin UI — super_admin', () => {
   });
 });
 
-test.describe('BACKUP-6C Google Drive admin UI — wh_manager', () => {
+test.describe('BACKUP-6C Google Drive admin UI — wh_manager read-only', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page, MANAGER_EMAIL);
+    await setupBackupAdminTest(page, MANAGER_USER);
   });
 
-  test('manager cannot access Google Drive settings tab', async ({ page }) => {
+  test('manager can access Google Drive settings tab', async ({ page }) => {
     await page.goto('/settings/backups');
-    await expect(settingsTab(page, /Google Drive/i)).toHaveCount(0);
+    await expect(settingsTab(page, /Google Drive/i)).toBeVisible();
   });
 
-  test('direct URL redirects manager away from Google Drive page', async ({ page }) => {
+  test('manager can view Google Drive page without mutation controls', async ({ page }) => {
     await page.goto('/settings/backups/google-drive');
-    await expect(page).not.toHaveURL(/\/settings\/backups\/google-drive/);
+    await expect(page).toHaveURL(/\/settings\/backups\/google-drive/);
+    await expect(page.getByText('Connection status', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Connect Drive', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Test connection', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Disconnect Drive', exact: true })).toHaveCount(0);
   });
 });
 
 test.describe('BACKUP-6C Google Drive — mocked API flows', () => {
+  test.beforeEach(async ({ page }) => {
+    await setupBackupAdminTest(page, SUPER_USER, { skipDomainMocks: true });
+  });
+
   const mockStatus = (connected: boolean, gdriveConfigured = true) => ({
     connected,
     folderId: connected ? 'mock-folder-id-12345' : null,
     connectedAt: connected ? '2026-06-09T00:00:00.000Z' : null,
     connectedBy: connected
-      ? { id: '00000000-0000-4000-8000-0000000000ab', email: SUPER_EMAIL, fullName: 'Demo Super Admin' }
+      ? { id: SUPER_USER.id, email: SUPER_USER.email, fullName: SUPER_USER.fullName }
       : null,
     rootFolderName: 'EMDAD WMS Backups',
     gdriveEnabled: true,
@@ -82,10 +80,6 @@ test.describe('BACKUP-6C Google Drive — mocked API flows', () => {
     pendingSyncCount: 0,
     failedSyncCount: 0,
     syncFailures: [],
-  });
-
-  test.beforeEach(async ({ page }) => {
-    await login(page, SUPER_EMAIL);
   });
 
   test('Connect Drive redirects to OAuth URL when configured', async ({ page }) => {
@@ -183,13 +177,6 @@ test.describe('BACKUP-6C Google Drive — mocked API flows', () => {
 
   test('Save storage policy updates default policy', async ({ page }) => {
     let currentPolicy = 'local_only';
-    await page.route('**/api/integrations/google-drive/status', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ success: true, data: mockStatus(true) }),
-      });
-    });
     await page.route('**/api/backups/storage-policy', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
@@ -224,10 +211,10 @@ test.describe('BACKUP-6C Google Drive — mocked API flows', () => {
       await route.continue();
     });
 
-    await page.goto('/settings/backups/google-drive');
+    await page.goto('/settings/backups/storage-policy');
     await page.getByLabel(/Default policy/i).selectOption('local_and_drive');
     await page.getByRole('button', { name: /Save policy/i }).click();
-    await expect(page.getByText(/Effective: Local \+ Google Drive/i)).toBeVisible();
+    await expect(page.getByText(/Effective.*Local \+ Google Drive/i)).toBeVisible();
   });
 
   test('Retry sync button appears for failed jobs', async ({ page }) => {

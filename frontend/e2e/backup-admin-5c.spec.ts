@@ -1,16 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const SUPER_EMAIL = 'superadmin@emdad.example';
-const MANAGER_EMAIL = 'manager@emdad.example';
-const PASSWORD = 'demo123';
-
-async function login(page: import('@playwright/test').Page, email: string) {
-  await page.goto('/login', { waitUntil: 'domcontentloaded' });
-  await page.locator('#login-email, input[type="email"]').first().fill(email);
-  await page.locator('#login-password').fill(PASSWORD);
-  await page.getByRole('button', { name: /sign in|log in|login/i }).click();
-  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 20_000 });
-}
+import { MANAGER_USER, setupBackupAdminTest, SUPER_USER } from './helpers/mock-internal-auth';
 
 function settingsTab(page: import('@playwright/test').Page, label: string | RegExp) {
   return page
@@ -20,7 +10,7 @@ function settingsTab(page: import('@playwright/test').Page, label: string | RegE
 
 test.describe('BACKUP-5C backup admin UI — super_admin', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page, SUPER_EMAIL);
+    await setupBackupAdminTest(page, SUPER_USER);
   });
 
   test('settings shows all backup tabs including schedules, retention, health', async ({ page }) => {
@@ -55,12 +45,12 @@ test.describe('BACKUP-5C backup admin UI — super_admin', () => {
 
   test('retention page shows policies and preview', async ({ page }) => {
     await page.goto('/settings/backups/retention');
-    await expect(page.getByRole('heading', { name: /Retention policies/i })).toBeVisible();
-    await expect(page.getByText(/Daily/i)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Local retention policies/i })).toBeVisible();
     await expect(page.getByText(/Pre-snapshot protection/i)).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Cleanup preview/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Local cleanup preview/i })).toBeVisible();
     await expect(page.getByText(/Eligible backups/i)).toBeVisible();
-    await expect(page.getByRole('button', { name: /Run retention cleanup/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Run local retention cleanup/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Google Drive retention policies/i })).toBeVisible();
   });
 
   test('health dashboard shows status cards and alerts section', async ({ page }) => {
@@ -75,7 +65,7 @@ test.describe('BACKUP-5C backup admin UI — super_admin', () => {
 
 test.describe('BACKUP-5C backup admin UI — wh_manager read-only', () => {
   test.beforeEach(async ({ page }) => {
-    await login(page, MANAGER_EMAIL);
+    await setupBackupAdminTest(page, MANAGER_USER);
   });
 
   test('manager sees read-only backup tabs', async ({ page }) => {
@@ -98,8 +88,9 @@ test.describe('BACKUP-5C backup admin UI — wh_manager read-only', () => {
 
   test('manager cannot run retention cleanup', async ({ page }) => {
     await page.goto('/settings/backups/retention');
-    await expect(page.getByRole('heading', { name: /Cleanup preview/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Run retention cleanup/i })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: /Local cleanup preview/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Run local retention cleanup/i })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Run Drive retention cleanup/i })).toHaveCount(0);
   });
 
   test('manager can view health dashboard', async ({ page }) => {

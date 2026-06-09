@@ -1,0 +1,16 @@
+BACKUP-6D API validation 2026-06-09T03:19:28.998Z
+Duration: 0.3s
+Pass: 12/12
+
+PASS     [auth] super_admin_login
+PASS     [auth] wh_manager_login
+PASS     [drive_retention] policies_super_admin
+PASS     [drive_retention] policies_wh_manager_read
+PASS     [drive_retention] preview_super_admin
+PASS     [drive_retention] preview_wh_manager_read
+PASS     [drive_retention] cleanup_wh_manager_denied
+PASS     [drive_retention] cleanup_super_admin
+PASS     [storage_policy] get_wh_manager_read
+PASS     [storage_policy] put_wh_manager_denied
+PASS     [storage_policy] drive_status_wh_manager_read
+PASS     [storage_policy] schedule_storage_policy_field

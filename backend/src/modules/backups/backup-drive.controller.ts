@@ -15,6 +15,7 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { Public } from '../../common/auth/public.decorator';
 import { Roles } from '../../common/auth/roles.decorator';
 import { RolesGuard } from '../../common/auth/roles.guard';
+import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { SuperAdminGuard } from '../../common/auth/super-admin.guard';
 import { BackupConfig } from './backup-config';
 import { BackupDriveAuthService } from './backup-drive-auth.service';
@@ -91,7 +92,7 @@ export class BackupDriveController {
 
   /** Connection status + sync summary for admin UI (never exposes tokens). */
   @Get('status')
-  @UseGuards(SuperAdminGuard)
+  @UseGuards(InternalAdminGuard)
   status() {
     return this.integration.getAdminStatus();
   }

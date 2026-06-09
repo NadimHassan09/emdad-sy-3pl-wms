@@ -1,0 +1,68 @@
+{
+  "status": 200,
+  "data": {
+    "success": true,
+    "data": {
+      "dryRun": true,
+      "policies": {
+        "keepLastDaily": 14,
+        "keepLastWeekly": 8,
+        "keepLastMonthly": 24
+      },
+      "buckets": [
+        {
+          "bucket": "daily",
+          "keepLast": 14,
+          "totalEligible": 0,
+          "retainedCount": 0,
+          "expiredCount": 0,
+          "retainedJobIds": [],
+          "expiredJobIds": []
+        },
+        {
+          "bucket": "weekly",
+          "keepLast": 8,
+          "totalEligible": 0,
+          "retainedCount": 0,
+          "expiredCount": 0,
+          "retainedJobIds": [],
+          "expiredJobIds": []
+        },
+        {
+          "bucket": "monthly",
+          "keepLast": 24,
+          "totalEligible": 0,
+          "retainedCount": 0,
+          "expiredCount": 0,
+          "retainedJobIds": [],
+          "expiredJobIds": []
+        }
+      ],
+      "protected": [
+        {
+          "jobId": "08fd4a90-6f3f-49b8-b0d3-d49818fb1630",
+          "type": "manual",
+          "label": "RELEASE-R4-DR snapshot",
+          "completedAt": null,
+          "reasons": [
+            "active_operation"
+          ]
+        },
+        {
+          "jobId": "29d13075-6725-40e6-a28f-fccb35c609be",
+          "type": "manual",
+          "label": "RELEASE-R4-DR snapshot",
+          "completedAt": null,
+          "reasons": [
+            "active_operation"
+          ]
+        }
+      ],
+      "deletedDriveCount": 0,
+      "deletedJobCount": 0,
+      "deletedDriveJobIds": [],
+      "deletedJobIds": []
+    }
+  },
+  "elapsedMs": 9
+}

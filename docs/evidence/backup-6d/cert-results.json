@@ -1,0 +1,113 @@
+{
+  "generatedAt": "2026-06-09T03:19:28.998Z",
+  "elapsedMs": 295,
+  "passCount": 12,
+  "total": 12,
+  "results": [
+    {
+      "phase": "auth",
+      "name": "super_admin_login",
+      "outcome": "pass",
+      "detail": {},
+      "at": "2026-06-09T03:19:28.908Z"
+    },
+    {
+      "phase": "auth",
+      "name": "wh_manager_login",
+      "outcome": "pass",
+      "detail": {},
+      "at": "2026-06-09T03:19:28.908Z"
+    },
+    {
+      "phase": "drive_retention",
+      "name": "policies_super_admin",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:19:28.922Z"
+    },
+    {
+      "phase": "drive_retention",
+      "name": "policies_wh_manager_read",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:19:28.931Z"
+    },
+    {
+      "phase": "drive_retention",
+      "name": "preview_super_admin",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:19:28.941Z"
+    },
+    {
+      "phase": "drive_retention",
+      "name": "preview_wh_manager_read",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:19:28.950Z"
+    },
+    {
+      "phase": "drive_retention",
+      "name": "cleanup_wh_manager_denied",
+      "outcome": "pass",
+      "detail": {
+        "status": 403
+      },
+      "at": "2026-06-09T03:19:28.956Z"
+    },
+    {
+      "phase": "drive_retention",
+      "name": "cleanup_super_admin",
+      "outcome": "pass",
+      "detail": {
+        "status": 201
+      },
+      "at": "2026-06-09T03:19:28.967Z"
+    },
+    {
+      "phase": "storage_policy",
+      "name": "get_wh_manager_read",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:19:28.972Z"
+    },
+    {
+      "phase": "storage_policy",
+      "name": "put_wh_manager_denied",
+      "outcome": "pass",
+      "detail": {
+        "status": 403
+      },
+      "at": "2026-06-09T03:19:28.978Z"
+    },
+    {
+      "phase": "storage_policy",
+      "name": "drive_status_wh_manager_read",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:19:28.988Z"
+    },
+    {
+      "phase": "storage_policy",
+      "name": "schedule_storage_policy_field",
+      "outcome": "pass",
+      "detail": {
+        "count": 2,
+        "hasStoragePolicyField": true
+      },
+      "at": "2026-06-09T03:19:28.998Z"
+    }
+  ]
+}

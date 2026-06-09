@@ -1,0 +1,59 @@
+{
+  "status": 200,
+  "data": {
+    "success": true,
+    "data": {
+      "items": [
+        {
+          "id": "225db4a6-2d69-4d35-95a5-c008d36fec30",
+          "enabled": true,
+          "frequency": "daily",
+          "hour": 3,
+          "minute": 45,
+          "retentionDays": 14,
+          "storagePolicy": null,
+          "lastRunAt": "2026-06-08T03:45:00.068Z",
+          "createdByUserId": "00000000-0000-4000-8000-0000000000ab",
+          "updatedByUserId": "00000000-0000-4000-8000-0000000000ab",
+          "createdAt": "2026-06-05T03:55:36.152Z",
+          "updatedAt": "2026-06-08T03:45:00.069Z",
+          "createdBy": {
+            "id": "00000000-0000-4000-8000-0000000000ab",
+            "email": "superadmin@emdad.example",
+            "fullName": "Demo Super Admin"
+          },
+          "updatedBy": {
+            "id": "00000000-0000-4000-8000-0000000000ab",
+            "email": "superadmin@emdad.example",
+            "fullName": "Demo Super Admin"
+          }
+        },
+        {
+          "id": "086c5111-f6db-4633-86e2-d81bbf62cfc7",
+          "enabled": true,
+          "frequency": "daily",
+          "hour": 3,
+          "minute": 15,
+          "retentionDays": 21,
+          "storagePolicy": null,
+          "lastRunAt": "2026-06-09T03:15:00.107Z",
+          "createdByUserId": "00000000-0000-4000-8000-0000000000ab",
+          "updatedByUserId": "00000000-0000-4000-8000-0000000000ab",
+          "createdAt": "2026-06-05T02:31:47.212Z",
+          "updatedAt": "2026-06-09T03:15:00.110Z",
+          "createdBy": {
+            "id": "00000000-0000-4000-8000-0000000000ab",
+            "email": "superadmin@emdad.example",
+            "fullName": "Demo Super Admin"
+          },
+          "updatedBy": {
+            "id": "00000000-0000-4000-8000-0000000000ab",
+            "email": "superadmin@emdad.example",
+            "fullName": "Demo Super Admin"
+          }
+        }
+      ]
+    }
+  },
+  "elapsedMs": 9
+}

@@ -15,7 +15,7 @@ export function useDefaultWarehouseId() {
     staleTime: 30 * 60_000,
   });
 
-  const list = q.data ?? [];
+  const list = Array.isArray(q.data) ? q.data : [];
   const fromEnv = ENV_WID && list.some((w) => w.id === ENV_WID) ? ENV_WID : '';
   const warehouseId =
     fromEnv ||

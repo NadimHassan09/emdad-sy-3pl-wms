@@ -1,25 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 
 import {
   BackupsApi,
   type BackupJobType,
-  type BackupStoragePolicyValue,
   type GoogleDriveAdminStatus,
 } from '../../api/backups';
 import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { PANEL_CARD_CLASS, PANEL_TITLE_CLASS } from '../../components/FilterPanel';
-import { SelectField } from '../../components/SelectField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
+import { useBackupAdminAccess } from '../../hooks/useBackupAdminAccess';
 import { formatBackupTimestamp } from '../../lib/backup-display';
 import { defaultHomePath } from '../../lib/rbac';
 import {
   localizedBackupStoragePolicyLabel,
-  localizedBackupStoragePolicyOptions,
   localizedBackupTypeLabel,
   localizedGoogleDriveSyncStatus,
 } from '../../lib/ui-labels/settings-backup';
@@ -60,6 +58,7 @@ function syncStatusBadgeClass(key: DriveSyncStatusKey): string {
 
 export function BackupGoogleDrivePage() {
   const { user } = useAuth();
+  const { canRead, canMutate } = useBackupAdminAccess();
   const toast = useToast();
   const queryClient = useQueryClient();
   const { t } = useWmsTranslation();
@@ -67,26 +66,13 @@ export function BackupGoogleDrivePage() {
 
   const [disconnectOpen, setDisconnectOpen] = useState(false);
   const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
-  const [policyDraft, setPolicyDraft] = useState<BackupStoragePolicyValue>('local_only');
 
   const driveQuery = useQuery({
     queryKey: QK.backups.googleDrive,
     queryFn: () => BackupsApi.getGoogleDriveStatus(),
-    enabled: user?.role === 'super_admin',
+    enabled: canRead,
     refetchInterval: 30_000,
   });
-
-  const policyQuery = useQuery({
-    queryKey: QK.backups.storagePolicy,
-    queryFn: () => BackupsApi.getStoragePolicy(),
-    enabled: user?.role === 'super_admin',
-  });
-
-  useEffect(() => {
-    if (policyQuery.data) {
-      setPolicyDraft(policyQuery.data.defaultPolicy);
-    }
-  }, [policyQuery.data]);
 
   useEffect(() => {
     if (searchParams.get('drive') !== 'connected') return;
@@ -138,17 +124,6 @@ export function BackupGoogleDrivePage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const policyMutation = useMutation({
-    mutationFn: (defaultPolicy: BackupStoragePolicyValue) =>
-      BackupsApi.updateStoragePolicy(defaultPolicy),
-    onSuccess: (result) => {
-      setPolicyDraft(result.defaultPolicy);
-      toast.success(t(['Storage policy updated.', 'تم تحديث سياسة التخزين.']));
-      void queryClient.invalidateQueries({ queryKey: QK.backups.storagePolicy });
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
   const retryMutation = useMutation({
     mutationFn: (jobId: string) => BackupsApi.syncToDrive(jobId),
     onMutate: (jobId) => setRetryingJobId(jobId),
@@ -170,11 +145,8 @@ export function BackupGoogleDrivePage() {
   });
 
   const syncStatusKey = useMemo(() => deriveSyncStatus(driveQuery.data), [driveQuery.data]);
-  const policyOptions = useMemo(() => localizedBackupStoragePolicyOptions(t), [t]);
-  const policyDirty =
-    policyQuery.data != null && policyDraft !== policyQuery.data.defaultPolicy;
 
-  if (user?.role !== 'super_admin') {
+  if (!canRead) {
     return <Navigate to={defaultHomePath(user?.role)} replace />;
   }
 
@@ -196,31 +168,33 @@ export function BackupGoogleDrivePage() {
               ])}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="brand"
-              loading={connectMutation.isPending}
-              disabled={!canConnect}
-              onClick={() => connectMutation.mutate()}
-            >
-              {t(['Connect Drive', 'ربط Drive'])}
-            </Button>
-            <Button
-              variant="secondary"
-              loading={testMutation.isPending}
-              disabled={!canTest}
-              onClick={() => testMutation.mutate()}
-            >
-              {t(['Test connection', 'اختبار الاتصال'])}
-            </Button>
-            <Button
-              variant="danger"
-              disabled={!canDisconnect}
-              onClick={() => setDisconnectOpen(true)}
-            >
-              {t(['Disconnect Drive', 'فصل Drive'])}
-            </Button>
-          </div>
+          {canMutate ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="brand"
+                loading={connectMutation.isPending}
+                disabled={!canConnect}
+                onClick={() => connectMutation.mutate()}
+              >
+                {t(['Connect Drive', 'ربط Drive'])}
+              </Button>
+              <Button
+                variant="secondary"
+                loading={testMutation.isPending}
+                disabled={!canTest}
+                onClick={() => testMutation.mutate()}
+              >
+                {t(['Test connection', 'اختبار الاتصال'])}
+              </Button>
+              <Button
+                variant="danger"
+                disabled={!canDisconnect}
+                onClick={() => setDisconnectOpen(true)}
+              >
+                {t(['Disconnect Drive', 'فصل Drive'])}
+              </Button>
+            </div>
+          ) : null}
         </div>
 
         {driveQuery.isLoading ? (
@@ -325,42 +299,16 @@ export function BackupGoogleDrivePage() {
         <h2 className={PANEL_TITLE_CLASS}>{t(['Storage policy', 'سياسة التخزين'])}</h2>
         <p className="text-sm text-slate-600">
           {t([
-            'Default routing for new manual and scheduled backups when no per-schedule override is set.',
-            'التوجيه الافتراضي للنسخ اليدوية والمجدولة عند عدم وجود تجاوز لكل جدول.',
+            'Configure global and per-schedule backup storage routing on the Storage Policy page.',
+            'اضبط توجيه التخزين العام ولكل جدول في صفحة سياسة التخزين.',
           ])}
         </p>
-        {policyQuery.isLoading ? (
-          <p className="mt-4 text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
-        ) : policyQuery.data ? (
-          <div className="mt-4 flex flex-wrap items-end gap-3">
-            <div className="min-w-[16rem]">
-              <SelectField
-                label={t(['Default policy', 'السياسة الافتراضية'])}
-                value={policyDraft}
-                onChange={(event) =>
-                  setPolicyDraft(event.target.value as BackupStoragePolicyValue)
-                }
-                options={policyOptions.map((o) => ({ value: o.value, label: o.label }))}
-              />
-            </div>
-            <Button
-              variant="brand"
-              loading={policyMutation.isPending}
-              disabled={!policyDirty}
-              onClick={() => policyMutation.mutate(policyDraft)}
-            >
-              {t(['Save policy', 'حفظ السياسة'])}
-            </Button>
-            <p className="text-xs text-slate-500">
-              {t(['Effective', 'الفعّالة'])}:{' '}
-              {localizedBackupStoragePolicyLabel(policyQuery.data.effectiveDefaultPolicy, t)}
-              {!drive?.gdriveEnabled &&
-              policyQuery.data.effectiveDefaultPolicy !== 'local_only'
-                ? ` (${t(['falls back to local only', 'ترجع إلى محلي فقط'])})`
-                : ''}
-            </p>
-          </div>
-        ) : null}
+        <Link
+          to="/settings/backups/storage-policy"
+          className="mt-3 inline-block text-sm font-medium text-emerald-700 hover:underline"
+        >
+          {t(['Open storage policy', 'فتح سياسة التخزين'])}
+        </Link>
       </section>
 
       <section className={PANEL_CARD_CLASS}>
@@ -405,14 +353,16 @@ export function BackupGoogleDrivePage() {
                       {formatBackupTimestamp(row.gdriveNextRetryAt)}
                     </td>
                     <td className="px-3 py-3">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        loading={retryingJobId === row.id && retryMutation.isPending}
-                        onClick={() => retryMutation.mutate(row.id)}
-                      >
-                        {t(['Retry sync', 'إعادة المزامنة'])}
-                      </Button>
+                      {canMutate ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          loading={retryingJobId === row.id && retryMutation.isPending}
+                          onClick={() => retryMutation.mutate(row.id)}
+                        >
+                          {t(['Retry sync', 'إعادة المزامنة'])}
+                        </Button>
+                      ) : null}
                     </td>
                   </tr>
                 ))}
@@ -426,21 +376,23 @@ export function BackupGoogleDrivePage() {
         )}
       </section>
 
-      <ConfirmModal
-        open={disconnectOpen}
-        title={t(['Disconnect Google Drive?', 'فصل Google Drive؟'])}
-        confirmLabel={t(['Disconnect', 'فصل'])}
-        cancelLabel={t(['Cancel', 'إلغاء'])}
-        danger
-        loading={disconnectMutation.isPending}
-        onConfirm={() => disconnectMutation.mutate()}
-        onClose={() => setDisconnectOpen(false)}
-      >
-        {t([
-          'Encrypted OAuth credentials will be removed. Existing Drive backups are not deleted.',
-          'ستُزال بيانات OAuth المشفّرة. لن تُحذف النسخ الموجودة على Drive.',
-        ])}
-      </ConfirmModal>
+      {canMutate ? (
+        <ConfirmModal
+          open={disconnectOpen}
+          title={t(['Disconnect Google Drive?', 'فصل Google Drive؟'])}
+          confirmLabel={t(['Disconnect', 'فصل'])}
+          cancelLabel={t(['Cancel', 'إلغاء'])}
+          danger
+          loading={disconnectMutation.isPending}
+          onConfirm={() => disconnectMutation.mutate()}
+          onClose={() => setDisconnectOpen(false)}
+        >
+          {t([
+            'Encrypted OAuth credentials will be removed. Existing Drive backups are not deleted.',
+            'ستُزال بيانات OAuth المشفّرة. لن تُحذف النسخ الموجودة على Drive.',
+          ])}
+        </ConfirmModal>
+      ) : null}
     </div>
   );
 }

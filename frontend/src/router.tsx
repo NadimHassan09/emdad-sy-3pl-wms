@@ -60,6 +60,7 @@ const BackupFactoryResetPage  = lazyPage(() => import('./pages/settings/BackupFa
 const BackupSchedulesPage     = lazyPage(() => import('./pages/settings/BackupSchedulesPage'), 'BackupSchedulesPage');
 const BackupRetentionPage     = lazyPage(() => import('./pages/settings/BackupRetentionPage'), 'BackupRetentionPage');
 const BackupHealthPage        = lazyPage(() => import('./pages/settings/BackupHealthPage'), 'BackupHealthPage');
+const BackupStoragePolicyPage = lazyPage(() => import('./pages/settings/BackupStoragePolicyPage'), 'BackupStoragePolicyPage');
 const BackupGoogleDrivePage   = lazyPage(() => import('./pages/settings/BackupGoogleDrivePage'), 'BackupGoogleDrivePage');
 const CycleCountListPage      = lazyPage(() => import('./pages/cycle-count/CycleCountListPage'), 'CycleCountListPage');
 const CycleCountDetailPage    = lazyPage(() => import('./pages/cycle-count/CycleCountDetailPage'), 'CycleCountDetailPage');
@@ -152,6 +153,7 @@ export const router = createBrowserRouter([
           { path: 'backups/schedules', element: <BackupSchedulesPage /> },
           { path: 'backups/retention', element: <BackupRetentionPage /> },
           { path: 'backups/health', element: <BackupHealthPage /> },
+          { path: 'backups/storage-policy', element: <BackupStoragePolicyPage /> },
           { path: 'backups/google-drive', element: <BackupGoogleDrivePage /> },
         ],
       },

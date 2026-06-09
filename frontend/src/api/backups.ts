@@ -100,6 +100,8 @@ export type UploadProgressHandler = (percent: number, phase: 'uploading' | 'proc
 
 export type BackupScheduleFrequency = 'daily' | 'weekly' | 'monthly';
 
+export type BackupStoragePolicyValue = 'local_only' | 'drive_only' | 'local_and_drive';
+
 export type BackupScheduleUser = {
   id: string;
   email: string;
@@ -113,6 +115,8 @@ export type BackupSchedule = {
   hour: number;
   minute: number;
   retentionDays: number;
+  storagePolicy: BackupStoragePolicyValue | null;
+  effectiveStoragePolicy?: BackupStoragePolicyValue;
   lastRunAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -129,6 +133,7 @@ export type CreateBackupScheduleInput = {
   hour: number;
   minute: number;
   retentionDays: number;
+  storagePolicy?: BackupStoragePolicyValue | null;
   enabled?: boolean;
 };
 
@@ -144,6 +149,28 @@ export type BackupRetentionPolicies = {
   keepLastMonthly: number;
   preSnapshotProtectDays: number;
   retentionCleanupEnabled: boolean;
+};
+
+export type DriveRetentionPolicies = {
+  keepLastDaily: number;
+  keepLastWeekly: number;
+  keepLastMonthly: number;
+  driveRetentionCleanupEnabled: boolean;
+};
+
+export type DriveRetentionCleanupResult = {
+  dryRun: boolean;
+  policies: {
+    keepLastDaily: number;
+    keepLastWeekly: number;
+    keepLastMonthly: number;
+  };
+  buckets: RetentionBucketSummary[];
+  protected: ProtectedBackupSummary[];
+  deletedDriveCount: number;
+  deletedJobCount: number;
+  deletedDriveJobIds: string[];
+  deletedJobIds: string[];
 };
 
 export type RetentionBucket = 'daily' | 'weekly' | 'monthly';
@@ -232,8 +259,6 @@ export type BackupHealthResponse = {
   healthStatus: BackupHealthSeverity;
   alerts: BackupHealthAlert[];
 };
-
-export type BackupStoragePolicyValue = 'local_only' | 'drive_only' | 'local_and_drive';
 
 export type BackupStoragePolicySettings = {
   defaultPolicy: BackupStoragePolicyValue;
@@ -429,6 +454,18 @@ export const BackupsApi = {
 
   runRetentionCleanup(): Promise<RetentionCleanupResult> {
     return api.post<RetentionCleanupResult>('/backups/retention/cleanup').then((r) => r.data);
+  },
+
+  getDriveRetentionPolicies(): Promise<DriveRetentionPolicies> {
+    return api.get<DriveRetentionPolicies>('/backups/retention/drive/policies').then((r) => r.data);
+  },
+
+  previewDriveRetentionCleanup(): Promise<DriveRetentionCleanupResult> {
+    return api.get<DriveRetentionCleanupResult>('/backups/retention/drive/preview').then((r) => r.data);
+  },
+
+  runDriveRetentionCleanup(): Promise<DriveRetentionCleanupResult> {
+    return api.post<DriveRetentionCleanupResult>('/backups/retention/drive/cleanup').then((r) => r.data);
   },
 
   getHealth(): Promise<BackupHealthResponse> {
