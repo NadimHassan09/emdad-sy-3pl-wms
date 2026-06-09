@@ -25,7 +25,16 @@ export class ReportsPolicyConfig {
       cacheTtlSec: this.cacheTtlSec,
       aggregateMaxRows: this.aggregateMaxRows,
       supportedFormats: ['csv', 'xls'] as const,
-      reportIds: ['warehouse-analysis', 'inventory', 'product-moves'] as const,
+      reportIds: [
+        'warehouse-analysis',
+        'inventory',
+        'product-moves',
+        'billing-revenue',
+        'billing-outstanding',
+        'billing-expiring',
+        'billing-suspended',
+        'billing-capacity',
+      ] as const,
     };
   }
 }

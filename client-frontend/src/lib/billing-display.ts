@@ -99,6 +99,7 @@ export function invoiceStatusClass(status: string): string {
 }
 
 export function humanizeInvoiceStatus(status: string): string {
+  if (status === 'overdue') return 'Overdue';
   return status.replace(/_/g, ' ');
 }
 

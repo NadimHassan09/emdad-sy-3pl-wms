@@ -36,7 +36,46 @@ export type BillingCapacitySummary = {
   allocatableCapacityCbm: string;
   allocatedVolumeCbm: string;
   remainingAllocatableCbm: string;
+  totalWarehouseWeightKg: string;
+  allocatableCapacityKg: string;
+  allocatedWeightKg: string;
+  remainingAllocatableKg: string;
   allocationRatio: number;
+  sparePoolRatio: number;
+};
+
+export type BillingDashboardSummary = {
+  outstandingAmount: string;
+  currentMonthRevenue: string;
+  openInvoiceCount: number;
+  overdueInvoiceCount: number;
+  suspendedAccountCount: number;
+};
+
+export type BillingExpiringBuckets = {
+  expiring30: Array<{ companyId: string; companyName: string; cycleId: string; daysRemaining: number; endsAt: string }>;
+  expiring14: Array<{ companyId: string; companyName: string; cycleId: string; daysRemaining: number; endsAt: string }>;
+  expiring7: Array<{ companyId: string; companyName: string; cycleId: string; daysRemaining: number; endsAt: string }>;
+  expiring3: Array<{ companyId: string; companyName: string; cycleId: string; daysRemaining: number; endsAt: string }>;
+  expired: Array<{ companyId: string; companyName: string; cycleId: string; daysRemaining: number; endsAt: string }>;
+  suspended: Array<{ companyId: string; companyName: string; cycleId: string; daysRemaining: number; endsAt: string }>;
+};
+
+export type BillingCyclePreview = {
+  companyId: string;
+  plan: { id: string; cycleLengthDays: number; reservedVolume: string; reservedWeight: string; fixedSubscriptionFee: string };
+  cycle: { id: string; startsAt: string; endsAt: string; status: string; daysRemaining: number; rateSnapshot: unknown };
+  usage: { usedVolumeCbm: string; usedWeightKg: string; allocatedVolumeCbm: string; allocatedWeightKg: string };
+  preview: {
+    invoiceId: string;
+    invoiceNumber: string;
+    status: string;
+    subtotal: string;
+    tax: string;
+    discount: string;
+    grandTotal: string;
+    lines: BillingInvoiceLineRow[];
+  } | null;
 };
 
 export type CreateBillingPlanPayload = {
@@ -59,7 +98,7 @@ export type UpdateBillingPlanPayload = Partial<
   Omit<CreateBillingPlanPayload, 'companyId' | 'cycleStartsAt'>
 >;
 
-export type BillingInvoiceStatus = 'draft' | 'open' | 'paid' | 'cancelled';
+export type BillingInvoiceStatus = 'draft' | 'open' | 'paid' | 'cancelled' | 'overdue';
 
 export type BillingInvoiceLineType =
   | 'subscription'
@@ -299,6 +338,33 @@ export const BillingApi = {
       '/billing/dashboard/suspended-accounts',
       { params: { limit } },
     );
+    return data;
+  },
+
+  async getDashboardSummary(): Promise<BillingDashboardSummary> {
+    const { data } = await api.get<BillingDashboardSummary>('/billing/dashboard/summary');
+    return data;
+  },
+
+  async getExpiringBuckets(): Promise<BillingExpiringBuckets> {
+    const { data } = await api.get<BillingExpiringBuckets>('/billing/dashboard/expiring-buckets');
+    return data;
+  },
+
+  async getCyclePreview(companyId: string): Promise<BillingCyclePreview> {
+    const { data } = await api.get<BillingCyclePreview>('/billing/preview', {
+      params: { companyId },
+    });
+    return data;
+  },
+
+  async updateInvoiceStatus(
+    id: string,
+    status: 'paid' | 'cancelled' | 'open',
+  ): Promise<BillingInvoiceRow> {
+    const { data } = await api.patch<BillingInvoiceRow>(`/billing/invoices/${id}/status`, {
+      status,
+    });
     return data;
   },
 };

@@ -162,6 +162,11 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
     matchSection: (p) => p.startsWith('/billing'),
     items: [
       {
+        labelKey: 'Dashboard',
+        to: '/billing/dashboard',
+        match: (p) => p === '/billing/dashboard' || p === '/billing',
+      },
+      {
         labelKey: 'Plans',
         to: '/billing/plans',
         match: (p) => p.startsWith('/billing/plans'),

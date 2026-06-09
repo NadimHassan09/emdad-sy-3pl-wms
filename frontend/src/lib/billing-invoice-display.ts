@@ -99,4 +99,21 @@ export function renewalStatusLabel(status?: string): string {
   return status;
 }
 
+export function humanizeInvoiceStatus(status: string): string {
+  if (status === 'draft') return 'Draft';
+  if (status === 'open') return 'Open';
+  if (status === 'paid') return 'Paid';
+  if (status === 'cancelled') return 'Cancelled';
+  if (status === 'overdue') return 'Overdue';
+  return status;
+}
+
+export function invoiceStatusClass(status: string): string {
+  if (status === 'paid') return 'badge badge-complete';
+  if (status === 'open') return 'badge badge-progress';
+  if (status === 'overdue') return 'badge badge-cancelled';
+  if (status === 'cancelled') return 'badge badge-cancelled';
+  return 'badge';
+}
+
 export { formatDate, formatDecimal } from './billing-plan-overview';

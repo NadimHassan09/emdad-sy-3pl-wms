@@ -1,0 +1,95 @@
+{
+  "sprint": "BILLING-4B",
+  "generatedAt": "2026-06-09T03:58:19.974Z",
+  "passed": 11,
+  "failed": 0,
+  "results": [
+    {
+      "phase": "auth",
+      "name": "admin_login",
+      "outcome": "pass",
+      "detail": {},
+      "at": "2026-06-09T03:58:19.592Z"
+    },
+    {
+      "phase": "dashboard",
+      "name": "summary",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:58:19.653Z"
+    },
+    {
+      "phase": "dashboard",
+      "name": "expiring_buckets",
+      "outcome": "pass",
+      "detail": {},
+      "at": "2026-06-09T03:58:19.668Z"
+    },
+    {
+      "phase": "capacity",
+      "name": "volume_weight",
+      "outcome": "pass",
+      "detail": {
+        "hasWeight": true
+      },
+      "at": "2026-06-09T03:58:19.690Z"
+    },
+    {
+      "phase": "preview",
+      "name": "cycle_preview",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:58:19.736Z"
+    },
+    {
+      "phase": "reports",
+      "name": "billing_revenue",
+      "outcome": "pass",
+      "detail": {},
+      "at": "2026-06-09T03:58:19.752Z"
+    },
+    {
+      "phase": "reports",
+      "name": "billing_outstanding",
+      "outcome": "pass",
+      "detail": {},
+      "at": "2026-06-09T03:58:19.763Z"
+    },
+    {
+      "phase": "client",
+      "name": "login",
+      "outcome": "pass",
+      "detail": {},
+      "at": "2026-06-09T03:58:19.921Z"
+    },
+    {
+      "phase": "client",
+      "name": "billing_access",
+      "outcome": "pass",
+      "detail": {
+        "operationalAllowed": true
+      },
+      "at": "2026-06-09T03:58:19.939Z"
+    },
+    {
+      "phase": "isolation",
+      "name": "client_invoices_scoped",
+      "outcome": "pass",
+      "detail": {
+        "total": 1
+      },
+      "at": "2026-06-09T03:58:19.956Z"
+    },
+    {
+      "phase": "isolation",
+      "name": "client_jwt_company_scope",
+      "outcome": "pass",
+      "detail": {},
+      "at": "2026-06-09T03:58:19.974Z"
+    }
+  ]
+}

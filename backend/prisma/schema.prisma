@@ -43,6 +43,7 @@ enum BillingInvoiceStatus {
   open
   paid
   cancelled
+  overdue
 
   @@map("billing_invoice_status")
 }

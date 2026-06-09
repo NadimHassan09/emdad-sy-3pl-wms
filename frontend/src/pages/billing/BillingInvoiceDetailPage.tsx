@@ -1,7 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 
 import { BillingApi } from '../../api/billing';
+import { Button } from '../../components/Button';
+import { useToast } from '../../components/ToastProvider';
+import { useAuth } from '../../auth/AuthContext';
 import { CompaniesApi } from '../../api/companies';
 import { PageHeader } from '../../components/PageHeader';
 import { StatusBadge } from '../../components/StatusBadge';
@@ -36,6 +39,10 @@ function ChargeRow({ label, amount }: { label: string; amount: string }) {
 
 export function BillingInvoiceDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const toast = useToast();
+  const qc = useQueryClient();
+  const canMutate = user?.role === 'super_admin' || user?.role === 'wh_manager';
 
   const invoiceQuery = useQuery({
     queryKey: [...QK.billing.invoices, id],
@@ -55,6 +62,15 @@ export function BillingInvoiceDetailPage() {
   const lines = invoice?.lines ?? [];
   const cycle = invoice?.billingCycle;
   const daysLeft = cycle ? daysRemainingFromEnd(cycle.endsAt) : null;
+
+  const statusMut = useMutation({
+    mutationFn: (status: 'paid' | 'cancelled' | 'open') => BillingApi.updateInvoiceStatus(id, status),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: QK.billing.invoices });
+      toast.success('Invoice status updated.');
+    },
+    onError: () => toast.error('Could not update invoice status.'),
+  });
 
   return (
     <div className="space-y-4">
@@ -77,9 +93,35 @@ export function BillingInvoiceDetailPage() {
       {invoice ? (
         <>
           <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-semibold text-slate-900">Summary</h3>
-              <StatusBadge status={invoice.status} />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-semibold text-slate-900">Summary</h3>
+                <StatusBadge status={invoice.status} />
+              </div>
+              {canMutate ? (
+                <div className="flex flex-wrap gap-2">
+                  {(invoice.status === 'open' || invoice.status === 'overdue') ? (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      loading={statusMut.isPending}
+                      onClick={() => statusMut.mutate('paid')}
+                    >
+                      Mark paid
+                    </Button>
+                  ) : null}
+                  {invoice.status !== 'cancelled' && invoice.status !== 'paid' ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={statusMut.isPending}
+                      onClick={() => statusMut.mutate('cancelled')}
+                    >
+                      Cancel invoice
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <DetailField label="Client" value={companyQuery.data?.name ?? invoice.companyId} />

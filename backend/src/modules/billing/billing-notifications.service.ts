@@ -21,6 +21,30 @@ export class BillingNotificationsService {
     private readonly realtime: RealtimeService,
   ) {}
 
+  async notifyInvoiceOverdue(input: {
+    companyId: string;
+    companyName: string;
+    invoiceId: string;
+    invoiceNumber: string;
+  }): Promise<void> {
+    await this.notifyAdminsOnce({
+      type: 'admin_billing_invoice_overdue',
+      title: 'Invoice overdue',
+      body: `${input.companyName}: invoice ${input.invoiceNumber} is past payment terms.`,
+      referenceType: 'invoice',
+      referenceId: input.invoiceId,
+    });
+
+    await this.createClientNotificationOnce({
+      companyId: input.companyId,
+      type: 'client_billing_invoice_overdue',
+      title: 'Invoice overdue',
+      body: `Your invoice ${input.invoiceNumber} is overdue. Please contact finance.`,
+      referenceType: 'invoice',
+      referenceId: input.invoiceId,
+    });
+  }
+
   async notifyInvoiceGenerated(input: {
     companyId: string;
     companyName: string;

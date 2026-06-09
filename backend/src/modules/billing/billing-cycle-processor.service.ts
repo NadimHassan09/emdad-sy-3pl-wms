@@ -5,6 +5,7 @@ import { CompanyStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BillingCyclesService } from './billing-cycles.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
+import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
 import { BillingNotificationsService } from './billing-notifications.service';
 
 /**
@@ -19,6 +20,7 @@ export class BillingCycleProcessorService {
     private readonly billingCycles: BillingCyclesService,
     private readonly invoiceCalc: BillingInvoiceCalculationService,
     private readonly billingNotifications: BillingNotificationsService,
+    private readonly billingAudit: BillingAuditService,
   ) {}
 
   @Cron('*/15 * * * *')
@@ -97,6 +99,13 @@ export class BillingCycleProcessorService {
         select: { id: true, invoiceNumber: true },
       });
       if (issuedInvoice) {
+        void this.billingAudit.system({
+          action: BILLING_AUDIT_ACTIONS.INVOICE_GENERATED,
+          resourceType: 'invoice',
+          resourceId: issuedInvoice.id,
+          companyId: cycle.companyId,
+          newState: { invoiceNumber: issuedInvoice.invoiceNumber, billingCycleId: cycle.id },
+        });
         void this.billingNotifications.notifyInvoiceGenerated({
           companyId: cycle.companyId,
           companyName,
@@ -115,6 +124,13 @@ export class BillingCycleProcessorService {
         });
         void this.invoiceCalc.recalculateForCompany(renewedCompanyId, 'cycle_started');
       } else {
+        void this.billingAudit.system({
+          action: BILLING_AUDIT_ACTIONS.PLAN_SUSPENDED,
+          resourceType: 'billing_cycle',
+          resourceId: cycle.id,
+          companyId: cycle.companyId,
+          newState: { companyStatus: 'restricted' },
+        });
         void this.billingNotifications.notifyAccountSuspended({
           companyId: cycle.companyId,
           companyName,

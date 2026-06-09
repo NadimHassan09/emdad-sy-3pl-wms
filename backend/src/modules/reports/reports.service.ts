@@ -11,6 +11,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { OutboundService } from '../outbound/outbound.service';
 import { AggregateReportQueryDto, ExportReportQueryDto, RunReportQueryDto } from './dto/run-report-query.dto';
 import { reportRowsToCsv, reportRowsToXls, type ReportExportColumn } from './reports-export.util';
+import { BillingReportsRunner } from './billing-reports.runner';
 import { ReportsCacheService } from './reports-cache.service';
 import { ReportsPolicyConfig } from './reports-policy.config';
 
@@ -79,6 +80,37 @@ const WAREHOUSE_COLUMNS: ReportExportColumn[] = [
   { id: 'totalCount', header: 'Total' },
 ];
 
+const BILLING_REVENUE_COLUMNS: ReportExportColumn[] = [
+  { id: 'client', header: 'Client' },
+  { id: 'invoiceCount', header: 'Invoices' },
+  { id: 'revenue', header: 'Revenue' },
+];
+
+const BILLING_OUTSTANDING_COLUMNS: ReportExportColumn[] = [
+  { id: 'invoiceNumber', header: 'Invoice #' },
+  { id: 'client', header: 'Client' },
+  { id: 'status', header: 'Status' },
+  { id: 'amount', header: 'Amount' },
+  { id: 'issuedAt', header: 'Issued' },
+];
+
+const BILLING_EXPIRING_COLUMNS: ReportExportColumn[] = [
+  { id: 'client', header: 'Client' },
+  { id: 'daysRemaining', header: 'Days remaining' },
+  { id: 'cycleEnd', header: 'Cycle end' },
+];
+
+const BILLING_SUSPENDED_COLUMNS: ReportExportColumn[] = [
+  { id: 'client', header: 'Client' },
+  { id: 'suspendedSince', header: 'Suspended since' },
+];
+
+const BILLING_CAPACITY_COLUMNS: ReportExportColumn[] = [
+  { id: 'client', header: 'Client' },
+  { id: 'allocatedVolumeCbm', header: 'Allocated CBM' },
+  { id: 'allocatedWeightKg', header: 'Allocated kg' },
+];
+
 function fmtQty(n: unknown): string {
   const v = Number(n);
   if (!Number.isFinite(v)) return '0';
@@ -131,6 +163,7 @@ export class ReportsService {
     private readonly companies: CompaniesService,
     private readonly cache: ReportsCacheService,
     private readonly policy: ReportsPolicyConfig,
+    private readonly billingReports: BillingReportsRunner,
   ) {}
 
   getPolicy() {
@@ -255,9 +288,34 @@ export class ReportsService {
         return this.runProductMoves(user, query);
       case 'warehouse-analysis':
         return this.runWarehouseAnalysis(user, query);
+      case 'billing-revenue':
+      case 'billing-outstanding':
+      case 'billing-expiring':
+      case 'billing-suspended':
+      case 'billing-capacity':
+        return this.runBillingReport(user, reportId, query);
       default:
         throw new NotFoundException('Unknown report.');
     }
+  }
+
+  private async runBillingReport(
+    user: AuthPrincipal,
+    reportId: string,
+    query: RunReportQueryDto,
+  ): Promise<Omit<ReportRunResult, 'cached'>> {
+    const page = await this.billingReports.run(user, reportId, {
+      limit: query.limit,
+      offset: query.offset,
+      companyId: query.companyId,
+    });
+    return {
+      items: page.items,
+      total: page.total,
+      limit: query.limit,
+      offset: query.offset,
+      truncated: query.offset + page.items.length < page.total,
+    };
   }
 
   private async runInventory(
@@ -497,13 +555,23 @@ export class ReportsService {
         return MOVES_COLUMNS;
       case 'warehouse-analysis':
         return WAREHOUSE_COLUMNS;
+      case 'billing-revenue':
+        return BILLING_REVENUE_COLUMNS;
+      case 'billing-outstanding':
+        return BILLING_OUTSTANDING_COLUMNS;
+      case 'billing-expiring':
+        return BILLING_EXPIRING_COLUMNS;
+      case 'billing-suspended':
+        return BILLING_SUSPENDED_COLUMNS;
+      case 'billing-capacity':
+        return BILLING_CAPACITY_COLUMNS;
       default:
         return [];
     }
   }
 
   private assertReportId(reportId: string) {
-    if (!['warehouse-analysis', 'inventory', 'product-moves'].includes(reportId)) {
+    if (!this.policy.snapshot().reportIds.includes(reportId as never)) {
       throw new NotFoundException(`Unknown report: ${reportId}`);
     }
   }

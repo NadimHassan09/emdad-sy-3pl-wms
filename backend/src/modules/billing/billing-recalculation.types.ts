@@ -7,7 +7,8 @@ export type BillingRecalcTrigger =
   | 'quality_check_completed'
   | 'usage_changed'
   | 'cycle_started'
-  | 'scheduled_usage';
+  | 'scheduled_usage'
+  | 'manual_preview';
 
 export const ALL_BILLING_LINE_TYPES: BillingInvoiceLineType[] = [
   'subscription',

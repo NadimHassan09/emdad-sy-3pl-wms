@@ -88,6 +88,117 @@ export class BillingDashboardService {
     }));
   }
 
+  /** Expiring clients grouped by reminder thresholds. */
+  async listExpiringBuckets(user: AuthPrincipal) {
+    const now = new Date();
+    const thresholds = [30, 14, 7, 3] as const;
+    const tenantCompanyIds =
+      user.tenantScope === 'restricted' ? user.authorizedCompanyIds : undefined;
+
+    const cycles = await this.prisma.billingCycle.findMany({
+      where: {
+        status: { in: ['active', 'renewed'] },
+        endsAt: { gt: now },
+        ...(tenantCompanyIds ? { companyId: { in: tenantCompanyIds } } : {}),
+      },
+      select: {
+        id: true,
+        companyId: true,
+        endsAt: true,
+        company: { select: { id: true, name: true, status: true } },
+      },
+    });
+
+    const buckets: Record<string, Array<{ companyId: string; companyName: string; cycleId: string; daysRemaining: number; endsAt: string }>> = {
+      expiring30: [],
+      expiring14: [],
+      expiring7: [],
+      expiring3: [],
+      expired: [],
+      suspended: [],
+    };
+
+    for (const cycle of cycles) {
+      const days = Math.max(0, Math.ceil((cycle.endsAt.getTime() - now.getTime()) / 86_400_000));
+      const row = {
+        companyId: cycle.companyId,
+        companyName: cycle.company.name,
+        cycleId: cycle.id,
+        daysRemaining: days,
+        endsAt: cycle.endsAt.toISOString(),
+      };
+      if (days <= 3) buckets.expiring3.push(row);
+      else if (days <= 7) buckets.expiring7.push(row);
+      else if (days <= 14) buckets.expiring14.push(row);
+      else if (days <= 30) buckets.expiring30.push(row);
+    }
+
+    const restricted = await this.prisma.company.findMany({
+      where: {
+        status: CompanyStatus.restricted,
+        ...(tenantCompanyIds ? { id: { in: tenantCompanyIds } } : {}),
+      },
+      select: { id: true, name: true, updatedAt: true },
+    });
+    buckets.suspended = restricted.map((c) => ({
+      companyId: c.id,
+      companyName: c.name,
+      cycleId: '',
+      daysRemaining: 0,
+      endsAt: c.updatedAt.toISOString(),
+    }));
+
+    return buckets;
+  }
+
+  /** Billing KPI summary for admin dashboard. */
+  async getSummary(user: AuthPrincipal) {
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const tenantCompanyIds =
+      user.tenantScope === 'restricted' ? user.authorizedCompanyIds : undefined;
+
+    const invoiceWhere: Prisma.InvoiceWhereInput = {
+      ...(tenantCompanyIds ? { companyId: { in: tenantCompanyIds } } : {}),
+    };
+
+    const [outstanding, monthRevenue, openCount, overdueCount, suspendedCount] =
+      await Promise.all([
+        this.prisma.invoice.aggregate({
+          where: { ...invoiceWhere, status: { in: ['open', 'overdue'] } },
+          _sum: { totalAmount: true },
+        }),
+        this.prisma.invoice.aggregate({
+          where: {
+            ...invoiceWhere,
+            status: 'paid',
+            updatedAt: { gte: monthStart },
+          },
+          _sum: { totalAmount: true },
+        }),
+        this.prisma.invoice.count({
+          where: { ...invoiceWhere, status: 'open' },
+        }),
+        this.prisma.invoice.count({
+          where: { ...invoiceWhere, status: 'overdue' },
+        }),
+        this.prisma.company.count({
+          where: {
+            status: CompanyStatus.restricted,
+            ...(tenantCompanyIds ? { id: { in: tenantCompanyIds } } : {}),
+          },
+        }),
+      ]);
+
+    return {
+      outstandingAmount: (outstanding._sum.totalAmount ?? new Prisma.Decimal(0)).toString(),
+      currentMonthRevenue: (monthRevenue._sum.totalAmount ?? new Prisma.Decimal(0)).toString(),
+      openInvoiceCount: openCount,
+      overdueInvoiceCount: overdueCount,
+      suspendedAccountCount: suspendedCount,
+    };
+  }
+
   /** Companies currently restricted due to billing. */
   async listSuspendedAccounts(user: AuthPrincipal, limit = 5) {
     const take = Math.min(Math.max(limit, 1), 20);

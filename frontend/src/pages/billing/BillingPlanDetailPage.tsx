@@ -8,6 +8,7 @@ import {
   type UpdateBillingPlanPayload,
 } from '../../api/billing';
 import { CompaniesApi } from '../../api/companies';
+import { BillingInvoicePreviewCard } from '../../components/billing/BillingInvoicePreviewCard';
 import { BillingPlanFormModal } from '../../components/billing/BillingPlanFormModal';
 import { VolumeAllocationPanel } from '../../components/billing/VolumeAllocationPanel';
 import { Button } from '../../components/Button';
@@ -241,6 +242,8 @@ export function BillingPlanDetailPage() {
               <p className="mt-2 text-sm text-slate-500">No active billing cycle for this client.</p>
             )}
           </section>
+
+          {activePlan ? <BillingInvoicePreviewCard companyId={clientId} /> : null}
         </>
       ) : null}
 

@@ -73,6 +73,7 @@ const BillingPlansPage          = lazyPage(() => import('./pages/billing/Billing
 const BillingPlanDetailPage     = lazyPage(() => import('./pages/billing/BillingPlanDetailPage'), 'BillingPlanDetailPage');
 const BillingInvoicesPage       = lazyPage(() => import('./pages/billing/BillingInvoicesPage'), 'BillingInvoicesPage');
 const BillingInvoiceDetailPage  = lazyPage(() => import('./pages/billing/BillingInvoiceDetailPage'), 'BillingInvoiceDetailPage');
+const BillingDashboardPage      = lazyPage(() => import('./pages/billing/BillingDashboardPage'), 'BillingDashboardPage');
 
 /** Data router required for `useBlocker` (task execution exit guard). */
 export const router = createBrowserRouter([
@@ -131,6 +132,8 @@ export const router = createBrowserRouter([
       },
       { path: 'clients', element: <ClientsPage /> },
       { path: 'clients/:id', element: <CompanyDetailPage /> },
+      { path: 'billing', element: <Navigate to="/billing/dashboard" replace /> },
+      { path: 'billing/dashboard', element: <BillingDashboardPage /> },
       { path: 'billing/plans', element: <BillingPlansPage /> },
       { path: 'billing/plans/:clientId', element: <BillingPlanDetailPage /> },
       { path: 'billing/invoices', element: <BillingInvoicesPage /> },

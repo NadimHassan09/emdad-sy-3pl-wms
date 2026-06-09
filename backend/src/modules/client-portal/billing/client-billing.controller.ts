@@ -16,6 +16,11 @@ import { ClientBillingService } from './client-billing.service';
 export class ClientBillingController {
   constructor(private readonly billing: ClientBillingService) {}
 
+  @Get('access')
+  access(@ClientUser() client: ClientPrincipal) {
+    return this.billing.getAccess(client);
+  }
+
   @Get('summary')
   summary(@ClientUser() client: ClientPrincipal) {
     return this.billing.getSummary(client);

@@ -126,5 +126,8 @@ export const QK = {
     overdueClients: ['billing', 'overdue-clients'] as const,
     recentInvoices: ['billing', 'recent-invoices'] as const,
     suspendedAccounts: ['billing', 'suspended-accounts'] as const,
+    dashboardSummary: ['billing', 'dashboard-summary'] as const,
+    expiringBuckets: ['billing', 'expiring-buckets'] as const,
+    preview: ['billing', 'preview'] as const,
   },
 };

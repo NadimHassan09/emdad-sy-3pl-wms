@@ -9,6 +9,7 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BillingVolumeCapacityService } from './billing-access.service';
+import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
 import { buildRateSnapshotFromPlan } from './billing-rate-snapshot.util';
 import {
@@ -45,6 +46,7 @@ export class BillingPlansService {
     private readonly companyAccess: CompanyAccessService,
     private readonly volumeCapacity: BillingVolumeCapacityService,
     private readonly invoiceCalc: BillingInvoiceCalculationService,
+    private readonly billingAudit: BillingAuditService,
   ) {}
 
   async listPage(user: AuthPrincipal, query: ListBillingPlansQueryDto) {
@@ -100,6 +102,7 @@ export class BillingPlansService {
   async create(user: AuthPrincipal, dto: CreateBillingPlanDto) {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
     await this.volumeCapacity.assertVolumeAllocation(dto.reservedVolume ?? 0);
+    await this.volumeCapacity.assertWeightAllocation(dto.reservedWeight ?? 0);
 
     const existing = await this.prisma.billingPlan.findFirst({
       where: { companyId, active: true },
@@ -147,6 +150,13 @@ export class BillingPlansService {
 
       return plan;
     }).then(async (plan) => {
+      void this.billingAudit.fromUser(user, {
+        action: BILLING_AUDIT_ACTIONS.PLAN_CREATED,
+        resourceType: 'billing_plan',
+        resourceId: plan.id,
+        companyId: plan.companyId,
+        newState: plan,
+      });
       void this.invoiceCalc.recalculateForCompany(plan.companyId, 'cycle_started');
       return plan;
     });
@@ -154,12 +164,16 @@ export class BillingPlansService {
 
   async update(user: AuthPrincipal, id: string, dto: UpdateBillingPlanDto) {
     await this.findById(user, id);
+    const previous = await this.findById(user, id);
     if (dto.reservedVolume != null) {
       await this.volumeCapacity.assertVolumeAllocation(dto.reservedVolume, id);
     }
+    if (dto.reservedWeight != null) {
+      await this.volumeCapacity.assertWeightAllocation(dto.reservedWeight, id);
+    }
 
     // Plan updates apply to future cycles only; active cycle invoices use rate_snapshot.
-    return this.prisma.billingPlan.update({
+    const updated = await this.prisma.billingPlan.update({
       where: { id },
       data: {
         active: dto.active,
@@ -176,23 +190,45 @@ export class BillingPlansService {
       },
       select: PLAN_SELECT,
     });
+
+    void this.billingAudit.fromUser(user, {
+      action: BILLING_AUDIT_ACTIONS.PLAN_UPDATED,
+      resourceType: 'billing_plan',
+      resourceId: id,
+      companyId: updated.companyId,
+      previousState: previous,
+      newState: updated,
+    });
+
+    return updated;
   }
 
   async getCapacitySummary() {
-    const [total, allocated] = await Promise.all([
+    const [totalVol, allocatedVol, totalWt, allocatedWt] = await Promise.all([
       this.volumeCapacity.getTotalWarehouseVolume(),
       this.volumeCapacity.getAllocatedVolume(),
+      this.volumeCapacity.getTotalWarehouseWeight(),
+      this.volumeCapacity.getAllocatedWeight(),
     ]);
-    const allocatable = total.mul(0.9);
+    const allocatableVol = totalVol.mul(0.9);
+    const allocatableWt = totalWt.mul(0.9);
     return {
-      totalWarehouseVolumeCbm: total.toString(),
-      allocatableCapacityCbm: allocatable.toString(),
-      allocatedVolumeCbm: allocated.toString(),
+      totalWarehouseVolumeCbm: totalVol.toString(),
+      allocatableCapacityCbm: allocatableVol.toString(),
+      allocatedVolumeCbm: allocatedVol.toString(),
       remainingAllocatableCbm: Prisma.Decimal.max(
-        allocatable.sub(allocated),
+        allocatableVol.sub(allocatedVol),
+        new Prisma.Decimal(0),
+      ).toString(),
+      totalWarehouseWeightKg: totalWt.toString(),
+      allocatableCapacityKg: allocatableWt.toString(),
+      allocatedWeightKg: allocatedWt.toString(),
+      remainingAllocatableKg: Prisma.Decimal.max(
+        allocatableWt.sub(allocatedWt),
         new Prisma.Decimal(0),
       ).toString(),
       allocationRatio: 0.9,
+      sparePoolRatio: 0.1,
     };
   }
 }

@@ -6,8 +6,11 @@ import {
   BillingAccessService,
   BillingVolumeCapacityService,
 } from './billing-access.service';
+import { BillingAuditService } from './billing-audit.service';
 import { BillingController } from './billing.controller';
 import { BillingDashboardService } from './billing-dashboard.service';
+import { BillingInvoiceOverdueProcessorService } from './billing-invoice-overdue-processor.service';
+import { BillingPreviewService } from './billing-preview.service';
 import { BillingCycleProcessorService } from './billing-cycle-processor.service';
 import { BillingExpiryReminderService } from './billing-expiry-reminder.service';
 import { BillingNotificationsService } from './billing-notifications.service';
@@ -22,8 +25,11 @@ import { BillingUsageService } from './billing-usage.service';
   imports: [AuditModule, RealtimeModule],
   controllers: [BillingController],
   providers: [
+    BillingAuditService,
     BillingAccessService,
     BillingVolumeCapacityService,
+    BillingPreviewService,
+    BillingInvoiceOverdueProcessorService,
     BillingPlansService,
     BillingCyclesService,
     BillingInvoicesService,

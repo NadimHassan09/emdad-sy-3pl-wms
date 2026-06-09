@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { BillingInvoiceStatus, Prisma } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
 import { CreateInvoiceLineDto } from './dto/create-invoice-line.dto';
 import { ListBillingInvoicesQueryDto } from './dto/list-billing-invoices-query.dto';
 
@@ -43,7 +44,55 @@ export class BillingInvoicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly companyAccess: CompanyAccessService,
+    private readonly billingAudit: BillingAuditService,
   ) {}
+
+  async updateStatus(
+    user: AuthPrincipal,
+    id: string,
+    status: 'paid' | 'cancelled' | 'open',
+  ) {
+    const invoice = await this.findById(user, id);
+    const allowed: Record<string, BillingInvoiceStatus[]> = {
+      paid: [BillingInvoiceStatus.open, BillingInvoiceStatus.overdue],
+      cancelled: [
+        BillingInvoiceStatus.draft,
+        BillingInvoiceStatus.open,
+        BillingInvoiceStatus.overdue,
+      ],
+      open: [BillingInvoiceStatus.paid, BillingInvoiceStatus.cancelled],
+    };
+    const from = invoice.status as BillingInvoiceStatus;
+    if (!allowed[status]?.includes(from)) {
+      throw new BadRequestException(
+        `Cannot transition invoice from ${from} to ${status}.`,
+      );
+    }
+
+    const updated = await this.prisma.invoice.update({
+      where: { id },
+      data: { status: status as BillingInvoiceStatus },
+      select: INVOICE_SELECT,
+    });
+
+    const action =
+      status === 'paid'
+        ? BILLING_AUDIT_ACTIONS.INVOICE_PAID
+        : status === 'cancelled'
+          ? BILLING_AUDIT_ACTIONS.INVOICE_CANCELLED
+          : BILLING_AUDIT_ACTIONS.INVOICE_GENERATED;
+
+    void this.billingAudit.fromUser(user, {
+      action,
+      resourceType: 'invoice',
+      resourceId: id,
+      companyId: invoice.companyId,
+      previousState: { status: from },
+      newState: { status },
+    });
+
+    return updated;
+  }
 
   async listPage(user: AuthPrincipal, query: ListBillingInvoicesQueryDto) {
     const where = this.buildInvoiceWhere(user, query);

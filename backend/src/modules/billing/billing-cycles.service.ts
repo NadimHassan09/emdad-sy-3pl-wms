@@ -9,6 +9,7 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { InvalidStateException } from '../../common/errors/domain-exceptions';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
 import {
   buildRateSnapshotFromPlan,
 } from './billing-rate-snapshot.util';
@@ -45,6 +46,7 @@ export class BillingCyclesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly companyAccess: CompanyAccessService,
+    private readonly billingAudit: BillingAuditService,
   ) {}
 
   list(user: AuthPrincipal, companyId?: string) {
@@ -88,11 +90,22 @@ export class BillingCyclesService {
       throw new BadRequestException('This billing cycle has already ended.');
     }
 
-    return this.prisma.billingCycle.update({
+    const updated = await this.prisma.billingCycle.update({
       where: { id: cycleId },
       data: { status: 'renewed' },
       select: CYCLE_SELECT,
     });
+
+    void this.billingAudit.fromUser(user, {
+      action: BILLING_AUDIT_ACTIONS.PLAN_RENEWED,
+      resourceType: 'billing_cycle',
+      resourceId: cycleId,
+      companyId: cycle.companyId,
+      previousState: { status: cycle.status },
+      newState: { status: 'renewed' },
+    });
+
+    return updated;
   }
 
   /** Active/renewed cycles ending soonest — for dashboard widget. */

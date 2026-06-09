@@ -4,6 +4,7 @@ import { UserRole } from '@prisma/client';
 import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { PrismaService } from '../../../common/prisma/prisma.service';
+import { BillingAccessService } from '../../billing/billing-access.service';
 import { BillingCyclesService } from '../../billing/billing-cycles.service';
 import { BillingInvoicesService } from '../../billing/billing-invoices.service';
 import { BillingPlansService } from '../../billing/billing-plans.service';
@@ -48,7 +49,12 @@ export class ClientBillingService {
     private readonly plans: BillingPlansService,
     private readonly cycles: BillingCyclesService,
     private readonly invoices: BillingInvoicesService,
+    private readonly access: BillingAccessService,
   ) {}
+
+  getAccess(client: ClientPrincipal) {
+    return this.access.getOperationalAccess(client.companyId);
+  }
 
   private assertBillingAccess(client: ClientPrincipal): void {
     if (client.role !== UserRole.client_admin) {

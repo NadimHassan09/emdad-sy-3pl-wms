@@ -17,6 +17,7 @@ import {
 } from '@wms/hooks/useChunkedServerPagination';
 
 import { CreateClientInboundModal } from '../components/CreateClientInboundModal';
+import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import { isClientArabic } from '../lib/client-ui-language';
 import {
   createClientInboundOrder,
@@ -75,6 +76,7 @@ export function InboundOrdersPage(): ReactElement {
   const [createError, setCreateError] = useState<string | null>(null);
   const isArabic = isClientArabic();
   const t = (label: string) => inboundLabel(label, isArabic);
+  const billingAccess = useClientOperationalAccess();
 
   const createMut = useMutation({
     mutationFn: createClientInboundOrder,
@@ -196,6 +198,12 @@ export function InboundOrdersPage(): ReactElement {
           <Button
             variant="primary"
             size="md"
+            disabled={!billingAccess.operationalAllowed}
+            title={
+              billingAccess.operationalAllowed
+                ? undefined
+                : 'Account restricted — renew billing to create orders.'
+            }
             onClick={() => {
               setCreateError(null);
               setCreateOpen(true);

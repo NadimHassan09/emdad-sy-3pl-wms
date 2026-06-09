@@ -39,6 +39,7 @@ const STATUS_CLASS: Record<string, string> = {
   restricted: 'badge-cancelled',
   open: 'badge-progress',
   paid: 'badge-complete',
+  overdue: 'badge-cancelled',
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {
@@ -84,6 +85,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     restricted: 'مقيّد',
     open: 'مفتوحة',
     paid: 'مدفوعة',
+    overdue: 'متأخرة',
   };
   return <span className={`badge w-fit ${cls}`}>{isArabic ? ar[key] ?? key : key}</span>;
 }

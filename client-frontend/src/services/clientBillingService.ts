@@ -74,6 +74,17 @@ export type ClientBillingSummary = {
   currentInvoice: ClientInvoice | null;
 };
 
+export type ClientBillingAccess = {
+  operationalAllowed: boolean;
+  accountStatus: 'active' | 'expiring' | 'restricted' | 'no_plan';
+  daysRemaining: number | null;
+};
+
+export async function fetchClientBillingAccess(): Promise<ClientBillingAccess> {
+  const { data } = await apiClient.get<ClientBillingAccess>('/billing/access');
+  return data;
+}
+
 export async function fetchClientBillingSummary(): Promise<ClientBillingSummary> {
   const { data } = await apiClient.get<ClientBillingSummary>('/billing/summary');
   return data;

@@ -28,6 +28,54 @@ export class BillingVolumeCapacityService {
     return agg._sum.maxCbm ?? new Prisma.Decimal(0);
   }
 
+  async getTotalWarehouseWeight(): Promise<Prisma.Decimal> {
+    const agg = await this.prisma.location.aggregate({
+      where: {
+        status: 'active',
+        type: { in: ['internal', 'fridge', 'quarantine'] },
+        maxWeightKg: { not: null },
+      },
+      _sum: { maxWeightKg: true },
+    });
+    return agg._sum.maxWeightKg ?? new Prisma.Decimal(0);
+  }
+
+  async getAllocatedWeight(excludePlanId?: string): Promise<Prisma.Decimal> {
+    const agg = await this.prisma.billingPlan.aggregate({
+      where: {
+        active: true,
+        ...(excludePlanId ? { id: { not: excludePlanId } } : {}),
+      },
+      _sum: { reservedWeight: true },
+    });
+    return agg._sum.reservedWeight ?? new Prisma.Decimal(0);
+  }
+
+  async assertWeightAllocation(
+    requestedWeight: Prisma.Decimal | number,
+    excludePlanId?: string,
+  ): Promise<void> {
+    const total = await this.getTotalWarehouseWeight();
+    if (total.lte(0)) return;
+
+    const allocatable = total.mul(WAREHOUSE_ALLOCATABLE_CAPACITY_RATIO);
+    const allocated = await this.getAllocatedWeight(excludePlanId);
+    const requested = new Prisma.Decimal(requestedWeight);
+    const nextTotal = allocated.add(requested);
+
+    if (nextTotal.gt(allocatable)) {
+      throw new VolumeAllocationExceededException(
+        `Total reserved weight (${nextTotal.toFixed(4)} kg) exceeds the 90% allocatable capacity (${allocatable.toFixed(4)} kg of ${total.toFixed(4)} kg).`,
+        {
+          totalWarehouseWeightKg: total.toString(),
+          allocatableCapacityKg: allocatable.toString(),
+          currentlyAllocatedKg: allocated.toString(),
+          requestedWeightKg: requested.toString(),
+        },
+      );
+    }
+  }
+
   async getAllocatedVolume(excludePlanId?: string): Promise<Prisma.Decimal> {
     const agg = await this.prisma.billingPlan.aggregate({
       where: {
@@ -73,6 +121,53 @@ export class BillingAccessService {
    * Ensures the client has an active billing plan and a non-expired billing cycle.
    * Also rejects companies in `restricted` status (set on cycle expiry).
    */
+  async getOperationalAccess(companyId: string): Promise<{
+    operationalAllowed: boolean;
+    accountStatus: 'active' | 'expiring' | 'restricted' | 'no_plan';
+    daysRemaining: number | null;
+  }> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { status: true },
+    });
+    if (!company) {
+      return { operationalAllowed: false, accountStatus: 'no_plan', daysRemaining: null };
+    }
+    if (company.status === CompanyStatus.restricted) {
+      return { operationalAllowed: false, accountStatus: 'restricted', daysRemaining: null };
+    }
+
+    const plan = await this.prisma.billingPlan.findFirst({
+      where: { companyId, active: true },
+      select: { id: true },
+    });
+    if (!plan) {
+      return { operationalAllowed: false, accountStatus: 'no_plan', daysRemaining: null };
+    }
+
+    const now = new Date();
+    const cycle = await this.prisma.billingCycle.findFirst({
+      where: {
+        companyId,
+        status: { in: ['active', 'renewed'] },
+        startsAt: { lte: now },
+        endsAt: { gt: now },
+      },
+      select: { endsAt: true },
+    });
+    if (!cycle) {
+      return { operationalAllowed: false, accountStatus: 'restricted', daysRemaining: null };
+    }
+
+    const daysRemaining = Math.max(
+      0,
+      Math.ceil((cycle.endsAt.getTime() - now.getTime()) / 86_400_000),
+    );
+    const accountStatus = daysRemaining <= 7 ? 'expiring' : 'active';
+
+    return { operationalAllowed: true, accountStatus, daysRemaining };
+  }
+
   async assertOperationalBilling(companyId: string): Promise<void> {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
