@@ -5,6 +5,7 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateInvoiceLineDto } from './dto/create-invoice-line.dto';
+import { ListBillingInvoicesQueryDto } from './dto/list-billing-invoices-query.dto';
 
 const INVOICE_SELECT = {
   id: true,
@@ -43,6 +44,25 @@ export class BillingInvoicesService {
     private readonly prisma: PrismaService,
     private readonly companyAccess: CompanyAccessService,
   ) {}
+
+  async listPage(user: AuthPrincipal, query: ListBillingInvoicesQueryDto) {
+    const where = this.buildInvoiceWhere(user, query);
+
+    const orderBy = this.buildInvoiceOrderBy(query);
+
+    const [items, total] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where,
+        orderBy,
+        skip: query.offset,
+        take: query.limit,
+        select: INVOICE_SELECT,
+      }),
+      this.prisma.invoice.count({ where }),
+    ]);
+
+    return { items, total, limit: query.limit, offset: query.offset };
+  }
 
   list(user: AuthPrincipal, companyId?: string) {
     const where: Prisma.InvoiceWhereInput = {};
@@ -102,5 +122,80 @@ export class BillingInvoicesService {
 
       return line;
     });
+  }
+
+  private buildInvoiceWhere(
+    user: AuthPrincipal,
+    query: ListBillingInvoicesQueryDto,
+  ): Prisma.InvoiceWhereInput {
+    const where: Prisma.InvoiceWhereInput = {};
+
+    if (query.companyId) {
+      this.companyAccess.assertCompanyAccess(user, query.companyId);
+      where.companyId = query.companyId;
+    } else if (user.tenantScope === 'restricted') {
+      where.companyId = { in: user.authorizedCompanyIds };
+    }
+
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    if (query.search?.trim()) {
+      const term = query.search.trim();
+      where.invoiceNumber = { contains: term, mode: 'insensitive' };
+    }
+
+    if (query.createdFrom || query.createdTo) {
+      where.createdAt = {};
+      if (query.createdFrom) {
+        where.createdAt.gte = new Date(query.createdFrom);
+      }
+      if (query.createdTo) {
+        const to = new Date(query.createdTo);
+        to.setUTCHours(23, 59, 59, 999);
+        where.createdAt.lte = to;
+      }
+    }
+
+    const cycleWhere: Prisma.BillingCycleWhereInput = {};
+    if (query.cycleStatus) {
+      cycleWhere.status = query.cycleStatus;
+    }
+    if (query.expiryFrom || query.expiryTo) {
+      cycleWhere.endsAt = {};
+      if (query.expiryFrom) {
+        cycleWhere.endsAt.gte = new Date(query.expiryFrom);
+      }
+      if (query.expiryTo) {
+        const to = new Date(query.expiryTo);
+        to.setUTCHours(23, 59, 59, 999);
+        cycleWhere.endsAt.lte = to;
+      }
+    }
+    if (Object.keys(cycleWhere).length > 0) {
+      where.billingCycle = cycleWhere;
+    }
+
+    return where;
+  }
+
+  private buildInvoiceOrderBy(
+    query: ListBillingInvoicesQueryDto,
+  ): Prisma.InvoiceOrderByWithRelationInput {
+    const dir = query.sort_dir === 'asc' ? 'asc' : 'desc';
+    switch (query.sort_by) {
+      case 'invoiceNumber':
+        return { invoiceNumber: dir };
+      case 'totalAmount':
+        return { totalAmount: dir };
+      case 'status':
+        return { status: dir };
+      case 'issuedAt':
+        return { issuedAt: dir };
+      case 'createdAt':
+      default:
+        return { createdAt: dir };
+    }
   }
 }

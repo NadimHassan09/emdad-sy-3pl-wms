@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import {
   BillingApi,
+  type BillingPlanOverviewItem,
   type CreateBillingPlanPayload,
   type UpdateBillingPlanPayload,
 } from '../../api/billing';
@@ -16,17 +17,19 @@ import { Combobox } from '../../components/Combobox';
 import { DataTable, type Column } from '../../components/DataTable';
 import { FilterPanel } from '../../components/FilterPanel';
 import { SelectField } from '../../components/SelectField';
+import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
 import { useFilters } from '../../hooks/useFilters';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '../../hooks/useChunkedServerPagination';
 import { companyFilterComboboxOptions } from '../../lib/company-filter-options';
 import {
-  buildBillingPlanOverviewRows,
-  filterOverviewRows,
   formatDate,
   formatDecimal,
-  type BillingPlanOverviewRow,
   type BillingStatusDisplay,
   type BillingStatusFilter,
   type BillingCycleStatusDisplay,
@@ -36,16 +39,26 @@ import {
 
 type ListFilters = {
   companyId: string;
+  search: string;
   cycleStatus: CycleStatusFilter;
   daysRemaining: DaysRemainingFilter;
   billingStatus: BillingStatusFilter;
+  expiryFrom: string;
+  expiryTo: string;
+  sort_by: 'companyName' | 'cycleEnd' | 'daysRemaining' | 'createdAt';
+  sort_dir: 'asc' | 'desc';
 };
 
 const INITIAL_FILTERS: ListFilters = {
   companyId: '',
+  search: '',
   cycleStatus: '',
   daysRemaining: '',
   billingStatus: '',
+  expiryFrom: '',
+  expiryTo: '',
+  sort_by: 'createdAt',
+  sort_dir: 'desc',
 };
 
 function BillingLabel({
@@ -103,7 +116,7 @@ export function BillingPlansPage() {
 
   const [openActionId, setOpenActionId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [editRow, setEditRow] = useState<BillingPlanOverviewRow | null>(null);
+  const [editRow, setEditRow] = useState<BillingPlanOverviewItem | null>(null);
 
   useEffect(() => {
     if (!openActionId) return;
@@ -127,51 +140,41 @@ export function BillingPlansPage() {
     queryFn: () => CompaniesApi.list({ includeAll: true }),
   });
 
-  const plansQuery = useQuery({
-    queryKey: QK.billing.plans,
-    queryFn: () => BillingApi.listPlans(),
-  });
-
-  const cyclesQuery = useQuery({
-    queryKey: QK.billing.cycles,
-    queryFn: () => BillingApi.listCycles(),
-  });
-
   const capacityQuery = useQuery({
     queryKey: QK.billing.capacity,
     queryFn: () => BillingApi.getCapacitySummary(),
     enabled: canMutate,
   });
 
-  const companyNameById = useMemo(
-    () => new Map((companiesQuery.data ?? []).map((c) => [c.id, c.name])),
-    [companiesQuery.data],
-  );
-  const companyStatusById = useMemo(
-    () => new Map((companiesQuery.data ?? []).map((c) => [c.id, c.status])),
-    [companiesQuery.data],
-  );
-
-  const overviewRows = useMemo(
-    () =>
-      buildBillingPlanOverviewRows({
-        plans: plansQuery.data ?? [],
-        cycles: cyclesQuery.data ?? [],
-        companyNameById,
-        companyStatusById,
-      }),
-    [plansQuery.data, cyclesQuery.data, companyNameById, companyStatusById],
+  const serverFilters = useMemo(
+    () => ({
+      companyId: appliedFilters.companyId.trim() || undefined,
+      search: appliedFilters.search.trim() || undefined,
+      cycleStatus: appliedFilters.cycleStatus || undefined,
+      daysRemaining: appliedFilters.daysRemaining || undefined,
+      billingStatus: appliedFilters.billingStatus || undefined,
+      expiryFrom: appliedFilters.expiryFrom || undefined,
+      expiryTo: appliedFilters.expiryTo || undefined,
+      sort_by: appliedFilters.sort_by,
+      sort_dir: appliedFilters.sort_dir,
+    }),
+    [appliedFilters],
   );
 
-  const filteredRows = useMemo(
-    () => filterOverviewRows(overviewRows, appliedFilters),
-    [overviewRows, appliedFilters],
-  );
+  const pagination = useChunkedServerPagination<BillingPlanOverviewItem>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey: serverFilters,
+    fetchChunk: (offset, limit) =>
+      BillingApi.listPlansPage({ ...serverFilters, offset, limit }),
+    rtQueryKeyPrefix: QK.billing.plans,
+    chunkQueryKeyPrefix: 'billing-plans-chunk',
+  });
 
   const invalidateBilling = () => {
     void qc.invalidateQueries({ queryKey: QK.billing.plans });
     void qc.invalidateQueries({ queryKey: QK.billing.cycles });
     void qc.invalidateQueries({ queryKey: QK.billing.capacity });
+    void qc.invalidateQueries({ queryKey: QK.billing.expiringSoon });
   };
 
   const createMut = useMutation({
@@ -206,7 +209,7 @@ export function BillingPlansPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const columns: Column<BillingPlanOverviewRow>[] = [
+  const columns: Column<BillingPlanOverviewItem>[] = [
     {
       header: 'Client',
       accessor: (r) => <span className="font-medium text-slate-900">{r.companyName}</span>,
@@ -307,9 +310,6 @@ export function BillingPlansPage() {
     },
   ];
 
-  const isLoading = plansQuery.isLoading || cyclesQuery.isLoading || companiesQuery.isLoading;
-  const isFetching = plansQuery.isFetching || cyclesQuery.isFetching;
-
   return (
     <div className="space-y-4">
       <VolumeAllocationPanel
@@ -321,8 +321,14 @@ export function BillingPlansPage() {
         title="Billing plan filters"
         onApply={applyFilters}
         onReset={resetFilters}
-        loading={isFetching}
+        loading={pagination.isFetching}
       >
+        <TextField
+          label="Search client"
+          value={draftFilters.search}
+          onChange={(e) => setDraft({ search: e.target.value })}
+          placeholder="Client name"
+        />
         <Combobox
           label="Client"
           value={draftFilters.companyId}
@@ -371,6 +377,44 @@ export function BillingPlansPage() {
             { value: 'inactive', label: 'Inactive' },
           ]}
         />
+        <TextField
+          label="Expiry from"
+          type="date"
+          value={draftFilters.expiryFrom}
+          onChange={(e) => setDraft({ expiryFrom: e.target.value })}
+        />
+        <TextField
+          label="Expiry to"
+          type="date"
+          value={draftFilters.expiryTo}
+          onChange={(e) => setDraft({ expiryTo: e.target.value })}
+        />
+        <SelectField
+          label="Sort by"
+          value={draftFilters.sort_by}
+          onChange={(e) =>
+            setDraft({
+              sort_by: e.target.value as ListFilters['sort_by'],
+            })
+          }
+          options={[
+            { value: 'createdAt', label: 'Created' },
+            { value: 'companyName', label: 'Client name' },
+            { value: 'cycleEnd', label: 'Cycle end' },
+            { value: 'daysRemaining', label: 'Days remaining' },
+          ]}
+        />
+        <SelectField
+          label="Sort direction"
+          value={draftFilters.sort_dir}
+          onChange={(e) =>
+            setDraft({ sort_dir: e.target.value as 'asc' | 'desc' })
+          }
+          options={[
+            { value: 'desc', label: 'Descending' },
+            { value: 'asc', label: 'Ascending' },
+          ]}
+        />
       </FilterPanel>
 
       <DataTable
@@ -384,15 +428,16 @@ export function BillingPlansPage() {
           ) : undefined
         }
         columns={columns}
-        rows={filteredRows}
+        rows={pagination.rows}
         rowKey={(r) => r.plan.id}
         onRowClick={(r) => navigate(`/billing/plans/${r.companyId}`)}
-        loading={isLoading}
+        loading={pagination.isInitialLoading}
         empty="No billing plans match your filters."
+        serverPagination={pagination.serverPagination}
       />
 
-      {plansQuery.error ? (
-        <p className="text-sm text-rose-600">{(plansQuery.error as Error).message}</p>
+      {pagination.isError ? (
+        <p className="text-sm text-rose-600">{(pagination.error as Error).message}</p>
       ) : null}
 
       <BillingPlanFormModal

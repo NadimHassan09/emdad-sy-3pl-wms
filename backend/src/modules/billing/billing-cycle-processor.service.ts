@@ -5,6 +5,7 @@ import { CompanyStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BillingCyclesService } from './billing-cycles.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
+import { BillingNotificationsService } from './billing-notifications.service';
 
 /**
  * Processes billing cycle expiry, account restriction, and deferred renewals.
@@ -17,6 +18,7 @@ export class BillingCycleProcessorService {
     private readonly prisma: PrismaService,
     private readonly billingCycles: BillingCyclesService,
     private readonly invoiceCalc: BillingInvoiceCalculationService,
+    private readonly billingNotifications: BillingNotificationsService,
   ) {}
 
   @Cron('*/15 * * * *')
@@ -49,6 +51,13 @@ export class BillingCycleProcessorService {
 
     for (const cycle of due) {
       let renewedCompanyId: string | null = null;
+      let nextCycleId: string | null = null;
+      const company = await this.prisma.company.findUnique({
+        where: { id: cycle.companyId },
+        select: { name: true },
+      });
+      const companyName = company?.name ?? cycle.companyId;
+
       await this.prisma.$transaction(async (tx) => {
         await this.invoiceCalc.finalizeCycleInvoice(tx, cycle.id);
 
@@ -65,6 +74,7 @@ export class BillingCycleProcessorService {
               data: { status: CompanyStatus.active },
             });
             renewedCompanyId = cycle.companyId;
+            nextCycleId = next.id;
             this.log.log(
               `Renewed billing cycle for company ${cycle.companyId}: ${next.id}`,
             );
@@ -81,8 +91,35 @@ export class BillingCycleProcessorService {
         );
       });
 
-      if (renewedCompanyId) {
+      const issuedInvoice = await this.prisma.invoice.findFirst({
+        where: { billingCycleId: cycle.id, status: 'open' },
+        orderBy: { issuedAt: 'desc' },
+        select: { id: true, invoiceNumber: true },
+      });
+      if (issuedInvoice) {
+        void this.billingNotifications.notifyInvoiceGenerated({
+          companyId: cycle.companyId,
+          companyName,
+          invoiceId: issuedInvoice.id,
+          invoiceNumber: issuedInvoice.invoiceNumber,
+          billingCycleId: cycle.id,
+        });
+      }
+
+      if (renewedCompanyId && nextCycleId) {
+        void this.billingNotifications.notifyAccountRenewed({
+          companyId: cycle.companyId,
+          companyName,
+          previousCycleId: cycle.id,
+          nextCycleId,
+        });
         void this.invoiceCalc.recalculateForCompany(renewedCompanyId, 'cycle_started');
+      } else {
+        void this.billingNotifications.notifyAccountSuspended({
+          companyId: cycle.companyId,
+          companyName,
+          cycleId: cycle.id,
+        });
       }
     }
 

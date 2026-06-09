@@ -14,10 +14,13 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { BillingCyclesService } from './billing-cycles.service';
+import { BillingDashboardService } from './billing-dashboard.service';
 import { BillingInvoicesService } from './billing-invoices.service';
 import { BillingPlansService } from './billing-plans.service';
 import { CreateBillingPlanDto } from './dto/create-billing-plan.dto';
 import { CreateInvoiceLineDto } from './dto/create-invoice-line.dto';
+import { ListBillingInvoicesQueryDto } from './dto/list-billing-invoices-query.dto';
+import { ListBillingPlansQueryDto } from './dto/list-billing-plans-query.dto';
 import { UpdateBillingPlanDto } from './dto/update-billing-plan.dto';
 
 @Controller('billing')
@@ -26,6 +29,7 @@ export class BillingController {
     private readonly plans: BillingPlansService,
     private readonly cycles: BillingCyclesService,
     private readonly invoices: BillingInvoicesService,
+    private readonly dashboard: BillingDashboardService,
   ) {}
 
   @Get('capacity')
@@ -35,8 +39,8 @@ export class BillingController {
   }
 
   @Get('plans')
-  listPlans(@CurrentUser() user: AuthPrincipal, @Query('companyId') companyId?: string) {
-    return this.plans.list(user, companyId);
+  listPlans(@CurrentUser() user: AuthPrincipal, @Query() query: ListBillingPlansQueryDto) {
+    return this.plans.listPage(user, query);
   }
 
   @Get('plans/:id')
@@ -89,8 +93,35 @@ export class BillingController {
   }
 
   @Get('invoices')
-  listInvoices(@CurrentUser() user: AuthPrincipal, @Query('companyId') companyId?: string) {
-    return this.invoices.list(user, companyId);
+  listInvoices(@CurrentUser() user: AuthPrincipal, @Query() query: ListBillingInvoicesQueryDto) {
+    return this.invoices.listPage(user, query);
+  }
+
+  @Get('dashboard/overdue-clients')
+  listOverdueClients(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('limit') limit?: string,
+  ) {
+    const n = limit ? Number.parseInt(limit, 10) : 5;
+    return this.dashboard.listOverdueClients(user, Number.isFinite(n) ? n : 5);
+  }
+
+  @Get('dashboard/recent-invoices')
+  listRecentInvoices(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('limit') limit?: string,
+  ) {
+    const n = limit ? Number.parseInt(limit, 10) : 5;
+    return this.dashboard.listRecentInvoices(user, Number.isFinite(n) ? n : 5);
+  }
+
+  @Get('dashboard/suspended-accounts')
+  listSuspendedAccounts(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('limit') limit?: string,
+  ) {
+    const n = limit ? Number.parseInt(limit, 10) : 5;
+    return this.dashboard.listSuspendedAccounts(user, Number.isFinite(n) ? n : 5);
   }
 
   @Get('invoices/:id')

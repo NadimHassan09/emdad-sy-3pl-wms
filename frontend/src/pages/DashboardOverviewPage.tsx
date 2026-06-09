@@ -34,6 +34,9 @@ import {
   WarehouseOverviewMetricCardSkeleton,
 } from '../components/dashboard/WarehouseOverviewMetricCard';
 import { BillingExpiringClientsCard } from '../components/dashboard/BillingExpiringClientsCard';
+import { BillingOverdueClientsCard } from '../components/dashboard/BillingOverdueClientsCard';
+import { BillingRecentInvoicesCard } from '../components/dashboard/BillingRecentInvoicesCard';
+import { BillingSuspendedAccountsCard } from '../components/dashboard/BillingSuspendedAccountsCard';
 import { Alert, AppPageHeader } from '@ds';
 import { QK } from '../constants/query-keys';
 
@@ -93,6 +96,18 @@ function dashboardLabel(label: string, isArabic: boolean): string {
     'days remaining': 'يوم متبقٍ',
     renewed: 'مجدّد',
     Renew: 'تجديد',
+    'Overdue clients': 'العملاء المتأخرون',
+    'No overdue clients.': 'لا يوجد عملاء متأخرون.',
+    'Cycle ended': 'انتهت الدورة',
+    Restricted: 'مقيّد',
+    'Recent invoices': 'الفواتير الأخيرة',
+    'View all invoices': 'عرض كل الفواتير',
+    'No recent invoices.': 'لا توجد فواتير حديثة.',
+    'Suspended accounts': 'الحسابات المعلّقة',
+    'View clients': 'عرض العملاء',
+    'No suspended accounts.': 'لا توجد حسابات معلّقة.',
+    'Suspended since': 'معلّق منذ',
+    Billing: 'الفوترة',
   };
   return ar[label] ?? label;
 }
@@ -208,10 +223,15 @@ export function DashboardOverviewPage() {
             </div>
           </section>
 
-          {/* ── Billing cycles expiring soon ─────────────────────────── */}
+          {/* ── Billing dashboard widgets ───────────────────────────── */}
           <section>
-            <SectionHeading>{t('Billing cycles expiring soon')}</SectionHeading>
-            <BillingExpiringClientsCard translateLabel={t} />
+            <SectionHeading>{t('Billing')}</SectionHeading>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <BillingExpiringClientsCard translateLabel={t} />
+              <BillingOverdueClientsCard translateLabel={t} />
+              <BillingRecentInvoicesCard translateLabel={t} />
+              <BillingSuspendedAccountsCard translateLabel={t} />
+            </div>
           </section>
 
           {/* ── Open orders (stage bar cards) ───────────────────────── */}

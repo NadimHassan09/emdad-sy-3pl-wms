@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, type PageResult } from './client';
 
 export type BillingCycleStatus = 'active' | 'expired' | 'renewed';
 
@@ -115,6 +115,80 @@ export type BillingInvoiceRow = {
   lines?: BillingInvoiceLineRow[];
 };
 
+export type BillingPlanOverviewItem = {
+  plan: BillingPlanRow;
+  companyId: string;
+  companyName: string;
+  companyStatus: string;
+  currentCycle: BillingCycleRow | null;
+  cycleStart: string | null;
+  cycleEnd: string | null;
+  daysRemaining: number | null;
+  cycleStatus: 'active' | 'renewed' | 'expired' | 'none';
+  billingStatus: 'operational' | 'restricted' | 'inactive';
+};
+
+export type ListBillingPlansParams = {
+  companyId?: string;
+  search?: string;
+  cycleStatus?: '' | 'active' | 'renewed' | 'expired' | 'none';
+  daysRemaining?: '' | 'critical' | 'warning' | 'healthy' | 'expired' | 'none';
+  billingStatus?: '' | 'operational' | 'restricted' | 'inactive';
+  expiryFrom?: string;
+  expiryTo?: string;
+  sort_by?:
+    | 'companyName'
+    | 'cycleStart'
+    | 'cycleEnd'
+    | 'daysRemaining'
+    | 'cycleLengthDays'
+    | 'fixedSubscriptionFee'
+    | 'createdAt';
+  sort_dir?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+};
+
+export type ListBillingInvoicesParams = {
+  companyId?: string;
+  search?: string;
+  status?: BillingInvoiceStatus | '';
+  cycleStatus?: BillingCycleStatus | '';
+  createdFrom?: string;
+  createdTo?: string;
+  expiryFrom?: string;
+  expiryTo?: string;
+  sort_by?: 'createdAt' | 'invoiceNumber' | 'totalAmount' | 'status' | 'issuedAt';
+  sort_dir?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+};
+
+export type BillingOverdueClientRow = {
+  companyId: string;
+  companyName: string;
+  status: string;
+  lastCycleEndedAt: string | null;
+  restrictedSince: string;
+};
+
+export type BillingRecentInvoiceRow = {
+  id: string;
+  companyId: string;
+  companyName: string;
+  invoiceNumber: string;
+  status: BillingInvoiceStatus;
+  totalAmount: string;
+  createdAt: string;
+};
+
+export type BillingSuspendedAccountRow = {
+  companyId: string;
+  companyName: string;
+  status: string;
+  suspendedSince: string;
+};
+
 export type BillingExpiringCycleRow = {
   id: string;
   companyId: string;
@@ -130,10 +204,21 @@ export type BillingExpiringCycleRow = {
 };
 
 export const BillingApi = {
-  async listPlans(companyId?: string): Promise<BillingPlanRow[]> {
-    const params = companyId ? { companyId } : {};
-    const { data } = await api.get<BillingPlanRow[]>('/billing/plans', { params });
+  async listPlansPage(
+    params: ListBillingPlansParams = {},
+  ): Promise<PageResult<BillingPlanOverviewItem>> {
+    const { data } = await api.get<PageResult<BillingPlanOverviewItem>>('/billing/plans', {
+      params,
+    });
     return data;
+  },
+
+  /** Detail pages — all plans for one client (unpaginated slice). */
+  async listPlans(companyId?: string): Promise<BillingPlanRow[]> {
+    const { data } = await api.get<PageResult<BillingPlanOverviewItem>>('/billing/plans', {
+      params: { companyId, limit: 100, offset: 0 },
+    });
+    return data.items.map((row) => row.plan);
   },
 
   async getPlan(id: string): Promise<BillingPlanRow> {
@@ -167,10 +252,18 @@ export const BillingApi = {
     return data;
   },
 
-  async listInvoices(companyId?: string): Promise<BillingInvoiceRow[]> {
-    const params = companyId ? { companyId } : {};
-    const { data } = await api.get<BillingInvoiceRow[]>('/billing/invoices', { params });
+  async listInvoicesPage(
+    params: ListBillingInvoicesParams = {},
+  ): Promise<PageResult<BillingInvoiceRow>> {
+    const { data } = await api.get<PageResult<BillingInvoiceRow>>('/billing/invoices', { params });
     return data;
+  },
+
+  async listInvoices(companyId?: string): Promise<BillingInvoiceRow[]> {
+    const { data } = await api.get<PageResult<BillingInvoiceRow>>('/billing/invoices', {
+      params: { companyId, limit: 200, offset: 0 },
+    });
+    return data.items;
   },
 
   async getInvoice(id: string): Promise<BillingInvoiceRow> {
@@ -182,6 +275,30 @@ export const BillingApi = {
     const { data } = await api.get<BillingExpiringCycleRow[]>('/billing/cycles/expiring-soon', {
       params: { limit },
     });
+    return data;
+  },
+
+  async listOverdueClients(limit = 5): Promise<BillingOverdueClientRow[]> {
+    const { data } = await api.get<BillingOverdueClientRow[]>(
+      '/billing/dashboard/overdue-clients',
+      { params: { limit } },
+    );
+    return data;
+  },
+
+  async listRecentInvoices(limit = 5): Promise<BillingRecentInvoiceRow[]> {
+    const { data } = await api.get<BillingRecentInvoiceRow[]>(
+      '/billing/dashboard/recent-invoices',
+      { params: { limit } },
+    );
+    return data;
+  },
+
+  async listSuspendedAccounts(limit = 5): Promise<BillingSuspendedAccountRow[]> {
+    const { data } = await api.get<BillingSuspendedAccountRow[]>(
+      '/billing/dashboard/suspended-accounts',
+      { params: { limit } },
+    );
     return data;
   },
 };

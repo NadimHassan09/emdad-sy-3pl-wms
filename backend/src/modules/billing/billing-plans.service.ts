@@ -11,7 +11,13 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { BillingVolumeCapacityService } from './billing-access.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
 import { buildRateSnapshotFromPlan } from './billing-rate-snapshot.util';
+import {
+  billingPlansOverviewCountSql,
+  billingPlansOverviewListSql,
+  type BillingPlanOverviewSqlRow,
+} from './billing-plans-list.query';
 import { CreateBillingPlanDto } from './dto/create-billing-plan.dto';
+import { ListBillingPlansQueryDto } from './dto/list-billing-plans-query.dto';
 import { UpdateBillingPlanDto } from './dto/update-billing-plan.dto';
 
 const PLAN_SELECT = {
@@ -40,6 +46,31 @@ export class BillingPlansService {
     private readonly volumeCapacity: BillingVolumeCapacityService,
     private readonly invoiceCalc: BillingInvoiceCalculationService,
   ) {}
+
+  async listPage(user: AuthPrincipal, query: ListBillingPlansQueryDto) {
+    if (query.companyId) {
+      this.companyAccess.assertCompanyAccess(user, query.companyId);
+    }
+
+    const tenantCompanyIds =
+      user.tenantScope === 'restricted' ? user.authorizedCompanyIds : null;
+
+    const [countRows, items] = await Promise.all([
+      this.prisma.$queryRaw<{ total: number }[]>(
+        billingPlansOverviewCountSql(query, tenantCompanyIds),
+      ),
+      this.prisma.$queryRaw<BillingPlanOverviewSqlRow[]>(
+        billingPlansOverviewListSql(query, tenantCompanyIds),
+      ),
+    ]);
+
+    return {
+      items: items.map(mapOverviewSqlRow),
+      total: countRows[0]?.total ?? 0,
+      limit: query.limit,
+      offset: query.offset,
+    };
+  }
 
   list(user: AuthPrincipal, companyId?: string) {
     const where: Prisma.BillingPlanWhereInput = {};
@@ -164,4 +195,50 @@ export class BillingPlansService {
       allocationRatio: 0.9,
     };
   }
+}
+
+function mapOverviewSqlRow(row: BillingPlanOverviewSqlRow) {
+  const plan = {
+    id: row.plan_id,
+    companyId: row.company_id,
+    active: row.active,
+    cycleLengthDays: row.cycle_length_days,
+    fixedSubscriptionFee: row.fixed_subscription_fee.toString(),
+    inboundOrderFee: row.inbound_order_fee.toString(),
+    outboundOrderFee: row.outbound_order_fee.toString(),
+    packagingFee: row.packaging_fee.toString(),
+    qualityCheckFee: row.quality_check_fee.toString(),
+    excessVolumeFeePerDay: row.excess_volume_fee_per_day.toString(),
+    excessWeightFeePerDay: row.excess_weight_fee_per_day.toString(),
+    reservedVolume: row.reserved_volume.toString(),
+    reservedWeight: row.reserved_weight.toString(),
+    createdAt: row.plan_created_at.toISOString(),
+    updatedAt: row.plan_updated_at.toISOString(),
+  };
+
+  const currentCycle = row.cycle_id
+    ? {
+        id: row.cycle_id,
+        companyId: row.company_id,
+        billingPlanId: row.plan_id,
+        startsAt: row.cycle_starts_at!.toISOString(),
+        endsAt: row.cycle_ends_at!.toISOString(),
+        status: row.cycle_status as 'active' | 'renewed' | 'expired',
+        createdAt: row.cycle_created_at!.toISOString(),
+        updatedAt: row.cycle_updated_at!.toISOString(),
+      }
+    : null;
+
+  return {
+    plan,
+    companyId: row.company_id,
+    companyName: row.company_name,
+    companyStatus: row.company_status,
+    currentCycle,
+    cycleStart: currentCycle?.startsAt ?? null,
+    cycleEnd: currentCycle?.endsAt ?? null,
+    daysRemaining: row.days_remaining,
+    cycleStatus: row.cycle_display_status as 'active' | 'renewed' | 'expired' | 'none',
+    billingStatus: row.billing_status as 'operational' | 'restricted' | 'inactive',
+  };
 }
