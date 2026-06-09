@@ -1,0 +1,53 @@
+{
+  "generatedAt": "2026-06-09T01:25:58.898Z",
+  "steps": [
+    {
+      "step": "login",
+      "ok": true,
+      "detail": {
+        "email": "superadmin@emdad.example"
+      }
+    },
+    {
+      "step": "create_manual_backup",
+      "ok": "a2042c1b-6cf5-4e6a-b081-a3a17b9bd2b6",
+      "detail": {
+        "status": "pending",
+        "jobId": "a2042c1b-6cf5-4e6a-b081-a3a17b9bd2b6",
+        "storagePolicy": "local_only",
+        "createdAt": "2026-06-09T01:25:59.048Z"
+      }
+    },
+    {
+      "step": "backup_completed",
+      "ok": true,
+      "detail": {
+        "id": "a2042c1b-6cf5-4e6a-b081-a3a17b9bd2b6",
+        "status": "completed",
+        "progressPercent": 100,
+        "bytesWritten": 2259951,
+        "errorMessage": null,
+        "startedAt": "2026-06-09T01:25:59.054Z",
+        "completedAt": "2026-06-09T01:25:59.621Z"
+      }
+    },
+    {
+      "step": "issue_download_url",
+      "ok": true,
+      "detail": {
+        "status": 201,
+        "expiresInSec": 300
+      }
+    },
+    {
+      "step": "drive_status_checked",
+      "ok": true,
+      "detail": {
+        "connected": false,
+        "gdriveEnabled": true,
+        "note": "Drive sync verification requires connected Drive account"
+      }
+    }
+  ],
+  "allPass": true
+}

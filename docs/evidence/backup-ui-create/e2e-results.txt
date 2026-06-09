@@ -1,0 +1,14 @@
+BACKUP-UI-CREATE Playwright E2E — 2026-06-09
+Environment: http://127.0.0.1:5173 (Vite dev, API proxy → 127.0.0.1:3001)
+Command: BASE_URL=http://127.0.0.1:5173 npx playwright test e2e/backup-create-ui.spec.ts --workers=1
+
+8 passed (21.3s)
+
+ ✓ warmup application bundles
+ ✓ history page shows Create backup button and audit panel
+ ✓ create modal shows label and storage policy fields
+ ✓ successful create shows progress then success state
+ ✓ failed create shows failure state
+ ✓ manager can view history but not create backup (RBAC)
+ ✓ drive policy options reflect connection state
+ ✓ capture UI screenshots

@@ -301,6 +301,18 @@ export type BackupDriveSyncResult = {
   gdriveNextRetryAt: string | null;
 };
 
+export type CreateBackupInput = {
+  label?: string;
+  storagePolicy?: BackupStoragePolicyValue;
+};
+
+export type CreateBackupResult = {
+  jobId: string;
+  status: BackupJobStatus;
+  storagePolicy: BackupStoragePolicyValue;
+  createdAt: string;
+};
+
 export const BackupsApi = {
   list(params: ListBackupsParams = {}): Promise<PageResult<BackupSummary>> {
     return api
@@ -322,6 +334,10 @@ export const BackupsApi = {
     }
 
     return all;
+  },
+
+  create(body: CreateBackupInput = {}): Promise<CreateBackupResult> {
+    return api.post<CreateBackupResult>('/backups', body).then((r) => r.data);
   },
 
   getById(id: string): Promise<BackupDetail> {

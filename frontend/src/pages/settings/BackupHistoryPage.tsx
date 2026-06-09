@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 
 import {
@@ -7,10 +7,13 @@ import {
   type BackupDetail,
   type BackupJobStatus,
   type BackupSummary,
+  type CreateBackupInput,
   type ListBackupsParams,
 } from '../../api/backups';
 import { useAuth } from '../../auth/AuthContext';
+import { BackupAuditPanel } from '../../components/backups/BackupAuditPanel';
 import { BackupDetailModal } from '../../components/backups/BackupDetailModal';
+import { CreateBackupModal } from '../../components/backups/CreateBackupModal';
 import { Button } from '../../components/Button';
 import { Column, DataTable } from '../../components/DataTable';
 import { FilterPanel } from '../../components/FilterPanel';
@@ -18,6 +21,7 @@ import { SelectField } from '../../components/SelectField';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
+import { useBackupAdminAccess } from '../../hooks/useBackupAdminAccess';
 import { useBackupRunningStatusPoll } from '../../hooks/useBackupRunningStatusPoll';
 import { useFilters } from '../../hooks/useFilters';
 import {
@@ -46,9 +50,9 @@ type BackupHistoryFilters = {
 
 export function BackupHistoryPage() {
   const { user } = useAuth();
+  const { canRead, canMutate } = useBackupAdminAccess();
   const isSuperAdmin = user?.role === 'super_admin';
-  const canRead =
-    user?.role === 'super_admin' || user?.role === 'wh_manager';
+  const queryClient = useQueryClient();
 
   const { t } = useWmsTranslation();
   const typeOptions = useMemo(() => localizedBackupTypeFilterOptions(t), [t]);
@@ -59,6 +63,9 @@ export function BackupHistoryPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detailSeed, setDetailSeed] = useState<BackupSummary | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [activeCreateJobId, setActiveCreateJobId] = useState<string | null>(null);
+  const handledCreateTerminalRef = useRef<string | null>(null);
   const toast = useToast();
 
   const initialFilters = useMemo<BackupHistoryFilters>(
@@ -95,7 +102,62 @@ export function BackupHistoryPage() {
     queryFn: () => BackupsApi.list(listParams),
     enabled: canRead,
     staleTime: 15_000,
+    refetchInterval: activeCreateJobId ? 3_000 : false,
   });
+
+  const createStatusQuery = useQuery({
+    queryKey: QK.backups.status(activeCreateJobId ?? 'none'),
+    queryFn: () => BackupsApi.status(activeCreateJobId!),
+    enabled: !!activeCreateJobId,
+    refetchInterval: 2_000,
+    staleTime: 0,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (body: CreateBackupInput) => BackupsApi.create(body),
+    onSuccess: (result) => {
+      setCreateModalOpen(false);
+      handledCreateTerminalRef.current = null;
+      setActiveCreateJobId(result.jobId);
+      toast.success(t(['Backup started', 'بدأ النسخ الاحتياطي']));
+      void queryClient.invalidateQueries({ queryKey: QK.backups.all });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+
+  useEffect(() => {
+    const status = createStatusQuery.data?.status;
+    if (!activeCreateJobId || !status) return;
+    if (status !== 'completed' && status !== 'failed') return;
+    if (handledCreateTerminalRef.current === activeCreateJobId) return;
+    handledCreateTerminalRef.current = activeCreateJobId;
+
+    if (status === 'completed') {
+      toast.success(t(['Backup completed successfully', 'اكتمل النسخ الاحتياطي بنجاح']));
+      void queryClient.invalidateQueries({ queryKey: QK.backups.all });
+      void queryClient.invalidateQueries({ queryKey: QK.backups.auditRecent });
+      void queryClient.invalidateQueries({ queryKey: QK.backups.health });
+      const timer = window.setTimeout(() => setActiveCreateJobId(null), 4_000);
+      return () => window.clearTimeout(timer);
+    }
+
+    toast.error(
+      createStatusQuery.data?.errorMessage ??
+        t(['Backup failed', 'فشل النسخ الاحتياطي']),
+    );
+    void queryClient.invalidateQueries({ queryKey: QK.backups.all });
+    void queryClient.invalidateQueries({ queryKey: QK.backups.auditRecent });
+    return undefined;
+  }, [
+    activeCreateJobId,
+    createStatusQuery.data?.errorMessage,
+    createStatusQuery.data?.status,
+    queryClient,
+    t,
+    toast,
+  ]);
 
   const baseRows = listQuery.data?.items ?? [];
   const { mergedRows, isPolling } = useBackupRunningStatusPoll(baseRows);
@@ -228,6 +290,16 @@ export function BackupHistoryPage() {
 
   const detailRow: BackupDetail | null = detailQuery.data ?? (detailSeed as BackupDetail | null);
 
+  const createStatus = createStatusQuery.data;
+  const showCreateProgress =
+    !!activeCreateJobId &&
+    createStatus &&
+    (createStatus.status === 'pending' || createStatus.status === 'running');
+  const showCreateSuccess =
+    !!activeCreateJobId && createStatus?.status === 'completed';
+  const showCreateFailure =
+    !!activeCreateJobId && createStatus?.status === 'failed';
+
   return (
     <div className="space-y-4">
       <FilterPanel
@@ -260,6 +332,60 @@ export function BackupHistoryPage() {
         </div>
       </FilterPanel>
 
+      {showCreateProgress ? (
+        <div
+          className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900"
+          data-testid="create-backup-progress"
+          role="status"
+        >
+          <p className="font-medium">
+            {t(['Creating backup…', 'جارٍ إنشاء النسخة الاحتياطية…'])}{' '}
+            {createStatus.progressPercent}%
+          </p>
+          <p className="mt-1 text-xs text-sky-800">
+            {t(['Job ID:', 'معرّف المهمة:'])}{' '}
+            <code className="rounded bg-white/80 px-1 py-0.5">{activeCreateJobId}</code>
+          </p>
+        </div>
+      ) : null}
+
+      {showCreateSuccess ? (
+        <div
+          className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+          data-testid="create-backup-success"
+          role="status"
+        >
+          <p className="font-medium">
+            {t(['Backup completed successfully.', 'اكتمل النسخ الاحتياطي بنجاح.'])}
+          </p>
+          <p className="mt-1 text-xs">
+            {t(['History refreshed automatically.', 'تم تحديث السجل تلقائياً.'])}
+          </p>
+        </div>
+      ) : null}
+
+      {showCreateFailure ? (
+        <div
+          className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900"
+          data-testid="create-backup-failure"
+          role="alert"
+        >
+          <p className="font-medium">{t(['Backup failed.', 'فشل النسخ الاحتياطي.'])}</p>
+          {createStatus?.errorMessage ? (
+            <p className="mt-1 text-xs">{createStatus.errorMessage}</p>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="mt-2"
+            onClick={() => setActiveCreateJobId(null)}
+          >
+            {t(['Dismiss', 'إغلاق'])}
+          </Button>
+        </div>
+      ) : null}
+
       {isPolling ? (
         <p className="text-xs text-emerald-700">
           {t(['Live status polling active for running jobs.', 'تحديث مباشر لحالة المهام الجارية.'])}
@@ -272,6 +398,18 @@ export function BackupHistoryPage() {
           `${total} backup(s) — manual, scheduled, upload, and pre-snapshot only`,
           `${total} نسخة احتياطية — يدوي ومجدول ورفع ولقطة قبل العملية فقط`,
         ])}
+        actions={
+          canMutate ? (
+            <Button
+              type="button"
+              onClick={() => setCreateModalOpen(true)}
+              disabled={!!activeCreateJobId && showCreateProgress}
+              data-testid="create-backup-btn"
+            >
+              {t(['Create backup', 'إنشاء نسخة احتياطية'])}
+            </Button>
+          ) : null
+        }
         columns={columns}
         rows={mergedRows}
         rowKey={(row) => row.id}
@@ -305,6 +443,19 @@ export function BackupHistoryPage() {
           error: t(['Error', 'خطأ']),
         }}
       />
+
+      {canMutate ? (
+        <CreateBackupModal
+          open={createModalOpen}
+          loading={createMutation.isPending}
+          onClose={() => {
+            if (!createMutation.isPending) setCreateModalOpen(false);
+          }}
+          onSubmit={(body) => createMutation.mutate(body)}
+        />
+      ) : null}
+
+      {isSuperAdmin ? <BackupAuditPanel /> : null}
     </div>
   );
 }
