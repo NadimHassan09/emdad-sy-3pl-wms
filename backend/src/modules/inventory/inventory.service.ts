@@ -16,12 +16,29 @@ import { CompanyAccessService } from '../../common/company-access/company-access
 import { isAdjustmentStockLocationType } from '../../common/constants/storage-location-types';
 import { InsufficientStockException } from '../../common/errors/domain-exceptions';
 import { assertLocationUsableForInventoryMove } from '../../common/utils/location-operational';
+import { AuditLogService } from '../../common/audit/audit-log.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
+import { transferPayload } from '../realtime/realtime-ops.payload';
 import { InternalTransferDto } from './dto/internal-transfer.dto';
 import { LedgerEntryQueryDto } from './dto/ledger-entry-query.dto';
 import { LedgerQueryDto, StockQueryDto } from './dto/stock-query.dto';
 import { ledgerSignedQuantity } from './ledger-mapper';
 import { StockHelpers } from './stock.helpers';
+import {
+  buildStockByProductSqlContext,
+  stockByProductCountSql,
+  stockByProductPageSql,
+  type StockByProductRow,
+} from './stock-by-product.query';
+import {
+  buildLedgerListSqlContext,
+  ledgerBusinessGroupPageSql,
+  ledgerBusinessGroupsCountSql,
+  ledgerEntrySiblingRowsSql,
+  type LedgerEntrySiblingRow,
+  type LedgerGroupPageRow,
+} from './ledger-list.query';
 
 export interface AvailabilityResult {
   productId: string;
@@ -59,18 +76,6 @@ const BUSINESS_LEDGER_MOVEMENTS: MovementType[] = [
   MovementType.adjustment_negative,
 ];
 
-function expandMovementFilter(
-  movementType: LedgerQueryDto['movementType'] | undefined,
-): MovementType[] {
-  if (!movementType) return BUSINESS_LEDGER_MOVEMENTS;
-  if (movementType === 'inbound') return [MovementType.inbound_receive];
-  if (movementType === 'outbound') return [MovementType.outbound_pick];
-  if (movementType === 'adjustment') {
-    return [MovementType.adjustment_positive, MovementType.adjustment_negative];
-  }
-  return [movementType];
-}
-
 function toBusinessMovementType(movementType: MovementType): 'inbound' | 'outbound' | 'adjustment' {
   if (movementType === MovementType.inbound_receive) return 'inbound';
   if (movementType === MovementType.outbound_pick) return 'outbound';
@@ -98,6 +103,8 @@ export class InventoryService {
     private readonly prisma: PrismaService,
     private readonly stockHelpers: StockHelpers,
     private readonly companyAccess: CompanyAccessService,
+    private readonly audit: AuditLogService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /**
@@ -247,46 +254,36 @@ export class InventoryService {
 
   /**
    * Per-product totals (sum of on-hand across lots/locations) for the main inventory grid.
+   * Aggregation, sort, and pagination run in PostgreSQL (PERF-P2A).
    */
   async stockByProductSummary(user: AuthPrincipal, query: StockQueryDto) {
-    const where = await this.resolveCurrentStockWhere(user, query);
+    const ctx = await buildStockByProductSqlContext(
+      this.prisma,
+      this.companyAccess,
+      user,
+      query,
+    );
 
-    const grouped = await this.prisma.currentStock.groupBy({
-      by: ['productId'],
-      where,
-      _sum: { quantityOnHand: true },
-    });
+    const [countRows, pageRows] = await this.prisma.$transaction([
+      this.prisma.$queryRaw<Array<{ total: number }>>(stockByProductCountSql(ctx)),
+      this.prisma.$queryRaw<StockByProductRow[]>(
+        stockByProductPageSql(ctx, query.limit, query.offset),
+      ),
+    ]);
 
-    const productIds = grouped.map((g) => g.productId);
-    const products = await this.prisma.product.findMany({
-      where: { id: { in: productIds } },
-      include: { company: { select: { id: true, name: true } } },
-    });
-    const productMap = new Map(products.map((p) => [p.id, p]));
-
-    const rows = grouped
-      .map((g) => {
-        const p = productMap.get(g.productId);
-        if (!p) return null;
-        const sum = g._sum.quantityOnHand ?? new Prisma.Decimal(0);
-        return {
-          productId: g.productId,
-          totalQuantity: sum.toString(),
-          product: {
-            id: p.id,
-            sku: p.sku,
-            name: p.name,
-            uom: p.uom,
-            barcode: p.barcode,
-          },
-          client: { id: p.companyId, name: p.company.name },
-        };
-      })
-      .filter((r): r is NonNullable<typeof r> => r != null)
-      .sort((a, b) => a.product.name.localeCompare(b.product.name));
-
-    const total = rows.length;
-    const items = rows.slice(query.offset, query.offset + query.limit);
+    const total = countRows[0]?.total ?? 0;
+    const items = pageRows.map((r) => ({
+      productId: r.product_id,
+      totalQuantity: r.total_quantity,
+      product: {
+        id: r.product_id,
+        sku: r.sku,
+        name: r.name,
+        uom: r.uom,
+        barcode: r.barcode,
+      },
+      client: { id: r.company_id, name: r.company_name },
+    }));
 
     return { items, total, limit: query.limit, offset: query.offset };
   }
@@ -321,104 +318,92 @@ export class InventoryService {
   }
 
   /**
-   * Movement history. In Phase 2 this is routed to the read replica
-   * (final_blueprint.md §1.2) — the API contract stays the same.
+   * Movement history. Business movements are grouped, sorted, and paginated in PostgreSQL (PERF-P2C-B).
    */
   async ledger(user: AuthPrincipal, query: LedgerQueryDto) {
-    const andParts: Prisma.InventoryLedgerWhereInput[] = [];
-
-    const companyId = readCompanyIdFilterRequired(this.companyAccess, user, query.companyId);
-    andParts.push({ companyId });
-    if (query.productId) {
-      andParts.push({ productId: query.productId });
-    } else if (query.sku?.trim()) {
-      andParts.push({
-        product: { sku: { contains: query.sku.trim(), mode: 'insensitive' } },
-      });
-    } else if (query.productName?.trim()) {
-      andParts.push({
-        product: { name: { contains: query.productName.trim(), mode: 'insensitive' } },
-      });
-    } else if (query.productBarcode?.trim()) {
-      const b = query.productBarcode.trim();
-      andParts.push({
-        product: {
-          AND: [{ barcode: { not: null } }, { barcode: { contains: b, mode: 'insensitive' } }],
-        },
-      });
-    } else if (query.productSearch?.trim()) {
-      const q = query.productSearch.trim();
-      andParts.push({
-        product: {
-          OR: [
-            { name: { contains: q, mode: 'insensitive' } },
-            { sku: { contains: q, mode: 'insensitive' } },
-            {
-              AND: [{ barcode: { not: null } }, { barcode: { contains: q, mode: 'insensitive' } }],
-            },
-          ],
-        },
-      });
-    }
-    andParts.push({ movementType: { in: expandMovementFilter(query.movementType) } });
-    if (query.referenceType) andParts.push({ referenceType: query.referenceType });
-    if (query.referenceId) andParts.push({ referenceId: query.referenceId });
-
-    if (query.createdFrom || query.createdTo) {
-      const createdAt: Prisma.DateTimeFilter = {};
-      if (query.createdFrom) createdAt.gte = new Date(`${query.createdFrom}T00:00:00.000Z`);
-      if (query.createdTo) createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
-      andParts.push({ createdAt });
-    }
-
-    if (query.warehouseId) {
-      const warehouseLocs = await this.prisma.location.findMany({
-        where: { warehouseId: query.warehouseId, status: 'active' },
-        select: { id: true },
-      });
-      const locList = warehouseLocs.map((l) => l.id);
-      const whPiece: Prisma.InventoryLedgerWhereInput =
-        locList.length === 0
-          ? { fromLocationId: { in: [] } }
-          : {
-              OR: [
-                { fromLocationId: { in: locList } },
-                { toLocationId: { in: locList } },
-              ],
-            };
-      andParts.push(whPiece);
-    }
-
-    const where =
-      andParts.length === 0 ? {} : andParts.length === 1 ? andParts[0]! : { AND: andParts };
-
-    const [rows, totalRows] = await this.prisma.$transaction([
-      this.prisma.inventoryLedger.findMany({
-        where,
-        include: LEDGER_ROW_INCLUDE,
-        orderBy: { createdAt: 'asc' },
-        take: Math.max(query.limit * 5, query.limit),
-        skip: query.offset,
-      }),
-      this.prisma.inventoryLedger.count({ where }),
-    ]);
-    const grouped = new Map<string, LedgerRowWithRelations[]>();
-    for (const row of rows) {
-      const k = businessGroupKey(row);
-      const cur = grouped.get(k) ?? [];
-      cur.push(row);
-      grouped.set(k, cur);
-    }
-    const totalsCache = new Map<string, Prisma.Decimal>();
-    const groupedRows = [...grouped.values()];
-    const groupedItems = await Promise.all(
-      groupedRows.map((group) => this.formatBusinessMovementGroup(group, totalsCache)),
+    const ctx = await buildLedgerListSqlContext(
+      this.prisma,
+      this.companyAccess,
+      user,
+      query,
     );
-    const items = groupedItems
-      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
-      .slice(0, query.limit);
 
-    return { items, total: totalRows, limit: query.limit, offset: query.offset };
+    const [countRows, pageRows] = await this.prisma.$transaction([
+      this.prisma.$queryRaw<Array<{ total: number }>>(ledgerBusinessGroupsCountSql(ctx)),
+      this.prisma.$queryRaw<LedgerGroupPageRow[]>(
+        ledgerBusinessGroupPageSql(ctx, query.limit, query.offset),
+      ),
+    ]);
+
+    const total = countRows[0]?.total ?? 0;
+    const items = pageRows.map((row) => this.mapLedgerGroupPageRow(row));
+
+    return { items, total, limit: query.limit, offset: query.offset };
+  }
+
+  private mapLedgerEntrySiblingRow(row: LedgerEntrySiblingRow): LedgerRowWithRelations {
+    return {
+      id: row.id,
+      createdAt: row.created_at,
+      companyId: row.company_id,
+      productId: row.product_id,
+      lotId: row.lot_id,
+      packageId: null,
+      fromLocationId: row.from_location_id,
+      toLocationId: row.to_location_id,
+      movementType: row.movement_type,
+      quantity: new Prisma.Decimal(row.quantity),
+      quantityBefore:
+        row.quantity_before != null ? new Prisma.Decimal(row.quantity_before) : null,
+      quantityAfter:
+        row.quantity_after != null ? new Prisma.Decimal(row.quantity_after) : null,
+      referenceType: row.reference_type as LedgerRowWithRelations['referenceType'],
+      referenceId: row.reference_id,
+      operatorId: row.operator_id,
+      idempotencyKey: row.idempotency_key,
+      notes: row.notes,
+      company: { id: row.company_id, name: row.company_name },
+      product: { id: row.product_id, sku: row.product_sku, name: row.product_name },
+      lot: row.lot_id ? { id: row.lot_id, lotNumber: row.lot_number ?? '' } : null,
+      operator: { id: row.operator_id, fullName: row.operator_full_name },
+    };
+  }
+
+  private mapLedgerGroupPageRow(row: LedgerGroupPageRow) {
+    const signedDelta = Number(row.signed_delta);
+    const movementType = toBusinessMovementType(row.movement_type);
+    const locCount = row.loc_count;
+    return {
+      id: row.id,
+      createdAt: row.created_at,
+      companyId: row.company_id,
+      productId: row.product_id,
+      lotId: row.lot_id,
+      idempotencyKey: row.idempotency_key,
+      company: { id: row.company_id, name: row.company_name },
+      product: { id: row.product_id, sku: row.product_sku, name: row.product_name },
+      lot: row.lot_id ? { id: row.lot_id, lotNumber: row.lot_number ?? '' } : null,
+      operator: { id: row.operator_id, fullName: row.operator_full_name },
+      movementType,
+      referenceType: row.reference_type,
+      referenceId: row.reference_id,
+      quantity: new Prisma.Decimal(Math.abs(signedDelta)).toString(),
+      quantityChange: signedDelta.toString(),
+      quantityBefore:
+        row.quantity_before != null ? new Prisma.Decimal(row.quantity_before).toString() : null,
+      quantityAfter:
+        row.quantity_after != null ? new Prisma.Decimal(row.quantity_after).toString() : null,
+      fromLocationId: null as string | null,
+      toLocationId: null as string | null,
+      locationId: null as string | null,
+      locationLabel:
+        locCount > 1
+          ? `${locCount} affected locations`
+          : locCount === 1
+            ? '1 affected location'
+            : null,
+      notes: row.notes,
+    };
   }
 
   /**
@@ -441,31 +426,17 @@ export class InventoryService {
     this.companyAccess.validateResourceOwnership(user, head);
 
     const groupKey = businessGroupKey(head);
-    const rows = await this.prisma.inventoryLedger.findMany({
-      where: {
+    const siblingRows = await this.prisma.$queryRaw<LedgerEntrySiblingRow[]>(
+      ledgerEntrySiblingRowsSql({
         companyId: head.companyId,
         referenceType: head.referenceType,
         referenceId: head.referenceId,
         productId: head.productId,
-        movementType: { in: BUSINESS_LEDGER_MOVEMENTS },
-      },
-      include: LEDGER_ROW_INCLUDE,
-      orderBy: { createdAt: 'asc' },
-    });
-    let scopedRows = rows.filter((row) => businessGroupKey(row) === groupKey);
-
-    if (query.warehouseId) {
-      const warehouseLocs = await this.prisma.location.findMany({
-        where: { warehouseId: query.warehouseId, status: 'active' },
-        select: { id: true },
-      });
-      const locSet = new Set(warehouseLocs.map((l) => l.id));
-      scopedRows = scopedRows.filter(
-        (r) =>
-          (r.fromLocationId != null && locSet.has(r.fromLocationId)) ||
-          (r.toLocationId != null && locSet.has(r.toLocationId)),
-      );
-    }
+        groupKey,
+        warehouseId: query.warehouseId,
+      }),
+    );
+    const scopedRows = siblingRows.map((row) => this.mapLedgerEntrySiblingRow(row));
 
     if (scopedRows.length === 0) {
       throw new NotFoundException('Ledger entry not found in this warehouse.');
@@ -582,89 +553,6 @@ export class InventoryService {
     };
   }
 
-  private async productTotalAfterAt(
-    companyId: string,
-    productId: string,
-    at: Date,
-    cache: Map<string, Prisma.Decimal>,
-  ): Promise<Prisma.Decimal> {
-    const key = `${companyId}:${productId}:${at.toISOString()}`;
-    const hit = cache.get(key);
-    if (hit) return hit;
-    const rows = await this.prisma.inventoryLedger.findMany({
-      where: {
-        companyId,
-        productId,
-        movementType: { in: BUSINESS_LEDGER_MOVEMENTS },
-        createdAt: { lte: at },
-      },
-      select: { movementType: true, quantity: true },
-    });
-    const total = rows.reduce(
-      (acc, row) => acc.plus(new Prisma.Decimal(ledgerSignedQuantity(row.movementType, row.quantity))),
-      new Prisma.Decimal(0),
-    );
-    cache.set(key, total);
-    return total;
-  }
-
-  private async formatBusinessMovementGroup(
-    group: LedgerRowWithRelations[],
-    totalsCache: Map<string, Prisma.Decimal>,
-  ) {
-    const ordered = [...group].sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
-    const first = ordered[0]!;
-    const last = ordered[ordered.length - 1]!;
-    const signedDelta = ordered.reduce((sum, row) => {
-      const v = Number(ledgerSignedQuantity(row.movementType, row.quantity));
-      return sum + (Number.isFinite(v) ? v : 0);
-    }, 0);
-    const afterTotal = await this.productTotalAfterAt(
-      first.companyId,
-      first.productId,
-      last.createdAt,
-      totalsCache,
-    );
-    const beforeTotal = afterTotal.minus(new Prisma.Decimal(signedDelta));
-    const before = beforeTotal.toString();
-    const after = afterTotal.toString();
-    const locationIds = new Set<string>();
-    for (const row of ordered) {
-      if (row.fromLocationId) locationIds.add(row.fromLocationId);
-      if (row.toLocationId) locationIds.add(row.toLocationId);
-    }
-    const movementType = toBusinessMovementType(first.movementType);
-    return {
-      id: first.id,
-      createdAt: first.createdAt,
-      companyId: first.companyId,
-      productId: first.productId,
-      lotId: first.lotId,
-      idempotencyKey: first.idempotencyKey,
-      company: first.company,
-      product: first.product,
-      lot: first.lot,
-      operator: first.operator,
-      movementType,
-      referenceType: first.referenceType,
-      referenceId: first.referenceId,
-      quantity: new Prisma.Decimal(Math.abs(signedDelta)).toString(),
-      quantityChange: signedDelta.toString(),
-      quantityBefore: before,
-      quantityAfter: after,
-      fromLocationId: null as string | null,
-      toLocationId: null as string | null,
-      locationId: null as string | null,
-      locationLabel:
-        locationIds.size > 1
-          ? `${locationIds.size} affected locations`
-          : locationIds.size === 1
-            ? '1 affected location'
-            : null,
-      notes: first.notes,
-    };
-  }
-
   /**
    * Move stock between two storage-class locations in the same warehouse.
    * Source and destination types must be `internal` (storage), `fridge`, `quarantine`, or `scrap`.
@@ -678,7 +566,7 @@ export class InventoryService {
     }
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         const product = await tx.product.findUnique({
           where: { id: dto.productId },
           select: { id: true, companyId: true, trackingType: true },
@@ -769,11 +657,50 @@ export class InventoryService {
         });
 
         const locMap = await this.buildLedgerLocationMap([ledgerRow]);
+        await this.audit.logTx(
+          tx,
+          this.audit.fromPrincipal(user, {
+            action: 'INVENTORY_TRANSFERRED',
+            resourceType: 'inventory_transfer',
+            resourceId: referenceId,
+            companyId,
+            newState: {
+              productId: dto.productId,
+              fromLocationId: dto.fromLocationId,
+              toLocationId: dto.toLocationId,
+              lotId,
+              quantity: qty.toString(),
+              warehouseId: toLoc.warehouseId,
+            },
+          }),
+        );
         return {
           referenceId,
           ledger: this.formatLedgerRow(ledgerRow, locMap),
+          companyId,
+          warehouseId: toLoc.warehouseId,
+          productId: dto.productId,
+          fromLocationId: dto.fromLocationId,
+          toLocationId: dto.toLocationId,
+          lotId,
+          quantity: qty.toString(),
         };
       });
+
+      this.realtime.emitTransferCreated(
+        result.companyId,
+        transferPayload({ ...result, status: 'pending' }),
+      );
+      this.realtime.emitTransferCompleted(
+        result.companyId,
+        transferPayload({ ...result, status: 'completed', ledger: result.ledger as Record<string, unknown> }),
+      );
+      this.realtime.emitInventoryChanged(result.companyId, {
+        source: 'internal_transfer',
+        productId: result.productId,
+      });
+
+      return { referenceId: result.referenceId, ledger: result.ledger };
     } catch (e) {
       if (e instanceof InsufficientStockException) {
         throw new BadRequestException(

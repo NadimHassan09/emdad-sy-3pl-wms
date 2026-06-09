@@ -1,0 +1,6 @@
+PERF-P2B Implementation Benchmark 2026-06-09T01:20:50.038Z
+Samples per scenario: 30
+
+PASS audit_limit_100: p95=54.1ms (target<200) baseline=589.3ms payload=67041B reduction=38.4%
+PASS warehouse_limit_100: p95=38.3ms (target<300) baseline=n/ams payload=67041B reduction=n/a%
+PASS warehouse_limit_500: p95=24.6ms (target<300) baseline=1298.9ms payload=67041B reduction=87.2%
