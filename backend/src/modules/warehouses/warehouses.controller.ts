@@ -1,5 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 
+import { CurrentUser } from '../../common/auth/current-user.decorator';
+import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
@@ -14,8 +16,8 @@ export class WarehousesController {
 
   @Post()
   @UseGuards(InternalAdminGuard)
-  create(@Body() dto: CreateWarehouseDto) {
-    return this.warehouses.create(dto);
+  create(@CurrentUser() user: AuthPrincipal, @Body() dto: CreateWarehouseDto) {
+    return this.warehouses.create(user, dto);
   }
 
   @Get()
@@ -30,14 +32,18 @@ export class WarehousesController {
 
   @Patch(':id')
   @UseGuards(InternalAdminGuard)
-  update(@Param('id', ParseUuidLoosePipe) id: string, @Body() dto: UpdateWarehouseDto) {
-    return this.warehouses.update(id, dto);
+  update(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: UpdateWarehouseDto,
+  ) {
+    return this.warehouses.update(user, id, dto);
   }
 
   @Delete(':id')
   @UseGuards(InternalAdminGuard)
-  remove(@Param('id', ParseUuidLoosePipe) id: string) {
-    return this.warehouses.softDelete(id);
+  remove(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.warehouses.softDelete(user, id);
   }
 
   @Get(':id')
@@ -48,9 +54,10 @@ export class WarehousesController {
   @Patch(':id/status')
   @UseGuards(InternalAdminGuard)
   setStatus(
+    @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
     @Body() dto: UpdateWarehouseStatusDto,
   ) {
-    return this.warehouses.setStatus(id, dto.status);
+    return this.warehouses.setStatus(user, id, dto.status);
   }
 }

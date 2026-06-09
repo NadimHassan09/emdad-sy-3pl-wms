@@ -96,11 +96,15 @@ function sidebarLabel(label: string, isArabic: boolean): string {
 
     Locations: 'المواقع التخزينية',
 
+    Warehouses: 'المستودعات',
+
     Customers: 'العملاء',
 
     Users: 'المستخدمون',
 
     'Audit logs': 'سجل التدقيق',
+
+    Settings: 'الإعدادات',
 
     'Sign out': 'تسجيل الخروج',
 
@@ -237,6 +241,7 @@ export function Layout() {
 
 
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [topbarPanel, setTopbarPanel] = useState<'notifications' | 'user' | null>(null);
 
   const { language, setLanguage, isArabic, isSwitching } = useUiLanguage({
     storageKey: 'wms-ui-language',
@@ -436,6 +441,8 @@ export function Layout() {
                       formatTime={formatNotificationTime}
                       onMarkAllRead={() => void notifications.markAllRead()}
                       onItemClick={(item) => void onNotificationClick(item)}
+                      open={topbarPanel === 'notifications'}
+                      onOpenChange={(next) => setTopbarPanel(next ? 'notifications' : null)}
                     />
                     <TopbarUserMenu
                       name={displayName(user)}
@@ -446,6 +453,8 @@ export function Layout() {
                       onSignOut={() => void handleLogout()}
                       signOutLabel={t('Sign out')}
                       languageLabel={isArabic ? 'اللغة' : 'Language'}
+                      open={topbarPanel === 'user'}
+                      onOpenChange={(next) => setTopbarPanel(next ? 'user' : null)}
                     />
                   </>
                 )}

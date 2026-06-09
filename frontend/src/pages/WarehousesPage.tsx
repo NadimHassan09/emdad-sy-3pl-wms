@@ -8,28 +8,75 @@ import {
   WarehouseStatus,
   WarehousesApi,
 } from '../api/warehouses';
+import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/Button';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
+import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
+import { useFilters } from '../hooks/useFilters';
 import { COUNTRIES, OTHER_COUNTRY } from '../lib/geography';
+import { AppPageHeader } from '@ds';
+
+type StatusFilter = '' | WarehouseStatus;
+
+type ListFilters = {
+  search: string;
+  status: StatusFilter;
+  includeInactive: boolean;
+};
+
+const INITIAL_FILTERS: ListFilters = {
+  search: '',
+  status: '',
+  includeInactive: false,
+};
+
+function filterWarehouses(rows: Warehouse[], filters: ListFilters): Warehouse[] {
+  const q = filters.search.trim().toLowerCase();
+  return rows.filter((w) => {
+    if (filters.status && w.status !== filters.status) return false;
+    if (!q) return true;
+    return (
+      w.code.toLowerCase().includes(q) ||
+      w.name.toLowerCase().includes(q) ||
+      (w.city?.toLowerCase().includes(q) ?? false) ||
+      w.country.toLowerCase().includes(q)
+    );
+  });
+}
 
 export function WarehousesPage() {
   const qc = useQueryClient();
   const toast = useToast();
+  const { user } = useAuth();
+  const canMutate = user?.role === 'super_admin' || user?.role === 'wh_manager';
+
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
+    useFilters<ListFilters>(INITIAL_FILTERS);
+
   const [openCreate, setOpenCreate] = useState(false);
   const [editWh, setEditWh] = useState<Warehouse | null>(null);
-  const [showInactive, setShowInactive] = useState(false);
+  const [deactivateWh, setDeactivateWh] = useState<Warehouse | null>(null);
 
-  const listKey = useMemo(() => [...QK.warehouses, showInactive] as const, [showInactive]);
+  const listKey = useMemo(
+    () => [...QK.warehouses, appliedFilters.includeInactive] as const,
+    [appliedFilters.includeInactive],
+  );
 
   const list = useQuery({
     queryKey: listKey,
-    queryFn: () => WarehousesApi.list(showInactive),
+    queryFn: () => WarehousesApi.list(appliedFilters.includeInactive),
   });
+
+  const filteredRows = useMemo(
+    () => filterWarehouses(list.data ?? [], appliedFilters),
+    [list.data, appliedFilters],
+  );
 
   const createMut = useMutation({
     mutationFn: WarehousesApi.create,
@@ -62,6 +109,16 @@ export function WarehousesPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const deactivateMut = useMutation({
+    mutationFn: (id: string) => WarehousesApi.deactivate(id),
+    onSuccess: (wh) => {
+      toast.success(`Warehouse ${wh.code} deactivated.`);
+      qc.invalidateQueries({ queryKey: QK.warehouses });
+      setDeactivateWh(null);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const columns: Column<Warehouse>[] = [
     { header: 'Code', accessor: (w) => <span className="font-mono">{w.code}</span>, width: '120px' },
     { header: 'Name', accessor: (w) => w.name },
@@ -82,47 +139,86 @@ export function WarehousesPage() {
     },
     {
       header: 'Actions',
-      accessor: (w) => (
-        <div className="flex flex-wrap gap-1">
-          <Button size="sm" variant="secondary" onClick={() => setEditWh(w)}>
-            Edit
-          </Button>
-          {w.status !== 'active' && (
-            <Button
-              size="sm"
-              variant="primary"
-              loading={statusMut.isPending && statusMut.variables?.id === w.id}
-              onClick={() => statusMut.mutate({ id: w.id, status: 'active' })}
-            >
-              Activate
+      accessor: (w) =>
+        canMutate ? (
+          <div className="flex flex-wrap gap-1">
+            <Button size="sm" variant="secondary" onClick={() => setEditWh(w)}>
+              Edit
             </Button>
-          )}
-        </div>
-      ),
-      width: '220px',
+            {w.status === 'active' ? (
+              <Button size="sm" variant="secondary" onClick={() => setDeactivateWh(w)}>
+                Deactivate
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="primary"
+                loading={statusMut.isPending && statusMut.variables?.id === w.id}
+                onClick={() => statusMut.mutate({ id: w.id, status: 'active' })}
+              >
+                Activate
+              </Button>
+            )}
+          </div>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
+      width: '260px',
     },
   ];
 
   return (
-    <>
-      <label className="mb-3 flex items-center gap-2 text-sm text-slate-700">
-        <input
-          type="checkbox"
-          checked={showInactive}
-          onChange={(e) => setShowInactive(e.target.checked)}
+    <div className="space-y-4">
+      <AppPageHeader
+        title="Warehouses"
+        description="Physical warehouse sites used for inventory, locations, and order workflows."
+      />
+
+      <FilterPanel
+        title="Warehouse filters"
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={list.isFetching}
+      >
+        <TextField
+          label="Search"
+          value={draftFilters.search}
+          onChange={(e) => setDraft({ search: e.target.value })}
+          placeholder="Code, name, city, or country"
         />
-        Show inactive warehouses
-      </label>
+        <SelectField
+          label="Status"
+          value={draftFilters.status}
+          onChange={(e) => setDraft({ status: e.target.value as StatusFilter })}
+          options={[
+            { value: '', label: 'All statuses' },
+            { value: 'active', label: 'Active' },
+            { value: 'inactive', label: 'Inactive' },
+          ]}
+        />
+        <label className="flex items-center gap-2 self-end pb-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={draftFilters.includeInactive}
+            onChange={(e) => setDraft({ includeInactive: e.target.checked })}
+          />
+          Include inactive in API fetch
+        </label>
+      </FilterPanel>
 
       <DataTable
-        title="Warehouses"
-        description="Physical sites. Operators can Activate inactive warehouses from this list."
-        actions={<Button onClick={() => setOpenCreate(true)}>+ New warehouse</Button>}
+        title="Warehouse sites"
+        description="Operators can activate or deactivate warehouses. Deactivation requires all locations to be archived."
+        actions={
+          canMutate ? (
+            <Button onClick={() => setOpenCreate(true)}>+ New warehouse</Button>
+          ) : undefined
+        }
         columns={columns}
-        rows={list.data ?? []}
+        rows={filteredRows}
         rowKey={(w) => w.id}
         loading={list.isLoading}
-        empty="No warehouses yet."
+        empty="No warehouses match your filters."
       />
 
       <CreateWarehouseModal
@@ -139,7 +235,24 @@ export function WarehousesPage() {
         onClose={() => setEditWh(null)}
         onSubmit={(input) => editWh && updateMut.mutate({ id: editWh.id, input })}
       />
-    </>
+
+      <ConfirmModal
+        open={!!deactivateWh}
+        title="Deactivate warehouse"
+        confirmLabel="Deactivate"
+        danger
+        loading={deactivateMut.isPending}
+        onClose={() => !deactivateMut.isPending && setDeactivateWh(null)}
+        onConfirm={() => deactivateWh && deactivateMut.mutate(deactivateWh.id)}
+      >
+        {deactivateWh ? (
+          <p className="text-sm text-slate-600">
+            Deactivate <span className="font-mono font-semibold">{deactivateWh.code}</span> —{' '}
+            {deactivateWh.name}? This warehouse will no longer appear in default operational lists.
+          </p>
+        ) : null}
+      </ConfirmModal>
+    </div>
   );
 }
 

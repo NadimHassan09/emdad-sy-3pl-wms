@@ -9,6 +9,7 @@ export const ADMIN_NAV_ICONS: Record<string, string> = {
   Tasks: 'fa-solid fa-list-check',
   Products: 'fa-solid fa-box-open',
   Locations: 'fa-solid fa-location-dot',
+  Warehouses: 'fa-solid fa-warehouse',
   Reports: 'fa-solid fa-chart-simple',
   Customers: 'fa-solid fa-users',
     Users: 'fa-solid fa-user-gear',
