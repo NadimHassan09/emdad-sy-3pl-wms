@@ -1,4 +1,10 @@
 import { apiClient } from './apiClient';
+import type { ClientInvoice } from './clientBillingService';
+
+export type ClientDashboardRecentInvoice = Pick<
+  ClientInvoice,
+  'id' | 'invoiceNumber' | 'status' | 'totalAmount' | 'issuedAt' | 'createdAt'
+>;
 
 export type ClientDashboardOverview = {
   productsCount: number;
@@ -18,6 +24,7 @@ export type ClientDashboardOverview = {
     currentInvoiceAmount: string | null;
     accountStatus: 'active' | 'expiring' | 'restricted';
   } | null;
+  recentInvoices: ClientDashboardRecentInvoice[];
 };
 
 export async function fetchClientDashboardOverview(): Promise<ClientDashboardOverview> {

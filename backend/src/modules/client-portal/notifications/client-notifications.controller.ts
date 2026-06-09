@@ -14,9 +14,17 @@ export class ClientNotificationsController {
   constructor(private readonly notifications: ClientNotificationsService) {}
 
   @Get()
-  list(@ClientUser() client: ClientPrincipal, @Query('limit') limit?: string) {
-    const n = limit ? Number(limit) : 50;
-    return this.notifications.list(client, Number.isFinite(n) ? n : 50);
+  list(
+    @ClientUser() client: ClientPrincipal,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const parsedLimit = limit != null ? Number(limit) : undefined;
+    const parsedOffset = offset != null ? Number(offset) : undefined;
+    return this.notifications.list(client, {
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+      offset: Number.isFinite(parsedOffset) ? parsedOffset : undefined,
+    });
   }
 
   @Patch(':id/read')

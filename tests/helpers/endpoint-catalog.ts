@@ -89,6 +89,9 @@ export const CLIENT_ENDPOINTS: EndpointDef[] = [
   { controller: 'client/inbound-orders', method: 'GET', path: '/client/inbound-orders', auth: 'client' },
   { controller: 'client/outbound-orders', method: 'GET', path: '/client/outbound-orders', auth: 'client' },
   { controller: 'client/notifications', method: 'GET', path: '/client/notifications', auth: 'client' },
+  { controller: 'client/dashboard', method: 'GET', path: '/client/dashboard/overview', auth: 'client' },
+  { controller: 'client/billing', method: 'GET', path: '/client/billing/summary', auth: 'client' },
+  { controller: 'client/billing', method: 'GET', path: '/client/billing/invoices', auth: 'client' },
 ];
 
 export const CONTROLLER_NAMES = [
@@ -97,4 +100,5 @@ export const CONTROLLER_NAMES = [
   'notifications', 'adjustments', 'audit-logs', 'cycle-count', 'cycle-count/variances',
   'cycle-count/execution', 'return-orders', 'ops', 'client/auth', 'client/products',
   'client/stock', 'client/inbound-orders', 'client/outbound-orders', 'client/notifications',
+  'client/dashboard', 'client/billing',
 ] as const;

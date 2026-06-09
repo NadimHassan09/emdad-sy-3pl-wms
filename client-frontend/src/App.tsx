@@ -33,6 +33,7 @@ const StockPage             = lazyPage(() => import('./pages/StockPage'),       
 const DashboardPage         = lazyPage(() => import('./pages/DashboardPage'),         'DashboardPage');
 const BillingPage           = lazyPage(() => import('./pages/BillingPage'),           'BillingPage');
 const BillingInvoiceDetailPage = lazyPage(() => import('./pages/BillingInvoiceDetailPage'), 'BillingInvoiceDetailPage');
+const NotificationsPage       = lazyPage(() => import('./pages/NotificationsPage'),       'NotificationsPage');
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -124,6 +125,14 @@ function AppRoutes(): ReactElement {
               element={
                 <RequireRouteAccess>
                   <BillingInvoiceDetailPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="notifications"
+              element={
+                <RequireRouteAccess>
+                  <NotificationsPage />
                 </RequireRouteAccess>
               }
             />

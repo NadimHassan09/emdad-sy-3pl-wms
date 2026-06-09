@@ -2,7 +2,9 @@ import type { ReactElement, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
-import { Alert } from '@ds';
+import { Alert, EmptyState } from '@ds';
+
+import { ClientRecentInvoicesCard } from '../components/ClientRecentInvoicesCard';
 import { useAuth } from '../auth/AuthContext';
 import { formatDecimal } from '../lib/billing-display';
 import { isClientArabic } from '../lib/client-ui-language';
@@ -25,6 +27,7 @@ function dashboardLabel(label: string, isArabic: boolean): string {
     Role: 'الدور',
     Company: 'الشركة',
     'Storage Utilization': 'استخدام التخزين',
+    'Stock Volume': 'حجم المخزون',
     'Reserved Volume': 'الحجم المحجوز',
     'Reserved Weight': 'الوزن المحجوز',
     'Products Count': 'عدد المنتجات',
@@ -34,6 +37,16 @@ function dashboardLabel(label: string, isArabic: boolean): string {
     'Expiring Products': 'منتجات تنتهي صلاحيتها',
     'Days Until Billing Expiration': 'أيام حتى انتهاء الفوترة',
     'Current Invoice Amount': 'مبلغ الفاتورة الحالية',
+    'Recent invoices': 'الفواتير الأخيرة',
+    'View all invoices': 'عرض كل الفواتير',
+    'No recent invoices': 'لا توجد فواتير حديثة',
+    'Invoices appear here after your billing cycle closes.':
+      'تظهر الفواتير هنا بعد إغلاق دورة الفوترة.',
+    'Loading…': 'جاري التحميل…',
+    'Get started with your portal': 'ابدأ باستخدام البوابة',
+    'Create an inbound order or add products to see activity here.':
+      'أنشئ طلب وارد أو أضف منتجات لرؤية النشاط هنا.',
+    'New inbound order': 'طلب وارد جديد',
     CBM: 'م³',
     kg: 'كغ',
     'Could not load dashboard': 'تعذر تحميل لوحة التحكم',
@@ -103,12 +116,20 @@ export function DashboardPage(): ReactElement {
 
   const utilization = data?.storage.utilizationPercent;
   const usedVolume = data ? formatDecimal(data.storage.usedVolumeCbm, 2) : '—';
+  const usedWeight = data ? formatDecimal(data.storage.usedWeightKg, 2) : '—';
   const reservedVolume = data?.storage.reservedVolumeCbm
     ? formatDecimal(data.storage.reservedVolumeCbm, 2)
     : '—';
   const reservedWeight = data?.storage.reservedWeightKg
     ? formatDecimal(data.storage.reservedWeightKg, 2)
     : '—';
+
+  const isEmptyDashboard =
+    !overview.isPending &&
+    data != null &&
+    data.activeOrders === 0 &&
+    data.productsCount === 0 &&
+    Number(data.storage.usedVolumeCbm) === 0;
 
   return (
     <div className="space-y-4">
@@ -187,6 +208,13 @@ export function DashboardPage(): ReactElement {
             iconClass="fa-solid fa-chart-pie"
           />
           <StatWidget
+            title={t('Stock Volume')}
+            value={overview.isPending ? '…' : `${usedVolume} ${t('CBM')}`}
+            hint={`${usedWeight} ${t('kg')}`}
+            to="/stock"
+            iconClass="fa-solid fa-warehouse"
+          />
+          <StatWidget
             title={t('Reserved Volume')}
             value={reservedVolume === '—' ? '—' : `${reservedVolume} ${t('CBM')}`}
             iconClass="fa-solid fa-cube"
@@ -199,7 +227,7 @@ export function DashboardPage(): ReactElement {
           <StatWidget
             title={t('Products Count')}
             value={overview.isPending ? '…' : (data?.productsCount ?? 0).toLocaleString()}
-            to={showBilling ? '/products' : undefined}
+            to={showBilling ? '/products' : '/stock'}
             iconClass="fa-solid fa-boxes-stacked"
           />
           <StatWidget
@@ -237,6 +265,7 @@ export function DashboardPage(): ReactElement {
                       ? `${Math.max(0, data.billing.daysUntilExpiration)} ${t('days')}`
                       : '—'
                 }
+                hint={data?.billing == null ? t('No billing plan') : undefined}
                 to="/billing"
                 iconClass="fa-solid fa-calendar-days"
               />
@@ -256,6 +285,29 @@ export function DashboardPage(): ReactElement {
           ) : null}
         </section>
       </div>
+
+      {showBilling ? (
+        <ClientRecentInvoicesCard
+          rows={data?.recentInvoices ?? []}
+          loading={overview.isPending}
+          translateLabel={t}
+        />
+      ) : null}
+
+      {isEmptyDashboard ? (
+        <section className="card">
+          <EmptyState
+            icon={<i className="fa-solid fa-truck-ramp-box text-2xl" aria-hidden="true" />}
+            title={t('Get started with your portal')}
+            description={t('Create an inbound order or add products to see activity here.')}
+            action={
+              <Link to="/inbound-orders" className="btn btn--primary">
+                {t('New inbound order')}
+              </Link>
+            }
+          />
+        </section>
+      ) : null}
     </div>
   );
 }

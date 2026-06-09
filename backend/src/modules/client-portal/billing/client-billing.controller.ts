@@ -26,13 +26,15 @@ export class ClientBillingController {
     @ClientUser() client: ClientPrincipal,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Query('status') status?: string,
   ) {
     const parsedLimit = limit != null ? Number(limit) : undefined;
     const parsedOffset = offset != null ? Number(offset) : undefined;
-    if (parsedLimit != null || parsedOffset != null) {
+    if (parsedLimit != null || parsedOffset != null || status) {
       return this.billing.listInvoicesPage(client, {
         limit: Number.isFinite(parsedLimit) ? parsedLimit! : 50,
         offset: Number.isFinite(parsedOffset) ? parsedOffset! : 0,
+        status,
       });
     }
     return this.billing.listInvoices(client);

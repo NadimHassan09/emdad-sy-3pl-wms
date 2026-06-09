@@ -15,13 +15,16 @@ export interface ClientNotification {
 export interface ClientNotificationsResponse {
   items: ClientNotification[];
   unreadCount: number;
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export async function fetchClientNotifications(
-  limit = 50,
+  params: { limit?: number; offset?: number } = {},
 ): Promise<ClientNotificationsResponse> {
   const { data } = await apiClient.get<ClientNotificationsResponse>('/notifications', {
-    params: { limit },
+    params: { limit: params.limit ?? 50, offset: params.offset ?? 0 },
   });
   return data;
 }
@@ -42,6 +45,12 @@ export function clientNotificationHref(notification: ClientNotification): string
   }
   if (notification.referenceType === 'outbound_order' && notification.referenceId) {
     return `/outbound-orders/${notification.referenceId}`;
+  }
+  if (notification.referenceType === 'billing_cycle') {
+    return '/billing';
+  }
+  if (notification.referenceType === 'billing_invoice' && notification.referenceId) {
+    return `/billing/invoices/${notification.referenceId}`;
   }
   return undefined;
 }

@@ -20,10 +20,12 @@ export const ADMIN_NAV_ICONS: Record<string, string> = {
 /** Font Awesome class names for client portal sidebar (English label key). */
 export const CLIENT_NAV_ICONS: Record<string, string> = {
   Home: 'fa-solid fa-house',
+  Dashboard: 'fa-solid fa-table-cells-large',
   Orders: 'fa-solid fa-clipboard-list',
   Products: 'fa-solid fa-cube',
   Stock: 'fa-solid fa-warehouse',
   Billing: 'fa-solid fa-file-invoice-dollar',
+  Notifications: 'fa-regular fa-bell',
 };
 
 export function renderSidebarNavIcon(iconKey: string): ReactNode {

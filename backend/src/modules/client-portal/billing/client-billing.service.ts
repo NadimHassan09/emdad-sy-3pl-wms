@@ -95,14 +95,20 @@ export class ClientBillingService {
 
   async listInvoicesPage(
     client: ClientPrincipal,
-    params: { limit: number; offset: number },
+    params: { limit: number; offset: number; status?: string },
   ) {
     this.assertBillingAccess(client);
     const companyId = client.companyId;
     const limit = Math.min(Math.max(params.limit, 1), 200);
     const offset = Math.max(params.offset, 0);
 
-    const where = { companyId };
+    const allowedStatuses = ['draft', 'open', 'paid', 'cancelled'] as const;
+    const statusFilter =
+      params.status && allowedStatuses.includes(params.status as (typeof allowedStatuses)[number])
+        ? (params.status as (typeof allowedStatuses)[number])
+        : undefined;
+
+    const where = { companyId, ...(statusFilter ? { status: statusFilter } : {}) };
     const [items, total] = await Promise.all([
       this.prisma.invoice.findMany({
         where,

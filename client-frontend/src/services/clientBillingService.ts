@@ -89,6 +89,7 @@ export type ClientInvoicesPage = {
 export async function fetchClientInvoicesPage(params: {
   limit?: number;
   offset?: number;
+  status?: string;
 }): Promise<ClientInvoicesPage> {
   const { data } = await apiClient.get<ClientInvoicesPage>('/billing/invoices', { params });
   return data;

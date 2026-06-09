@@ -45,6 +45,13 @@ const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
     to: '/billing',
     roles: ['client_admin'],
   },
+  {
+    label: 'Notifications',
+    labelAr: 'الإشعارات',
+    iconKey: 'Notifications',
+    to: '/notifications',
+    roles: ['client_admin', 'client_staff'],
+  },
 ];
 
 function routeGroup(pathname: string): string {
@@ -53,6 +60,7 @@ function routeGroup(pathname: string): string {
   if (pathname.startsWith('/products')) return 'products';
   if (pathname.startsWith('/stock')) return 'stock';
   if (pathname.startsWith('/billing')) return 'billing';
+  if (pathname.startsWith('/notifications')) return 'notifications';
   return 'other';
 }
 
@@ -62,6 +70,7 @@ const ROUTE_GROUP_ROLES: Record<string, ClientPortalRole[]> = {
   products: ['client_admin'],
   stock: ['client_admin', 'client_staff'],
   billing: ['client_admin'],
+  notifications: ['client_admin', 'client_staff'],
   other: ['client_admin', 'client_staff'],
 };
 

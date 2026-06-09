@@ -153,6 +153,8 @@ export function PortalLayout(): ReactElement {
                       title={isArabic ? 'الإشعارات' : 'Notifications'}
                       emptyLabel={isArabic ? 'لا توجد إشعارات' : 'No notifications yet'}
                       markAllReadLabel={isArabic ? 'تعليم الكل كمقروء' : 'Mark all read'}
+                      viewAllLabel={isArabic ? 'عرض الكل' : 'View all'}
+                      onViewAll={() => navigate('/notifications')}
                       formatTime={formatNotificationTime}
                       onMarkAllRead={() => void notifications.markAllRead()}
                       onItemClick={(item) => void onNotificationClick(item)}

@@ -52,10 +52,9 @@ export class ClientDashboardService {
       expiringProductsCount,
       usageTotals,
       billingSummary,
+      recentInvoiceRows,
     ] = await Promise.all([
-      isAdmin
-        ? this.prisma.product.count({ where: { companyId, status: 'active' } })
-        : Promise.resolve(0),
+      this.prisma.product.count({ where: { companyId, status: 'active' } }),
       this.prisma.inboundOrder.count({
         where: { companyId, status: { in: INBOUND_OPEN } },
       }),
@@ -65,6 +64,21 @@ export class ClientDashboardService {
       this.countExpiringProducts(companyId, expiryBefore),
       this.usage.getCompanyUsage(companyId),
       isAdmin ? this.billing.getSummary(client).catch(() => null) : Promise.resolve(null),
+      isAdmin
+        ? this.prisma.invoice.findMany({
+            where: { companyId },
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            select: {
+              id: true,
+              invoiceNumber: true,
+              status: true,
+              totalAmount: true,
+              issuedAt: true,
+              createdAt: true,
+            },
+          })
+        : Promise.resolve([]),
     ]);
 
     const reservedVolume = billingSummary?.reservedVolume ?? null;
@@ -101,6 +115,16 @@ export class ClientDashboardService {
             accountStatus: billingSummary.accountStatus,
           }
         : null,
+      recentInvoices: isAdmin
+        ? recentInvoiceRows.map((row) => ({
+            id: row.id,
+            invoiceNumber: row.invoiceNumber,
+            status: row.status,
+            totalAmount: row.totalAmount.toString(),
+            issuedAt: row.issuedAt?.toISOString() ?? null,
+            createdAt: row.createdAt.toISOString(),
+          }))
+        : [],
     };
   }
 

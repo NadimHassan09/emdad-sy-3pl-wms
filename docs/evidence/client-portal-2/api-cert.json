@@ -1,0 +1,84 @@
+{
+  "sprint": "CLIENT-PORTAL-2",
+  "generatedAt": "2026-06-09T03:44:52.694Z",
+  "passed": 7,
+  "failed": 0,
+  "skipped": 1,
+  "results": [
+    {
+      "phase": "auth",
+      "name": "client_admin_login",
+      "outcome": "pass",
+      "detail": {},
+      "at": "2026-06-09T03:44:52.453Z"
+    },
+    {
+      "phase": "dashboard",
+      "name": "overview",
+      "outcome": "pass",
+      "detail": {
+        "status": 200,
+        "activeOrders": 44,
+        "productsCount": 80
+      },
+      "at": "2026-06-09T03:44:52.545Z"
+    },
+    {
+      "phase": "notifications",
+      "name": "paginated_list",
+      "outcome": "pass",
+      "detail": {
+        "status": 200,
+        "items": 10,
+        "hasOffset": false
+      },
+      "at": "2026-06-09T03:44:52.569Z"
+    },
+    {
+      "phase": "billing",
+      "name": "summary",
+      "outcome": "pass",
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-09T03:44:52.591Z"
+    },
+    {
+      "phase": "billing",
+      "name": "invoices_paginated",
+      "outcome": "pass",
+      "detail": {
+        "status": 200,
+        "total": 1
+      },
+      "at": "2026-06-09T03:44:52.610Z"
+    },
+    {
+      "phase": "isolation",
+      "name": "stock_company_scope",
+      "outcome": "pass",
+      "detail": {
+        "rows": 35
+      },
+      "at": "2026-06-09T03:44:52.635Z"
+    },
+    {
+      "phase": "isolation",
+      "name": "client_blocked_from_admin",
+      "outcome": "pass",
+      "detail": {
+        "status": 401
+      },
+      "at": "2026-06-09T03:44:52.641Z"
+    },
+    {
+      "phase": "isolation",
+      "name": "nahdi_login",
+      "outcome": "skip",
+      "detail": {
+        "reason": "nahdi client user not seeded"
+      },
+      "at": "2026-06-09T03:44:52.694Z"
+    }
+  ]
+}

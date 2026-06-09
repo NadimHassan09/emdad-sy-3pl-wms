@@ -12,10 +12,12 @@ import {
 import { createPortal } from 'react-dom';
 import { unlockNotificationAudio } from '../lib/notification-sound';
 import { cn } from './cn';
+import {
+  clampTopbarDropdownLeft,
+  topbarDropdownTop,
+} from './topbar-dropdown-utils';
 
 const MENU_WIDTH = 360;
-const MENU_TOP = 100;
-const VIEWPORT_PAD = 16;
 
 export interface TopbarNotificationItem {
   id: string;
@@ -32,23 +34,18 @@ export interface TopbarNotificationsProps {
   title?: string;
   emptyLabel?: string;
   markAllReadLabel?: string;
+  viewAllLabel?: string;
+  viewAllHref?: string;
+  onViewAll?: () => void;
   onItemClick?: (item: TopbarNotificationItem) => void;
   onMarkAllRead?: () => void;
   formatTime?: (iso: string) => string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 function clampMenuLeft(triggerRect: DOMRect, menuWidth: number): number {
-  const isRtl = document.documentElement.dir === 'rtl';
-  let left: number;
-
-  if (isRtl) {
-    left = triggerRect.left;
-  } else {
-    left = triggerRect.right - menuWidth;
-  }
-
-  const maxLeft = window.innerWidth - menuWidth - VIEWPORT_PAD;
-  return Math.max(VIEWPORT_PAD, Math.min(left, maxLeft));
+  return clampTopbarDropdownLeft(triggerRect, menuWidth);
 }
 
 function defaultFormatTime(iso: string): string {
@@ -70,6 +67,9 @@ function NotificationsDropdown({
   loading,
   emptyLabel,
   markAllReadLabel,
+  viewAllLabel,
+  viewAllHref,
+  onViewAll,
   unreadCount,
   position,
   onClose,
@@ -83,6 +83,9 @@ function NotificationsDropdown({
   loading?: boolean;
   emptyLabel: string;
   markAllReadLabel: string;
+  viewAllLabel?: string;
+  viewAllHref?: string;
+  onViewAll?: () => void;
   unreadCount: number;
   position: { top: number; left: number };
   onClose: () => void;
@@ -171,6 +174,31 @@ function NotificationsDropdown({
             </ul>
           )}
         </div>
+
+        {(viewAllHref || onViewAll) && viewAllLabel ? (
+          <div className="border-t border-neutral-100 bg-neutral-50/80 px-4 py-2.5 text-center">
+            {viewAllHref ? (
+              <a
+                href={viewAllHref}
+                className="text-xs font-semibold text-brand-700 hover:text-brand-800 hover:underline"
+                onClick={onClose}
+              >
+                {viewAllLabel}
+              </a>
+            ) : (
+              <button
+                type="button"
+                className="text-xs font-semibold text-brand-700 hover:text-brand-800"
+                onClick={() => {
+                  onViewAll?.();
+                  onClose();
+                }}
+              >
+                {viewAllLabel}
+              </button>
+            )}
+          </div>
+        ) : null}
       </div>
     </>,
     document.body,
@@ -184,14 +212,26 @@ export function TopbarNotifications({
   title = 'Notifications',
   emptyLabel = 'No notifications yet',
   markAllReadLabel = 'Mark all read',
+  viewAllLabel,
+  viewAllHref,
+  onViewAll,
   onItemClick,
   onMarkAllRead,
   formatTime = defaultFormatTime,
+  open: openProp,
+  onOpenChange,
 }: TopbarNotificationsProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : internalOpen;
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
 
   const close = () => setOpen(false);
   const badge = unreadCount > 99 ? '99+' : String(unreadCount);
@@ -202,7 +242,7 @@ export function TopbarNotifications({
     function updatePosition() {
       const rect = triggerRef.current!.getBoundingClientRect();
       setMenuPos({
-        top: MENU_TOP,
+        top: topbarDropdownTop(rect),
         left: clampMenuLeft(rect, MENU_WIDTH),
       });
     }
@@ -244,7 +284,7 @@ export function TopbarNotifications({
         aria-label={unreadCount > 0 ? `${title}, ${unreadCount} unread` : title}
         onClick={() => {
           unlockNotificationAudio();
-          setOpen((v) => !v);
+          setOpen(!open);
         }}
       >
         <i className="fa-solid fa-bell text-lg text-white" aria-hidden="true" />
@@ -266,6 +306,9 @@ export function TopbarNotifications({
           loading={loading}
           emptyLabel={emptyLabel}
           markAllReadLabel={markAllReadLabel}
+          viewAllLabel={viewAllLabel}
+          viewAllHref={viewAllHref}
+          onViewAll={onViewAll}
           unreadCount={unreadCount}
           position={menuPos}
           onClose={close}
