@@ -6,6 +6,7 @@ import { Alert, EmptyState } from '@ds';
 
 import { ClientRecentInvoicesCard } from '../components/ClientRecentInvoicesCard';
 import { useAuth } from '../auth/AuthContext';
+import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import { formatDecimal } from '../lib/billing-display';
 import { isClientArabic } from '../lib/client-ui-language';
 import { isClientAdmin } from '../lib/rbac';
@@ -47,6 +48,8 @@ function dashboardLabel(label: string, isArabic: boolean): string {
     'Create an inbound order or add products to see activity here.':
       'أنشئ طلب وارد أو أضف منتجات لرؤية النشاط هنا.',
     'New inbound order': 'طلب وارد جديد',
+    'Account restricted — renew billing to create orders.':
+      'الحساب مقيّد — جدّد الفوترة لإنشاء الطلبات.',
     CBM: 'م³',
     kg: 'كغ',
     'Could not load dashboard': 'تعذر تحميل لوحة التحكم',
@@ -105,6 +108,7 @@ export function DashboardPage(): ReactElement {
   const isArabic = isClientArabic();
   const t = (label: string) => dashboardLabel(label, isArabic);
   const showBilling = isClientAdmin(user?.role);
+  const billingAccess = useClientOperationalAccess(isArabic);
 
   const overview = useQuery({
     queryKey: ['client', 'dashboard', 'overview'],
@@ -301,9 +305,19 @@ export function DashboardPage(): ReactElement {
             title={t('Get started with your portal')}
             description={t('Create an inbound order or add products to see activity here.')}
             action={
-              <Link to="/inbound-orders" className="btn btn--primary">
-                {t('New inbound order')}
-              </Link>
+              billingAccess.operationalAllowed ? (
+                <Link to="/inbound-orders" className="btn btn--primary">
+                  {t('New inbound order')}
+                </Link>
+              ) : (
+                <span
+                  className="btn btn--primary opacity-50 cursor-not-allowed"
+                  title={billingAccess.actionBlockedReason}
+                  aria-disabled="true"
+                >
+                  {t('New inbound order')}
+                </span>
+              )
             }
           />
         </section>

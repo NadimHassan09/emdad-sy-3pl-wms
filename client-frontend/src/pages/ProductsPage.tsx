@@ -14,6 +14,7 @@ import {
 
 import { useAuth } from '../auth/AuthContext';
 import { CreateClientProductModal } from '../components/CreateClientProductModal';
+import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import { isClientArabic } from '../lib/client-ui-language';
 import { isClientAdmin } from '../lib/rbac';
 import {
@@ -83,6 +84,7 @@ export function ProductsPage(): ReactElement {
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
   const isArabic = isClientArabic();
   const t = (label: string) => productsLabel(label, isArabic);
+  const billingAccess = useClientOperationalAccess(isArabic);
 
   const initialFilters = useMemo<ProductListDraft>(
     () => ({ name: '', sku: '', barcode: '' }),
@@ -243,6 +245,12 @@ export function ProductsPage(): ReactElement {
             <Button
               variant="primary"
               size="md"
+              disabled={!billingAccess.operationalAllowed}
+              title={
+                billingAccess.operationalAllowed
+                  ? undefined
+                  : billingAccess.actionBlockedReason
+              }
               onClick={() => {
                 setCreateError(null);
                 setCreateSuccess(null);

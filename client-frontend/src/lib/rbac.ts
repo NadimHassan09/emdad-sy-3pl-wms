@@ -84,6 +84,20 @@ export function defaultClientHomePath(): string {
   return '/dashboard';
 }
 
+/** Where to send a user who opened a route their role cannot access. */
+export function redirectPathForDeniedRoute(
+  role: ClientPortalRole | string | undefined,
+  pathname: string,
+): string {
+  if (role !== 'client_admin' && role !== 'client_staff') return defaultClientHomePath();
+  const group = routeGroup(pathname);
+  if (role === 'client_staff') {
+    if (group === 'products') return '/stock';
+    if (group === 'billing') return '/dashboard';
+  }
+  return defaultClientHomePath();
+}
+
 export function clientNavForRole(role: ClientPortalRole | string | undefined): ClientNavItem[] {
   if (role !== 'client_admin' && role !== 'client_staff') return [];
   return NAV_CATALOG.filter((item) => item.roles.includes(role)).map(({ label, labelAr, iconKey, to, exact }) => ({

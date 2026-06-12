@@ -8,6 +8,8 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '../auth/AuthContext';
 import { clientNavForRole } from '../lib/rbac';
+import { ClientRoleAccessBanner } from './ClientRoleAccessBanner';
+import { BillingRestrictionBanner } from './BillingRestrictionBanner';
 import { SectionSubNavCard } from './SectionSubNavCard';
 import {
   AppShell,
@@ -178,6 +180,8 @@ export function PortalLayout(): ReactElement {
             </Topbar>
 
             <AppShell.Main>
+              <ClientRoleAccessBanner />
+              <BillingRestrictionBanner />
               <SectionSubNavCard isArabic={isArabic} />
               <Suspense fallback={<PageLoadFallback />}>
                 <Outlet />

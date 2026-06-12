@@ -17,6 +17,7 @@ import {
 } from '@wms/hooks/useChunkedServerPagination';
 
 import { CreateClientOutboundModal } from '../components/CreateClientOutboundModal';
+import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import { isClientArabic } from '../lib/client-ui-language';
 import {
   createClientOutboundOrder,
@@ -76,6 +77,7 @@ export function OutboundOrdersPage(): ReactElement {
   const [createError, setCreateError] = useState<string | null>(null);
   const isArabic = isClientArabic();
   const t = (label: string) => outboundLabel(label, isArabic);
+  const billingAccess = useClientOperationalAccess(isArabic);
 
   const createMut = useMutation({
     mutationFn: createClientOutboundOrder,
@@ -197,6 +199,12 @@ export function OutboundOrdersPage(): ReactElement {
           <Button
             variant="primary"
             size="md"
+            disabled={!billingAccess.operationalAllowed}
+            title={
+              billingAccess.operationalAllowed
+                ? undefined
+                : billingAccess.actionBlockedReason
+            }
             onClick={() => {
               setCreateError(null);
               setCreateOpen(true);

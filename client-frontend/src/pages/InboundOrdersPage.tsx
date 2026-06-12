@@ -76,7 +76,7 @@ export function InboundOrdersPage(): ReactElement {
   const [createError, setCreateError] = useState<string | null>(null);
   const isArabic = isClientArabic();
   const t = (label: string) => inboundLabel(label, isArabic);
-  const billingAccess = useClientOperationalAccess();
+  const billingAccess = useClientOperationalAccess(isArabic);
 
   const createMut = useMutation({
     mutationFn: createClientInboundOrder,
@@ -202,7 +202,7 @@ export function InboundOrdersPage(): ReactElement {
             title={
               billingAccess.operationalAllowed
                 ? undefined
-                : 'Account restricted — renew billing to create orders.'
+                : billingAccess.actionBlockedReason
             }
             onClick={() => {
               setCreateError(null);
