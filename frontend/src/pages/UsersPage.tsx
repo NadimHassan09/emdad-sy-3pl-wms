@@ -23,6 +23,8 @@ import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
+import { useServerPagination } from '../hooks/useServerPagination';
+import { useTenantCompanyId } from '../hooks/useTenantCompanyId';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
 
 type UserListFilters = {
@@ -59,6 +61,9 @@ const STATUS_OPTIONS = [
   { value: 'inactive', label: 'Inactive' },
 ];
 
+const USERS_PAGE_SIZE = 20;
+const USERS_PAGE_SIZE_OPTIONS = [10, 20, 50, 100] as const;
+
 /** Consider a user "online" if we saw authenticated API activity within this window. */
 const ONLINE_IDLE_MS = 5 * 60 * 1000;
 
@@ -69,11 +74,18 @@ function formatLastLogin(iso: string | null | undefined): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(d);
 }
 
-function activityPill(u: UserListRow) {
+function activityPill(u: UserListRow, onlineUserIds?: Set<string>) {
   if (u.status !== 'active') {
     return (
       <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-slate-100 text-slate-600">
         Offline
+      </span>
+    );
+  }
+  if (onlineUserIds?.has(u.id)) {
+    return (
+      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-emerald-50 text-emerald-700">
+        Online
       </span>
     );
   }
@@ -134,6 +146,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
   const navigate = useNavigate();
   const apiKind = variantToApiKind(variant);
   const { warehouseId: defaultWarehouseId } = useDefaultWarehouseId();
+  const tenantCompanyId = useTenantCompanyId();
   const isArabic =
     typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (en: string, ar: string) => (isArabic ? ar : en);
@@ -179,11 +192,31 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     return () => window.removeEventListener('pointerdown', onPointerDown);
   }, [openActionId]);
 
-  const usersQuery = useQuery({
-    queryKey: QK.users,
-    queryFn: () => UsersApi.list({ kind: 'all' }),
-    refetchInterval: 45_000,
+  const listParams = useMemo(
+    () => ({
+      kind: apiKind,
+      search: appliedFilters.search.trim() || undefined,
+      role: (appliedFilters.role as UserRole) || undefined,
+      companyId: tenantCompanyId || undefined,
+    }),
+    [apiKind, appliedFilters.search, appliedFilters.role, tenantCompanyId],
+  );
+
+  const pagination = useServerPagination<UserListRow>({
+    filterKey: listParams,
+    queryKey: QK.users.list(listParams),
+    fetchPage: (offset, limit) => UsersApi.list({ ...listParams, offset, limit }),
+    defaultPageSize: USERS_PAGE_SIZE,
+    pageSizeOptions: USERS_PAGE_SIZE_OPTIONS,
   });
+
+  const presenceQuery = useQuery({
+    queryKey: QK.presenceOnlineUsers,
+    queryFn: () => new Set<string>(),
+    staleTime: Infinity,
+    initialData: () => new Set<string>(),
+  });
+  const onlineUserIds = presenceQuery.data;
 
   const companiesQuery = useQuery({
     queryKey: QK.companies,
@@ -225,7 +258,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       setCreateOpen(false);
       resetCreateForm();
       setOpenActionId(null);
-      void qc.invalidateQueries({ queryKey: QK.users });
+      void qc.invalidateQueries({ queryKey: ['users', 'list'], exact: false });
       void qc.invalidateQueries({ queryKey: QK.workers.all });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -237,7 +270,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       toast.success('User saved.');
       closeEdit();
       setOpenActionId(null);
-      void qc.invalidateQueries({ queryKey: QK.users });
+      void qc.invalidateQueries({ queryKey: ['users', 'list'], exact: false });
       void qc.invalidateQueries({ queryKey: QK.workers.all });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -248,7 +281,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     onSuccess: () => {
       toast.success('User suspended.');
       setOpenActionId(null);
-      void qc.invalidateQueries({ queryKey: QK.users });
+      void qc.invalidateQueries({ queryKey: ['users', 'list'], exact: false });
       void qc.invalidateQueries({ queryKey: QK.workers.all });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -260,7 +293,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       toast.success('User deleted.');
       closeEdit();
       setOpenActionId(null);
-      void qc.invalidateQueries({ queryKey: QK.users });
+      void qc.invalidateQueries({ queryKey: ['users', 'list'], exact: false });
       void qc.invalidateQueries({ queryKey: QK.workers.all });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -297,7 +330,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       },
       {
         header: t('Activity', 'النشاط'),
-        accessor: (u) => activityPill(u),
+        accessor: (u) => activityPill(u, onlineUserIds),
       },
       {
         header: t('Actions', 'الإجراءات'),
@@ -381,7 +414,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       systemColumns: [...lead, ...tail],
       clientColumns: [...lead, companyCol, ...tail],
     };
-  }, [busy, openEdit, suspendMut.isPending, removeMut.isPending, openActionId, isArabic]);
+  }, [busy, openEdit, suspendMut.isPending, removeMut.isPending, openActionId, isArabic, onlineUserIds]);
 
   const closeCreate = () => {
     if (!createMut.isPending) {
@@ -389,23 +422,6 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       setCreateOpen(false);
     }
   };
-
-  const filteredUsers = useMemo(
-    () =>
-      (usersQuery.data ?? [])
-        .filter((u) => u.kind === apiKind)
-        .filter((u) => {
-          const q = appliedFilters.search.trim().toLowerCase();
-          if (q) {
-            const name = u.fullName?.toLowerCase() ?? '';
-            const email = u.email?.toLowerCase() ?? '';
-            if (!name.includes(q) && !email.includes(q)) return false;
-          }
-          if (appliedFilters.role && u.role !== appliedFilters.role) return false;
-          return true;
-        }),
-    [usersQuery.data, apiKind, appliedFilters.search, appliedFilters.role],
-  );
 
   const tableColumns = variant === 'warehouse' ? systemColumns : clientColumns;
   const pageTitle =
@@ -474,7 +490,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     updateMut.mutate({ id: editUser.id, body });
   };
 
-  const errMsg = usersQuery.error instanceof Error ? usersQuery.error.message : null;
+  const errMsg = pagination.error instanceof Error ? pagination.error.message : null;
 
   return (
     <>
@@ -484,7 +500,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
         title={filterTitle}
         onApply={applyFilters}
         onReset={resetFilters}
-        loading={usersQuery.isFetching}
+        loading={pagination.isFetching}
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
       >
@@ -529,13 +545,14 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
           </Button>
         }
         columns={tableColumns}
-        rows={filteredUsers}
+        rows={pagination.rows}
         rowKey={(u) => u.id}
         onRowClick={(u) =>
           navigate(variant === 'warehouse' ? `/users/warehouse_users/${u.id}` : `/users/client_users/${u.id}`)
         }
-        loading={usersQuery.isLoading}
+        loading={pagination.isInitialLoading}
         empty={emptyMessage}
+        serverPagination={pagination.serverPagination}
         labels={{
           rowsSuffix: t('rows', 'صف'),
           resultsSuffix: t('results', 'نتيجة'),

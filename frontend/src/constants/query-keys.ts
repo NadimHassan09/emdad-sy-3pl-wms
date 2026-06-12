@@ -2,7 +2,11 @@
 export const QK = {
   products: ['products'] as const,
   companies: ['companies'] as const,
-  users: ['users'] as const,
+  users: {
+    all: ['users'] as const,
+    list: (params: Record<string, unknown>) => ['users', 'list', params] as const,
+    detail: (id: string) => ['users', 'detail', id] as const,
+  },
   warehouses: ['warehouses'] as const,
   inventoryStock: ['inventory', 'stock'] as const,
   /** Stock rows for one location (locations page drill-in). */

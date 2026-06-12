@@ -44,33 +44,63 @@ export function patchProductDeleted(qc: QueryClient, productId: string): void {
   qc.removeQueries({ queryKey: [...QK.products, productId] });
 }
 
-export function patchUserCreated(qc: QueryClient, user: UserListRow): void {
-  qc.setQueryData<UserListRow[]>(QK.users, (prev) => {
-    if (!prev) return prev;
-    if (prev.some((u) => u.id === user.id)) return prev;
-    return [user, ...prev].sort((a, b) => a.email.localeCompare(b.email));
+type UserListCache = { items?: UserListRow[]; total: number };
+
+function patchUserLists(qc: QueryClient, user: UserListRow, mode: 'insert' | 'update' | 'delete'): void {
+  qc.setQueriesData<UserListCache>({ queryKey: ['users', 'list'], exact: false }, (prev) => {
+    if (!prev?.items) return prev;
+    const idx = prev.items.findIndex((u) => u.id === user.id);
+    if (mode === 'delete') {
+      if (idx < 0) return prev;
+      return {
+        ...prev,
+        items: prev.items.filter((u) => u.id !== user.id),
+        total: Math.max(0, prev.total - 1),
+      };
+    }
+    if (mode === 'insert') {
+      if (idx >= 0) {
+        const next = [...prev.items];
+        next[idx] = user;
+        return { ...prev, items: next.sort((a, b) => a.email.localeCompare(b.email)) };
+      }
+      return {
+        ...prev,
+        items: [user, ...prev.items].sort((a, b) => a.email.localeCompare(b.email)),
+        total: prev.total + 1,
+      };
+    }
+    if (idx < 0) {
+      return {
+        ...prev,
+        items: [user, ...prev.items].sort((a, b) => a.email.localeCompare(b.email)),
+        total: prev.total + 1,
+      };
+    }
+    const next = [...prev.items];
+    next[idx] = user;
+    return { ...prev, items: next.sort((a, b) => a.email.localeCompare(b.email)) };
   });
-  qc.setQueryData([...QK.users, user.id], user);
+}
+
+export function patchUserCreated(qc: QueryClient, user: UserListRow): void {
+  patchUserLists(qc, user, 'insert');
+  qc.setQueryData(QK.users.detail(user.id), user);
 }
 
 export function patchUserUpdated(qc: QueryClient, user: UserListRow): void {
-  qc.setQueryData<UserListRow[]>(QK.users, (prev) => {
-    if (!prev) return prev;
-    const idx = prev.findIndex((u) => u.id === user.id);
-    if (idx < 0) return [user, ...prev].sort((a, b) => a.email.localeCompare(b.email));
-    const next = [...prev];
-    next[idx] = user;
-    return next.sort((a, b) => a.email.localeCompare(b.email));
-  });
-  qc.setQueryData([...QK.users, user.id], user);
+  patchUserLists(qc, user, 'update');
+  qc.setQueryData(QK.users.detail(user.id), user);
 }
 
 export function patchUserDeleted(qc: QueryClient, userId: string): void {
-  qc.setQueryData<UserListRow[]>(QK.users, (prev) => {
-    if (!prev) return prev;
-    return prev.filter((u) => u.id !== userId);
+  qc.setQueriesData<UserListCache>({ queryKey: ['users', 'list'], exact: false }, (prev) => {
+    if (!prev?.items) return prev;
+    const next = prev.items.filter((u) => u.id !== userId);
+    if (next.length === prev.items.length) return prev;
+    return { ...prev, items: next, total: Math.max(0, prev.total - 1) };
   });
-  qc.removeQueries({ queryKey: [...QK.users, userId] });
+  qc.removeQueries({ queryKey: QK.users.detail(userId) });
 }
 
 export function patchWarehouseCreated(qc: QueryClient, warehouse: Warehouse): void {

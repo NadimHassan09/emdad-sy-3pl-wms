@@ -13,7 +13,7 @@ function UserDetailPage({ variant }: { variant: UsersPageVariant }) {
   const title = variant === 'warehouse' ? 'Warehouse user details' : 'Client user details';
 
   const userQuery = useQuery({
-    queryKey: [...QK.users, id],
+    queryKey: QK.users.detail(id ?? ''),
     queryFn: () => UsersApi.get(id),
     enabled: !!id,
   });

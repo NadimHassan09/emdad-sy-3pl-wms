@@ -35,7 +35,8 @@ export type R3AccountContext = {
 async function findUserByEmail(request: APIRequestContext, token: string, email: string) {
   const res = await adminApi(request, token, 'GET', '/users');
   const body = await res.json();
-  const users = (body.data ?? []) as Array<{ id: string; email: string }>;
+  const data = body.data ?? body;
+  const users = (data.items ?? data ?? []) as Array<{ id: string; email: string }>;
   return users.find((u) => u.email.toLowerCase() === email.toLowerCase());
 }
 

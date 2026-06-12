@@ -1,0 +1,51 @@
+{
+  "generatedAt": "2026-06-12T01:31:37.580Z",
+  "apiBase": "http://127.0.0.1:3001/api",
+  "samples": 3,
+  "legacyKB": 2.6,
+  "optimized20KB": null,
+  "payloadReductionPct": null,
+  "scenarios": [
+    {
+      "label": "before_unpaginated_all",
+      "params": {},
+      "avgMs": 10.6,
+      "payloadKB": 2.6,
+      "itemCount": 7,
+      "total": 7,
+      "under100KB": true,
+      "ok": true
+    },
+    {
+      "label": "after_system_page_20",
+      "params": {
+        "kind": "system",
+        "limit": 20,
+        "offset": 0
+      },
+      "ok": false,
+      "error": "/users 400: {\"success\":false,\"error\":{\"code\":\"BAD_REQUEST\",\"message\":\"property limit should not exist; property offset should not exist\"}}"
+    },
+    {
+      "label": "after_client_page_20",
+      "params": {
+        "kind": "client",
+        "limit": 20,
+        "offset": 0
+      },
+      "ok": false,
+      "error": "/users 400: {\"success\":false,\"error\":{\"code\":\"BAD_REQUEST\",\"message\":\"property limit should not exist; property offset should not exist\"}}"
+    },
+    {
+      "label": "after_search_page_20",
+      "params": {
+        "kind": "all",
+        "search": "admin",
+        "limit": 20,
+        "offset": 0
+      },
+      "ok": false,
+      "error": "/users 400: {\"success\":false,\"error\":{\"code\":\"BAD_REQUEST\",\"message\":\"property search should not exist; property limit should not exist; property offset should not exist\"}}"
+    }
+  ]
+}

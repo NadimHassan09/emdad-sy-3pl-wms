@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, type PageResult } from './client';
 
 export type UserKind = 'system' | 'client';
 export type UserStatus = 'active' | 'inactive';
@@ -24,6 +24,15 @@ export type UserListRow = {
   updatedAt: string;
   lastLoginAt: string | null;
   lastActivityAt: string | null;
+};
+
+export type ListUsersQuery = {
+  kind?: 'all' | 'system' | 'client';
+  search?: string;
+  role?: UserRole;
+  companyId?: string;
+  limit?: number;
+  offset?: number;
 };
 
 export type CreateSystemUserPayload = {
@@ -59,10 +68,8 @@ export type UpdateUserPayload = {
 };
 
 export const UsersApi = {
-  async list(params?: { kind?: 'all' | 'system' | 'client' }): Promise<UserListRow[]> {
-    const q = params?.kind && params.kind !== 'all' ? { kind: params.kind } : {};
-    const { data } = await api.get<UserListRow[]>('/users', { params: q });
-    return data;
+  list(params: ListUsersQuery = {}) {
+    return api.get<PageResult<UserListRow>>('/users', { params }).then((r) => r.data);
   },
 
   async get(id: string): Promise<UserListRow> {

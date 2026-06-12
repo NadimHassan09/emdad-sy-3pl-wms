@@ -18,6 +18,8 @@ import { assertInternalAdmin } from '../../common/auth/internal-rbac';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PasswordService } from '../../common/crypto/password.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
+import { userRealtimePayload } from '../realtime/realtime-master-data.payload';
 import { CreateUserDto, CreateSystemRoleUi } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -82,34 +84,80 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly password: PasswordService,
     private readonly companyAccess: CompanyAccessService,
+    private readonly realtime: RealtimeService,
   ) {}
 
-  async list(actor: AuthPrincipal, query: ListUsersQueryDto): Promise<UserListRow[]> {
+  async list(
+    actor: AuthPrincipal,
+    query: ListUsersQueryDto,
+  ): Promise<{ items: UserListRow[]; total: number; limit: number; offset: number }> {
+    const where = this.buildListWhere(actor, query);
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.user.findMany({
+        where,
+        orderBy: [{ email: 'asc' }],
+        select: USER_LIST_SELECT,
+        take: query.limit,
+        skip: query.offset,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      items: rows.map((u) => this.toListRow(u)),
+      total,
+      limit: query.limit,
+      offset: query.offset,
+    };
+  }
+
+  private buildListWhere(
+    actor: AuthPrincipal,
+    query: ListUsersQueryDto,
+  ): Prisma.UserWhereInput {
     const kind = query.kind ?? 'all';
-    const where: Prisma.UserWhereInput = {};
+    const and: Prisma.UserWhereInput[] = [];
+
     if (kind === 'system') {
-      where.companyId = null;
+      and.push({ companyId: null });
     } else if (kind === 'client') {
-      where.companyId = { not: null };
+      and.push({ companyId: { not: null } });
     }
+
     if (actor.tenantScope === 'restricted') {
       if (kind === 'client') {
-        where.companyId = { in: actor.authorizedCompanyIds };
+        and.push({ companyId: { in: actor.authorizedCompanyIds } });
       } else if (kind === 'all') {
-        where.OR = [
-          { companyId: null },
-          { companyId: { in: actor.authorizedCompanyIds } },
-        ];
+        and.push({
+          OR: [
+            { companyId: null },
+            { companyId: { in: actor.authorizedCompanyIds } },
+          ],
+        });
       }
     }
 
-    const rows = await this.prisma.user.findMany({
-      where,
-      orderBy: [{ email: 'asc' }],
-      select: USER_LIST_SELECT,
-    });
+    if (query.companyId && kind !== 'system') {
+      this.companyAccess.assertCompanyAccess(actor, query.companyId);
+      and.push({ companyId: query.companyId });
+    }
 
-    return rows.map((u) => this.toListRow(u));
+    if (query.role) {
+      and.push({ role: query.role });
+    }
+
+    if (query.search?.trim()) {
+      const t = query.search.trim();
+      and.push({
+        OR: [
+          { fullName: { contains: t, mode: 'insensitive' } },
+          { email: { contains: t, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    return and.length ? { AND: and } : {};
   }
 
   async findById(id: string, actor: AuthPrincipal): Promise<UserListRow> {
@@ -178,7 +226,9 @@ export class UsersService {
           });
         }
 
-        return this.toListRow(u);
+        const row = this.toListRow(u);
+        this.realtime.emitUserCreated(this.serializeUserForRealtime(row));
+        return row;
       });
     }
 
@@ -196,7 +246,9 @@ export class UsersService {
       select: USER_LIST_SELECT,
     });
 
-    return this.toListRow(u);
+    const row = this.toListRow(u);
+    this.realtime.emitUserCreated(this.serializeUserForRealtime(row));
+    return row;
   }
 
   async update(id: string, dto: UpdateUserDto, actor: AuthPrincipal) {
@@ -284,7 +336,9 @@ export class UsersService {
         await this.syncWorkerForSystemUser(tx, id, effectiveRole, effectiveName, effectiveStatus, actor);
       }
 
-      return this.toListRow(u);
+      const row = this.toListRow(u);
+      this.realtime.emitUserUpdated(this.serializeUserForRealtime(row));
+      return row;
     });
   }
 
@@ -315,6 +369,7 @@ export class UsersService {
         await tx.worker.deleteMany({ where: { userId: id } });
         await tx.user.delete({ where: { id } });
       });
+      this.realtime.emitUserDeleted(id, u.companyId);
       return { id, deleted: true as const };
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
@@ -399,6 +454,16 @@ export class UsersService {
       select: { id: true },
     });
     return main?.id ?? null;
+  }
+
+  private serializeUserForRealtime(row: UserListRow) {
+    return userRealtimePayload({
+      ...row,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+      lastLoginAt: row.lastLoginAt?.toISOString() ?? null,
+      lastActivityAt: row.lastActivityAt?.toISOString() ?? null,
+    });
   }
 
   private toListRow(
