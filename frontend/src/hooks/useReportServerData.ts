@@ -2,7 +2,12 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
 import { ReportsApi, type ReportKpiDto, type ReportRowDto } from '../api/reports';
-import { QK } from '../constants/query-keys';
+import {
+  filtersCacheKey,
+  filtersToApiParams,
+  REPORT_CACHE,
+  reportPreviewQueryKey,
+} from '../lib/reports/framework';
 import type { ReportFilterValues, ReportViewMode } from '../lib/reports/types';
 
 export type ReportQueryParams = {
@@ -14,25 +19,6 @@ export type ReportQueryParams = {
   dateTo?: string;
   groupBy?: string;
 };
-
-function toApiParams(
-  filters: ReportFilterValues,
-  warehouseId: string,
-  page: number,
-  pageSize: number,
-): ReportQueryParams & { limit: number; offset: number } {
-  return {
-    warehouseId,
-    companyId: filters.companyId.trim() || undefined,
-    status: filters.status.trim() || undefined,
-    sku: filters.sku.trim() || undefined,
-    dateFrom: filters.dateFrom.trim() || undefined,
-    dateTo: filters.dateTo.trim() || undefined,
-    groupBy: filters.groupBy.trim() || undefined,
-    limit: pageSize,
-    offset: (page - 1) * pageSize,
-  };
-}
 
 export function useReportServerData(options: {
   reportId: string;
@@ -47,33 +33,22 @@ export function useReportServerData(options: {
   const { reportId, filters, warehouseId, enabled, viewMode, page, pageSize, loadsKpis } = options;
 
   const apiParams = useMemo(
-    () => toApiParams(filters, warehouseId, page, pageSize),
+    () => filtersToApiParams(filters, warehouseId, page, pageSize),
     [filters, warehouseId, page, pageSize],
   );
 
-  const filterKey = useMemo(
-    () => ({
-      warehouseId,
-      companyId: filters.companyId,
-      status: filters.status,
-      sku: filters.sku,
-      dateFrom: filters.dateFrom,
-      dateTo: filters.dateTo,
-      groupBy: filters.groupBy,
-    }),
-    [filters, warehouseId],
-  );
+  const filterKey = useMemo(() => filtersCacheKey(filters, warehouseId), [filters, warehouseId]);
 
   const tableQuery = useQuery({
-    queryKey: QK.reports.preview(reportId, { ...filterKey, page, pageSize, mode: 'table' }),
+    queryKey: reportPreviewQueryKey(reportId, filterKey, { page, pageSize, mode: 'table' }),
     queryFn: () => ReportsApi.run(reportId, apiParams),
     enabled: enabled && viewMode === 'table',
     placeholderData: keepPreviousData,
-    staleTime: 30_000,
+    staleTime: REPORT_CACHE.previewStaleMs,
   });
 
   const aggregateQuery = useQuery({
-    queryKey: QK.reports.preview(reportId, { ...filterKey, mode: 'aggregate' }),
+    queryKey: reportPreviewQueryKey(reportId, filterKey, { mode: 'aggregate' }),
     queryFn: () =>
       ReportsApi.aggregate(reportId, {
         warehouseId,
@@ -85,11 +60,11 @@ export function useReportServerData(options: {
         groupBy: apiParams.groupBy || 'client',
       }),
     enabled: enabled && (viewMode === 'graph' || viewMode === 'pivot') && !!apiParams.groupBy,
-    staleTime: 30_000,
+    staleTime: REPORT_CACHE.previewStaleMs,
   });
 
   const graphTableQuery = useQuery({
-    queryKey: QK.reports.preview(reportId, { ...filterKey, mode: 'graph-full' }),
+    queryKey: reportPreviewQueryKey(reportId, filterKey, { mode: 'graph-full' }),
     queryFn: () =>
       ReportsApi.run(reportId, {
         ...apiParams,
@@ -101,11 +76,11 @@ export function useReportServerData(options: {
       (viewMode === 'graph' || viewMode === 'pivot') &&
       !apiParams.groupBy &&
       reportId === 'warehouse-analysis',
-    staleTime: 30_000,
+    staleTime: REPORT_CACHE.previewStaleMs,
   });
 
   const kpiQuery = useQuery({
-    queryKey: QK.reports.preview(reportId, { ...filterKey, mode: 'kpis' }),
+    queryKey: reportPreviewQueryKey(reportId, filterKey, { mode: 'kpis' }),
     queryFn: () =>
       ReportsApi.kpis(reportId, {
         warehouseId,
@@ -114,7 +89,7 @@ export function useReportServerData(options: {
         dateTo: apiParams.dateTo,
       }),
     enabled: enabled && !!loadsKpis,
-    staleTime: 60_000,
+    staleTime: REPORT_CACHE.kpiStaleMs,
   });
 
   const activeQuery =

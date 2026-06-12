@@ -10,9 +10,9 @@ import { InboundService } from '../inbound/inbound.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { OutboundService } from '../outbound/outbound.service';
 import { AggregateReportQueryDto, ExportReportQueryDto, RunReportQueryDto } from './dto/run-report-query.dto';
-import { reportRowsToCsv, reportRowsToXls, type ReportExportColumn } from './reports-export.util';
+import { ReportExportService, type ReportExportResult } from './framework/report-export.service';
+import { ReportsFrameworkService } from './framework/reports-framework.service';
 import { BillingReportsRunner } from './billing-reports.runner';
-import { ReportsCacheService } from './reports-cache.service';
 import { ReportsPolicyConfig } from './reports-policy.config';
 
 export type ReportRowDto = Record<string, string | number | boolean | null | undefined> & {
@@ -35,81 +35,7 @@ export type ReportKpiDto = {
   hint?: string;
 };
 
-export type ReportExportResult = {
-  format: 'csv' | 'xls';
-  rowCount: number;
-  truncated: boolean;
-  body: string;
-  filename: string;
-};
-
-const INVENTORY_COLUMNS: ReportExportColumn[] = [
-  { id: 'sku', header: 'SKU' },
-  { id: 'product', header: 'Product' },
-  { id: 'client', header: 'Client' },
-  { id: 'location', header: 'Location' },
-  { id: 'lot', header: 'Lot' },
-  { id: 'expiry', header: 'Expiry' },
-  { id: 'onHand', header: 'On hand' },
-  { id: 'reserved', header: 'Reserved' },
-  { id: 'available', header: 'Available' },
-  { id: 'stockStatus', header: 'Status' },
-  { id: 'uom', header: 'UoM' },
-  { id: 'warehouse', header: 'Warehouse' },
-];
-
-const MOVES_COLUMNS: ReportExportColumn[] = [
-  { id: 'date', header: 'Date' },
-  { id: 'product', header: 'Product' },
-  { id: 'sku', header: 'SKU' },
-  { id: 'client', header: 'Client' },
-  { id: 'movement', header: 'Movement' },
-  { id: 'status', header: 'Status' },
-  { id: 'quantity', header: 'Qty' },
-  { id: 'reference', header: 'Reference' },
-  { id: 'operator', header: 'Operator' },
-  { id: 'lot', header: 'Lot' },
-  { id: 'fromLocation', header: 'From' },
-  { id: 'toLocation', header: 'To' },
-];
-
-const WAREHOUSE_COLUMNS: ReportExportColumn[] = [
-  { id: 'week', header: 'Week' },
-  { id: 'inboundCount', header: 'Inbound' },
-  { id: 'outboundCount', header: 'Outbound' },
-  { id: 'totalCount', header: 'Total' },
-];
-
-const BILLING_REVENUE_COLUMNS: ReportExportColumn[] = [
-  { id: 'client', header: 'Client' },
-  { id: 'invoiceCount', header: 'Invoices' },
-  { id: 'revenue', header: 'Revenue' },
-];
-
-const BILLING_OUTSTANDING_COLUMNS: ReportExportColumn[] = [
-  { id: 'invoiceNumber', header: 'Invoice #' },
-  { id: 'client', header: 'Client' },
-  { id: 'status', header: 'Status' },
-  { id: 'amount', header: 'Amount' },
-  { id: 'issuedAt', header: 'Issued' },
-];
-
-const BILLING_EXPIRING_COLUMNS: ReportExportColumn[] = [
-  { id: 'client', header: 'Client' },
-  { id: 'daysRemaining', header: 'Days remaining' },
-  { id: 'cycleEnd', header: 'Cycle end' },
-];
-
-const BILLING_SUSPENDED_COLUMNS: ReportExportColumn[] = [
-  { id: 'client', header: 'Client' },
-  { id: 'suspendedSince', header: 'Suspended since' },
-];
-
-const BILLING_CAPACITY_COLUMNS: ReportExportColumn[] = [
-  { id: 'client', header: 'Client' },
-  { id: 'allocatedVolumeCbm', header: 'Allocated CBM' },
-  { id: 'allocatedWeightKg', header: 'Allocated kg' },
-];
+export type { ReportExportResult };
 
 function fmtQty(n: unknown): string {
   const v = Number(n);
@@ -161,8 +87,9 @@ export class ReportsService {
     private readonly outbound: OutboundService,
     private readonly dashboard: DashboardService,
     private readonly companies: CompaniesService,
-    private readonly cache: ReportsCacheService,
     private readonly policy: ReportsPolicyConfig,
+    private readonly framework: ReportsFrameworkService,
+    private readonly exportService: ReportExportService,
     private readonly billingReports: BillingReportsRunner,
   ) {}
 
@@ -171,16 +98,10 @@ export class ReportsService {
   }
 
   async run(user: AuthPrincipal, reportId: string, query: RunReportQueryDto): Promise<ReportRunResult> {
-    this.assertReportId(reportId);
-    this.validatePreviewQuery(query);
-
-    const cachePayload = { reportId, query, userId: user.id };
-    const cached = await this.cache.get<ReportRunResult>('run', cachePayload);
-    if (cached) return { ...cached, cached: true };
-
-    const result = await this.executeRun(user, reportId, query);
-    await this.cache.set('run', cachePayload, result);
-    return { ...result, cached: false };
+    const prepared = this.framework.prepareQuery(user, reportId, query);
+    return this.framework.runCached(user, reportId, prepared, 'run', () =>
+      this.executeRun(user, reportId, prepared),
+    );
   }
 
   async aggregate(
@@ -188,92 +109,58 @@ export class ReportsService {
     reportId: string,
     query: AggregateReportQueryDto,
   ): Promise<ReportRunResult> {
-    this.assertReportId(reportId);
+    const def = this.framework.resolveDefinition(reportId);
+    if (!def.supportsAggregate) {
+      throw new BadRequestException('Aggregate view is not supported for this report.');
+    }
     if (!query.groupBy?.trim()) {
       throw new BadRequestException('groupBy is required for aggregate view.');
     }
 
-    const cachePayload = { reportId, query, userId: user.id, mode: 'aggregate' };
-    const cached = await this.cache.get<ReportRunResult>('aggregate', cachePayload);
-    if (cached) return { ...cached, cached: true };
-
-    const all = await this.executeRun(user, reportId, {
-      ...query,
-      limit: this.policy.aggregateMaxRows,
-      offset: 0,
-    });
-
-    const grouped = this.groupRows(reportId, all.items, query.groupBy!.trim());
-    const result: ReportRunResult = {
-      items: grouped.slice(0, this.policy.aggregateMaxRows),
-      total: grouped.length,
-      limit: this.policy.aggregateMaxRows,
-      offset: 0,
-      truncated: grouped.length > this.policy.aggregateMaxRows,
-      cached: false,
-    };
-    await this.cache.set('aggregate', cachePayload, result);
-    return result;
+    const prepared = this.framework.prepareQuery(user, reportId, query);
+    return this.framework.runCached(
+      user,
+      reportId,
+      prepared,
+      'aggregate',
+      async () => {
+        const all = await this.executeRun(user, reportId, {
+          ...prepared,
+          limit: this.policy.aggregateMaxRows,
+          offset: 0,
+        });
+        const grouped = this.groupRows(reportId, all.items, prepared.groupBy!.trim());
+        return {
+          items: grouped.slice(0, this.policy.aggregateMaxRows),
+          total: grouped.length,
+          limit: this.policy.aggregateMaxRows,
+          offset: 0,
+          truncated: grouped.length > this.policy.aggregateMaxRows,
+        };
+      },
+      { mode: 'aggregate' },
+    );
   }
 
   async kpis(user: AuthPrincipal, reportId: string, query: RunReportQueryDto): Promise<ReportKpiDto[]> {
-    if (reportId !== 'warehouse-analysis') {
-      throw new BadRequestException('KPIs are only available for warehouse-analysis.');
+    const def = this.framework.resolveDefinition(reportId);
+    if (!def.supportsKpis) {
+      throw new BadRequestException('KPIs are not available for this report.');
     }
-    if (!query.warehouseId?.trim()) {
-      throw new BadRequestException('warehouseId is required.');
-    }
-
-    const cachePayload = { reportId, query, userId: user.id, mode: 'kpis' };
-    const cached = await this.cache.get<ReportKpiDto[]>('kpis', cachePayload);
-    if (cached) return cached;
-
-    const kpis = await this.loadWarehouseKpis(user, query);
-    await this.cache.set('kpis', cachePayload, kpis);
-    return kpis;
+    const prepared = this.framework.prepareQuery(user, reportId, query);
+    const cachePayload = { reportId, query: prepared, userId: user.id, mode: 'kpis' };
+    const { value } = await this.framework.getOrSetCache('kpis', cachePayload, () =>
+      this.loadWarehouseKpis(user, prepared),
+    );
+    return value;
   }
 
   async export(user: AuthPrincipal, reportId: string, query: ExportReportQueryDto): Promise<ReportExportResult> {
-    this.assertReportId(reportId);
+    const prepared = this.framework.prepareQuery(user, reportId, query);
     const format = query.format ?? 'csv';
-    const columns = this.columnsFor(reportId);
-    const stamp = new Date().toISOString().slice(0, 10);
-    const baseName = `${reportId}-${stamp}`;
-
-    const rows: ReportRowDto[] = [];
-    let offset = 0;
-    const pageSize = 500;
-    let total = 0;
-    let truncated = false;
-
-    while (rows.length < this.policy.exportMaxRows) {
-      const page = await this.executeRun(user, reportId, {
-        ...query,
-        limit: Math.min(pageSize, this.policy.exportMaxRows - rows.length),
-        offset,
-      });
-      total = page.total;
-      rows.push(...page.items);
-      offset += page.items.length;
-      if (page.items.length === 0 || rows.length >= total) break;
-      if (rows.length >= this.policy.exportMaxRows) {
-        truncated = total > this.policy.exportMaxRows;
-        break;
-      }
-    }
-
-    const body =
-      format === 'xls'
-        ? reportRowsToXls(columns, rows)
-        : reportRowsToCsv(columns, rows);
-
-    return {
-      format,
-      rowCount: rows.length,
-      truncated,
-      body,
-      filename: format === 'xls' ? `${baseName}.xls` : `${baseName}.csv`,
-    };
+    return this.exportService.buildExport(reportId, prepared, format, (offset, limit) =>
+      this.executeRun(user, reportId, { ...prepared, limit, offset }),
+    );
   }
 
   private async executeRun(
@@ -547,41 +434,4 @@ export class ReportsService {
       }));
   }
 
-  private columnsFor(reportId: string): ReportExportColumn[] {
-    switch (reportId) {
-      case 'inventory':
-        return INVENTORY_COLUMNS;
-      case 'product-moves':
-        return MOVES_COLUMNS;
-      case 'warehouse-analysis':
-        return WAREHOUSE_COLUMNS;
-      case 'billing-revenue':
-        return BILLING_REVENUE_COLUMNS;
-      case 'billing-outstanding':
-        return BILLING_OUTSTANDING_COLUMNS;
-      case 'billing-expiring':
-        return BILLING_EXPIRING_COLUMNS;
-      case 'billing-suspended':
-        return BILLING_SUSPENDED_COLUMNS;
-      case 'billing-capacity':
-        return BILLING_CAPACITY_COLUMNS;
-      default:
-        return [];
-    }
-  }
-
-  private assertReportId(reportId: string) {
-    if (!this.policy.snapshot().reportIds.includes(reportId as never)) {
-      throw new NotFoundException(`Unknown report: ${reportId}`);
-    }
-  }
-
-  private validatePreviewQuery(query: RunReportQueryDto) {
-    if (query.limit > this.policy.previewMaxLimit) {
-      throw new BadRequestException(`limit may not exceed ${this.policy.previewMaxLimit}.`);
-    }
-    if (query.offset > this.policy.previewMaxOffset) {
-      throw new BadRequestException(`offset may not exceed ${this.policy.previewMaxOffset}.`);
-    }
-  }
 }

@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { listReportIds } from './framework/report-registry.config';
+
 @Injectable()
 export class ReportsPolicyConfig {
   /** Max rows per preview page request. */
@@ -25,16 +27,7 @@ export class ReportsPolicyConfig {
       cacheTtlSec: this.cacheTtlSec,
       aggregateMaxRows: this.aggregateMaxRows,
       supportedFormats: ['csv', 'xls'] as const,
-      reportIds: [
-        'warehouse-analysis',
-        'inventory',
-        'product-moves',
-        'billing-revenue',
-        'billing-outstanding',
-        'billing-expiring',
-        'billing-suspended',
-        'billing-capacity',
-      ] as const,
+      reportIds: listReportIds(),
     };
   }
 }
