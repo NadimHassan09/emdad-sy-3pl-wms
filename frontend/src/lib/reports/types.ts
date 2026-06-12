@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { ReportCatalogId } from './report-catalog';
 
 /** @deprecated Legacy nav grouping — prefer `REPORT_CATALOG` routes. */
-export type ReportCategory = 'inventory' | 'orders' | 'operations' | 'clients';
+export type ReportCategory = 'inventory' | 'orders' | 'operations' | 'clients' | 'finance';
 
 /** @deprecated Used only by legacy ReportCategoryNav. */
 export const REPORT_CATEGORY_META: Record<ReportCategory, { label: string; labelAr: string }> = {
@@ -11,6 +11,7 @@ export const REPORT_CATEGORY_META: Record<ReportCategory, { label: string; label
   orders: { label: 'Orders', labelAr: 'الطلبات' },
   operations: { label: 'Operations', labelAr: 'التشغيل' },
   clients: { label: 'Clients', labelAr: 'العملاء' },
+  finance: { label: 'Finance', labelAr: 'المالية' },
 };
 
 export type ReportViewMode = 'table' | 'graph' | 'pivot';

@@ -162,6 +162,23 @@ const RETURN_RATE_COLUMNS: ReportExportColumn[] = [
   { id: 'returnRatePercent', header: 'Return rate %' },
 ];
 
+const REVENUE_BY_CLIENT_COLUMNS: ReportExportColumn[] = [
+  { id: 'client', header: 'Client' },
+  { id: 'invoiceCount', header: 'Invoices' },
+  { id: 'revenue', header: 'Revenue' },
+];
+
+const RECEIVABLES_AGING_COLUMNS: ReportExportColumn[] = [
+  { id: 'invoiceNumber', header: 'Invoice #' },
+  { id: 'client', header: 'Client' },
+  { id: 'status', header: 'Status' },
+  { id: 'amount', header: 'Amount' },
+  { id: 'issuedAt', header: 'Issued' },
+  { id: 'dueDate', header: 'Due' },
+  { id: 'daysPastDue', header: 'Days past due' },
+  { id: 'agingBucket', header: 'Aging bucket' },
+];
+
 export const REPORT_REGISTRY: readonly ReportDefinitionConfig[] = [
   {
     id: 'warehouse-analysis',
@@ -349,6 +366,28 @@ export const REPORT_REGISTRY: readonly ReportDefinitionConfig[] = [
     supportsKpis: false,
     supportsAggregate: true,
     exportFileName: 'return-rate',
+  },
+  {
+    id: 'revenue-by-client',
+    title: 'Revenue by Client',
+    filterKeys: ['client', 'dateRange', 'status'],
+    exportColumns: REVENUE_BY_CLIENT_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: false,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'revenue-by-client',
+  },
+  {
+    id: 'receivables-aging',
+    title: 'Receivables Aging',
+    filterKeys: ['client', 'status'],
+    exportColumns: RECEIVABLES_AGING_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: false,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'receivables-aging',
   },
 ] as const;
 

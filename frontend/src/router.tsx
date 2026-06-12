@@ -53,6 +53,8 @@ const StockAgingReportPage          = lazyPage(() => import('./pages/reports/Inv
 const LotExpiryReportPage           = lazyPage(() => import('./pages/reports/InventoryIntelligenceReportPages'), 'LotExpiryReportPage');
 const CapacityUtilizationReportPage = lazyPage(() => import('./pages/reports/InventoryIntelligenceReportPages'), 'CapacityUtilizationReportPage');
 const ReturnRateReportPage          = lazyPage(() => import('./pages/reports/InventoryIntelligenceReportPages'), 'ReturnRateReportPage');
+const RevenueByClientReportPage     = lazyPage(() => import('./pages/reports/FinanceReportPages'),           'RevenueByClientReportPage');
+const ReceivablesAgingReportPage    = lazyPage(() => import('./pages/reports/FinanceReportPages'),           'ReceivablesAgingReportPage');
 const ClientsPage             = lazyPage(() => import('./pages/ClientsPage'),             'ClientsPage');
 const CompanyDetailPage       = lazyPage(() => import('./pages/CompanyDetailPage'),       'CompanyDetailPage');
 const WarehouseUsersPage      = lazyPage(() => import('./pages/UsersPage'),               'WarehouseUsersPage');
@@ -142,6 +144,8 @@ export const router = createBrowserRouter([
           { path: 'lot-expiry', element: <LotExpiryReportPage /> },
           { path: 'capacity-utilization', element: <CapacityUtilizationReportPage /> },
           { path: 'return-rate', element: <ReturnRateReportPage /> },
+          { path: 'revenue-by-client', element: <RevenueByClientReportPage /> },
+          { path: 'receivables-aging', element: <ReceivablesAgingReportPage /> },
           { path: 'worker-productivity', element: <WorkerProductivityReportPage /> },
           { path: 'order-cycle-time', element: <OrderCycleTimeReportPage /> },
           { path: 'inbound-accuracy', element: <InboundAccuracyReportPage /> },

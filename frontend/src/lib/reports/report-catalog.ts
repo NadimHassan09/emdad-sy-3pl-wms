@@ -10,7 +10,9 @@ export type ReportCatalogId =
   | 'order-cycle-time'
   | 'inbound-accuracy'
   | 'outbound-fill-rate'
-  | 'sla-compliance';
+  | 'sla-compliance'
+  | 'revenue-by-client'
+  | 'receivables-aging';
 
 export type ReportCatalogEntry = {
   id: ReportCatalogId;
@@ -19,7 +21,7 @@ export type ReportCatalogEntry = {
   titleAr: string;
   description: string;
   descriptionAr: string;
-  section?: 'inventory' | 'operations';
+  section?: 'inventory' | 'operations' | 'finance';
 };
 
 export const REPORT_CATALOG: ReportCatalogEntry[] = [
@@ -130,6 +132,24 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     description: 'Return orders vs outbound shipments by client.',
     descriptionAr: 'طلبات الإرجاع مقابل الشحنات الصادرة حسب العميل.',
     section: 'inventory',
+  },
+  {
+    id: 'revenue-by-client',
+    path: '/reports/revenue-by-client',
+    title: 'Revenue by Client',
+    titleAr: 'الإيرادات حسب العميل',
+    description: 'Issued invoice revenue grouped by client with date and status filters.',
+    descriptionAr: 'إيرادات الفواتير الصادرة مجمعة حسب العميل مع فلاتر التاريخ والحالة.',
+    section: 'finance',
+  },
+  {
+    id: 'receivables-aging',
+    path: '/reports/receivables-aging',
+    title: 'Receivables Aging',
+    titleAr: 'أعمار الذمم المدينة',
+    description: 'Open and overdue invoices bucketed by days past due.',
+    descriptionAr: 'الفواتير المفتوحة والمتأخرة مصنفة حسب أيام التأخير.',
+    section: 'finance',
   },
 ];
 

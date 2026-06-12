@@ -117,3 +117,12 @@ Implement new operational metrics in `operational-reports.runner.ts`, register i
 | `return-rate` | Return orders vs outbound by client in date range |
 
 Implement new inventory intelligence metrics in `inventory-intelligence-reports.runner.ts`, register in `report-registry.config.ts`, and add catalog + `registry.ts` UI metadata on the frontend.
+
+## Finance suite (2026-06)
+
+| Report ID | Runner |
+|-----------|--------|
+| `revenue-by-client` | `FinanceReportsRunner` — issued invoice totals by client |
+| `receivables-aging` | Open/overdue invoices bucketed by days past due |
+
+Implement new finance metrics in `finance-reports.runner.ts`, register in `report-registry.config.ts`, and add catalog + `registry.ts` UI metadata on the frontend.

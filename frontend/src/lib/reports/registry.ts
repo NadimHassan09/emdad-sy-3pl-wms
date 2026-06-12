@@ -32,6 +32,20 @@ const LOT_EXPIRY_BUCKETS = [
   { value: '180+ days', label: '180+ days', labelAr: '180+ يوم' },
 ];
 
+const INVOICE_STATUS = [
+  { value: 'paid', label: 'Paid', labelAr: 'مدفوع' },
+  { value: 'open', label: 'Open', labelAr: 'مفتوح' },
+  { value: 'overdue', label: 'Overdue', labelAr: 'متأخر' },
+];
+
+const RECEIVABLES_AGING_BUCKETS = [
+  { value: 'Current', label: 'Current', labelAr: 'جاري' },
+  { value: '1–30 days', label: '1–30 days', labelAr: '1–30 يوم' },
+  { value: '31–60 days', label: '31–60 days', labelAr: '31–60 يوم' },
+  { value: '61–90 days', label: '61–90 days', labelAr: '61–90 يوم' },
+  { value: '90+ days', label: '90+ days', labelAr: '90+ يوم' },
+];
+
 const TASK_TYPE_FILTER = [
   { value: 'receiving', label: 'Receiving', labelAr: 'استلام' },
   { value: 'putaway', label: 'Putaway', labelAr: 'تخزين' },
@@ -366,6 +380,56 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     exportFileName: 'sla-compliance',
     serverSide: true,
     category: 'operations',
+    run: noopRun,
+  },
+  {
+    id: 'revenue-by-client',
+    ...catalogMeta('revenue-by-client'),
+    columns: [
+      col('client', 'Client', 'العميل', { sortable: true }),
+      col('invoiceCount', 'Invoices', 'فواتير', { sortable: true, className: 'text-end' }),
+      col('revenue', 'Revenue', 'الإيرادات', { sortable: true, className: 'text-end' }),
+    ],
+    filterKeys: ['client', 'dateRange', 'status'],
+    statusOptions: INVOICE_STATUS,
+    groupByOptions: [{ value: 'client', label: 'Client', labelAr: 'العميل' }],
+    defaultView: 'graph',
+    supportedViews: ['table', 'graph', 'pivot'],
+    defaultChartKind: 'bar',
+    chartLabelKey: 'client',
+    chartValueKey: 'revenue',
+    exportFileName: 'revenue-by-client',
+    serverSide: true,
+    category: 'finance',
+    run: noopRun,
+  },
+  {
+    id: 'receivables-aging',
+    ...catalogMeta('receivables-aging'),
+    columns: [
+      col('invoiceNumber', 'Invoice #', 'رقم الفاتورة', { sortable: true }),
+      col('client', 'Client', 'العميل', { sortable: true }),
+      col('status', 'Status', 'الحالة', { sortable: true }),
+      col('amount', 'Amount', 'المبلغ', { sortable: true, className: 'text-end' }),
+      col('issuedAt', 'Issued', 'تاريخ الإصدار', { sortable: true }),
+      col('dueDate', 'Due', 'تاريخ الاستحقاق', { sortable: true }),
+      col('daysPastDue', 'Days past due', 'أيام التأخير', { sortable: true, className: 'text-end' }),
+      col('agingBucket', 'Aging bucket', 'فئة العمر', { sortable: true }),
+    ],
+    filterKeys: ['client', 'status'],
+    statusOptions: RECEIVABLES_AGING_BUCKETS,
+    groupByOptions: [
+      { value: 'agingBucket', label: 'Aging bucket', labelAr: 'فئة العمر' },
+      { value: 'client', label: 'Client', labelAr: 'العميل' },
+    ],
+    defaultView: 'table',
+    supportedViews: ['table', 'graph', 'pivot'],
+    defaultChartKind: 'bar',
+    chartLabelKey: 'agingBucket',
+    chartValueKey: 'amount',
+    exportFileName: 'receivables-aging',
+    serverSide: true,
+    category: 'finance',
     run: noopRun,
   },
 ];

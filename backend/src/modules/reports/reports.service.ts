@@ -13,6 +13,7 @@ import { AggregateReportQueryDto, ExportReportQueryDto, RunReportQueryDto } from
 import { ReportExportService, type ReportExportResult } from './framework/report-export.service';
 import { ReportsFrameworkService } from './framework/reports-framework.service';
 import { BillingReportsRunner } from './billing-reports.runner';
+import { FinanceReportsRunner } from './finance-reports.runner';
 import { InventoryIntelligenceReportsRunner } from './inventory-intelligence-reports.runner';
 import { OperationalReportsRunner } from './operational-reports.runner';
 import { ReportsPolicyConfig } from './reports-policy.config';
@@ -95,6 +96,7 @@ export class ReportsService {
     private readonly billingReports: BillingReportsRunner,
     private readonly operationalReports: OperationalReportsRunner,
     private readonly inventoryIntelligenceReports: InventoryIntelligenceReportsRunner,
+    private readonly financeReports: FinanceReportsRunner,
   ) {}
 
   getPolicy() {
@@ -196,6 +198,9 @@ export class ReportsService {
       case 'capacity-utilization':
       case 'return-rate':
         return this.runInventoryIntelligenceReport(user, reportId, query);
+      case 'revenue-by-client':
+      case 'receivables-aging':
+        return this.runFinanceReport(user, reportId, query);
       default:
         throw new NotFoundException('Unknown report.');
     }
@@ -222,6 +227,21 @@ export class ReportsService {
     query: RunReportQueryDto,
   ): Promise<Omit<ReportRunResult, 'cached'>> {
     const page = await this.inventoryIntelligenceReports.run(user, reportId, query);
+    return {
+      items: page.items,
+      total: page.total,
+      limit: query.limit,
+      offset: query.offset,
+      truncated: query.offset + page.items.length < page.total,
+    };
+  }
+
+  private async runFinanceReport(
+    user: AuthPrincipal,
+    reportId: string,
+    query: RunReportQueryDto,
+  ): Promise<Omit<ReportRunResult, 'cached'>> {
+    const page = await this.financeReports.run(user, reportId, query);
     return {
       items: page.items,
       total: page.total,
@@ -478,6 +498,12 @@ export class ReportsService {
         return Number(row.totalQty ?? row.skuCount ?? 0);
       case 'return-rate':
         return Number(String(row.returnRatePercent ?? '0').replace('%', ''));
+      case 'revenue-by-client':
+        return Number(row.revenue ?? 0);
+      case 'receivables-aging':
+        return Number(row.amount ?? 0);
+      case 'billing-revenue':
+        return Number(row.revenue ?? 0);
       default:
         return Number(row.totalCount ?? row.count ?? 0);
     }
