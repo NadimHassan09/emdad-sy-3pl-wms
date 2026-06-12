@@ -19,6 +19,7 @@
     "test:integration:sprint2": "ts-node --transpile-only src/integration-tests/sprint2/sprint2-reliability.integration.ts",
     "test:integration:barcode": "ts-node --transpile-only src/integration-tests/products-barcode.integration.ts",
     "test:integration:audit": "ts-node --transpile-only src/integration-tests/audit-mutations.integration.ts",
+    "test": "jest --runInBand",
     "test:unit": "jest --runInBand",
     "test:unit:products": "jest --runInBand src/modules/products"
   },
