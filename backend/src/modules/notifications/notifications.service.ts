@@ -75,24 +75,42 @@ export class NotificationsService {
     };
   }
 
-  async list(user: AuthPrincipal, limit = 50): Promise<{
+  async list(
+    user: AuthPrincipal,
+    params: { limit?: number; offset?: number; isRead?: boolean } = {},
+  ): Promise<{
     items: NotificationDto[];
     unreadCount: number;
+    total: number;
+    limit: number;
+    offset: number;
   }> {
-    const where = this.scopeWhere(user);
-    const [items, unreadCount] = await Promise.all([
+    const baseWhere = this.scopeWhere(user);
+    const where: Prisma.NotificationWhereInput = { ...baseWhere };
+    if (params.isRead === true) where.isRead = true;
+    if (params.isRead === false) where.isRead = false;
+
+    const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
+    const offset = Math.max(params.offset ?? 0, 0);
+
+    const [items, total, unreadCount] = await Promise.all([
       this.prisma.notification.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        take: Math.min(Math.max(limit, 1), 100),
+        skip: offset,
+        take: limit,
       }),
+      this.prisma.notification.count({ where }),
       this.prisma.notification.count({
-        where: { ...where, isRead: false },
+        where: { ...baseWhere, isRead: false },
       }),
     ]);
     return {
       items: items.map(toDto),
       unreadCount,
+      total,
+      limit,
+      offset,
     };
   }
 

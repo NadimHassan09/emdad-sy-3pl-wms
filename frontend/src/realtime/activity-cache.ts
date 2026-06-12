@@ -70,7 +70,7 @@ export function patchNotificationCreated(
   qc: QueryClient,
   notification: AppNotification,
 ): void {
-  qc.setQueryData<{ items: AppNotification[]; unreadCount: number }>(QK.notifications, (prev) => {
+  qc.setQueryData<{ items: AppNotification[]; unreadCount: number }>(QK.notifications.all, (prev) => {
     if (!prev) return prev;
     if (prev.items.some((n) => n.id === notification.id)) return prev;
     return {
@@ -84,7 +84,7 @@ export function patchNotificationRead(
   qc: QueryClient,
   payload: { notification?: AppNotification; markAllRead?: boolean },
 ): void {
-  qc.setQueryData<{ items: AppNotification[]; unreadCount: number }>(QK.notifications, (prev) => {
+  qc.setQueryData<{ items: AppNotification[]; unreadCount: number }>(QK.notifications.all, (prev) => {
     if (!prev) return prev;
     if (payload.markAllRead) {
       return {
@@ -107,7 +107,7 @@ export function patchNotificationRead(
 }
 
 export function patchNotificationDeleted(qc: QueryClient, notificationId: string): void {
-  qc.setQueryData<{ items: AppNotification[]; unreadCount: number }>(QK.notifications, (prev) => {
+  qc.setQueryData<{ items: AppNotification[]; unreadCount: number }>(QK.notifications.all, (prev) => {
     if (!prev) return prev;
     const removed = prev.items.find((n) => n.id === notificationId);
     if (!removed) return prev;

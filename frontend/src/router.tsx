@@ -50,6 +50,7 @@ const WarehouseUsersPage      = lazyPage(() => import('./pages/UsersPage'),     
 const ClientUsersPage         = lazyPage(() => import('./pages/UsersPage'),               'ClientUsersPage');
 const WarehouseUserDetailPage = lazyPage(() => import('./pages/UserDetailPage'),         'WarehouseUserDetailPage');
 const ClientUserDetailPage    = lazyPage(() => import('./pages/UserDetailPage'),          'ClientUserDetailPage');
+const NotificationsPage         = lazyPage(() => import('./modules/notifications/NotificationsPage'), 'NotificationsPage');
 const LoginPage               = lazyPage(() => import('./pages/LoginPage'),               'LoginPage');
 const AuditLogsPage           = lazyPage(() => import('./pages/AuditLogsPage'),           'AuditLogsPage');
 const SettingsLayout          = lazyPage(() => import('./pages/settings/SettingsLayout'), 'SettingsLayout');
@@ -144,6 +145,7 @@ export const router = createBrowserRouter([
       { path: 'users/client_users', element: <ClientUsersPage /> },
       { path: 'users/client_users/:id', element: <ClientUserDetailPage /> },
       { path: 'audit-logs', element: <AuditLogsPage /> },
+      { path: 'notifications', element: <NotificationsPage /> },
       {
         path: 'settings',
         element: <SettingsLayout />,

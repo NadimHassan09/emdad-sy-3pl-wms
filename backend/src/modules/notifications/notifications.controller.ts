@@ -10,9 +10,21 @@ export class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}
 
   @Get()
-  list(@CurrentUser() user: AuthPrincipal, @Query('limit') limit?: string) {
-    const n = limit ? Number(limit) : 50;
-    return this.notifications.list(user, Number.isFinite(n) ? n : 50);
+  list(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('isRead') isRead?: string,
+  ) {
+    const parsedLimit = limit != null ? Number(limit) : undefined;
+    const parsedOffset = offset != null ? Number(offset) : undefined;
+    const readFilter =
+      isRead === 'true' ? true : isRead === 'false' ? false : undefined;
+    return this.notifications.list(user, {
+      limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+      offset: Number.isFinite(parsedOffset) ? parsedOffset : undefined,
+      isRead: readFilter,
+    });
   }
 
   @Patch(':id/read')

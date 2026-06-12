@@ -15,10 +15,28 @@ export interface AppNotification {
 export interface NotificationsResponse {
   items: AppNotification[];
   unreadCount: number;
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export async function fetchNotifications(limit = 50): Promise<NotificationsResponse> {
   const { data } = await api.get<NotificationsResponse>('/notifications', { params: { limit } });
+  return data;
+}
+
+export async function fetchNotificationsPage(params: {
+  limit?: number;
+  offset?: number;
+  isRead?: boolean;
+}): Promise<NotificationsResponse> {
+  const { data } = await api.get<NotificationsResponse>('/notifications', {
+    params: {
+      limit: params.limit,
+      offset: params.offset,
+      ...(params.isRead === undefined ? {} : { isRead: String(params.isRead) }),
+    },
+  });
   return data;
 }
 
@@ -41,6 +59,15 @@ export function notificationHref(notification: AppNotification): string | undefi
   }
   if (notification.referenceType === 'product' && notification.referenceId) {
     return `/products/${notification.referenceId}`;
+  }
+  if (notification.referenceType === 'warehouse_task' && notification.referenceId) {
+    return `/tasks/${notification.referenceId}`;
+  }
+  if (notification.referenceType === 'invoice' && notification.referenceId) {
+    return `/billing/invoices/${notification.referenceId}`;
+  }
+  if (notification.referenceType === 'billing_cycle') {
+    return `/billing/dashboard`;
   }
   return undefined;
 }

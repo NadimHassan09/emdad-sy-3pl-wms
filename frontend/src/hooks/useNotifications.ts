@@ -13,9 +13,8 @@ export function useNotifications() {
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: QK.notifications,
+    queryKey: QK.notifications.all,
     queryFn: () => fetchNotifications(),
-    refetchInterval: 60_000,
   });
 
   const unreadCount = query.data?.unreadCount ?? 0;
@@ -26,7 +25,7 @@ export function useNotifications() {
     mutationFn: (id: string) => markNotificationRead(id),
     onSuccess: (updated) => {
       queryClient.setQueryData<{ items: AppNotification[]; unreadCount: number }>(
-        QK.notifications,
+        QK.notifications.all,
         (prev) => {
           if (!prev) return prev;
           const wasUnread = prev.items.find((n) => n.id === updated.id && !n.isRead);
@@ -36,6 +35,7 @@ export function useNotifications() {
           };
         },
       );
+      void queryClient.invalidateQueries({ queryKey: QK.notifications.all });
     },
   });
 
@@ -43,7 +43,7 @@ export function useNotifications() {
     mutationFn: () => markAllNotificationsRead(),
     onSuccess: () => {
       queryClient.setQueryData<{ items: AppNotification[]; unreadCount: number }>(
-        QK.notifications,
+        QK.notifications.all,
         (prev) => {
           if (!prev) return prev;
           return {
@@ -56,6 +56,7 @@ export function useNotifications() {
           };
         },
       );
+      void queryClient.invalidateQueries({ queryKey: QK.notifications.all });
     },
   });
 

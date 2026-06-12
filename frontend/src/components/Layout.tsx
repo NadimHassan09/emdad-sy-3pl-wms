@@ -104,6 +104,8 @@ function sidebarLabel(label: string, isArabic: boolean): string {
 
     'Audit logs': 'سجل التدقيق',
 
+    Notifications: 'الإشعارات',
+
     Settings: 'الإعدادات',
 
     'Sign out': 'تسجيل الخروج',
@@ -344,7 +346,7 @@ export function Layout() {
                   <img
                     src="/emdad-logo.png"
                     alt="EMDAD WMS"
-                    className="h-8 w-auto object-contain brightness-0 invert sm:h-9"
+                    className="h-7 w-auto object-contain brightness-0 invert"
                   />
                 </Link>
               }
@@ -364,7 +366,7 @@ export function Layout() {
                   <img
                     src="/emdad-logo.png"
                     alt="EMDAD WMS"
-                    className="h-8 w-auto object-contain brightness-0 invert sm:h-9"
+                    className="h-7 w-auto object-contain brightness-0 invert"
                   />
                 </Link>
               }
@@ -438,6 +440,8 @@ export function Layout() {
                       title={isArabic ? 'الإشعارات' : 'Notifications'}
                       emptyLabel={isArabic ? 'لا توجد إشعارات' : 'No notifications yet'}
                       markAllReadLabel={isArabic ? 'تعليم الكل كمقروء' : 'Mark all read'}
+                      viewAllLabel={isArabic ? 'عرض الكل' : 'View all'}
+                      viewAllHref="/notifications"
                       formatTime={formatNotificationTime}
                       onMarkAllRead={() => void notifications.markAllRead()}
                       onItemClick={(item) => void onNotificationClick(item)}
