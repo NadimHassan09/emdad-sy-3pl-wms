@@ -137,14 +137,6 @@ export const InventoryApi = {
     return data;
   },
 
-  /** Alias of `/inventory/stock` for naming parity with API docs. */
-  async currentStock(query: StockQuery = {}): Promise<PageResult<StockRow>> {
-    const { data } = await api.get<PageResult<StockRow>>('/inventory/current-stock', {
-      params: { limit: 200, ...query },
-    });
-    return data;
-  },
-
   async ledger(query: LedgerQuery = {}): Promise<PageResult<LedgerRow>> {
     const { data } = await api.get<PageResult<LedgerRow>>('/inventory/ledger', {
       params: { limit: 100, ...query },

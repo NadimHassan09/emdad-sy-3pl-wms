@@ -2,18 +2,6 @@ import type { ReactNode } from 'react';
 
 import type { ReportCatalogId } from './report-catalog';
 
-/** @deprecated Legacy nav grouping — prefer `REPORT_CATALOG` routes. */
-export type ReportCategory = 'inventory' | 'orders' | 'operations' | 'clients' | 'finance';
-
-/** @deprecated Used only by legacy ReportCategoryNav. */
-export const REPORT_CATEGORY_META: Record<ReportCategory, { label: string; labelAr: string }> = {
-  inventory: { label: 'Inventory', labelAr: 'المخزون' },
-  orders: { label: 'Orders', labelAr: 'الطلبات' },
-  operations: { label: 'Operations', labelAr: 'التشغيل' },
-  clients: { label: 'Clients', labelAr: 'العملاء' },
-  finance: { label: 'Finance', labelAr: 'المالية' },
-};
-
 export type ReportViewMode = 'table' | 'graph' | 'pivot';
 export type ReportChartKind = 'bar' | 'line' | 'pie';
 
@@ -70,8 +58,6 @@ export type ReportColumnDef = {
 export type GroupByOption = { value: string; label: string; labelAr: string };
 export type StatusOption = { value: string; label: string; labelAr: string };
 
-export type ReportRunContext = { defaultWarehouseId: string };
-
 export type WarehouseKpi = {
   id: string;
   label: string;
@@ -97,19 +83,6 @@ export type ReportDefinition = {
   chartLabelKey?: string;
   chartValueKey?: string;
   exportFileName: string;
-  /** @deprecated Replaced by server-side reports API. */
-  usesClientAggregation?: boolean;
   serverSide?: boolean;
-  missingBackendNotes?: string[];
   loadsWarehouseKpis?: boolean;
-  /** @deprecated Legacy category nav only. */
-  category?: ReportCategory;
-  run: (filters: ReportFilterValues, ctx: ReportRunContext) => Promise<ReportRow[]>;
-};
-
-export type ReportGenerateResult = {
-  rows: ReportRow[];
-  kpis?: WarehouseKpi[];
-  kpiError?: string;
-  error?: string;
 };

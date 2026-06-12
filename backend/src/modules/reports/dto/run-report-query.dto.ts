@@ -5,7 +5,6 @@ import { EmptyToUndefined } from '../../../common/transformers/query-transform';
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const REPORT_IDS = ['warehouse-analysis', 'inventory', 'product-moves'] as const;
 
 export class RunReportQueryDto extends PaginationDto {
   @EmptyToUndefined()
@@ -58,4 +57,3 @@ export class ExportReportQueryDto extends RunReportQueryDto {
   format: 'csv' | 'xls' = 'csv';
 }
 
-export { REPORT_IDS };

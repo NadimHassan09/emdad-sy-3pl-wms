@@ -83,29 +83,3 @@ export function adminOutboundListItem(order: {
     _count: { lines: lineCount },
   };
 }
-
-/** @deprecated use adminInboundListItem — kept for client portal compatibility */
-export function clientInboundListItem(order: Parameters<typeof adminInboundListItem>[0]): Record<string, unknown> {
-  const full = adminInboundListItem(order);
-  return {
-    id: full.id,
-    orderNumber: full.orderNumber,
-    status: full.status,
-    expectedArrivalDate: full.expectedArrivalDate,
-    createdAt: full.createdAt,
-    _count: full._count,
-  };
-}
-
-/** @deprecated use adminOutboundListItem */
-export function clientOutboundListItem(order: Parameters<typeof adminOutboundListItem>[0]): Record<string, unknown> {
-  const full = adminOutboundListItem(order);
-  return {
-    id: full.id,
-    orderNumber: full.orderNumber,
-    status: full.status,
-    requiredShipDate: full.requiredShipDate,
-    createdAt: full.createdAt,
-    _count: full._count,
-  };
-}

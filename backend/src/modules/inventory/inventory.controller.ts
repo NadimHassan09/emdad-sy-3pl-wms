@@ -26,7 +26,7 @@ export class InventoryController {
     return this.inventory.stockByProductSummary(user, query);
   }
 
-  @Get(['stock', 'current-stock'])
+  @Get('stock')
   stock(@CurrentUser() user: AuthPrincipal, @Query() query: StockQueryDto) {
     return this.inventory.stock(user, query);
   }

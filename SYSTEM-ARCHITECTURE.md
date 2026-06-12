@@ -68,7 +68,7 @@ flowchart TB
     API -.-> GDrive
 ```
 
-**Production readiness (staging audit):** 84/100, ~83% feature complete. Core warehouse operations are E2E-certified; primary gaps are off-site DR (Google Drive OAuth), reporting catalog, and performance on high-volume tables.
+**Production readiness (staging audit):** 88/100, ~90% feature complete. Core warehouse operations and the full 14-report catalog are E2E-certified; primary gaps are off-site DR (Google Drive OAuth) and performance on high-volume tables.
 
 ---
 
@@ -675,7 +675,6 @@ flowchart TB
 | DELETE | `/api/warehouses/:id` | WarehousesService | InternalAdmin | Delete warehouse |
 | POST | `/api/locations` | LocationsService | InternalAdmin | Create location |
 | GET | `/api/locations` | LocationsService | JWT | List locations |
-| GET | `/api/locations/tree` | LocationsService | JWT | Location tree |
 | GET | `/api/locations/lookup` | LocationsService | JWT | Barcode/path lookup |
 | GET | `/api/locations/:id` | LocationsService | JWT | Get location |
 | PATCH | `/api/locations/:id` | LocationsService | InternalAdmin | Update location |
@@ -688,7 +687,6 @@ flowchart TB
 |--------|-------|---------|------|---------|
 | GET | `/api/inventory/stock` | InventoryService | JWT | Stock list |
 | GET | `/api/inventory/stock/by-product` | InventoryService | JWT | Stock by product |
-| GET | `/api/inventory/current-stock` | InventoryService | JWT | Alias for stock |
 | GET | `/api/inventory/ledger` | InventoryService | JWT | Ledger entries |
 | GET | `/api/inventory/ledger/entry` | InventoryService | JWT | Single ledger entry |
 | GET | `/api/inventory/availability` | InventoryService | JWT | Available qty |
@@ -823,8 +821,11 @@ flowchart TB
 | Method | Route | Service | RBAC | Purpose |
 |--------|-------|---------|------|---------|
 | GET | `/api/dashboard/overview` | DashboardService | JWT | Dashboard KPIs |
+| GET | `/api/reports/policy` | ReportsFrameworkService | ADMIN | Report limits and IDs |
 | GET | `/api/reports/:reportId/run` | ReportsService | ADMIN | Run report |
-| GET | `/api/reports/:reportId/export` | ReportsService | ADMIN | Export report |
+| GET | `/api/reports/:reportId/aggregate` | ReportsService | ADMIN | Grouped report view |
+| GET | `/api/reports/:reportId/kpis` | ReportsService | ADMIN | KPI strip (warehouse analysis) |
+| GET | `/api/reports/:reportId/export` | ReportsService | ADMIN | Export report (CSV/XLS) |
 | GET | `/api/audit-logs` | AuditLogsService | ADMIN | Query audit logs |
 | GET | `/api/audit-logs/export` | AuditLogsService | ADMIN + InternalAdmin | Export audit logs |
 | GET | `/api/notifications` | NotificationsService | JWT | List notifications |
@@ -1054,9 +1055,11 @@ sequenceDiagram
 
 ### 8.10 Reports
 
-**Flow:** `GET /reports/:reportId/run` → `ReportsService` queries analytics views or OLTP aggregates → `ReportsCacheService` (Redis) caches results → export via separate endpoint.
+**Flow:** `GET /reports/:reportId/run|aggregate|export|kpis` → dedicated runners (`OperationalReportsRunner`, `InventoryIntelligenceReportsRunner`, `FinanceReportsRunner`) query OLTP aggregates → `ReportsFrameworkService.runCached` (Redis, 60s TTL) → CSV/XLS export via `ReportExportService`.
 
-**Live reports:** warehouse-analysis, inventory, product-moves (3 of 14 documented).
+**Live reports (14):** warehouse-analysis, inventory, product-moves; worker-productivity, order-cycle-time, inbound-accuracy, outbound-fill-rate, sla-compliance; stock-aging, lot-expiry, capacity-utilization, return-rate; revenue-by-client, receivables-aging.
+
+**Frontend:** `ReportWorkspace` + `ReportsNav` (`REPORT_CATALOG`); all execution is server-side — no client bulk-fetch runners.
 
 ### 8.11 Billing
 
@@ -1449,8 +1452,8 @@ flowchart TB
 | R-10 | Technical debt | Vendored `wms-task-execution` in 3 locations | Medium | Manual sync required |
 | R-11 | Technical debt | Legacy `tasks` table coexists with `warehouse_tasks` | Low | App uses modern engine only |
 | R-12 | Technical debt | Prisma models 42 vs baseline SQL ~60+ tables | Low | Documented split |
-| R-13 | Feature gap | Reporting: 3 live vs 14 documented reports | **High** | REPORTING-CENTER.md aspirational |
-| R-14 | Feature gap | WarehousesPage exists but not routed in admin | Low | ROUTE-AUDIT R-1 |
+| R-13 | ~~Feature gap~~ | ~~Reporting: 3 live vs 14 documented~~ | Resolved | Full catalog live; see `docs/REPORTING-FRAMEWORK.md` |
+| R-14 | ~~Feature gap~~ | ~~WarehousesPage not routed~~ | Resolved | Routed at `/warehouses` |
 | R-15 | Feature gap | Manual backup create UI missing (API exists) | Medium | BACKUP-GAP BK-1 |
 | R-16 | Feature gap | Billing payments not implemented | Medium | Invoice status manual only |
 | R-17 | Feature gap | SLA escalation is notification stub | Low | SlaEscalationService logs only |

@@ -1,7 +1,5 @@
 import { col } from './column-helpers';
 import { getCatalogEntry } from './report-catalog';
-import { runInventoryBalance, runInventoryMovement } from './report-runners';
-import { runWarehouseAnalysisChart } from './warehouse-analysis';
 import type { ReportDefinition } from './types';
 
 const MOVEMENT_TYPES = [
@@ -54,7 +52,6 @@ const TASK_TYPE_FILTER = [
   { value: 'dispatch', label: 'Dispatch', labelAr: 'تسليم' },
 ];
 
-const noopRun = async () => [] as never[];
 
 function catalogMeta(id: ReportDefinition['id']) {
   const entry = getCatalogEntry(id)!;
@@ -85,8 +82,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     exportFileName: 'warehouse-analysis',
     serverSide: true,
     loadsWarehouseKpis: true,
-    category: 'operations',
-    run: runWarehouseAnalysisChart,
   },
   {
     id: 'inventory',
@@ -119,8 +114,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     chartValueKey: 'onHand',
     exportFileName: 'inventory',
     serverSide: true,
-    category: 'inventory',
-    run: runInventoryBalance,
   },
   {
     id: 'product-moves',
@@ -153,8 +146,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     chartValueKey: 'quantity',
     exportFileName: 'product-moves',
     serverSide: true,
-    category: 'inventory',
-    run: runInventoryMovement,
   },
   {
     id: 'stock-aging',
@@ -183,8 +174,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     chartValueKey: 'onHand',
     exportFileName: 'stock-aging',
     serverSide: true,
-    category: 'inventory',
-    run: noopRun,
   },
   {
     id: 'lot-expiry',
@@ -212,8 +201,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     chartValueKey: 'quantity',
     exportFileName: 'lot-expiry',
     serverSide: true,
-    category: 'inventory',
-    run: noopRun,
   },
   {
     id: 'capacity-utilization',
@@ -234,8 +221,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     chartValueKey: 'totalQty',
     exportFileName: 'capacity-utilization',
     serverSide: true,
-    category: 'inventory',
-    run: noopRun,
   },
   {
     id: 'return-rate',
@@ -255,8 +240,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     chartValueKey: 'returnRatePercent',
     exportFileName: 'return-rate',
     serverSide: true,
-    category: 'inventory',
-    run: noopRun,
   },
   {
     id: 'worker-productivity',
@@ -280,8 +263,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     chartValueKey: 'completedTasks',
     exportFileName: 'worker-productivity',
     serverSide: true,
-    category: 'operations',
-    run: noopRun,
   },
   {
     id: 'order-cycle-time',
@@ -307,8 +288,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     chartValueKey: 'cycleHours',
     exportFileName: 'order-cycle-time',
     serverSide: true,
-    category: 'operations',
-    run: noopRun,
   },
   {
     id: 'inbound-accuracy',
@@ -331,8 +310,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     chartValueKey: 'accuracyPercent',
     exportFileName: 'inbound-accuracy',
     serverSide: true,
-    category: 'operations',
-    run: noopRun,
   },
   {
     id: 'outbound-fill-rate',
@@ -355,8 +332,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     chartValueKey: 'fillRatePercent',
     exportFileName: 'outbound-fill-rate',
     serverSide: true,
-    category: 'operations',
-    run: noopRun,
   },
   {
     id: 'sla-compliance',
@@ -379,8 +354,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     chartValueKey: 'compliancePercent',
     exportFileName: 'sla-compliance',
     serverSide: true,
-    category: 'operations',
-    run: noopRun,
   },
   {
     id: 'revenue-by-client',
@@ -400,8 +373,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     chartValueKey: 'revenue',
     exportFileName: 'revenue-by-client',
     serverSide: true,
-    category: 'finance',
-    run: noopRun,
   },
   {
     id: 'receivables-aging',
@@ -429,8 +400,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     chartValueKey: 'amount',
     exportFileName: 'receivables-aging',
     serverSide: true,
-    category: 'finance',
-    run: noopRun,
   },
 ];
 

@@ -41,9 +41,4 @@ export const WorkersApi = {
     const { data } = await api.post<WorkerRow>('/workers', body);
     return data;
   },
-
-  async get(id: string) {
-    const { data } = await api.get<WorkerRow & { openTaskCount?: number }>(`/workers/${id}`);
-    return data;
-  },
 };

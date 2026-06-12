@@ -12,7 +12,6 @@ import { OutboundService } from '../outbound/outbound.service';
 import { AggregateReportQueryDto, ExportReportQueryDto, RunReportQueryDto } from './dto/run-report-query.dto';
 import { ReportExportService, type ReportExportResult } from './framework/report-export.service';
 import { ReportsFrameworkService } from './framework/reports-framework.service';
-import { BillingReportsRunner } from './billing-reports.runner';
 import { FinanceReportsRunner } from './finance-reports.runner';
 import { InventoryIntelligenceReportsRunner } from './inventory-intelligence-reports.runner';
 import { OperationalReportsRunner } from './operational-reports.runner';
@@ -93,7 +92,6 @@ export class ReportsService {
     private readonly policy: ReportsPolicyConfig,
     private readonly framework: ReportsFrameworkService,
     private readonly exportService: ReportExportService,
-    private readonly billingReports: BillingReportsRunner,
     private readonly operationalReports: OperationalReportsRunner,
     private readonly inventoryIntelligenceReports: InventoryIntelligenceReportsRunner,
     private readonly financeReports: FinanceReportsRunner,
@@ -181,12 +179,6 @@ export class ReportsService {
         return this.runProductMoves(user, query);
       case 'warehouse-analysis':
         return this.runWarehouseAnalysis(user, query);
-      case 'billing-revenue':
-      case 'billing-outstanding':
-      case 'billing-expiring':
-      case 'billing-suspended':
-      case 'billing-capacity':
-        return this.runBillingReport(user, reportId, query);
       case 'worker-productivity':
       case 'order-cycle-time':
       case 'inbound-accuracy':
@@ -242,25 +234,6 @@ export class ReportsService {
     query: RunReportQueryDto,
   ): Promise<Omit<ReportRunResult, 'cached'>> {
     const page = await this.financeReports.run(user, reportId, query);
-    return {
-      items: page.items,
-      total: page.total,
-      limit: query.limit,
-      offset: query.offset,
-      truncated: query.offset + page.items.length < page.total,
-    };
-  }
-
-  private async runBillingReport(
-    user: AuthPrincipal,
-    reportId: string,
-    query: RunReportQueryDto,
-  ): Promise<Omit<ReportRunResult, 'cached'>> {
-    const page = await this.billingReports.run(user, reportId, {
-      limit: query.limit,
-      offset: query.offset,
-      companyId: query.companyId,
-    });
     return {
       items: page.items,
       total: page.total,
@@ -502,8 +475,6 @@ export class ReportsService {
         return Number(row.revenue ?? 0);
       case 'receivables-aging':
         return Number(row.amount ?? 0);
-      case 'billing-revenue':
-        return Number(row.revenue ?? 0);
       default:
         return Number(row.totalCount ?? row.count ?? 0);
     }

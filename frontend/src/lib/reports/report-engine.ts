@@ -1,36 +1,5 @@
 import { getReportById } from './registry';
-import { loadWarehouseKpis } from './warehouse-analysis';
-import type { ReportFilterValues, ReportGenerateResult, ReportRow, ReportRunContext } from './types';
-
-export async function generateReport(
-  reportId: string,
-  filters: ReportFilterValues,
-  ctx: ReportRunContext,
-): Promise<ReportGenerateResult> {
-  const def = getReportById(reportId);
-  if (!def) return { rows: [], error: 'Unknown report type.' };
-  if (!ctx.defaultWarehouseId) {
-    return { rows: [], error: 'Warehouse not configured. Set a default warehouse first.' };
-  }
-  try {
-    const rows = await def.run(filters, ctx);
-    const result: ReportGenerateResult = { rows };
-    if (def.loadsWarehouseKpis) {
-      try {
-        result.kpis = await loadWarehouseKpis(filters, ctx);
-      } catch (kpiErr) {
-        result.kpiError =
-          kpiErr instanceof Error ? kpiErr.message : 'Failed to load KPI summary.';
-      }
-    }
-    return result;
-  } catch (e) {
-    return {
-      rows: [],
-      error: e instanceof Error ? e.message : 'Report generation failed.',
-    };
-  }
-}
+import type { ReportRow } from './types';
 
 export function sortReportRows(
   rows: ReportRow[],

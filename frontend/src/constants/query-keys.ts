@@ -49,11 +49,7 @@ export const QK = {
     putawayLookup: (warehouseId: string, taskType: string, search: string) =>
       ['locations', 'lookup', 'putaway', warehouseId, taskType, search] as const,
   },
-  /** @deprecated Full tree — do not use on Locations page */
-  locationsTree: (warehouseId: string) => ['locations', 'tree', warehouseId] as const,
   locationsPurgeContext: (warehouseId: string) => ['locations', 'purge-context', warehouseId] as const,
-  locationsFlat: (warehouseId: string, includeArchived: boolean) =>
-    ['locations', 'flat', warehouseId, includeArchived] as const,
   locationsFlatAll: (includeArchived: boolean) =>
     ['locations', 'flat', 'all', includeArchived] as const,
 

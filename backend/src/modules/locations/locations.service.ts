@@ -4,23 +4,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { LocationType, Prisma } from '@prisma/client';
+import { LocationStatus, LocationType, Prisma } from '@prisma/client';
 
 import { slugifyForBarcode } from '../../common/generators/identifiers';
 import { coerceOptionalBool } from '../../common/utils/coerce-boolean';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
+import { locationRealtimePayload } from '../realtime/realtime-master-data.payload';
 import { CreateLocationDto } from './dto/create-location.dto';
+import { ListLocationsLookupQueryDto } from './dto/list-locations-lookup-query.dto';
 import { ListLocationsQueryDto } from './dto/list-locations-query.dto';
 import { UpdateLocationDto } from './dto/update-location.dto';
-interface LocationTreeNode {
-  id: string;
-  name: string;
-  fullPath: string;
-  type: string;
-  barcode: string;
-  children: LocationTreeNode[];
-}
-
 const BARCODE_RETRY_LIMIT = 6;
 
 function assertNotDeprecatedLocationType(type: LocationType | undefined) {
@@ -33,7 +27,10 @@ function assertNotDeprecatedLocationType(type: LocationType | undefined) {
 
 @Injectable()
 export class LocationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   private async assertParentChainValid(parentId: string, warehouseId: string) {
     const seen = new Set<string>();
@@ -98,7 +95,7 @@ export class LocationsService {
     for (let i = 0; i < attempts; i++) {
       const candidate = i === 0 ? baseCandidate : `${baseCandidate}-${i + 1}`;
       try {
-        return await this.prisma.location.create({
+        const created = await this.prisma.location.create({
           data: {
             warehouseId: dto.warehouseId,
             parentId: dto.parentId,
@@ -110,6 +107,8 @@ export class LocationsService {
             maxCbm: dto.maxCbm,
           },
         });
+        this.realtime.emitLocationCreated(locationRealtimePayload(created));
+        return created;
       } catch (err) {
         lastError = err;
         if (
@@ -125,48 +124,128 @@ export class LocationsService {
     throw lastError;
   }
 
-  list(query: ListLocationsQueryDto) {
-    const includeArchived = coerceOptionalBool(query.includeArchived) === true;
-    const where: Prisma.LocationWhereInput = {};
-    if (!includeArchived) {
-      where.status = 'active';
+  /**
+   * Paginated direct-children listing for hierarchical navigation.
+   * `parentId` omitted → roots only; `parentId` set → immediate children only (never descendants).
+   */
+  async list(query: ListLocationsQueryDto) {
+    if (!query.warehouseId) {
+      throw new BadRequestException('warehouseId query param is required.');
     }
-    if (query.warehouseId) where.warehouseId = query.warehouseId;
-    return this.prisma.location.findMany({
-      where,
-      orderBy: [{ fullPath: 'asc' }],
-    });
+
+    if (query.parentId) {
+      const parent = await this.prisma.location.findUnique({
+        where: { id: query.parentId },
+        select: { id: true, warehouseId: true },
+      });
+      if (!parent) throw new NotFoundException('Parent location not found.');
+      if (parent.warehouseId !== query.warehouseId) {
+        throw new BadRequestException('parentId does not belong to the requested warehouse.');
+      }
+    }
+
+    const where = this.buildListWhere(query);
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.location.findMany({
+        where,
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        take: query.limit,
+        skip: query.offset,
+        include: { _count: { select: { children: true } } },
+      }),
+      this.prisma.location.count({ where }),
+    ]);
+
+    const items = rows.map(({ _count, ...loc }) => ({
+      ...loc,
+      childCount: _count.children,
+    }));
+
+    return { items, total, limit: query.limit, offset: query.offset };
   }
 
-  async tree(warehouseId: string): Promise<LocationTreeNode[]> {
-    const flat = await this.prisma.location.findMany({
-      where: { warehouseId },
-      orderBy: { sortOrder: 'asc' },
-    });
-    const byId = new Map<string, LocationTreeNode>();
-    flat.forEach((row) =>
-      byId.set(row.id, {
-        id: row.id,
-        name: row.name,
-        fullPath: row.fullPath,
-        type: row.type,
-        barcode: row.barcode,
-        children: [],
+  /** Search locations across the whole warehouse (parent picker, legacy list assembly). */
+  async lookup(query: ListLocationsLookupQueryDto) {
+    if (!query.warehouseId) {
+      throw new BadRequestException('warehouseId query param is required.');
+    }
+
+    const and: Prisma.LocationWhereInput[] = [{ warehouseId: query.warehouseId }];
+
+    if (query.status) {
+      and.push({ status: query.status });
+    } else if (coerceOptionalBool(query.includeArchived) !== true) {
+      and.push({ status: LocationStatus.active });
+    }
+
+    if (query.type) {
+      and.push({ type: query.type });
+    }
+
+    const search = query.search?.trim();
+    if (search) {
+      and.push({
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { fullPath: { contains: search, mode: 'insensitive' } },
+          { barcode: { contains: search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    const where = { AND: and };
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.location.findMany({
+        where,
+        orderBy: [{ fullPath: 'asc' }],
+        take: query.limit,
+        skip: query.offset,
+        include: { _count: { select: { children: true } } },
       }),
-    );
+      this.prisma.location.count({ where }),
+    ]);
 
-    const roots: LocationTreeNode[] = [];
-    flat.forEach((row) => {
-      const node = byId.get(row.id);
-      if (!node) return;
-      if (row.parentId && byId.has(row.parentId)) {
-        byId.get(row.parentId)!.children.push(node);
-      } else {
-        roots.push(node);
-      }
-    });
+    const items = rows.map(({ _count, ...loc }) => ({
+      ...loc,
+      childCount: _count.children,
+    }));
 
-    return roots;
+    return { items, total, limit: query.limit, offset: query.offset };
+  }
+
+  private buildListWhere(query: ListLocationsQueryDto): Prisma.LocationWhereInput {
+    const and: Prisma.LocationWhereInput[] = [{ warehouseId: query.warehouseId! }];
+
+    if (query.parentId) {
+      and.push({ parentId: query.parentId });
+    } else {
+      and.push({ parentId: null });
+    }
+
+    if (query.status) {
+      and.push({ status: query.status });
+    } else if (coerceOptionalBool(query.includeArchived) !== true) {
+      and.push({ status: LocationStatus.active });
+    }
+
+    if (query.type) {
+      and.push({ type: query.type });
+    }
+
+    const search = query.search?.trim();
+    if (search) {
+      and.push({
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { fullPath: { contains: search, mode: 'insensitive' } },
+          { barcode: { contains: search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    return { AND: and };
   }
 
   async findById(id: string) {
@@ -231,7 +310,7 @@ export class LocationsService {
       return this.findById(id);
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       try {
         await tx.location.update({ where: { id }, data });
       } catch (err) {
@@ -250,6 +329,8 @@ export class LocationsService {
 
       return tx.location.findUniqueOrThrow({ where: { id } });
     });
+    this.realtime.emitLocationUpdated(locationRealtimePayload(updated));
+    return updated;
   }
 
   private async remapChildFullPaths(
@@ -284,10 +365,12 @@ export class LocationsService {
         'Cannot archive location while stock rows exist for it.',
       );
     }
-    return this.prisma.location.update({
+    const archived = await this.prisma.location.update({
       where: { id },
       data: { status: 'archived' },
     });
+    this.realtime.emitLocationArchived(archived.warehouseId, archived.id);
+    return archived;
   }
 
   /**

@@ -188,11 +188,6 @@ export function ledgerBusinessGroupsCountSql(ctx: LedgerListSqlContext): Prisma.
   `;
 }
 
-/** @deprecated Raw-row count — kept for diagnostics only. */
-export function ledgerFilteredRowsCountSql(ctx: LedgerListSqlContext): Prisma.Sql {
-  return ledgerBusinessGroupsCountSql(ctx);
-}
-
 const LEDGER_GROUP_PAGE_CTE = (ctx: LedgerListSqlContext) => Prisma.sql`
   WITH filtered AS (
     SELECT

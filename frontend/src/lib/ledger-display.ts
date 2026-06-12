@@ -184,8 +184,3 @@ export function ledgerReferenceAdminPath(referenceType: string, referenceId: str
       return null;
   }
 }
-
-/** @deprecated Use ledgerEntryDetailPath; kept for deep links to order-wide ledger views. */
-export function ledgerReferenceDetailPath(referenceType: string, referenceId: string): string {
-  return `/inventory/ledger/${encodeURIComponent(referenceType)}/${encodeURIComponent(referenceId)}`;
-}

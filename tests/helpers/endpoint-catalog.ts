@@ -33,7 +33,6 @@ export const ADMIN_ENDPOINTS: EndpointDef[] = [
   { controller: 'inventory', method: 'GET', path: '/inventory/consistency/validate', auth: 'admin' },
   // locations
   { controller: 'locations', method: 'GET', path: '/locations', auth: 'admin' },
-  { controller: 'locations', method: 'GET', path: '/locations/tree', auth: 'admin' },
   // warehouses
   { controller: 'warehouses', method: 'GET', path: '/warehouses', auth: 'admin' },
   { controller: 'warehouses', method: 'GET', path: '/warehouses/next-code', auth: 'admin' },

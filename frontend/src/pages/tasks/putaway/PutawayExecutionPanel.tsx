@@ -5,10 +5,10 @@ import { InboundApi, type InboundOrderLine } from '../../../api/inbound';
 import { Column, DataTable } from '../../../components/DataTable';
 import { TaskDetailsCard } from '../../../components/tasks/TaskDetailsCard';
 import type { Location } from '../../../api/locations';
-import { LocationsApi } from '../../../api/locations';
 import { ProductsApi, type ProductLot } from '../../../api/products';
 import { Button } from '../../../components/Button';
-import { Combobox } from '../../../components/Combobox';
+import { PutawayDestinationPicker } from './PutawayDestinationPicker';
+import { useResolvedLocations } from '../../../hooks/useResolvedLocations';
 import { TaskLinesFilterCard } from '../../../components/tasks/TaskLinesFilterCard';
 import {
   DEFAULT_TASK_LINE_FILTERS,
@@ -17,10 +17,15 @@ import {
 import type { TaskLineFilters } from '../../../lib/task-line-filters';
 import { useToast } from '../../../components/ToastProvider';
 import { QK } from '../../../constants/query-keys';
-import { locationTypeLabel } from '../../../lib/location-types';
 import { displayWarehouseLabel, inboundOrderTitle } from '../../../lib/task-details-helpers';
 import { taskTypeIconClass } from '../../../lib/task-type-icons';
-import { taskTypeTitle } from '../../../workflow/task-ui-matrix';
+import { useWmsTranslation } from '../../../lib/ui-i18n';
+import {
+  localizedPutawayLineStatus,
+  localizedPutawayStatusFilterOptions,
+  localizedTaskLineSearchPlaceholder,
+  localizedTaskTypeTitle,
+} from '../../../lib/ui-labels/task-execution';
 import { Alert } from '@ds';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import {
@@ -38,10 +43,8 @@ import {
   computePutawaySummary,
   filterPutawayDrafts,
   lineStatusClass,
-  lineStatusLabel,
   locationDisplay,
   parseQty,
-  putawayLineStatusFilterOptions,
 } from './putaway-utils';
 
 function readPutawayDraft(raw: unknown): PutawayExecutionDraft | null {
@@ -97,7 +100,6 @@ type Props = {
   showExportPdf?: boolean;
   taskStatus: string;
   executionState?: unknown;
-  destinationLocations: Location[];
   submit: (body: unknown, e?: FormEvent) => void;
   busy: boolean;
   readOnly?: boolean;
@@ -115,11 +117,11 @@ export function PutawayExecutionPanel({
   showExportPdf = true,
   taskStatus,
   executionState,
-  destinationLocations,
   submit,
   busy,
   readOnly = false,
 }: Props) {
+  const { t } = useWmsTranslation();
   const toast = useToast();
   const isMdUp = useMediaQuery('(min-width: 768px)');
   const savedDraft = readPutawayDraft(executionState);
@@ -147,12 +149,6 @@ export function PutawayExecutionPanel({
     queryKey: [...QK.inboundOrders, inboundOrderId ?? ''],
     queryFn: () => InboundApi.get(inboundOrderId!),
     enabled: !!inboundOrderId,
-  });
-
-  const allLocations = useQuery({
-    queryKey: [...QK.locationsFlatAll(false), warehouseId, 'putaway-all'],
-    queryFn: () => LocationsApi.list(warehouseId, false),
-    enabled: !!warehouseId,
   });
 
   const lineById = useMemo(() => {
@@ -198,6 +194,21 @@ export function PutawayExecutionPanel({
     return map;
   }, [productIdsForLots, lotsQueries]);
 
+  const resolvedLocationIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const l of lines) {
+      const sid = l.source_staging_location_id?.trim();
+      if (sid) ids.push(sid);
+    }
+    for (const d of drafts) {
+      const did = d.destination_location_id?.trim();
+      if (did) ids.push(did);
+    }
+    return ids;
+  }, [lines, drafts]);
+
+  const { locationById } = useResolvedLocations(resolvedLocationIds);
+
   const targetQty = useMemo(
     () => Object.fromEntries(lines.map((l) => [l.inbound_order_line_id, parseQty(l.quantity)])),
     [lines],
@@ -213,9 +224,8 @@ export function PutawayExecutionPanel({
         lineById,
         targetQty,
         lotsByProductId,
-        allLocations.data ?? [],
       ),
-    [drafts, appliedLineFilters, lineById, targetQty, lotsByProductId, allLocations.data],
+    [drafts, appliedLineFilters, lineById, targetQty, lotsByProductId],
   );
 
   const lineFiltersCard = (
@@ -229,8 +239,8 @@ export function PutawayExecutionPanel({
       }}
       resultCount={filteredDrafts.length}
       totalCount={drafts.length}
-      statusOptions={putawayLineStatusFilterOptions()}
-      searchPlaceholder="SKU, product name, barcode, or lot"
+      statusOptions={localizedPutawayStatusFilterOptions(t)}
+      searchPlaceholder={localizedTaskLineSearchPlaceholder(t)}
       onBarcodeScan={(code) => {
         const next = taskLineFiltersWithSearch(draftLineFilters, code);
         setDraftLineFilters(next);
@@ -252,11 +262,16 @@ export function PutawayExecutionPanel({
       const target = targetQty[l.inbound_order_line_id] ?? 0;
       const sum = sums[l.inbound_order_line_id] ?? 0;
       if (Math.abs(sum - target) > 1e-6 && sum > 0) {
-        issues.push(`Line ${l.inbound_order_line_id.slice(0, 8)}… qty must sum to ${target}.`);
+        issues.push(
+          t([
+            `Line ${l.inbound_order_line_id.slice(0, 8)}… qty must sum to ${target}.`,
+            `السطر ${l.inbound_order_line_id.slice(0, 8)}… يجب أن تساوي الكميات ${target}.`,
+          ]),
+        );
       }
     }
     return [...new Set(issues)];
-  }, [drafts, lines, targetQty]);
+  }, [drafts, lines, targetQty, t]);
 
   const patchDraft = useCallback((rowKey: string, patch: Partial<PutawayLineDraft>) => {
     setDrafts((prev) => prev.map((r) => (r.rowKey === rowKey ? { ...r, ...patch } : r)));
@@ -272,17 +287,17 @@ export function PutawayExecutionPanel({
   function handleComplete(e: FormEvent) {
     e.preventDefault();
     if (validationIssues.length > 0) {
-      toast.error('Resolve validation issues before completing.');
+      toast.error(t(['Resolve validation issues before completing.', 'عالج مشاكل التحقق قبل الإكمال.']));
       return;
     }
     const submitRows = drafts.filter((r) => parseQty(r.putaway_quantity) > 0);
     if (submitRows.length === 0) {
-      toast.error('Enter quantities for at least one move.');
+      toast.error(t(['Enter quantities for at least one move.', 'أدخل كميات لحركة واحدة على الأقل.']));
       return;
     }
     for (const r of submitRows) {
       if (!r.destination_location_id.trim()) {
-        toast.error('Each row needs a destination.');
+        toast.error(t(['Each row needs a destination.', 'كل سطر يحتاج وجهة.']));
         return;
       }
     }
@@ -292,7 +307,7 @@ export function PutawayExecutionPanel({
     }
     for (const l of lines) {
       if (Math.abs((sums[l.inbound_order_line_id] ?? 0) - (targetQty[l.inbound_order_line_id] ?? 0)) > 1e-6) {
-        toast.error(`Quantities must sum to task line targets.`);
+        toast.error(t(['Quantities must sum to task line targets.', 'يجب أن تساوي الكميات أهداف أسطر المهمة.']));
         return;
       }
     }
@@ -328,43 +343,39 @@ export function PutawayExecutionPanel({
     });
   }
 
-  const comboboxOptions = destinationLocations.map((loc) => ({
-    value: loc.id,
-    label: loc.fullPath,
-    hint: `${locationTypeLabel(loc.type)} · ${loc.barcode}`,
-  }));
-
   const putawayDetailsCard = (
     <TaskDetailsCard
-      taskTypeLabel={taskTypeTitle(taskType)}
+      taskTypeLabel={localizedTaskTypeTitle(taskType, t)}
       iconClass={taskTypeIconClass(taskType)}
       primaryTitle={inboundOrderTitle(
         inbound.data?.orderNumber,
         inboundOrderId ? `/orders/inbound/${inboundOrderId}` : undefined,
-        taskType === 'putaway_quarantine' ? 'Quarantine putaway' : 'Inbound putaway',
+        taskType === 'putaway_quarantine'
+          ? t(['Quarantine putaway', 'تخزين حجر'])
+          : t(['Inbound putaway', 'تخزين وارد']),
       )}
       subtitle={inbound.data?.company?.name ?? '—'}
       status={taskStatus}
       fields={[
         {
           iconClass: 'fa-solid fa-building',
-          label: 'Client',
+          label: t(['Client', 'العميل']),
           value: inbound.data?.company?.name ?? '—',
         },
         {
           iconClass: 'fa-solid fa-user',
-          label: 'Worker',
+          label: t(['Worker', 'العامل']),
           value: assignedWorkerLabel,
         },
         {
           iconClass: 'fa-solid fa-warehouse',
-          label: 'Warehouse',
+          label: t(['Warehouse', 'المستودع']),
           value: displayWarehouseLabel(warehouseId),
         },
         {
           iconClass: 'fa-solid fa-arrows-turn-right',
-          label: 'Movement',
-          value: 'Staging → storage',
+          label: t(['Movement', 'الحركة']),
+          value: t(['Staging → storage', 'تجهيز → تخزين']),
         },
       ]}
       summary={inbound.data?.notes ?? undefined}
@@ -373,26 +384,24 @@ export function PutawayExecutionPanel({
 
   const handleExportPrint = () => {
     if (drafts.length === 0) {
-      toast.error('No lines to export.');
+      toast.error(t(['No lines to export.', 'لا توجد أسطر للتصدير.']));
       return;
     }
-    const locs = allLocations.data ?? [];
     const ok = openPutawayPrintPdf({
       taskLabel: taskType === 'putaway_quarantine' ? 'Quarantine putaway' : 'Putaway',
       orderNumber: inbound.data?.orderNumber ?? inboundOrderId ?? '—',
       companyName: inbound.data?.company?.name ?? '—',
       assignedWorker: assignedWorkerLabel,
-      sourceSummary: putawaySourceSummary(drafts, stagingByLineId, locs),
-      destinationSummary: putawayDestinationSummary(drafts, destinationLocations),
+      sourceSummary: putawaySourceSummary(drafts, stagingByLineId, locationById),
+      destinationSummary: putawayDestinationSummary(drafts, locationById),
       operatorNotes: taskOperatorNotes,
       drafts,
       lineById,
       stagingByLineId,
-      allLocations: locs,
-      destinationLocations,
+      locationById,
       targetQty,
     });
-    if (!ok) toast.error('Allow pop-ups to print or save as PDF.');
+    if (!ok) toast.error(t(['Allow pop-ups to print or save as PDF.', 'اسمح بالنوافذ المنبثقة للطباعة أو حفظ PDF.']));
   };
 
   if (readOnly) {
@@ -410,19 +419,18 @@ export function PutawayExecutionPanel({
               disabled={drafts.length === 0}
               onClick={handleExportPrint}
             >
-              Export PDF
+              {t(['Export PDF', 'تصدير PDF'])}
             </Button>
           </div>
         ) : null}
         <PutawayLinesTable
           drafts={filteredDrafts}
           totalLineCount={drafts.length}
-          lines={lines}
           lineById={lineById}
-          lotsByProductId={lotsByProductId}
           stagingByLineId={stagingByLineId}
-          allLocations={allLocations.data ?? []}
-          destinationLocations={destinationLocations}
+          locationById={locationById}
+          warehouseId={warehouseId}
+          taskType={taskType}
           targetQty={targetQty}
           onExportPrint={showExportPdf ? handleExportPrint : undefined}
           readOnly
@@ -436,7 +444,7 @@ export function PutawayExecutionPanel({
       {putawayDetailsCard}
 
       {validationIssues.length > 0 ? (
-        <Alert variant="warning" title="Validation attention needed">
+        <Alert variant="warning" title={t(['Validation attention needed', 'يلزم انتباه للتحقق'])}>
           <ul className="mt-1 list-inside list-disc text-sm">
             {validationIssues.slice(0, 4).map((msg) => (
               <li key={msg}>{msg}</li>
@@ -458,7 +466,7 @@ export function PutawayExecutionPanel({
             disabled={drafts.length === 0}
             onClick={handleExportPrint}
           >
-            Export PDF
+            {t(['Export PDF', 'تصدير PDF'])}
           </Button>
         </div>
       ) : null}
@@ -466,14 +474,12 @@ export function PutawayExecutionPanel({
       <PutawayLinesTable
         drafts={filteredDrafts}
         totalLineCount={drafts.length}
-        lines={lines}
         lineById={lineById}
-        lotsByProductId={lotsByProductId}
         stagingByLineId={stagingByLineId}
-        allLocations={allLocations.data ?? []}
-        destinationLocations={destinationLocations}
+        locationById={locationById}
+        warehouseId={warehouseId}
+        taskType={taskType}
         targetQty={targetQty}
-        comboboxOptions={comboboxOptions}
         onExportPrint={showExportPdf ? handleExportPrint : undefined}
         onPatch={patchDraft}
         onSplit={splitRow}
@@ -492,10 +498,10 @@ export function PutawayExecutionPanel({
               })
             }
           >
-            Save progress
+            {t(['Save progress', 'حفظ التقدم'])}
           </Button>
           <Button type="submit" className="min-h-[52px] flex-1 text-base" loading={busy}>
-            Complete putaway
+            {t(['Complete putaway', 'إكمال التخزين'])}
           </Button>
         </div>
       </div>
@@ -505,12 +511,13 @@ export function PutawayExecutionPanel({
 }
 
 function SummaryCards({ summary }: { summary: ReturnType<typeof computePutawaySummary> }) {
+  const { t } = useWmsTranslation();
   const cards = [
-    { label: 'SKUs', value: String(summary.totalSkus) },
-    { label: 'Units', value: String(summary.totalUnits) },
-    { label: 'Done', value: String(summary.completedMoves), accent: true },
-    { label: 'Remaining', value: String(summary.remainingMoves) },
-    { label: 'Complete', value: `${summary.completionPct}%` },
+    { label: 'SKU', value: String(summary.totalSkus) },
+    { label: t(['Units', 'وحدات']), value: String(summary.totalUnits) },
+    { label: t(['Done', 'منجز']), value: String(summary.completedMoves), accent: true },
+    { label: t(['Remaining', 'المتبقي']), value: String(summary.remainingMoves) },
+    { label: t(['Complete', 'مكتمل']), value: `${summary.completionPct}%` },
   ];
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -533,35 +540,33 @@ function PutawayLinesTable({
   drafts,
   totalLineCount,
   lineById,
-  lotsByProductId: _lotsByProductId,
   stagingByLineId,
-  allLocations,
-  destinationLocations,
+  locationById,
+  warehouseId,
+  taskType,
   targetQty,
   readOnly,
-  comboboxOptions,
   onExportPrint,
   onPatch,
   onSplit,
 }: {
   drafts: PutawayLineDraft[];
   totalLineCount: number;
-  lines: PutawayLineRow[];
   onExportPrint?: () => void;
   lineById: Map<string, InboundOrderLine>;
-  lotsByProductId: Map<string, ProductLot[]>;
   stagingByLineId: Map<string, string>;
-  allLocations: Location[];
-  destinationLocations: Location[];
+  locationById: Map<string, Location>;
+  warehouseId: string;
+  taskType: 'putaway' | 'putaway_quarantine';
   targetQty: Record<string, number>;
   readOnly?: boolean;
-  comboboxOptions?: Array<{ value: string; label: string; hint?: string }>;
   onPatch?: (rowKey: string, patch: Partial<PutawayLineDraft>) => void;
   onSplit?: (rowKey: string) => void;
 }) {
+  const { t } = useWmsTranslation();
   const columns: Column<PutawayLineDraft>[] = [
     {
-      header: 'Product',
+      header: t(['Product', 'المنتج']),
       accessor: (d) => {
         const ol = lineById.get(d.inbound_order_line_id);
         return <span className="font-medium text-slate-800">{ol?.product?.name ?? '—'}</span>;
@@ -577,9 +582,9 @@ function PutawayLinesTable({
       width: '110px',
     },
     {
-      header: 'Source',
+      header: t(['Source', 'المصدر']),
       accessor: (d) => {
-        const src = allLocations.find((l) => l.id === stagingByLineId.get(d.inbound_order_line_id));
+        const src = locationById.get(stagingByLineId.get(d.inbound_order_line_id) ?? '');
         return (
           <span className="font-mono text-xs font-semibold text-slate-800">
             {locationDisplay(src).shortLabel}
@@ -589,31 +594,31 @@ function PutawayLinesTable({
       width: '100px',
     },
     {
-      header: 'Destination',
+      header: t(['Destination', 'الوجهة']),
       accessor: (d) => {
-        const dest = destinationLocations.find((l) => l.id === d.destination_location_id);
+        const dest = locationById.get(d.destination_location_id);
         return readOnly ? (
           <span className="font-mono text-xs">{locationDisplay(dest).fullPath}</span>
         ) : (
-          <Combobox
+          <PutawayDestinationPicker
+            warehouseId={warehouseId}
+            taskType={taskType}
             value={d.destination_location_id}
             onChange={(v) => onPatch?.(d.rowKey, { destination_location_id: v, destVerified: !!v })}
-            options={comboboxOptions ?? []}
-            placeholder="Bin…"
           />
         );
       },
       width: '200px',
     },
     {
-      header: 'Qty',
+      header: t(['Qty', 'الكمية']),
       accessor: (d) => (
         <span className="font-mono tabular-nums text-xs">{targetQty[d.inbound_order_line_id] ?? 0}</span>
       ),
       width: '70px',
     },
     {
-      header: 'Moved',
+      header: t(['Moved', 'منقول']),
       accessor: (d) =>
         readOnly ? (
           <span className="font-mono tabular-nums">{d.putaway_quantity}</span>
@@ -628,12 +633,12 @@ function PutawayLinesTable({
       width: '90px',
     },
     {
-      header: 'Status',
+      header: t(['Status', 'الحالة']),
       accessor: (d) => {
         const st = computeLineStatus(d, targetQty[d.inbound_order_line_id] ?? 0);
         return (
           <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${lineStatusClass(st)}`}>
-            {lineStatusLabel(st)}
+            {localizedPutawayLineStatus(st, t)}
           </span>
         );
       },
@@ -642,10 +647,10 @@ function PutawayLinesTable({
     ...(!readOnly
       ? [
           {
-            header: 'Actions',
+            header: t(['Actions', 'إجراءات']),
             accessor: (d: PutawayLineDraft) => (
               <Button type="button" size="sm" variant="secondary" onClick={() => onSplit?.(d.rowKey)}>
-                Split
+                {t(['Split', 'تقسيم'])}
               </Button>
             ),
             width: '90px',
@@ -656,7 +661,7 @@ function PutawayLinesTable({
 
   return (
     <DataTable
-      title="Movement lines"
+      title={t(['Movement lines', 'أسطر الحركة'])}
       actions={
         onExportPrint ? (
           <Button
@@ -666,7 +671,7 @@ function PutawayLinesTable({
             disabled={drafts.length === 0}
             onClick={() => onExportPrint()}
           >
-            Export PDF
+            {t(['Export PDF', 'تصدير PDF'])}
           </Button>
         ) : undefined
       }
@@ -675,8 +680,8 @@ function PutawayLinesTable({
       rowKey={(d) => d.rowKey}
       empty={
         totalLineCount === 0
-          ? 'No putaway lines.'
-          : 'No lines match the current filters.'
+          ? t(['No putaway lines.', 'لا أسطر تخزين.'])
+          : t(['No lines match the current filters.', 'لا أسطر تطابق الفلاتر الحالية.'])
       }
     />
   );

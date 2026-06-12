@@ -46,37 +46,6 @@ const WAREHOUSE_COLUMNS: ReportExportColumn[] = [
   { id: 'totalCount', header: 'Total' },
 ];
 
-const BILLING_REVENUE_COLUMNS: ReportExportColumn[] = [
-  { id: 'client', header: 'Client' },
-  { id: 'invoiceCount', header: 'Invoices' },
-  { id: 'revenue', header: 'Revenue' },
-];
-
-const BILLING_OUTSTANDING_COLUMNS: ReportExportColumn[] = [
-  { id: 'invoiceNumber', header: 'Invoice #' },
-  { id: 'client', header: 'Client' },
-  { id: 'status', header: 'Status' },
-  { id: 'amount', header: 'Amount' },
-  { id: 'issuedAt', header: 'Issued' },
-];
-
-const BILLING_EXPIRING_COLUMNS: ReportExportColumn[] = [
-  { id: 'client', header: 'Client' },
-  { id: 'daysRemaining', header: 'Days remaining' },
-  { id: 'cycleEnd', header: 'Cycle end' },
-];
-
-const BILLING_SUSPENDED_COLUMNS: ReportExportColumn[] = [
-  { id: 'client', header: 'Client' },
-  { id: 'suspendedSince', header: 'Suspended since' },
-];
-
-const BILLING_CAPACITY_COLUMNS: ReportExportColumn[] = [
-  { id: 'client', header: 'Client' },
-  { id: 'allocatedVolumeCbm', header: 'Allocated CBM' },
-  { id: 'allocatedWeightKg', header: 'Allocated kg' },
-];
-
 const WORKER_PRODUCTIVITY_COLUMNS: ReportExportColumn[] = [
   { id: 'worker', header: 'Worker' },
   { id: 'completedTasks', header: 'Completed tasks' },
@@ -212,61 +181,6 @@ export const REPORT_REGISTRY: readonly ReportDefinitionConfig[] = [
     supportsKpis: false,
     supportsAggregate: true,
     exportFileName: 'product-moves',
-  },
-  {
-    id: 'billing-revenue',
-    title: 'Billing Revenue',
-    filterKeys: ['client'],
-    exportColumns: BILLING_REVENUE_COLUMNS,
-    allowedRoles: ADMIN_REPORT_ROLES,
-    requiresWarehouse: false,
-    supportsKpis: false,
-    supportsAggregate: false,
-    exportFileName: 'billing-revenue',
-  },
-  {
-    id: 'billing-outstanding',
-    title: 'Outstanding Invoices',
-    filterKeys: ['client'],
-    exportColumns: BILLING_OUTSTANDING_COLUMNS,
-    allowedRoles: ADMIN_REPORT_ROLES,
-    requiresWarehouse: false,
-    supportsKpis: false,
-    supportsAggregate: false,
-    exportFileName: 'billing-outstanding',
-  },
-  {
-    id: 'billing-expiring',
-    title: 'Expiring Billing Cycles',
-    filterKeys: ['client'],
-    exportColumns: BILLING_EXPIRING_COLUMNS,
-    allowedRoles: ADMIN_REPORT_ROLES,
-    requiresWarehouse: false,
-    supportsKpis: false,
-    supportsAggregate: false,
-    exportFileName: 'billing-expiring',
-  },
-  {
-    id: 'billing-suspended',
-    title: 'Suspended Accounts',
-    filterKeys: ['client'],
-    exportColumns: BILLING_SUSPENDED_COLUMNS,
-    allowedRoles: ADMIN_REPORT_ROLES,
-    requiresWarehouse: false,
-    supportsKpis: false,
-    supportsAggregate: false,
-    exportFileName: 'billing-suspended',
-  },
-  {
-    id: 'billing-capacity',
-    title: 'Capacity Allocation',
-    filterKeys: ['client'],
-    exportColumns: BILLING_CAPACITY_COLUMNS,
-    allowedRoles: ADMIN_REPORT_ROLES,
-    requiresWarehouse: false,
-    supportsKpis: false,
-    supportsAggregate: false,
-    exportFileName: 'billing-capacity',
   },
   {
     id: 'worker-productivity',

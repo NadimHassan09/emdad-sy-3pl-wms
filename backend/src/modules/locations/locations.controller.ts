@@ -14,6 +14,7 @@ import {
 import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CreateLocationDto } from './dto/create-location.dto';
+import { ListLocationsLookupQueryDto } from './dto/list-locations-lookup-query.dto';
 import { ListLocationsQueryDto } from './dto/list-locations-query.dto';
 import { UpdateLocationDto } from './dto/update-location.dto';
 import { LocationsService } from './locations.service';
@@ -32,12 +33,9 @@ export class LocationsController {
     return this.locations.list(query);
   }
 
-  @Get('tree')
-  tree(@Query('warehouseId') warehouseId?: string) {
-    if (!warehouseId) {
-      throw new BadRequestException('warehouseId query param is required for tree view.');
-    }
-    return this.locations.tree(warehouseId);
+  @Get('lookup')
+  lookup(@Query() query: ListLocationsLookupQueryDto) {
+    return this.locations.lookup(query);
   }
 
   @Get('purge-context')
