@@ -49,6 +49,10 @@ const OrderCycleTimeReportPage      = lazyPage(() => import('./pages/reports/Ope
 const InboundAccuracyReportPage     = lazyPage(() => import('./pages/reports/OperationalReportPages'),      'InboundAccuracyReportPage');
 const OutboundFillRateReportPage    = lazyPage(() => import('./pages/reports/OperationalReportPages'),      'OutboundFillRateReportPage');
 const SlaComplianceReportPage       = lazyPage(() => import('./pages/reports/OperationalReportPages'),      'SlaComplianceReportPage');
+const StockAgingReportPage          = lazyPage(() => import('./pages/reports/InventoryIntelligenceReportPages'), 'StockAgingReportPage');
+const LotExpiryReportPage           = lazyPage(() => import('./pages/reports/InventoryIntelligenceReportPages'), 'LotExpiryReportPage');
+const CapacityUtilizationReportPage = lazyPage(() => import('./pages/reports/InventoryIntelligenceReportPages'), 'CapacityUtilizationReportPage');
+const ReturnRateReportPage          = lazyPage(() => import('./pages/reports/InventoryIntelligenceReportPages'), 'ReturnRateReportPage');
 const ClientsPage             = lazyPage(() => import('./pages/ClientsPage'),             'ClientsPage');
 const CompanyDetailPage       = lazyPage(() => import('./pages/CompanyDetailPage'),       'CompanyDetailPage');
 const WarehouseUsersPage      = lazyPage(() => import('./pages/UsersPage'),               'WarehouseUsersPage');
@@ -134,6 +138,10 @@ export const router = createBrowserRouter([
           { path: 'warehouse-analysis', element: <WarehouseAnalysisReportPage /> },
           { path: 'inventory', element: <InventoryReportPage /> },
           { path: 'product-moves', element: <ProductMovesReportPage /> },
+          { path: 'stock-aging', element: <StockAgingReportPage /> },
+          { path: 'lot-expiry', element: <LotExpiryReportPage /> },
+          { path: 'capacity-utilization', element: <CapacityUtilizationReportPage /> },
+          { path: 'return-rate', element: <ReturnRateReportPage /> },
           { path: 'worker-productivity', element: <WorkerProductivityReportPage /> },
           { path: 'order-cycle-time', element: <OrderCycleTimeReportPage /> },
           { path: 'inbound-accuracy', element: <InboundAccuracyReportPage /> },

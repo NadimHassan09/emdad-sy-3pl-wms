@@ -106,3 +106,14 @@ cd frontend && npm run build
 | `sla-compliance` | SLA on-time / breach by task type |
 
 Implement new operational metrics in `operational-reports.runner.ts`, register in `report-registry.config.ts`, and add catalog + `registry.ts` UI metadata on the frontend.
+
+## Inventory intelligence suite (2026-06)
+
+| Report ID | Runner |
+|-----------|--------|
+| `stock-aging` | `InventoryIntelligenceReportsRunner` — days since `lastMovementAt` |
+| `lot-expiry` | Lot `expiryDate` aging buckets |
+| `capacity-utilization` | Warehouse location occupancy + per-slot stock |
+| `return-rate` | Return orders vs outbound by client in date range |
+
+Implement new inventory intelligence metrics in `inventory-intelligence-reports.runner.ts`, register in `report-registry.config.ts`, and add catalog + `registry.ts` UI metadata on the frontend.

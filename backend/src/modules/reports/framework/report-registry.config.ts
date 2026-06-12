@@ -124,6 +124,44 @@ const SLA_COMPLIANCE_COLUMNS: ReportExportColumn[] = [
   { id: 'compliancePercent', header: 'Compliance %' },
 ];
 
+const STOCK_AGING_COLUMNS: ReportExportColumn[] = [
+  { id: 'sku', header: 'SKU' },
+  { id: 'product', header: 'Product' },
+  { id: 'client', header: 'Client' },
+  { id: 'location', header: 'Location' },
+  { id: 'lastMovement', header: 'Last movement' },
+  { id: 'daysSinceMovement', header: 'Days since movement' },
+  { id: 'agingBucket', header: 'Aging bucket' },
+  { id: 'onHand', header: 'On hand' },
+  { id: 'stagnant', header: 'Stagnant' },
+];
+
+const LOT_EXPIRY_COLUMNS: ReportExportColumn[] = [
+  { id: 'sku', header: 'SKU' },
+  { id: 'product', header: 'Product' },
+  { id: 'lot', header: 'Lot' },
+  { id: 'expiry', header: 'Expiry' },
+  { id: 'daysUntil', header: 'Days until expiry' },
+  { id: 'agingBucket', header: 'Expiry bucket' },
+  { id: 'location', header: 'Location' },
+  { id: 'quantity', header: 'Quantity' },
+];
+
+const CAPACITY_UTILIZATION_COLUMNS: ReportExportColumn[] = [
+  { id: 'location', header: 'Location' },
+  { id: 'type', header: 'Type' },
+  { id: 'skuCount', header: 'SKU count' },
+  { id: 'totalQty', header: 'Total qty' },
+  { id: 'utilization', header: 'Utilization' },
+];
+
+const RETURN_RATE_COLUMNS: ReportExportColumn[] = [
+  { id: 'client', header: 'Client' },
+  { id: 'outboundOrders', header: 'Outbound orders' },
+  { id: 'returnOrders', header: 'Return orders' },
+  { id: 'returnRatePercent', header: 'Return rate %' },
+];
+
 export const REPORT_REGISTRY: readonly ReportDefinitionConfig[] = [
   {
     id: 'warehouse-analysis',
@@ -267,6 +305,50 @@ export const REPORT_REGISTRY: readonly ReportDefinitionConfig[] = [
     supportsKpis: false,
     supportsAggregate: true,
     exportFileName: 'sla-compliance',
+  },
+  {
+    id: 'stock-aging',
+    title: 'Stock Aging',
+    filterKeys: ['warehouse', 'client', 'sku', 'status'],
+    exportColumns: STOCK_AGING_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: true,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'stock-aging',
+  },
+  {
+    id: 'lot-expiry',
+    title: 'Lot Expiry',
+    filterKeys: ['warehouse', 'client', 'sku', 'status'],
+    exportColumns: LOT_EXPIRY_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: true,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'lot-expiry',
+  },
+  {
+    id: 'capacity-utilization',
+    title: 'Capacity Utilization',
+    filterKeys: ['warehouse', 'client', 'sku'],
+    exportColumns: CAPACITY_UTILIZATION_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: true,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'capacity-utilization',
+  },
+  {
+    id: 'return-rate',
+    title: 'Return Rate',
+    filterKeys: ['warehouse', 'client', 'dateRange'],
+    exportColumns: RETURN_RATE_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: true,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'return-rate',
   },
 ] as const;
 

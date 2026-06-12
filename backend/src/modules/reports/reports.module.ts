@@ -11,11 +11,18 @@ import { ReportsCacheService } from './reports-cache.service';
 import { ReportsController } from './reports.controller';
 import { ReportsPolicyConfig } from './reports-policy.config';
 import { BillingReportsRunner } from './billing-reports.runner';
+import { InventoryIntelligenceReportsRunner } from './inventory-intelligence-reports.runner';
 import { OperationalReportsRunner } from './operational-reports.runner';
 import { ReportsService } from './reports.service';
 
 @Module({
-  imports: [InventoryModule, InboundModule, OutboundModule, DashboardModule, CompaniesModule],
+  imports: [
+    InventoryModule,
+    InboundModule,
+    OutboundModule,
+    DashboardModule,
+    CompaniesModule,
+  ],
   controllers: [ReportsController],
   providers: [
     ReportsService,
@@ -25,6 +32,7 @@ import { ReportsService } from './reports.service';
     ReportExportService,
     BillingReportsRunner,
     OperationalReportsRunner,
+    InventoryIntelligenceReportsRunner,
   ],
   exports: [ReportsService, ReportsFrameworkService],
 })

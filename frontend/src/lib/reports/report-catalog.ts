@@ -2,6 +2,10 @@ export type ReportCatalogId =
   | 'warehouse-analysis'
   | 'inventory'
   | 'product-moves'
+  | 'stock-aging'
+  | 'lot-expiry'
+  | 'capacity-utilization'
+  | 'return-rate'
   | 'worker-productivity'
   | 'order-cycle-time'
   | 'inbound-accuracy'
@@ -89,6 +93,42 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     titleAr: 'حركات المنتجات',
     description: 'Stock movements with reference and operator.',
     descriptionAr: 'حركات المخزون مع المرجع والمشغّل.',
+    section: 'inventory',
+  },
+  {
+    id: 'stock-aging',
+    path: '/reports/stock-aging',
+    title: 'Stock Aging',
+    titleAr: 'تقادم المخزون',
+    description: 'Days since last movement and stagnant stock buckets.',
+    descriptionAr: 'أيام منذ آخر حركة وتصنيف المخزون الراكد.',
+    section: 'inventory',
+  },
+  {
+    id: 'lot-expiry',
+    path: '/reports/lot-expiry',
+    title: 'Lot Expiry',
+    titleAr: 'انتهاء الدفعات',
+    description: 'Lot expiry dates and aging buckets for perishable stock.',
+    descriptionAr: 'تواريخ انتهاء الدفعات وتصنيف المخزون القابل للتلف.',
+    section: 'inventory',
+  },
+  {
+    id: 'capacity-utilization',
+    path: '/reports/capacity-utilization',
+    title: 'Capacity Utilization',
+    titleAr: 'استخدام السعة',
+    description: 'Warehouse storage occupancy and per-location utilization.',
+    descriptionAr: 'إشغال مواقع التخزين والاستخدام حسب الموقع.',
+    section: 'inventory',
+  },
+  {
+    id: 'return-rate',
+    path: '/reports/return-rate',
+    title: 'Return Rate',
+    titleAr: 'معدل الإرجاع',
+    description: 'Return orders vs outbound shipments by client.',
+    descriptionAr: 'طلبات الإرجاع مقابل الشحنات الصادرة حسب العميل.',
     section: 'inventory',
   },
 ];

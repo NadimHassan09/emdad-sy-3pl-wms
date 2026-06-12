@@ -13,6 +13,7 @@ import { AggregateReportQueryDto, ExportReportQueryDto, RunReportQueryDto } from
 import { ReportExportService, type ReportExportResult } from './framework/report-export.service';
 import { ReportsFrameworkService } from './framework/reports-framework.service';
 import { BillingReportsRunner } from './billing-reports.runner';
+import { InventoryIntelligenceReportsRunner } from './inventory-intelligence-reports.runner';
 import { OperationalReportsRunner } from './operational-reports.runner';
 import { ReportsPolicyConfig } from './reports-policy.config';
 
@@ -93,6 +94,7 @@ export class ReportsService {
     private readonly exportService: ReportExportService,
     private readonly billingReports: BillingReportsRunner,
     private readonly operationalReports: OperationalReportsRunner,
+    private readonly inventoryIntelligenceReports: InventoryIntelligenceReportsRunner,
   ) {}
 
   getPolicy() {
@@ -189,6 +191,11 @@ export class ReportsService {
       case 'outbound-fill-rate':
       case 'sla-compliance':
         return this.runOperationalReport(user, reportId, query);
+      case 'stock-aging':
+      case 'lot-expiry':
+      case 'capacity-utilization':
+      case 'return-rate':
+        return this.runInventoryIntelligenceReport(user, reportId, query);
       default:
         throw new NotFoundException('Unknown report.');
     }
@@ -200,6 +207,21 @@ export class ReportsService {
     query: RunReportQueryDto,
   ): Promise<Omit<ReportRunResult, 'cached'>> {
     const page = await this.operationalReports.run(user, reportId, query);
+    return {
+      items: page.items,
+      total: page.total,
+      limit: query.limit,
+      offset: query.offset,
+      truncated: query.offset + page.items.length < page.total,
+    };
+  }
+
+  private async runInventoryIntelligenceReport(
+    user: AuthPrincipal,
+    reportId: string,
+    query: RunReportQueryDto,
+  ): Promise<Omit<ReportRunResult, 'cached'>> {
+    const page = await this.inventoryIntelligenceReports.run(user, reportId, query);
     return {
       items: page.items,
       total: page.total,
@@ -448,6 +470,14 @@ export class ReportsService {
         return Number(String(row.fillRatePercent ?? '0').replace('%', ''));
       case 'sla-compliance':
         return Number(String(row.compliancePercent ?? '0').replace('%', ''));
+      case 'stock-aging':
+        return Number(row.onHand ?? 0);
+      case 'lot-expiry':
+        return Number(row.quantity ?? 0);
+      case 'capacity-utilization':
+        return Number(row.totalQty ?? row.skuCount ?? 0);
+      case 'return-rate':
+        return Number(String(row.returnRatePercent ?? '0').replace('%', ''));
       default:
         return Number(row.totalCount ?? row.count ?? 0);
     }
