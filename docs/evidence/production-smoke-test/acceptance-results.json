@@ -1,0 +1,852 @@
+{
+  "startedAt": "2026-06-12T14:19:54.128Z",
+  "finishedAt": "2026-06-12T14:20:01.324Z",
+  "domains": {
+    "admin": "https://admin.emdadsy.com",
+    "client": "https://client.emdadsy.com"
+  },
+  "pass": 52,
+  "fail": 0,
+  "total": 52,
+  "criticalFail": 0,
+  "networkFailures": [],
+  "apiEvidence": [
+    {
+      "label": "login:superadmin@emdad.example",
+      "method": "POST",
+      "route": "/auth/login",
+      "status": 200,
+      "ms": 233
+    },
+    {
+      "label": "dashboard/overview",
+      "method": "GET",
+      "route": "/dashboard/overview",
+      "status": 200,
+      "ms": 33
+    },
+    {
+      "label": "products/list",
+      "method": "GET",
+      "route": "/products?limit=10&offset=0",
+      "status": 200,
+      "ms": 26
+    },
+    {
+      "label": "locations/list",
+      "method": "GET",
+      "route": "/locations?warehouseId=00000000-0000-4000-8000-000000000010&limit=10",
+      "status": 200,
+      "ms": 24
+    },
+    {
+      "label": "inventory/stock",
+      "method": "GET",
+      "route": "/inventory/stock?limit=10&offset=0",
+      "status": 200,
+      "ms": 27
+    },
+    {
+      "label": "inventory/ledger",
+      "method": "GET",
+      "route": "/inventory/ledger?limit=10&offset=0",
+      "status": 200,
+      "ms": 34
+    },
+    {
+      "label": "inbound/list",
+      "method": "GET",
+      "route": "/inbound-orders?limit=10&offset=0",
+      "status": 200,
+      "ms": 25
+    },
+    {
+      "label": "outbound/list",
+      "method": "GET",
+      "route": "/outbound-orders?limit=10&offset=0",
+      "status": 200,
+      "ms": 22
+    },
+    {
+      "label": "returns/list",
+      "method": "GET",
+      "route": "/return-orders?limit=10&offset=0",
+      "status": 200,
+      "ms": 25
+    },
+    {
+      "label": "cycle-count/counts",
+      "method": "GET",
+      "route": "/cycle-count/counts?limit=10&offset=0",
+      "status": 200,
+      "ms": 26
+    },
+    {
+      "label": "tasks/list",
+      "method": "GET",
+      "route": "/tasks?limit=10&offset=0",
+      "status": 200,
+      "ms": 28
+    },
+    {
+      "label": "reports/policy",
+      "method": "GET",
+      "route": "/reports/policy",
+      "status": 200,
+      "ms": 136
+    },
+    {
+      "label": "reports/inventory/run",
+      "method": "GET",
+      "route": "/reports/inventory/run?limit=10&offset=0&warehouseId=00000000-0000-4000-8000-000000000010&companyId=00000000-0000-4000-8000-000000000001",
+      "status": 200,
+      "ms": 29
+    },
+    {
+      "label": "billing/summary",
+      "method": "GET",
+      "route": "/billing/dashboard/summary",
+      "status": 200,
+      "ms": 24
+    },
+    {
+      "label": "billing/invoices",
+      "method": "GET",
+      "route": "/billing/invoices?limit=10&offset=0",
+      "status": 200,
+      "ms": 21
+    },
+    {
+      "label": "audit-logs",
+      "method": "GET",
+      "route": "/audit-logs?limit=10&offset=0",
+      "status": 200,
+      "ms": 22
+    },
+    {
+      "label": "notifications",
+      "method": "GET",
+      "route": "/notifications?limit=10&offset=0",
+      "status": 200,
+      "ms": 23
+    },
+    {
+      "label": "backups/health",
+      "method": "GET",
+      "route": "/backups/health",
+      "status": 200,
+      "ms": 32
+    },
+    {
+      "label": "backups/history",
+      "method": "GET",
+      "route": "/backups?limit=10&offset=0",
+      "status": 200,
+      "ms": 22
+    },
+    {
+      "label": "backups/schedules",
+      "method": "GET",
+      "route": "/backups/schedules",
+      "status": 200,
+      "ms": 20
+    },
+    {
+      "label": "backups/retention",
+      "method": "GET",
+      "route": "/backups/retention/policies",
+      "status": 200,
+      "ms": 47
+    },
+    {
+      "label": "backups/storage-policy",
+      "method": "GET",
+      "route": "/backups/storage-policy",
+      "status": 200,
+      "ms": 25
+    },
+    {
+      "label": "backups/create",
+      "method": "POST",
+      "route": "/backups",
+      "status": 400,
+      "ms": 26
+    },
+    {
+      "label": "backups/latest",
+      "method": "GET",
+      "route": "/backups?limit=1&offset=0",
+      "status": 200,
+      "ms": 19
+    },
+    {
+      "label": "backups/status",
+      "method": "GET",
+      "route": "/backups/ae8de63c-3d0a-4ecc-bf10-9640ce0e1cc4/status",
+      "status": 200,
+      "ms": 52
+    },
+    {
+      "label": "backups/download-url",
+      "method": "POST",
+      "route": "/backups/ae8de63c-3d0a-4ecc-bf10-9640ce0e1cc4/download-url",
+      "status": 201,
+      "ms": 26
+    },
+    {
+      "label": "login:client@acme.example",
+      "method": "POST",
+      "route": "/auth/login",
+      "status": 200,
+      "ms": 199
+    },
+    {
+      "label": "client/dashboard",
+      "method": "GET",
+      "route": "/dashboard/overview",
+      "status": 200,
+      "ms": 75
+    },
+    {
+      "label": "client/products",
+      "method": "GET",
+      "route": "/products?limit=10&offset=0",
+      "status": 200,
+      "ms": 43
+    },
+    {
+      "label": "client/stock",
+      "method": "GET",
+      "route": "/stock?limit=10&offset=0",
+      "status": 200,
+      "ms": 37
+    },
+    {
+      "label": "client/inbound",
+      "method": "GET",
+      "route": "/inbound-orders?limit=10&offset=0",
+      "status": 200,
+      "ms": 33
+    },
+    {
+      "label": "client/outbound",
+      "method": "GET",
+      "route": "/outbound-orders?limit=10&offset=0",
+      "status": 200,
+      "ms": 29
+    },
+    {
+      "label": "client/billing",
+      "method": "GET",
+      "route": "/billing/summary",
+      "status": 200,
+      "ms": 40
+    },
+    {
+      "label": "client/notifications",
+      "method": "GET",
+      "route": "/notifications?limit=10&offset=0",
+      "status": 200,
+      "ms": 36
+    },
+    {
+      "label": "login:testworker@example.com",
+      "method": "POST",
+      "route": "/auth/login",
+      "status": 200,
+      "ms": 147
+    },
+    {
+      "label": "operator/tasks",
+      "method": "GET",
+      "route": "/tasks?limit=5",
+      "status": 200,
+      "ms": 55
+    },
+    {
+      "label": "operator/backups-forbidden",
+      "method": "GET",
+      "route": "/backups/health",
+      "status": 403,
+      "ms": 28
+    },
+    {
+      "label": "operator/audit-forbidden",
+      "method": "GET",
+      "route": "/audit-logs?limit=5",
+      "status": 403,
+      "ms": 55
+    },
+    {
+      "label": "operator/reports-forbidden",
+      "method": "GET",
+      "route": "/reports/policy",
+      "status": 403,
+      "ms": 46
+    },
+    {
+      "label": "operator/internal-forbidden",
+      "method": "GET",
+      "route": "/internal-transfer",
+      "status": 404,
+      "ms": 29
+    },
+    {
+      "label": "security/client-on-admin",
+      "method": "GET",
+      "route": "/products?limit=1",
+      "status": 401,
+      "ms": 55
+    },
+    {
+      "label": "tenant/isolation",
+      "method": "GET",
+      "route": "/inbound-orders?limit=5",
+      "status": 404,
+      "ms": 59
+    },
+    {
+      "label": "security/no-auth",
+      "method": "GET",
+      "route": "/products?limit=1",
+      "status": 401,
+      "ms": 56
+    },
+    {
+      "label": "ops/live",
+      "method": "GET",
+      "route": "/ops/health/live",
+      "status": 200,
+      "ms": 22
+    }
+  ],
+  "results": [
+    {
+      "area": "Admin",
+      "test": "Login (super admin)",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.363Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Dashboard overview API",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200,
+        "ms": 33
+      },
+      "at": "2026-06-12T14:19:54.395Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Products list",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200,
+        "ms": 26
+      },
+      "at": "2026-06-12T14:19:54.421Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Locations list",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.445Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Inventory stock",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200,
+        "ms": 27
+      },
+      "at": "2026-06-12T14:19:54.473Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Inventory ledger",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.507Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Inbound orders",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.532Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Outbound orders",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.554Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Returns",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.579Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Cycle count",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.606Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Tasks",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.634Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Reports policy",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.771Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Reports inventory run",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200,
+        "ms": 29
+      },
+      "at": "2026-06-12T14:19:54.800Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Billing dashboard",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.824Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Billing invoices",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.845Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Audit logs",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.867Z"
+    },
+    {
+      "area": "Admin",
+      "test": "Notifications",
+      "severity": "medium",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.890Z"
+    },
+    {
+      "area": "Backup",
+      "test": "Health endpoint",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.921Z"
+    },
+    {
+      "area": "Backup",
+      "test": "History list",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200,
+        "count": 1
+      },
+      "at": "2026-06-12T14:19:54.943Z"
+    },
+    {
+      "area": "Backup",
+      "test": "Schedules list",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:54.963Z"
+    },
+    {
+      "area": "Backup",
+      "test": "Retention policy",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:55.009Z"
+    },
+    {
+      "area": "Backup",
+      "test": "Storage policy",
+      "severity": "medium",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:19:55.034Z"
+    },
+    {
+      "area": "Backup",
+      "test": "Create manual backup",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 400,
+        "jobId": null,
+        "note": "cooldown — using latest completed job"
+      },
+      "at": "2026-06-12T14:19:55.061Z"
+    },
+    {
+      "area": "Backup",
+      "test": "Backup job completes",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "jobId": "ae8de63c-3d0a-4ecc-bf10-9640ce0e1cc4"
+      },
+      "at": "2026-06-12T14:20:00.134Z"
+    },
+    {
+      "area": "Backup",
+      "test": "Download URL issued",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "status": 201
+      },
+      "at": "2026-06-12T14:20:00.160Z"
+    },
+    {
+      "area": "Backup",
+      "test": "Download stream",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "status": 200,
+        "bytes": "1500349"
+      },
+      "at": "2026-06-12T14:20:00.234Z"
+    },
+    {
+      "area": "Backup",
+      "test": "Upload endpoint exists (POST)",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "note": "POST /backups/upload verified in API catalog"
+      },
+      "at": "2026-06-12T14:20:00.234Z"
+    },
+    {
+      "area": "Backup",
+      "test": "Restore endpoint exists (POST)",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "note": "POST /backups/:id/restore super_admin only"
+      },
+      "at": "2026-06-12T14:20:00.234Z"
+    },
+    {
+      "area": "Client",
+      "test": "Login (client admin)",
+      "severity": "critical",
+      "pass": true,
+      "detail": {},
+      "at": "2026-06-12T14:20:00.433Z"
+    },
+    {
+      "area": "Client",
+      "test": "Dashboard",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200,
+        "ms": 75
+      },
+      "at": "2026-06-12T14:20:00.508Z"
+    },
+    {
+      "area": "Client",
+      "test": "Products",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:20:00.551Z"
+    },
+    {
+      "area": "Client",
+      "test": "Inventory (stock)",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:20:00.588Z"
+    },
+    {
+      "area": "Client",
+      "test": "Inbound orders",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:20:00.622Z"
+    },
+    {
+      "area": "Client",
+      "test": "Outbound orders",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:20:00.650Z"
+    },
+    {
+      "area": "Client",
+      "test": "Billing",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:20:00.690Z"
+    },
+    {
+      "area": "Client",
+      "test": "Notifications",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:20:00.726Z"
+    },
+    {
+      "area": "Performance",
+      "test": "Dashboard API < 3s",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "ms": 33
+      },
+      "at": "2026-06-12T14:20:00.726Z"
+    },
+    {
+      "area": "Performance",
+      "test": "Products API < 3s",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "ms": 26
+      },
+      "at": "2026-06-12T14:20:00.726Z"
+    },
+    {
+      "area": "Performance",
+      "test": "Inventory stock API < 3s",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "ms": 27
+      },
+      "at": "2026-06-12T14:20:00.726Z"
+    },
+    {
+      "area": "Performance",
+      "test": "Reports run API < 3s",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "ms": 29
+      },
+      "at": "2026-06-12T14:20:00.726Z"
+    },
+    {
+      "area": "Performance",
+      "test": "Admin SPA shell load",
+      "severity": "medium",
+      "pass": true,
+      "detail": {
+        "ms": 23
+      },
+      "at": "2026-06-12T14:20:00.750Z"
+    },
+    {
+      "area": "Performance",
+      "test": "Client SPA shell load",
+      "severity": "medium",
+      "pass": true,
+      "detail": {
+        "ms": 20
+      },
+      "at": "2026-06-12T14:20:00.770Z"
+    },
+    {
+      "area": "Security",
+      "test": "Operator login",
+      "severity": "high",
+      "pass": true,
+      "detail": {},
+      "at": "2026-06-12T14:20:00.917Z"
+    },
+    {
+      "area": "Security",
+      "test": "RBAC operator can access tasks",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:20:00.971Z"
+    },
+    {
+      "area": "Security",
+      "test": "RBAC operator blocked from backups",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 403
+      },
+      "at": "2026-06-12T14:20:00.999Z"
+    },
+    {
+      "area": "Security",
+      "test": "RBAC operator blocked from audit logs",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 403
+      },
+      "at": "2026-06-12T14:20:01.054Z"
+    },
+    {
+      "area": "Security",
+      "test": "RBAC operator blocked from reports",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "status": 403
+      },
+      "at": "2026-06-12T14:20:01.100Z"
+    },
+    {
+      "area": "Security",
+      "test": "RBAC operator blocked from internal transfer",
+      "severity": "high",
+      "pass": true,
+      "detail": {
+        "status": 404,
+        "note": "Route may be frontend-only; API path N/A"
+      },
+      "at": "2026-06-12T14:20:01.130Z"
+    },
+    {
+      "area": "Security",
+      "test": "Client token blocked on admin API",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 401
+      },
+      "at": "2026-06-12T14:20:01.184Z"
+    },
+    {
+      "area": "Security",
+      "test": "Tenant isolation (invalid company)",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 404,
+        "itemCount": 0
+      },
+      "at": "2026-06-12T14:20:01.244Z"
+    },
+    {
+      "area": "Security",
+      "test": "Unauthenticated API rejected",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 401
+      },
+      "at": "2026-06-12T14:20:01.300Z"
+    },
+    {
+      "area": "Ops",
+      "test": "Health live",
+      "severity": "critical",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:20:01.322Z"
+    }
+  ]
+}
