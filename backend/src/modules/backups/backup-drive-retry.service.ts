@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { BackupDriveSyncStatus, UserRole } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CronLeaderService } from '../../common/cron/cron-leader.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BackupConfig } from './backup-config';
 import { BackupDriveSyncService } from './backup-drive-sync.service';
@@ -20,10 +21,15 @@ export class BackupDriveRetryService {
     private readonly prisma: PrismaService,
     private readonly backupConfig: BackupConfig,
     private readonly driveSync: BackupDriveSyncService,
+    private readonly cronLeader: CronLeaderService,
   ) {}
 
   @Cron('*/2 * * * *')
   async processRetries(): Promise<void> {
+    await this.cronLeader.runExclusive('backup-drive-retry', 150, () => this.runProcessRetries());
+  }
+
+  private async runProcessRetries(): Promise<void> {
     if (!this.backupConfig.enabled || !this.backupConfig.gdriveEnabled) return;
     if (this.retryInFlight) return;
 

@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { UserRole } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { CronLeaderService } from '../../common/cron/cron-leader.service';
 import { CycleCountService } from './cycle-count.service';
 
 /**
@@ -17,6 +18,7 @@ export class CycleCountSchedulerService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cycleCounts: CycleCountService,
+    private readonly cronLeader: CronLeaderService,
   ) {}
 
   async onModuleInit() {
@@ -25,6 +27,10 @@ export class CycleCountSchedulerService implements OnModuleInit {
 
   @Cron('0 3 * * *')
   async tick() {
+    await this.cronLeader.runExclusive('cycle-count-scheduler', 7200, () => this.runTick());
+  }
+
+  private async runTick() {
     try {
       const actorId = await this.resolveSystemUser();
       if (!actorId) {

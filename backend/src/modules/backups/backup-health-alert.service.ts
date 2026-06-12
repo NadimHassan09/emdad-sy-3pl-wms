@@ -4,6 +4,7 @@ import { UserRole } from '@prisma/client';
 
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CronLeaderService } from '../../common/cron/cron-leader.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BACKUP_HEALTH_RESOURCE_ID } from './backup-bootstrap.constants';
 import { BackupConfig } from './backup-config';
@@ -26,11 +27,18 @@ export class BackupHealthAlertService {
     private readonly backupConfig: BackupConfig,
     private readonly health: BackupHealthService,
     private readonly audit: AuditLogService,
+    private readonly cronLeader: CronLeaderService,
   ) {}
 
   /** Evaluate backup health every 15 minutes and emit deduplicated audit alerts. */
   @Cron('*/15 * * * *')
   async evaluateAndAlert(): Promise<void> {
+    await this.cronLeader.runExclusive('backup-health-alert', 960, () =>
+      this.runEvaluateAndAlert(),
+    );
+  }
+
+  private async runEvaluateAndAlert(): Promise<void> {
     if (!this.backupConfig.enabled || !this.backupConfig.healthMonitoringEnabled) {
       return;
     }

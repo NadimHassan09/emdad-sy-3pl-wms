@@ -4,6 +4,7 @@ import { BackupJobStatus, BackupJobType, UserRole } from '@prisma/client';
 
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CronLeaderService } from '../../common/cron/cron-leader.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BackupConfig } from './backup-config';
 import { BackupOperationsService } from './backup-operations.service';
@@ -28,6 +29,7 @@ export class BackupSchedulerService implements OnModuleInit {
     private readonly runner: BackupRunnerService,
     private readonly audit: AuditLogService,
     private readonly storagePolicy: BackupStoragePolicyService,
+    private readonly cronLeader: CronLeaderService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -37,6 +39,10 @@ export class BackupSchedulerService implements OnModuleInit {
   /** Every minute — match schedules by hour:minute in server local time. */
   @Cron('* * * * *')
   async tick(): Promise<void> {
+    await this.cronLeader.runExclusive('backup-scheduler', 90, () => this.runTick());
+  }
+
+  private async runTick(): Promise<void> {
     if (!this.backupConfig.enabled || !this.backupConfig.schedulerEnabled) {
       return;
     }

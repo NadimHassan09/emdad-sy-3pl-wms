@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { WarehouseTaskStatus, WorkflowInstanceStatus } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { CronLeaderService } from '../../common/cron/cron-leader.service';
 
 const ESCALATION_COOLDOWN_MS = 60 * 60 * 1000;
 
@@ -10,11 +11,18 @@ const ESCALATION_COOLDOWN_MS = 60 * 60 * 1000;
 export class SlaEscalationService {
   private readonly log = new Logger(SlaEscalationService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cronLeader: CronLeaderService,
+  ) {}
 
   /** Periodic SLA breach notification — bumps `escalation_level` idempotently with cooldown between events. */
   @Cron('*/5 * * * *')
   async tick() {
+    await this.cronLeader.runExclusive('sla-escalation', 360, () => this.runTick());
+  }
+
+  private async runTick() {
     try {
       const candidates = await this.prisma.warehouseTask.findMany({
         where: {

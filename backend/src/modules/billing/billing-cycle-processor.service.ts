@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { CompanyStatus } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { CronLeaderService } from '../../common/cron/cron-leader.service';
 import { BillingCyclesService } from './billing-cycles.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
 import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
@@ -21,10 +22,15 @@ export class BillingCycleProcessorService {
     private readonly invoiceCalc: BillingInvoiceCalculationService,
     private readonly billingNotifications: BillingNotificationsService,
     private readonly billingAudit: BillingAuditService,
+    private readonly cronLeader: CronLeaderService,
   ) {}
 
   @Cron('*/15 * * * *')
   async tick() {
+    await this.cronLeader.runExclusive('billing-cycle-processor', 960, () => this.runTick());
+  }
+
+  private async runTick() {
     try {
       const n = await this.processExpiredCycles();
       if (n > 0) {

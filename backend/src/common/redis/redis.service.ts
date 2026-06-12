@@ -97,6 +97,46 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  /** SET key value NX EX ttl — returns true when lock acquired. */
+  async setNx(key: string, value: string, ttlSec: number): Promise<boolean> {
+    if (!this.client) return false;
+    try {
+      await this.ensureConnected();
+      const result = await this.client.set(
+        this.k(key),
+        value,
+        'EX',
+        Math.max(1, ttlSec),
+        'NX',
+      );
+      return result === 'OK';
+    } catch (e) {
+      this.log.debug(`Redis setNx error for ${key}: ${(e as Error).message}`);
+      return false;
+    }
+  }
+
+  async getString(key: string): Promise<string | null> {
+    if (!this.client) return null;
+    try {
+      await this.ensureConnected();
+      return await this.client.get(this.k(key));
+    } catch (e) {
+      this.log.debug(`Redis get error for ${key}: ${(e as Error).message}`);
+      return null;
+    }
+  }
+
+  async expire(key: string, ttlSec: number): Promise<void> {
+    if (!this.client) return;
+    try {
+      await this.ensureConnected();
+      await this.client.expire(this.k(key), Math.max(1, ttlSec));
+    } catch (e) {
+      this.log.debug(`Redis expire error for ${key}: ${(e as Error).message}`);
+    }
+  }
+
   /**
    * Non-blocking SCAN + UNLINK. Never KEYS.
    */

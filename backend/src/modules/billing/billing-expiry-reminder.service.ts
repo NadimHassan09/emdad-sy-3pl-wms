@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { CronLeaderService } from '../../common/cron/cron-leader.service';
 import {
   BillingNotificationsService,
   type ExpiryReminderDay,
@@ -19,10 +20,15 @@ export class BillingExpiryReminderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: BillingNotificationsService,
+    private readonly cronLeader: CronLeaderService,
   ) {}
 
   @Cron('0 8 * * *')
   async tick() {
+    await this.cronLeader.runExclusive('billing-expiry-reminder', 7200, () => this.runTick());
+  }
+
+  private async runTick() {
     try {
       const sent = await this.sendDueReminders();
       if (sent > 0) {

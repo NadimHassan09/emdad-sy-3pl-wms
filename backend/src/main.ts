@@ -4,15 +4,16 @@ import type { INestApplication } from '@nestjs/common';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
-import { IoAdapter } from '@nestjs/platform-socket.io';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
+import { ApplicationLifecycleService } from './common/lifecycle/application-lifecycle.service';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { RedisIoAdapter } from './common/redis/redis-io.adapter';
 
 type JsonLike = Record<string, unknown> | unknown[];
 
@@ -35,7 +36,6 @@ function sanitizeValue(value: unknown): unknown {
 }
 
 function sanitizeRequestPayload(req: Request, _res: Response, next: NextFunction): void {
-  // Only replace `body` — Express 5 exposes read-only getters for `query` / `params`.
   if (req.body !== undefined && req.body !== null && typeof req.body === 'object') {
     req.body = sanitizeValue(req.body) as JsonLike;
   }
@@ -90,14 +90,37 @@ function installRequestTracingAndStructuredLogs(app: INestApplication): void {
   });
 }
 
+function installPm2ClusterSignals(
+  app: INestApplication,
+  lifecycle: ApplicationLifecycleService,
+  logger: Logger,
+): void {
+  if (typeof process.send === 'function') {
+    process.on('message', (msg: unknown) => {
+      if (msg === 'shutdown') {
+        lifecycle.markShuttingDown('pm2_shutdown_message');
+        void app.close().then(() => {
+          logger.log('PM2 shutdown message handled — application closed.');
+        });
+      }
+    });
+  }
+}
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
   const config = app.get(ConfigService);
+  const lifecycle = app.get(ApplicationLifecycleService);
   const isProd = config.get<string>('NODE_ENV') === 'production';
   validateStartupSafety(config, isProd);
 
-  app.useWebSocketAdapter(new IoAdapter(app));
+  app.enableShutdownHooks();
+
+  const redisIoAdapter = new RedisIoAdapter(app);
+  await redisIoAdapter.connectToRedis();
+  app.useWebSocketAdapter(redisIoAdapter);
+
   app.use(
     helmet({
       crossOriginEmbedderPolicy: false,
@@ -117,6 +140,7 @@ async function bootstrap() {
   app.use(cookieParser());
   app.use(sanitizeRequestPayload);
   installRequestTracingAndStructuredLogs(app);
+  installPm2ClusterSignals(app, lifecycle, logger);
 
   const corsOrigins = (config.get<string>('CORS_ORIGINS') ?? 'http://localhost:5173')
     .split(',')
@@ -128,7 +152,6 @@ async function bootstrap() {
       origin: string | undefined,
       callback: (err: Error | null, allow?: boolean) => void,
     ) => {
-      // Allow non-browser requests (curl, server-to-server) with no Origin header.
       if (!origin) {
         callback(null, true);
         return;
@@ -139,7 +162,6 @@ async function bootstrap() {
         return;
       }
 
-      // Dev-friendly fallback: any localhost / 127.0.0.1 port (never in production).
       if (!isProd && /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
         callback(null, true);
         return;
@@ -165,8 +187,6 @@ async function bootstrap() {
         target: false,
         value: false,
       },
-      // Implicit boolean conversion treats any non-empty string as true (including "false");
-      // query strings should be parsed by explicit @Transform (pagination, QueryBoolOptional, etc.).
       transformOptions: { enableImplicitConversion: false, exposeDefaultValues: true },
     }),
   );
@@ -177,10 +197,21 @@ async function bootstrap() {
 
   const port = parseInt(config.get<string>('PORT') ?? '3000', 10);
   await app.listen(port);
+
+  lifecycle.markReady();
+
+  if (typeof process.send === 'function') {
+    process.send('ready');
+  }
+
   if (isProd) {
-    logger.log(`[wms] backend listening on port ${port}`);
+    logger.log(
+      `[wms] backend listening on port ${port} (instance=${lifecycle.instanceId()}, pid=${process.pid})`,
+    );
   } else {
-    logger.log(`[wms] backend listening on http://localhost:${port}/api`);
+    logger.log(
+      `[wms] backend listening on http://localhost:${port}/api (instance=${lifecycle.instanceId()})`,
+    );
   }
 }
 

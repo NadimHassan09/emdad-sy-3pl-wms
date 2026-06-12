@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import type { Request } from 'express';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { ApplicationLifecycleService } from '../../common/lifecycle/application-lifecycle.service';
 import { RedisService } from '../../common/redis/redis.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { OpsPolicyConfig } from './ops-policy.config';
@@ -31,6 +32,7 @@ export class ObservabilityService {
     private readonly realtime: RealtimeService,
     private readonly config: ConfigService,
     private readonly policy: OpsPolicyConfig,
+    private readonly lifecycle: ApplicationLifecycleService,
   ) {}
 
   assertLivenessEnabled(): void {
@@ -59,6 +61,18 @@ export class ObservabilityService {
   }
 
   async ready(): Promise<ReadinessResult> {
+    if (!this.lifecycle.isAcceptingTraffic()) {
+      const failureBody: Record<string, unknown> = {
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Application is draining or not ready.',
+          details: { cluster: this.lifecycle.clusterInfo() },
+        },
+      };
+      throw new HttpException(failureBody, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
     const checks: ReadinessChecks = {
       db: 'ok',
       redis: this.redis.isEnabled() ? 'ok' : 'disabled',
@@ -100,6 +114,7 @@ export class ObservabilityService {
 
     if (this.policy.readinessVerbose) {
       details.websocket = websocket;
+      details.cluster = this.lifecycle.clusterInfo();
       details.queues = {
         pending,
         inProgress,

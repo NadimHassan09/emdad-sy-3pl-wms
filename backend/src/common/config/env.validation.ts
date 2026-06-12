@@ -58,6 +58,7 @@ const envSchema = z.object({
   BACKUP_GDRIVE_CONNECT_SUCCESS_URL: z.string().url().optional(),
   BACKUP_ENCRYPTION_KEY: z.string().min(16).optional(),
   BACKUP_GDRIVE_STARTUP_STRICT: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+  CRON_LEADER_ENABLED: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
 });
 
 function envBool(raw: unknown): boolean {

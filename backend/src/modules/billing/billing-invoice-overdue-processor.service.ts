@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { BillingInvoiceStatus } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { CronLeaderService } from '../../common/cron/cron-leader.service';
 import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
 import { BillingNotificationsService } from './billing-notifications.service';
 
@@ -17,10 +18,17 @@ export class BillingInvoiceOverdueProcessorService {
     private readonly prisma: PrismaService,
     private readonly notifications: BillingNotificationsService,
     private readonly billingAudit: BillingAuditService,
+    private readonly cronLeader: CronLeaderService,
   ) {}
 
   @Cron('0 6 * * *')
   async tick() {
+    await this.cronLeader.runExclusive('billing-invoice-overdue-processor', 7200, () =>
+      this.runTick(),
+    );
+  }
+
+  private async runTick() {
     try {
       const n = await this.processOverdueInvoices();
       if (n > 0) this.log.log(`Marked ${n} invoice(s) overdue.`);

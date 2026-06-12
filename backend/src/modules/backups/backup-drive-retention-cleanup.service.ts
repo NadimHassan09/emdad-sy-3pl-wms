@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { UserRole } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { CronLeaderService } from '../../common/cron/cron-leader.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BackupConfig } from './backup-config';
 import { BackupDriveRetentionService } from './backup-drive-retention.service';
@@ -22,11 +23,18 @@ export class BackupDriveRetentionCleanupService {
     private readonly operations: BackupOperationsService,
     private readonly runner: BackupRunnerService,
     private readonly driveRetention: BackupDriveRetentionService,
+    private readonly cronLeader: CronLeaderService,
   ) {}
 
   /** 05:30 server local time — after local retention at 05:15. */
   @Cron('30 5 * * *')
   async runScheduledCleanup(): Promise<void> {
+    await this.cronLeader.runExclusive('backup-drive-retention-cleanup', 7200, () =>
+      this.runScheduledCleanupWork(),
+    );
+  }
+
+  private async runScheduledCleanupWork(): Promise<void> {
     if (!this.backupConfig.enabled || !this.backupConfig.gdriveRetentionCleanupEnabled) return;
     if (!this.backupConfig.gdriveEnabled) return;
 

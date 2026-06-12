@@ -4,6 +4,8 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
+import { LifecycleModule } from './common/lifecycle/lifecycle.module';
+import { CronLeaderModule } from './common/cron/cron-leader.module';
 import { validateEnv } from './common/config/env.validation';
 import { CompanyAccessModule } from './common/company-access/company-access.module';
 import { CryptoModule } from './common/crypto/crypto.module';
@@ -42,6 +44,8 @@ import { ReportsModule } from './modules/reports/reports.module';
       cache: true,
       expandVariables: true,
     }),
+    LifecycleModule,
+    CronLeaderModule,
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot({
       throttlers: [

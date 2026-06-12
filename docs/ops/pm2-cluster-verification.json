@@ -1,0 +1,55 @@
+{
+  "generatedAt": "2026-06-12T01:42:20.311Z",
+  "apiBase": "http://127.0.0.1:3001/api",
+  "pm2App": "emdad-wms-backend-staging",
+  "pm2": {
+    "ok": true,
+    "workerCount": 2,
+    "onlineCount": 2,
+    "clusterMode": true,
+    "waitReadyConfigured": true,
+    "instances": [
+      {
+        "pmId": 3,
+        "pid": 2043026,
+        "instance": 0,
+        "status": "online",
+        "restarts": 2
+      },
+      {
+        "pmId": 4,
+        "pid": 2043045,
+        "instance": 1,
+        "status": "online",
+        "restarts": 2
+      }
+    ]
+  },
+  "probes": {
+    "live": {
+      "ok": true,
+      "samples": 5
+    },
+    "ready": {
+      "ok": true,
+      "status": 200,
+      "body": {
+        "success": true,
+        "data": {
+          "status": "ok",
+          "checks": {
+            "db": "ok",
+            "redis": "disabled",
+            "websocket": "ok",
+            "process": "ok",
+            "queues": "ok"
+          },
+          "timestamp": "2026-06-12T01:42:20.310Z"
+        }
+      }
+    }
+  },
+  "failoverNote": "Manual failover: pm2 reload <app> --update-env should drain workers via shutdown_with_message while others serve traffic.",
+  "cronLeaderNote": "Cron jobs use Redis SET NX locks (key prefix wms:cron:lock:*). With Redis disabled, only NODE_APP_INSTANCE=0 runs crons.",
+  "pass": true
+}
