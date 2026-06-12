@@ -1,0 +1,10 @@
+{
+  "gdriveEnabled": null,
+  "gdriveClientId": null,
+  "gdriveClientSecret": null,
+  "encryptionKey": null,
+  "storagePath": null,
+  "retryMaxAttempts": "8",
+  "retryBaseSec": "60",
+  "retryMaxSec": "21600"
+}

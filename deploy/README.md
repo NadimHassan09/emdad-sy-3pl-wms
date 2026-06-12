@@ -88,6 +88,15 @@ Nginx already proxies `/api/` to Nest; no extra vhost rule is needed for the cal
 # Certification harness (infrastructure + API checks)
 node scripts/backup-gdrive-dr-cert.mjs
 
+# Full E2E (upload, retry, retention, restore from Drive)
+node scripts/backup-gdrive-e2e-cert.mjs
+SKIP_RESTORE=1 node scripts/backup-gdrive-e2e-cert.mjs   # non-destructive
+
+# npm shortcuts
+npm run cert:gdrive:infra
+npm run cert:gdrive:e2e
+npm run cert:gdrive:e2e:safe
+
 # Drive integration status (requires super_admin token)
 curl -s -H "Authorization: Bearer $TOKEN" -H "X-Company-Id: $COMPANY_ID" \
   http://127.0.0.1:3001/api/integrations/google-drive/status | jq .
@@ -99,7 +108,9 @@ curl -sS -o /dev/null -w "%{http_code}\n" \
 
 After credentials are set, connect Drive in the admin UI: **Settings → Backups → Google Drive → Connect Drive**.
 
-See [`BACKUP-GDRIVE-DR-CERTIFICATION.md`](../BACKUP-GDRIVE-DR-CERTIFICATION.md) for the latest certification report.
+See [`BACKUP-GDRIVE-DR-CERTIFICATION.md`](../BACKUP-GDRIVE-DR-CERTIFICATION.md) for the latest infrastructure certification report.
+
+See [`BACKUP-GDRIVE-E2E-CERTIFICATION.md`](../BACKUP-GDRIVE-E2E-CERTIFICATION.md) for the full E2E recovery certification (upload, retry, retention, restore).
 
 ## CORS
 

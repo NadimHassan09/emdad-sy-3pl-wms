@@ -262,11 +262,14 @@ Evidence output: `docs/evidence/backup-6c/`
 Run the automated DR certification harness after deploy:
 
 ```bash
-node scripts/backup-gdrive-dr-cert.mjs
+node scripts/backup-gdrive-dr-cert.mjs          # infrastructure + API checks
+node scripts/backup-gdrive-e2e-cert.mjs           # full E2E (upload, retry, retention, restore)
+SKIP_RESTORE=1 node scripts/backup-gdrive-e2e-cert.mjs   # non-destructive E2E
+npm run cert:gdrive:e2e
 ```
 
-Evidence: `docs/evidence/backup-gdrive-dr/`  
-Report: [`BACKUP-GDRIVE-DR-CERTIFICATION.md`](../../BACKUP-GDRIVE-DR-CERTIFICATION.md)
+Evidence: `docs/evidence/backup-gdrive-dr/` (infra), `docs/evidence/backup-gdrive-e2e/` (E2E)  
+Reports: [`BACKUP-GDRIVE-DR-CERTIFICATION.md`](../../BACKUP-GDRIVE-DR-CERTIFICATION.md), [`BACKUP-GDRIVE-E2E-CERTIFICATION.md`](../../BACKUP-GDRIVE-E2E-CERTIFICATION.md)
 
 ---
 

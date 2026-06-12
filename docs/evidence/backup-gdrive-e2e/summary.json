@@ -1,0 +1,162 @@
+{
+  "ranAt": "2026-06-12T01:11:46.983Z",
+  "elapsedSec": "0.2",
+  "counts": {
+    "pass": 7,
+    "fail": 0,
+    "blocked": 11,
+    "skip": 4
+  },
+  "verdict": "CONDITIONAL_PASS",
+  "results": [
+    {
+      "phase": "prereq",
+      "name": "oauth_credentials",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:11:46.824Z",
+      "note": "Set BACKUP_GDRIVE_CLIENT_ID and BACKUP_GDRIVE_CLIENT_SECRET in server .env"
+    },
+    {
+      "phase": "prereq",
+      "name": "auth",
+      "outcome": "pass",
+      "at": "2026-06-12T01:11:46.926Z",
+      "email": "superadmin@emdad.example"
+    },
+    {
+      "phase": "prereq",
+      "name": "gdrive_enabled",
+      "outcome": "pass",
+      "at": "2026-06-12T01:11:46.948Z",
+      "env": null,
+      "runtime": true
+    },
+    {
+      "phase": "prereq",
+      "name": "encryption_key",
+      "outcome": "pass",
+      "at": "2026-06-12T01:11:46.948Z",
+      "note": "BACKUP_ENCRYPTION_KEY not in .env file; inferred from runtime"
+    },
+    {
+      "phase": "prereq",
+      "name": "drive_status_api",
+      "outcome": "pass",
+      "at": "2026-06-12T01:11:46.948Z"
+    },
+    {
+      "phase": "prereq",
+      "name": "drive_connected",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:11:46.948Z",
+      "note": "Connect Drive under Settings → Backups → Google Drive",
+      "connected": false
+    },
+    {
+      "phase": "upload",
+      "name": "create_backup",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:11:46.948Z",
+      "note": "Drive not connected"
+    },
+    {
+      "phase": "upload",
+      "name": "backup_completed",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:11:46.948Z"
+    },
+    {
+      "phase": "upload",
+      "name": "drive_sync_status",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:11:46.948Z"
+    },
+    {
+      "phase": "upload",
+      "name": "drive_file_id",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:11:46.948Z"
+    },
+    {
+      "phase": "upload",
+      "name": "drive_test_connection",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:11:46.948Z"
+    },
+    {
+      "phase": "retry",
+      "name": "backoff_schedule",
+      "outcome": "pass",
+      "at": "2026-06-12T01:11:46.948Z",
+      "attempt1": 60000,
+      "attempt2": 120000,
+      "attempt3": 240000
+    },
+    {
+      "phase": "retry",
+      "name": "simulated_failure",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:11:46.949Z",
+      "note": "Requires completed upload job"
+    },
+    {
+      "phase": "retry",
+      "name": "retry_scheduled",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:11:46.949Z"
+    },
+    {
+      "phase": "retry",
+      "name": "recovery_sync",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:11:46.949Z"
+    },
+    {
+      "phase": "retention",
+      "name": "drive_policies_api",
+      "outcome": "pass",
+      "at": "2026-06-12T01:11:46.962Z"
+    },
+    {
+      "phase": "retention",
+      "name": "drive_preview",
+      "outcome": "pass",
+      "at": "2026-06-12T01:11:46.982Z",
+      "eligible": 0
+    },
+    {
+      "phase": "retention",
+      "name": "drive_cleanup",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:11:46.982Z",
+      "note": "Drive not connected"
+    },
+    {
+      "phase": "restore",
+      "name": "baseline_snapshot",
+      "outcome": "skip",
+      "at": "2026-06-12T01:11:46.982Z",
+      "note": "SKIP_RESTORE=1"
+    },
+    {
+      "phase": "restore",
+      "name": "local_dump_removed",
+      "outcome": "skip",
+      "at": "2026-06-12T01:11:46.982Z"
+    },
+    {
+      "phase": "restore",
+      "name": "restore_from_drive",
+      "outcome": "skip",
+      "at": "2026-06-12T01:11:46.982Z"
+    },
+    {
+      "phase": "restore",
+      "name": "entity_integrity",
+      "outcome": "skip",
+      "at": "2026-06-12T01:11:46.982Z"
+    }
+  ],
+  "metrics": {},
+  "skipRestore": true
+}

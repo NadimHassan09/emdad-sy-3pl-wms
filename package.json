@@ -1,0 +1,20 @@
+{
+  "name": "emdad-wms-staging-qa",
+  "private": true,
+  "description": "QA automation suite — STAGING ONLY",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report playwright-report",
+    "test:integration": "cd backend && npm run test:integration:sprint2",
+    "test:all": "npm run test:integration && npm run test:e2e",
+    "cert:gdrive:infra": "node scripts/backup-gdrive-dr-cert.mjs",
+    "cert:gdrive:e2e": "node scripts/backup-gdrive-e2e-cert.mjs",
+    "cert:gdrive:e2e:safe": "SKIP_RESTORE=1 node scripts/backup-gdrive-e2e-cert.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3"
+  }
+}
