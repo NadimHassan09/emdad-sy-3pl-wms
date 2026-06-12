@@ -1,0 +1,225 @@
+{
+  "generatedAt": "2026-06-12T14:12:44.846Z",
+  "api": "http://127.0.0.1:3000/api",
+  "pass": 24,
+  "fail": 0,
+  "total": 24,
+  "results": [
+    {
+      "module": "Authentication",
+      "name": "admin_login",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.291Z"
+    },
+    {
+      "module": "Authentication",
+      "name": "session_me",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.303Z"
+    },
+    {
+      "module": "RBAC",
+      "name": "users_list",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.314Z"
+    },
+    {
+      "module": "Products",
+      "name": "list",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.329Z"
+    },
+    {
+      "module": "Locations",
+      "name": "list",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.345Z"
+    },
+    {
+      "module": "Inventory",
+      "name": "stock",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.360Z"
+    },
+    {
+      "module": "Inventory",
+      "name": "ledger",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.404Z"
+    },
+    {
+      "module": "Inbound",
+      "name": "list",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.417Z"
+    },
+    {
+      "module": "Outbound",
+      "name": "list",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.426Z"
+    },
+    {
+      "module": "Returns",
+      "name": "list",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.438Z"
+    },
+    {
+      "module": "Cycle Count",
+      "name": "counts",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.449Z"
+    },
+    {
+      "module": "Tasks",
+      "name": "list",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.462Z"
+    },
+    {
+      "module": "Reports",
+      "name": "policy",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.468Z"
+    },
+    {
+      "module": "Reports",
+      "name": "inventory_run",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.474Z"
+    },
+    {
+      "module": "Billing",
+      "name": "dashboard_summary",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.481Z"
+    },
+    {
+      "module": "Billing",
+      "name": "invoices",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.491Z"
+    },
+    {
+      "module": "Backup",
+      "name": "health",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.512Z"
+    },
+    {
+      "module": "Backup",
+      "name": "history",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.521Z"
+    },
+    {
+      "module": "Client Portal",
+      "name": "client_login",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.722Z"
+    },
+    {
+      "module": "Client Portal",
+      "name": "dashboard",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.746Z"
+    },
+    {
+      "module": "Client Portal",
+      "name": "stock",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.777Z"
+    },
+    {
+      "module": "Admin SPA",
+      "name": "shell",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.830Z"
+    },
+    {
+      "module": "Client SPA",
+      "name": "shell",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.843Z"
+    },
+    {
+      "module": "Ops",
+      "name": "health_live",
+      "pass": true,
+      "detail": {
+        "status": 200
+      },
+      "at": "2026-06-12T14:12:44.846Z"
+    }
+  ]
+}
