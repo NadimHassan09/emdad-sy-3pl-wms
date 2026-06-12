@@ -1,0 +1,58 @@
+{
+  "status": 200,
+  "data": {
+    "success": true,
+    "data": {
+      "lastSuccessfulBackupAt": "2026-06-11T03:45:00.463Z",
+      "lastFailedBackupAt": "2026-06-05T19:41:56.689Z",
+      "runningOperation": {
+        "busy": false,
+        "activeJobId": null,
+        "maintenance": false,
+        "maintenanceReason": null,
+        "job": null
+      },
+      "backupCount": 7,
+      "storageUsedBytes": 175813090,
+      "nextScheduledBackupAt": "2026-06-12T03:15:00.000Z",
+      "retentionStatus": {
+        "policies": {
+          "keepLastDaily": 7,
+          "keepLastWeekly": 4,
+          "keepLastMonthly": 12,
+          "preSnapshotProtectDays": 7,
+          "retentionCleanupEnabled": true
+        },
+        "eligibleCompletedCount": 7,
+        "pendingDeletionCount": 0,
+        "lastCleanupAt": "2026-06-11T05:15:00.094Z",
+        "lastCleanupDeletedCount": 2
+      },
+      "driveStatus": {
+        "enabled": true,
+        "configured": false,
+        "connected": false,
+        "lastSyncedAt": null,
+        "pendingSyncCount": 0,
+        "failedSyncCount": 0,
+        "hoursSinceLastSync": null
+      },
+      "metrics": {
+        "hoursSinceLastSuccessfulBackup": 21.4,
+        "hoursSinceLastFailedBackup": 149.4,
+        "storageUsedBytes": 175813090,
+        "oldestBackupAgeHours": 71.7,
+        "recentFailureCount": 0
+      },
+      "healthStatus": "critical",
+      "alerts": [
+        {
+          "code": "gdrive_not_configured",
+          "severity": "critical",
+          "message": "Google Drive is enabled but OAuth credentials are missing (BACKUP_GDRIVE_CLIENT_ID/SECRET/REDIRECT_URI). Off-site DR is unavailable."
+        }
+      ]
+    }
+  },
+  "elapsedMs": 43
+}

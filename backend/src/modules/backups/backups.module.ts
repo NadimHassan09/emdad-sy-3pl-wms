@@ -17,6 +17,7 @@ import { BackupStoragePolicyController } from './backup-storage-policy.controlle
 import { BackupStoragePolicyService } from './backup-storage-policy.service';
 import { BackupFileEncryptionService } from './backup-file-encryption.service';
 import { BackupDownloadTokenService } from './backup-download-token.service';
+import { BackupGdriveStartupService } from './backup-gdrive-startup.service';
 import { BackupHealthAlertService } from './backup-health-alert.service';
 import { BackupHealthService } from './backup-health.service';
 import { BackupFactoryResetService } from './backup-factory-reset.service';
@@ -69,6 +70,7 @@ import { BackupsService } from './backups.service';
     BackupRetentionCleanupService,
     BackupHealthService,
     BackupHealthAlertService,
+    BackupGdriveStartupService,
     BackupSchedulesService,
     BackupsService,
     SuperAdminGuard,

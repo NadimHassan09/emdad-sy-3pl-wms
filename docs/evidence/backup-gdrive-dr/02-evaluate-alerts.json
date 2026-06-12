@@ -1,0 +1,17 @@
+{
+  "status": 201,
+  "data": {
+    "success": true,
+    "data": {
+      "healthStatus": "critical",
+      "alerts": [
+        {
+          "code": "gdrive_not_configured",
+          "severity": "critical",
+          "message": "Google Drive is enabled but OAuth credentials are missing (BACKUP_GDRIVE_CLIENT_ID/SECRET/REDIRECT_URI). Off-site DR is unavailable."
+        }
+      ]
+    }
+  },
+  "elapsedMs": 43
+}

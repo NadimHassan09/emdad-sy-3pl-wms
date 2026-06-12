@@ -8,6 +8,7 @@ import {
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BackupConfig } from './backup-config';
+import { BackupDriveIntegrationService } from './backup-drive-integration.service';
 import { BackupMaintenanceService } from './backup-maintenance.service';
 import { BackupOperationsService } from './backup-operations.service';
 import { BackupRetentionService } from './backup-retention.service';
@@ -43,6 +44,7 @@ export class BackupHealthService {
     private readonly operations: BackupOperationsService,
     private readonly maintenance: BackupMaintenanceService,
     private readonly retention: BackupRetentionService,
+    private readonly driveIntegration: BackupDriveIntegrationService,
   ) {}
 
   async getHealth(): Promise<BackupHealthResponse> {
@@ -134,10 +136,13 @@ export class BackupHealthService {
       lastCleanupDeletedCount: this.readDeletedCount(lastCleanup?.newState),
     };
 
+    const driveStatus = await this.buildDriveStatus(now);
+
     const alerts = this.evaluateAlerts({
       hoursSinceLastSuccessfulBackup,
       storageUsedBytes,
       recentFailureCount,
+      driveStatus,
     });
     const healthStatus = this.resolveSeverity(alerts);
 
@@ -155,6 +160,7 @@ export class BackupHealthService {
       storageUsedBytes,
       nextScheduledBackupAt: this.resolveNextScheduledBackupAt(schedules, now),
       retentionStatus,
+      driveStatus,
       metrics: {
         hoursSinceLastSuccessfulBackup,
         hoursSinceLastFailedBackup,
@@ -167,10 +173,32 @@ export class BackupHealthService {
     };
   }
 
+  private async buildDriveStatus(now: Date) {
+    const admin = await this.driveIntegration.getAdminStatus();
+    return {
+      enabled: admin.gdriveEnabled,
+      configured: admin.gdriveConfigured,
+      connected: admin.connected,
+      lastSyncedAt: admin.lastSyncedAt,
+      pendingSyncCount: admin.pendingSyncCount,
+      failedSyncCount: admin.failedSyncCount,
+      hoursSinceLastSync: this.hoursSince(admin.lastSyncedAt, now),
+    };
+  }
+
   evaluateAlerts(input: {
     hoursSinceLastSuccessfulBackup: number | null;
     storageUsedBytes: number;
     recentFailureCount: number;
+    driveStatus: {
+      enabled: boolean;
+      configured: boolean;
+      connected: boolean;
+      lastSyncedAt: string | null;
+      pendingSyncCount: number;
+      failedSyncCount: number;
+      hoursSinceLastSync: number | null;
+    };
   }): BackupHealthAlert[] {
     const alerts: BackupHealthAlert[] = [];
 
@@ -212,11 +240,66 @@ export class BackupHealthService {
         severity: 'critical',
         message: `${input.recentFailureCount} backup failure(s) in the last ${this.backupConfig.healthFailureWindowHours}h (critical threshold ${this.backupConfig.healthFailureCriticalCount}).`,
       });
-    } else if (input.recentFailureCount >= this.backupConfig.healthFailureWarnCount) {
+    } else     if (input.recentFailureCount >= this.backupConfig.healthFailureWarnCount) {
       alerts.push({
         code: 'repeated_failures',
         severity: 'warning',
         message: `${input.recentFailureCount} backup failure(s) in the last ${this.backupConfig.healthFailureWindowHours}h (warning threshold ${this.backupConfig.healthFailureWarnCount}).`,
+      });
+    }
+
+    const drive = input.driveStatus;
+    if (!drive.enabled) {
+      return alerts;
+    }
+
+    if (!drive.configured) {
+      alerts.push({
+        code: 'gdrive_not_configured',
+        severity: 'critical',
+        message:
+          'Google Drive is enabled but OAuth credentials are missing (BACKUP_GDRIVE_CLIENT_ID/SECRET/REDIRECT_URI). Off-site DR is unavailable.',
+      });
+      return alerts;
+    }
+
+    if (!drive.connected) {
+      alerts.push({
+        code: 'gdrive_not_connected',
+        severity: 'critical',
+        message:
+          'Google Drive OAuth is configured but no account is connected. Connect Drive under Settings → Backups → Google Drive.',
+      });
+      return alerts;
+    }
+
+    if (drive.failedSyncCount > 0) {
+      alerts.push({
+        code: 'gdrive_sync_failures',
+        severity: drive.failedSyncCount >= 3 ? 'critical' : 'warning',
+        message: `${drive.failedSyncCount} backup(s) failed to sync to Google Drive. Review sync failures on the Google Drive settings page.`,
+      });
+    }
+
+    if (drive.pendingSyncCount > 0) {
+      alerts.push({
+        code: 'gdrive_pending_sync',
+        severity: 'warning',
+        message: `${drive.pendingSyncCount} completed backup(s) are pending Google Drive upload.`,
+      });
+    }
+
+    const syncHours = drive.hoursSinceLastSync;
+    const staleThreshold = this.backupConfig.healthMaxSuccessAgeHours;
+    if (
+      syncHours !== null &&
+      syncHours > staleThreshold &&
+      this.backupConfig.defaultStoragePolicy !== 'local_only'
+    ) {
+      alerts.push({
+        code: 'gdrive_stale_sync',
+        severity: 'warning',
+        message: `Last successful Google Drive sync was ${syncHours.toFixed(1)}h ago (threshold ${staleThreshold}h).`,
       });
     }
 

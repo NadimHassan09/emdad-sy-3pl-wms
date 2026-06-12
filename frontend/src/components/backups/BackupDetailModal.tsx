@@ -5,11 +5,13 @@ import {
   backupCreatedByLabel,
   formatBackupBytes,
   formatBackupStorage,
+  formatBackupStoragePolicy,
   formatBackupTimestamp,
   formatBackupType,
+  formatGdriveSyncStatus,
   truncateBackupId,
 } from '../../lib/backup-display';
-import { localizedBackupDetailFieldLabels } from '../../lib/ui-labels/settings-backup';
+import { localizedBackupDetailFieldLabels, localizedBackupStoragePolicyLabel } from '../../lib/ui-labels/settings-backup';
 import { useWmsTranslation } from '../../lib/ui-i18n';
 import { Modal } from '../Modal';
 
@@ -76,7 +78,20 @@ export function BackupDetailModal({ open, onClose, row, loading, labels }: Props
               <MetaRow label={fields.created} value={formatBackupTimestamp(row.createdAt)} />
               <MetaRow label={fields.completed} value={formatBackupTimestamp(row.completedAt)} />
               <MetaRow label={fields.createdBy} value={backupCreatedByLabel(row)} />
+              <MetaRow
+                label={fields.storagePolicy}
+                value={
+                  row.storagePolicy
+                    ? localizedBackupStoragePolicyLabel(row.storagePolicy, t)
+                    : formatBackupStoragePolicy(row.storagePolicy)
+                }
+              />
               <MetaRow label={fields.storage} value={formatBackupStorage(row.manifest)} />
+              <MetaRow
+                label={fields.driveSync}
+                value={formatGdriveSyncStatus(row.gdriveSyncStatus, row.storagePolicy)}
+              />
+              <MetaRow label={fields.driveSyncedAt} value={formatBackupTimestamp(row.gdriveSyncedAt)} />
               <MetaRow label={fields.size} value={formatBackupBytes(row.bytesWritten)} />
               <MetaRow label={fields.progress} value={`${row.progressPercent}%`} />
             </dl>
@@ -95,8 +110,28 @@ export function BackupDetailModal({ open, onClose, row, loading, labels }: Props
               />
               <MetaRow label={fields.db} value={row.manifest?.dbName ?? '—'} />
               <MetaRow label={fields.pgVersion} value={row.manifest?.pgVersion ?? '—'} />
+              {row.gdriveFileId ? (
+                <MetaRow label={fields.driveFileId} value={row.gdriveFileId} />
+              ) : null}
+              {row.gdriveSyncAttempts > 0 ? (
+                <MetaRow label={fields.driveSyncAttempts} value={String(row.gdriveSyncAttempts)} />
+              ) : null}
+              {row.gdriveNextRetryAt ? (
+                <MetaRow label={fields.driveNextRetry} value={formatBackupTimestamp(row.gdriveNextRetryAt)} />
+              ) : null}
             </dl>
           </section>
+
+          {row.gdriveSyncError ? (
+            <section>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-rose-600">
+                {fields.driveSyncError}
+              </h3>
+              <pre className="max-h-48 overflow-auto rounded-lg border border-rose-100 bg-rose-50/60 p-3 text-xs text-rose-900">
+                {row.gdriveSyncError}
+              </pre>
+            </section>
+          ) : null}
 
           {row.errorMessage ? (
             <section>

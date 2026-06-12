@@ -66,9 +66,19 @@ cd backend && npm run build
 pm2 restart emdad-wms-backend-staging --update-env
 ```
 
+**Startup validation:** When `BACKUP_GDRIVE_ENABLED=true`, the backend validates OAuth credentials on boot. In production this is strict by default and will refuse to start if `BACKUP_GDRIVE_CLIENT_ID/SECRET` are missing. While provisioning credentials, set:
+
+```env
+BACKUP_GDRIVE_STARTUP_STRICT=false
+```
+
+Remove or set to `true` once OAuth credentials are configured.
+
 Verify:
 
 ```bash
+node scripts/backup-gdrive-dr-cert.mjs
+
 curl -s -H "Authorization: Bearer $TOKEN" -H "X-Company-Id: $COMPANY_ID" \
   http://127.0.0.1:3001/api/integrations/google-drive/status | jq .
 # Expect: gdriveConfigured=true, gdriveEnabled=true
@@ -233,6 +243,8 @@ Evidence output: `docs/evidence/backup-6c/`
 | Restore fails "missing on disk" | `drive_only` without Drive sync | Verify `gdrive_file_id` and Drive connection |
 | Policy PUT returns 400 | Drive not connected | Connect Drive before setting `local_and_drive` / `drive_only` |
 | Sync stuck pending | Drive disabled at runtime | Confirm `BACKUP_GDRIVE_ENABLED=true` after PM2 restart |
+| Backend fails on boot | OAuth env missing with strict startup | Set credentials or `BACKUP_GDRIVE_STARTUP_STRICT=false` during provisioning |
+| Health shows `gdrive_not_configured` | CLIENT_ID/SECRET unset | Complete Google Cloud OAuth setup (section 2) |
 
 ---
 
@@ -245,4 +257,17 @@ Evidence output: `docs/evidence/backup-6c/`
 
 ---
 
-*Last updated: BACKUP-6C certification (2026-06-09)*
+## 13. Certification
+
+Run the automated DR certification harness after deploy:
+
+```bash
+node scripts/backup-gdrive-dr-cert.mjs
+```
+
+Evidence: `docs/evidence/backup-gdrive-dr/`  
+Report: [`BACKUP-GDRIVE-DR-CERTIFICATION.md`](../../BACKUP-GDRIVE-DR-CERTIFICATION.md)
+
+---
+
+*Last updated: BACKUP-GDRIVE-DR certification (2026-06-11)*

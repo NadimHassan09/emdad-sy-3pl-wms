@@ -77,6 +77,13 @@ export function localizedBackupDetailFieldLabels(t: T) {
     checksum: t(['Checksum', 'المجموع الاختباري']),
     db: t(['DB', 'قاعدة البيانات']),
     pgVersion: t(['PG version', 'إصدار PG']),
+    storagePolicy: t(['Storage policy', 'سياسة التخزين']),
+    driveSync: t(['Drive sync', 'مزامنة Drive']),
+    driveSyncedAt: t(['Drive synced at', 'تاريخ مزامنة Drive']),
+    driveFileId: t(['Drive file ID', 'معرّف ملف Drive']),
+    driveSyncError: t(['Drive sync error', 'خطأ مزامنة Drive']),
+    driveSyncAttempts: t(['Sync attempts', 'محاولات المزامنة']),
+    driveNextRetry: t(['Next retry', 'المحاولة التالية']),
   };
 }
 

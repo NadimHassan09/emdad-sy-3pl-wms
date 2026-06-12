@@ -1,4 +1,4 @@
-import type { BackupJobStatus, BackupJobType, BackupManifest, BackupSummary } from '../api/backups';
+import type { BackupJobStatus, BackupJobType, BackupManifest, BackupStoragePolicyValue, BackupSummary } from '../api/backups';
 
 export function formatBackupTimestamp(value: string | null | undefined): string {
   if (!value) return '—';
@@ -75,6 +75,47 @@ export function shouldShowBackupProgress(
 export function truncateBackupId(id: string, head = 8, tail = 4): string {
   if (id.length <= head + tail + 3) return id;
   return `${id.slice(0, head)}…${id.slice(-tail)}`;
+}
+
+export function formatBackupStoragePolicy(
+  policy: BackupStoragePolicyValue | null | undefined,
+): string {
+  if (!policy) return '—';
+  const labels: Record<BackupStoragePolicyValue, string> = {
+    local_only: 'Local only',
+    drive_only: 'Drive only',
+    local_and_drive: 'Local + Drive',
+  };
+  return labels[policy] ?? policy;
+}
+
+export type GdriveSyncStatus = 'pending' | 'synced' | 'failed' | null;
+
+export function gdriveSyncBadgeClass(status: GdriveSyncStatus): string {
+  switch (status) {
+    case 'synced':
+      return 'bg-emerald-50 text-emerald-800 ring-emerald-600/20';
+    case 'pending':
+      return 'bg-amber-50 text-amber-800 ring-amber-600/20';
+    case 'failed':
+      return 'bg-rose-50 text-rose-800 ring-rose-600/20';
+    default:
+      return 'bg-slate-50 text-slate-500 ring-slate-400/20';
+  }
+}
+
+export function formatGdriveSyncStatus(
+  status: GdriveSyncStatus,
+  storagePolicy: BackupStoragePolicyValue | null | undefined,
+): string {
+  if (storagePolicy === 'local_only') return 'N/A';
+  if (!status) return '—';
+  const labels: Record<Exclude<GdriveSyncStatus, null>, string> = {
+    pending: 'Pending',
+    synced: 'Synced',
+    failed: 'Failed',
+  };
+  return labels[status];
 }
 
 const DOWNLOADABLE_BACKUP_TYPES: BackupJobType[] = [

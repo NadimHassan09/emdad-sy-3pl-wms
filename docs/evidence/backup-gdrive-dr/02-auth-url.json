@@ -1,0 +1,11 @@
+{
+  "status": 503,
+  "data": {
+    "success": false,
+    "error": {
+      "code": "ERROR",
+      "message": "Internal server error."
+    }
+  },
+  "elapsedMs": 6
+}

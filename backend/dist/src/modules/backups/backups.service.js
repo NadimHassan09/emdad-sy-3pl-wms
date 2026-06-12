@@ -27,6 +27,7 @@ const backup_pg_tools_service_1 = require("./backup-pg-tools.service");
 const backup_restore_runner_service_1 = require("./backup-restore-runner.service");
 const backup_runner_service_1 = require("./backup-runner.service");
 const backup_storage_policy_service_1 = require("./backup-storage-policy.service");
+const list_backups_query_dto_1 = require("./dto/list-backups-query.dto");
 const DOWNLOADABLE_BACKUP_TYPES = [
     client_1.BackupJobType.manual,
     client_1.BackupJobType.scheduled,
@@ -144,11 +145,10 @@ let BackupsService = class BackupsService {
         this.assertCanRead(user);
         const limit = query.limit ?? 20;
         const offset = query.offset ?? 0;
+        const where = this.buildHistoryListWhere(query);
         const [items, total] = await Promise.all([
             this.prisma.backupJob.findMany({
-                where: {
-                    type: { in: [client_1.BackupJobType.manual, client_1.BackupJobType.upload, client_1.BackupJobType.restore, client_1.BackupJobType.pre_snapshot] },
-                },
+                where,
                 orderBy: { createdAt: 'desc' },
                 take: limit,
                 skip: offset,
@@ -156,11 +156,7 @@ let BackupsService = class BackupsService {
                     triggeredBy: { select: { id: true, email: true, fullName: true } },
                 },
             }),
-            this.prisma.backupJob.count({
-                where: {
-                    type: { in: [client_1.BackupJobType.manual, client_1.BackupJobType.upload, client_1.BackupJobType.restore, client_1.BackupJobType.pre_snapshot] },
-                },
-            }),
+            this.prisma.backupJob.count({ where }),
         ]);
         return {
             items: items.map((row) => this.toSummary(row)),
@@ -168,6 +164,27 @@ let BackupsService = class BackupsService {
             limit,
             offset,
         };
+    }
+    buildHistoryListWhere(query) {
+        const where = {
+            type: query.type ? query.type : { in: list_backups_query_dto_1.BACKUP_HISTORY_JOB_TYPES },
+        };
+        if (query.status) {
+            where.status = query.status;
+        }
+        const search = query.search?.trim();
+        if (search) {
+            const or = [
+                { label: { contains: search, mode: 'insensitive' } },
+                { triggeredBy: { email: { contains: search, mode: 'insensitive' } } },
+                { triggeredBy: { fullName: { contains: search, mode: 'insensitive' } } },
+            ];
+            if (/^[0-9a-f-]{36}$/i.test(search)) {
+                or.unshift({ id: search });
+            }
+            where.OR = or;
+        }
+        return where;
     }
     async findById(user, id) {
         this.assertCanRead(user);
@@ -428,6 +445,9 @@ let BackupsService = class BackupsService {
             completedAt: row.completedAt,
             triggeredBy: row.triggeredBy,
             manifest: row.manifest,
+            storagePolicy: row.storagePolicy,
+            gdriveSyncStatus: row.gdriveSyncStatus,
+            gdriveSyncedAt: row.gdriveSyncedAt,
         };
     }
     toDetail(row) {
@@ -436,6 +456,10 @@ let BackupsService = class BackupsService {
             dumpFilename: row.dumpFilename,
             errorMessage: row.errorMessage,
             startedAt: row.startedAt,
+            gdriveFileId: row.gdriveFileId,
+            gdriveSyncError: row.gdriveSyncError,
+            gdriveSyncAttempts: row.gdriveSyncAttempts,
+            gdriveNextRetryAt: row.gdriveNextRetryAt,
         };
     }
 };

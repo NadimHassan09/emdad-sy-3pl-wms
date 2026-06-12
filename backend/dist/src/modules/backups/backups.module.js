@@ -25,6 +25,7 @@ const backup_storage_policy_controller_1 = require("./backup-storage-policy.cont
 const backup_storage_policy_service_1 = require("./backup-storage-policy.service");
 const backup_file_encryption_service_1 = require("./backup-file-encryption.service");
 const backup_download_token_service_1 = require("./backup-download-token.service");
+const backup_gdrive_startup_service_1 = require("./backup-gdrive-startup.service");
 const backup_health_alert_service_1 = require("./backup-health-alert.service");
 const backup_health_service_1 = require("./backup-health.service");
 const backup_factory_reset_service_1 = require("./backup-factory-reset.service");
@@ -83,6 +84,7 @@ exports.BackupsModule = BackupsModule = __decorate([
             backup_retention_cleanup_service_1.BackupRetentionCleanupService,
             backup_health_service_1.BackupHealthService,
             backup_health_alert_service_1.BackupHealthAlertService,
+            backup_gdrive_startup_service_1.BackupGdriveStartupService,
             backup_schedules_service_1.BackupSchedulesService,
             backups_service_1.BackupsService,
             super_admin_guard_1.SuperAdminGuard,

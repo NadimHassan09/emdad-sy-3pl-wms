@@ -1,0 +1,10 @@
+{
+  "gdriveEnabled": "true",
+  "gdriveClientId": null,
+  "gdriveClientSecret": null,
+  "gdriveRedirectUri": "https://staging-admin.emdadsy.com/api/integrations/google-drive/callback",
+  "gdriveConnectSuccessUrl": "https://staging-admin.emdadsy.com/settings/backups/google-drive",
+  "encryptionKey": "[set]",
+  "defaultStoragePolicy": "local_and_drive",
+  "startupStrict": "false"
+}

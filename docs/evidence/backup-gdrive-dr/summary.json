@@ -1,0 +1,171 @@
+{
+  "ranAt": "2026-06-12T01:08:50.645Z",
+  "elapsedSec": "0.4",
+  "counts": {
+    "pass": 13,
+    "fail": 0,
+    "blocked": 5,
+    "skip": 0
+  },
+  "results": [
+    {
+      "phase": "config",
+      "name": "gdrive_enabled",
+      "outcome": "pass",
+      "at": "2026-06-12T01:08:50.296Z",
+      "gdriveEnabled": "true",
+      "gdriveClientId": null,
+      "gdriveClientSecret": null,
+      "gdriveRedirectUri": "https://staging-admin.emdadsy.com/api/integrations/google-drive/callback",
+      "gdriveConnectSuccessUrl": "https://staging-admin.emdadsy.com/settings/backups/google-drive",
+      "encryptionKey": "[set]",
+      "defaultStoragePolicy": "local_and_drive",
+      "startupStrict": "false"
+    },
+    {
+      "phase": "config",
+      "name": "redirect_uri_suffix",
+      "outcome": "pass",
+      "at": "2026-06-12T01:08:50.296Z",
+      "redirectUri": "https://staging-admin.emdadsy.com/api/integrations/google-drive/callback"
+    },
+    {
+      "phase": "config",
+      "name": "encryption_key",
+      "outcome": "pass",
+      "at": "2026-06-12T01:08:50.296Z",
+      "note": "BACKUP_ENCRYPTION_KEY required for OAuth token storage"
+    },
+    {
+      "phase": "config",
+      "name": "oauth_client",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:08:50.296Z",
+      "note": "Set BACKUP_GDRIVE_CLIENT_ID/SECRET from Google Cloud Console"
+    },
+    {
+      "phase": "config",
+      "name": "startup_validation_service",
+      "outcome": "pass",
+      "at": "2026-06-12T01:08:50.296Z",
+      "path": "/var/www/emdad-sy-3pl-wms-staging/backend/src/modules/backups/backup-gdrive-startup.service.ts"
+    },
+    {
+      "phase": "config",
+      "name": "env_example_documented",
+      "outcome": "pass",
+      "at": "2026-06-12T01:08:50.296Z"
+    },
+    {
+      "phase": "routes",
+      "name": "oauth_callback_public",
+      "outcome": "pass",
+      "at": "2026-06-12T01:08:50.393Z",
+      "status": 503,
+      "note": "Public route reachable; 400/503 without code is expected when OAuth is incomplete"
+    },
+    {
+      "phase": "auth",
+      "name": "login",
+      "outcome": "pass",
+      "at": "2026-06-12T01:08:50.490Z",
+      "email": "superadmin@emdad.example"
+    },
+    {
+      "phase": "api",
+      "name": "drive_status",
+      "outcome": "pass",
+      "at": "2026-06-12T01:08:50.540Z",
+      "gdriveEnabled": true,
+      "gdriveConfigured": false,
+      "connected": false
+    },
+    {
+      "phase": "api",
+      "name": "drive_configured_flag",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:08:50.540Z",
+      "gdriveConfigured": false
+    },
+    {
+      "phase": "api",
+      "name": "health_dashboard",
+      "outcome": "pass",
+      "at": "2026-06-12T01:08:50.583Z"
+    },
+    {
+      "phase": "api",
+      "name": "health_drive_status",
+      "outcome": "pass",
+      "at": "2026-06-12T01:08:50.583Z",
+      "driveStatus": {
+        "enabled": true,
+        "configured": false,
+        "connected": false,
+        "lastSyncedAt": null,
+        "pendingSyncCount": 0,
+        "failedSyncCount": 0,
+        "hoursSinceLastSync": null
+      }
+    },
+    {
+      "phase": "api",
+      "name": "health_gdrive_alerts",
+      "outcome": "pass",
+      "at": "2026-06-12T01:08:50.583Z",
+      "alerts": [
+        "gdrive_not_configured"
+      ]
+    },
+    {
+      "phase": "api",
+      "name": "evaluate_alerts",
+      "outcome": "pass",
+      "at": "2026-06-12T01:08:50.626Z",
+      "status": 201
+    },
+    {
+      "phase": "api",
+      "name": "backup_list_sync_fields",
+      "outcome": "pass",
+      "at": "2026-06-12T01:08:50.638Z",
+      "sampleFields": [
+        "id",
+        "type",
+        "status",
+        "label",
+        "progressPercent",
+        "bytesWritten",
+        "createdAt",
+        "completedAt",
+        "triggeredBy",
+        "manifest",
+        "storagePolicy",
+        "gdriveSyncStatus",
+        "gdriveSyncedAt"
+      ]
+    },
+    {
+      "phase": "oauth",
+      "name": "auth_url",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:08:50.645Z",
+      "note": "Requires OAuth client credentials"
+    },
+    {
+      "phase": "sync",
+      "name": "test_connection",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:08:50.645Z",
+      "note": "Connect Drive in admin UI first"
+    },
+    {
+      "phase": "sync",
+      "name": "live_sync",
+      "outcome": "blocked",
+      "at": "2026-06-12T01:08:50.645Z",
+      "note": "Requires connected Google account"
+    }
+  ],
+  "verdict": "CONDITIONAL_PASS"
+}

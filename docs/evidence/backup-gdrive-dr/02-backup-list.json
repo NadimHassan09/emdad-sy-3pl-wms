@@ -1,0 +1,179 @@
+{
+  "status": 200,
+  "data": {
+    "success": true,
+    "data": {
+      "items": [
+        {
+          "id": "bccacd21-0768-440f-95d1-28113fc65c5e",
+          "type": "scheduled",
+          "status": "completed",
+          "label": "scheduled:daily@03:45",
+          "progressPercent": 100,
+          "bytesWritten": 2268134,
+          "createdAt": "2026-06-11T03:45:00.061Z",
+          "completedAt": "2026-06-11T03:45:00.463Z",
+          "triggeredBy": {
+            "id": "00000000-0000-4000-8000-0000000000ab",
+            "email": "superadmin@emdad.example",
+            "fullName": "Demo Super Admin"
+          },
+          "manifest": {
+            "type": "scheduled",
+            "label": "scheduled:daily@03:45",
+            "dbName": "wms_db_staging",
+            "backupId": "bccacd21-0768-440f-95d1-28113fc65c5e",
+            "createdAt": "2026-06-11T03:45:00.460Z",
+            "pgVersion": "PostgreSQL 16.14 (Ubuntu 16.14-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit",
+            "sizeBytes": 2268134,
+            "dumpFilename": "bccacd21-0768-440f-95d1-28113fc65c5e.dump",
+            "environmentId": "staging",
+            "checksumSha256": "1f88a35ee88d1ee720d774a069956bb5a8ae0f5a90fd9623ccae60a71224ef44",
+            "createdByEmail": "superadmin@emdad.example",
+            "createdByUserId": "00000000-0000-4000-8000-0000000000ab",
+            "schemaMigration": "20260609150000_billing_invoice_overdue"
+          },
+          "storagePolicy": "local_only",
+          "gdriveSyncStatus": null,
+          "gdriveSyncedAt": null
+        },
+        {
+          "id": "c87a09c7-f93a-44b8-b5f5-7e0f1aa0addd",
+          "type": "scheduled",
+          "status": "completed",
+          "label": "scheduled:daily@03:15",
+          "progressPercent": 100,
+          "bytesWritten": 2267900,
+          "createdAt": "2026-06-11T03:15:00.057Z",
+          "completedAt": "2026-06-11T03:15:01.150Z",
+          "triggeredBy": {
+            "id": "00000000-0000-4000-8000-0000000000ab",
+            "email": "superadmin@emdad.example",
+            "fullName": "Demo Super Admin"
+          },
+          "manifest": {
+            "type": "scheduled",
+            "label": "scheduled:daily@03:15",
+            "dbName": "wms_db_staging",
+            "backupId": "c87a09c7-f93a-44b8-b5f5-7e0f1aa0addd",
+            "createdAt": "2026-06-11T03:15:01.145Z",
+            "pgVersion": "PostgreSQL 16.14 (Ubuntu 16.14-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit",
+            "sizeBytes": 2267900,
+            "dumpFilename": "c87a09c7-f93a-44b8-b5f5-7e0f1aa0addd.dump",
+            "environmentId": "staging",
+            "checksumSha256": "5f334390ebbb8b54c7df06fb628ca90175860efd530a47fd30ebd93a8e1ac82c",
+            "createdByEmail": "superadmin@emdad.example",
+            "createdByUserId": "00000000-0000-4000-8000-0000000000ab",
+            "schemaMigration": "20260609150000_billing_invoice_overdue"
+          },
+          "storagePolicy": "local_only",
+          "gdriveSyncStatus": null,
+          "gdriveSyncedAt": null
+        },
+        {
+          "id": "52e84a03-45ae-4c5d-a6f8-02d95f557a90",
+          "type": "scheduled",
+          "status": "completed",
+          "label": "scheduled:daily@03:45",
+          "progressPercent": 100,
+          "bytesWritten": 2267450,
+          "createdAt": "2026-06-10T03:45:00.041Z",
+          "completedAt": "2026-06-10T03:45:00.469Z",
+          "triggeredBy": {
+            "id": "00000000-0000-4000-8000-0000000000ab",
+            "email": "superadmin@emdad.example",
+            "fullName": "Demo Super Admin"
+          },
+          "manifest": {
+            "type": "scheduled",
+            "label": "scheduled:daily@03:45",
+            "dbName": "wms_db_staging",
+            "backupId": "52e84a03-45ae-4c5d-a6f8-02d95f557a90",
+            "createdAt": "2026-06-10T03:45:00.467Z",
+            "pgVersion": "PostgreSQL 16.14 (Ubuntu 16.14-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit",
+            "sizeBytes": 2267450,
+            "dumpFilename": "52e84a03-45ae-4c5d-a6f8-02d95f557a90.dump",
+            "environmentId": "staging",
+            "checksumSha256": "de5ad44c2a09e81c96e5b2151d3c37b5ff8504d61c1631a5f0e62382e9c47a3c",
+            "createdByEmail": "superadmin@emdad.example",
+            "createdByUserId": "00000000-0000-4000-8000-0000000000ab",
+            "schemaMigration": "20260609150000_billing_invoice_overdue"
+          },
+          "storagePolicy": "local_only",
+          "gdriveSyncStatus": null,
+          "gdriveSyncedAt": null
+        },
+        {
+          "id": "17f93575-26f9-4a5b-82ac-837f450702ed",
+          "type": "scheduled",
+          "status": "completed",
+          "label": "scheduled:daily@03:15",
+          "progressPercent": 100,
+          "bytesWritten": 2267166,
+          "createdAt": "2026-06-10T03:15:00.066Z",
+          "completedAt": "2026-06-10T03:15:01.138Z",
+          "triggeredBy": {
+            "id": "00000000-0000-4000-8000-0000000000ab",
+            "email": "superadmin@emdad.example",
+            "fullName": "Demo Super Admin"
+          },
+          "manifest": {
+            "type": "scheduled",
+            "label": "scheduled:daily@03:15",
+            "dbName": "wms_db_staging",
+            "backupId": "17f93575-26f9-4a5b-82ac-837f450702ed",
+            "createdAt": "2026-06-10T03:15:01.113Z",
+            "pgVersion": "PostgreSQL 16.14 (Ubuntu 16.14-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit",
+            "sizeBytes": 2267166,
+            "dumpFilename": "17f93575-26f9-4a5b-82ac-837f450702ed.dump",
+            "environmentId": "staging",
+            "checksumSha256": "9bd0be1af913c53b91ca29ef5adb40774b1452cff822eeaee3a4c34006e32914",
+            "createdByEmail": "superadmin@emdad.example",
+            "createdByUserId": "00000000-0000-4000-8000-0000000000ab",
+            "schemaMigration": "20260609150000_billing_invoice_overdue"
+          },
+          "storagePolicy": "local_only",
+          "gdriveSyncStatus": null,
+          "gdriveSyncedAt": null
+        },
+        {
+          "id": "ee935cbe-fff6-4331-89ee-a17944eacff5",
+          "type": "scheduled",
+          "status": "completed",
+          "label": "scheduled:daily@03:45",
+          "progressPercent": 100,
+          "bytesWritten": 2265509,
+          "createdAt": "2026-06-09T03:45:00.041Z",
+          "completedAt": "2026-06-09T03:45:00.537Z",
+          "triggeredBy": {
+            "id": "00000000-0000-4000-8000-0000000000ab",
+            "email": "superadmin@emdad.example",
+            "fullName": "Demo Super Admin"
+          },
+          "manifest": {
+            "type": "scheduled",
+            "label": "scheduled:daily@03:45",
+            "dbName": "wms_db_staging",
+            "backupId": "ee935cbe-fff6-4331-89ee-a17944eacff5",
+            "createdAt": "2026-06-09T03:45:00.533Z",
+            "pgVersion": "PostgreSQL 16.14 (Ubuntu 16.14-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit",
+            "sizeBytes": 2265509,
+            "dumpFilename": "ee935cbe-fff6-4331-89ee-a17944eacff5.dump",
+            "environmentId": "staging",
+            "checksumSha256": "f166cdade43b5882a619090985603bced334181cf2bb4256cf7444965d39071b",
+            "createdByEmail": "superadmin@emdad.example",
+            "createdByUserId": "00000000-0000-4000-8000-0000000000ab",
+            "schemaMigration": "20260609160000_ledger_perf_indexes"
+          },
+          "storagePolicy": "local_only",
+          "gdriveSyncStatus": null,
+          "gdriveSyncedAt": null
+        }
+      ],
+      "total": 15,
+      "limit": 5,
+      "offset": 0
+    }
+  },
+  "elapsedMs": 12
+}

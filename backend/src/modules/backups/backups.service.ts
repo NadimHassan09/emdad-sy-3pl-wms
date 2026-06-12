@@ -509,6 +509,9 @@ export class BackupsService {
       completedAt: row.completedAt,
       triggeredBy: row.triggeredBy,
       manifest: row.manifest,
+      storagePolicy: row.storagePolicy,
+      gdriveSyncStatus: row.gdriveSyncStatus,
+      gdriveSyncedAt: row.gdriveSyncedAt,
     };
   }
 
@@ -518,6 +521,10 @@ export class BackupsService {
       dumpFilename: row.dumpFilename,
       errorMessage: row.errorMessage,
       startedAt: row.startedAt,
+      gdriveFileId: row.gdriveFileId,
+      gdriveSyncError: row.gdriveSyncError,
+      gdriveSyncAttempts: row.gdriveSyncAttempts,
+      gdriveNextRetryAt: row.gdriveNextRetryAt,
     };
   }
 }
@@ -542,4 +549,11 @@ type BackupJobRow = {
   completedAt: Date | null;
   createdAt: Date;
   triggeredBy: { id: string; email: string; fullName: string };
+  storagePolicy: string | null;
+  gdriveSyncStatus: string | null;
+  gdriveSyncedAt: Date | null;
+  gdriveFileId: string | null;
+  gdriveSyncError: string | null;
+  gdriveSyncAttempts: number;
+  gdriveNextRetryAt: Date | null;
 };

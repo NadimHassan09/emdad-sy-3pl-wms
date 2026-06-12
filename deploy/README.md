@@ -48,6 +48,59 @@ Order matters: `include snippets/emdad-wms-backend-locations.conf` must appear *
 
    Expect `401` or `200` depending on auth — not `502`/`504` (upstream down).
 
+## Google Drive disaster recovery (off-site backups)
+
+Off-site backup sync uses Google OAuth and the Drive API. Full setup is in [`docs/ops/BACKUP-GOOGLE-DRIVE-RUNBOOK.md`](../docs/ops/BACKUP-GOOGLE-DRIVE-RUNBOOK.md).
+
+### Required environment variables
+
+Set these in `backend/.env` on the server (never commit secrets):
+
+| Variable | Purpose |
+| -------- | ------- |
+| `BACKUP_GDRIVE_ENABLED` | `true` to enable Drive sync |
+| `BACKUP_GDRIVE_CLIENT_ID` | OAuth Web client ID from Google Cloud Console |
+| `BACKUP_GDRIVE_CLIENT_SECRET` | OAuth client secret |
+| `BACKUP_GDRIVE_REDIRECT_URI` | Must end with `/api/integrations/google-drive/callback` on the **admin** host |
+| `BACKUP_GDRIVE_CONNECT_SUCCESS_URL` | Admin UI page after OAuth (e.g. `https://admin.emdadsy.com/settings/backups/google-drive`) |
+| `BACKUP_ENCRYPTION_KEY` | 32-byte base64 key — encrypts OAuth tokens and backup files |
+| `BACKUP_DEFAULT_STORAGE_POLICY` | `local_and_drive` for VPS + off-site copies |
+
+Optional:
+
+| Variable | Purpose |
+| -------- | ------- |
+| `BACKUP_GDRIVE_STARTUP_STRICT` | `false` allows boot without OAuth credentials while provisioning; defaults to strict in production |
+
+### OAuth redirect URI
+
+Google Cloud Console → **Credentials** → OAuth 2.0 Web client → **Authorized redirect URIs**:
+
+```
+https://staging-admin.emdadsy.com/api/integrations/google-drive/callback
+```
+
+Nginx already proxies `/api/` to Nest; no extra vhost rule is needed for the callback.
+
+### Post-deploy verification
+
+```bash
+# Certification harness (infrastructure + API checks)
+node scripts/backup-gdrive-dr-cert.mjs
+
+# Drive integration status (requires super_admin token)
+curl -s -H "Authorization: Bearer $TOKEN" -H "X-Company-Id: $COMPANY_ID" \
+  http://127.0.0.1:3001/api/integrations/google-drive/status | jq .
+
+# OAuth callback route is public (expect 400 without code/state)
+curl -sS -o /dev/null -w "%{http_code}\n" \
+  "https://staging-admin.emdadsy.com/api/integrations/google-drive/callback"
+```
+
+After credentials are set, connect Drive in the admin UI: **Settings → Backups → Google Drive → Connect Drive**.
+
+See [`BACKUP-GDRIVE-DR-CERTIFICATION.md`](../BACKUP-GDRIVE-DR-CERTIFICATION.md) for the latest certification report.
+
 ## CORS
 
 With Option A, the browser talks to `https://admin.emdadsy.com/api/...` — **same origin** as the admin UI — so you do not rely on cross-origin CORS for those calls. You may still set `CORS_ORIGINS` for local Vite dev or other tools.

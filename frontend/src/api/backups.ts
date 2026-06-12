@@ -36,12 +36,19 @@ export type BackupSummary = {
   completedAt: string | null;
   triggeredBy: BackupTriggeredBy;
   manifest: BackupManifest | null;
+  storagePolicy: BackupStoragePolicyValue | null;
+  gdriveSyncStatus: 'pending' | 'synced' | 'failed' | null;
+  gdriveSyncedAt: string | null;
 };
 
 export type BackupDetail = BackupSummary & {
   dumpFilename: string | null;
   errorMessage: string | null;
   startedAt: string | null;
+  gdriveFileId: string | null;
+  gdriveSyncError: string | null;
+  gdriveSyncAttempts: number;
+  gdriveNextRetryAt: string | null;
 };
 
 export type BackupStatus = {
@@ -230,6 +237,16 @@ export type BackupHealthMetrics = {
   recentFailureCount: number;
 };
 
+export type BackupDriveHealthStatus = {
+  enabled: boolean;
+  configured: boolean;
+  connected: boolean;
+  lastSyncedAt: string | null;
+  pendingSyncCount: number;
+  failedSyncCount: number;
+  hoursSinceLastSync: number | null;
+};
+
 export type BackupHealthResponse = {
   lastSuccessfulBackupAt: string | null;
   lastFailedBackupAt: string | null;
@@ -255,6 +272,7 @@ export type BackupHealthResponse = {
     lastCleanupAt: string | null;
     lastCleanupDeletedCount: number | null;
   };
+  driveStatus: BackupDriveHealthStatus;
   metrics: BackupHealthMetrics;
   healthStatus: BackupHealthSeverity;
   alerts: BackupHealthAlert[];
@@ -470,6 +488,14 @@ export const BackupsApi = {
 
   getHealth(): Promise<BackupHealthResponse> {
     return api.get<BackupHealthResponse>('/backups/health').then((r) => r.data);
+  },
+
+  evaluateHealthAlerts(): Promise<{ healthStatus: BackupHealthSeverity; alerts: BackupHealthAlert[] }> {
+    return api
+      .post<{ healthStatus: BackupHealthSeverity; alerts: BackupHealthAlert[] }>(
+        '/backups/health/evaluate-alerts',
+      )
+      .then((r) => r.data);
   },
 
   getStoragePolicy(): Promise<BackupStoragePolicySettings> {

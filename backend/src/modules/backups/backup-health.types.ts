@@ -3,7 +3,12 @@ export type BackupHealthSeverity = 'healthy' | 'warning' | 'critical';
 export type BackupHealthAlertCode =
   | 'stale_successful_backup'
   | 'storage_threshold'
-  | 'repeated_failures';
+  | 'repeated_failures'
+  | 'gdrive_not_configured'
+  | 'gdrive_not_connected'
+  | 'gdrive_sync_failures'
+  | 'gdrive_pending_sync'
+  | 'gdrive_stale_sync';
 
 export type BackupHealthAlert = {
   code: BackupHealthAlertCode;
@@ -46,6 +51,16 @@ export type BackupHealthMetrics = {
   recentFailureCount: number;
 };
 
+export type BackupDriveHealthStatus = {
+  enabled: boolean;
+  configured: boolean;
+  connected: boolean;
+  lastSyncedAt: string | null;
+  pendingSyncCount: number;
+  failedSyncCount: number;
+  hoursSinceLastSync: number | null;
+};
+
 export type BackupHealthResponse = {
   lastSuccessfulBackupAt: string | null;
   lastFailedBackupAt: string | null;
@@ -54,6 +69,7 @@ export type BackupHealthResponse = {
   storageUsedBytes: number;
   nextScheduledBackupAt: string | null;
   retentionStatus: BackupRetentionStatus;
+  driveStatus: BackupDriveHealthStatus;
   metrics: BackupHealthMetrics;
   healthStatus: BackupHealthSeverity;
   alerts: BackupHealthAlert[];

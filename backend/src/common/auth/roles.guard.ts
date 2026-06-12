@@ -4,6 +4,7 @@ import { UserRole } from '@prisma/client';
 
 import { AuthGroup, userRoleToAuthGroup } from './auth-groups';
 import { AuthPrincipal } from './current-user.types';
+import { IS_PUBLIC_KEY } from './public.decorator';
 import { ROLES_KEY } from './roles.decorator';
 
 @Injectable()
@@ -11,6 +12,12 @@ export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+
     const required = this.reflector.getAllAndOverride<AuthGroup[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
