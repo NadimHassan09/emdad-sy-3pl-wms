@@ -25,7 +25,9 @@ import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
 import { useServerPagination } from '../hooks/useServerPagination';
 import { useTenantCompanyId } from '../hooks/useTenantCompanyId';
+import { WorkerProfilePanel } from '../components/users/WorkerProfilePanel';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
+import { workerProfileStatusText } from '../lib/worker-profile';
 
 type UserListFilters = {
   search: string;
@@ -318,6 +320,25 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
         header: t('Status', 'الحالة'),
         accessor: (u) => statusPill(u.status),
       },
+      {
+        header: t('Worker profile', 'ملف العامل'),
+        accessor: (u) => {
+          if (u.role !== 'wh_operator') return <span className="text-slate-400">—</span>;
+          const label = workerProfileStatusText(u.workerProfile, u.status, t);
+          const cls =
+            label === t('Linked', 'مرتبط')
+              ? 'bg-emerald-50 text-emerald-700'
+              : label === t('Not linked', 'غير مرتبط')
+                ? 'bg-amber-50 text-amber-800'
+                : 'bg-slate-100 text-slate-600';
+          return (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${cls}`}>
+              {label}
+            </span>
+          );
+        },
+        width: '120px',
+      },
     ];
     const companyCol: Column<UserListRow> = {
       header: t('Company', 'الشركة'),
@@ -446,6 +467,15 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       password,
     };
     if (kind === 'system') {
+      if (systemRole === 'worker' && !tenantCompanyId) {
+        toast.error(
+          t(
+            'Select an active client tenant before creating a warehouse operator. Worker profiles are provisioned per tenant.',
+            'اختر عميلاً نشطاً قبل إنشاء مشغل مستودع. تُنشأ ملفات العمال لكل عميل.',
+          ),
+        );
+        return;
+      }
       const payload: CreateUserPayload = {
         ...base,
         kind: 'system',
@@ -629,13 +659,23 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
             hint={t('Minimum 8 characters.', '8 أحرف على الأقل.')}
           />
           {kind === 'system' ? (
-            <SelectField
-              label={t('System role', 'دور النظام')}
-              name="systemRole"
-              value={systemRole}
-              onChange={(e) => setSystemRole(e.target.value as typeof systemRole)}
-              options={SYSTEM_ROLE_OPTIONS}
-            />
+            <>
+              <SelectField
+                label={t('System role', 'دور النظام')}
+                name="systemRole"
+                value={systemRole}
+                onChange={(e) => setSystemRole(e.target.value as typeof systemRole)}
+                options={SYSTEM_ROLE_OPTIONS}
+              />
+              {systemRole === 'worker' && !tenantCompanyId ? (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+                  {t(
+                    'An active client tenant is required. The operator will get a worker profile in that tenant for tasks and cycle counts.',
+                    'مطلوب عميل نشط. سيحصل المشغل على ملف عامل في ذلك العميل للمهام والجرد.',
+                  )}
+                </p>
+              ) : null}
+            </>
           ) : (
             <>
               <Combobox
@@ -753,6 +793,15 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
               onChange={(e) => setEditPassword(e.target.value)}
               hint={t('Leave blank to keep the current password.', 'اتركه فارغا للاحتفاظ بكلمة المرور الحالية.')}
             />
+            {editUser.kind === 'system' && editRole === 'wh_operator' ? (
+              <div className="border-t border-slate-100 pt-2">
+                <WorkerProfilePanel
+                  user={{ ...editUser, role: editRole, status: editStatus }}
+                  t={t}
+                  compact
+                />
+              </div>
+            ) : null}
           </form>
         </Modal>
       )}

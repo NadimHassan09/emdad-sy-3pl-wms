@@ -24,6 +24,12 @@ export class WorkflowWorkersController {
     return this.workers.workerLoad(user, warehouseId);
   }
 
+  @Get('unlinked')
+  @UseGuards(InternalAdminGuard)
+  listUnlinked(@CurrentUser() user: AuthPrincipal) {
+    return this.workers.listUnlinked(user);
+  }
+
   @Post()
   @UseGuards(InternalAdminGuard)
   create(

@@ -16,6 +16,7 @@ import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { useAuth } from '../../auth/AuthContext';
 import { QK } from '../../constants/query-keys';
+import { WorkerProfileOnboardingBanner } from '../../components/users/WorkerProfileOnboardingBanner';
 import { canExecuteCycleCount } from '../../lib/rbac';
 
 function nextPendingLine(products: BlindCycleCountProductGroup[]): {
@@ -168,12 +169,7 @@ export function CycleCountExecutePage() {
             </Link>
           }
         />
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          {t(
-            'Your account is not linked to a Worker profile. Use a warehouse operator account to execute blind counts.',
-            'حسابك غير مرتبط بملف عامل. استخدم حساب مشغل مستودع لتنفيذ الجرد الأعمى.',
-          )}
-        </p>
+        <WorkerProfileOnboardingBanner t={t} operatorUserId={user?.id} />
       </div>
     );
   }

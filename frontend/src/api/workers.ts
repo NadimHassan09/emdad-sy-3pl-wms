@@ -25,6 +25,11 @@ export const WorkersApi = {
     return data;
   },
 
+  async listUnlinked() {
+    const { data } = await api.get<WorkerRow[]>('/workers/unlinked');
+    return data;
+  },
+
   async listLoad(warehouseId?: string) {
     const { data } = await api.get<WorkerLoadRow[]>('/workers/load', {
       params: warehouseId ? { warehouseId } : undefined,

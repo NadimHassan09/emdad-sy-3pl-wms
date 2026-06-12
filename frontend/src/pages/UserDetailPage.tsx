@@ -4,10 +4,15 @@ import { Link, useParams } from 'react-router-dom';
 import { UsersApi } from '../api/users';
 import { PageHeader } from '../components/PageHeader';
 import { UserDetailsCard } from '../components/users/UserDetailsCard';
+import { WorkerProfilePanel } from '../components/users/WorkerProfilePanel';
 import { QK } from '../constants/query-keys';
 type UsersPageVariant = 'warehouse' | 'client';
 
 function UserDetailPage({ variant }: { variant: UsersPageVariant }) {
+  const isArabic =
+    typeof window !== 'undefined' &&
+    (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+  const t = (en: string, ar: string) => (isArabic ? ar : en);
   const { id = '' } = useParams<{ id: string }>();
   const listPath = variant === 'warehouse' ? '/users/warehouse_users' : '/users/client_users';
   const title = variant === 'warehouse' ? 'Warehouse user details' : 'Client user details';
@@ -43,7 +48,14 @@ function UserDetailPage({ variant }: { variant: UsersPageVariant }) {
         <p className="text-sm text-rose-600">User not found.</p>
       ) : null}
 
-      {user && !wrongKind ? <UserDetailsCard user={user} variant={variant} /> : null}
+      {user && !wrongKind ? (
+        <div className="space-y-4">
+          <UserDetailsCard user={user} variant={variant} />
+          {variant === 'warehouse' && user.role === 'wh_operator' ? (
+            <WorkerProfilePanel user={user} t={t} />
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

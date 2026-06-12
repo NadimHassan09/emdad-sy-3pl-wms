@@ -47,6 +47,7 @@ describe('UsersService.list (server pagination)', () => {
       lastLoginAt: null,
       lastActivityAt: null,
       company: null,
+      worker: null,
     };
     const findMany = jest.fn().mockResolvedValue([row]);
     const count = jest.fn().mockResolvedValue(50);
@@ -68,6 +69,7 @@ describe('UsersService.list (server pagination)', () => {
           id: 'user-1',
           email: 'a@example.com',
           kind: 'system',
+          workerProfile: null,
         }),
       ],
       total: 50,

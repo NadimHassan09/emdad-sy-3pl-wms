@@ -10,6 +10,15 @@ export type UserRole =
   | 'client_admin'
   | 'client_staff';
 
+export type UserWorkerProfileSummary = {
+  id: string;
+  status: string;
+  warehouseId: string | null;
+  warehouseCode: string | null;
+  warehouseName: string | null;
+  roles: string[];
+};
+
 export type UserListRow = {
   id: string;
   email: string;
@@ -20,10 +29,17 @@ export type UserListRow = {
   companyId: string | null;
   companyName: string | null;
   kind: UserKind;
+  workerProfile: UserWorkerProfileSummary | null;
   createdAt: string;
   updatedAt: string;
   lastLoginAt: string | null;
   lastActivityAt: string | null;
+};
+
+export type UpsertUserWorkerProfilePayload = {
+  warehouseId?: string | null;
+  roles?: string[];
+  linkWorkerId?: string;
 };
 
 export type ListUsersQuery = {
@@ -94,6 +110,24 @@ export const UsersApi = {
 
   async remove(id: string): Promise<{ id: string; deleted: true }> {
     const { data } = await api.delete<{ id: string; deleted: true }>(`/users/${id}`);
+    return data;
+  },
+
+  async getWorkerProfile(userId: string): Promise<UserWorkerProfileSummary | null> {
+    const { data } = await api.get<UserWorkerProfileSummary | null>(
+      `/users/${userId}/worker-profile`,
+    );
+    return data;
+  },
+
+  async upsertWorkerProfile(
+    userId: string,
+    payload: UpsertUserWorkerProfilePayload,
+  ): Promise<UserWorkerProfileSummary> {
+    const { data } = await api.put<UserWorkerProfileSummary>(
+      `/users/${userId}/worker-profile`,
+      payload,
+    );
     return data;
   },
 };

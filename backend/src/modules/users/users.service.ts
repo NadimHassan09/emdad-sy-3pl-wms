@@ -23,6 +23,13 @@ import { userRealtimePayload } from '../realtime/realtime-master-data.payload';
 import { CreateUserDto, CreateSystemRoleUi } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpsertUserWorkerProfileDto } from './dto/upsert-user-worker-profile.dto';
+import {
+  DEFAULT_WORKER_ROLES,
+  toWorkerProfileSummary,
+  WORKER_PROFILE_SELECT,
+  type UserWorkerProfileSummary,
+} from './user-worker-profile.util';
 
 const USER_LIST_SELECT = {
   id: true,
@@ -37,9 +44,8 @@ const USER_LIST_SELECT = {
   lastLoginAt: true,
   lastActivityAt: true,
   company: { select: { id: true, name: true } },
+  worker: { select: WORKER_PROFILE_SELECT },
 } satisfies Prisma.UserSelect;
-
-const DEFAULT_WORKER_ROLES: WorkerOperationalRole[] = ['receiver', 'picker', 'packer'];
 
 export type UserListRow = {
   id: string;
@@ -51,6 +57,7 @@ export type UserListRow = {
   companyId: string | null;
   companyName: string | null;
   kind: 'system' | 'client';
+  workerProfile: UserWorkerProfileSummary | null;
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt: Date | null;
@@ -170,6 +177,126 @@ export class UsersService {
       this.companyAccess.assertCompanyAccess(actor, u.companyId);
     }
     return this.toListRow(u);
+  }
+
+  async getWorkerProfile(userId: string, actor: AuthPrincipal): Promise<UserWorkerProfileSummary | null> {
+    assertInternalAdmin(actor);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, companyId: true, role: true, worker: { select: WORKER_PROFILE_SELECT } },
+    });
+    if (!user) throw new NotFoundException('User not found.');
+    if (user.companyId) {
+      this.companyAccess.assertCompanyAccess(actor, user.companyId);
+    }
+    this.assertOperatorWorkerEligible(user.role, user.companyId);
+    return toWorkerProfileSummary(user.worker);
+  }
+
+  async upsertWorkerProfile(
+    userId: string,
+    dto: UpsertUserWorkerProfileDto,
+    actor: AuthPrincipal,
+  ): Promise<UserWorkerProfileSummary> {
+    assertInternalAdmin(actor);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        companyId: true,
+        role: true,
+        status: true,
+        fullName: true,
+        worker: { select: WORKER_PROFILE_SELECT },
+      },
+    });
+    if (!user) throw new NotFoundException('User not found.');
+    if (user.companyId) {
+      this.companyAccess.assertCompanyAccess(actor, user.companyId);
+    }
+    this.assertOperatorWorkerEligible(user.role, user.companyId);
+
+    const tenantCompanyId = this.companyAccess.requireActiveTenant(
+      actor,
+      'Select an active client tenant before linking a worker profile.',
+    );
+
+    const roles = dto.roles?.length ? dto.roles : undefined;
+    const warehouseId =
+      dto.warehouseId === undefined ? undefined : dto.warehouseId?.trim() || null;
+
+    if (warehouseId) {
+      const wh = await this.prisma.warehouse.findUnique({
+        where: { id: warehouseId },
+        select: { id: true },
+      });
+      if (!wh) {
+        throw new NotFoundException('Warehouse not found. Choose a valid warehouse or leave blank for tenant-wide.');
+      }
+    }
+
+    if (dto.linkWorkerId) {
+      return this.linkExistingWorker(user, dto.linkWorkerId, tenantCompanyId, actor, {
+        warehouseId,
+        roles,
+      });
+    }
+
+    if (user.worker) {
+      return this.prisma.$transaction(async (tx) => {
+        if (roles) {
+          await tx.workerRoleAssignment.deleteMany({ where: { workerId: user.worker!.id } });
+          await tx.workerRoleAssignment.createMany({
+            data: roles.map((role) => ({ workerId: user.worker!.id, role })),
+          });
+        }
+        const updated = await tx.worker.update({
+          where: { id: user.worker!.id },
+          data: {
+            displayName: user.fullName,
+            ...(warehouseId !== undefined ? { warehouseId } : {}),
+            status:
+              user.status === UserStatus.active
+                ? WorkerOperationalStatus.active
+                : WorkerOperationalStatus.inactive,
+          },
+          select: WORKER_PROFILE_SELECT,
+        });
+        return toWorkerProfileSummary(updated)!;
+      });
+    }
+
+    if (!roles?.length) {
+      throw new BadRequestException(
+        'Choose at least one operational role (receiver, picker, packer, etc.) when creating a worker profile.',
+      );
+    }
+
+    const resolvedWarehouseId =
+      warehouseId === undefined
+        ? await this.resolveWorkerWarehouseId(undefined)
+        : warehouseId;
+
+    const created = await this.prisma.worker.create({
+      data: {
+        companyId: tenantCompanyId,
+        warehouseId: resolvedWarehouseId,
+        displayName: user.fullName,
+        userId: user.id,
+        status:
+          user.status === UserStatus.active
+            ? WorkerOperationalStatus.active
+            : WorkerOperationalStatus.inactive,
+        roles: {
+          createMany: {
+            data: roles.map((role) => ({ role })),
+          },
+        },
+      },
+      select: WORKER_PROFILE_SELECT,
+    });
+
+    return toWorkerProfileSummary(created)!;
   }
 
   async create(dto: CreateUserDto, actor: AuthPrincipal) {
@@ -381,6 +508,86 @@ export class UsersService {
     }
   }
 
+  private assertOperatorWorkerEligible(role: UserRole, companyId: string | null) {
+    if (companyId !== null) {
+      throw new BadRequestException(
+        'Worker profiles apply only to warehouse (system) operator accounts, not client portal users.',
+      );
+    }
+    if (role !== UserRole.wh_operator) {
+      throw new BadRequestException(
+        'Only users with the Worker role can have a worker profile. Change the user role to Worker first.',
+      );
+    }
+  }
+
+  private async linkExistingWorker(
+    user: {
+      id: string;
+      fullName: string;
+      status: UserStatus;
+      worker: Prisma.WorkerGetPayload<{ select: typeof WORKER_PROFILE_SELECT }> | null;
+    },
+    linkWorkerId: string,
+    tenantCompanyId: string,
+    actor: AuthPrincipal,
+    opts: { warehouseId?: string | null; roles?: WorkerOperationalRole[] },
+  ): Promise<UserWorkerProfileSummary> {
+    if (user.worker) {
+      throw new ConflictException(
+        'This user already has a worker profile. Update the existing profile instead of linking another worker.',
+      );
+    }
+
+    const orphan = await this.prisma.worker.findUnique({
+      where: { id: linkWorkerId },
+      select: {
+        id: true,
+        companyId: true,
+        userId: true,
+        displayName: true,
+      },
+    });
+    if (!orphan) {
+      throw new NotFoundException('Worker profile not found. Refresh the worker list and try again.');
+    }
+    this.companyAccess.validateResourceOwnership(actor, orphan);
+    if (orphan.companyId !== tenantCompanyId) {
+      throw new ConflictException(
+        'The selected worker profile belongs to a different client tenant. Switch tenant and try again.',
+      );
+    }
+    if (orphan.userId && orphan.userId !== user.id) {
+      throw new ConflictException(
+        'That worker profile is already linked to another user. Choose an unlinked worker or create a new profile.',
+      );
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (opts.roles?.length) {
+        await tx.workerRoleAssignment.deleteMany({ where: { workerId: orphan.id } });
+        await tx.workerRoleAssignment.createMany({
+          data: opts.roles.map((role) => ({ workerId: orphan.id, role })),
+        });
+      }
+      return tx.worker.update({
+        where: { id: orphan.id },
+        data: {
+          userId: user.id,
+          displayName: user.fullName,
+          ...(opts.warehouseId !== undefined ? { warehouseId: opts.warehouseId } : {}),
+          status:
+            user.status === UserStatus.active
+              ? WorkerOperationalStatus.active
+              : WorkerOperationalStatus.inactive,
+        },
+        select: WORKER_PROFILE_SELECT,
+      });
+    });
+
+    return toWorkerProfileSummary(updated)!;
+  }
+
   private async syncWorkerForSystemUser(
     tx: Prisma.TransactionClient,
     userId: string,
@@ -479,6 +686,7 @@ export class UsersService {
       companyId: u.companyId,
       companyName: u.company?.name ?? null,
       kind: u.companyId ? 'client' : 'system',
+      workerProfile: toWorkerProfileSummary(u.worker),
       createdAt: u.createdAt,
       updatedAt: u.updatedAt,
       lastLoginAt: u.lastLoginAt,

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import type { UserListRow } from '../../api/users';
+import { workerProfileStatusText } from '../../lib/worker-profile';
 
 function display(v: string | null | undefined): string {
   if (v == null || v === '') return '—';
@@ -109,11 +110,20 @@ export function UserDetailsCard({
         {variant === 'client' ? (
           <UserDetailField iconClass="fa-solid fa-building" label="Company" value={display(user.companyName)} />
         ) : (
-          <UserDetailField
-            iconClass="fa-solid fa-warehouse"
-            label="Account type"
-            value="Warehouse (system)"
-          />
+          <>
+            <UserDetailField
+              iconClass="fa-solid fa-warehouse"
+              label="Account type"
+              value="Warehouse (system)"
+            />
+            {user.role === 'wh_operator' ? (
+              <UserDetailField
+                iconClass="fa-solid fa-id-card"
+                label="Worker profile"
+                value={workerProfileStatusText(user.workerProfile, user.status, (en) => en)}
+              />
+            ) : null}
+          </>
         )}
       </div>
 

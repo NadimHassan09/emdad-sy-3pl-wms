@@ -392,7 +392,7 @@ export class CycleCountExecutionService {
       });
       if (worker) return worker.id;
       throw new ForbiddenException(
-        'Cycle count execution requires an operator linked to a Worker profile.',
+        'Cycle count execution requires a warehouse operator with an active linked worker profile.',
       );
     }
     const worker = await this.prisma.worker.findUnique({
@@ -401,11 +401,13 @@ export class CycleCountExecutionService {
     });
     if (!worker) {
       throw new ForbiddenException(
-        'Your user account is not linked to a Worker profile. Ask an admin to link Users → Worker.',
+        'Your account is not linked to a worker profile. An admin must open Users → Warehouse users, edit your account, and provision or link a worker profile before you can execute cycle counts.',
       );
     }
     if (worker.status !== 'active') {
-      throw new ForbiddenException('Your worker profile is inactive.');
+      throw new ForbiddenException(
+        'Your worker profile is inactive. Ask an admin to reactivate your user account and worker profile under Users → Warehouse users.',
+      );
     }
     return worker.id;
   }

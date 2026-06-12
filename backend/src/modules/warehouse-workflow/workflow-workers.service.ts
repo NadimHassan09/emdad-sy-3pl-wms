@@ -53,6 +53,23 @@ export class WorkflowWorkersService {
     });
   }
 
+  /** Orphan worker rows (no linked user) available for operator linking. */
+  async listUnlinked(user: AuthPrincipal) {
+    const tenantCompanyId = this.companyAccess.requireActiveTenant(
+      user,
+      'Select an active client tenant to list unlinked worker profiles.',
+    );
+    return this.prisma.worker.findMany({
+      where: {
+        companyId: tenantCompanyId,
+        userId: null,
+        status: WorkerOperationalStatus.active,
+      },
+      include: { roles: true },
+      orderBy: { displayName: 'asc' },
+    });
+  }
+
   async create(user: AuthPrincipal, dto: CreateWorkerDto) {
     const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
     return this.prisma.worker.create({

@@ -10,6 +10,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { QK } from '../../constants/query-keys';
 import { useDefaultWarehouseId } from '../../hooks/useDefaultWarehouse';
+import { WorkerProfileOnboardingBanner } from '../../components/users/WorkerProfileOnboardingBanner';
 import { canExecuteCycleCount } from '../../lib/rbac';
 
 export function CycleCountMyTasksPage() {
@@ -26,7 +27,6 @@ export function CycleCountMyTasksPage() {
     queryKey: QK.cycleCount.myTasks(wid ?? ''),
     queryFn: () => CycleCountApi.listMyTasks(wid || undefined),
     enabled: !!wid && canExecute,
-    refetchInterval: canExecute ? 30_000 : false,
   });
 
   const cols: Column<BlindCycleCountTaskListItem>[] = useMemo(
@@ -88,12 +88,7 @@ export function CycleCountMyTasksPage() {
             </Link>
           }
         />
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          {t(
-            'Your account is not linked to a Worker profile. Sign in as a warehouse operator, or ask an admin to link your user under Users → Warehouse users.',
-            'حسابك غير مرتبط بملف عامل. سجّل الدخول كمشغل مستودع، أو اطلب من المسؤول ربط المستخدم من المستخدمين → مستخدمو المستودع.',
-          )}
-        </p>
+        <WorkerProfileOnboardingBanner t={t} operatorUserId={user?.id} />
       </div>
     );
   }

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -17,6 +18,7 @@ import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpsertUserWorkerProfileDto } from './dto/upsert-user-worker-profile.dto';
 import { UsersService } from './users.service';
 
 @Controller('users')
@@ -26,6 +28,22 @@ export class UsersController {
   @Get()
   list(@CurrentUser() user: AuthPrincipal, @Query() query: ListUsersQueryDto) {
     return this.users.list(user, query);
+  }
+
+  @Get(':id/worker-profile')
+  @UseGuards(InternalAdminGuard)
+  getWorkerProfile(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.users.getWorkerProfile(id, user);
+  }
+
+  @Put(':id/worker-profile')
+  @UseGuards(InternalAdminGuard)
+  upsertWorkerProfile(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: UpsertUserWorkerProfileDto,
+  ) {
+    return this.users.upsertWorkerProfile(id, dto, user);
   }
 
   @Get(':id')
