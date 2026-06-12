@@ -13,6 +13,7 @@ import { AggregateReportQueryDto, ExportReportQueryDto, RunReportQueryDto } from
 import { ReportExportService, type ReportExportResult } from './framework/report-export.service';
 import { ReportsFrameworkService } from './framework/reports-framework.service';
 import { BillingReportsRunner } from './billing-reports.runner';
+import { OperationalReportsRunner } from './operational-reports.runner';
 import { ReportsPolicyConfig } from './reports-policy.config';
 
 export type ReportRowDto = Record<string, string | number | boolean | null | undefined> & {
@@ -91,6 +92,7 @@ export class ReportsService {
     private readonly framework: ReportsFrameworkService,
     private readonly exportService: ReportExportService,
     private readonly billingReports: BillingReportsRunner,
+    private readonly operationalReports: OperationalReportsRunner,
   ) {}
 
   getPolicy() {
@@ -181,9 +183,30 @@ export class ReportsService {
       case 'billing-suspended':
       case 'billing-capacity':
         return this.runBillingReport(user, reportId, query);
+      case 'worker-productivity':
+      case 'order-cycle-time':
+      case 'inbound-accuracy':
+      case 'outbound-fill-rate':
+      case 'sla-compliance':
+        return this.runOperationalReport(user, reportId, query);
       default:
         throw new NotFoundException('Unknown report.');
     }
+  }
+
+  private async runOperationalReport(
+    user: AuthPrincipal,
+    reportId: string,
+    query: RunReportQueryDto,
+  ): Promise<Omit<ReportRunResult, 'cached'>> {
+    const page = await this.operationalReports.run(user, reportId, query);
+    return {
+      items: page.items,
+      total: page.total,
+      limit: query.limit,
+      offset: query.offset,
+      truncated: query.offset + page.items.length < page.total,
+    };
   }
 
   private async runBillingReport(
@@ -407,6 +430,29 @@ export class ReportsService {
     ];
   }
 
+  private aggregateNumericValue(reportId: string, row: ReportRowDto): number {
+    switch (reportId) {
+      case 'inventory':
+        return Number(row.onHand ?? 0);
+      case 'product-moves':
+        return Number(row.quantity ?? 0);
+      case 'warehouse-analysis':
+        return Number(row.totalCount ?? 0);
+      case 'worker-productivity':
+        return Number(row.completedTasks ?? 0);
+      case 'order-cycle-time':
+        return Number(row.cycleHours ?? 0);
+      case 'inbound-accuracy':
+        return Number(String(row.accuracyPercent ?? '0').replace('%', ''));
+      case 'outbound-fill-rate':
+        return Number(String(row.fillRatePercent ?? '0').replace('%', ''));
+      case 'sla-compliance':
+        return Number(String(row.compliancePercent ?? '0').replace('%', ''));
+      default:
+        return Number(row.totalCount ?? row.count ?? 0);
+    }
+  }
+
   private groupRows(reportId: string, rows: ReportRowDto[], groupBy: string): ReportRowDto[] {
     const buckets = new Map<string, { count: number; sum: number; label: string }>();
 
@@ -414,12 +460,7 @@ export class ReportsService {
       const key = String(row[groupBy] ?? '(blank)');
       const cur = buckets.get(key) ?? { count: 0, sum: 0, label: key };
       cur.count += 1;
-      const numeric =
-        reportId === 'inventory'
-          ? Number(row.onHand ?? 0)
-          : reportId === 'product-moves'
-            ? Number(row.quantity ?? 0)
-            : Number(row.totalCount ?? 0);
+      const numeric = this.aggregateNumericValue(reportId, row);
       cur.sum += Number.isFinite(numeric) ? numeric : 0;
       buckets.set(key, cur);
     }

@@ -71,7 +71,9 @@ export function ReportFiltersPanel({
       ? t('Movement type', 'نوع الحركة')
       : report.id === 'inventory'
         ? t('Stock status', 'حالة المخزون')
-        : t('Status', 'الحالة');
+        : report.id === 'worker-productivity' || report.id === 'sla-compliance'
+          ? t('Task type', 'نوع المهمة')
+          : t('Status', 'الحالة');
 
   const statusOptions =
     report.statusOptions?.map((o) => ({

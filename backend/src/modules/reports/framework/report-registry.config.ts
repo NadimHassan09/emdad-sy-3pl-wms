@@ -77,6 +77,53 @@ const BILLING_CAPACITY_COLUMNS: ReportExportColumn[] = [
   { id: 'allocatedWeightKg', header: 'Allocated kg' },
 ];
 
+const WORKER_PRODUCTIVITY_COLUMNS: ReportExportColumn[] = [
+  { id: 'worker', header: 'Worker' },
+  { id: 'completedTasks', header: 'Completed tasks' },
+  { id: 'taskTypes', header: 'Task types' },
+  { id: 'avgCycleHours', header: 'Avg cycle (h)' },
+  { id: 'pickPackCount', header: 'Pick/pack count' },
+];
+
+const ORDER_CYCLE_TIME_COLUMNS: ReportExportColumn[] = [
+  { id: 'orderType', header: 'Order type' },
+  { id: 'orderNumber', header: 'Order #' },
+  { id: 'client', header: 'Client' },
+  { id: 'status', header: 'Status' },
+  { id: 'cycleHours', header: 'Cycle (h)' },
+  { id: 'milestoneStart', header: 'Start' },
+  { id: 'milestoneEnd', header: 'End' },
+];
+
+const INBOUND_ACCURACY_COLUMNS: ReportExportColumn[] = [
+  { id: 'orderNumber', header: 'Order #' },
+  { id: 'client', header: 'Client' },
+  { id: 'status', header: 'Status' },
+  { id: 'lineCount', header: 'Lines' },
+  { id: 'discrepancyLines', header: 'Discrepancies' },
+  { id: 'accuracyPercent', header: 'Accuracy %' },
+  { id: 'receivedVsExpected', header: 'Received/expected' },
+];
+
+const OUTBOUND_FILL_RATE_COLUMNS: ReportExportColumn[] = [
+  { id: 'orderNumber', header: 'Order #' },
+  { id: 'client', header: 'Client' },
+  { id: 'status', header: 'Status' },
+  { id: 'requestedQty', header: 'Requested' },
+  { id: 'pickedQty', header: 'Picked' },
+  { id: 'fillRatePercent', header: 'Fill rate %' },
+  { id: 'shortShip', header: 'Short ship' },
+];
+
+const SLA_COMPLIANCE_COLUMNS: ReportExportColumn[] = [
+  { id: 'taskType', header: 'Task type' },
+  { id: 'totalTasks', header: 'Total tasks' },
+  { id: 'onTimeTasks', header: 'On time' },
+  { id: 'breachedTasks', header: 'Breached' },
+  { id: 'escalatedTasks', header: 'Escalated' },
+  { id: 'compliancePercent', header: 'Compliance %' },
+];
+
 export const REPORT_REGISTRY: readonly ReportDefinitionConfig[] = [
   {
     id: 'warehouse-analysis',
@@ -165,6 +212,61 @@ export const REPORT_REGISTRY: readonly ReportDefinitionConfig[] = [
     supportsKpis: false,
     supportsAggregate: false,
     exportFileName: 'billing-capacity',
+  },
+  {
+    id: 'worker-productivity',
+    title: 'Worker Productivity',
+    filterKeys: ['warehouse', 'client', 'dateRange', 'status'],
+    exportColumns: WORKER_PRODUCTIVITY_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: true,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'worker-productivity',
+  },
+  {
+    id: 'order-cycle-time',
+    title: 'Order Cycle Time',
+    filterKeys: ['warehouse', 'client', 'dateRange'],
+    exportColumns: ORDER_CYCLE_TIME_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: true,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'order-cycle-time',
+  },
+  {
+    id: 'inbound-accuracy',
+    title: 'Inbound Accuracy',
+    filterKeys: ['warehouse', 'client', 'dateRange'],
+    exportColumns: INBOUND_ACCURACY_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: true,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'inbound-accuracy',
+  },
+  {
+    id: 'outbound-fill-rate',
+    title: 'Outbound Fill Rate',
+    filterKeys: ['warehouse', 'client', 'dateRange'],
+    exportColumns: OUTBOUND_FILL_RATE_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: true,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'outbound-fill-rate',
+  },
+  {
+    id: 'sla-compliance',
+    title: 'SLA Compliance',
+    filterKeys: ['warehouse', 'client', 'dateRange', 'status'],
+    exportColumns: SLA_COMPLIANCE_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: true,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'sla-compliance',
   },
 ] as const;
 

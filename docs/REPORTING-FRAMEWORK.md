@@ -94,3 +94,15 @@ cd frontend && npm run build
 ## Policy snapshot example
 
 `GET /api/reports/policy` returns `previewMaxLimit`, `exportMaxRows`, `cacheTtlSec`, and `reportIds` from the central registry.
+
+## Operational suite (2026-06)
+
+| Report ID | Runner |
+|-----------|--------|
+| `worker-productivity` | `OperationalReportsRunner` — completed tasks by worker |
+| `order-cycle-time` | Inbound/outbound milestone hours |
+| `inbound-accuracy` | Line-level received vs expected |
+| `outbound-fill-rate` | Picked vs requested quantities |
+| `sla-compliance` | SLA on-time / breach by task type |
+
+Implement new operational metrics in `operational-reports.runner.ts`, register in `report-registry.config.ts`, and add catalog + `registry.ts` UI metadata on the frontend.

@@ -11,6 +11,7 @@ import { ReportsCacheService } from './reports-cache.service';
 import { ReportsController } from './reports.controller';
 import { ReportsPolicyConfig } from './reports-policy.config';
 import { BillingReportsRunner } from './billing-reports.runner';
+import { OperationalReportsRunner } from './operational-reports.runner';
 import { ReportsService } from './reports.service';
 
 @Module({
@@ -23,6 +24,7 @@ import { ReportsService } from './reports.service';
     ReportsFrameworkService,
     ReportExportService,
     BillingReportsRunner,
+    OperationalReportsRunner,
   ],
   exports: [ReportsService, ReportsFrameworkService],
 })

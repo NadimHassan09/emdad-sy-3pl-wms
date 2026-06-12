@@ -44,6 +44,11 @@ const ReportsLayout                 = lazyPage(() => import('./pages/reports/Rep
 const WarehouseAnalysisReportPage = lazyPage(() => import('./pages/reports/WarehouseAnalysisReportPage'), 'WarehouseAnalysisReportPage');
 const InventoryReportPage           = lazyPage(() => import('./pages/reports/InventoryReportPage'),           'InventoryReportPage');
 const ProductMovesReportPage        = lazyPage(() => import('./pages/reports/ProductMovesReportPage'),        'ProductMovesReportPage');
+const WorkerProductivityReportPage  = lazyPage(() => import('./pages/reports/OperationalReportPages'),      'WorkerProductivityReportPage');
+const OrderCycleTimeReportPage      = lazyPage(() => import('./pages/reports/OperationalReportPages'),      'OrderCycleTimeReportPage');
+const InboundAccuracyReportPage     = lazyPage(() => import('./pages/reports/OperationalReportPages'),      'InboundAccuracyReportPage');
+const OutboundFillRateReportPage    = lazyPage(() => import('./pages/reports/OperationalReportPages'),      'OutboundFillRateReportPage');
+const SlaComplianceReportPage       = lazyPage(() => import('./pages/reports/OperationalReportPages'),      'SlaComplianceReportPage');
 const ClientsPage             = lazyPage(() => import('./pages/ClientsPage'),             'ClientsPage');
 const CompanyDetailPage       = lazyPage(() => import('./pages/CompanyDetailPage'),       'CompanyDetailPage');
 const WarehouseUsersPage      = lazyPage(() => import('./pages/UsersPage'),               'WarehouseUsersPage');
@@ -129,6 +134,11 @@ export const router = createBrowserRouter([
           { path: 'warehouse-analysis', element: <WarehouseAnalysisReportPage /> },
           { path: 'inventory', element: <InventoryReportPage /> },
           { path: 'product-moves', element: <ProductMovesReportPage /> },
+          { path: 'worker-productivity', element: <WorkerProductivityReportPage /> },
+          { path: 'order-cycle-time', element: <OrderCycleTimeReportPage /> },
+          { path: 'inbound-accuracy', element: <InboundAccuracyReportPage /> },
+          { path: 'outbound-fill-rate', element: <OutboundFillRateReportPage /> },
+          { path: 'sla-compliance', element: <SlaComplianceReportPage /> },
         ],
       },
       { path: 'clients', element: <ClientsPage /> },
