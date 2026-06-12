@@ -17,6 +17,7 @@ import { WorkflowExecutionGateGuard } from './workflow-execution-gate.guard';
 import { WorkflowWorkersController } from './workflow-workers.controller';
 import { AnalyticsOverviewController } from './analytics-overview.controller';
 import { SlaEscalationService } from './sla-escalation.service';
+import { SlaAuditService } from './sla-audit.service';
 import { WorkflowRecoveryService } from './workflow-recovery.service';
 import { WorkflowEngineService } from './workflow-engine.service';
 
@@ -36,6 +37,7 @@ import { WorkflowEngineService } from './workflow-engine.service';
     TaskInventoryEffectsService,
     WorkflowWorkersService,
     SlaEscalationService,
+    SlaAuditService,
     WorkflowRecoveryService,
     WorkflowExecutionGateGuard,
   ],
