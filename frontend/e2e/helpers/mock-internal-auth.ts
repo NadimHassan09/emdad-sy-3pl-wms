@@ -4,10 +4,10 @@ export type MockInternalUser = {
   id: string;
   email: string;
   fullName: string;
-  role: 'super_admin' | 'wh_manager';
-  authGroup: 'ADMIN';
+  role: 'super_admin' | 'wh_manager' | 'wh_operator';
+  authGroup: 'ADMIN' | 'OPERATOR';
   tenantCompanyId: string;
-  workerId: null;
+  workerId: string | null;
 };
 
 export const SUPER_USER: MockInternalUser = {
@@ -28,6 +28,16 @@ export const MANAGER_USER: MockInternalUser = {
   authGroup: 'ADMIN',
   tenantCompanyId: '00000000-0000-4000-8000-000000000001',
   workerId: null,
+};
+
+export const OPERATOR_USER: MockInternalUser = {
+  id: '00000000-0000-4000-8000-0000000000ef',
+  email: 'operator@emdad.example',
+  fullName: 'Demo Operator',
+  role: 'wh_operator',
+  authGroup: 'OPERATOR',
+  tenantCompanyId: '00000000-0000-4000-8000-000000000001',
+  workerId: '00000000-0000-4000-8000-0000000000f1',
 };
 
 export async function mockInternalAuth(page: Page, user: MockInternalUser) {
@@ -76,6 +86,22 @@ export async function seedAuthStorage(page: Page, user: MockInternalUser) {
 type SetupOptions = {
   skipDomainMocks?: boolean;
 };
+
+export async function setupInternalNavTest(page: Page, user: MockInternalUser) {
+  const { mockAppShellApis } = await import('./mock-backup-admin-apis');
+  await mockInternalAuth(page, user);
+  await seedAuthStorage(page, user);
+  await mockAppShellApis(page);
+
+  await page.route('**/api/tasks**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, data: { items: [], total: 0 } }),
+    });
+  });
+
+}
 
 export async function setupBackupAdminTest(
   page: Page,

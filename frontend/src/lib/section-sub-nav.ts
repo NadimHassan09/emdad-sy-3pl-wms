@@ -2,10 +2,20 @@
  * Section sub-navigation — tabs for route groups with multiple sibling list routes.
  */
 
+import {
+  canAccessInternalTransfer,
+  canAccessPath,
+  canExecuteCycleCount,
+  normalizeInternalRole,
+  type InternalRole,
+} from './rbac';
+
 export type SectionSubNavItemConfig = {
   labelKey: string;
   to: string;
   match: (pathname: string, search: string) => boolean;
+  /** When set, only these internal roles see the tab (still checked against route guards). */
+  roles?: InternalRole[];
 };
 
 function taskTypeFromSearch(search: string): string | null {
@@ -108,6 +118,7 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
         labelKey: 'Internal transfer',
         to: '/internal',
         match: (p) => p === '/internal',
+        roles: ['super_admin', 'wh_manager'],
       },
     ],
   },
@@ -182,6 +193,26 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
 
 export function resolveSectionSubNav(pathname: string): SectionSubNavConfig | null {
   return SECTION_SUB_NAV_CONFIGS.find((c) => c.matchSection(pathname)) ?? null;
+}
+
+type SectionSubNavUser = { role?: string; workerId?: string | null } | null | undefined;
+
+/** Role-aware sub-nav items — aligned with `ROUTE_GROUP_ROLES` and backend `InternalAdminGuard`. */
+export function filterSectionSubNavItems(
+  items: SectionSubNavItemConfig[],
+  user: SectionSubNavUser,
+): SectionSubNavItemConfig[] {
+  const role = user?.role;
+  return items.filter((item) => {
+    if (item.roles) {
+      const normalized = normalizeInternalRole(role);
+      if (!normalized || !item.roles.includes(normalized)) return false;
+    }
+    if (item.to === '/internal' && !canAccessInternalTransfer(role)) return false;
+    if (!canAccessPath(role, item.to)) return false;
+    if (item.to === '/cycle-count/my-tasks' && !canExecuteCycleCount(user)) return false;
+    return true;
+  });
 }
 
 export function sectionSubNavLabel(label: string, isArabic: boolean): string {

@@ -1,8 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
-import { canAccessPath, canExecuteCycleCount } from '../lib/rbac';
-import { resolveSectionSubNav, sectionSubNavLabel } from '../lib/section-sub-nav';
+import { filterSectionSubNavItems, resolveSectionSubNav, sectionSubNavLabel } from '../lib/section-sub-nav';
 
 type SectionSubNavCardProps = {
   isArabic?: boolean;
@@ -18,12 +17,7 @@ export function SectionSubNavCard({ isArabic = false }: SectionSubNavCardProps) 
   const section = resolveSectionSubNav(pathname);
   const t = (label: string) => sectionSubNavLabel(label, isArabic);
 
-  const items =
-    section?.items.filter((item) => {
-      if (!canAccessPath(user?.role, item.to)) return false;
-      if (item.to === '/cycle-count/my-tasks' && !canExecuteCycleCount(user)) return false;
-      return true;
-    }) ?? [];
+  const items = section ? filterSectionSubNavItems(section.items, user) : [];
 
   if (!section || items.length < 2) return null;
 

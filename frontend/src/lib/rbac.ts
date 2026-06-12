@@ -10,6 +10,9 @@ export type NavItemDef = {
 
 const ALL_ROLES: InternalRole[] = ['super_admin', 'wh_manager', 'wh_operator', 'finance'];
 
+/** Matches backend `InternalAdminGuard` — inventory internal-transfer, management mutations. */
+export const INTERNAL_TRANSFER_ROLES: InternalRole[] = ['super_admin', 'wh_manager'];
+
 const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
   {
     labelKey: 'Dashboard',
@@ -156,7 +159,7 @@ const ROUTE_GROUP_ROLES: Record<string, InternalRole[]> = {
   tasks: ['super_admin', 'wh_manager', 'wh_operator'],
   'cycle-count': ['super_admin', 'wh_manager', 'wh_operator'],
   returns: ['super_admin', 'wh_manager', 'wh_operator'],
-  internal: ['super_admin', 'wh_manager'],
+  internal: INTERNAL_TRANSFER_ROLES,
   products: ['super_admin', 'wh_manager'],
   locations: ['super_admin', 'wh_manager'],
   warehouses: ['super_admin', 'wh_manager'],
@@ -175,6 +178,12 @@ export function normalizeInternalRole(role: string | undefined): InternalRole | 
     return role;
   }
   return null;
+}
+
+export function canAccessInternalTransfer(role: string | undefined): boolean {
+  const r = normalizeInternalRole(role);
+  if (!r) return false;
+  return INTERNAL_TRANSFER_ROLES.includes(r);
 }
 
 export function canAccessPath(role: string | undefined, pathnameOrUrl: string): boolean {
