@@ -9,6 +9,7 @@ import { Column, DataTable } from '../../components/DataTable';
 import { FilterPanel } from '../../components/FilterPanel';
 import { NewReturnModal } from '../../components/returns/NewReturnModal';
 import { SelectField } from '../../components/SelectField';
+import { ServerPaginationBar } from '../../components/ServerPaginationBar';
 import { StatusBadge } from '../../components/StatusBadge';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
@@ -17,9 +18,9 @@ import { useDefaultWarehouseId } from '../../hooks/useDefaultWarehouse';
 import { useTenantCompanyId } from '../../hooks/useTenantCompanyId';
 import { useFilters } from '../../hooks/useFilters';
 import {
-  CHUNK_SIZE_STANDARD,
-  useChunkedServerPagination,
-} from '../../hooks/useChunkedServerPagination';
+  TASK_LIST_DEFAULT_PAGE_SIZE,
+  useServerPagination,
+} from '../../hooks/useServerPagination';
 import {
   formatReturnListDisposition,
   formatReturnListQuantities,
@@ -73,20 +74,19 @@ export function ReturnsListPage() {
     [appliedFilters, companyId],
   );
 
-  const pagination = useChunkedServerPagination<ReturnOrderListItem>({
-    chunkSize: CHUNK_SIZE_STANDARD,
+  const pagination = useServerPagination<ReturnOrderListItem>({
     filterKey: listParams,
-    fetchChunk: (offset, limit) => ReturnsApi.list({ ...listParams, offset, limit }),
-    rtQueryKeyPrefix: QK.returns.all,
-    chunkQueryKeyPrefix: 'return-orders-chunk',
+    queryKey: QK.returns.list(listParams),
+    fetchPage: (offset, limit) => ReturnsApi.list({ ...listParams, offset, limit }),
     enabled: !!companyId,
+    defaultPageSize: TASK_LIST_DEFAULT_PAGE_SIZE,
   });
 
   const createMut = useMutation({
     mutationFn: ReturnsApi.create,
     onSuccess: (order) => {
       toast.success(t('Return created.', 'تم إنشاء الإرجاع.'));
-      qc.invalidateQueries({ queryKey: QK.returns.all });
+      qc.invalidateQueries({ queryKey: ['return-orders', 'list'], exact: false });
       setCreateOpen(false);
       navigate(`/returns/${order.id}`);
     },
@@ -202,6 +202,15 @@ export function ReturnsListPage() {
     [isArabic],
   );
 
+  const pagerLabels = {
+    previous: t('Previous', 'السابق'),
+    next: t('Next', 'التالي'),
+    rowsPerPageAria: t('Rows per page', 'صفوف لكل صفحة'),
+    rowsSuffix: t('rows', 'صفوف'),
+    ofWord: t('of', 'من'),
+    resultsSuffix: t('results', 'نتيجة'),
+  };
+
   return (
     <div>
       {!companyId ? (
@@ -286,64 +295,83 @@ export function ReturnsListPage() {
         />
       </div>
 
-          <div className="space-y-2 md:hidden">
+      <div className="space-y-2 md:hidden">
+        <div className="mb-2 flex justify-end">
+          <Button
+            variant="primary"
+            size="md"
+            onClick={() => setCreateOpen(true)}
+            disabled={!companyId || !wid}
+            className={FILTER_APPLY_BUTTON_CLASS}
+          >
+            {t('+ New return', '+ إرجاع جديد')}
+          </Button>
+        </div>
         {pagination.rows.map((r) => (
-              <article
-                key={r.id}
-                className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <Link to={`/returns/${r.id}`} className="font-mono text-sm font-semibold text-sky-800">
-                    {r.orderNumber}
-                  </Link>
-                  <StatusBadge status={r.status} />
-                </div>
-                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
-                  <div className="col-span-2">
-                    <dt className="text-slate-400">{t('Products', 'المنتجات')}</dt>
-                    <dd>{r.summary?.productSummary ?? '—'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-400">{t('Qty', 'الكمية')}</dt>
-                    <dd className="font-mono">{formatReturnListQuantities(r.summary)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-400">{t('Disposition', 'التصرف')}</dt>
-                    <dd>{formatReturnListDisposition(r.summary, isArabic)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-400">{t('Outbound', 'الصادر')}</dt>
-                    <dd>{r.originalOutbound?.orderNumber ?? '—'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-400">{t('Created', 'أُنشئ')}</dt>
-                    <dd>{formatDt(r.createdAt, locale)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-400">{t('Processed', 'معالج')}</dt>
-                    <dd>{formatDt(r.completedAt, locale)}</dd>
-                  </div>
-                </dl>
-                <div className="mt-3 flex gap-2">
-                  <Link to={`/returns/${r.id}`} className="flex-1">
-                    <Button variant="ghost" className="w-full !py-2 text-xs">
-                      {t('Details', 'التفاصيل')}
-                    </Button>
-                  </Link>
-                  {(r.status === 'confirmed' ||
-                    r.status === 'receiving' ||
-                    r.status === 'inspecting') && (
-                    <Link to={`/returns/${r.id}/process`} className="flex-1">
-                      <Button variant="primary" className="w-full !py-2 text-xs">
-                        {t('Process', 'معالجة')}
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              </article>
+          <article
+            key={r.id}
+            className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <Link to={`/returns/${r.id}`} className="font-mono text-sm font-semibold text-sky-800">
+                {r.orderNumber}
+              </Link>
+              <StatusBadge status={r.status} />
+            </div>
+            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
+              <div className="col-span-2">
+                <dt className="text-slate-400">{t('Products', 'المنتجات')}</dt>
+                <dd>{r.summary?.productSummary ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">{t('Qty', 'الكمية')}</dt>
+                <dd className="font-mono">{formatReturnListQuantities(r.summary)}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">{t('Disposition', 'التصرف')}</dt>
+                <dd>{formatReturnListDisposition(r.summary, isArabic)}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">{t('Outbound', 'الصادر')}</dt>
+                <dd>{r.originalOutbound?.orderNumber ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">{t('Created', 'أُنشئ')}</dt>
+                <dd>{formatDt(r.createdAt, locale)}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-400">{t('Processed', 'معالج')}</dt>
+                <dd>{formatDt(r.completedAt, locale)}</dd>
+              </div>
+            </dl>
+            <div className="mt-3 flex gap-2">
+              <Link to={`/returns/${r.id}`} className="flex-1">
+                <Button variant="ghost" className="w-full !py-2 text-xs">
+                  {t('Details', 'التفاصيل')}
+                </Button>
+              </Link>
+              {(r.status === 'confirmed' ||
+                r.status === 'receiving' ||
+                r.status === 'inspecting') && (
+                <Link to={`/returns/${r.id}/process`} className="flex-1">
+                  <Button variant="primary" className="w-full !py-2 text-xs">
+                    {t('Process', 'معالجة')}
+                  </Button>
+                </Link>
+              )}
+            </div>
+          </article>
         ))}
-        {pagination.rows.length === 0 ? (
+        {pagination.rows.length === 0 && !pagination.isInitialLoading ? (
           <p className="text-center text-sm text-slate-500">{t('No returns found.', 'لا إرجاعات.')}</p>
+        ) : null}
+        {pagination.total > 0 ? (
+          <ServerPaginationBar
+            pagination={pagination.serverPagination}
+            loading={pagination.isFetching}
+            labels={pagerLabels}
+            className="mt-3"
+          />
         ) : null}
       </div>
 

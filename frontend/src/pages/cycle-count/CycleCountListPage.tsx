@@ -20,9 +20,9 @@ import { useDefaultWarehouseId } from '../../hooks/useDefaultWarehouse';
 import { useTenantCompanyId } from '../../hooks/useTenantCompanyId';
 import { useFilters } from '../../hooks/useFilters';
 import {
-  CHUNK_SIZE_STANDARD,
-  useChunkedServerPagination,
-} from '../../hooks/useChunkedServerPagination';
+  TASK_LIST_DEFAULT_PAGE_SIZE,
+  useServerPagination,
+} from '../../hooks/useServerPagination';
 
 type Tab = 'sessions' | 'schedule';
 
@@ -69,22 +69,62 @@ export function CycleCountListPage() {
 
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } = useFilters(initial);
 
-  const listParams = useMemo(
-    () => ({
+  const sessionListParams = useMemo(() => {
+    const params: Record<string, string | undefined> = {
       companyId: companyId || undefined,
       warehouseId: wid || undefined,
-      status: (appliedFilters.status as CycleCountStatus) || undefined,
-    }),
-    [appliedFilters.status, companyId, wid],
-  );
+    };
+    if (appliedFilters.discrepancyOnly === 'yes') {
+      params.discrepancyOnly = 'yes';
+    } else if (appliedFilters.status) {
+      params.status = appliedFilters.status;
+    }
+    if (appliedFilters.assignedWorkerId) params.assignedWorkerId = appliedFilters.assignedWorkerId;
+    if (appliedFilters.dateFrom) params.createdFrom = appliedFilters.dateFrom;
+    if (appliedFilters.dateTo) params.createdTo = appliedFilters.dateTo;
+    return params;
+  }, [appliedFilters, companyId, wid]);
 
-  const countsPagination = useChunkedServerPagination<CycleCountListItem>({
-    chunkSize: CHUNK_SIZE_STANDARD,
-    filterKey: listParams,
-    fetchChunk: (offset, limit) => CycleCountApi.listCounts({ ...listParams, offset, limit }),
-    rtQueryKeyPrefix: QK.cycleCount.all,
-    chunkQueryKeyPrefix: 'cycle-count-chunk',
+  const scheduleListParams = useMemo(() => {
+    const params: Record<string, string | undefined> = {
+      companyId: companyId || undefined,
+      warehouseId: wid || undefined,
+    };
+    if (appliedFilters.overdueOnly === 'yes') params.overdueOnly = 'yes';
+    if (appliedFilters.dateFrom) params.lastCountedFrom = appliedFilters.dateFrom;
+    if (appliedFilters.dateTo) params.lastCountedTo = appliedFilters.dateTo;
+    return params;
+  }, [appliedFilters, companyId, wid]);
+
+  const countsPagination = useServerPagination<CycleCountListItem>({
+    filterKey: sessionListParams,
+    queryKey: QK.cycleCount.list(sessionListParams),
+    fetchPage: (offset, limit) =>
+      CycleCountApi.listCounts({
+        ...sessionListParams,
+        status: sessionListParams.status as CycleCountStatus | undefined,
+        offset,
+        limit,
+      }),
     enabled: !!wid && !!companyId && tab === 'sessions',
+    defaultPageSize: TASK_LIST_DEFAULT_PAGE_SIZE,
+  });
+
+  const historyPagination = useServerPagination<CycleCountProductHistoryRow>({
+    filterKey: scheduleListParams,
+    queryKey: QK.cycleCount.productHistory(wid ?? '', scheduleListParams),
+    fetchPage: (offset, limit) =>
+      CycleCountApi.listProductHistory({
+        warehouseId: wid!,
+        companyId: companyId || undefined,
+        overdueOnly: scheduleListParams.overdueOnly,
+        lastCountedFrom: scheduleListParams.lastCountedFrom,
+        lastCountedTo: scheduleListParams.lastCountedTo,
+        offset,
+        limit,
+      }),
+    enabled: !!wid && !!companyId && tab === 'schedule',
+    defaultPageSize: TASK_LIST_DEFAULT_PAGE_SIZE,
   });
 
   const scheduleQuery = useQuery({
@@ -92,17 +132,6 @@ export function CycleCountListPage() {
     queryFn: () => CycleCountApi.listSchedules(companyId || undefined),
     enabled: !!companyId,
     staleTime: 5 * 60_000,
-  });
-
-  const historyQuery = useQuery({
-    queryKey: QK.cycleCount.productHistory(wid ?? '', { ...appliedFilters, companyId }),
-    queryFn: () =>
-      CycleCountApi.listProductHistory({
-        companyId: companyId || undefined,
-        warehouseId: wid!,
-        limit: 500,
-      }),
-    enabled: !!wid && !!companyId && tab === 'schedule',
   });
 
   const workersQuery = useQuery({
@@ -119,41 +148,6 @@ export function CycleCountListPage() {
     }
     return m;
   }, [scheduleQuery.data]);
-
-  const filteredCounts = useMemo(() => {
-    let rows = countsPagination.rows;
-    if (appliedFilters.assignedWorkerId) {
-      rows = rows.filter((r) => r.assignedWorker?.id === appliedFilters.assignedWorkerId);
-    }
-    if (appliedFilters.discrepancyOnly === 'yes') {
-      rows = rows.filter(hasDiscrepancy);
-    }
-    if (appliedFilters.dateFrom) {
-      const from = new Date(`${appliedFilters.dateFrom}T00:00:00`).getTime();
-      rows = rows.filter((r) => new Date(r.createdAt).getTime() >= from);
-    }
-    if (appliedFilters.dateTo) {
-      const to = new Date(`${appliedFilters.dateTo}T23:59:59.999`).getTime();
-      rows = rows.filter((r) => new Date(r.createdAt).getTime() <= to);
-    }
-    return rows;
-  }, [countsPagination.rows, appliedFilters]);
-
-  const filteredHistory = useMemo(() => {
-    let rows = historyQuery.data ?? [];
-    if (appliedFilters.overdueOnly === 'yes') {
-      rows = rows.filter((r) => isOverdue(r.nextDueAt));
-    }
-    if (appliedFilters.dateFrom) {
-      const from = new Date(`${appliedFilters.dateFrom}T00:00:00`).getTime();
-      rows = rows.filter((r) => new Date(r.lastCountedAt).getTime() >= from);
-    }
-    if (appliedFilters.dateTo) {
-      const to = new Date(`${appliedFilters.dateTo}T23:59:59.999`).getTime();
-      rows = rows.filter((r) => new Date(r.lastCountedAt).getTime() <= to);
-    }
-    return rows;
-  }, [historyQuery.data, appliedFilters]);
 
   const sessionCols: Column<CycleCountListItem>[] = [
     {
@@ -283,13 +277,16 @@ export function CycleCountListPage() {
     { value: 'yes', label: t('Yes', 'نعم') },
   ];
 
+  const listLoading =
+    tab === 'sessions' ? countsPagination.isFetching : historyPagination.isFetching;
+
   return (
     <div>
       <FilterPanel
         title={t('Filters', 'الفلاتر')}
         onApply={applyFilters}
         onReset={resetFilters}
-        loading={countsPagination.isFetching || historyQuery.isFetching}
+        loading={listLoading}
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين')}
       >
@@ -368,7 +365,7 @@ export function CycleCountListPage() {
             'التحقق التشغيلي من المخزون — الجلسات والجداول والفروقات.',
           )}
           columns={sessionCols}
-          rows={filteredCounts}
+          rows={countsPagination.rows}
           loading={countsPagination.isInitialLoading}
           serverPagination={countsPagination.serverPagination}
           empty={t('No cycle counts for this warehouse.', 'لا توجد جلسات جرد.')}
@@ -379,8 +376,9 @@ export function CycleCountListPage() {
         <DataTable<CycleCountProductHistoryRow>
           title={t('Product schedule', 'جدول المنتجات')}
           columns={scheduleCols}
-          rows={filteredHistory}
-          loading={historyQuery.isLoading}
+          rows={historyPagination.rows}
+          loading={historyPagination.isInitialLoading}
+          serverPagination={historyPagination.serverPagination}
           empty={t('No product count history yet.', 'لا يوجد سجل جرد للمنتجات.')}
           rowKey={(r) => r.id}
         />

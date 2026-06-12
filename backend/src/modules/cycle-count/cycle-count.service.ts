@@ -33,8 +33,14 @@ import { CycleCountVarianceService } from './cycle-count-variance.service';
 import { AssignCycleCountDto } from './dto/assign-cycle-count.dto';
 import { AssignCycleCountLineDto } from './dto/assign-cycle-count-line.dto';
 import { CreateCycleCountDto } from './dto/create-cycle-count.dto';
-import { ListCycleCountsQueryDto } from './dto/list-cycle-counts-query.dto';
-import { ListProductHistoryQueryDto } from './dto/list-product-history-query.dto';
+import {
+  ListCycleCountsQueryDto,
+  parseDiscrepancyOnly,
+} from './dto/list-cycle-counts-query.dto';
+import {
+  ListProductHistoryQueryDto,
+  parseOverdueOnly,
+} from './dto/list-product-history-query.dto';
 import { SkipCycleCountLineDto } from './dto/skip-cycle-count-line.dto';
 import { SubmitLineCountDto } from './dto/submit-line-count.dto';
 import { UpsertCycleCountScheduleDto } from './dto/upsert-cycle-count-schedule.dto';
@@ -204,7 +210,18 @@ export class CycleCountService {
     );
     where.companyId = companyId;
     if (query.warehouseId) where.warehouseId = query.warehouseId;
-    if (query.status) where.status = query.status;
+    if (parseDiscrepancyOnly(query.discrepancyOnly)) {
+      where.status = CycleCountStatus.pending_review;
+    } else if (query.status) {
+      where.status = query.status;
+    }
+    if (query.assignedWorkerId) where.assignedWorkerId = query.assignedWorkerId;
+    if (query.createdFrom || query.createdTo) {
+      const createdAt: Prisma.DateTimeFilter = {};
+      if (query.createdFrom) createdAt.gte = new Date(`${query.createdFrom}T00:00:00.000Z`);
+      if (query.createdTo) createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
+      where.createdAt = createdAt;
+    }
 
     return this.prisma.$transaction([
       this.prisma.cycleCount.findMany({
@@ -556,19 +573,42 @@ export class CycleCountService {
       user,
       query.companyId,
     );
-    return this.prisma.cycleCountProductHistory.findMany({
-      where: {
-        companyId,
-        warehouseId: query.warehouseId,
-        ...(query.productId ? { productId: query.productId } : {}),
-      },
-      include: {
-        product: { select: { id: true, sku: true, name: true } },
-      },
-      orderBy: { nextDueAt: 'asc' },
-      take: query.limit,
-      skip: query.offset,
-    });
+    const where: Prisma.CycleCountProductHistoryWhereInput = {
+      companyId,
+      warehouseId: query.warehouseId,
+      ...(query.productId ? { productId: query.productId } : {}),
+    };
+    if (parseOverdueOnly(query.overdueOnly)) {
+      where.nextDueAt = { lt: new Date() };
+    }
+    if (query.lastCountedFrom || query.lastCountedTo) {
+      const lastCountedAt: Prisma.DateTimeFilter = {};
+      if (query.lastCountedFrom) {
+        lastCountedAt.gte = new Date(`${query.lastCountedFrom}T00:00:00.000Z`);
+      }
+      if (query.lastCountedTo) {
+        lastCountedAt.lte = new Date(`${query.lastCountedTo}T23:59:59.999Z`);
+      }
+      where.lastCountedAt = lastCountedAt;
+    }
+
+    return this.prisma.$transaction([
+      this.prisma.cycleCountProductHistory.findMany({
+        where,
+        include: {
+          product: { select: { id: true, sku: true, name: true } },
+        },
+        orderBy: { nextDueAt: 'asc' },
+        take: query.limit,
+        skip: query.offset,
+      }),
+      this.prisma.cycleCountProductHistory.count({ where }),
+    ]).then(([items, total]) => ({
+      items,
+      total,
+      limit: query.limit,
+      offset: query.offset,
+    }));
   }
 
   // ---------------------------------------------------------------------------

@@ -1,0 +1,102 @@
+{
+  "generatedAt": "2026-06-12T01:28:03.185Z",
+  "apiBase": "http://127.0.0.1:3001/api",
+  "warehouseId": "00000000-0000-4000-8000-000000000010",
+  "samples": 3,
+  "scenarios": [
+    {
+      "label": "returns_legacy_200",
+      "path": "/return-orders",
+      "params": {
+        "limit": 200,
+        "offset": 0,
+        "companyId": "00000000-0000-4000-8000-000000000001"
+      },
+      "avgMs": 23.1,
+      "payloadKB": 2.9,
+      "itemCount": 3,
+      "total": 3,
+      "under100KB": true,
+      "ok": true
+    },
+    {
+      "label": "returns_page_25",
+      "path": "/return-orders",
+      "params": {
+        "limit": 25,
+        "offset": 0,
+        "companyId": "00000000-0000-4000-8000-000000000001"
+      },
+      "avgMs": 16.2,
+      "payloadKB": 2.9,
+      "itemCount": 3,
+      "total": 3,
+      "under100KB": true,
+      "ok": true
+    },
+    {
+      "label": "cycle_counts_legacy_200",
+      "path": "/cycle-count/counts",
+      "params": {
+        "limit": 200,
+        "offset": 0,
+        "companyId": "00000000-0000-4000-8000-000000000001",
+        "warehouseId": "00000000-0000-4000-8000-000000000010"
+      },
+      "avgMs": 15.6,
+      "payloadKB": 5.9,
+      "itemCount": 7,
+      "total": 7,
+      "under100KB": true,
+      "ok": true
+    },
+    {
+      "label": "cycle_counts_page_25",
+      "path": "/cycle-count/counts",
+      "params": {
+        "limit": 25,
+        "offset": 0,
+        "companyId": "00000000-0000-4000-8000-000000000001",
+        "warehouseId": "00000000-0000-4000-8000-000000000010"
+      },
+      "avgMs": 12.6,
+      "payloadKB": 5.9,
+      "itemCount": 7,
+      "total": 7,
+      "under100KB": true,
+      "ok": true
+    },
+    {
+      "label": "cycle_history_legacy_500",
+      "path": "/cycle-count/product-history",
+      "params": {
+        "limit": 500,
+        "offset": 0,
+        "companyId": "00000000-0000-4000-8000-000000000001",
+        "warehouseId": "00000000-0000-4000-8000-000000000010"
+      },
+      "avgMs": 9.5,
+      "payloadKB": 1.7,
+      "itemCount": 3,
+      "total": 3,
+      "under100KB": true,
+      "ok": true
+    },
+    {
+      "label": "cycle_history_page_25",
+      "path": "/cycle-count/product-history",
+      "params": {
+        "limit": 25,
+        "offset": 0,
+        "companyId": "00000000-0000-4000-8000-000000000001",
+        "warehouseId": "00000000-0000-4000-8000-000000000010"
+      },
+      "avgMs": 7.9,
+      "payloadKB": 1.7,
+      "itemCount": 3,
+      "total": 3,
+      "under100KB": true,
+      "ok": true
+    }
+  ]
+}

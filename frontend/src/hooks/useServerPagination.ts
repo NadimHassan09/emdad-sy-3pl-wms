@@ -6,6 +6,15 @@ import type { PageResult } from '../api/client';
 export const TASK_LIST_DEFAULT_PAGE_SIZE = 25;
 export const TASK_LIST_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
+export type ServerPagination = {
+  total: number;
+  page: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+  pageSizeOptions: number[];
+};
+
 export type ServerPaginationFetchFn<T> = (
   offset: number,
   limit: number,

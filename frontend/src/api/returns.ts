@@ -136,7 +136,7 @@ export interface CreateReturnOrderInput {
 export const ReturnsApi = {
   list(params: ListReturnOrdersQuery = {}) {
     return api
-      .get<PageResult<ReturnOrderListItem>>('/return-orders', { params: { limit: 100, ...params } })
+      .get<PageResult<ReturnOrderListItem>>('/return-orders', { params })
       .then((r) => r.data);
   },
 

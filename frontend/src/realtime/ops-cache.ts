@@ -12,7 +12,7 @@ function patchReturnLists(
   listItem: ReturnOrderListItem,
   mode: 'insert' | 'update',
 ): void {
-  qc.setQueriesData<ReturnListCache>({ queryKey: QK.returns.all }, (prev) => {
+  qc.setQueriesData<ReturnListCache>({ queryKey: ['return-orders', 'list'], exact: false }, (prev) => {
     if (!prev?.items) return prev;
     const idx = prev.items.findIndex((r) => r.id === listItem.id);
     if (mode === 'insert') {
@@ -73,7 +73,7 @@ function patchCycleCountLists(
   listItem: CycleCountListItem,
   mode: 'insert' | 'update',
 ): void {
-  qc.setQueriesData<CycleCountListCache>({ queryKey: QK.cycleCount.all }, (prev) => {
+  qc.setQueriesData<CycleCountListCache>({ queryKey: ['cycle-count', 'list'], exact: false }, (prev) => {
     if (!prev?.items) return prev;
     const idx = prev.items.findIndex((c) => c.id === listItem.id);
     if (mode === 'insert') {

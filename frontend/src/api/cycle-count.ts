@@ -1,4 +1,4 @@
-import { api } from './client';
+import { PageResult, api } from './client';
 
 export type CycleCountStatus =
   | 'scheduled'
@@ -168,6 +168,10 @@ export interface ListCycleCountsQuery {
   companyId?: string;
   warehouseId?: string;
   status?: CycleCountStatus;
+  assignedWorkerId?: string;
+  discrepancyOnly?: string;
+  createdFrom?: string;
+  createdTo?: string;
   limit?: number;
   offset?: number;
 }
@@ -176,15 +180,18 @@ export interface ListProductHistoryQuery {
   warehouseId: string;
   companyId?: string;
   productId?: string;
+  overdueOnly?: string;
+  lastCountedFrom?: string;
+  lastCountedTo?: string;
   limit?: number;
   offset?: number;
 }
 
 export const CycleCountApi = {
   listCounts(query: ListCycleCountsQuery = {}) {
-    return api.get<CycleCountListItem[]>('/cycle-count/counts', {
-      params: { limit: 100, ...query },
-    }).then((r) => r.data);
+    return api
+      .get<PageResult<CycleCountListItem>>('/cycle-count/counts', { params: query })
+      .then((r) => r.data);
   },
 
   getCount(id: string) {
@@ -222,9 +229,11 @@ export const CycleCountApi = {
   },
 
   listProductHistory(query: ListProductHistoryQuery) {
-    return api.get<CycleCountProductHistoryRow[]>('/cycle-count/product-history', {
-      params: { limit: 500, ...query },
-    }).then((r) => r.data);
+    return api
+      .get<PageResult<CycleCountProductHistoryRow>>('/cycle-count/product-history', {
+        params: query,
+      })
+      .then((r) => r.data);
   },
 
   listVariances(params?: { companyId?: string; cycleCountId?: string; status?: CycleCountVarianceStatus }) {
