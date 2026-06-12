@@ -1446,6 +1446,7 @@ model WorkflowInstance {
 
   @@index([companyId])
   @@index([referenceType, referenceId])
+  @@index([warehouseId, companyId], map: "idx_workflow_instances_wh_company")
   // Partial unique (migration 20260629140000): workflow_instances_one_active_per_reference_uidx
   // — one row per reference while status ∈ pending | in_progress | degraded
   @@map("workflow_instances")
@@ -1503,6 +1504,8 @@ model WarehouseTask {
 
   @@index([workflowInstanceId])
   @@index([status, taskType])
+  @@index([updatedAt(sort: Desc)], map: "idx_warehouse_tasks_updated_at_desc")
+  @@index([status, updatedAt(sort: Desc)], map: "idx_warehouse_tasks_status_updated_at_desc")
   @@map("warehouse_tasks")
 }
 

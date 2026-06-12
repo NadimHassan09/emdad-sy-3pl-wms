@@ -8,7 +8,11 @@ import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { Roles } from '../../common/auth/roles.decorator';
 import { RolesGuard } from '../../common/auth/roles.guard';
 import { WarehouseTasksService } from './warehouse-tasks.service';
-import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
+import {
+  ListTasksQueryDto,
+  TASK_LIST_DEFAULT_LIMIT,
+  parseIncludeRunnability,
+} from './dto/list-tasks-query.dto';
 import { ResolveTaskDto } from './dto/resolve-task.dto';
 import { RetryTaskDto } from './dto/retry-task.dto';
 import { LeaseTaskDto } from './dto/lease-task.dto';
@@ -30,8 +34,9 @@ export class WarehouseTasksController {
       referenceId: query.referenceId,
       updatedFrom: query.updatedFrom ? new Date(query.updatedFrom) : undefined,
       updatedTo: query.updatedTo ? new Date(query.updatedTo) : undefined,
-      limit: query.limit ?? 100,
+      limit: query.limit ?? TASK_LIST_DEFAULT_LIMIT,
       offset: query.offset ?? 0,
+      includeRunnability: parseIncludeRunnability(query.includeRunnability),
     });
   }
 

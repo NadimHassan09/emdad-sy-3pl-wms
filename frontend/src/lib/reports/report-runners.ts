@@ -150,6 +150,7 @@ export async function runTaskPerformance(
   const params: Record<string, string | undefined> = {
     limit: '2000',
     warehouseId: wid,
+    includeRunnability: 'true',
   };
   if (filters.taskType) params.taskType = filters.taskType;
   if (filters.status) params.status = filters.status;

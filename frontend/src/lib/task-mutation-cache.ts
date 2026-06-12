@@ -48,9 +48,7 @@ export function applyTaskMutationEnvelope(qc: QueryClient, opts: TaskMutationCac
   qc.invalidateQueries({ queryKey: QK.tasks.all });
 
   if (warehouseId) {
-    qc.invalidateQueries({
-      queryKey: QK.tasks.list({ warehouseId, limit: '500', offset: '0' }),
-    });
+    qc.invalidateQueries({ queryKey: ['tasks', 'list'], exact: false });
     qc.invalidateQueries({ queryKey: [...QK.locationsFlatAll(false), warehouseId] });
   }
 

@@ -1,0 +1,91 @@
+{
+  "generatedAt": "2026-06-12T01:21:41.226Z",
+  "apiBase": "http://127.0.0.1:3001/api",
+  "samples": 3,
+  "legacy500KB": 344.4,
+  "optimized25KB": 43.4,
+  "payloadReductionPct": 87.4,
+  "initialLoadUnder100KB": true,
+  "scenarios": [
+    {
+      "label": "before_legacy_500_full",
+      "description": "Legacy UI: limit=500, full rows (no includeRunnability flag — simulates heavy list)",
+      "params": {
+        "limit": 500,
+        "offset": 0
+      },
+      "samples": 3,
+      "avgMs": 65.3,
+      "p50Ms": 60.4,
+      "payloadBytes": 352669,
+      "payloadKB": 344.4,
+      "itemCount": 194,
+      "total": 194,
+      "under100KB": false,
+      "ok": true
+    },
+    {
+      "label": "after_page_25_lean",
+      "description": "Optimized UI: limit=25, lean summary rows (default)",
+      "params": {
+        "limit": 25,
+        "offset": 0
+      },
+      "samples": 3,
+      "avgMs": 14.8,
+      "p50Ms": 14.3,
+      "payloadBytes": 44462,
+      "payloadKB": 43.4,
+      "itemCount": 25,
+      "total": 194,
+      "under100KB": true,
+      "ok": true
+    },
+    {
+      "label": "after_page_50_lean",
+      "description": "Optimized UI: limit=50, lean summary rows",
+      "params": {
+        "limit": 50,
+        "offset": 0
+      },
+      "samples": 3,
+      "avgMs": 16.7,
+      "p50Ms": 15.5,
+      "payloadBytes": 90812,
+      "payloadKB": 88.7,
+      "itemCount": 50,
+      "total": 194,
+      "under100KB": true,
+      "ok": true
+    },
+    {
+      "label": "after_page_25_with_runnability",
+      "description": "Report mode: limit=25 with includeRunnability=true",
+      "params": {
+        "limit": 25,
+        "offset": 0,
+        "includeRunnability": "true"
+      },
+      "ok": false,
+      "error": "GET /tasks 400: {\"success\":false,\"error\":{\"code\":\"BAD_REQUEST\",\"message\":\"property includeRunnability should not exist\"}}"
+    },
+    {
+      "label": "after_filtered_status",
+      "description": "Filtered list: status=in_progress, limit=25",
+      "params": {
+        "limit": 25,
+        "offset": 0,
+        "status": "in_progress"
+      },
+      "samples": 3,
+      "avgMs": 12.2,
+      "p50Ms": 12,
+      "payloadBytes": 42677,
+      "payloadKB": 41.7,
+      "itemCount": 24,
+      "total": 24,
+      "under100KB": true,
+      "ok": true
+    }
+  ]
+}

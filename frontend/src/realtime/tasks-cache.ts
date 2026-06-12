@@ -15,16 +15,19 @@ type TaskPayload = {
 };
 
 function patchTaskLists(qc: QueryClient, task: WarehouseTaskListItem): void {
-  qc.setQueriesData<PageResult<WarehouseTaskListItem>>({ queryKey: QK.tasks.all }, (prev) => {
-    if (!prev?.items) return prev;
-    const idx = prev.items.findIndex((t) => t.id === task.id);
-    if (idx < 0) {
-      return { ...prev, items: [task, ...prev.items], total: prev.total + 1 };
-    }
-    const next = [...prev.items];
-    next[idx] = { ...next[idx], ...task };
-    return { ...prev, items: next };
-  });
+  qc.setQueriesData<PageResult<WarehouseTaskListItem>>(
+    { queryKey: ['tasks', 'list'], exact: false },
+    (prev) => {
+      if (!prev?.items) return prev;
+      const idx = prev.items.findIndex((t) => t.id === task.id);
+      if (idx < 0) {
+        return { ...prev, items: [task, ...prev.items], total: prev.total + 1 };
+      }
+      const next = [...prev.items];
+      next[idx] = { ...next[idx], ...task };
+      return { ...prev, items: next };
+    },
+  );
 }
 
 function patchTaskDetail(qc: QueryClient, task: WarehouseTaskListItem & Record<string, unknown>): void {

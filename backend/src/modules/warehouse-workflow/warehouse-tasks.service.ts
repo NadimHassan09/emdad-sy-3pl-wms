@@ -88,8 +88,96 @@ export class WarehouseTasksService {
       updatedTo?: Date;
       limit: number;
       offset: number;
+      includeRunnability?: boolean;
     },
   ) {
+    const where = await this.buildListWhere(user, query);
+
+    const includeRunnability = query.includeRunnability === true;
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.warehouseTask.findMany({
+        where,
+        take: query.limit,
+        skip: query.offset,
+        orderBy: { updatedAt: 'desc' },
+        select: this.listTaskSelect(includeRunnability),
+      }),
+      this.prisma.warehouseTask.count({ where }),
+    ]);
+
+    if (!includeRunnability) {
+      return {
+        items,
+        total,
+        limit: query.limit,
+        offset: query.offset,
+      };
+    }
+
+    const enriched = await this.withRunnableFlags(items);
+    return {
+      items: enriched,
+      total,
+      limit: query.limit,
+      offset: query.offset,
+    };
+  }
+
+  private listTaskSelect(includeRunnability: boolean): Prisma.WarehouseTaskSelect {
+    return {
+      id: true,
+      taskType: true,
+      status: true,
+      updatedAt: true,
+      ...(includeRunnability ? { workflowInstanceId: true } : {}),
+      workflowInstance: {
+        select: {
+          id: true,
+          companyId: true,
+          referenceType: true,
+          referenceId: true,
+          warehouseId: true,
+        },
+      },
+      ...(includeRunnability
+        ? {
+            requiredSkills: {
+              select: { skillCode: true, minimumProficiency: true },
+            },
+          }
+        : {}),
+      assignments: {
+        where: { unassignedAt: null },
+        orderBy: { assignedAt: 'desc' },
+        take: 1,
+        select: {
+          unassignedAt: true,
+          workerId: true,
+          worker: {
+            select: {
+              id: true,
+              displayName: true,
+              user: { select: { fullName: true, email: true } },
+            },
+          },
+        },
+      },
+    };
+  }
+
+  private async buildListWhere(
+    user: AuthPrincipal,
+    query: {
+      status?: WarehouseTaskStatus;
+      taskType?: string;
+      warehouseId?: string;
+      workerId?: string;
+      referenceId?: string;
+      updatedFrom?: Date;
+      updatedTo?: Date;
+    },
+  ): Promise<Prisma.WarehouseTaskWhereInput> {
     const where: Prisma.WarehouseTaskWhereInput = {};
     if (query.status) where.status = query.status;
     if (query.taskType) where.taskType = query.taskType as never;
@@ -102,7 +190,7 @@ export class WarehouseTasksService {
     if (user.role === UserRole.wh_operator) {
       const operatorWorkerId = await this.workerIdForUser(user.id);
       if (!operatorWorkerId) {
-        return { items: [], total: 0, limit: query.limit, offset: query.offset };
+        return { id: { in: [] } };
       }
       and.push({
         assignments: { some: { workerId: operatorWorkerId, unassignedAt: null } },
@@ -129,48 +217,7 @@ export class WarehouseTasksService {
       });
     }
     if (and.length) where.AND = and;
-
-    return this.prisma.$transaction([
-      this.prisma.warehouseTask.findMany({
-        where,
-        take: query.limit,
-        skip: query.offset,
-        orderBy: { updatedAt: 'desc' },
-        include: {
-          workflowInstance: {
-            select: {
-              id: true,
-              companyId: true,
-              referenceType: true,
-              referenceId: true,
-              warehouseId: true,
-            },
-          },
-          requiredSkills: true,
-          assignments: {
-            where: { unassignedAt: null },
-            orderBy: { assignedAt: 'desc' },
-            take: 1,
-            include: {
-              worker: {
-                include: {
-                  user: { select: { fullName: true, email: true } },
-                },
-              },
-            },
-          },
-        },
-      }),
-      this.prisma.warehouseTask.count({ where }),
-    ]).then(async ([items, total]) => {
-      const enriched = await this.withRunnableFlags(items);
-      return {
-        items: enriched,
-        total,
-        limit: query.limit,
-        offset: query.offset,
-      };
-    });
+    return where;
   }
 
   async getById(taskId: string, user: AuthPrincipal) {
