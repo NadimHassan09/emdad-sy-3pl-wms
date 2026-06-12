@@ -7,6 +7,7 @@ import {
   type CreateBackupInput,
 } from '../../api/backups';
 import { QK } from '../../constants/query-keys';
+import { isBackupGdriveUiEnabled } from '../../lib/backup-gdrive-ui';
 import {
   localizedBackupStoragePolicyLabel,
   localizedBackupStoragePolicyOptions,
@@ -30,6 +31,7 @@ function requiresDrive(policy: BackupStoragePolicyValue): boolean {
 
 export function CreateBackupModal({ open, loading, onClose, onSubmit }: Props) {
   const { t } = useWmsTranslation();
+  const gdriveUiEnabled = isBackupGdriveUiEnabled();
   const policyOptions = useMemo(() => localizedBackupStoragePolicyOptions(t), [t]);
 
   const [label, setLabel] = useState('');
@@ -45,7 +47,7 @@ export function CreateBackupModal({ open, loading, onClose, onSubmit }: Props) {
   const driveQuery = useQuery({
     queryKey: QK.backups.googleDrive,
     queryFn: () => BackupsApi.getGoogleDriveStatus(),
-    enabled: open,
+    enabled: open && gdriveUiEnabled,
   });
 
   useEffect(() => {
@@ -59,7 +61,8 @@ export function CreateBackupModal({ open, loading, onClose, onSubmit }: Props) {
 
   const driveConnected = !!driveQuery.data?.connected;
   const driveEnabled = !!driveQuery.data?.gdriveEnabled;
-  const drivePolicyBlocked = requiresDrive(storagePolicy) && (!driveEnabled || !driveConnected);
+  const drivePolicyBlocked =
+    gdriveUiEnabled && requiresDrive(storagePolicy) && (!driveEnabled || !driveConnected);
 
   const handleSubmit = () => {
     const trimmed = label.trim();
@@ -123,28 +126,32 @@ export function CreateBackupModal({ open, loading, onClose, onSubmit }: Props) {
           data-testid="create-backup-label"
         />
 
-        <SelectField
-          label={t(['Storage policy', 'سياسة التخزين'])}
-          value={storagePolicy}
-          onChange={(e) => setStoragePolicy(e.target.value as BackupStoragePolicyValue)}
-          options={policyOptions.map((opt) => ({
-            value: opt.value,
-            label:
-              requiresDrive(opt.value) && !driveConnected
-                ? `${opt.label} (${t(['Drive not connected', 'Drive غير متصل'])})`
-                : opt.label,
-          }))}
-          data-testid="create-backup-policy"
-        />
+        {gdriveUiEnabled && policyOptions.length > 1 ? (
+          <>
+            <SelectField
+              label={t(['Storage policy', 'سياسة التخزين'])}
+              value={storagePolicy}
+              onChange={(e) => setStoragePolicy(e.target.value as BackupStoragePolicyValue)}
+              options={policyOptions.map((opt) => ({
+                value: opt.value,
+                label:
+                  requiresDrive(opt.value) && !driveConnected
+                    ? `${opt.label} (${t(['Drive not connected', 'Drive غير متصل'])})`
+                    : opt.label,
+              }))}
+              data-testid="create-backup-policy"
+            />
 
-        <p className="text-xs text-slate-500">
-          {t(['Selected policy:', 'السياسة المختارة:'])}{' '}
-          <span className="font-medium text-slate-700">
-            {localizedBackupStoragePolicyLabel(storagePolicy, t)}
-          </span>
-        </p>
+            <p className="text-xs text-slate-500">
+              {t(['Selected policy:', 'السياسة المختارة:'])}{' '}
+              <span className="font-medium text-slate-700">
+                {localizedBackupStoragePolicyLabel(storagePolicy, t)}
+              </span>
+            </p>
+          </>
+        ) : null}
 
-        {drivePolicyBlocked ? (
+        {gdriveUiEnabled && drivePolicyBlocked ? (
           <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             {t([
               'Connect Google Drive under Settings → Backups → Google Drive before using Drive storage policies.',

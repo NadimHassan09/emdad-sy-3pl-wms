@@ -16,6 +16,7 @@ import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
 import { useBackupAdminAccess } from '../../hooks/useBackupAdminAccess';
 import { formatBackupBytes } from '../../lib/backup-display';
+import { isBackupGdriveUiEnabled } from '../../lib/backup-gdrive-ui';
 import { defaultHomePath } from '../../lib/rbac';
 import { useWmsTranslation } from '../../lib/ui-i18n';
 
@@ -46,6 +47,7 @@ function summarizeDrivePreview(preview: DriveRetentionCleanupResult | undefined)
 }
 
 export function BackupRetentionPage() {
+  const gdriveUiEnabled = isBackupGdriveUiEnabled();
   const { user } = useAuth();
   const { canRead, canMutate } = useBackupAdminAccess();
   const toast = useToast();
@@ -75,13 +77,13 @@ export function BackupRetentionPage() {
   const drivePoliciesQuery = useQuery({
     queryKey: QK.backups.driveRetentionPolicies,
     queryFn: () => BackupsApi.getDriveRetentionPolicies(),
-    enabled: canRead,
+    enabled: canRead && gdriveUiEnabled,
   });
 
   const drivePreviewQuery = useQuery({
     queryKey: QK.backups.driveRetentionPreview,
     queryFn: () => BackupsApi.previewDriveRetentionCleanup(),
-    enabled: canRead,
+    enabled: canRead && gdriveUiEnabled,
     refetchInterval: 60_000,
   });
 
@@ -273,6 +275,8 @@ export function BackupRetentionPage() {
         </section>
       ) : null}
 
+      {gdriveUiEnabled ? (
+      <>
       <section className={PANEL_CARD_CLASS}>
         <h2 className={PANEL_TITLE_CLASS}>
           {t(['Google Drive retention policies', 'سياسات احتفاظ Google Drive'])}
@@ -403,6 +407,8 @@ export function BackupRetentionPage() {
       ) : null}
 
       <BackupDriveRetentionAuditPanel />
+      </>
+      ) : null}
 
       {canMutate ? (
         <>
@@ -421,20 +427,22 @@ export function BackupRetentionPage() {
             ])}
           </ConfirmModal>
 
-          <ConfirmModal
-            open={driveConfirmOpen}
-            title={t(['Run Drive retention cleanup?', 'تشغيل تنظيف احتفاظ Drive؟'])}
-            confirmLabel={t(['Delete expired Drive backups', 'حذف نسخ Drive المنتهية'])}
-            danger
-            loading={driveCleanupMutation.isPending}
-            onConfirm={() => driveCleanupMutation.mutate()}
-            onClose={() => !driveCleanupMutation.isPending && setDriveConfirmOpen(false)}
-          >
-            {t([
-              `This will delete ${drivePreviewSummary.driveCandidates} Drive file(s) and ${drivePreviewSummary.jobCandidates} drive-only job record(s).`,
-              `سيحذف هذا ${drivePreviewSummary.driveCandidates} ملفاً على Drive و${drivePreviewSummary.jobCandidates} سجل مهمة drive-only.`,
-            ])}
-          </ConfirmModal>
+          {gdriveUiEnabled ? (
+            <ConfirmModal
+              open={driveConfirmOpen}
+              title={t(['Run Drive retention cleanup?', 'تشغيل تنظيف احتفاظ Drive؟'])}
+              confirmLabel={t(['Delete expired Drive backups', 'حذف نسخ Drive المنتهية'])}
+              danger
+              loading={driveCleanupMutation.isPending}
+              onConfirm={() => driveCleanupMutation.mutate()}
+              onClose={() => !driveCleanupMutation.isPending && setDriveConfirmOpen(false)}
+            >
+              {t([
+                `This will delete ${drivePreviewSummary.driveCandidates} Drive file(s) and ${drivePreviewSummary.jobCandidates} drive-only job record(s).`,
+                `سيحذف هذا ${drivePreviewSummary.driveCandidates} ملفاً على Drive و${drivePreviewSummary.jobCandidates} سجل مهمة drive-only.`,
+              ])}
+            </ConfirmModal>
+          ) : null}
         </>
       ) : null}
     </div>

@@ -15,6 +15,7 @@ import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
 import { useBackupAdminAccess } from '../../hooks/useBackupAdminAccess';
 import { formatBackupBytes, formatBackupTimestamp } from '../../lib/backup-display';
+import { isBackupGdriveUiEnabled } from '../../lib/backup-gdrive-ui';
 import { defaultHomePath } from '../../lib/rbac';
 import {
   localizedBackupStoragePolicyLabel,
@@ -51,6 +52,7 @@ function syncStatusBadgeClass(key: DriveSyncStatusKey): string {
 }
 
 export function BackupStoragePolicyPage() {
+  const gdriveUiEnabled = isBackupGdriveUiEnabled();
   const { user } = useAuth();
   const { canRead, canMutate } = useBackupAdminAccess();
   const toast = useToast();
@@ -75,7 +77,7 @@ export function BackupStoragePolicyPage() {
   const driveQuery = useQuery({
     queryKey: QK.backups.googleDrive,
     queryFn: () => BackupsApi.getGoogleDriveStatus(),
-    enabled: canRead,
+    enabled: canRead && gdriveUiEnabled,
     refetchInterval: 30_000,
   });
 
@@ -144,7 +146,9 @@ export function BackupStoragePolicyPage() {
             <p className="text-xs text-slate-500">
               {t(['Effective', 'الفعّالة'])}:{' '}
               {localizedBackupStoragePolicyLabel(policyQuery.data.effectiveDefaultPolicy, t)}
-              {!drive?.gdriveEnabled && policyQuery.data.effectiveDefaultPolicy !== 'local_only'
+              {gdriveUiEnabled &&
+              !drive?.gdriveEnabled &&
+              policyQuery.data.effectiveDefaultPolicy !== 'local_only'
                 ? ` (${t(['falls back to local only', 'ترجع إلى محلي فقط'])})`
                 : ''}
             </p>
@@ -189,75 +193,79 @@ export function BackupStoragePolicyPage() {
         ) : null}
       </section>
 
-      <section className={PANEL_CARD_CLASS}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className={PANEL_TITLE_CLASS}>{t(['Google Drive sync status', 'حالة مزامنة Google Drive'])}</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              {t([
-                'Off-site sync health for backups routed to Google Drive.',
-                'صحة المزامنة خارج الموقع للنسخ الموجّهة إلى Google Drive.',
-              ])}
-            </p>
-          </div>
-          <Link
-            to="/settings/backups/google-drive"
-            className="text-sm font-medium text-emerald-700 hover:underline"
-          >
-            {t(['Manage connection', 'إدارة الاتصال'])}
-          </Link>
-        </div>
-        {driveQuery.isLoading ? (
-          <p className="mt-4 text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
-        ) : drive ? (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div
-              className={`rounded-xl border-2 p-4 ${
-                drive.connected
-                  ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-                  : 'border-slate-300 bg-slate-50 text-slate-700'
-              }`}
+      {gdriveUiEnabled ? (
+        <section className={PANEL_CARD_CLASS}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className={PANEL_TITLE_CLASS}>
+                {t(['Google Drive sync status', 'حالة مزامنة Google Drive'])}
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                {t([
+                  'Off-site sync health for backups routed to Google Drive.',
+                  'صحة المزامنة خارج الموقع للنسخ الموجّهة إلى Google Drive.',
+                ])}
+              </p>
+            </div>
+            <Link
+              to="/settings/backups/google-drive"
+              className="text-sm font-medium text-emerald-700 hover:underline"
             >
-              <p className="text-xs font-medium uppercase tracking-wide opacity-80">
-                {t(['Connection', 'الاتصال'])}
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                {drive.connected ? t(['Connected', 'متصل']) : t(['Not connected', 'غير متصل'])}
-              </p>
-            </div>
-            <div className={`rounded-xl border-2 p-4 ${syncStatusBadgeClass(syncStatusKey)}`}>
-              <p className="text-xs font-medium uppercase tracking-wide opacity-80">
-                {t(['Sync status', 'حالة المزامنة'])}
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                {localizedGoogleDriveSyncStatus(syncStatusKey, t)}
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                {t(['Pending syncs', 'مزامنات معلّقة'])}
-              </p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{drive.pendingSyncCount}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                {t(['Failed syncs', 'مزامنات فاشلة'])}
-              </p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{drive.failedSyncCount}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 sm:col-span-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                {t(['Last sync', 'آخر مزامنة'])}
-              </p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">
-                {formatBackupTimestamp(drive.lastSyncedAt)}
-              </p>
-            </div>
+              {t(['Manage connection', 'إدارة الاتصال'])}
+            </Link>
           </div>
-        ) : driveQuery.isError ? (
-          <p className="mt-4 text-sm text-rose-600">{driveQuery.error.message}</p>
-        ) : null}
-      </section>
+          {driveQuery.isLoading ? (
+            <p className="mt-4 text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+          ) : drive ? (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div
+                className={`rounded-xl border-2 p-4 ${
+                  drive.connected
+                    ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                    : 'border-slate-300 bg-slate-50 text-slate-700'
+                }`}
+              >
+                <p className="text-xs font-medium uppercase tracking-wide opacity-80">
+                  {t(['Connection', 'الاتصال'])}
+                </p>
+                <p className="mt-1 text-lg font-semibold">
+                  {drive.connected ? t(['Connected', 'متصل']) : t(['Not connected', 'غير متصل'])}
+                </p>
+              </div>
+              <div className={`rounded-xl border-2 p-4 ${syncStatusBadgeClass(syncStatusKey)}`}>
+                <p className="text-xs font-medium uppercase tracking-wide opacity-80">
+                  {t(['Sync status', 'حالة المزامنة'])}
+                </p>
+                <p className="mt-1 text-lg font-semibold">
+                  {localizedGoogleDriveSyncStatus(syncStatusKey, t)}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  {t(['Pending syncs', 'مزامنات معلّقة'])}
+                </p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">{drive.pendingSyncCount}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  {t(['Failed syncs', 'مزامنات فاشلة'])}
+                </p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">{drive.failedSyncCount}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 sm:col-span-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  {t(['Last sync', 'آخر مزامنة'])}
+                </p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">
+                  {formatBackupTimestamp(drive.lastSyncedAt)}
+                </p>
+              </div>
+            </div>
+          ) : driveQuery.isError ? (
+            <p className="mt-4 text-sm text-rose-600">{driveQuery.error.message}</p>
+          ) : null}
+        </section>
+      ) : null}
     </div>
   );
 }

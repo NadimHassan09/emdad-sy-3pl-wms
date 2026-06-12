@@ -3,6 +3,8 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * E2E tests — run against local dev or staging:
  *   BASE_URL=http://localhost:5173 API_READY=1 npx playwright test
+ *
+ * Google Drive UI specs require BACKUP_GDRIVE_UI_ENABLED=true in frontend/.env (or env when starting Vite).
  */
 export default defineConfig({
   testDir: './e2e',

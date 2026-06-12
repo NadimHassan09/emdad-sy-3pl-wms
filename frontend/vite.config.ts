@@ -10,7 +10,12 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const devBackend = (env.VITE_DEV_BACKEND_URL ?? DEFAULT_DEV_BACKEND).replace(/\/$/, '');
 
+  const backupGdriveUiEnabled = env.BACKUP_GDRIVE_UI_ENABLED ?? 'false';
+
   return {
+  define: {
+    __BACKUP_GDRIVE_UI_ENABLED__: JSON.stringify(backupGdriveUiEnabled),
+  },
   plugins: [react()],
   resolve: {
     alias: {

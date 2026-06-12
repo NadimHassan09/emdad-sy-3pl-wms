@@ -9,6 +9,7 @@ import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
 import { useBackupAdminAccess } from '../../hooks/useBackupAdminAccess';
 import { formatBackupBytes, formatBackupTimestamp } from '../../lib/backup-display';
+import { isBackupGdriveUiEnabled } from '../../lib/backup-gdrive-ui';
 import { defaultHomePath } from '../../lib/rbac';
 import {
   localizedBackupHealthStatus,
@@ -52,7 +53,16 @@ function deriveDriveHealthKey(
   return 'idle';
 }
 
+const GDRIVE_ALERT_CODES = new Set([
+  'gdrive_not_configured',
+  'gdrive_not_connected',
+  'gdrive_sync_failures',
+  'gdrive_pending_sync',
+  'gdrive_stale_sync',
+]);
+
 export function BackupHealthPage() {
+  const gdriveUiEnabled = isBackupGdriveUiEnabled();
   const { user } = useAuth();
   const { canRead } = useBackupAdminAccess();
   const isSuperAdmin = user?.role === 'super_admin';
@@ -87,8 +97,10 @@ export function BackupHealthPage() {
   }
 
   const health = healthQuery.data;
-  const drive = health?.driveStatus;
+  const drive = gdriveUiEnabled ? health?.driveStatus : undefined;
   const driveKey = drive ? deriveDriveHealthKey(drive) : 'disabled';
+  const visibleAlerts =
+    health?.alerts.filter((alert) => gdriveUiEnabled || !GDRIVE_ALERT_CODES.has(alert.code)) ?? [];
 
   return (
     <div className="space-y-4">
@@ -262,11 +274,11 @@ export function BackupHealthPage() {
         </section>
       ) : null}
 
-      {health && health.alerts.length > 0 ? (
+      {health && visibleAlerts.length > 0 ? (
         <section className={PANEL_CARD_CLASS}>
           <h2 className={PANEL_TITLE_CLASS}>{t(['Active alerts', 'تنبيهات نشطة'])}</h2>
           <ul className="mt-3 space-y-2">
-            {health.alerts.map((alert) => (
+            {visibleAlerts.map((alert) => (
               <li
                 key={`${alert.code}-${alert.severity}`}
                 className={`rounded-lg border px-4 py-3 text-sm ${alertClass(alert.severity)}`}

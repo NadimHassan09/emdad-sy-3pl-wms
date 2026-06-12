@@ -35,6 +35,7 @@ import {
   isBackupDownloadable,
   shouldShowBackupProgress,
 } from '../../lib/backup-display';
+import { isBackupGdriveUiEnabled } from '../../lib/backup-gdrive-ui';
 import { defaultHomePath } from '../../lib/rbac';
 import {
   localizedBackupStatusFilterOptions,
@@ -255,22 +256,26 @@ export function BackupHistoryPage() {
           </span>
         ),
       },
-      {
-        header: t(['Drive sync', 'مزامنة Drive']),
-        accessor: (row) => {
-          const label = formatGdriveSyncStatus(row.gdriveSyncStatus, row.storagePolicy);
-          if (label === 'N/A' || label === '—') {
-            return <span className="text-sm text-slate-400">{label}</span>;
-          }
-          return (
-            <span
-              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${gdriveSyncBadgeClass(row.gdriveSyncStatus)}`}
-            >
-              {label}
-            </span>
-          );
-        },
-      },
+      ...(isBackupGdriveUiEnabled()
+        ? [
+            {
+              header: t(['Drive sync', 'مزامنة Drive']),
+              accessor: (row: BackupSummary) => {
+                const label = formatGdriveSyncStatus(row.gdriveSyncStatus, row.storagePolicy);
+                if (label === 'N/A' || label === '—') {
+                  return <span className="text-sm text-slate-400">{label}</span>;
+                }
+                return (
+                  <span
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${gdriveSyncBadgeClass(row.gdriveSyncStatus)}`}
+                  >
+                    {label}
+                  </span>
+                );
+              },
+            } satisfies Column<BackupSummary>,
+          ]
+        : []),
       {
         header: t(['Actions', 'إجراءات']),
         accessor: (row) => (

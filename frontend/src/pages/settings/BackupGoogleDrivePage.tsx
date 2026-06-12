@@ -15,6 +15,7 @@ import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
 import { useBackupAdminAccess } from '../../hooks/useBackupAdminAccess';
 import { formatBackupTimestamp } from '../../lib/backup-display';
+import { isBackupGdriveUiEnabled } from '../../lib/backup-gdrive-ui';
 import { defaultHomePath } from '../../lib/rbac';
 import {
   localizedBackupStoragePolicyLabel,
@@ -57,6 +58,7 @@ function syncStatusBadgeClass(key: DriveSyncStatusKey): string {
 }
 
 export function BackupGoogleDrivePage() {
+  const gdriveUiEnabled = isBackupGdriveUiEnabled();
   const { user } = useAuth();
   const { canRead, canMutate } = useBackupAdminAccess();
   const toast = useToast();
@@ -70,7 +72,7 @@ export function BackupGoogleDrivePage() {
   const driveQuery = useQuery({
     queryKey: QK.backups.googleDrive,
     queryFn: () => BackupsApi.getGoogleDriveStatus(),
-    enabled: canRead,
+    enabled: canRead && gdriveUiEnabled,
     refetchInterval: 30_000,
   });
 
@@ -148,6 +150,10 @@ export function BackupGoogleDrivePage() {
 
   if (!canRead) {
     return <Navigate to={defaultHomePath(user?.role)} replace />;
+  }
+
+  if (!gdriveUiEnabled) {
+    return <Navigate to="/settings/backups" replace />;
   }
 
   const drive = driveQuery.data;

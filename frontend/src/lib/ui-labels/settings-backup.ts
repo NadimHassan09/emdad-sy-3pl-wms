@@ -1,4 +1,5 @@
 import type { BackupJobStatus, BackupJobType } from '../../api/backups';
+import { isBackupGdriveUiEnabled } from '../backup-gdrive-ui';
 import type { LocalizedMessage, UseWmsTranslationResult } from '../ui-i18n';
 
 type T = UseWmsTranslationResult['t'];
@@ -106,25 +107,37 @@ export function dataTablePaginationLabels(t: T) {
   };
 }
 
+const STORAGE_POLICY_LABELS: Record<string, LocalizedMessage> = {
+  local_only: ['Local only', 'محلي فقط'],
+  drive_only: ['Google Drive only', 'Google Drive فقط'],
+  local_and_drive: ['Local + Google Drive', 'محلي + Google Drive'],
+};
+
+const STORAGE_POLICY_LABELS_UI_HIDDEN: Record<string, LocalizedMessage> = {
+  local_only: ['Local only', 'محلي فقط'],
+  drive_only: ['Off-site only', 'خارج الموقع فقط'],
+  local_and_drive: ['Local + off-site', 'محلي + خارج الموقع'],
+};
+
 export function localizedBackupStoragePolicyLabel(
   policy: string,
   t: T,
 ): string {
-  const map: Record<string, LocalizedMessage> = {
-    local_only: ['Local only', 'محلي فقط'],
-    drive_only: ['Google Drive only', 'Google Drive فقط'],
-    local_and_drive: ['Local + Google Drive', 'محلي + Google Drive'],
-  };
+  const map = isBackupGdriveUiEnabled() ? STORAGE_POLICY_LABELS : STORAGE_POLICY_LABELS_UI_HIDDEN;
   const msg = map[policy];
   return msg ? t(msg) : policy;
 }
 
 export function localizedBackupStoragePolicyOptions(t: T) {
-  return [
+  const all = [
     { value: 'local_only', label: localizedBackupStoragePolicyLabel('local_only', t) },
     { value: 'drive_only', label: localizedBackupStoragePolicyLabel('drive_only', t) },
     { value: 'local_and_drive', label: localizedBackupStoragePolicyLabel('local_and_drive', t) },
   ] as const;
+  if (isBackupGdriveUiEnabled()) {
+    return all;
+  }
+  return all.filter((opt) => opt.value === 'local_only');
 }
 
 export function localizedScheduleStoragePolicyLabel(

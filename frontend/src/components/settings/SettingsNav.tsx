@@ -1,12 +1,12 @@
 import { useAuth } from '../../auth/AuthContext';
-import { SETTINGS_TABS } from '../../lib/settings/settings-catalog';
+import { getVisibleSettingsTabs } from '../../lib/settings/settings-catalog';
 import { useWmsTranslation } from '../../lib/ui-i18n';
 import { PillSubNav } from '../PillSubNav';
 
 export function SettingsNav() {
   const { t } = useWmsTranslation();
   const { user } = useAuth();
-  const tabs = SETTINGS_TABS.filter(
+  const tabs = getVisibleSettingsTabs().filter(
     (entry) => !entry.superAdminOnly || user?.role === 'super_admin',
   );
 

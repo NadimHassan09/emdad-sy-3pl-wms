@@ -1,3 +1,5 @@
+import { isBackupGdriveUiEnabled } from '../backup-gdrive-ui';
+
 export type SettingsTabEntry = {
   id: string;
   title: string;
@@ -72,8 +74,12 @@ export const SETTINGS_TABS: SettingsTabEntry[] = [
     id: 'backup-storage-policy',
     title: 'Storage Policy',
     titleAr: 'سياسة التخزين',
-    description: 'Global backup storage routing, usage indicators, and Drive sync summary.',
-    descriptionAr: 'توجيه التخزين العام ومؤشرات الاستخدام وملخص مزامنة Drive.',
+    description: isBackupGdriveUiEnabled()
+      ? 'Global backup storage routing, usage indicators, and Drive sync summary.'
+      : 'Global backup storage routing and local usage indicators.',
+    descriptionAr: isBackupGdriveUiEnabled()
+      ? 'توجيه التخزين العام ومؤشرات الاستخدام وملخص مزامنة Drive.'
+      : 'توجيه التخزين العام ومؤشرات الاستخدام المحلي.',
     path: '/settings/backups/storage-policy',
   },
   {
@@ -85,3 +91,13 @@ export const SETTINGS_TABS: SettingsTabEntry[] = [
     path: '/settings/backups/google-drive',
   },
 ];
+
+const GDRIVE_TAB_ID = 'backup-google-drive';
+
+/** Settings tabs visible in the current deployment (respects BACKUP_GDRIVE_UI_ENABLED). */
+export function getVisibleSettingsTabs(): SettingsTabEntry[] {
+  if (isBackupGdriveUiEnabled()) {
+    return SETTINGS_TABS;
+  }
+  return SETTINGS_TABS.filter((entry) => entry.id !== GDRIVE_TAB_ID);
+}
