@@ -67,7 +67,7 @@ export class CycleCountVarianceService {
     );
     return this.prisma.cycleCountVariance.findMany({
       where: {
-        companyId,
+        ...(companyId ? { companyId } : {}),
         ...(query.cycleCountId ? { cycleCountId: query.cycleCountId } : {}),
         ...(query.status ? { status: query.status } : {}),
       },

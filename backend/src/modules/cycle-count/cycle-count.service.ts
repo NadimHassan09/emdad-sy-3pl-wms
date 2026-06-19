@@ -16,6 +16,7 @@ import { CompanyAccessService } from '../../common/company-access/company-access
 import { InvalidStateException } from '../../common/errors/domain-exceptions';
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { withTenantRls } from '../../common/prisma/tenant-rls';
 import { RealtimeService } from '../realtime/realtime.service';
 import {
   cycleCountDetailPayload,
@@ -127,11 +128,13 @@ export class CycleCountService {
       user,
       companyIdParam,
     );
-    return this.prisma.cycleCountSchedule.findMany({
-      where: { companyId },
-      include: SCHEDULE_INCLUDE,
-      orderBy: [{ warehouseId: 'asc' }],
-    });
+    return withTenantRls(this.prisma, user, async (tx) =>
+      tx.cycleCountSchedule.findMany({
+        where: companyId ? { companyId } : {},
+        include: SCHEDULE_INCLUDE,
+        orderBy: [{ warehouseId: 'asc' }],
+      }),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -208,7 +211,9 @@ export class CycleCountService {
       user,
       query.companyId,
     );
-    where.companyId = companyId;
+    if (companyId) {
+      where.companyId = companyId;
+    }
     if (query.warehouseId) where.warehouseId = query.warehouseId;
     if (parseDiscrepancyOnly(query.discrepancyOnly)) {
       where.status = CycleCountStatus.pending_review;
@@ -223,22 +228,25 @@ export class CycleCountService {
       where.createdAt = createdAt;
     }
 
-    return this.prisma.$transaction([
-      this.prisma.cycleCount.findMany({
-        where,
-        include: {
-          company: { select: { id: true, name: true } },
-          warehouse: { select: { id: true, code: true, name: true } },
-          assignedWorker: { select: { id: true, displayName: true } },
-          schedule: { select: { id: true, intervalDays: true } },
-          _count: { select: { lines: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: query.limit,
-        skip: query.offset,
-      }),
-      this.prisma.cycleCount.count({ where }),
-    ]).then(([items, total]) => ({ items, total, limit: query.limit, offset: query.offset }));
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const [items, total] = await Promise.all([
+        tx.cycleCount.findMany({
+          where,
+          include: {
+            company: { select: { id: true, name: true } },
+            warehouse: { select: { id: true, code: true, name: true } },
+            assignedWorker: { select: { id: true, displayName: true } },
+            schedule: { select: { id: true, intervalDays: true } },
+            _count: { select: { lines: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: query.limit,
+          skip: query.offset,
+        }),
+        tx.cycleCount.count({ where }),
+      ]);
+      return { items, total, limit: query.limit, offset: query.offset };
+    });
   }
 
   async findById(user: AuthPrincipal, id: string) {
@@ -574,10 +582,12 @@ export class CycleCountService {
       query.companyId,
     );
     const where: Prisma.CycleCountProductHistoryWhereInput = {
-      companyId,
       warehouseId: query.warehouseId,
       ...(query.productId ? { productId: query.productId } : {}),
     };
+    if (companyId) {
+      where.companyId = companyId;
+    }
     if (parseOverdueOnly(query.overdueOnly)) {
       where.nextDueAt = { lt: new Date() };
     }
@@ -592,23 +602,21 @@ export class CycleCountService {
       where.lastCountedAt = lastCountedAt;
     }
 
-    return this.prisma.$transaction([
-      this.prisma.cycleCountProductHistory.findMany({
-        where,
-        include: {
-          product: { select: { id: true, sku: true, name: true } },
-        },
-        orderBy: { nextDueAt: 'asc' },
-        take: query.limit,
-        skip: query.offset,
-      }),
-      this.prisma.cycleCountProductHistory.count({ where }),
-    ]).then(([items, total]) => ({
-      items,
-      total,
-      limit: query.limit,
-      offset: query.offset,
-    }));
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const [items, total] = await Promise.all([
+        tx.cycleCountProductHistory.findMany({
+          where,
+          include: {
+            product: { select: { id: true, sku: true, name: true } },
+          },
+          orderBy: { nextDueAt: 'asc' },
+          take: query.limit,
+          skip: query.offset,
+        }),
+        tx.cycleCountProductHistory.count({ where }),
+      ]);
+      return { items, total, limit: query.limit, offset: query.offset };
+    });
   }
 
   // ---------------------------------------------------------------------------

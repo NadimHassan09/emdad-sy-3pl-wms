@@ -145,25 +145,25 @@ export class CompanyAccessService {
       this.assertCompanyAccess(user, q);
       return q;
     }
-    // Active tenant from X-Company-Id (global admins keep tenantScope === 'all').
-    if (user.companyId) {
-      return user.companyId;
-    }
+    // Global admins with no explicit filter see all clients (ignore active X-Company-Id).
     if (user.tenantScope === 'all') {
       return undefined;
+    }
+    if (user.companyId) {
+      return user.companyId;
     }
     return undefined;
   }
 
   /**
-   * Like `getReadFilterCompanyId`, but rejects global all-tenant mode without an explicit filter.
-   * Use on inventory, tasks, and other sensitive operational list APIs.
+   * List/read tenant scope. Returns undefined for global admins with no explicit filter
+   * (all clients). Restricted users still require a resolvable tenant.
    */
-  requireReadTenantScope(user: AuthPrincipal, queryCompanyId?: string): string {
+  requireReadTenantScope(user: AuthPrincipal, queryCompanyId?: string): string | undefined {
     const scoped = this.getReadFilterCompanyId(user, queryCompanyId);
     if (scoped) return scoped;
     if (user.tenantScope === 'all') {
-      throw new BadRequestException(TENANT_SCOPE_REQUIRED_MESSAGE);
+      return undefined;
     }
     if (!user.companyId) {
       throw new BadRequestException(TENANT_SCOPE_REQUIRED_MESSAGE);

@@ -30,11 +30,11 @@ export function readCompanyIdCatalogFilter(
   return companyAccess.requireReadTenantScope(user);
 }
 
-/** Requires active tenant or explicit `companyId` — prevents cross-tenant list leaks for global admins. */
+/** Requires tenant scope for list/read filters; undefined = all clients for global admins. */
 export function readCompanyIdFilterRequired(
   companyAccess: CompanyAccessService,
   user: AuthPrincipal,
   queryCompanyId?: string,
-): string {
+): string | undefined {
   return companyAccess.requireReadTenantScope(user, queryCompanyId);
 }

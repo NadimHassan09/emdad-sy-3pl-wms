@@ -20,6 +20,12 @@ import {
   assertDiscreteUomPositiveIntegerQuantity,
 } from '../../common/utils/discrete-uom-quantity';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { withTenantRls } from '../../common/prisma/tenant-rls';
+import { RealtimeService } from '../realtime/realtime.service';
+import {
+  returnDetailPayload,
+  returnListItemPayload,
+} from '../realtime/realtime-ops.payload';
 import { CreateReturnOrderDto } from './dto/create-return-order.dto';
 import { ListReturnOrdersQueryDto } from './dto/list-return-orders-query.dto';
 import { ReceiveReturnLineDto } from './dto/receive-return-line.dto';
@@ -82,6 +88,7 @@ export class ReturnsService {
     private readonly quantityGuard: ReturnQuantityValidation,
     private readonly workflow: ReturnWorkflowService,
     private readonly audit: AuditLogService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async create(user: AuthPrincipal, dto: CreateReturnOrderDto) {
@@ -202,20 +209,23 @@ export class ReturnsService {
     await this.audit.log(
       this.audit.fromPrincipal(user, {
         companyId,
-        action: 'return.created',
+        action: 'RETURN_CREATED',
         resourceType: 'return_order',
         resourceId: order.id,
         newState: { orderNumber: order.orderNumber, lineCount: order.lines.length },
       }),
     );
 
+    this.emitReturnEvent(order, 'created');
     return order;
   }
 
   async list(user: AuthPrincipal, query: ListReturnOrdersQueryDto) {
     const where: Prisma.ReturnOrderWhereInput = {};
     const companyId = readCompanyIdFilterRequired(this.companyAccess, user, query.companyId);
-    where.companyId = companyId;
+    if (companyId) {
+      where.companyId = companyId;
+    }
 
     if (query.status) where.status = query.status;
     if (query.originalOutboundOrderId) {
@@ -241,36 +251,39 @@ export class ReturnsService {
     }
     if (andParts.length > 0) where.AND = andParts;
 
-    return this.prisma.$transaction([
-      this.prisma.returnOrder.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          company: { select: { id: true, name: true } },
-          originalOutbound: { select: { id: true, orderNumber: true, status: true } },
-          _count: { select: { lines: true } },
-          lines: {
-            select: {
-              expectedQuantity: true,
-              receivedQuantity: true,
-              disposition: true,
-              product: { select: { sku: true } },
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const [rows, total] = await Promise.all([
+        tx.returnOrder.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            company: { select: { id: true, name: true } },
+            originalOutbound: { select: { id: true, orderNumber: true, status: true } },
+            _count: { select: { lines: true } },
+            lines: {
+              select: {
+                expectedQuantity: true,
+                receivedQuantity: true,
+                disposition: true,
+                product: { select: { sku: true } },
+              },
             },
           },
-        },
-        take: query.limit,
-        skip: query.offset,
-      }),
-      this.prisma.returnOrder.count({ where }),
-    ]).then(([rows, total]) => ({
-      items: rows.map(({ lines, ...order }) => ({
-        ...order,
-        summary: buildReturnListSummary(lines),
-      })),
-      total,
-      limit: query.limit,
-      offset: query.offset,
-    }));
+          take: query.limit,
+          skip: query.offset,
+        }),
+        tx.returnOrder.count({ where }),
+      ]);
+      return {
+        items: rows.map(({ lines, ...order }) => ({
+          ...order,
+          summary: buildReturnListSummary(lines),
+        })),
+        total,
+        limit: query.limit,
+        offset: query.offset,
+      };
+    });
   }
 
   async getOutboundReturnQuota(
@@ -336,12 +349,13 @@ export class ReturnsService {
     await this.audit.log(
       this.audit.fromPrincipal(user, {
         companyId: order.companyId,
-        action: 'return.confirmed',
+        action: 'RETURN_CONFIRMED',
         resourceType: 'return_order',
         resourceId: id,
       }),
     );
 
+    this.emitReturnEvent(updated, 'confirmed');
     return updated;
   }
 
@@ -359,6 +373,9 @@ export class ReturnsService {
         receivingStartedAt: new Date(),
       },
       include: ORDER_INCLUDE,
+    }).then((updated) => {
+      this.emitReturnEvent(updated, 'updated');
+      return updated;
     });
   }
 
@@ -407,7 +424,7 @@ export class ReturnsService {
     await this.audit.log(
       this.audit.fromPrincipal(user, {
         companyId: order.companyId,
-        action: 'return.line.received',
+        action: 'RETURN_LINE_RECEIVED',
         resourceType: 'return_order_line',
         resourceId: lineId,
         newState: {
@@ -417,6 +434,7 @@ export class ReturnsService {
       }),
     );
 
+    this.emitReturnEvent(result, 'updated');
     return result;
   }
 
@@ -466,12 +484,13 @@ export class ReturnsService {
     await this.audit.log(
       this.audit.fromPrincipal(user, {
         companyId: order.companyId,
-        action: 'return.completed',
+        action: 'RETURN_COMPLETED',
         resourceType: 'return_order',
         resourceId: id,
       }),
     );
 
+    this.emitReturnEvent(updated, 'completed');
     return updated;
   }
 
@@ -501,13 +520,37 @@ export class ReturnsService {
     await this.audit.log(
       this.audit.fromPrincipal(user, {
         companyId: order.companyId,
-        action: 'return.cancelled',
+        action: 'RETURN_CANCELLED',
         resourceType: 'return_order',
         resourceId: id,
       }),
     );
 
+    this.emitReturnEvent(updated, 'updated');
     return updated;
+  }
+
+  private emitReturnEvent(
+    order: Prisma.ReturnOrderGetPayload<{ include: typeof ORDER_INCLUDE }>,
+    kind: 'created' | 'updated' | 'confirmed' | 'completed',
+  ): void {
+    const listItem = returnListItemPayload(order);
+    const detail = returnDetailPayload(order as unknown as Record<string, unknown>);
+    const payload = { listItem, return: detail };
+    switch (kind) {
+      case 'created':
+        this.realtime.emitReturnCreated(order.companyId, payload);
+        break;
+      case 'updated':
+        this.realtime.emitReturnUpdated(order.companyId, payload);
+        break;
+      case 'confirmed':
+        this.realtime.emitReturnConfirmed(order.companyId, payload);
+        break;
+      case 'completed':
+        this.realtime.emitReturnCompleted(order.companyId, payload);
+        break;
+    }
   }
 
   private async assertWarehouse(warehouseId: string) {

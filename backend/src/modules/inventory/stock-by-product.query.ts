@@ -84,8 +84,10 @@ export async function buildStockByProductSqlContext(
 
   const conditions: Prisma.Sql[] = [
     Prisma.sql`cs.quantity_on_hand > 0`,
-    Prisma.sql`cs.company_id = ${companyId}::uuid`,
   ];
+  if (companyId) {
+    conditions.push(Prisma.sql`cs.company_id = ${companyId}::uuid`);
+  }
 
   if (query.productId) {
     conditions.push(Prisma.sql`cs.product_id = ${query.productId}::uuid`);

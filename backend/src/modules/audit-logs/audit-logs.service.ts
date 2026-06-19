@@ -578,7 +578,11 @@ export class AuditLogsService {
   ): void {
     if (row.company_id) {
       this.companyAccess.assertCompanyAccess(user, row.company_id);
-      if (user.companyId && row.company_id !== user.companyId) {
+      if (
+        user.companyId &&
+        row.company_id !== user.companyId &&
+        user.tenantScope !== 'all'
+      ) {
         throw new NotFoundException('Audit log entry not found.');
       }
       return;

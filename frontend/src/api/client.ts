@@ -4,7 +4,6 @@ import { getAccessToken, setAccessToken } from '../auth/authStorage';
 import { getApiBaseUrl } from './apiBaseUrl';
 
 const baseURL = getApiBaseUrl();
-const mockCompanyId = import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined;
 
 export const api: AxiosInstance = axios.create({
   baseURL,
@@ -14,13 +13,6 @@ export const api: AxiosInstance = axios.create({
 api.interceptors.request.use((cfg) => {
   const token = getAccessToken();
   if (token) cfg.headers.Authorization = `Bearer ${token}`;
-  const url = typeof cfg.url === 'string' ? cfg.url : '';
-  const isDashboard = url.includes('/dashboard/');
-  const isCompaniesList = url.includes('/companies');
-  const isBillingAdmin = url.includes('/billing/');
-  if (mockCompanyId && !isDashboard && !isCompaniesList && !isBillingAdmin && !cfg.headers['X-Company-Id']) {
-    cfg.headers['X-Company-Id'] = mockCompanyId;
-  }
   return cfg;
 });
 
