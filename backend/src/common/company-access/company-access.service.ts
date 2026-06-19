@@ -117,7 +117,13 @@ export class CompanyAccessService {
       );
     }
     this.assertCompanyAccess(user, effective);
-    if (requested && user.companyId && requested !== user.companyId) {
+    // Global admins may provision resources for any client; restricted sessions stay pinned.
+    if (
+      requested &&
+      user.companyId &&
+      requested !== user.companyId &&
+      user.tenantScope !== 'all'
+    ) {
       throw new ForbiddenException(
         'companyId does not match the active tenant for this session.',
       );
