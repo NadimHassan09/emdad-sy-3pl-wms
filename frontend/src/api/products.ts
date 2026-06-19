@@ -111,7 +111,9 @@ export const ProductsApi = {
     return data;
   },
   async create(input: CreateProductInput): Promise<Product> {
-    const { data } = await api.post<Product>('/products', input);
+    const { data } = await api.post<Product>('/products', input, {
+      headers: { 'X-Company-Id': input.companyId },
+    });
     return data;
   },
   async update(id: string, input: UpdateProductInput): Promise<Product> {

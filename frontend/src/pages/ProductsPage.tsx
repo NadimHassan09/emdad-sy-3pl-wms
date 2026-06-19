@@ -24,22 +24,16 @@ import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useFilters } from '../hooks/useFilters';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '../hooks/useChunkedServerPagination';
 import { generateSku } from '../lib/identifiers';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
+import { productStatusLabel, productUomLabel, PRODUCT_UOM_MESSAGES } from '../lib/ui-labels/products';
+import { useWmsTranslation } from '../lib/ui-i18n';
 
-const UOM_OPTIONS = [
-  { value: 'piece', label: 'Piece' },
-  { value: 'kg', label: 'Kilogram' },
-  { value: 'litre', label: 'Litre' },
-  { value: 'carton', label: 'Carton' },
-  { value: 'pallet', label: 'Pallet' },
-  { value: 'box', label: 'Box' },
-  { value: 'roll', label: 'Roll' },
-];
-
-function uomLabel(uom: ProductUom) {
-  return UOM_OPTIONS.find((o) => o.value === uom)?.label ?? uom;
-}
+const UOM_VALUES = Object.keys(PRODUCT_UOM_MESSAGES) as ProductUom[];
 
 function parseOptionalCreateDim(s: string): number | undefined {
   const t = s.trim();
@@ -64,9 +58,15 @@ type ProductDraftFilters = {
   searchQuery: string;
 };
 
+function isProductsPageOneChunkKey(key: readonly unknown[]): boolean {
+  const last = key[key.length - 1] as { offset?: number } | undefined;
+  return key[1] === 'list' && (last?.offset ?? 0) === 0;
+}
+
 function prependProductAcrossCaches(qc: ReturnType<typeof useQueryClient>, created: Product) {
   const queries = qc.getQueryCache().findAll({ queryKey: QK.products, exact: false });
   for (const q of queries) {
+    if (!isProductsPageOneChunkKey(q.queryKey)) continue;
     qc.setQueryData<{ items?: Product[]; total: number }>(q.queryKey, (prev) => {
       if (!prev?.items) return prev;
       return { ...prev, items: [created, ...prev.items], total: prev.total + 1 };
@@ -77,6 +77,7 @@ function prependProductAcrossCaches(qc: ReturnType<typeof useQueryClient>, creat
 function upsertProductAcrossCaches(qc: ReturnType<typeof useQueryClient>, updated: Product) {
   const queries = qc.getQueryCache().findAll({ queryKey: QK.products, exact: false });
   for (const q of queries) {
+    if (!isProductsPageOneChunkKey(q.queryKey)) continue;
     qc.setQueryData<{ items?: Product[] }>(q.queryKey, (prev) => {
       if (!prev?.items) return prev;
       return {
@@ -90,6 +91,7 @@ export function ProductsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
+  const { t } = useWmsTranslation();
   const initialProductFilters = useMemo<ProductDraftFilters>(
     () => ({
       companyId: '',
@@ -144,9 +146,12 @@ export function ProductsPage() {
     }
   }, [appliedFilters]);
 
-  const list = useQuery({
-    queryKey: [...QK.products, filters],
-    queryFn: () => ProductsApi.list(filters),
+  const pagination = useChunkedServerPagination<Product>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey: filters,
+    fetchChunk: (offset, limit) => ProductsApi.list({ ...filters, offset, limit }),
+    rtQueryKeyPrefix: QK.products,
+    chunkQueryKeyPrefix: 'products-chunk',
   });
 
   const companies = useQuery({
@@ -158,7 +163,7 @@ export function ProductsPage() {
   const createMut = useMutation({
     mutationFn: ProductsApi.create,
     onSuccess: (created) => {
-      toast.success('Product created.');
+      toast.success(t(['Product created.', 'تم إنشاء المنتج.']));
       prependProductAcrossCaches(qc, created);
       setOpenCreate(false);
     },
@@ -169,7 +174,7 @@ export function ProductsPage() {
     mutationFn: ({ id, input }: { id: string; input: UpdateProductInput }) =>
       ProductsApi.update(id, input),
     onSuccess: (updated) => {
-      toast.success('Product saved.');
+      toast.success(t(['Product saved.', 'تم حفظ المنتج.']));
       upsertProductAcrossCaches(qc, updated);
       setEditProduct(null);
     },
@@ -183,7 +188,12 @@ export function ProductsPage() {
   const suspendMut = useMutation({
     mutationFn: (id: string) => ProductsApi.suspend(id),
     onSuccess: (updated) => {
-      toast.success('Product suspended — it cannot be added to new inbound/outbound lines.');
+      toast.success(
+        t([
+          'Product suspended — it cannot be added to new inbound/outbound lines.',
+          'تم إيقاف المنتج — لا يمكن إضافته إلى بنود وارد/صادر جديدة.',
+        ]),
+      );
       upsertProductAcrossCaches(qc, updated);
     },
     onError: (err: Error) => toast.error(err.message),
@@ -192,7 +202,7 @@ export function ProductsPage() {
   const unsuspendMut = useMutation({
     mutationFn: (id: string) => ProductsApi.unsuspend(id),
     onSuccess: (updated) => {
-      toast.success('Product reactivated.');
+      toast.success(t(['Product reactivated.', 'تم إعادة تفعيل المنتج.']));
       upsertProductAcrossCaches(qc, updated);
     },
     onError: (err: Error) => toast.error(err.message),
@@ -201,17 +211,18 @@ export function ProductsPage() {
   const hardDeleteMut = useMutation({
     mutationFn: (id: string) => ProductsApi.hardDelete(id),
     onSuccess: (_, id) => {
-      toast.success('Product deleted.');
+      toast.success(t(['Product deleted.', 'تم حذف المنتج.']));
       invalidateProducts();
       setEditProduct((prev) => (prev?.id === id ? null : prev));
     },
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const columns: Column<Product>[] = [
-    { header: 'Product Name', accessor: (p) => p.name },
+  const columns: Column<Product>[] = useMemo(
+    () => [
+    { header: t(['Product Name', 'اسم المنتج']), accessor: (p) => p.name },
     {
-      header: 'Client Name',
+      header: t(['Client Name', 'اسم العميل']),
       accessor: (p) => p.company?.name ?? '—',
       width: '200px',
     },
@@ -241,11 +252,11 @@ export function ProductsPage() {
     },
     {
       header: 'UOM',
-      accessor: (p) => <span className="text-slate-800">{uomLabel(p.uom)}</span>,
+      accessor: (p) => <span className="text-slate-800">{productUomLabel(p.uom, t)}</span>,
       width: '110px',
     },
     {
-      header: 'Status',
+      header: t(['Status', 'الحالة']),
       accessor: (p) => (
         <span
           className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
@@ -256,13 +267,13 @@ export function ProductsPage() {
                 : 'bg-slate-100 text-slate-600'
           }`}
         >
-          {p.status}
+          {productStatusLabel(p.status, t)}
         </span>
       ),
       width: '110px',
     },
     {
-      header: 'Actions',
+      header: t(['Actions', 'إجراءات']),
       accessor: (p) => {
         if (p.status === 'archived') {
           return <span className="text-xs text-slate-400">—</span>;
@@ -283,7 +294,7 @@ export function ProductsPage() {
                   disabled={busy}
                   data-product-action-trigger="true"
                   onClick={() => setOpenActionId((cur) => (cur === p.id ? null : p.id))}
-                  aria-label="Open actions"
+                  aria-label={t(['Open actions', 'فتح الإجراءات'])}
                   aria-expanded={openActionId === p.id}
                   aria-haspopup="menu"
                 >
@@ -303,7 +314,7 @@ export function ProductsPage() {
                     setEditProduct(p);
                   }}
                 >
-                  Edit
+                  {t(['Edit', 'تعديل'])}
                 </button>
               ) : null}
               {p.status === 'active' ? (
@@ -314,14 +325,17 @@ export function ProductsPage() {
                   onClick={() => {
                     if (
                       window.confirm(
-                        `Suspend ${p.sku}? It will be blocked from new inbound/outbound lines.`,
+                        t([
+                          `Suspend ${p.sku}? It will be blocked from new inbound/outbound lines.`,
+                          `إيقاف ${p.sku}؟ لن يُسمح بإضافته إلى بنود وارد/صادر جديدة.`,
+                        ]),
                       )
                     ) {
                       suspendMut.mutate(p.id);
                     }
                   }}
                 >
-                  Suspend
+                  {t(['Suspend', 'إيقاف'])}
                 </button>
               ) : null}
               {p.status === 'suspended' ? (
@@ -331,7 +345,7 @@ export function ProductsPage() {
                   data-product-action-menu-button="true"
                   onClick={() => unsuspendMut.mutate(p.id)}
                 >
-                  Unsuspend
+                  {t(['Unsuspend', 'إلغاء الإيقاف'])}
                 </button>
               ) : null}
               {p.deletable ? (
@@ -342,14 +356,17 @@ export function ProductsPage() {
                   onClick={() => {
                     if (
                       window.confirm(
-                        `Permanently delete ${p.sku}? This cannot be undone. The server only allows this when the product has zero stock and no order, adjustment, or ledger references.`,
+                        t([
+                          `Permanently delete ${p.sku}? This cannot be undone. The server only allows this when the product has zero stock and no order, adjustment, or ledger references.`,
+                          `حذف ${p.sku} نهائياً؟ لا يمكن التراجع. يسمح الخادم بذلك فقط عندما يكون المنتج بلا مخزون ولا مراجع طلبات أو تعديلات أو سجل.`,
+                        ]),
                       )
                     ) {
                       hardDeleteMut.mutate(p.id);
                     }
                   }}
                 >
-                  Delete
+                  {t(['Delete', 'حذف'])}
                 </button>
               ) : null}
             </AnchoredDropdown>
@@ -358,79 +375,94 @@ export function ProductsPage() {
       },
       width: '140px',
     },
-  ];
+  ],
+    [t, openActionId, suspendMut.isPending, unsuspendMut.isPending, hardDeleteMut.isPending, updateMut.isPending],
+  );
+
+  const searchByOptions = useMemo(
+    () => [
+      { value: 'name' as const, label: t(['Product name', 'اسم المنتج']) },
+      { value: 'sku' as const, label: 'SKU' },
+      { value: 'barcode' as const, label: 'Barcode' },
+    ],
+    [t],
+  );
+
+  const clientFilterOptions = useMemo(
+    () => [
+      { value: '', label: t(['All clients', 'كل العملاء']) },
+      ...(companies.data ?? []).map((c) => ({
+        value: c.id,
+        label: c.name,
+        hint: c.contactEmail,
+      })),
+    ],
+    [companies.data, t],
+  );
 
   return (
     <>
       <FilterPanel
-        title="Product filters"
+        title={t(['Product filters', 'فلاتر المنتجات'])}
         onApply={applyFilters}
         onReset={resetFilters}
-        loading={list.isFetching}
+        loading={pagination.isFetching}
+        applyLabel={t(['Apply filters', 'تطبيق الفلاتر'])}
+        resetLabel={t(['Reset', 'إعادة تعيين'])}
       >
       <div className="flex min-w-0 flex-wrap items-end gap-3">
         <TextField
-          label="Search"
+          label={t(['Search', 'بحث'])}
           value={draftFilters.searchQuery}
           onChange={(e) => setDraft({ searchQuery: e.target.value })}
-          placeholder="Contains…"
+          placeholder={t(['Contains…', 'يحتوي…'])}
           className={`min-w-[12.5rem] flex-1 basis-32 ${draftFilters.searchCategory !== 'name' ? 'font-mono' : ''}`}
         />
         <SelectField
-          label="Search by"
+          label={t(['Search by', 'البحث حسب'])}
           name="productSearchCategory"
           value={draftFilters.searchCategory}
           onChange={(e) =>
             setDraft({ searchCategory: e.target.value as ProductSearchCategory })
           }
-          options={[
-            { value: 'name', label: 'Product name' },
-            { value: 'sku', label: 'SKU' },
-            { value: 'barcode', label: 'Barcode' },
-          ]}
+          options={searchByOptions}
           className="min-w-[8.75rem] max-w-[11rem] shrink-0"
         />
         <Button
           type="button"
           variant="secondary"
           className="h-[34px] shrink-0 px-2.5"
-          title="Scan a barcode with the device camera"
-          aria-label="Scan barcode"
+          title={t(['Scan a barcode with the device camera', 'مسح Barcode بالكاميرا'])}
+          aria-label={t(['Scan barcode', 'مسح Barcode'])}
           onClick={() => setScanOpen(true)}
         >
           <BarcodeScanIcon className="h-5 w-5" />
         </Button>
         <Combobox
-          label="Client"
+          label={t(['Client', 'العميل'])}
           value={draftFilters.companyId}
           onChange={(v) => setDraft({ companyId: v })}
-          options={[
-            { value: '', label: 'All clients' },
-            ...(companies.data ?? []).map((c) => ({
-              value: c.id,
-              label: c.name,
-              hint: c.contactEmail,
-            })),
-          ]}
-          placeholder="All clients"
+          options={clientFilterOptions}
+          placeholder={t(['All clients', 'كل العملاء'])}
           className="min-w-[220px] max-w-xs shrink-0"
         />
       </div>
       </FilterPanel>
 
       <DataTable
-        title="Products"
+        title={t(['Products', 'المنتجات'])}
         actions={
           <Button variant="brand" onClick={() => setOpenCreate(true)}>
-            + New product
+            {t(['+ New product', '+ منتج جديد'])}
           </Button>
         }
         columns={columns}
-        rows={list.data?.items ?? []}
+        rows={pagination.rows}
         rowKey={(p) => p.id}
-        loading={list.isLoading}
-        empty="No products match the filters."
-        onRowClick={(p) => navigate(`/products/${encodeURIComponent(p.sku)}`)}
+        loading={pagination.isInitialLoading}
+        empty={t(['No products match the filters.', 'لا توجد منتجات مطابقة للفلاتر.'])}
+        onRowClick={(p) => navigate(`/products/${encodeURIComponent(p.id)}`)}
+        serverPagination={pagination.serverPagination}
       />
 
       <CreateProductModal
@@ -463,7 +495,9 @@ export function ProductsPage() {
         onClose={() => setScanOpen(false)}
         onScan={(text) => {
           applyPatch({ searchCategory: 'barcode', searchQuery: text.trim() });
-          toast.success('Barcode scanned — search updated.');
+          toast.success(
+            t(['Barcode scanned — search updated.', 'تم مسح Barcode — تم تحديث البحث.']),
+          );
         }}
         onCameraError={(msg) => toast.error(msg)}
       />
@@ -487,6 +521,11 @@ function CreateProductModal({
   defaultCompanyId,
   onSubmit,
 }: CreateProductModalProps) {
+  const { t } = useWmsTranslation();
+  const uomOptions = useMemo(
+    () => UOM_VALUES.map((value) => ({ value, label: productUomLabel(value, t) })),
+    [t],
+  );
   const [companyId, setCompanyId] = useState(defaultCompanyId || '');
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
@@ -566,7 +605,7 @@ function CreateProductModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title="New product"
+      title={t(['New product', 'منتج جديد'])}
       widthClass="max-w-2xl"
       footer={
         <>
@@ -577,7 +616,7 @@ function CreateProductModal({
             type="button"
             disabled={loading}
           >
-            Cancel
+            {t(['Cancel', 'إلغاء'])}
           </Button>
           <Button
             form="create-product"
@@ -585,14 +624,14 @@ function CreateProductModal({
             variant="brand"
             loading={loading}
           >
-            Create
+            {t(['Create', 'إنشاء'])}
           </Button>
         </>
       }
     >
       <form id="create-product" onSubmit={submit} className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1">
         <Combobox
-          label="Client"
+          label={t(['Client', 'العميل'])}
           required
           value={companyId}
           onChange={setCompanyId}
@@ -601,53 +640,69 @@ function CreateProductModal({
             label: c.name,
             hint: c.contactEmail,
           }))}
-          placeholder="Pick a client…"
+          placeholder={t(['Pick a client…', 'اختر عميلاً…'])}
         />
-        <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField
+          label={t(['Name', 'الاسم'])}
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
         <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-          <TextField label="SKU (optional)" value={sku} onChange={(e) => setSku(e.target.value)} />
+          <TextField
+            label={t(['SKU (optional)', 'SKU (اختياري)'])}
+            value={sku}
+            onChange={(e) => setSku(e.target.value)}
+          />
           <Button
             type="button"
             size="sm"
             variant="secondary"
             onClick={() => setSku(generateSku())}
           >
-            Generate SKU
+            {t(['Generate SKU', 'إنشاء SKU'])}
           </Button>
         </div>
         <TextField
-          label="Barcode (optional)"
+          label={t(['Barcode (optional)', 'Barcode (اختياري)'])}
           value={barcode}
           onChange={(e) => setBarcode(e.target.value)}
-          hint="Leave blank to auto-generate."
+          hint={t(['Leave blank to auto-generate.', 'اتركه فارغاً للإنشاء التلقائي.'])}
           className="font-mono"
         />
         <TextField
-          label="Description (optional)"
+          label={t(['Description (optional)', 'الوصف (اختياري)'])}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
-        <SelectField label="UOM" value={uom} onChange={(e) => setUom(e.target.value)} options={UOM_OPTIONS} />
+        <SelectField
+          label="UOM"
+          value={uom}
+          onChange={(e) => setUom(e.target.value)}
+          options={uomOptions}
+        />
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input
             type="checkbox"
             checked={expiryTracking}
             onChange={(e) => setExpiryTracking(e.target.checked)}
           />
-          Product has an expiry date
+          {t(['Product has an expiry date', 'المنتج له تاريخ انتهاء'])}
         </label>
         <TextField
-          label="Min stock threshold"
+          label={t(['Min stock threshold', 'حد المخزون الأدنى'])}
           type="number"
           min={0}
           value={minStock}
           onChange={(e) => setMinStock(e.target.value)}
         />
         <div>
-          <span className="text-sm font-medium text-slate-700">Dimensions (cm, optional)</span>
+          <span className="text-sm font-medium text-slate-700">
+            {t(['Dimensions (cm, optional)', 'الأبعاد (سم، اختياري)'])}
+          </span>
           <div className="mt-1 grid grid-cols-3 gap-2">
             <TextField
-              label="Length"
+              label={t(['Length', 'الطول'])}
               type="number"
               min={0}
               step="0.01"
@@ -655,7 +710,7 @@ function CreateProductModal({
               onChange={(e) => setLengthCm(e.target.value)}
             />
             <TextField
-              label="Width"
+              label={t(['Width', 'العرض'])}
               type="number"
               min={0}
               step="0.01"
@@ -663,7 +718,7 @@ function CreateProductModal({
               onChange={(e) => setWidthCm(e.target.value)}
             />
             <TextField
-              label="Height"
+              label={t(['Height', 'الارتفاع'])}
               type="number"
               min={0}
               step="0.01"
@@ -673,7 +728,7 @@ function CreateProductModal({
           </div>
         </div>
         <TextField
-          label="Weight (kg, optional)"
+          label={t(['Weight (kg, optional)', 'الوزن (كغ، اختياري)'])}
           type="number"
           min={0}
           step="0.0001"
@@ -694,6 +749,11 @@ interface EditProductModalProps {
 }
 
 function EditProductModal({ open, product, loading, onClose, onSubmit }: EditProductModalProps) {
+  const { t } = useWmsTranslation();
+  const uomOptions = useMemo(
+    () => UOM_VALUES.map((value) => ({ value, label: productUomLabel(value, t) })),
+    [t],
+  );
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
   const [barcode, setBarcode] = useState('');
@@ -750,7 +810,7 @@ function EditProductModal({ open, product, loading, onClose, onSubmit }: EditPro
     <Modal
       open={open}
       onClose={handleClose}
-      title={`Edit ${product.sku}`}
+      title={`${t(['Edit', 'تعديل'])} ${product.sku}`}
       widthClass="max-w-2xl"
       footer={
         <>
@@ -761,7 +821,7 @@ function EditProductModal({ open, product, loading, onClose, onSubmit }: EditPro
             onClick={handleClose}
             disabled={loading}
           >
-            Cancel
+            {t(['Cancel', 'إلغاء'])}
           </Button>
           <Button
             form="edit-product"
@@ -769,55 +829,72 @@ function EditProductModal({ open, product, loading, onClose, onSubmit }: EditPro
             variant="brand"
             loading={loading}
           >
-            Save
+            {t(['Save', 'حفظ'])}
           </Button>
         </>
       }
     >
       <form id="edit-product" onSubmit={submit} className="space-y-3">
         <TextField
-          label="Client"
+          label={t(['Client', 'العميل'])}
           value={product.company?.name ?? product.companyId}
           readOnly
           disabled
           className="bg-slate-50 text-slate-600"
         />
-        <TextField label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <TextField
+          label={t(['Name', 'الاسم'])}
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
         <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-          <TextField label="SKU" required value={sku} onChange={(e) => setSku(e.target.value)} className="font-mono" />
+          <TextField
+            label="SKU"
+            required
+            value={sku}
+            onChange={(e) => setSku(e.target.value)}
+            className="font-mono"
+          />
           <Button type="button" size="sm" variant="secondary" onClick={() => setSku(generateSku())}>
-            Generate SKU
+            {t(['Generate SKU', 'إنشاء SKU'])}
           </Button>
         </div>
         <TextField
           label="Barcode"
           value={barcode}
           onChange={(e) => setBarcode(e.target.value)}
-          hint="Clear to remove barcode."
+          hint={t(['Clear to remove barcode.', 'امسح الحقل لإزالة Barcode.'])}
           className="font-mono"
         />
-        <TextField label="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
-        <SelectField label="UOM" value={uom} onChange={(e) => setUom(e.target.value)} options={UOM_OPTIONS} />
+        <TextField
+          label={t(['Description', 'الوصف'])}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+        <SelectField label="UOM" value={uom} onChange={(e) => setUom(e.target.value)} options={uomOptions} />
         <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
           <input
             type="checkbox"
             checked={expiryTracking}
             onChange={(e) => setExpiryTracking(e.target.checked)}
           />
-          Product has an expiry date
+          {t(['Product has an expiry date', 'المنتج له تاريخ انتهاء'])}
         </label>
         <TextField
-          label="Min stock threshold"
+          label={t(['Min stock threshold', 'حد المخزون الأدنى'])}
           type="number"
           min={0}
           value={minStock}
           onChange={(e) => setMinStock(e.target.value)}
         />
         <div>
-          <span className="text-sm font-medium text-slate-700">Dimensions (cm)</span>
+          <span className="text-sm font-medium text-slate-700">
+            {t(['Dimensions (cm)', 'الأبعاد (سم)'])}
+          </span>
           <div className="mt-1 grid grid-cols-3 gap-2">
             <TextField
-              label="Length"
+              label={t(['Length', 'الطول'])}
               type="number"
               min={0}
               step="0.01"
@@ -825,7 +902,7 @@ function EditProductModal({ open, product, loading, onClose, onSubmit }: EditPro
               onChange={(e) => setLengthCm(e.target.value)}
             />
             <TextField
-              label="Width"
+              label={t(['Width', 'العرض'])}
               type="number"
               min={0}
               step="0.01"
@@ -833,7 +910,7 @@ function EditProductModal({ open, product, loading, onClose, onSubmit }: EditPro
               onChange={(e) => setWidthCm(e.target.value)}
             />
             <TextField
-              label="Height"
+              label={t(['Height', 'الارتفاع'])}
               type="number"
               min={0}
               step="0.01"
@@ -841,19 +918,24 @@ function EditProductModal({ open, product, loading, onClose, onSubmit }: EditPro
               onChange={(e) => setHeightCm(e.target.value)}
             />
           </div>
-          <p className="mt-1 text-xs text-slate-500">Clear a field to remove that dimension.</p>
+          <p className="mt-1 text-xs text-slate-500">
+            {t(['Clear a field to remove that dimension.', 'امسح الحقل لإزالة هذا البُعد.'])}
+          </p>
         </div>
         <TextField
-          label="Weight (kg)"
+          label={t(['Weight (kg)', 'الوزن (كغ)'])}
           type="number"
           min={0}
           step="0.0001"
           value={weightKg}
           onChange={(e) => setWeightKg(e.target.value)}
-          hint="Clear to remove stored weight."
+          hint={t(['Clear to remove stored weight.', 'امسح الحقل لإزالة الوزن المخزّن.'])}
         />
         <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-600">
-          Lot tracking is fixed for this product. Client cannot be changed here.
+          {t([
+            'Lot tracking is fixed for this product. Client cannot be changed here.',
+            'تتبع Lot ثابت لهذا المنتج. لا يمكن تغيير العميل من هنا.',
+          ])}
         </div>
       </form>
     </Modal>
