@@ -95,7 +95,11 @@ export class CompanyAccessService {
 
   assertSameCompany(user: AuthPrincipal, resourceCompanyId: string): void {
     this.assertCompanyAccess(user, resourceCompanyId);
-    if (user.companyId && resourceCompanyId !== user.companyId) {
+    if (
+      user.companyId &&
+      resourceCompanyId !== user.companyId &&
+      user.tenantScope !== 'all'
+    ) {
       throw new NotFoundException('Resource not found.');
     }
   }
