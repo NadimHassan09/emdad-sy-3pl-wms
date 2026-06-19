@@ -94,12 +94,15 @@ export const UsersApi = {
   },
 
   async create(payload: CreateUserPayload): Promise<UserListRow> {
-    const { data } = await api.post<UserListRow>('/users', payload);
+    const headers =
+      payload.kind === 'client' ? { 'X-Company-Id': payload.companyId } : undefined;
+    const { data } = await api.post<UserListRow>('/users', payload, { headers });
     return data;
   },
 
   async update(id: string, payload: UpdateUserPayload): Promise<UserListRow> {
-    const { data } = await api.patch<UserListRow>(`/users/${id}`, payload);
+    const headers = payload.companyId ? { 'X-Company-Id': payload.companyId } : undefined;
+    const { data } = await api.patch<UserListRow>(`/users/${id}`, payload, { headers });
     return data;
   },
 
