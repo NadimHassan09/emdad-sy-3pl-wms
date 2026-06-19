@@ -243,17 +243,51 @@ export class ProductsService {
         ]),
       );
 
+      const referencedProductIds = new Set<string>();
+      if (ids.length > 0) {
+        const [inboundRefs, outboundRefs, adjustmentRefs, ledgerRefs] =
+          await Promise.all([
+            tx.inboundOrderLine.groupBy({
+              by: ['productId'],
+              where: { productId: { in: ids } },
+            }),
+            tx.outboundOrderLine.groupBy({
+              by: ['productId'],
+              where: { productId: { in: ids } },
+            }),
+            tx.stockAdjustmentLine.groupBy({
+              by: ['productId'],
+              where: { productId: { in: ids } },
+            }),
+            tx.inventoryLedger.groupBy({
+              by: ['productId'],
+              where: { productId: { in: ids } },
+            }),
+          ]);
+        for (const row of [
+          ...inboundRefs,
+          ...outboundRefs,
+          ...adjustmentRefs,
+          ...ledgerRefs,
+        ]) {
+          referencedProductIds.add(row.productId);
+        }
+      }
+
       const rows = items.map((p) => {
         const agg = sumByProduct.get(p.id);
         const onHand = agg?.onHand ?? new Prisma.Decimal(0);
         const reserved = agg?.reserved ?? new Prisma.Decimal(0);
         const stockZero = onHand.equals(0) && reserved.equals(0);
+        const hasReferences = referencedProductIds.has(p.id);
         return {
           ...p,
           totalOnHand: onHand.toString(),
           totalReserved: reserved.toString(),
-          /** True when UI may offer hard-delete (server re-checks FKs on delete). */
-          deletable: stockZero && p.status !== 'archived',
+          /** True when hard-delete is allowed (zero stock and no historical references). */
+          deletable: stockZero && !hasReferences && p.status !== 'archived',
+          /** True when the product can be archived (hidden from catalog) with zero stock. */
+          archivable: stockZero && p.status !== 'archived',
         };
       });
 
@@ -380,7 +414,7 @@ export class ProductsService {
       return this.findById(id, user);
     }
 
-    const [stockSum, resSum, ledgerCount] = await this.prisma.$transaction([
+    const [stockSum, resSum] = await this.prisma.$transaction([
       this.prisma.currentStock.aggregate({
         where: { productId: id },
         _sum: { quantityOnHand: true },
@@ -389,13 +423,12 @@ export class ProductsService {
         where: { productId: id },
         _sum: { quantityReserved: true },
       }),
-      this.prisma.inventoryLedger.count({ where: { productId: id } }),
     ]);
     const onHand = stockSum._sum.quantityOnHand ?? new Prisma.Decimal(0);
     const reserved = resSum._sum.quantityReserved ?? new Prisma.Decimal(0);
-    if (onHand.greaterThan(0) || reserved.greaterThan(0) || ledgerCount > 0) {
+    if (onHand.greaterThan(0) || reserved.greaterThan(0)) {
       throw new ConflictException(
-        'Cannot archive product while on-hand/reserved quantity or inventory history exists.',
+        'Cannot archive product while on-hand or reserved quantity is greater than zero.',
       );
     }
 

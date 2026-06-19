@@ -218,6 +218,21 @@ export function ProductsPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const archiveMut = useMutation({
+    mutationFn: (id: string) => ProductsApi.archive(id),
+    onSuccess: (updated) => {
+      toast.success(
+        t([
+          'Product archived — it is hidden from the catalog but history is kept.',
+          'تم أرشفة المنتج — يُخفى من قائمة المنتجات مع الاحتفاظ بالسجل.',
+        ]),
+      );
+      invalidateProducts();
+      setEditProduct((prev) => (prev?.id === updated.id ? null : prev));
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const columns: Column<Product>[] = useMemo(
     () => [
     { header: t(['Product Name', 'اسم المنتج']), accessor: (p) => p.name },
@@ -280,7 +295,11 @@ export function ProductsPage() {
         }
         const canEdit = p.status === 'active' || p.status === 'suspended';
         const busy =
-          suspendMut.isPending || unsuspendMut.isPending || hardDeleteMut.isPending || updateMut.isPending;
+          suspendMut.isPending ||
+          unsuspendMut.isPending ||
+          hardDeleteMut.isPending ||
+          archiveMut.isPending ||
+          updateMut.isPending;
         return (
           <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
             <AnchoredDropdown
@@ -357,8 +376,8 @@ export function ProductsPage() {
                     if (
                       window.confirm(
                         t([
-                          `Permanently delete ${p.sku}? This cannot be undone. The server only allows this when the product has zero stock and no order, adjustment, or ledger references.`,
-                          `حذف ${p.sku} نهائياً؟ لا يمكن التراجع. يسمح الخادم بذلك فقط عندما يكون المنتج بلا مخزون ولا مراجع طلبات أو تعديلات أو سجل.`,
+                          `Permanently delete ${p.sku}? This cannot be undone. Only available for products with zero stock and no order or inventory history.`,
+                          `حذف ${p.sku} نهائياً؟ لا يمكن التراجع. متاح فقط للمنتجات بلا مخزون ولا سجل طلبات أو مخزون.`,
                         ]),
                       )
                     ) {
@@ -369,6 +388,27 @@ export function ProductsPage() {
                   {t(['Delete', 'حذف'])}
                 </button>
               ) : null}
+              {p.archivable && !p.deletable ? (
+                <button
+                  type="button"
+                  className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
+                  data-product-action-menu-button="true"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        t([
+                          `Archive ${p.sku}? It will be hidden from the catalog. Order and inventory history are kept.`,
+                          `أرشفة ${p.sku}؟ سيُخفى من قائمة المنتجات مع الاحتفاظ بسجل الطلبات والمخزون.`,
+                        ]),
+                      )
+                    ) {
+                      archiveMut.mutate(p.id);
+                    }
+                  }}
+                >
+                  {t(['Archive', 'أرشفة'])}
+                </button>
+              ) : null}
             </AnchoredDropdown>
           </div>
         );
@@ -376,7 +416,7 @@ export function ProductsPage() {
       width: '140px',
     },
   ],
-    [t, openActionId, suspendMut.isPending, unsuspendMut.isPending, hardDeleteMut.isPending, updateMut.isPending],
+    [t, openActionId, suspendMut.isPending, unsuspendMut.isPending, hardDeleteMut.isPending, archiveMut.isPending, updateMut.isPending],
   );
 
   const searchByOptions = useMemo(
