@@ -18,6 +18,7 @@ import {
   renewalStatusLabel,
 } from '../../lib/billing-invoice-display';
 import { daysRemainingFromEnd } from '../../lib/billing-plan-overview';
+import { openBillingInvoicePrintPdf } from '../../lib/billing-invoice-print';
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -72,6 +73,25 @@ export function BillingInvoiceDetailPage() {
     onError: () => toast.error('Could not update invoice status.'),
   });
 
+  const handleExportPdf = () => {
+    if (!invoice) return;
+    const ok = openBillingInvoicePrintPdf({
+      invoiceNumber: invoice.invoiceNumber,
+      companyName: companyQuery.data?.name ?? invoice.companyId,
+      status: invoice.status,
+      cycle: cycle
+        ? { startsAt: cycle.startsAt, endsAt: cycle.endsAt, status: cycle.status }
+        : undefined,
+      createdAt: invoice.createdAt,
+      issuedAt: invoice.issuedAt,
+      totalAmount: invoice.totalAmount,
+      lines,
+      snapshot,
+      daysRemaining: daysLeft,
+    });
+    if (!ok) toast.error('Could not open print dialog. Allow pop-ups and try again.');
+  };
+
   return (
     <div className="space-y-4">
       <div className="text-sm text-slate-500">
@@ -98,8 +118,12 @@ export function BillingInvoiceDetailPage() {
                 <h3 className="text-sm font-semibold text-slate-900">Summary</h3>
                 <StatusBadge status={invoice.status} />
               </div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={handleExportPdf}>
+                  Export PDF
+                </Button>
               {canMutate ? (
-                <div className="flex flex-wrap gap-2">
+                <>
                   {(invoice.status === 'open' || invoice.status === 'overdue') ? (
                     <Button
                       size="sm"
@@ -120,8 +144,9 @@ export function BillingInvoiceDetailPage() {
                       Cancel invoice
                     </Button>
                   ) : null}
-                </div>
+                </>
               ) : null}
+              </div>
             </div>
             <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <DetailField label="Client" value={companyQuery.data?.name ?? invoice.companyId} />
