@@ -18,6 +18,7 @@ import { InsufficientStockException } from '../../common/errors/domain-exception
 import { assertLocationUsableForInventoryMove } from '../../common/utils/location-operational';
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { withTenantRls } from '../../common/prisma/tenant-rls';
 import { RealtimeService } from '../realtime/realtime.service';
 import { transferPayload } from '../realtime/realtime-ops.payload';
 import { InternalTransferDto } from './dto/internal-transfer.dto';
@@ -158,8 +159,10 @@ export class InventoryService {
 
     const and: Prisma.CurrentStockWhereInput[] = [
       { quantityOnHand: { gt: 0 } },
-      { companyId },
     ];
+    if (companyId) {
+      and.push({ companyId });
+    }
     if (query.productId) and.push({ productId: query.productId });
     if (query.warehouseId) and.push({ warehouseId: query.warehouseId });
 
@@ -268,28 +271,30 @@ export class InventoryService {
       query,
     );
 
-    const [countRows, pageRows] = await this.prisma.$transaction([
-      this.prisma.$queryRaw<Array<{ total: number }>>(stockByProductCountSql(ctx)),
-      this.prisma.$queryRaw<StockByProductRow[]>(
-        stockByProductPageSql(ctx, query.limit, query.offset),
-      ),
-    ]);
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const [countRows, pageRows] = await Promise.all([
+        tx.$queryRaw<Array<{ total: number }>>(stockByProductCountSql(ctx)),
+        tx.$queryRaw<StockByProductRow[]>(
+          stockByProductPageSql(ctx, query.limit, query.offset),
+        ),
+      ]);
 
-    const total = countRows[0]?.total ?? 0;
-    const items = pageRows.map((r) => ({
-      productId: r.product_id,
-      totalQuantity: r.total_quantity,
-      product: {
-        id: r.product_id,
-        sku: r.sku,
-        name: r.name,
-        uom: r.uom,
-        barcode: r.barcode,
-      },
-      client: { id: r.company_id, name: r.company_name },
-    }));
+      const total = countRows[0]?.total ?? 0;
+      const items = pageRows.map((r) => ({
+        productId: r.product_id,
+        totalQuantity: r.total_quantity,
+        product: {
+          id: r.product_id,
+          sku: r.sku,
+          name: r.name,
+          uom: r.uom,
+          barcode: r.barcode,
+        },
+        client: { id: r.company_id, name: r.company_name },
+      }));
 
-    return { items, total, limit: query.limit, offset: query.offset };
+      return { items, total, limit: query.limit, offset: query.offset };
+    });
   }
 
   /**
@@ -300,25 +305,27 @@ export class InventoryService {
   async stock(user: AuthPrincipal, query: StockQueryDto) {
     const where = await this.resolveCurrentStockWhere(user, query);
 
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.currentStock.findMany({
-        where,
-        include: {
-          product: { select: { id: true, sku: true, name: true, uom: true } },
-          location: {
-            select: { id: true, name: true, fullPath: true, barcode: true },
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const [items, total] = await Promise.all([
+        tx.currentStock.findMany({
+          where,
+          include: {
+            product: { select: { id: true, sku: true, name: true, uom: true } },
+            location: {
+              select: { id: true, name: true, fullPath: true, barcode: true },
+            },
+            warehouse: { select: { id: true, code: true, name: true } },
+            lot: { select: { id: true, lotNumber: true, expiryDate: true } },
           },
-          warehouse: { select: { id: true, code: true, name: true } },
-          lot: { select: { id: true, lotNumber: true, expiryDate: true } },
-        },
-        orderBy: [{ lastMovementAt: 'desc' }],
-        take: query.limit,
-        skip: query.offset,
-      }),
-      this.prisma.currentStock.count({ where }),
-    ]);
+          orderBy: [{ lastMovementAt: 'desc' }],
+          take: query.limit,
+          skip: query.offset,
+        }),
+        tx.currentStock.count({ where }),
+      ]);
 
-    return { items, total, limit: query.limit, offset: query.offset };
+      return { items, total, limit: query.limit, offset: query.offset };
+    });
   }
 
   /**
@@ -332,17 +339,19 @@ export class InventoryService {
       query,
     );
 
-    const [countRows, pageRows] = await this.prisma.$transaction([
-      this.prisma.$queryRaw<Array<{ total: number }>>(ledgerBusinessGroupsCountSql(ctx)),
-      this.prisma.$queryRaw<LedgerGroupPageRow[]>(
-        ledgerBusinessGroupPageSql(ctx, query.limit, query.offset),
-      ),
-    ]);
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const [countRows, pageRows] = await Promise.all([
+        tx.$queryRaw<Array<{ total: number }>>(ledgerBusinessGroupsCountSql(ctx)),
+        tx.$queryRaw<LedgerGroupPageRow[]>(
+          ledgerBusinessGroupPageSql(ctx, query.limit, query.offset),
+        ),
+      ]);
 
-    const total = countRows[0]?.total ?? 0;
-    const items = pageRows.map((row) => this.mapLedgerGroupPageRow(row));
+      const total = countRows[0]?.total ?? 0;
+      const items = pageRows.map((row) => this.mapLedgerGroupPageRow(row));
 
-    return { items, total, limit: query.limit, offset: query.offset };
+      return { items, total, limit: query.limit, offset: query.offset };
+    });
   }
 
   private mapLedgerEntrySiblingRow(row: LedgerEntrySiblingRow): LedgerRowWithRelations {

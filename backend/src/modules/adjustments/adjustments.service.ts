@@ -15,7 +15,11 @@ import {
 import { assertDiscreteUomPositiveIntegerQuantity } from '../../common/utils/discrete-uom-quantity';
 import { assertLocationUsableForInventoryMove } from '../../common/utils/location-operational';
 import { InvalidStateException } from '../../common/errors/domain-exceptions';
+import { AuditLogService } from '../../common/audit/audit-log.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { withTenantRls } from '../../common/prisma/tenant-rls';
+import { RealtimeService } from '../realtime/realtime.service';
+import { adjustmentPayload } from '../realtime/realtime-ops.payload';
 import { StockHelpers } from '../inventory/stock.helpers';
 import { AddAdjustmentLineDto } from './dto/add-adjustment-line.dto';
 import {
@@ -54,6 +58,8 @@ export class AdjustmentsService {
     private readonly prisma: PrismaService,
     private readonly stock: StockHelpers,
     private readonly companyAccess: CompanyAccessService,
+    private readonly audit: AuditLogService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async create(user: AuthPrincipal, dto: CreateAdjustmentDto) {
@@ -73,6 +79,12 @@ export class AdjustmentsService {
         createdBy: user.id,
       },
       include: ADJUSTMENT_DETAIL_INCLUDE,
+    }).then((adj) => {
+      this.realtime.emitAdjustmentCreated(
+        companyId,
+        adjustmentPayload(adj as unknown as Record<string, unknown>),
+      );
+      return adj;
     });
   }
 
@@ -93,7 +105,9 @@ export class AdjustmentsService {
   list(user: AuthPrincipal, query: ListAdjustmentsQueryDto) {
     const where: Prisma.StockAdjustmentWhereInput = {};
     const companyId = readCompanyIdFilterRequired(this.companyAccess, user, query.companyId);
-    where.companyId = companyId;
+    if (companyId) {
+      where.companyId = companyId;
+    }
     if (query.status) where.status = query.status;
     if (query.warehouseId) where.warehouseId = query.warehouseId;
     if (query.adjustmentId) where.id = query.adjustmentId;
@@ -114,21 +128,24 @@ export class AdjustmentsService {
       where.createdAt = createdAt;
     }
 
-    return this.prisma.$transaction([
-      this.prisma.stockAdjustment.findMany({
-        where,
-        include: ADJUSTMENT_DETAIL_INCLUDE,
-        orderBy: { createdAt: 'desc' },
-        take: query.limit,
-        skip: query.offset,
-      }),
-      this.prisma.stockAdjustment.count({ where }),
-    ]).then(([items, total]) => ({
-      items,
-      total,
-      limit: query.limit,
-      offset: query.offset,
-    }));
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const [items, total] = await Promise.all([
+        tx.stockAdjustment.findMany({
+          where,
+          include: ADJUSTMENT_DETAIL_INCLUDE,
+          orderBy: { createdAt: 'desc' },
+          take: query.limit,
+          skip: query.offset,
+        }),
+        tx.stockAdjustment.count({ where }),
+      ]);
+      return {
+        items,
+        total,
+        limit: query.limit,
+        offset: query.offset,
+      };
+    });
   }
 
   async findById(id: string, user: AuthPrincipal) {
@@ -288,7 +305,7 @@ export class AdjustmentsService {
     const ledgerRefId = opts?.ledgerReferenceId ?? id;
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const approved = await this.prisma.$transaction(async (tx) => {
         const adj = await tx.stockAdjustment.findUnique({
           where: { id },
           include: { lines: true },
@@ -396,11 +413,37 @@ export class AdjustmentsService {
           }
         }
 
-        return tx.stockAdjustment.findUniqueOrThrow({
+        const approved = await tx.stockAdjustment.findUniqueOrThrow({
           where: { id },
           include: ADJUSTMENT_DETAIL_INCLUDE,
         });
+        await this.audit.logTx(
+          tx,
+          this.audit.fromPrincipal(user, {
+            action: 'INVENTORY_ADJUSTED',
+            resourceType: 'stock_adjustment',
+            resourceId: id,
+            companyId: adj.companyId,
+            previousState: { status: 'draft', lineCount: adj.lines.length },
+            newState: {
+              status: approved.status,
+              reason: approved.reason,
+              lineCount: approved.lines.length,
+              warehouseId: approved.warehouseId,
+            },
+          }),
+        );
+        return approved;
       });
+      this.realtime.emitAdjustmentApproved(
+        approved.companyId,
+        adjustmentPayload(approved as unknown as Record<string, unknown>),
+      );
+      this.realtime.emitInventoryChanged(approved.companyId, {
+        source: 'adjustment',
+        productId: approved.lines[0]?.productId,
+      });
+      return approved;
     } catch (e) {
       if (
         e instanceof Error &&

@@ -104,7 +104,6 @@ export async function buildLedgerListSqlContext(
   ];
 
   const conditions: Prisma.Sql[] = [
-    Prisma.sql`il.company_id = ${companyId}::uuid`,
     Prisma.sql`il.movement_type IN (${Prisma.join(
       expandMovementFilter(query.movementType).map(
         (t) => Prisma.sql`${t}::movement_type`,
@@ -112,6 +111,9 @@ export async function buildLedgerListSqlContext(
       ', ',
     )})`,
   ];
+  if (companyId) {
+    conditions.unshift(Prisma.sql`il.company_id = ${companyId}::uuid`);
+  }
 
   if (query.productId) {
     conditions.push(Prisma.sql`il.product_id = ${query.productId}::uuid`);
