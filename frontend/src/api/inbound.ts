@@ -93,7 +93,8 @@ export const InboundApi = {
     return data;
   },
   async create(input: CreateInboundOrderInput): Promise<InboundOrder> {
-    const { data } = await api.post<InboundOrder>('/inbound-orders', input);
+    const headers = input.companyId ? { 'X-Company-Id': input.companyId } : undefined;
+    const { data } = await api.post<InboundOrder>('/inbound-orders', input, { headers });
     return data;
   },
   async confirm(id: string, body?: ConfirmInboundBody, companyIdOverride?: string): Promise<InboundOrder> {

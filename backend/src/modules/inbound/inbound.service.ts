@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InboundOrderStatus, Prisma } from '@prisma/client';
 
-import { readCompanyIdFilterRequired } from '../../common/auth/company-read-scope';
+import { readCompanyIdCatalogFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { inboundIdsVisibleForWarehouse } from '../../common/utils/warehouse-order-scope';
@@ -29,6 +29,7 @@ import {
 } from '../../common/utils/discrete-uom-quantity';
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { setTenantRlsContext, withTenantRls } from '../../common/prisma/tenant-rls';
 import { StockHelpers } from '../inventory/stock.helpers';
 import { inboundReceiveDefersPutaway, taskOnlyFlows } from '../warehouse-workflow/feature-flags';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -96,8 +97,9 @@ export class InboundService {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
     await this.billingAccess.assertOperationalBilling(companyId);
 
+    return withTenantRls(this.prisma, user, async (tx) => {
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
-    const products = await this.prisma.product.findMany({
+    const products = await tx.product.findMany({
       where: { id: { in: productIds } },
       select: { id: true, companyId: true, status: true, trackingType: true, uom: true },
     });
@@ -139,7 +141,7 @@ export class InboundService {
       });
     }
 
-    const order = await this.prisma.inboundOrder.create({
+    const order = await tx.inboundOrder.create({
       data: {
         companyId,
         status: opts?.pendingClientApproval ? InboundOrderStatus.pending_approval : undefined,
@@ -182,14 +184,17 @@ export class InboundService {
       }),
     );
     return order;
+    });
   }
 
   async list(user: AuthPrincipal, query: ListInboundQueryDto) {
     const baseAnd: Prisma.InboundOrderWhereInput[] = [];
     const where: Prisma.InboundOrderWhereInput = {};
 
-    const companyId = readCompanyIdFilterRequired(this.companyAccess, user, query.companyId);
-    where.companyId = companyId;
+    const companyId = readCompanyIdCatalogFilter(this.companyAccess, user, query.companyId);
+    if (companyId) {
+      where.companyId = companyId;
+    }
     if (query.status) where.status = query.status;
 
     if (query.orderSearch?.trim()) {
@@ -217,32 +222,37 @@ export class InboundService {
 
     if (baseAnd.length > 0) where.AND = baseAnd;
 
-    return this.prisma.$transaction([
-      this.prisma.inboundOrder.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          company: { select: { id: true, name: true } },
-          _count: { select: { lines: true } },
-          lines: {
-            select: { id: true, productId: true, expectedQuantity: true, receivedQuantity: true, lineNumber: true },
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const [items, total] = await Promise.all([
+        tx.inboundOrder.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            company: { select: { id: true, name: true } },
+            _count: { select: { lines: true } },
+            lines: {
+              select: { id: true, productId: true, expectedQuantity: true, receivedQuantity: true, lineNumber: true },
+            },
           },
-        },
-        take: query.limit,
-        skip: query.offset,
-      }),
-      this.prisma.inboundOrder.count({ where }),
-    ]).then(([items, total]) => ({ items, total, limit: query.limit, offset: query.offset }));
+          take: query.limit,
+          skip: query.offset,
+        }),
+        tx.inboundOrder.count({ where }),
+      ]);
+      return { items, total, limit: query.limit, offset: query.offset };
+    });
   }
 
   async findById(id: string, user: AuthPrincipal) {
-    const order = await this.prisma.inboundOrder.findUnique({
-      where: { id },
-      include: ORDER_INCLUDE,
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const order = await tx.inboundOrder.findUnique({
+        where: { id },
+        include: ORDER_INCLUDE,
+      });
+      if (!order) throw new NotFoundException('Inbound order not found.');
+      this.companyAccess.validateResourceOwnership(user, order);
+      return order;
     });
-    if (!order) throw new NotFoundException('Inbound order not found.');
-    this.companyAccess.validateResourceOwnership(user, order);
-    return order;
   }
 
   async confirm(user: AuthPrincipal, id: string, body?: ConfirmInboundBodyDto) {
@@ -267,6 +277,7 @@ export class InboundService {
       }
       const previousStatus = order.status;
       await this.prisma.$transaction(async (tx) => {
+        await setTenantRlsContext(tx, user);
         const wh = body.warehouseId!;
         const cur = await tx.inboundOrder.findUnique({ where: { id } });
         if (!cur) throw new NotFoundException('Inbound order not found.');
@@ -317,9 +328,11 @@ export class InboundService {
     }
 
     const previousStatus = order.status;
-    await this.prisma.inboundOrder.update({
-      where: { id },
-      data: { status: 'confirmed', confirmedAt: new Date() },
+    await withTenantRls(this.prisma, user, async (tx) => {
+      await tx.inboundOrder.update({
+        where: { id },
+        data: { status: 'confirmed', confirmedAt: new Date() },
+      });
     });
     await this.audit.log(
       this.audit.fromPrincipal(user, {
@@ -358,15 +371,17 @@ export class InboundService {
         `Inbound orders can only be cancelled while in draft, pending approval, or confirmed (current: ${order.status}).`,
       );
     }
-    const cancelled = await this.prisma.inboundOrder.update({
-      where: { id },
-      data: {
-        status: 'cancelled',
-        cancelledAt: new Date(),
-        cancelledBy: user.id,
-      },
-      include: ORDER_INCLUDE,
-    });
+    const cancelled = await withTenantRls(this.prisma, user, async (tx) =>
+      tx.inboundOrder.update({
+        where: { id },
+        data: {
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancelledBy: user.id,
+        },
+        include: ORDER_INCLUDE,
+      }),
+    );
     this.realtime.emitInboundOrderUpdated(cancelled.companyId, {
       orderId: cancelled.id,
       status: cancelled.status,
@@ -398,6 +413,7 @@ export class InboundService {
       );
     }
     const received = await this.prisma.$transaction(async (tx) => {
+      await setTenantRlsContext(tx, user);
       const order = await tx.inboundOrder.findUnique({ where: { id: orderId } });
       if (!order) throw new NotFoundException('Inbound order not found.');
       this.companyAccess.validateResourceOwnership(user, order);

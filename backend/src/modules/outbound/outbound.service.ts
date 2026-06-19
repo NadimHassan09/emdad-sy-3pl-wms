@@ -6,7 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { OutboundOrderStatus, Prisma } from '@prisma/client';
 
-import { readCompanyIdFilterRequired } from '../../common/auth/company-read-scope';
+import { readCompanyIdCatalogFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
@@ -20,6 +20,7 @@ import { assertProductOrderableForOrders } from '../../common/utils/assert-produ
 import { assertCalendarDateNotBeforeToday } from '../../common/utils/order-planning-date';
 import { assertDiscreteUomPositiveIntegerQuantity } from '../../common/utils/discrete-uom-quantity';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { setTenantRlsContext, withTenantRls } from '../../common/prisma/tenant-rls';
 import { LedgerIdempotencyService } from '../inventory/ledger-idempotency.service';
 import { StockHelpers } from '../inventory/stock.helpers';
 import {
@@ -116,8 +117,9 @@ export class OutboundService {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
     await this.billingAccess.assertOperationalBilling(companyId);
 
+    return withTenantRls(this.prisma, user, async (tx) => {
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
-    const products = await this.prisma.product.findMany({
+    const products = await tx.product.findMany({
       where: { id: { in: productIds } },
       select: {
         id: true,
@@ -151,7 +153,7 @@ export class OutboundService {
 
     await this.assertSufficientStockForLines(companyId, dto.lines, products);
 
-    const created = await this.prisma.outboundOrder.create({
+    const created = await tx.outboundOrder.create({
       data: {
         companyId,
         status: opts?.pendingClientApproval ? OutboundOrderStatus.pending_approval : undefined,
@@ -201,6 +203,7 @@ export class OutboundService {
       }),
     );
     return created;
+    });
   }
 
   /** Rejects when summed line qty per product exceeds aggregate available stock. */
@@ -266,8 +269,10 @@ export class OutboundService {
     const baseAnd: Prisma.OutboundOrderWhereInput[] = [];
     const where: Prisma.OutboundOrderWhereInput = {};
 
-    const companyId = readCompanyIdFilterRequired(this.companyAccess, user, query.companyId);
-    where.companyId = companyId;
+    const companyId = readCompanyIdCatalogFilter(this.companyAccess, user, query.companyId);
+    if (companyId) {
+      where.companyId = companyId;
+    }
     if (query.status) where.status = query.status;
 
     if (query.orderSearch?.trim()) {
@@ -295,29 +300,34 @@ export class OutboundService {
 
     if (baseAnd.length > 0) where.AND = baseAnd;
 
-    return this.prisma.$transaction([
-      this.prisma.outboundOrder.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          company: { select: { id: true, name: true } },
-          _count: { select: { lines: true } },
-        },
-        take: query.limit,
-        skip: query.offset,
-      }),
-      this.prisma.outboundOrder.count({ where }),
-    ]).then(([items, total]) => ({ items, total, limit: query.limit, offset: query.offset }));
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const [items, total] = await Promise.all([
+        tx.outboundOrder.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            company: { select: { id: true, name: true } },
+            _count: { select: { lines: true } },
+          },
+          take: query.limit,
+          skip: query.offset,
+        }),
+        tx.outboundOrder.count({ where }),
+      ]);
+      return { items, total, limit: query.limit, offset: query.offset };
+    });
   }
 
   async findById(id: string, user: AuthPrincipal) {
-    const order = await this.prisma.outboundOrder.findUnique({
-      where: { id },
-      include: ORDER_INCLUDE,
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const order = await tx.outboundOrder.findUnique({
+        where: { id },
+        include: ORDER_INCLUDE,
+      });
+      if (!order) throw new NotFoundException('Outbound order not found.');
+      this.companyAccess.validateResourceOwnership(user, order);
+      return order;
     });
-    if (!order) throw new NotFoundException('Outbound order not found.');
-    this.companyAccess.validateResourceOwnership(user, order);
-    return order;
   }
 
   async cancel(id: string, user: AuthPrincipal) {
@@ -327,11 +337,13 @@ export class OutboundService {
         `Outbound orders can only be cancelled while in draft or pending approval (current: ${order.status}).`,
       );
     }
-    const cancelled = await this.prisma.outboundOrder.update({
-      where: { id },
-      data: { status: 'cancelled', cancelledAt: new Date(), cancelledBy: user.id },
-      include: ORDER_INCLUDE,
-    });
+    const cancelled = await withTenantRls(this.prisma, user, async (tx) =>
+      tx.outboundOrder.update({
+        where: { id },
+        data: { status: 'cancelled', cancelledAt: new Date(), cancelledBy: user.id },
+        include: ORDER_INCLUDE,
+      }),
+    );
     this.realtime.emitOutboundOrderUpdated(cancelled.companyId, {
       orderId: cancelled.id,
       status: cancelled.status,
@@ -359,15 +371,18 @@ export class OutboundService {
    */
   /** Confirms a draft outbound order without stock deduction (workflow dispatch completes shipping). */
   async confirmWithoutDeduction(user: AuthPrincipal, orderId: string) {
-    const before = await this.prisma.outboundOrder.findUnique({
-      where: { id: orderId },
-      select: { status: true, companyId: true, orderNumber: true, id: true },
-    });
+    const before = await withTenantRls(this.prisma, user, async (tx) =>
+      tx.outboundOrder.findUnique({
+        where: { id: orderId },
+        select: { status: true, companyId: true, orderNumber: true, id: true },
+      }),
+    );
     if (before) {
       this.companyAccess.validateResourceOwnership(user, before);
     }
 
     const txResult = await this.prisma.$transaction(async (tx) => {
+      await setTenantRlsContext(tx, user);
       const gate = await this.gateConfirmTransaction(tx, user, orderId);
       if (gate.kind === 'idempotent') {
         return { idempotent: true as const, order: gate.order };
@@ -429,10 +444,12 @@ export class OutboundService {
   }
 
   async confirmAndDeduct(user: AuthPrincipal, orderId: string, body?: ConfirmOutboundBodyDto) {
-    const before = await this.prisma.outboundOrder.findUnique({
-      where: { id: orderId },
-      select: { status: true, companyId: true, orderNumber: true, id: true },
-    });
+    const before = await withTenantRls(this.prisma, user, async (tx) =>
+      tx.outboundOrder.findUnique({
+        where: { id: orderId },
+        select: { status: true, companyId: true, orderNumber: true, id: true },
+      }),
+    );
     if (!before) throw new NotFoundException('Outbound order not found.');
     this.companyAccess.validateResourceOwnership(user, before);
 
@@ -444,6 +461,7 @@ export class OutboundService {
       }
       const wh = body.warehouseId;
       const txResult = await this.prisma.$transaction(async (tx) => {
+        await setTenantRlsContext(tx, user);
         const gate = await this.gateConfirmTransaction(tx, user, orderId);
         if (gate.kind === 'idempotent') {
           return { fresh: false as const, order: gate.order };
@@ -510,6 +528,7 @@ export class OutboundService {
     }
 
     const txResult = await this.prisma.$transaction(async (tx) => {
+      await setTenantRlsContext(tx, user);
       const gate = await this.gateConfirmTransaction(tx, user, orderId);
       if (gate.kind === 'idempotent') {
         return { fresh: false as const, order: gate.order };
