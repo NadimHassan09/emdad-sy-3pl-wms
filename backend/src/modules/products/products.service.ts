@@ -28,6 +28,11 @@ import {
   barcodeChanged,
   normalizeProductBarcode,
 } from './product-barcode.util';
+import {
+  inboundLinesBlockingProductDeleteWhere,
+  outboundLinesBlockingProductDeleteWhere,
+  purgeRemovableOrderLinesForProduct,
+} from './product-delete-references.util';
 
 const SKU_RETRY_LIMIT = 5;
 const BARCODE_RETRY_LIMIT = 8;
@@ -249,11 +254,11 @@ export class ProductsService {
           await Promise.all([
             tx.inboundOrderLine.groupBy({
               by: ['productId'],
-              where: { productId: { in: ids } },
+              where: inboundLinesBlockingProductDeleteWhere(ids),
             }),
             tx.outboundOrderLine.groupBy({
               by: ['productId'],
-              where: { productId: { in: ids } },
+              where: outboundLinesBlockingProductDeleteWhere(ids),
             }),
             tx.stockAdjustmentLine.groupBy({
               by: ['productId'],
@@ -517,8 +522,12 @@ export class ProductsService {
           where: { productId: id },
           _sum: { quantityReserved: true },
         }),
-        this.prisma.inboundOrderLine.count({ where: { productId: id } }),
-        this.prisma.outboundOrderLine.count({ where: { productId: id } }),
+        this.prisma.inboundOrderLine.count({
+          where: inboundLinesBlockingProductDeleteWhere(id),
+        }),
+        this.prisma.outboundOrderLine.count({
+          where: outboundLinesBlockingProductDeleteWhere(id),
+        }),
         this.prisma.stockAdjustmentLine.count({ where: { productId: id } }),
         this.prisma.inventoryLedger.count({ where: { productId: id } }),
       ]);
@@ -536,11 +545,12 @@ export class ProductsService {
       );
     }
 
-    await this.prisma.$transaction([
-      this.prisma.currentStock.deleteMany({ where: { productId: id } }),
-      this.prisma.lot.deleteMany({ where: { productId: id } }),
-      this.prisma.product.delete({ where: { id } }),
-    ]);
+    await this.prisma.$transaction(async (tx) => {
+      await purgeRemovableOrderLinesForProduct(tx, id);
+      await tx.currentStock.deleteMany({ where: { productId: id } });
+      await tx.lot.deleteMany({ where: { productId: id } });
+      await tx.product.delete({ where: { id } });
+    });
 
     this.realtime.emitProductDeleted(product.companyId, id);
 
