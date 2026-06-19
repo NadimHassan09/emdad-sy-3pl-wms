@@ -28,6 +28,8 @@ export interface Product {
   totalReserved?: string;
   /** Server hint: stock is zero and row is not archived (delete may still fail on FKs). */
   deletable?: boolean;
+  /** Server hint: stock is zero and row can be archived (hidden from active catalog). */
+  archivable?: boolean;
 }
 
 export interface CreateProductInput {
