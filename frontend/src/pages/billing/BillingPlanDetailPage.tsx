@@ -243,7 +243,9 @@ export function BillingPlanDetailPage() {
             )}
           </section>
 
-          {activePlan ? <BillingInvoicePreviewCard companyId={clientId} /> : null}
+          {activePlan ? (
+            <BillingInvoicePreviewCard companyId={clientId} companyName={companyQuery.data?.name} />
+          ) : null}
         </>
       ) : null}
 
