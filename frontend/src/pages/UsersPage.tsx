@@ -234,8 +234,8 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     setPassword('');
     setSystemRole('worker');
     setClientRole('client_staff');
-    setCompanyId('');
-  }, [apiKind]);
+    setCompanyId(apiKind === 'client' && tenantCompanyId ? tenantCompanyId : '');
+  }, [apiKind, tenantCompanyId]);
 
   const openEdit = useCallback((u: UserListRow) => {
     setEditUser(u);
@@ -487,14 +487,15 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       createMut.mutate(payload);
       return;
     }
-    if (!companyId) {
+    const resolvedCompanyId = tenantCompanyId || companyId;
+    if (!resolvedCompanyId) {
       toast.error('Select a company for the client user.');
       return;
     }
     const payload: CreateUserPayload = {
       ...base,
       kind: 'client',
-      companyId,
+      companyId: resolvedCompanyId,
       clientRole,
     };
     createMut.mutate(payload);
@@ -514,8 +515,11 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     if (editPassword.trim()) {
       body.password = editPassword;
     }
-    if (editUser.kind === 'client' && editCompanyId) {
-      body.companyId = editCompanyId;
+    if (editUser.kind === 'client') {
+      const resolvedEditCompanyId = tenantCompanyId || editCompanyId;
+      if (resolvedEditCompanyId) {
+        body.companyId = resolvedEditCompanyId;
+      }
     }
     updateMut.mutate({ id: editUser.id, body });
   };
@@ -676,6 +680,29 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
                 </p>
               ) : null}
             </>
+          ) : tenantCompanyId ? (
+            <>
+              <TextField
+                label={t('Company', 'الشركة')}
+                value={
+                  companiesQuery.data?.find((c) => c.id === tenantCompanyId)?.name ??
+                  tenantCompanyId
+                }
+                readOnly
+                disabled
+                hint={t(
+                  'New client users are created for the active tenant in this session.',
+                  'يُنشأ مستخدمو العملاء الجدد للعميل النشط في هذه الجلسة.',
+                )}
+              />
+              <SelectField
+                label={t('Client role', 'دور العميل')}
+                name="clientRole"
+                value={clientRole}
+                onChange={(e) => setClientRole(e.target.value as typeof clientRole)}
+                options={CLIENT_ROLE_OPTIONS}
+              />
+            </>
           ) : (
             <>
               <Combobox
@@ -769,20 +796,36 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
               options={editUser.kind === 'system' ? SYSTEM_ROLE_EDIT : CLIENT_ROLE_OPTIONS}
             />
             {editUser.kind === 'client' ? (
-              <Combobox
-                label="Company"
-                required
-                dropdownInFlow
-                value={editCompanyId}
-                onChange={setEditCompanyId}
-                options={(companiesQuery.data ?? []).map((c) => ({
-                  value: c.id,
-                  label: c.name,
-                  hint: c.contactEmail,
-                }))}
-                placeholder={t('Search company…', 'ابحث عن شركة…')}
-                emptyMessage={t('No companies match.', 'لا توجد شركات مطابقة.')}
-              />
+              tenantCompanyId ? (
+                <TextField
+                  label={t('Company', 'الشركة')}
+                  value={
+                    companiesQuery.data?.find((c) => c.id === tenantCompanyId)?.name ??
+                    tenantCompanyId
+                  }
+                  readOnly
+                  disabled
+                  hint={t(
+                    'Client users stay scoped to the active tenant in this session.',
+                    'يبقى مستخدمو العملاء ضمن العميل النشط في هذه الجلسة.',
+                  )}
+                />
+              ) : (
+                <Combobox
+                  label={t('Company', 'الشركة')}
+                  required
+                  dropdownInFlow
+                  value={editCompanyId}
+                  onChange={setEditCompanyId}
+                  options={(companiesQuery.data ?? []).map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                    hint: c.contactEmail,
+                  }))}
+                  placeholder={t('Search company…', 'ابحث عن شركة…')}
+                  emptyMessage={t('No companies match.', 'لا توجد شركات مطابقة.')}
+                />
+              )
             ) : null}
             <TextField
               label={t('New password (optional)', 'كلمة مرور جديدة (اختياري)')}
