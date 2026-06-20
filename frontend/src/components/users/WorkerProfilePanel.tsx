@@ -6,7 +6,6 @@ import { WarehousesApi } from '../../api/warehouses';
 import { WorkersApi } from '../../api/workers';
 import { QK } from '../../constants/query-keys';
 import { useDefaultWarehouseId } from '../../hooks/useDefaultWarehouse';
-import { useTenantCompanyId } from '../../hooks/useTenantCompanyId';
 import {
   DEFAULT_WORKER_ROLES,
   WORKER_ROLE_OPTIONS,
@@ -27,7 +26,6 @@ type Props = {
 export function WorkerProfilePanel({ user, t, compact = false }: Props) {
   const toast = useToast();
   const qc = useQueryClient();
-  const tenantCompanyId = useTenantCompanyId();
   const { warehouseId: defaultWarehouseId } = useDefaultWarehouseId();
 
   const profileQuery = useQuery({
@@ -91,15 +89,6 @@ export function WorkerProfilePanel({ user, t, compact = false }: Props) {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!tenantCompanyId) {
-      toast.error(
-        t(
-          'Select an active client tenant before provisioning a worker profile.',
-          'اختر عميلاً نشطاً قبل إنشاء ملف العامل.',
-        ),
-      );
-      return;
-    }
     if (!profile && mode === 'link' && !linkWorkerId) {
       toast.error(t('Select an unlinked worker profile to link.', 'اختر ملف عامل غير مرتبط.'));
       return;

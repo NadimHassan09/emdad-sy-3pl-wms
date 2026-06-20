@@ -35,7 +35,7 @@ function buildService(prisma: unknown): UsersService {
 const adminUser: AuthPrincipal = {
   id: 'admin-1',
   role: UserRole.super_admin,
-  companyId: null,
+  companyId,
   tenantScope: 'all',
   authorizedCompanyIds: [companyId],
 };
@@ -59,6 +59,9 @@ describe('UsersService worker profile', () => {
           fullName: 'Operator One',
           worker: null,
         }),
+      },
+      company: {
+        findFirst: jest.fn().mockResolvedValue({ id: companyId }),
       },
       warehouse: {
         findUnique: jest.fn(),
@@ -175,6 +178,9 @@ describe('UsersService worker profile', () => {
             warehouse: null,
           },
         }),
+      },
+      company: {
+        findFirst: jest.fn().mockResolvedValue({ id: companyId }),
       },
       warehouse: {
         findUnique: jest.fn().mockResolvedValue(null),

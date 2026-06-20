@@ -24,7 +24,6 @@ import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
 import { useServerPagination } from '../hooks/useServerPagination';
-import { useTenantCompanyId } from '../hooks/useTenantCompanyId';
 import { WorkerProfilePanel } from '../components/users/WorkerProfilePanel';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
 import { workerProfileStatusText } from '../lib/worker-profile';
@@ -148,7 +147,6 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
   const navigate = useNavigate();
   const apiKind = variantToApiKind(variant);
   const { warehouseId: defaultWarehouseId } = useDefaultWarehouseId();
-  const tenantCompanyId = useTenantCompanyId();
   const isArabic =
     typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (en: string, ar: string) => (isArabic ? ar : en);
@@ -466,15 +464,6 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       password,
     };
     if (kind === 'system') {
-      if (systemRole === 'worker' && !tenantCompanyId) {
-        toast.error(
-          t(
-            'Select an active client tenant before creating a warehouse operator. Worker profiles are provisioned per tenant.',
-            'اختر عميلاً نشطاً قبل إنشاء مشغل مستودع. تُنشأ ملفات العمال لكل عميل.',
-          ),
-        );
-        return;
-      }
       const payload: CreateUserPayload = {
         ...base,
         kind: 'system',
@@ -666,14 +655,6 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
                 onChange={(e) => setSystemRole(e.target.value as typeof systemRole)}
                 options={SYSTEM_ROLE_OPTIONS}
               />
-              {systemRole === 'worker' && !tenantCompanyId ? (
-                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
-                  {t(
-                    'An active client tenant is required. The operator will get a worker profile in that tenant for tasks and cycle counts.',
-                    'مطلوب عميل نشط. سيحصل المشغل على ملف عامل في ذلك العميل للمهام والجرد.',
-                  )}
-                </p>
-              ) : null}
             </>
           ) : (
             <>

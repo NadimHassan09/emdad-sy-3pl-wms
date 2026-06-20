@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  CompanyStatus,
   Prisma,
   UserRole,
   UserStatus,
@@ -216,10 +217,7 @@ export class UsersService {
     }
     this.assertOperatorWorkerEligible(user.role, user.companyId);
 
-    const tenantCompanyId = this.companyAccess.requireActiveTenant(
-      actor,
-      'Select an active client tenant before linking a worker profile.',
-    );
+    const tenantCompanyId = await this.resolveWorkerProvisionCompanyId(actor);
 
     const roles = dto.roles?.length ? dto.roles : undefined;
     const warehouseId =
@@ -313,12 +311,9 @@ export class UsersService {
       const role = mapSystemRoleToUserRole(dto.systemRole);
       const tenantCompanyId =
         role === UserRole.wh_operator
-          ? this.companyAccess.requireActiveTenant(
-              actor,
-              'Select a client tenant before provisioning a warehouse operator.',
-            )
+          ? await this.resolveWorkerProvisionCompanyId(actor)
           : null;
-      const shouldProvisionWorker = role === UserRole.wh_operator && !!tenantCompanyId;
+      const shouldProvisionWorker = role === UserRole.wh_operator;
 
       const workerWarehouseId = shouldProvisionWorker
         ? await this.resolveWorkerWarehouseId(dto.workerWarehouseId)
@@ -552,7 +547,10 @@ export class UsersService {
       throw new NotFoundException('Worker profile not found. Refresh the worker list and try again.');
     }
     this.companyAccess.validateResourceOwnership(actor, orphan);
-    if (orphan.companyId !== tenantCompanyId) {
+    if (
+      actor.tenantScope !== 'all' &&
+      orphan.companyId !== tenantCompanyId
+    ) {
       throw new ConflictException(
         'The selected worker profile belongs to a different client tenant. Switch tenant and try again.',
       );
@@ -609,18 +607,7 @@ export class UsersService {
       return;
     }
 
-    let tenantCompanyId: string | null = null;
-    try {
-      tenantCompanyId = this.companyAccess.requireActiveTenant(actor);
-    } catch {
-      if (worker) {
-        await tx.worker.update({
-          where: { id: worker.id },
-          data: { displayName, status: WorkerOperationalStatus.active },
-        });
-      }
-      return;
-    }
+    const tenantCompanyId = await this.resolveWorkerProvisionCompanyId(actor);
 
     if (worker) {
       const wh001Id = await this.resolveWorkerWarehouseId(undefined);
@@ -649,6 +636,36 @@ export class UsersService {
         },
       },
     });
+  }
+
+  /**
+   * Bookkeeping company for worker rows. WH-001 operators serve all clients; global admins
+   * may provision without an active session tenant.
+   */
+  private async resolveWorkerProvisionCompanyId(
+    actor: AuthPrincipal,
+    explicitCompanyId?: string | null,
+  ): Promise<string> {
+    const trimmed = explicitCompanyId?.trim();
+    if (trimmed) {
+      this.companyAccess.assertCompanyAccess(actor, trimmed);
+      return trimmed;
+    }
+    if (actor.companyId) {
+      this.companyAccess.assertCompanyAccess(actor, actor.companyId);
+      return actor.companyId;
+    }
+    const first = await this.prisma.company.findFirst({
+      where: { status: CompanyStatus.active },
+      orderBy: { name: 'asc' },
+      select: { id: true },
+    });
+    if (!first) {
+      throw new BadRequestException(
+        'No active client company exists to provision a warehouse operator profile.',
+      );
+    }
+    return first.id;
   }
 
   /** Default warehouse workers to WH-001 when no explicit warehouse is sent. */
