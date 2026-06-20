@@ -623,17 +623,23 @@ export class UsersService {
     }
 
     if (worker) {
+      const wh001Id = await this.resolveWorkerWarehouseId(undefined);
       await tx.worker.update({
         where: { id: worker.id },
-        data: { displayName, status: WorkerOperationalStatus.active },
+        data: {
+          displayName,
+          status: WorkerOperationalStatus.active,
+          ...(worker.warehouseId ? {} : { warehouseId: wh001Id }),
+        },
       });
       return;
     }
 
+    const wh001Id = await this.resolveWorkerWarehouseId(undefined);
     await tx.worker.create({
       data: {
         companyId: tenantCompanyId,
-        warehouseId: null,
+        warehouseId: wh001Id,
         displayName,
         userId,
         roles: {
