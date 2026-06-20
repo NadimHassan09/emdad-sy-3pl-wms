@@ -59,16 +59,16 @@ export class WorkflowWorkersService {
 
   /** Orphan worker rows (no linked user) available for operator linking. */
   async listUnlinked(user: AuthPrincipal) {
-    const tenantCompanyId = this.companyAccess.requireActiveTenant(
-      user,
-      'Select an active client tenant to list unlinked worker profiles.',
-    );
+    const tenantCompanyId = this.companyAccess.getReadFilterCompanyId(user);
+    const where: Prisma.WorkerWhereInput = {
+      userId: null,
+      status: WorkerOperationalStatus.active,
+    };
+    if (tenantCompanyId) {
+      where.companyId = tenantCompanyId;
+    }
     return this.prisma.worker.findMany({
-      where: {
-        companyId: tenantCompanyId,
-        userId: null,
-        status: WorkerOperationalStatus.active,
-      },
+      where,
       include: { roles: true },
       orderBy: { displayName: 'asc' },
     });
