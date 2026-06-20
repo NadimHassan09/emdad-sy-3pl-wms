@@ -50,8 +50,12 @@ export function ReportFiltersPanel({
   });
 
   const workers = useQuery({
-    queryKey: [...QK.workers.all, draft.warehouseId],
-    queryFn: () => WorkersApi.list(draft.warehouseId || undefined),
+    queryKey: [...QK.workers.all, draft.warehouseId, draft.companyId],
+    queryFn: () =>
+      WorkersApi.list({
+        warehouseId: draft.warehouseId || undefined,
+        companyId: draft.companyId || undefined,
+      }),
     enabled: report.filterKeys.includes('employee'),
     staleTime: 5 * 60_000,
   });
