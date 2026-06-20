@@ -28,11 +28,12 @@ export class WorkflowWorkersService {
    * Task assignment: only workers backed by a **system** user (`users.company_id` null)
    * with **Worker** platform role (`wh_operator`).
    */
-  async list(user: AuthPrincipal, warehouseId?: string) {
-    const tenantCompanyId = this.companyAccess.getReadFilterCompanyId(user);
-    if (!tenantCompanyId) return [];
+  async list(user: AuthPrincipal, warehouseId?: string, companyIdParam?: string) {
+    const tenantCompanyId = this.companyAccess.getReadFilterCompanyId(user, companyIdParam);
+    if (!tenantCompanyId && user.tenantScope !== 'all') {
+      return [];
+    }
     const where: Prisma.WorkerWhereInput = {
-      companyId: tenantCompanyId,
       status: WorkerOperationalStatus.active,
       userId: { not: null },
       user: {
@@ -41,6 +42,9 @@ export class WorkflowWorkersService {
         status: UserStatus.active,
       },
     };
+    if (tenantCompanyId) {
+      where.companyId = tenantCompanyId;
+    }
     // Workers created from Users often have `warehouse_id` null (tenant-wide). Tasks always pass a
     // workflow warehouse — still list those operators alongside warehouse-specific rows.
     if (warehouseId) {
@@ -87,13 +91,16 @@ export class WorkflowWorkersService {
     });
   }
 
-  async workerLoad(user: AuthPrincipal, warehouseId?: string) {
-    const tenantCompanyId = this.companyAccess.requireActiveTenant(
-      user,
-      'An active client tenant is required for worker load.',
-    );
+  async workerLoad(user: AuthPrincipal, warehouseId?: string, companyIdParam?: string) {
+    const tenantCompanyId = this.companyAccess.getReadFilterCompanyId(user, companyIdParam);
+    if (!tenantCompanyId && user.tenantScope !== 'all') {
+      return [];
+    }
     const whFilter = warehouseId
       ? Prisma.sql`AND (w.warehouse_id = ${warehouseId}::uuid OR w.warehouse_id IS NULL)`
+      : Prisma.empty;
+    const companyFilter = tenantCompanyId
+      ? Prisma.sql`AND w.company_id = ${tenantCompanyId}::uuid`
       : Prisma.empty;
     const rows = await this.prisma.$queryRaw<
       Array<{
@@ -113,12 +120,12 @@ export class WorkflowWorkersService {
       FROM v_wms_worker_load v
       INNER JOIN workers w ON w.id = v.worker_id
       INNER JOIN users u ON u.id = w.user_id
-      WHERE w.company_id = ${tenantCompanyId}::uuid
-        AND w.status = 'active'::worker_operational_status
+      WHERE w.status = 'active'::worker_operational_status
         AND w.user_id IS NOT NULL
         AND u.company_id IS NULL
         AND u.role = ${UserRole.wh_operator}::user_role
         AND u.status = 'active'::user_status
+      ${companyFilter}
       ${whFilter}
       ORDER BY v.load_score DESC NULLS LAST, v.full_name ASC
     `);

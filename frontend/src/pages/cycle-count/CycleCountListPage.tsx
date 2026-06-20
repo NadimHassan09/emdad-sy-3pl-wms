@@ -136,7 +136,11 @@ export function CycleCountListPage() {
 
   const workersQuery = useQuery({
     queryKey: [...QK.workers.all, wid],
-    queryFn: () => WorkersApi.list(wid || undefined),
+    queryFn: () =>
+      WorkersApi.list({
+        warehouseId: wid || undefined,
+        companyId: companyId || undefined,
+      }),
     enabled: !!wid,
     staleTime: 5 * 60_000,
   });

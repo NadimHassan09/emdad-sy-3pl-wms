@@ -12,16 +12,21 @@ export class WorkflowWorkersController {
   constructor(private readonly workers: WorkflowWorkersService) {}
 
   @Get()
-  list(@CurrentUser() user: AuthPrincipal, @Query('warehouseId') warehouseId?: string) {
-    return this.workers.list(user, warehouseId);
+  list(
+    @CurrentUser() user: AuthPrincipal,
+    @Query('warehouseId') warehouseId?: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.workers.list(user, warehouseId, companyId);
   }
 
   @Get('load')
   loadByWarehouse(
     @CurrentUser() user: AuthPrincipal,
     @Query('warehouseId') warehouseId?: string,
+    @Query('companyId') companyId?: string,
   ) {
-    return this.workers.workerLoad(user, warehouseId);
+    return this.workers.workerLoad(user, warehouseId, companyId);
   }
 
   @Get('unlinked')

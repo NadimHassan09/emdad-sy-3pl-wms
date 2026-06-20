@@ -17,10 +17,19 @@ export interface WorkerLoadRow {
   loadScore: number;
 }
 
+export type WorkerListParams = {
+  warehouseId?: string;
+  /** Client tenant for the task/order context (required when session has no active tenant). */
+  companyId?: string;
+};
+
 export const WorkersApi = {
-  async list(warehouseId?: string) {
+  async list(params?: WorkerListParams) {
+    const query: Record<string, string> = {};
+    if (params?.warehouseId) query.warehouseId = params.warehouseId;
+    if (params?.companyId) query.companyId = params.companyId;
     const { data } = await api.get<WorkerRow[]>('/workers', {
-      params: warehouseId ? { warehouseId } : undefined,
+      params: Object.keys(query).length ? query : undefined,
     });
     return data;
   },
@@ -30,9 +39,12 @@ export const WorkersApi = {
     return data;
   },
 
-  async listLoad(warehouseId?: string) {
+  async listLoad(params?: WorkerListParams) {
+    const query: Record<string, string> = {};
+    if (params?.warehouseId) query.warehouseId = params.warehouseId;
+    if (params?.companyId) query.companyId = params.companyId;
     const { data } = await api.get<WorkerLoadRow[]>('/workers/load', {
-      params: warehouseId ? { warehouseId } : undefined,
+      params: Object.keys(query).length ? query : undefined,
     });
     return data;
   },

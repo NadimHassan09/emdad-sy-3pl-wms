@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 
-import { LocationsApi } from '../api/locations';
 import type { OutboundOrder } from '../api/outbound';
 import { OutboundApi } from '../api/outbound';
 import { TaskMutationEnvelope, TasksApi, type ResolveTaskResolution } from '../api/tasks';
@@ -22,8 +21,6 @@ import { applyTaskMutationEnvelope } from '../lib/task-mutation-cache';
 import { isOperatorRole } from '../lib/rbac';
 import { taskAssignedWorkerLabel } from '../lib/task-worker-label';
 import { useExecutionExitBlocker } from '../hooks/useExecutionExitBlocker';
-import type { Location } from '../api/locations';
-import { isPutawayDestinationLocationType } from '../lib/location-types';
 import { DispatchExecutionPanel } from './tasks/dispatch/DispatchExecutionPanel';
 import { PackExecutionPanel } from './tasks/pack/PackExecutionPanel';
 import { PickExecutionPanel } from './tasks/pick/PickExecutionPanel';
@@ -33,7 +30,8 @@ import type { PutawayLineRow } from './tasks/putaway/putaway-types';
 import { ReceivingExecutionPanel } from './tasks/receiving/ReceivingExecutionPanel';
 import type { ReceivingLineRow } from './tasks/receiving/receiving-types';
 import { taskTypeIconClass } from '../lib/task-type-icons';
-import { taskTypeTitle } from '../workflow/task-ui-matrix';
+import { useWmsTranslation } from '../lib/ui-i18n';
+import { localizedTaskTypeTitle } from '../lib/ui-labels/task-execution';
 import { useWorkflowUx } from '../workflow/WorkflowUxContext';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -46,16 +44,28 @@ function readOperatorNotes(raw: unknown): string {
   return typeof n === 'string' ? n : '';
 }
 
-function runnabilityBlockedHint(code: string | null): string {
+function runnabilityBlockedHint(code: string | null, t: (m: [string, string]) => string): string {
   switch (code) {
     case 'NOT_ON_WORKFLOW_FRONT':
-      return 'Another workflow step must finish before this task can proceed.';
+      return t([
+        'Another Workflow step must finish before this Task can proceed.',
+        'يجب إنهاء خطوة Workflow أخرى قبل متابعة هذه المهمة.',
+      ]);
     case 'WORKER_MISSING_REQUIRED_SKILLS':
-      return 'Assigned worker does not satisfy required skills or certifications.';
+      return t([
+        'Assigned worker does not satisfy required skills or certifications.',
+        'العامل المعيّن لا يستوفي المهارات أو الشهادات المطلوبة.',
+      ]);
     case 'ASSIGNMENT_REQUIRED_FOR_SKILLS':
-      return 'Assign a worker before starting — skilled tasks validate the assignee.';
+      return t([
+        'Assign a worker before starting — skilled tasks validate the assignee.',
+        'عيّن عاملاً قبل البدء — المهام المتخصصة تتحقق من المعيّن.',
+      ]);
     default:
-      return 'This step cannot run yet under workflow rules.';
+      return t([
+        'This step cannot run yet under Workflow rules.',
+        'لا يمكن تشغيل هذه الخطوة بعد بموجب قواعد Workflow.',
+      ]);
   }
 }
 
@@ -85,6 +95,7 @@ export function TaskExecutionView() {
   const { id = '' } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const companyIdOverride = searchParams.get('companyId')?.trim() || undefined;
+  const { t } = useWmsTranslation();
   const toast = useToast();
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -106,10 +117,17 @@ export function TaskExecutionView() {
   });
 
   const wf = task.data?.workflowInstance as
-    | { id?: string; referenceType?: string; referenceId?: string; warehouseId?: string }
+    | {
+        id?: string;
+        companyId?: string;
+        referenceType?: string;
+        referenceId?: string;
+        warehouseId?: string;
+      }
     | undefined;
 
   const warehouseId = wf?.warehouseId || defaultWid || '';
+  const taskCompanyId = companyIdOverride || wf?.companyId || '';
   const taskType = (task.data?.taskType as string) ?? '';
   const referenceId = wf?.referenceId;
 
@@ -122,23 +140,23 @@ export function TaskExecutionView() {
       ['pick', 'pack', 'dispatch'].includes(taskType),
   });
 
-  const locations = useQuery({
-    queryKey: [...QK.locationsFlatAll(false), warehouseId],
-    queryFn: () => LocationsApi.list(warehouseId, false),
-    enabled:
-      !!warehouseId &&
-      ['putaway', 'putaway_quarantine', 'pick', 'pack', 'dispatch'].includes(taskType),
-  });
-
   const workers = useQuery({
-    queryKey: [...QK.workers.all, 'task-detail', warehouseId || 'all'],
-    queryFn: () => WorkersApi.list(warehouseId || undefined),
+    queryKey: [...QK.workers.all, 'task-detail', warehouseId || 'all', taskCompanyId || 'all'],
+    queryFn: () =>
+      WorkersApi.list({
+        warehouseId: warehouseId || undefined,
+        companyId: taskCompanyId || undefined,
+      }),
     enabled: !!id,
   });
 
   const workerLoad = useQuery({
-    queryKey: QK.workers.load(warehouseId || 'none'),
-    queryFn: () => WorkersApi.listLoad(warehouseId || undefined),
+    queryKey: [...QK.workers.load(warehouseId || 'none'), taskCompanyId || 'all'],
+    queryFn: () =>
+      WorkersApi.listLoad({
+        warehouseId: warehouseId || undefined,
+        companyId: taskCompanyId || undefined,
+      }),
     enabled: !!id,
   });
 
@@ -148,18 +166,21 @@ export function TaskExecutionView() {
       const load = loadById.get(w.id);
       const loadHint =
         load != null
-          ? `Load ${load.loadScore} · in progress ${load.inProgressCount} · assigned ${load.assignedPendingCount}`
+          ? t([
+              `Load ${load.loadScore} · in progress ${load.inProgressCount} · assigned ${load.assignedPendingCount}`,
+              `الحمل ${load.loadScore} · قيد التنفيذ ${load.inProgressCount} · معين ${load.assignedPendingCount}`,
+            ])
           : null;
       const userHint = w.user?.email ? `${w.user.email}` : null;
       const hint = [userHint, loadHint].filter(Boolean).join(' · ') || undefined;
       return { value: w.id, label: w.displayName || w.user?.fullName || w.id.slice(0, 8), hint };
     });
-  }, [workers.data, workerLoad.data]);
+  }, [workers.data, workerLoad.data, t]);
 
   const mutateAssign = useMutation({
     mutationFn: () => TasksApi.assign(id, workerId.trim(), companyIdOverride),
     onSuccess: (env) => {
-      toast.success('Assigned');
+      toast.success(t(['Assigned', 'تم التعيين']));
       envelopeTouch(qc, id, env, warehouseId);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -168,7 +189,7 @@ export function TaskExecutionView() {
   const mutateStart = useMutation({
     mutationFn: () => TasksApi.start(id, workerId.trim() || undefined, companyIdOverride),
     onSuccess: (env) => {
-      toast.success('Started');
+      toast.success(t(['Started', 'تم البدء']));
       envelopeTouch(qc, id, env, warehouseId);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -177,7 +198,7 @@ export function TaskExecutionView() {
   const mutateComplete = useMutation({
     mutationFn: (body: unknown) => TasksApi.complete(id, body, companyIdOverride),
     onSuccess: (env) => {
-      toast.success('Completed');
+      toast.success(t(['Completed', 'مكتمل']));
       envelopeTouch(qc, id, env, warehouseId);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -191,7 +212,7 @@ export function TaskExecutionView() {
         companyIdOverride,
       ),
     onSuccess: (env) => {
-      toast.success('Retry acknowledged');
+      toast.success(t(['Retry acknowledged', 'تم تأكيد إعادة المحاولة']));
       envelopeTouch(qc, id, env, warehouseId);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -209,32 +230,11 @@ export function TaskExecutionView() {
         companyIdOverride,
       ),
     onSuccess: (env) => {
-      toast.success('Resolve applied');
+      toast.success(t(['Resolve applied', 'تم تطبيق الحل']));
       envelopeTouch(qc, id, env, warehouseId);
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
-  /** Sellable putaway: storage (`internal`), fridge, quarantine, scrap. */
-  const putawayDestLocs = useMemo(
-    () => (locations.data ?? []).filter((l) => isPutawayDestinationLocationType(l.type)),
-    [locations.data],
-  );
-  /** Quarantine putaway task: quarantine or scrap bins only. */
-  const quarantinePutawayDestLocs = useMemo(
-    () => (locations.data ?? []).filter((l) => l.type === 'quarantine' || l.type === 'scrap'),
-    [locations.data],
-  );
-
-  const packingLocationsOnly = useMemo(
-    () => (locations.data ?? []).filter((l) => l.type === 'packing'),
-    [locations.data],
-  );
-
-  const dispatchLocationsOnly = useMemo(
-    () => (locations.data ?? []).filter((l) => l.type === 'output'),
-    [locations.data],
-  );
 
   const packSiblingTask = useQuery({
     queryKey: [...QK.tasks.list({ warehouseId, limit: '100' }), 'pack-sibling', wf?.id, referenceId],
@@ -330,7 +330,7 @@ export function TaskExecutionView() {
     onSuccess: (env) => {
       setSyncedOperatorNotes(operatorNotes);
       envelopeTouch(qc, id, env, warehouseId || undefined);
-      toast.success('Operator notes saved');
+      toast.success(t(['Operator notes saved', 'تم حفظ ملاحظات المشغّل']));
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -346,24 +346,24 @@ export function TaskExecutionView() {
   );
 
   if (!id) return null;
-  if (task.isLoading) return <p className="text-sm text-slate-500">Loading task…</p>;
+  if (task.isLoading) return <p className="text-sm text-slate-500">{t(['Loading task…', 'جاري تحميل المهمة…'])}</p>;
   if (task.isError) {
     return (
       <p className="text-sm text-rose-600">
-        {(task.error as Error).message ?? 'Could not load task.'}
+        {(task.error as Error).message ?? t(['Could not load task.', 'تعذّر تحميل المهمة.'])}
       </p>
     );
   }
   if (!task.data) return null;
 
-  const t = task.data;
-  const runnable = t.is_current_runnable === true;
-  const blockedCode = t.runnability_blocked_reason ?? null;
-  const sts = String(t.status);
+  const taskRow = task.data;
+  const runnable = taskRow.is_current_runnable === true;
+  const blockedCode = taskRow.runnability_blocked_reason ?? null;
+  const sts = String(taskRow.status);
   const isCompleted = sts === 'completed';
   const canOperate = ['pending', 'assigned', 'in_progress'].includes(sts);
 
-  const assignedWorkerId = t.assignments?.[0]?.worker?.id as string | undefined;
+  const assignedWorkerId = taskRow.assignments?.[0]?.worker?.id as string | undefined;
   /**
    * Optional dev override: VITE_MOCK_WORKER_ID impersonates that worker; if set and it
    * does not match the task assignee, block execution. Production uses the real assignment only.
@@ -371,7 +371,10 @@ export function TaskExecutionView() {
   const assignmentBlocked =
     !!MOCK_WORKER_ID && !!assignedWorkerId && MOCK_WORKER_ID !== assignedWorkerId;
   const assigneeGateMessage = assignmentBlocked
-    ? 'This task is not assigned to the worker in VITE_MOCK_WORKER_ID — clear or update that env value.'
+    ? t([
+        'This task is not assigned to the worker in VITE_MOCK_WORKER_ID — clear or update that env value.',
+        'هذه المهمة غير معيّنة للعامل في VITE_MOCK_WORKER_ID — امسح أو حدّث قيمة المتغير.',
+      ])
     : null;
 
   const executionAllowed = assigneeGateMessage === null;
@@ -379,11 +382,11 @@ export function TaskExecutionView() {
   const orderLink =
     wf?.referenceType === 'inbound_order' && referenceId ? (
       <Link className="text-primary-700 hover:underline" to={`/orders/inbound/${referenceId}`}>
-        Inbound order
+        {t(['Inbound order', 'طلب وارد'])}
       </Link>
     ) : wf?.referenceType === 'outbound_order' && referenceId ? (
       <Link className="text-primary-700 hover:underline" to={`/orders/outbound/${referenceId}`}>
-        Outbound order
+        {t(['Outbound order', 'طلب صادر'])}
       </Link>
     ) : null;
 
@@ -404,14 +407,14 @@ export function TaskExecutionView() {
     <div className="w-full min-w-0 space-y-4 pb-16">
       {!usesStructuredPanel ? (
         <>
-          <PageHeader title={taskTypeTitle(taskType)} />
+          <PageHeader title={localizedTaskTypeTitle(taskType, t)} />
           <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
             <StatusBadge status={sts} />
             {!isCompleted ? (
               runnable ? (
-              <span className="text-xs font-semibold text-emerald-700">Runnable</span>
+              <span className="text-xs font-semibold text-emerald-700">{t(['Runnable', 'قابل للتشغيل'])}</span>
             ) : (
-              <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">Not runnable</span>
+              <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{t(['Not runnable', 'غير قابل للتشغيل'])}</span>
               )
             ) : null}
       </div>
@@ -427,25 +430,34 @@ export function TaskExecutionView() {
 
       {!runnable && canOperate ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          {runnabilityBlockedHint(blockedCode)} Use the order timeline to find the active step.
+          {runnabilityBlockedHint(blockedCode, t)}{' '}
+          {t(['Use the order timeline to find the active step.', 'استخدم خط زمن الطلب لإيجاد الخطوة النشطة.'])}
         </p>
       ) : null}
 
       {sts === 'retry_pending' ? (
         <div className="space-y-2 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm">
-          <div className="font-medium text-rose-900">retry_pending — manager retry</div>
-          <TextField label="Reason (optional)" value={retryReason} onChange={(e) => setRetryReason(e.target.value)} />
+          <div className="font-medium text-rose-900">
+            {t(['retry_pending — manager retry', 'retry_pending — إعادة محاولة المدير'])}
+          </div>
+          <TextField
+            label={t(['Reason (optional)', 'السبب (اختياري)'])}
+            value={retryReason}
+            onChange={(e) => setRetryReason(e.target.value)}
+          />
           <Button type="button" onClick={() => mutateRetry.mutate()} loading={mutateRetry.isPending}>
-            Resume after retry
+            {t(['Resume after retry', 'استئناف بعد إعادة المحاولة'])}
           </Button>
         </div>
       ) : null}
 
       {sts === 'blocked' ? (
         <div className="space-y-2 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm">
-          <div className="font-medium text-rose-900">blocked — manager resolve</div>
+          <div className="font-medium text-rose-900">
+            {t(['blocked — manager resolve', 'blocked — حل المدير'])}
+          </div>
           <label className="block text-xs font-semibold text-slate-700">
-            Resolution
+            {t(['Resolution', 'القرار'])}
             <select
               className="mt-1 w-full max-w-md rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
               value={resolveResolution}
@@ -458,13 +470,13 @@ export function TaskExecutionView() {
             </select>
           </label>
           <TextField
-            label="Resolution note (min 4 chars)"
+            label={t(['Resolution note (min 4 chars)', 'ملاحظة القرار (4 أحرف على الأقل)'])}
             value={resolveReason}
             onChange={(e) => setResolveReason(e.target.value)}
           />
           {resolveResolution === 'fork_new_task' || resolveResolution === 'approve_partial' ? (
             <TextField
-              label="Fork / audit hint (optional)"
+              label={t(['Fork / audit hint (optional)', 'تلميح التفرع / التدقيق (اختياري)'])}
               value={resolveForkHint}
               onChange={(e) => setResolveForkHint(e.target.value)}
             />
@@ -475,7 +487,7 @@ export function TaskExecutionView() {
             loading={mutateResolve.isPending}
             disabled={resolveReason.trim().length < 4}
           >
-            Apply resolution
+            {t(['Apply resolution', 'تطبيق القرار'])}
           </Button>
         </div>
       ) : null}
@@ -484,14 +496,14 @@ export function TaskExecutionView() {
         <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3 text-sm">
           <label className="block space-y-1">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-              Operator notes
+              {t(['Operator notes', 'ملاحظات المشغّل'])}
             </span>
             <textarea
               className="min-h-[72px] w-full rounded border border-slate-300 p-2 text-sm"
               value={operatorNotes}
               spellCheck
               onChange={(e) => setOperatorNotes(e.target.value)}
-              placeholder="Short free-text; use Save to persist."
+              placeholder={t(['Short free-text; use Save to persist.', 'نص قصير؛ استخدم حفظ للتخزين.'])}
             />
           </label>
           <div className="flex flex-wrap items-center gap-2">
@@ -503,17 +515,19 @@ export function TaskExecutionView() {
               loading={mutateSaveOperatorNotes.isPending}
               disabled={operatorNotes === syncedOperatorNotes}
             >
-              Save notes
+              {t(['Save notes', 'حفظ الملاحظات'])}
             </Button>
             {operatorNotes !== syncedOperatorNotes ? (
-              <span className="text-[10px] text-amber-700">Unsaved changes</span>
+              <span className="text-[10px] text-amber-700">{t(['Unsaved changes', 'تغييرات غير محفوظة'])}</span>
             ) : (
-              <span className="text-[10px] text-slate-400">All changes saved</span>
+              <span className="text-[10px] text-slate-400">{t(['All changes saved', 'كل التغييرات محفوظة'])}</span>
             )}
           </div>
           {syncedOperatorNotes.trim() ? (
             <div className="rounded border border-slate-100 bg-slate-50 p-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Saved notes</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {t(['Saved notes', 'الملاحظات المحفوظة'])}
+              </div>
               <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{syncedOperatorNotes}</p>
             </div>
           ) : null}
@@ -523,19 +537,27 @@ export function TaskExecutionView() {
       {showAssignBar ? (
         <div className="flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-white p-3">
           <div className="w-full text-sm text-slate-700">
-            <span className="text-slate-500">Assigned worker:</span>{' '}
-            <span className="font-medium text-slate-900">{taskAssignedWorkerLabel(t.assignments)}</span>
+            <span className="text-slate-500">{t(['Assigned worker:', 'العامل المعيّن:'])}</span>{' '}
+            <span className="font-medium text-slate-900">{taskAssignedWorkerLabel(taskRow.assignments)}</span>
           </div>
           <div className="min-w-[260px] flex-[2]">
             <Combobox
-              label="Assign worker"
+              label={t(['Assign worker', 'تعيين عامل'])}
               value={workerId}
               onChange={setWorkerId}
               options={workerOptions}
-              placeholder={workers.isLoading ? 'Loading workers…' : 'Select worker…'}
+              placeholder={
+                workers.isLoading
+                  ? t(['Loading workers…', 'جاري تحميل العمال…'])
+                  : t(['Select worker…', 'اختر عاملاً…'])
+              }
               disabled={workers.isLoading || !!workers.isError}
               emptyMessage={
-                workers.isError ? 'Could not load workers' : warehouseId ? 'No workers for this warehouse' : 'No workers'
+                workers.isError
+                  ? t(['Could not load workers', 'تعذّر تحميل العمال'])
+                  : warehouseId
+                    ? t(['No workers for this warehouse', 'لا يوجد عمال لهذا المستودع'])
+                    : t(['No workers', 'لا يوجد عمال'])
               }
             />
           </div>
@@ -545,20 +567,20 @@ export function TaskExecutionView() {
             onClick={() => mutateAssign.mutate()}
             disabled={!workerId.trim() || mutateAssign.isPending || !!workers.isError}
           >
-            Assign
+            {t(['Assign', 'تعيين'])}
           </Button>
           <Button
             type="button"
             onClick={() => mutateStart.mutate()}
             disabled={!runnable || !executionAllowed}
           >
-            Start
+            {t(['Start', 'بدء'])}
           </Button>
           {workers.isLoading || workers.isError ? (
           <p className="w-full text-xs text-slate-500">
             {workers.isLoading
-              ? 'Loading worker directory…'
-                : 'Fix worker directory fetch errors above.'}
+              ? t(['Loading worker directory…', 'جاري تحميل دليل العمال…'])
+                : t(['Fix worker directory fetch errors above.', 'أصلح أخطاء جلب دليل العمال أعلاه.'])}
           </p>
           ) : null}
         </div>
@@ -568,25 +590,20 @@ export function TaskExecutionView() {
         <ExecuteFormSwitcher
           taskId={id}
           taskType={taskType}
-          payload={t.payload}
+          payload={taskRow.payload}
           warehouseId={warehouseId}
           inboundOrderId={wf?.referenceType === 'inbound_order' ? referenceId : undefined}
           outboundOrderId={wf?.referenceType === 'outbound_order' ? referenceId : undefined}
           companyIdOverride={companyIdOverride}
           taskStatus={sts}
           executionState={
-            isRecord(t) ? (t.executionState ?? t.execution_state) : undefined
+            isRecord(taskRow) ? (taskRow.executionState ?? taskRow.execution_state) : undefined
           }
-          assignedWorkerLabel={taskAssignedWorkerLabel(t.assignments)}
+          assignedWorkerLabel={taskAssignedWorkerLabel(taskRow.assignments)}
           taskOperatorNotes={operatorNotes}
           showExportPdf={!isWorkerAccount}
-          putawayDestLocs={putawayDestLocs}
-          quarantinePutawayDestLocs={quarantinePutawayDestLocs}
           outbound={outbound.data}
           pickReservations={pickReservations}
-          allLocations={locations.data ?? []}
-          packingLocationsOnly={packingLocationsOnly}
-          dispatchLocationsOnly={dispatchLocationsOnly}
           packExecutionState={packExecutionStateForDispatch}
           pickExecutionState={pickExecutionStateForDispatch}
           submit={(body: unknown, e?: FormEvent) => {
@@ -602,25 +619,20 @@ export function TaskExecutionView() {
         <ExecuteFormSwitcher
           taskId={id}
           taskType={taskType}
-          payload={t.payload}
+          payload={taskRow.payload}
           warehouseId={warehouseId}
           inboundOrderId={wf?.referenceType === 'inbound_order' ? referenceId : undefined}
           outboundOrderId={wf?.referenceType === 'outbound_order' ? referenceId : undefined}
           companyIdOverride={companyIdOverride}
           taskStatus={sts}
           executionState={
-            isRecord(t) ? (t.executionState ?? t.execution_state) : undefined
+            isRecord(taskRow) ? (taskRow.executionState ?? taskRow.execution_state) : undefined
           }
-          assignedWorkerLabel={taskAssignedWorkerLabel(t.assignments)}
+          assignedWorkerLabel={taskAssignedWorkerLabel(taskRow.assignments)}
           taskOperatorNotes={operatorNotes}
           showExportPdf={!isWorkerAccount}
-          putawayDestLocs={putawayDestLocs}
-          quarantinePutawayDestLocs={quarantinePutawayDestLocs}
           outbound={outbound.data}
           pickReservations={pickReservations}
-          allLocations={locations.data ?? []}
-          packingLocationsOnly={packingLocationsOnly}
-          dispatchLocationsOnly={dispatchLocationsOnly}
           packExecutionState={packExecutionStateForDispatch}
           pickExecutionState={pickExecutionStateForDispatch}
           submit={() => {}}
@@ -642,6 +654,7 @@ export function TaskExecutionView() {
 }
 
 function TaskManagerSkipBlock({ taskType, taskId }: { taskType: string; taskId: string }) {
+  const { t } = useWmsTranslation();
   const toast = useToast();
   const qc = useQueryClient();
   const { warehouseId: wid } = useDefaultWarehouseId();
@@ -654,7 +667,7 @@ function TaskManagerSkipBlock({ taskType, taskId }: { taskType: string; taskId: 
       return TasksApi.skip(taskId, { skip_target: 'pack', reason });
     },
     onSuccess: (env) => {
-      toast.success('Skipped step (manager)');
+      toast.success(t(['Skipped step (manager)', 'تم تخطي الخطوة (مدير)']));
       envelopeTouch(qc, taskId, env, wid || undefined);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -662,10 +675,14 @@ function TaskManagerSkipBlock({ taskType, taskId }: { taskType: string; taskId: 
 
   return (
     <div className="rounded-md border border-amber-200 bg-amber-50/50 p-4">
-      <div className="text-sm font-medium text-amber-950">Manager skip ({taskType})</div>
-      <p className="mt-1 text-xs text-amber-900/90">Requires wh_manager or super_admin.</p>
+      <div className="text-sm font-medium text-amber-950">
+        {t([`Manager skip (${taskType})`, `تخطي المدير (${taskType})`])}
+      </div>
+      <p className="mt-1 text-xs text-amber-900/90">
+        {t(['Requires wh_manager or super_admin.', 'يتطلب wh_manager أو super_admin.'])}
+      </p>
       <TextField
-        label="Reason (min 4 characters)"
+        label={t(['Reason (min 4 characters)', 'السبب (4 أحرف على الأقل)'])}
         value={skipReason}
         onChange={(e) => setSkipReason(e.target.value)}
         className="mt-2"
@@ -678,7 +695,9 @@ function TaskManagerSkipBlock({ taskType, taskId }: { taskType: string; taskId: 
         loading={mut.isPending}
         disabled={skipReason.trim().length < 4}
       >
-        Skip {taskType === 'qc' ? 'QC' : 'pack'}
+        {taskType === 'qc'
+          ? t(['Skip QC', 'تخطي QC'])
+          : t(['Skip pack', 'تخطي pack'])}
       </Button>
     </div>
   );
@@ -766,6 +785,7 @@ function defaultCompleteJsonBody(taskType: string): string {
 }
 
 function TaskJsonCompleteBlock({ taskType, taskId }: { taskType: string; taskId: string }) {
+  const { t } = useWmsTranslation();
   const toast = useToast();
   const qc = useQueryClient();
   const { warehouseId: wid } = useDefaultWarehouseId();
@@ -785,7 +805,7 @@ function TaskJsonCompleteBlock({ taskType, taskId }: { taskType: string; taskId:
       return TasksApi.complete(taskId, body);
     },
     onSuccess: (env) => {
-      toast.success('Completed (JSON)');
+      toast.success(t(['Completed (JSON)', 'مكتمل (JSON)']));
       envelopeTouch(qc, taskId, env, wid || undefined);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -793,7 +813,9 @@ function TaskJsonCompleteBlock({ taskType, taskId }: { taskType: string; taskId:
 
   return (
     <div className="rounded-md border border-slate-300 bg-slate-50/80 p-4">
-      <div className="text-sm font-medium text-slate-800">Advanced — complete via JSON</div>
+      <div className="text-sm font-medium text-slate-800">
+        {t(['Advanced — complete via JSON', 'متقدم — إكمال عبر JSON'])}
+      </div>
       <textarea
         className="mt-2 w-full rounded border border-slate-300 p-2 font-mono text-xs"
         rows={12}
@@ -802,7 +824,7 @@ function TaskJsonCompleteBlock({ taskType, taskId }: { taskType: string; taskId:
         onChange={(e) => setJsonBody(e.target.value)}
       />
       <Button type="button" className="mt-2" onClick={() => mut.mutate()} loading={mut.isPending}>
-        Complete task (JSON)
+        {t(['Complete task (JSON)', 'إكمال المهمة (JSON)'])}
       </Button>
     </div>
   );
@@ -823,13 +845,8 @@ function ExecuteFormSwitcher(props: {
   /** Current operator notes (same field as task execution header). */
   taskOperatorNotes?: string;
   showExportPdf?: boolean;
-  putawayDestLocs: Location[];
-  quarantinePutawayDestLocs: Location[];
   outbound: OutboundOrder | undefined;
   pickReservations: ReturnType<typeof parsePickReservationsFromExecutionState>;
-  allLocations: Location[];
-  packingLocationsOnly: Location[];
-  dispatchLocationsOnly: Location[];
   packExecutionState?: unknown;
   pickExecutionState?: unknown;
   submit: (body: unknown, e?: FormEvent) => void;
@@ -849,19 +866,15 @@ function ExecuteFormSwitcher(props: {
     assignedWorkerLabel,
     taskOperatorNotes,
     showExportPdf = true,
-    putawayDestLocs,
-    quarantinePutawayDestLocs,
     outbound,
     pickReservations,
-    allLocations,
-    packingLocationsOnly,
-    dispatchLocationsOnly,
     packExecutionState,
     pickExecutionState,
     submit,
     busy,
     readOnly = false,
   } = props;
+  const { t } = useWmsTranslation();
 
   if (taskType === 'receiving' && isRecord(payload) && Array.isArray(payload.lines)) {
     return (
@@ -916,9 +929,6 @@ function ExecuteFormSwitcher(props: {
         showExportPdf={showExportPdf}
         taskStatus={taskStatus}
         executionState={executionState}
-        destinationLocations={
-          taskType === 'putaway_quarantine' ? quarantinePutawayDestLocs : putawayDestLocs
-        }
         submit={submit}
         busy={busy}
         readOnly={readOnly}
@@ -935,8 +945,6 @@ function ExecuteFormSwitcher(props: {
         reservations={pickReservations}
         outbound={outbound}
         outboundOrderId={outboundOrderId}
-        allLocations={allLocations}
-        dropOffLocations={requiresPacking ? packingLocationsOnly : dispatchLocationsOnly}
         requiresPacking={requiresPacking}
         warehouseId={warehouseId}
         companyIdOverride={companyIdOverride}
@@ -960,7 +968,6 @@ function ExecuteFormSwitcher(props: {
         lineIds={payload.outbound_order_line_ids as string[]}
         outbound={outbound}
         outboundOrderId={outboundOrderId}
-        packingLocations={packingLocationsOnly}
         warehouseId={warehouseId}
         companyIdOverride={companyIdOverride}
         assignedWorkerLabel={assignedWorkerLabel}
@@ -986,7 +993,6 @@ function ExecuteFormSwitcher(props: {
         outboundOrderId={outboundOrderId ?? payload.outbound_order_id}
         lineIds={lineIds}
         requiresPacking={requiresPacking}
-        allLocations={allLocations}
         warehouseId={warehouseId}
         companyIdOverride={companyIdOverride}
         assignedWorkerLabel={assignedWorkerLabel}
@@ -1007,12 +1013,16 @@ function ExecuteFormSwitcher(props: {
     <p className="text-sm text-slate-600">
       {readOnly ? (
         <>
-          No summary view for <span className="font-mono">{taskType}</span>.
+          {t(['No summary view for', 'لا يوجد عرض ملخص لـ'])}{' '}
+          <span className="font-mono">{taskType}</span>.
         </>
       ) : (
         <>
-          No structured form for <span className="font-mono">{taskType}</span> yet (warehouse{' '}
-          <span className="font-mono">{warehouseId || '—'}</span>). Use the supervisor JSON page.
+          {t(['No structured form for', 'لا يوجد نموذج منظم لـ'])}{' '}
+          <span className="font-mono">{taskType}</span>{' '}
+          {t(['yet (warehouse', 'بعد (المستودع'])}{' '}
+          <span className="font-mono">{warehouseId || '—'}</span>).{' '}
+          {t(['Use the supervisor JSON page.', 'استخدم صفحة JSON للمشرف.'])}
         </>
       )}
     </p>
@@ -1036,6 +1046,7 @@ function QcExecuteForm({
   busy: boolean;
   readOnly?: boolean;
 }) {
+  const { t } = useWmsTranslation();
   const toast = useToast();
   const [passed, setPassed] = useState<Record<string, string>>(() =>
     Object.fromEntries(lines.map((l) => [l.inbound_order_line_id, ''])),
@@ -1063,36 +1074,43 @@ function QcExecuteForm({
 
   const qcDetailsCard = (
     <TaskDetailsCard
-      taskTypeLabel={taskTypeTitle('qc')}
+      taskTypeLabel={localizedTaskTypeTitle('qc', t)}
       iconClass={taskTypeIconClass('qc')}
-      primaryTitle={`${lines.length} line${lines.length === 1 ? '' : 's'} to inspect`}
-      subtitle={`${eligibleTotal} eligible units`}
+      primaryTitle={
+        lines.length === 1
+          ? t(['1 line to inspect', 'سطر واحد للفحص'])
+          : t([`${lines.length} lines to inspect`, `${lines.length} أسطر للفحص`])
+      }
+      subtitle={t([`${eligibleTotal} eligible units`, `${eligibleTotal} وحدة مؤهلة`])}
       fields={[
         {
           iconClass: 'fa-solid fa-list-ol',
-          label: 'Lines',
+          label: t(['Lines', 'الأسطر']),
           value: String(lines.length),
         },
         {
           iconClass: 'fa-solid fa-boxes-stacked',
-          label: 'Eligible quantity',
+          label: t(['Eligible quantity', 'الكمية المؤهلة']),
           value: String(eligibleTotal),
         },
       ]}
-      summary="PASS or FAIL each line before putaway can proceed."
+      summary={t([
+        'PASS or FAIL each line before putaway can proceed.',
+        'اختر PASS أو FAIL لكل سطر قبل متابعة التخزين.',
+      ])}
     />
   );
 
   const qcColumns: Column<QcLineRow>[] = [
     {
-      header: 'Line',
+      header: t(['Line', 'السطر']),
       accessor: (l) => (
         <span className="font-mono text-xs">{l.inbound_order_line_id.slice(0, 8)}…</span>
       ),
       width: '120px',
     },
     {
-      header: 'Eligible',
+      header: t(['Eligible', 'مؤهل']),
       accessor: (l) => <span className="font-mono tabular-nums">{l.eligible_qty}</span>,
       width: '100px',
     },
@@ -1100,7 +1118,7 @@ function QcExecuteForm({
       ? []
       : [
           {
-            header: 'Result',
+            header: t(['Result', 'النتيجة']),
             accessor: (l: QcLineRow) => (
               <div className="flex flex-wrap gap-3">
                 <label className="inline-flex items-center gap-1 text-xs">
@@ -1126,7 +1144,7 @@ function QcExecuteForm({
             width: '140px',
           } satisfies Column<QcLineRow>,
           {
-            header: 'Passed',
+            header: t(['Passed', 'ناجح']),
             accessor: (l: QcLineRow) => (
                 <input
                 className="w-24 rounded border border-slate-300 px-2 py-1 font-mono text-xs"
@@ -1139,7 +1157,7 @@ function QcExecuteForm({
             width: '100px',
           } satisfies Column<QcLineRow>,
           {
-            header: 'Failed',
+            header: t(['Failed', 'فاشل']),
             accessor: (l: QcLineRow) => (
                 <input
                 className="w-24 rounded border border-slate-300 px-2 py-1 font-mono text-xs"
@@ -1159,11 +1177,11 @@ function QcExecuteForm({
       <div className="space-y-4">
         {qcDetailsCard}
         <DataTable
-          title="QC lines"
+          title={t(['QC lines', 'أسطر فحص الجودة'])}
           columns={qcColumns}
           rows={lines}
           rowKey={(l) => l.inbound_order_line_id}
-          empty="No QC lines."
+          empty={t(['No QC lines.', 'لا توجد أسطر فحص جودة.'])}
         />
       </div>
     );
@@ -1176,7 +1194,7 @@ function QcExecuteForm({
         e.preventDefault();
         for (const l of lines) {
           if (!disposition[l.inbound_order_line_id]) {
-            toast.error('PASS or FAIL is required for every line.');
+            toast.error(t(['PASS or FAIL is required for every line.', 'مطلوب PASS أو FAIL لكل سطر.']));
             return;
           }
         }
@@ -1192,14 +1210,14 @@ function QcExecuteForm({
     >
       {qcDetailsCard}
       <DataTable
-        title="QC lines"
+        title={t(['QC lines', 'أسطر فحص الجودة'])}
         columns={qcColumns}
         rows={lines}
         rowKey={(l) => l.inbound_order_line_id}
-        empty="No QC lines."
+        empty={t(['No QC lines.', 'لا توجد أسطر فحص جودة.'])}
       />
       <Button type="submit" loading={busy}>
-        Submit QC
+        {t(['Submit QC', 'إرسال فحص الجودة'])}
       </Button>
     </form>
   );
