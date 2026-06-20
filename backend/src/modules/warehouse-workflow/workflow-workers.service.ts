@@ -27,10 +27,13 @@ export class WorkflowWorkersService {
   /**
    * Task assignment: only workers backed by a **system** user (`users.company_id` null)
    * with **Worker** platform role (`wh_operator`).
+   *
+   * When a warehouse is supplied, operators are listed for that site across all client
+   * tenants — a single physical warehouse (WH-001) serves every company on the task board.
    */
   async list(user: AuthPrincipal, warehouseId?: string, companyIdParam?: string) {
     const tenantCompanyId = this.companyAccess.getReadFilterCompanyId(user, companyIdParam);
-    if (!tenantCompanyId && user.tenantScope !== 'all') {
+    if (!warehouseId && !tenantCompanyId && user.tenantScope !== 'all') {
       return [];
     }
     const where: Prisma.WorkerWhereInput = {
@@ -42,13 +45,10 @@ export class WorkflowWorkersService {
         status: UserStatus.active,
       },
     };
-    if (tenantCompanyId) {
-      where.companyId = tenantCompanyId;
-    }
-    // Workers created from Users often have `warehouse_id` null (tenant-wide). Tasks always pass a
-    // workflow warehouse — still list those operators alongside warehouse-specific rows.
     if (warehouseId) {
       where.OR = [{ warehouseId }, { warehouseId: null }];
+    } else if (tenantCompanyId) {
+      where.companyId = tenantCompanyId;
     }
     return this.prisma.worker.findMany({
       where,
@@ -93,15 +93,16 @@ export class WorkflowWorkersService {
 
   async workerLoad(user: AuthPrincipal, warehouseId?: string, companyIdParam?: string) {
     const tenantCompanyId = this.companyAccess.getReadFilterCompanyId(user, companyIdParam);
-    if (!tenantCompanyId && user.tenantScope !== 'all') {
+    if (!warehouseId && !tenantCompanyId && user.tenantScope !== 'all') {
       return [];
     }
     const whFilter = warehouseId
       ? Prisma.sql`AND (w.warehouse_id = ${warehouseId}::uuid OR w.warehouse_id IS NULL)`
       : Prisma.empty;
-    const companyFilter = tenantCompanyId
-      ? Prisma.sql`AND w.company_id = ${tenantCompanyId}::uuid`
-      : Prisma.empty;
+    const companyFilter =
+      !warehouseId && tenantCompanyId
+        ? Prisma.sql`AND w.company_id = ${tenantCompanyId}::uuid`
+        : Prisma.empty;
     const rows = await this.prisma.$queryRaw<
       Array<{
         worker_id: string;
