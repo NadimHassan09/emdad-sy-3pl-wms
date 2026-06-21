@@ -1,11 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import type { Location } from '../../../api/locations';
+import { useResolvedLocations } from '../../../hooks/useResolvedLocations';
+import { useTypedLocationLookup } from '../../../hooks/useTypedLocationLookup';
 import { TaskDetailsCard } from '../../../components/tasks/TaskDetailsCard';
 import type { OutboundOrder, OutboundOrderLine } from '../../../api/outbound';
 import { TasksApi } from '../../../api/tasks';
 import { WorkflowsApi } from '../../../api/workflows';
 import { Button } from '../../../components/Button';
+import { Combobox } from '../../../components/Combobox';
 import { TextField } from '../../../components/TextField';
 import { QK } from '../../../constants/query-keys';
 import { TaskLinesFilterCard } from '../../../components/tasks/TaskLinesFilterCard';
@@ -22,16 +25,20 @@ import {
   outboundOrderTitle,
 } from '../../../lib/task-details-helpers';
 import { taskTypeIconClass } from '../../../lib/task-type-icons';
-import { taskTypeTitle } from '../../../workflow/task-ui-matrix';
+import { useWmsTranslation } from '../../../lib/ui-i18n';
+import {
+  localizedDispatchDestinationLocationHint,
+  localizedDispatchLineStatusFilterOptions,
+  localizedDispatchSourceLocationHint,
+  localizedTaskLineSearchPlaceholder,
+  localizedTaskTypeTitle,
+} from '../../../lib/ui-labels/task-execution';
 import { dispatchLocationLabel, openDispatchPrintPdf } from './dispatch-print';
 import { DispatchAddToShipmentModal } from './DispatchAddToShipmentModal';
 import type { DispatchExecutionDraft, DispatchPackageDraft } from './dispatch-types';
 import {
   buildDispatchCompletePayload,
   defaultPackages,
-  dispatchLineStatusFilterOptions,
-  dispatchDestinationLocationHint,
-  dispatchSourceLocationHint,
   filterDispatchLines,
   resolveDispatchDestinationFromQueue,
   findLocationById,
@@ -41,8 +48,12 @@ import {
   locationDisplay,
   parseQty,
   readDispatchDraft,
+  readDispatchPayloadSourceLocationId,
   readPackDraftPackages,
+  readPickDraftPackingDestinationId,
+  readPackDraftPackingStationId,
   resolveDispatchSourceLocationId,
+  eligibleDispatchDockLocations,
 } from './dispatch-utils';
 
 type Props = {
@@ -51,7 +62,6 @@ type Props = {
   outboundOrderId?: string;
   lineIds: string[];
   requiresPacking: boolean;
-  allLocations: Location[];
   warehouseId: string;
   companyIdOverride?: string;
   assignedWorkerLabel: string;
@@ -61,6 +71,7 @@ type Props = {
   executionState?: unknown;
   packExecutionState?: unknown;
   pickExecutionState?: unknown;
+  taskPayload?: unknown;
   submit: (body: unknown, e?: FormEvent) => void;
   busy: boolean;
   readOnly?: boolean;
@@ -72,7 +83,6 @@ export function DispatchExecutionPanel({
   outboundOrderId,
   lineIds,
   requiresPacking,
-  allLocations,
   warehouseId,
   companyIdOverride,
   assignedWorkerLabel,
@@ -82,10 +92,12 @@ export function DispatchExecutionPanel({
   executionState,
   packExecutionState,
   pickExecutionState,
+  taskPayload,
   submit,
   busy,
   readOnly = false,
 }: Props) {
+  const { t } = useWmsTranslation();
   const toast = useToast();
   const savedDraft = readDispatchDraft(executionState);
   const packPackagesFromSibling = readPackDraftPackages(packExecutionState);
@@ -116,21 +128,32 @@ export function DispatchExecutionPanel({
   const effectivePickExecutionState = pickExecutionState ?? pickExecutionFromWorkflow;
   const effectivePackExecutionState = packExecutionState ?? packExecutionFromWorkflow;
 
+  const packingLookup = useTypedLocationLookup(warehouseId, 'packing', !!warehouseId);
+  const outputLookup = useTypedLocationLookup(warehouseId, 'output', !!warehouseId);
+  const packingLocations = packingLookup.data?.items ?? [];
+  const outputDocks = outputLookup.data?.items ?? [];
+
+  const payloadSourceLocationId = readDispatchPayloadSourceLocationId(taskPayload);
+
   const systemSourceId = useMemo(
     () =>
       resolveDispatchSourceLocationId(
         requiresPacking,
         effectivePackExecutionState,
         effectivePickExecutionState,
-        allLocations,
+        packingLocations,
+        outputDocks,
         savedDraft?.sourceLocationId,
+        payloadSourceLocationId,
       ),
     [
       requiresPacking,
       effectivePackExecutionState,
       effectivePickExecutionState,
-      allLocations,
+      packingLocations,
+      outputDocks,
       savedDraft?.sourceLocationId,
+      payloadSourceLocationId,
     ],
   );
 
@@ -155,12 +178,12 @@ export function DispatchExecutionPanel({
   const systemDestinationId = useMemo(
     () =>
       resolveDispatchDestinationFromQueue(
-        allLocations,
+        outputDocks,
         taskId,
         activeDispatchTaskIds,
         savedDraft?.destinationLocationId,
       ),
-    [allLocations, taskId, activeDispatchTaskIds, savedDraft?.destinationLocationId],
+    [outputDocks, taskId, activeDispatchTaskIds, savedDraft?.destinationLocationId],
   );
 
   const [draft, setDraft] = useState<DispatchExecutionDraft>(() => ({
@@ -229,8 +252,20 @@ export function DispatchExecutionPanel({
 
   const effectiveSourceId = systemSourceId ?? draft.sourceLocationId;
   const effectiveDestId = systemDestinationId ?? draft.destinationLocationId;
-  const sourceLoc = findLocationById(allLocations, effectiveSourceId);
-  const destLoc = findLocationById(allLocations, effectiveDestId);
+
+  const resolvedIds = useMemo(() => {
+    const ids = [
+      effectiveSourceId,
+      effectiveDestId,
+      readPickDraftPackingDestinationId(effectivePickExecutionState),
+      readPackDraftPackingStationId(effectivePackExecutionState),
+    ];
+    return ids.filter((id): id is string => !!id?.trim());
+  }, [effectiveSourceId, effectiveDestId, effectivePickExecutionState, effectivePackExecutionState]);
+
+  const { locationById } = useResolvedLocations(resolvedIds);
+  const sourceLoc = findLocationById(locationById, effectiveSourceId);
+  const destLoc = findLocationById(locationById, effectiveDestId);
 
   const filteredDispatchLines = useMemo(
     () => filterDispatchLines(draft.lines, appliedLineFilters, lineMeta),
@@ -248,7 +283,8 @@ export function DispatchExecutionPanel({
       }}
       resultCount={filteredDispatchLines.length}
       totalCount={draft.lines.length}
-      statusOptions={dispatchLineStatusFilterOptions()}
+      statusOptions={localizedDispatchLineStatusFilterOptions(t)}
+      searchPlaceholder={localizedTaskLineSearchPlaceholder(t)}
       onBarcodeScan={(code) => {
         const next = taskLineFiltersWithSearch(draftLineFilters, code);
         setDraftLineFilters(next);
@@ -284,15 +320,15 @@ export function DispatchExecutionPanel({
       const current = parseQty(line.shipQty);
       const next = Math.min(picked, current + qty);
       if (qty <= 0) {
-        toast.error('Enter a positive quantity.');
+        toast.error(t(['Enter a positive quantity.', 'أدخل كمية موجبة.']));
         return false;
       }
       if (next <= current) {
-        toast.error(`Cannot ship more than picked (${picked}).`);
+        toast.error(t([`Cannot ship more than picked (${picked}).`, `لا يمكن شحن أكثر من المُلتقط (${picked}).`]));
         return false;
       }
       patchLine(lineId, { shipQty: String(next), verified: true });
-      toast.success('Product added to shipment');
+      toast.success(t(['Product added to shipment', 'أُضيف المنتج إلى الشحنة']));
       return true;
     },
     [draft.lines, patchLine, toast],
@@ -303,11 +339,11 @@ export function DispatchExecutionPanel({
       const pkg = draft.packages.find((p) => p.id === pkgId);
       if (!pkg) return false;
       if (pkg.scanned) {
-        toast.error('Package already loaded.');
+        toast.error(t(['Package already loaded.', 'الطرد محمّل مسبقاً.']));
         return false;
       }
       patchPackage(pkgId, { scanned: true, ready: true });
-      toast.success(`Package ${pkg.label} loaded`);
+      toast.success(t([`Package ${pkg.label} loaded`, `تم تحميل الطرد ${pkg.label}`]));
       return true;
     },
     [draft.packages, patchPackage, toast],
@@ -315,26 +351,60 @@ export function DispatchExecutionPanel({
 
   function completeBlockers(): string[] {
     const issues: string[] = [];
-    if (!draft.sourceLocationId) {
+    const sourceId = effectiveSourceId ?? draft.sourceLocationId;
+    const destId = effectiveDestId ?? draft.destinationLocationId;
+    if (!sourceId) {
       issues.push(
         requiresPacking
-          ? 'Source packing location is not available from pack/pick tasks yet.'
-          : 'Source delivery location is not available from the pick task yet.',
+          ? t([
+              'Source packing location is not available from pack/pick tasks yet.',
+              'موقع التغليف المصدر غير متاح من مهام التغليف/التقاط بعد.',
+            ])
+          : t([
+              'Source delivery location is not available from the pick task yet.',
+              'موقع التسليم المصدر غير متاح من مهمة التقاط بعد.',
+            ]),
       );
     }
-    if (!draft.destinationLocationId) {
-      issues.push('Dispatch dock is not available from the location queue yet.');
+    if (!destId) {
+      issues.push(
+        t([
+          'Dispatch dock is not available from the location queue yet.',
+          'رصيف الإرسال غير متاح من طابور المواقع بعد.',
+        ]),
+      );
     }
     for (const l of draft.lines) {
       const picked = parseQty(l.pickedQty);
       const ship = parseQty(l.shipQty);
-      if (ship > picked + 1e-6) issues.push('Ship quantity cannot exceed picked quantity.');
-      if (ship > 0 && !l.verified) issues.push('Verify all shipment lines with quantity before dispatch.');
+      if (ship > picked + 1e-6) {
+        issues.push(
+          t([
+            'Ship quantity cannot exceed picked quantity.',
+            'لا يمكن أن تتجاوز كمية الشحن الكمية المُلتقطة.',
+          ]),
+        );
+      }
+      if (ship > 0 && !l.verified) {
+        issues.push(
+          t([
+            'Verify all shipment lines with quantity before dispatch.',
+            'تحقق من كل أسطر الشحنة ذات الكمية قبل الإرسال.',
+          ]),
+        );
+      }
     }
     const hasShipment =
       draft.lines.some((l) => l.verified && parseQty(l.shipQty) > 0) ||
       draft.packages.some((p) => p.scanned);
-    if (!hasShipment) issues.push('Add at least one product or package to the shipment.');
+    if (!hasShipment) {
+      issues.push(
+        t([
+          'Add at least one product or package to the shipment.',
+          'أضف منتجاً واحداً أو طرداً واحداً على الأقل إلى الشحنة.',
+        ]),
+      );
+    }
     return [...new Set(issues)];
   }
 
@@ -342,7 +412,7 @@ export function DispatchExecutionPanel({
     e.preventDefault();
     const issues = completeBlockers();
     if (issues.length > 0) {
-      toast.error(issues[0] ?? 'Complete dispatch checks before finishing.');
+      toast.error(issues[0] ?? t(['Complete dispatch checks before finishing.', 'أكمل فحوصات الإرسال قبل الإنهاء.']));
       return;
     }
     submit(buildDispatchCompletePayload(draft.lines, draft.carrier, draft.tracking), e);
@@ -350,50 +420,50 @@ export function DispatchExecutionPanel({
 
   const dispatchDetailsCard = (
     <TaskDetailsCard
-      taskTypeLabel={taskTypeTitle('dispatch')}
+      taskTypeLabel={localizedTaskTypeTitle('dispatch', t)}
       iconClass={taskTypeIconClass('dispatch')}
       primaryTitle={outboundOrderTitle(
         outbound?.orderNumber,
         outboundOrderId ? `/orders/outbound/${outboundOrderId}` : undefined,
-        'Dispatch task',
+        t(['Dispatch task', 'مهمة الإرسال']),
       )}
       subtitle={outbound?.company?.name ?? '—'}
       status={taskStatus}
       fields={[
         {
           iconClass: 'fa-solid fa-building',
-          label: 'Client',
+          label: t(['Client', 'العميل']),
           value: outbound?.company?.name ?? '—',
         },
         {
           iconClass: 'fa-solid fa-user',
-          label: 'Dispatcher',
+          label: t(['Dispatcher', 'مُرسِل']),
           value: assignedWorkerLabel,
         },
         {
           iconClass: 'fa-solid fa-truck',
-          label: 'Carrier',
+          label: t(['Carrier', 'الناقل']),
           value: (draft.carrier || outbound?.carrier)?.trim() || '—',
         },
         {
           iconClass: 'fa-solid fa-calendar',
-          label: 'Ship by',
+          label: t(['Ship by', 'الشحن قبل']),
           value: formatTaskDateOnly(outbound?.requiredShipDate),
         },
         {
           iconClass: 'fa-solid fa-warehouse',
-          label: 'Warehouse',
+          label: t(['Warehouse', 'المستودع']),
           value: displayWarehouseLabel(warehouseId),
         },
       ]}
       summary={outbound?.destinationAddress?.trim() || undefined}
-      summaryTitle="Ship to"
+      summaryTitle={t(['Ship to', 'الشحن إلى'])}
     />
   );
 
   const handleExportPrint = () => {
     if (draft.lines.length === 0) {
-      toast.error('No lines to export.');
+      toast.error(t(['No lines to export.', 'لا توجد أسطر للتصدير.']));
       return;
     }
     const ok = openDispatchPrintPdf({
@@ -412,7 +482,7 @@ export function DispatchExecutionPanel({
       lineMeta,
       draft,
     });
-    if (!ok) toast.error('Allow pop-ups to print or save as PDF.');
+    if (!ok) toast.error(t(['Allow pop-ups to print or save as PDF.', 'اسمح بالنوافذ المنبثقة للطباعة أو حفظ PDF.']));
   };
 
   if (readOnly) {
@@ -423,8 +493,8 @@ export function DispatchExecutionPanel({
           requiresPacking={requiresPacking}
           sourceLoc={sourceLoc}
           destLoc={destLoc}
-          sourceHint={dispatchSourceLocationHint(requiresPacking)}
-          destHint={dispatchDestinationLocationHint()}
+          sourceHint={localizedDispatchSourceLocationHint(requiresPacking, t)}
+          destHint={localizedDispatchDestinationLocationHint(t)}
         />
         {showExportPdf ? (
           <div className="flex justify-end">
@@ -435,7 +505,7 @@ export function DispatchExecutionPanel({
               disabled={draft.lines.length === 0}
               onClick={handleExportPrint}
             >
-              Export PDF
+              {t(['Export PDF', 'تصدير PDF'])}
             </Button>
           </div>
         ) : null}
@@ -451,18 +521,70 @@ export function DispatchExecutionPanel({
         requiresPacking={requiresPacking}
         sourceLoc={sourceLoc}
         destLoc={destLoc}
-        sourceHint={dispatchSourceLocationHint(requiresPacking)}
-        destHint={dispatchDestinationLocationHint()}
+        sourceHint={localizedDispatchSourceLocationHint(requiresPacking, t)}
+        destHint={localizedDispatchDestinationLocationHint(t)}
       />
+
+      {!effectiveSourceId && (requiresPacking ? packingLocations : outputDocks).length > 0 ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+          <p className="text-sm font-semibold text-amber-950">
+            {requiresPacking
+              ? t(['Select packing source', 'اختر موقع التغليف المصدر'])
+              : t(['Select delivery source', 'اختر موقع التسليم المصدر'])}
+          </p>
+          <div className="mt-2">
+            <Combobox
+              value={draft.sourceLocationId}
+              onChange={(id) => patchDraft({ sourceLocationId: id, sourceVerified: true })}
+              options={(requiresPacking ? packingLocations : outputDocks)
+                .filter((l) => l.status !== 'blocked' && l.status !== 'archived')
+                .map((l) => ({
+                  value: l.id,
+                  label: l.fullPath,
+                  hint: l.barcode,
+                }))}
+              placeholder={
+                requiresPacking
+                  ? t(['Packing location…', 'موقع التغليف…'])
+                  : t(['Delivery area…', 'منطقة التسليم…'])
+              }
+              emptyMessage={t(['No locations match.', 'لا مواقع مطابقة.'])}
+            />
+          </div>
+        </section>
+      ) : null}
+
+      {!effectiveDestId && eligibleDispatchDockLocations(outputDocks).length > 0 ? (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+          <p className="text-sm font-semibold text-amber-950">
+            {t(['Select dispatch dock', 'اختر رصيف الإرسال'])}
+          </p>
+          <div className="mt-2">
+            <Combobox
+              value={draft.destinationLocationId}
+              onChange={(id) => patchDraft({ destinationLocationId: id, destVerified: true })}
+              options={eligibleDispatchDockLocations(outputDocks).map((l) => ({
+                value: l.id,
+                label: l.fullPath,
+                hint: l.barcode,
+              }))}
+              placeholder={t(['Shipping dock…', 'رصيف الشحن…'])}
+              emptyMessage={t(['No docks match.', 'لا أرصفة مطابقة.'])}
+            />
+          </div>
+        </section>
+      ) : null}
 
       {lineFiltersCard}
 
       <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-slate-800">Shipment verification</p>
+          <p className="text-sm font-semibold text-slate-800">
+            {t(['Shipment verification', 'التحقق من الشحنة'])}
+          </p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="brand" onClick={() => setAddModalOpen(true)}>
-              Add
+              {t(['Add', 'إضافة'])}
             </Button>
             {showExportPdf ? (
               <Button
@@ -472,28 +594,33 @@ export function DispatchExecutionPanel({
                 disabled={draft.lines.length === 0}
                 onClick={handleExportPrint}
               >
-                Export PDF
+                {t(['Export PDF', 'تصدير PDF'])}
               </Button>
             ) : null}
           </div>
         </div>
         {draft.packages.some((p) => p.scanned) ? (
           <p className="mt-2 text-xs text-emerald-700">
-            {draft.packages.filter((p) => p.scanned).length} of {draft.packages.length} package(s) loaded
+            {t([
+              `${draft.packages.filter((p) => p.scanned).length} of ${draft.packages.length} package(s) loaded`,
+              `تم تحميل ${draft.packages.filter((p) => p.scanned).length} من ${draft.packages.length} طرد`,
+            ])}
           </p>
         ) : null}
         {filteredDispatchLines.length === 0 && draft.lines.length > 0 ? (
-          <p className="mt-3 text-center text-sm text-slate-500">No lines match the current filters.</p>
+          <p className="mt-3 text-center text-sm text-slate-500">
+            {t(['No lines match the current filters.', 'لا أسطر تطابق الفلاتر الحالية.'])}
+          </p>
         ) : null}
         <div className="-mx-1 mt-3 overflow-x-auto">
           <table className="min-w-[720px] w-full text-left text-sm">
             <thead>
               <tr className="border-b bg-slate-50 text-xs uppercase text-slate-500">
-                <th className="px-3 py-2">Product</th>
+                <th className="px-3 py-2">{t(['Product', 'المنتج'])}</th>
                 <th className="px-3 py-2">SKU</th>
-                <th className="px-3 py-2">Picked</th>
-                <th className="px-3 py-2">Ship</th>
-                <th className="px-3 py-2">Verify</th>
+                <th className="px-3 py-2">{t(['Picked', 'مُلتقط'])}</th>
+                <th className="px-3 py-2">{t(['Ship', 'شحن'])}</th>
+                <th className="px-3 py-2">{t(['Verify', 'تحقق'])}</th>
               </tr>
             </thead>
             <tbody>
@@ -530,27 +657,27 @@ export function DispatchExecutionPanel({
       </section>
 
       <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-        <p className="text-sm font-semibold text-slate-800">Carrier handoff</p>
+        <p className="text-sm font-semibold text-slate-800">{t(['Carrier handoff', 'تسليم الناقل'])}</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <TextField label="Carrier" value={draft.carrier} onChange={(e) => patchDraft({ carrier: e.target.value })} />
+          <TextField label={t(['Carrier', 'الناقل'])} value={draft.carrier} onChange={(e) => patchDraft({ carrier: e.target.value })} />
           <TextField
-            label="Tracking number"
+            label={t(['Tracking Number', 'رقم التتبع'])}
             value={draft.tracking}
             onChange={(e) => patchDraft({ tracking: e.target.value })}
           />
           <TextField
-            label="Driver (optional)"
+            label={t(['Driver (optional)', 'السائق (اختياري)'])}
             value={draft.driverName}
             onChange={(e) => patchDraft({ driverName: e.target.value })}
           />
           <TextField
-            label="Vehicle (optional)"
+            label={t(['Vehicle (optional)', 'المركبة (اختياري)'])}
             value={draft.vehicleInfo}
             onChange={(e) => patchDraft({ vehicleInfo: e.target.value })}
           />
         </div>
         <label className="mt-3 block text-xs font-medium text-slate-600">
-          Dispatch notes
+          {t(['Dispatch notes', 'ملاحظات الإرسال'])}
           <textarea
             className="mt-1 min-h-[72px] w-full rounded-lg border border-slate-300 p-2 text-sm"
             value={draft.dispatchNotes}
@@ -568,7 +695,7 @@ export function DispatchExecutionPanel({
             loading={saveProgress.isPending}
             onClick={() => saveProgress.mutate({ dispatch_draft: draft })}
           >
-            Save progress
+            {t(['Save progress', 'حفظ التقدم'])}
           </Button>
           <Button
             type="button"
@@ -577,7 +704,7 @@ export function DispatchExecutionPanel({
             onClick={() => {
               const w = window.open('', '_blank');
               if (!w) {
-                toast.error('Allow pop-ups to print');
+                toast.error(t(['Allow pop-ups to print', 'اسمح بالنوافذ المنبثقة للطباعة']));
                 return;
               }
               w.document.write(
@@ -587,10 +714,10 @@ export function DispatchExecutionPanel({
               w.print();
             }}
           >
-            Print documents
+            {t(['Print documents', 'طباعة المستندات'])}
           </Button>
           <Button type="submit" className="min-h-[52px] flex-1 text-base" loading={busy}>
-            Complete dispatch
+            {t(['Complete dispatch', 'إكمال الإرسال'])}
           </Button>
         </div>
       </div>
@@ -622,14 +749,17 @@ function MovementHero({
   sourceHint: string;
   destHint: string;
 }) {
+  const { t } = useWmsTranslation();
   const src = sourceLoc ? locationDisplay(sourceLoc) : null;
   const dst = destLoc ? locationDisplay(destLoc) : null;
-  const sourceTitle = requiresPacking ? 'Source · Packing' : 'Source · Delivery area';
+  const sourceTitle = requiresPacking
+    ? t(['Source · Packing', 'المصدر · تغليف'])
+    : t(['Source · Delivery area', 'المصدر · منطقة التسليم']);
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-gradient-to-r from-violet-50 via-white to-emerald-50 p-4 shadow-sm">
       <p className="text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-        Movement path
+        {t(['Movement path', 'مسار الحركة'])}
       </p>
       <div className="mt-3 grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
         <div className="rounded-xl border border-violet-200 bg-white p-4 text-center">
@@ -641,7 +771,9 @@ function MovementHero({
             </>
           ) : (
             <>
-              <p className="mt-2 text-sm font-medium text-slate-600">To be selected by the system</p>
+              <p className="mt-2 text-sm font-medium text-slate-600">
+                {t(['To be selected by the system', 'سيُختار تلقائياً من النظام'])}
+              </p>
               <p className="mt-2 text-[10px] text-slate-500">{sourceHint}</p>
             </>
           )}
@@ -650,7 +782,9 @@ function MovementHero({
           →
         </div>
         <div className="rounded-xl border border-emerald-200 bg-white p-4 text-center">
-          <p className="text-[10px] font-semibold uppercase text-emerald-800">Destination · Dispatch</p>
+          <p className="text-[10px] font-semibold uppercase text-emerald-800">
+            {t(['Destination · Dispatch', 'الوجهة · إرسال'])}
+          </p>
           {dst ? (
             <>
               <p className="mt-2 font-mono text-2xl font-bold text-slate-900">{dst.shortLabel}</p>
@@ -658,7 +792,9 @@ function MovementHero({
             </>
           ) : (
             <>
-              <p className="mt-2 text-sm font-medium text-slate-600">To be selected by the system</p>
+              <p className="mt-2 text-sm font-medium text-slate-600">
+                {t(['To be selected by the system', 'سيُختار تلقائياً من النظام'])}
+              </p>
               <p className="mt-2 text-[10px] text-slate-500">{destHint}</p>
             </>
           )}

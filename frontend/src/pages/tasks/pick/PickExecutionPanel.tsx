@@ -1,8 +1,11 @@
 import { useQueries } from '@tanstack/react-query';
 import { useTaskMutationCacheRefresh, useTaskProgressSave } from '../../../hooks/useTaskProgressSave';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Location } from '../../../api/locations';
+import type { Location, LocationType } from '../../../api/locations';
 import { Column, DataTable } from '../../../components/DataTable';
+import { useResolvedLocations } from '../../../hooks/useResolvedLocations';
+import { useTypedLocationLookup } from '../../../hooks/useTypedLocationLookup';
+import { resolveLocationByScan } from '../../../lib/location-resolve';
 import { TaskDetailsCard } from '../../../components/tasks/TaskDetailsCard';
 import type { OutboundOrder, OutboundOrderLine } from '../../../api/outbound';
 import { ProductsApi } from '../../../api/products';
@@ -20,7 +23,8 @@ import {
   outboundOrderTitle,
 } from '../../../lib/task-details-helpers';
 import { taskTypeIconClass } from '../../../lib/task-type-icons';
-import { taskTypeTitle } from '../../../workflow/task-ui-matrix';
+import { useWmsTranslation } from '../../../lib/ui-i18n';
+import { localizedPickLineStatus, localizedTaskTypeTitle } from '../../../lib/ui-labels/task-execution';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { openPickPrintPdf } from './pick-print';
 import type { PickExecutionDraft, PickLineDraft, PickReservationRow } from './pick-types';
@@ -35,7 +39,6 @@ import {
   locationDisplay,
   parseQty,
   pickLineStatusClass,
-  pickLineStatusLabel,
   sortDraftsByLocationPath,
   type PickLineFilters,
 } from './pick-utils';
@@ -53,9 +56,6 @@ type Props = {
   reservations: PickReservationRow[];
   outbound: OutboundOrder | undefined;
   outboundOrderId?: string;
-  allLocations: Location[];
-  /** Packing staging bins, or delivery-area (output) bins when order skips pack. */
-  dropOffLocations: Location[];
   requiresPacking: boolean;
   warehouseId: string;
   companyIdOverride?: string;
@@ -74,8 +74,6 @@ export function PickExecutionPanel({
   reservations,
   outbound,
   outboundOrderId,
-  allLocations,
-  dropOffLocations,
   requiresPacking,
   warehouseId,
   companyIdOverride,
@@ -88,6 +86,7 @@ export function PickExecutionPanel({
   busy,
   readOnly = false,
 }: Props) {
+  const { t } = useWmsTranslation();
   const toast = useToast();
   const isMdUp = useMediaQuery('(min-width: 768px)');
   const savedDraft = readPickDraft(executionState);
@@ -101,7 +100,7 @@ export function PickExecutionPanel({
   );
 
   const [drafts, setDrafts] = useState<PickLineDraft[]>(() =>
-    sortDraftsByLocationPath(initialPickDrafts(reservations, savedDraft?.lines), allLocations),
+    initialPickDrafts(reservations, savedDraft?.lines),
   );
   const [packingScanOpen, setPackingScanOpen] = useState(false);
   const [draftLineFilters, setDraftLineFilters] = useState<PickLineFilters>(
@@ -113,6 +112,28 @@ export function PickExecutionPanel({
   const [packingDestinationId, setPackingDestinationId] = useState(savedDraft?.packingDestinationId ?? '');
   const [packingBarcodeDraft, setPackingBarcodeDraft] = useState('');
 
+  const reservationLocationIds = useMemo(
+    () => [...new Set(reservations.map((r) => r.locationId))],
+    [reservations],
+  );
+
+  const { locationById } = useResolvedLocations([
+    ...reservationLocationIds,
+    packingDestinationId,
+  ]);
+
+  const dropOffType: LocationType = requiresPacking ? 'packing' : 'output';
+  const dropOffLookup = useTypedLocationLookup(warehouseId, dropOffType, !!warehouseId);
+  const dropOffLocations = useMemo(() => {
+    const items = dropOffLookup.data?.items ?? [];
+    return items.filter((l) => l.status !== 'blocked' && l.status !== 'archived');
+  }, [dropOffLookup.data?.items]);
+
+  useEffect(() => {
+    if (packingDestinationId.trim() || dropOffLocations.length !== 1) return;
+    setPackingDestinationId(dropOffLocations[0]!.id);
+  }, [dropOffLocations, packingDestinationId]);
+
   const skipReservationReset = useRef(true);
   useEffect(() => {
     if (skipReservationReset.current) {
@@ -120,9 +141,17 @@ export function PickExecutionPanel({
       return;
     }
     setDrafts(
-      sortDraftsByLocationPath(initialPickDrafts(reservations, savedDraft?.lines), allLocations),
+      sortDraftsByLocationPath(
+        initialPickDrafts(reservations, savedDraft?.lines),
+        locationById,
+      ),
     );
-  }, [reservationsFingerprint]);
+  }, [reservationsFingerprint, locationById]);
+
+  useEffect(() => {
+    if (locationById.size === 0) return;
+    setDrafts((prev) => sortDraftsByLocationPath(prev, locationById));
+  }, [locationById]);
 
   const lineMeta = useMemo(() => {
     const m = new Map<string, OutboundOrderLine>();
@@ -162,8 +191,8 @@ export function PickExecutionPanel({
 
   const filteredDrafts = useMemo(
     () =>
-      filterPickDrafts(drafts, appliedLineFilters, lineMeta, allLocations, lotNumberById),
-    [drafts, appliedLineFilters, lineMeta, allLocations, lotNumberById],
+      filterPickDrafts(drafts, appliedLineFilters, lineMeta, locationById, lotNumberById),
+    [drafts, appliedLineFilters, lineMeta, locationById, lotNumberById],
   );
 
   const lineFiltersCard = (
@@ -176,9 +205,23 @@ export function PickExecutionPanel({
         setAppliedLineFilters(DEFAULT_PICK_LINE_FILTERS);
       }}
       onScanApply={(field, code) => {
-        const next = pickLineFiltersAfterScan(draftLineFilters, field, code, allLocations);
-        setDraftLineFilters(next);
-        setAppliedLineFilters(next);
+        void (async () => {
+          if (field === 'location') {
+            const hit = await resolveLocationByScan(warehouseId, code);
+            const next = pickLineFiltersAfterScan(
+              draftLineFilters,
+              field,
+              code,
+              hit?.fullPath,
+            );
+            setDraftLineFilters(next);
+            setAppliedLineFilters(next);
+          } else {
+            const next = pickLineFiltersAfterScan(draftLineFilters, field, code);
+            setDraftLineFilters(next);
+            setAppliedLineFilters(next);
+          }
+        })();
       }}
       resultCount={filteredDrafts.length}
       totalCount={drafts.length}
@@ -192,7 +235,7 @@ export function PickExecutionPanel({
 
   const nextLocDraft = drafts[nextIncompleteIndex];
   const nextLoc = nextLocDraft
-    ? allLocations.find((l) => l.id === nextLocDraft.locationId)
+    ? locationById.get(nextLocDraft.locationId)
     : undefined;
 
   const patchDraft = useCallback((rowKey: string, patch: Partial<PickLineDraft>) => {
@@ -214,29 +257,35 @@ export function PickExecutionPanel({
   });
 
   const applyPackingBarcode = (raw: string) => {
-    const code = raw.trim().toLowerCase();
-    if (!code) {
-      toast.error(
+    void (async () => {
+      const code = raw.trim();
+      if (!code) {
+        toast.error(
+          requiresPacking
+            ? t(['Enter or scan a packing location barcode.', 'أدخل أو امسح Barcode موقع التغليف.'])
+            : t(['Enter or scan a delivery area barcode.', 'أدخل أو امسح Barcode منطقة التسليم.']),
+        );
+        return;
+      }
+      const hit = await resolveLocationByScan(warehouseId, code, {
+        types: [dropOffType],
+      });
+      if (!hit) {
+        toast.error(
+          requiresPacking
+            ? t(['No packing location matches this barcode.', 'لا يوجد موقع تغليف يطابق هذا Barcode.'])
+            : t(['No delivery area location matches this barcode.', 'لا يوجد موقع تسليم يطابق هذا Barcode.']),
+        );
+        return;
+      }
+      setPackingDestinationId(hit.id);
+      setPackingBarcodeDraft('');
+      toast.success(
         requiresPacking
-          ? 'Enter or scan a packing location barcode.'
-          : 'Enter or scan a delivery area barcode.',
+          ? t([`Packing staging: ${hit.fullPath}`, `تجهيز التغليف: ${hit.fullPath}`])
+          : t([`Delivery area: ${hit.fullPath}`, `منطقة التسليم: ${hit.fullPath}`]),
       );
-      return;
-    }
-    const hit = dropOffLocations.find((l) => (l.barcode ?? '').trim().toLowerCase() === code);
-    if (!hit) {
-      toast.error(
-        requiresPacking
-          ? 'No packing location matches this barcode.'
-          : 'No delivery area location matches this barcode.',
-      );
-      return;
-    }
-    setPackingDestinationId(hit.id);
-    setPackingBarcodeDraft('');
-    toast.success(
-      requiresPacking ? `Packing staging: ${hit.fullPath}` : `Delivery area: ${hit.fullPath}`,
-    );
+    })();
   };
 
   const packingComboOptions = dropOffLocations.map((loc) => ({
@@ -249,7 +298,7 @@ export function PickExecutionPanel({
 
   const handleExportPrint = () => {
     if (drafts.length === 0) {
-      toast.error('No lines to export.');
+      toast.error(t(['No lines to export.', 'لا توجد أسطر للتصدير.']));
       return;
     }
     const ok = openPickPrintPdf({
@@ -264,89 +313,108 @@ export function PickExecutionPanel({
       operatorNotes: taskOperatorNotes,
       drafts,
       lineMeta,
-      allLocations,
+      locationById,
       lotNumberById,
     });
-    if (!ok) toast.error('Allow pop-ups to print or save as PDF.');
+    if (!ok) toast.error(t(['Allow pop-ups to print or save as PDF.', 'اسمح بالنوافذ المنبثقة للطباعة أو حفظ PDF.']));
   };
 
   async function handleComplete(e: FormEvent) {
     e.preventDefault();
     const hasShort = drafts.some((d) => computePickLineStatus(d) === 'short');
     if (hasShort) {
-      toast.error('Resolve short picks before completing.');
+      toast.error(t(['Resolve short picks before completing.', 'عالج نقص التقاط قبل الإكمال.']));
       return;
     }
     if (!reservations.length) {
-      toast.error('No pick reservations on this task.');
+      toast.error(t(['No pick reservations on this task.', 'لا توجد حجوزات تقاط لهذه المهمة.']));
       return;
     }
     const dropOffId = packingDestinationId.trim();
-    if (dropOffId) {
-      try {
-        const env = await TasksApi.patchProgress(
-          taskId,
-          {
-            pick_draft: {
-              lines: drafts,
-              packingDestinationId: dropOffId,
-            } satisfies PickExecutionDraft,
-          },
-          companyIdOverride,
-        );
-        refreshFromEnvelope(env);
-      } catch (err) {
-        showCacheError(err instanceof Error ? err : new Error('Could not save drop-off location.'));
-        return;
-      }
+    if (!dropOffId) {
+      toast.error(
+        requiresPacking
+          ? t([
+              'Select a packing drop-off location before completing.',
+              'اختر موقع تسليم التغليف قبل الإكمال.',
+            ])
+          : t([
+              'Select a delivery area before completing.',
+              'اختر منطقة التسليم قبل الإكمال.',
+            ]),
+      );
+      return;
+    }
+    try {
+      const env = await TasksApi.patchProgress(
+        taskId,
+        {
+          pick_draft: {
+            lines: drafts,
+            packingDestinationId: dropOffId,
+          } satisfies PickExecutionDraft,
+        },
+        companyIdOverride,
+      );
+      refreshFromEnvelope(env);
+    } catch (err) {
+      showCacheError(
+        err instanceof Error
+          ? err
+          : new Error(t(['Could not save drop-off location.', 'تعذّر حفظ موقع التسليم.'])),
+      );
+      return;
     }
     submit(buildPickCompletePayload(reservations), e);
   }
 
   const pickDetailsCard = (
     <TaskDetailsCard
-      taskTypeLabel={taskTypeTitle('pick')}
+      taskTypeLabel={localizedTaskTypeTitle('pick', t)}
       iconClass={taskTypeIconClass('pick')}
       primaryTitle={outboundOrderTitle(
         outbound?.orderNumber,
         outboundOrderId ? `/orders/outbound/${outboundOrderId}` : undefined,
-        'Pick task',
+        t(['Pick task', 'مهمة التقاط']),
       )}
       subtitle={outbound?.company?.name ?? '—'}
       status={taskStatus}
       fields={[
         {
           iconClass: 'fa-solid fa-building',
-          label: 'Client',
+          label: t(['Client', 'العميل']),
           value: outbound?.company?.name ?? '—',
         },
         {
           iconClass: 'fa-solid fa-user',
-          label: 'Picker',
+          label: t(['Picker', 'المُلتقط']),
           value: assignedWorkerLabel,
         },
         {
           iconClass: 'fa-solid fa-truck',
-          label: 'Carrier',
+          label: t(['Carrier', 'الناقل']),
           value: outbound?.carrier?.trim() || '—',
         },
         {
           iconClass: 'fa-solid fa-calendar',
-          label: 'Ship by',
+          label: t(['Ship by', 'الشحن قبل']),
           value: formatTaskDateOnly(outbound?.requiredShipDate),
         },
         {
           iconClass: 'fa-solid fa-warehouse',
-          label: 'Warehouse',
+          label: t(['Warehouse', 'المستودع']),
           value: displayWarehouseLabel(warehouseId),
         },
       ]}
       summary={
         outbound?.createdAt
-          ? `Order created ${formatTaskDateTime(outbound.createdAt)}`
+          ? t([
+              `Order created ${formatTaskDateTime(outbound.createdAt)}`,
+              `تاريخ إنشاء الطلب ${formatTaskDateTime(outbound.createdAt)}`,
+            ])
           : undefined
       }
-      summaryTitle="Order context"
+      summaryTitle={t(['Order context', 'سياق الطلب'])}
     />
   );
 
@@ -354,7 +422,10 @@ export function PickExecutionPanel({
     if (!reservations.length) {
       return (
         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-          No pick reservation snapshot is available for this task.
+          {t([
+            'No pick reservation snapshot is available for this task.',
+            'لا توجد لقطة حجز تقاط متاحة لهذه المهمة.',
+          ])}
         </div>
       );
     }
@@ -372,7 +443,7 @@ export function PickExecutionPanel({
               disabled={drafts.length === 0}
               onClick={handleExportPrint}
             >
-              Export PDF
+              {t(['Export PDF', 'تصدير PDF'])}
             </Button>
           </div>
         ) : null}
@@ -380,7 +451,7 @@ export function PickExecutionPanel({
           drafts={filteredDrafts}
           totalLineCount={drafts.length}
           lineMeta={lineMeta}
-          allLocations={allLocations}
+          locationById={locationById}
           lotNumberById={lotNumberById}
           onExportPrint={showExportPdf ? handleExportPrint : undefined}
           readOnly
@@ -392,7 +463,10 @@ export function PickExecutionPanel({
   if (!reservations.length) {
     return (
       <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-        No pick reservations yet. Start the task to allocate inventory (FEFO/FIFO).
+        {t([
+          'No pick reservations yet. Start the task to allocate inventory (FEFO/FIFO).',
+          'لا توجد حجوزات تقاط بعد. ابدأ المهمة لتخصيص المخزون (FEFO/FIFO).',
+        ])}
       </div>
     );
   }
@@ -403,7 +477,9 @@ export function PickExecutionPanel({
 
       {nextLoc && computePickLineStatus(drafts[nextIncompleteIndex]!) !== 'complete' ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">Next bin</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+            {t(['Next bin', 'Bin التالي'])}
+          </p>
           <p className="font-mono text-2xl font-bold text-slate-900">{locationDisplay(nextLoc).shortLabel}</p>
           <p className="text-xs text-slate-600">{locationDisplay(nextLoc).fullPath}</p>
         </div>
@@ -413,18 +489,29 @@ export function PickExecutionPanel({
 
       <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          {requiresPacking ? 'Drop-off (packing)' : 'Drop-off (delivery area)'}
+          {requiresPacking
+            ? t(['Drop-off (packing)', 'تسليم (تغليف)'])
+            : t(['Drop-off (delivery area)', 'تسليم (منطقة التسليم)'])}
         </p>
         <p className="mt-1 text-xs text-slate-500">
           {requiresPacking
-            ? 'Where picked units are consolidated before the pack task.'
-            : 'Where picked units are staged for dispatch (no pack step).'}
+            ? t([
+                'Where picked units are consolidated before the pack task.',
+                'حيث تُجمَّع الوحدات المُلتقطة قبل مهمة التغليف.',
+              ])
+            : t([
+                'Where picked units are staged for dispatch (no pack step).',
+                'حيث تُجهَّز الوحدات المُلتقطة للإرسال (بدون تغليف).',
+              ])}
         </p>
         {dropOffLocations.length === 0 ? (
           <p className="mt-2 text-xs text-amber-800">
             {requiresPacking
-              ? 'No packing locations in this warehouse.'
-              : 'No delivery area (output) locations in this warehouse.'}
+              ? t(['No packing locations in this warehouse.', 'لا توجد مواقع تغليف في هذا المستودع.'])
+              : t([
+                  'No delivery area (output) locations in this warehouse.',
+                  'لا توجد مواقع تسليم (مخرج) في هذا المستودع.',
+                ])}
           </p>
         ) : (
           <div className="mt-2 space-y-2">
@@ -433,16 +520,24 @@ export function PickExecutionPanel({
               onChange={setPackingDestinationId}
               options={packingComboOptions}
               placeholder={
-                requiresPacking ? 'Select packing location…' : 'Select delivery area…'
+                requiresPacking
+                  ? t(['Select packing location…', 'اختر موقع التغليف…'])
+                  : t(['Select delivery area…', 'اختر منطقة التسليم…'])
               }
-              emptyMessage={requiresPacking ? 'No packing locations' : 'No delivery areas'}
+              emptyMessage={
+                requiresPacking
+                  ? t(['No packing locations', 'لا مواقع تغليف'])
+                  : t(['No delivery areas', 'لا مناطق تسليم'])
+              }
             />
             <div className="flex flex-wrap gap-2">
               <input
                 type="text"
                 className="min-h-[44px] flex-1 rounded-lg border border-slate-300 px-3 text-sm"
                 placeholder={
-                  requiresPacking ? 'Packing location barcode' : 'Delivery area barcode'
+                  requiresPacking
+                    ? t(['Packing location Barcode', 'Barcode موقع التغليف'])
+                    : t(['Delivery area Barcode', 'Barcode منطقة التسليم'])
                 }
                 value={packingBarcodeDraft}
                 onChange={(e) => setPackingBarcodeDraft(e.target.value)}
@@ -454,10 +549,10 @@ export function PickExecutionPanel({
                 }}
               />
               <Button type="button" variant="secondary" onClick={() => applyPackingBarcode(packingBarcodeDraft)}>
-                Apply
+                {t(['Apply', 'تطبيق'])}
               </Button>
               <Button type="button" variant="secondary" onClick={() => setPackingScanOpen(true)}>
-                Scan
+                {t(['Scan', 'مسح'])}
               </Button>
             </div>
           </div>
@@ -475,7 +570,7 @@ export function PickExecutionPanel({
             disabled={drafts.length === 0}
             onClick={handleExportPrint}
           >
-            Export PDF
+            {t(['Export PDF', 'تصدير PDF'])}
           </Button>
         </div>
       ) : null}
@@ -484,7 +579,7 @@ export function PickExecutionPanel({
         drafts={filteredDrafts}
         totalLineCount={drafts.length}
         lineMeta={lineMeta}
-        allLocations={allLocations}
+        locationById={locationById}
         lotNumberById={lotNumberById}
         onExportPrint={showExportPdf ? handleExportPrint : undefined}
         onPatch={patchDraft}
@@ -506,10 +601,10 @@ export function PickExecutionPanel({
               })
             }
           >
-            Save progress
+            {t(['Save progress', 'حفظ التقدم'])}
           </Button>
           <Button type="submit" className="min-h-[52px] flex-1 text-base" loading={busy}>
-            Complete picking
+            {t(['Complete picking', 'إكمال التقاط'])}
           </Button>
         </div>
       </div>
@@ -527,13 +622,14 @@ export function PickExecutionPanel({
 }
 
 function SummaryCards({ summary }: { summary: ReturnType<typeof computePickSummary> }) {
+  const { t } = useWmsTranslation();
   const cards = [
-    { label: 'SKUs', value: String(summary.totalSkus) },
-    { label: 'Units', value: String(summary.totalUnits) },
-    { label: 'Done', value: String(summary.completedPicks), accent: true },
-    { label: 'Remaining', value: String(summary.remainingPicks) },
-    { label: 'Bins', value: String(summary.uniqueLocations) },
-    { label: 'Complete', value: `${summary.completionPct}%` },
+    { label: 'SKU', value: String(summary.totalSkus) },
+    { label: t(['Units', 'وحدات']), value: String(summary.totalUnits) },
+    { label: t(['Done', 'منجز']), value: String(summary.completedPicks), accent: true },
+    { label: t(['Remaining', 'المتبقي']), value: String(summary.remainingPicks) },
+    { label: t(['Bins', 'Bins']), value: String(summary.uniqueLocations) },
+    { label: t(['Complete', 'مكتمل']), value: `${summary.completionPct}%` },
   ];
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
@@ -556,7 +652,7 @@ function PickLinesTable({
   drafts,
   totalLineCount,
   lineMeta,
-  allLocations,
+  locationById,
   lotNumberById,
   readOnly,
   onExportPrint,
@@ -565,12 +661,13 @@ function PickLinesTable({
   drafts: PickLineDraft[];
   totalLineCount: number;
   lineMeta: Map<string, OutboundOrderLine>;
-  allLocations: Location[];
+  locationById: Map<string, Location>;
   lotNumberById: Map<string, string>;
   readOnly?: boolean;
   onExportPrint?: () => void;
   onPatch?: (rowKey: string, patch: Partial<PickLineDraft>) => void;
 }) {
+  const { t } = useWmsTranslation();
   const columns: Column<PickLineDraft>[] = [
     {
       header: 'SKU',
@@ -581,7 +678,7 @@ function PickLinesTable({
       width: '110px',
     },
     {
-      header: 'Product',
+      header: t(['Product', 'المنتج']),
       accessor: (d) => {
         const ol = lineMeta.get(d.outboundOrderLineId);
         return <span className="font-medium text-slate-800">{ol?.product?.name ?? '—'}</span>;
@@ -597,9 +694,9 @@ function PickLinesTable({
       width: '120px',
     },
     {
-      header: 'Source bin',
+      header: t(['Source bin', 'Bin المصدر']),
       accessor: (d) => {
-        const loc = allLocations.find((l) => l.id === d.locationId);
+        const loc = locationById.get(d.locationId);
         return (
           <div>
             <span className="font-mono text-sm font-bold text-slate-900">
@@ -620,12 +717,12 @@ function PickLinesTable({
       width: '90px',
     },
     {
-      header: 'Required',
+      header: t(['Required', 'المطلوب']),
       accessor: (d) => <span className="font-mono tabular-nums text-xs">{d.requiredQty}</span>,
       width: '80px',
     },
     {
-      header: 'Picked',
+      header: t(['Picked', 'مُلتقط']),
       accessor: (d) =>
         readOnly ? (
           <span className="font-mono tabular-nums">{d.pickedQty}</span>
@@ -646,7 +743,7 @@ function PickLinesTable({
       width: '90px',
     },
     {
-      header: 'Remaining',
+      header: t(['Remaining', 'المتبقي']),
       accessor: (d) => {
         const remaining = Math.max(0, parseQty(d.requiredQty) - parseQty(d.pickedQty));
         return <span className="font-mono tabular-nums text-xs">{remaining}</span>;
@@ -654,12 +751,12 @@ function PickLinesTable({
       width: '90px',
     },
     {
-      header: 'Status',
+      header: t(['Status', 'الحالة']),
       accessor: (d) => {
         const st = computePickLineStatus(d);
         return (
           <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${pickLineStatusClass(st)}`}>
-            {pickLineStatusLabel(st)}
+            {localizedPickLineStatus(st, t)}
           </span>
         );
       },
@@ -669,7 +766,7 @@ function PickLinesTable({
 
   return (
     <DataTable
-      title="Pick lines"
+      title={t(['Pick lines', 'أسطر التقاط'])}
       actions={
         onExportPrint ? (
           <Button
@@ -679,7 +776,7 @@ function PickLinesTable({
             disabled={drafts.length === 0}
             onClick={() => onExportPrint()}
           >
-            Export PDF
+            {t(['Export PDF', 'تصدير PDF'])}
           </Button>
         ) : undefined
       }
@@ -687,7 +784,9 @@ function PickLinesTable({
       rows={drafts}
       rowKey={(d) => d.rowKey}
       empty={
-        totalLineCount === 0 ? 'No pick lines.' : 'No lines match the current filters.'
+        totalLineCount === 0
+          ? t(['No pick lines.', 'لا أسطر تقاط.'])
+          : t(['No lines match the current filters.', 'لا أسطر تطابق الفلاتر الحالية.'])
       }
     />
   );

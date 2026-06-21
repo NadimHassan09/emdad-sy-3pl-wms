@@ -1860,7 +1860,7 @@ function outboundIdFromPackPayload(raw: unknown) {
 
 function parseDispatchTaskPayloadAllowLegacy(
   raw: unknown,
-): { outbound_order_id: string; pick_task_id?: string } {
+): { outbound_order_id: string; pick_task_id?: string; source_packing_location_id?: string } {
   if (!isRecord(raw) || typeof raw.outbound_order_id !== 'string') {
     throw new BadRequestException('dispatch task payload malformed.');
   }
@@ -1868,5 +1868,14 @@ function parseDispatchTaskPayloadAllowLegacy(
   if (pickTaskId !== undefined && typeof pickTaskId !== 'string') {
     throw new BadRequestException('dispatch task payload pick_task_id malformed.');
   }
-  return { outbound_order_id: raw.outbound_order_id, pick_task_id: pickTaskId };
+  const sourcePackingLocationId = (raw as { source_packing_location_id?: unknown })
+    .source_packing_location_id;
+  if (sourcePackingLocationId !== undefined && typeof sourcePackingLocationId !== 'string') {
+    throw new BadRequestException('dispatch task payload source_packing_location_id malformed.');
+  }
+  return {
+    outbound_order_id: raw.outbound_order_id,
+    pick_task_id: pickTaskId,
+    source_packing_location_id: sourcePackingLocationId,
+  };
 }

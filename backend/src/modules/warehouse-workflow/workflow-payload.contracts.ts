@@ -30,6 +30,8 @@ export interface OutboundDispatchPayload {
   outbound_order_id: string;
   /** Originating completed pick task whose executionState.reservations dispatch ships. */
   pick_task_id: string;
+  /** Packing area / station where cartons are staged before the shipping dock. */
+  source_packing_location_id?: string;
 }
 
 /** QC task snapshot: eligible qty per inbound line post-receiving. */
