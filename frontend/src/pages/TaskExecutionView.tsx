@@ -254,7 +254,7 @@ export function TaskExecutionView() {
           t.status === 'completed',
       );
     },
-    enabled: taskType === 'dispatch' && !!warehouseId && !!referenceId,
+    enabled: (taskType === 'dispatch' || taskType === 'pack') && !!warehouseId && !!referenceId,
   });
 
   const packSiblingDetail = useQuery({
@@ -288,7 +288,7 @@ export function TaskExecutionView() {
           t.status === 'completed',
       );
     },
-    enabled: taskType === 'dispatch' && !!warehouseId && !!referenceId,
+    enabled: (taskType === 'dispatch' || taskType === 'pack') && !!warehouseId && !!referenceId,
   });
 
   const pickSiblingDetail = useQuery({
@@ -975,6 +975,7 @@ function ExecuteFormSwitcher(props: {
         showExportPdf={showExportPdf}
         taskStatus={taskStatus}
         executionState={executionState}
+        pickExecutionState={pickExecutionState}
         submit={submit}
         busy={busy}
         readOnly={readOnly}
@@ -1002,6 +1003,7 @@ function ExecuteFormSwitcher(props: {
         executionState={executionState}
         packExecutionState={packExecutionState}
         pickExecutionState={pickExecutionState}
+        taskPayload={payload}
         submit={submit}
         busy={busy}
         readOnly={readOnly}

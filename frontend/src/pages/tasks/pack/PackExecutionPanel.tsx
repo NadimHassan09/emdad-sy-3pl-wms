@@ -1,6 +1,5 @@
 import { useTaskProgressSave } from '../../../hooks/useTaskProgressSave';
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Location } from '../../../api/locations';
 import { TaskDetailsCard } from '../../../components/tasks/TaskDetailsCard';
 import type { OutboundOrder, OutboundOrderLine } from '../../../api/outbound';
 import { AnchoredDropdown } from '../../../components/AnchoredDropdown';
@@ -14,14 +13,14 @@ import {
   outboundOrderTitle,
 } from '../../../lib/task-details-helpers';
 import { taskTypeIconClass } from '../../../lib/task-type-icons';
-import { taskTypeTitle } from '../../../workflow/task-ui-matrix';
+import { useWmsTranslation } from '../../../lib/ui-i18n';
+import { localizedPackageTypeOptions, localizedTaskTypeTitle } from '../../../lib/ui-labels/task-execution';
 import type {
   PackExecutionDraft,
   PackLineDraft,
   PackPackageDraft,
 } from './pack-types';
 import {
-  PACKAGE_TYPE_OPTIONS,
   buildPackCompletePayload,
   createEmptyPackage,
   initialPackLines,
@@ -30,13 +29,13 @@ import {
   syncLinePackedQty,
 } from './pack-utils';
 import { parseQty } from '../putaway/putaway-utils';
+import { readPickDraftPackingDestinationId } from '../dispatch/dispatch-utils';
 
 type Props = {
   taskId: string;
   lineIds: string[];
   outbound: OutboundOrder | undefined;
   outboundOrderId?: string;
-  packingLocations: Location[];
   warehouseId: string;
   companyIdOverride?: string;
   assignedWorkerLabel: string;
@@ -44,6 +43,7 @@ type Props = {
   showExportPdf?: boolean;
   taskStatus: string;
   executionState?: unknown;
+  pickExecutionState?: unknown;
   submit: (body: unknown, e?: FormEvent) => void;
   busy: boolean;
   readOnly?: boolean;
@@ -59,10 +59,12 @@ export function PackExecutionPanel({
   assignedWorkerLabel,
   taskStatus,
   executionState,
+  pickExecutionState,
   submit,
   busy,
   readOnly = false,
 }: Props) {
+  const { t } = useWmsTranslation();
   const toast = useToast();
   const savedDraft = readPackDraft(executionState);
 
@@ -84,7 +86,13 @@ export function PackExecutionPanel({
   const [activePackageId, setActivePackageId] = useState(
     () => savedDraft?.activePackageId ?? savedDraft?.packages?.[0]?.id ?? '',
   );
-  const [packingStationId] = useState(savedDraft?.packingStationId ?? '');
+  const [packingStationId, setPackingStationId] = useState(savedDraft?.packingStationId ?? '');
+
+  useEffect(() => {
+    if (packingStationId.trim()) return;
+    const fromPick = readPickDraftPackingDestinationId(pickExecutionState);
+    if (fromPick) setPackingStationId(fromPick);
+  }, [pickExecutionState, packingStationId]);
   const [detailPackageId, setDetailPackageId] = useState<string | null>(null);
 
   const skipLineReset = useRef(true);
@@ -118,10 +126,26 @@ export function PackExecutionPanel({
     e.preventDefault();
     const openPkgs = packages.filter((p) => p.status === 'open' && p.items.length > 0);
     if (openPkgs.length > 0) {
-      toast.error('Finalize open packages before completing.');
+      toast.error(t(['Finalize open packages before completing.', 'أنهِ الطرود المفتوحة قبل الإكمال.']));
       return;
     }
     const synced = syncLinePackedQty(lines, packages);
+    const stationId = packingStationId.trim();
+    if (stationId) {
+      void saveProgress
+        .mutateAsync({
+          pack_draft: {
+            lines: synced,
+            packages,
+            activePackageId,
+            verificationComplete: true,
+            packingStationId: stationId,
+          } satisfies PackExecutionDraft,
+        })
+        .then(() => submit(buildPackCompletePayload(lineIds, synced, packages), e))
+        .catch((err: Error) => toast.error(err.message));
+      return;
+    }
     submit(buildPackCompletePayload(lineIds, synced, packages), e);
   }
 
@@ -132,16 +156,16 @@ export function PackExecutionPanel({
       setDetailPackageId(pkg.id);
       return [...prev, pkg];
     });
-    toast.success('New package created');
+    toast.success(t(['New package created', 'تم إنشاء طرد جديد']));
   }
 
   function finalizePackage(pkg: PackPackageDraft) {
     if (pkg.items.length === 0) {
-      toast.error('Add items before finalizing.');
+      toast.error(t(['Add items before finalizing.', 'أضف عناصر قبل الإنهاء.']));
       return;
     }
     patchPackage(pkg.id, { status: 'finalized' });
-    toast.success(`Package ${pkg.label} finalized`);
+    toast.success(t([`Package ${pkg.label} finalized`, `تم إنهاء الطرد ${pkg.label}`]));
     const nextOpen = packages.find((p) => p.id !== pkg.id && p.status === 'open');
     if (nextOpen) setActivePackageId(nextOpen.id);
     else addPackage();
@@ -150,7 +174,7 @@ export function PackExecutionPanel({
   const addLineToPackage = useCallback(
     (pkgId: string, lineId: string, qty: number): boolean => {
       if (qty <= 0) {
-        toast.error('Enter a positive quantity.');
+        toast.error(t(['Enter a positive quantity.', 'أدخل كمية موجبة.']));
         return false;
       }
       const line = lines.find((l) => l.outboundOrderLineId === lineId);
@@ -158,7 +182,7 @@ export function PackExecutionPanel({
       const picked = parseQty(line.pickedQty);
       const totalPacked = sumPackedForLine(packages, lineId);
       if (totalPacked + qty > picked + 1e-6) {
-        toast.error(`Cannot pack more than picked (${picked}).`);
+        toast.error(t([`Cannot pack more than picked (${picked}).`, `لا يمكن التغليف أكثر من المُلتقط (${picked}).`]));
         return false;
       }
       setPackages((prev) =>
@@ -175,7 +199,7 @@ export function PackExecutionPanel({
           return { ...p, items };
         }),
       );
-      toast.success('Added to package');
+      toast.success(t(['Added to package', 'أُضيف إلى الطرد']));
       return true;
     },
     [lines, packages, toast],
@@ -193,22 +217,22 @@ export function PackExecutionPanel({
 
   function deletePackage(pkgId: string) {
     if (packages.length <= 1) {
-      toast.error('At least one package is required.');
+      toast.error(t(['At least one package is required.', 'مطلوب طرد واحد على الأقل.']));
       return;
     }
-    if (!window.confirm('Delete this package?')) return;
+    if (!window.confirm(t(['Delete this package?', 'حذف هذا الطرد؟']))) return;
     const remaining = packages.filter((p) => p.id !== pkgId);
     setPackages(remaining);
     if (detailPackageId === pkgId) setDetailPackageId(null);
     const nextActive = remaining[0]?.id ?? '';
     setActivePackageId(nextActive);
-    toast.success('Package removed');
+    toast.success(t(['Package removed', 'تم حذف الطرد']));
   }
 
   function printPackageLabel(pkg: PackPackageDraft) {
     const w = window.open('', '_blank');
     if (!w) {
-      toast.error('Allow pop-ups to print');
+      toast.error(t(['Allow pop-ups to print', 'اسمح بالنوافذ المنبثقة للطباعة']));
       return;
     }
     w.document.write(
@@ -220,44 +244,44 @@ export function PackExecutionPanel({
 
   const packDetailsCard = (
     <TaskDetailsCard
-      taskTypeLabel={taskTypeTitle('pack')}
+      taskTypeLabel={localizedTaskTypeTitle('pack', t)}
       iconClass={taskTypeIconClass('pack')}
       primaryTitle={outboundOrderTitle(
         outbound?.orderNumber,
         outboundOrderId ? `/orders/outbound/${outboundOrderId}` : undefined,
-        'Pack task',
+        t(['Pack task', 'مهمة التغليف']),
       )}
       subtitle={outbound?.company?.name ?? '—'}
       status={taskStatus}
       fields={[
         {
           iconClass: 'fa-solid fa-building',
-          label: 'Client',
+          label: t(['Client', 'العميل']),
           value: outbound?.company?.name ?? '—',
         },
         {
           iconClass: 'fa-solid fa-user',
-          label: 'Packer',
+          label: t(['Packer', 'مُغلّف']),
           value: assignedWorkerLabel,
         },
         {
           iconClass: 'fa-solid fa-truck',
-          label: 'Carrier',
+          label: t(['Carrier', 'الناقل']),
           value: outbound?.carrier?.trim() || '—',
         },
         {
           iconClass: 'fa-solid fa-calendar',
-          label: 'Ship by',
+          label: t(['Ship by', 'الشحن قبل']),
           value: formatTaskDateOnly(outbound?.requiredShipDate),
         },
         {
           iconClass: 'fa-solid fa-warehouse',
-          label: 'Warehouse',
+          label: t(['Warehouse', 'المستودع']),
           value: displayWarehouseLabel(warehouseId),
         },
       ]}
       summary={outbound?.destinationAddress?.trim() || undefined}
-      summaryTitle="Ship to"
+      summaryTitle={t(['Ship to', 'الشحن إلى'])}
     />
   );
 
@@ -293,7 +317,7 @@ export function PackExecutionPanel({
   if (!lineIds.length) {
     return (
       <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-        No outbound lines on this pack task.
+        {t(['No outbound lines on this pack task.', 'لا أسطر صادرة على مهمة التغليف هذه.'])}
       </div>
     );
   }
@@ -322,10 +346,10 @@ export function PackExecutionPanel({
               })
             }
           >
-            Save progress
+            {t(['Save progress', 'حفظ التقدم'])}
           </Button>
           <Button type="submit" className="min-h-[52px] flex-1 text-base" loading={busy}>
-            Complete packing
+            {t(['Complete packing', 'إكمال التغليف'])}
           </Button>
         </div>
       </div>
@@ -370,6 +394,8 @@ function PackagesPanel({
   onDeletePackage?: (pkgId: string) => void;
   onActivePackageChange: (id: string) => void;
 }) {
+  const { t } = useWmsTranslation();
+  const packageTypeOptions = localizedPackageTypeOptions(t);
   const [openActionId, setOpenActionId] = useState<string | null>(null);
 
   const detailPackage = detailPackageId
@@ -395,27 +421,27 @@ function PackagesPanel({
 
   const columns: Column<PackPackageDraft>[] = [
     {
-      header: 'Label',
+      header: t(['Label', 'الملصق']),
       accessor: (pkg) => <span className="font-mono text-xs font-semibold text-slate-900">{pkg.label}</span>,
       width: '120px',
     },
     {
-      header: 'Type',
+      header: t(['Type', 'النوع']),
       accessor: (pkg) => (
         <span className="text-slate-700">
-          {PACKAGE_TYPE_OPTIONS.find((t) => t.value === pkg.packageType)?.label ?? pkg.packageType}
+          {packageTypeOptions.find((opt) => opt.value === pkg.packageType)?.label ?? pkg.packageType}
         </span>
       ),
       width: '100px',
     },
     {
-      header: 'Units',
+      header: t(['Units', 'وحدات']),
       accessor: (pkg) => <span className="font-mono tabular-nums text-xs">{packageUnits(pkg)}</span>,
       width: '80px',
       className: 'text-right',
     },
     {
-      header: 'Weight (kg)',
+      header: t(['Weight (kg)', 'الوزن (كغ)']),
       accessor: (pkg) => (
         <span className="font-mono text-xs text-slate-600">{pkg.weightKg.trim() || '—'}</span>
       ),
@@ -423,7 +449,7 @@ function PackagesPanel({
       className: 'text-right',
     },
     {
-      header: 'Status',
+      header: t(['Status', 'الحالة']),
       accessor: (pkg) => (
         <span
           className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${
@@ -432,7 +458,9 @@ function PackagesPanel({
               : 'bg-emerald-100 text-emerald-800'
           }`}
         >
-          {pkg.status}
+          {pkg.status === 'finalized'
+            ? t(['finalized', 'منتهٍ'])
+            : t(['open', 'مفتوح'])}
         </span>
       ),
       width: '100px',
@@ -450,7 +478,7 @@ function PackagesPanel({
                 className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
                 data-pack-action-trigger="true"
                 onClick={() => setOpenActionId((cur) => (cur === pkg.id ? null : pkg.id))}
-                aria-label="Package actions"
+                aria-label={t(['Package actions', 'إجراءات الطرد'])}
                 aria-expanded={openActionId === pkg.id}
                 aria-haspopup="menu"
               >
@@ -469,7 +497,7 @@ function PackagesPanel({
                 onPrintLabel(pkg);
               }}
             >
-              Print
+              {t(['Print', 'طباعة'])}
             </button>
             {onDeletePackage ? (
               <button
@@ -481,7 +509,7 @@ function PackagesPanel({
                   onDeletePackage(pkg.id);
                 }}
               >
-                Delete
+                {t(['Delete', 'حذف'])}
               </button>
             ) : null}
           </AnchoredDropdown>
@@ -500,17 +528,17 @@ function PackagesPanel({
   return (
     <>
       <DataTable
-        title="Packages"
+        title={t(['Packages', 'الطرود'])}
         columns={columns}
         rows={packages}
         rowKey={(pkg) => pkg.id}
-        empty="No packages yet."
+        empty={t(['No packages yet.', 'لا طرود بعد.'])}
         onRowClick={openPackage}
         getRowClassName={() => 'cursor-pointer hover:bg-emerald-50/50'}
         actions={
           onAddPackage ? (
             <Button type="button" size="sm" variant="secondary" onClick={onAddPackage}>
-              + New package
+              {t(['+ New package', '+ طرد جديد'])}
             </Button>
           ) : undefined
         }

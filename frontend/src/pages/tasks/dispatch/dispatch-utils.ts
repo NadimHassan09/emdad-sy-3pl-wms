@@ -23,6 +23,13 @@ export function readDispatchDraft(raw: unknown): DispatchExecutionDraft | null {
   return d as DispatchExecutionDraft;
 }
 
+/** Dispatch task payload may carry a resolved packing source from enqueue time. */
+export function readDispatchPayloadSourceLocationId(payload: unknown): string | null {
+  if (!isRecord(payload)) return null;
+  const id = payload.source_packing_location_id ?? payload.sourcePackingLocationId;
+  return typeof id === 'string' && id.trim() ? id.trim() : null;
+}
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
 }
@@ -37,15 +44,12 @@ export function readPickDraftPackingDestinationId(raw: unknown): string | null {
 }
 
 export function findLocationById(
-  locations: Location[],
+  locations: Map<string, Location> | Location[],
   locationId: string | null | undefined,
 ): Location | undefined {
   if (!locationId?.trim()) return undefined;
+  if (locations instanceof Map) return locations.get(locationId);
   return locations.find((l) => l.id === locationId);
-}
-
-function isKnownLocationId(locations: Location[], locationId: string | null | undefined): boolean {
-  return !!findLocationById(locations, locationId);
 }
 
 function isSelectableLocation(loc: Location): boolean {
@@ -91,24 +95,29 @@ export function resolveDispatchSourceLocationId(
   requiresPacking: boolean,
   packExecutionState: unknown,
   pickExecutionState: unknown,
-  allLocations: Location[],
+  packingLocations: Location[],
+  outputDocks: Location[],
   savedSourceId?: string | null,
+  payloadSourceId?: string | null,
 ): string | null {
-  if (isKnownLocationId(allLocations, savedSourceId)) return savedSourceId!.trim();
+  if (savedSourceId?.trim()) return savedSourceId.trim();
+  if (payloadSourceId?.trim()) return payloadSourceId.trim();
 
   const pickDest = readPickDraftPackingDestinationId(pickExecutionState);
   const packStation = readPackDraftPackingStationId(packExecutionState);
 
   if (requiresPacking) {
-    if (isKnownLocationId(allLocations, packStation)) return packStation!.trim();
-    if (isKnownLocationId(allLocations, pickDest)) return pickDest!.trim();
-    const packingLocs = allLocations.filter((l) => l.type === 'packing' && isSelectableLocation(l));
-    if (packingLocs.length === 1) return packingLocs[0]!.id;
+    if (packStation?.trim()) return packStation.trim();
+    if (pickDest?.trim()) return pickDest.trim();
+    const packingLocs = packingLocations.filter(
+      (l) => l.type === 'packing' && isSelectableLocation(l),
+    );
+    if (packingLocs.length > 0) return packingLocs[0]!.id;
     return null;
   }
-  if (isKnownLocationId(allLocations, pickDest)) return pickDest!.trim();
-  const deliveryLocs = eligibleDispatchDockLocations(allLocations);
-  if (deliveryLocs.length === 1) return deliveryLocs[0]!.id;
+  if (pickDest?.trim()) return pickDest.trim();
+  const deliveryLocs = eligibleDispatchDockLocations(outputDocks);
+  if (deliveryLocs.length > 0) return deliveryLocs[0]!.id;
   return null;
 }
 
@@ -136,12 +145,12 @@ export function readDispatchDraftDestinationId(raw: unknown): string | null {
  * locations using this task's position among active dispatch tasks.
  */
 export function resolveDispatchDestinationFromQueue(
-  allLocations: Location[],
+  outputDocks: Location[],
   taskId: string,
   activeDispatchTaskIds: string[],
   savedDestinationId?: string | null,
 ): string | null {
-  const docks = eligibleDispatchDockLocations(allLocations);
+  const docks = eligibleDispatchDockLocations(outputDocks);
   if (docks.length === 0) return null;
   if (savedDestinationId && docks.some((d) => d.id === savedDestinationId)) {
     return savedDestinationId;

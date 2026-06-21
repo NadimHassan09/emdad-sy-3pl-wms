@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import {
+  LocationStatus,
+  LocationType,
   Prisma,
   ProductTrackingType,
   WarehouseTaskStatus,
@@ -9,6 +11,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { readPickDraftPackingDestinationId } from './execution-state-location.util';
 import { defaultSlaMinutesForTaskType } from './task-sla-defaults';
 import type {
   InboundPutawayPayload,
@@ -518,6 +521,29 @@ export class WorkflowOrchestrationService {
 
     const boundPickTaskId = await this.resolvePickTaskIdForDispatchEnqueue(tx, instanceId, pickTaskId);
 
+    const wf = await tx.workflowInstance.findUnique({
+      where: { id: instanceId },
+      select: { warehouseId: true },
+    });
+
+    const pickTask = await tx.warehouseTask.findUnique({
+      where: { id: boundPickTaskId },
+      select: { executionState: true },
+    });
+    let sourcePackingLocationId = readPickDraftPackingDestinationId(pickTask?.executionState) ?? undefined;
+    if (!sourcePackingLocationId && wf?.warehouseId) {
+      const defaultPacking = await tx.location.findFirst({
+        where: {
+          warehouseId: wf.warehouseId,
+          type: LocationType.packing,
+          status: LocationStatus.active,
+        },
+        orderBy: { fullPath: 'asc' },
+        select: { id: true },
+      });
+      sourcePackingLocationId = defaultPacking?.id;
+    }
+
     await tx.warehouseTask.create({
       data: {
         workflowInstanceId: instanceId,
@@ -528,6 +554,7 @@ export class WorkflowOrchestrationService {
         payload: {
           outbound_order_id: orderId,
           pick_task_id: boundPickTaskId,
+          ...(sourcePackingLocationId ? { source_packing_location_id: sourcePackingLocationId } : {}),
         } as object as Prisma.InputJsonValue,
       },
     });
