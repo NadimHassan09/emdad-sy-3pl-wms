@@ -4,8 +4,9 @@ import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { ConfirmInboundBody, InboundApi, InboundOrderLine, ReceiveLineInput } from '../api/inbound';
-import { LocationsApi } from '../api/locations';
 import { Button } from '@ds';
+import { ReceivingDockPicker } from '../components/locations/ReceivingDockPicker';
+import { StorageLocationPicker } from '../components/locations/StorageLocationPicker';
 
 import { Button as LegacyButton } from '../components/Button';
 import { Combobox } from '../components/Combobox';
@@ -22,7 +23,6 @@ import { useTaskOnlyMode } from '../hooks/useTaskOnlyMode';
 import { generateLotNumber } from '../lib/identifiers';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
 import { inboundHasQuantityShortfall } from '../lib/inbound-shortfall';
-import { isReceivingDockLocationType, isStorageLocationType } from '../lib/location-types';
 
 const fmtQty = (s: string) => Number(s).toLocaleString(undefined, { maximumFractionDigits: 4 });
 function inboundDetailLabel(label: string, isArabic: boolean): string {
@@ -83,14 +83,6 @@ export function InboundDetailPage() {
   useEffect(() => {
     setReceivingDockId('');
   }, [id]);
-
-  const dockLocations = useQuery({
-    queryKey: ['locations', 'dock', effectiveWarehouseId] as const,
-    queryFn: () => LocationsApi.list(effectiveWarehouseId, false),
-    enabled: !!effectiveWarehouseId && taskOnlyMode && !!id,
-  });
-
-  const stagingOptions = (dockLocations.data ?? []).filter((l) => isReceivingDockLocationType(l.type));
 
   const order = useQuery({
     queryKey: [...QK.inboundOrders, id],
@@ -249,22 +241,10 @@ export function InboundDetailPage() {
             {!effectiveWarehouseId ? (
               <p className="text-xs text-rose-700">Set default warehouse or VITE_DEFAULT_WAREHOUSE_ID.</p>
             ) : (
-              <Combobox
-                label="Receiving dock"
-                required
+              <ReceivingDockPicker
+                warehouseId={effectiveWarehouseId}
                 value={receivingDockId}
                 onChange={setReceivingDockId}
-                options={stagingOptions.map((loc) => ({
-                  value: loc.id,
-                  label: loc.fullPath,
-                  hint: loc.barcode,
-                }))}
-                placeholder="Select receiving dock…"
-                emptyMessage={
-                  stagingOptions.length === 0
-                    ? 'No receiving dock locations (type input). Create one under Locations.'
-                    : 'No locations.'
-                }
               />
             )}
           </div>
@@ -314,6 +294,7 @@ export function InboundDetailPage() {
       {!taskOnlyMode && (
         <ReceiveModal
           line={receivingLine}
+          warehouseId={effectiveWarehouseId}
           loading={receiveMut.isPending}
           onClose={() => setReceivingLine(null)}
           onSubmit={(input) =>
@@ -336,24 +317,19 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
 
 interface ReceiveModalProps {
   line: InboundOrderLine | null;
+  warehouseId: string;
   loading: boolean;
   onClose: () => void;
   onSubmit: (input: ReceiveLineInput) => void;
 }
 
-function ReceiveModal({ line, loading, onClose, onSubmit }: ReceiveModalProps) {
+function ReceiveModal({ line, warehouseId, loading, onClose, onSubmit }: ReceiveModalProps) {
   const [quantity, setQuantity] = useState('');
   const [locationId, setLocationId] = useState('');
   const [lotNumber, setLotNumber] = useState('');
   const [expiry, setExpiry] = useState('');
   const [overrideLot, setOverrideLot] = useState(false);
   const [advancedEdit, setAdvancedEdit] = useState(false);
-
-  const locations = useQuery({
-    queryKey: QK.locationsFlatAll(false),
-    queryFn: () => LocationsApi.list(undefined, false),
-    enabled: !!line,
-  });
 
   const isLot = line?.product?.trackingType === 'lot';
   const expectedLot = line?.expectedLotNumber?.trim() || '';
@@ -377,8 +353,6 @@ function ReceiveModal({ line, loading, onClose, onSubmit }: ReceiveModalProps) {
     if (loading) return;
     onClose();
   };
-
-  const storageLocations = (locations.data ?? []).filter((l) => isStorageLocationType(l.type));
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -463,20 +437,16 @@ function ReceiveModal({ line, loading, onClose, onSubmit }: ReceiveModalProps) {
           hint="Database trigger blocks > 110% of expected."
         />
 
-        <Combobox
-          label="Destination location"
-          required
-          value={locationId}
-          onChange={setLocationId}
-          options={storageLocations.map((l) => ({
-            value: l.id,
-            label: l.fullPath,
-            hint: l.barcode,
-          }))}
-          placeholder="Pick a storage location…"
-          hint="Non-storage nodes (e.g. ISS aisles, docks) are hidden."
-          emptyMessage="No eligible storage locations"
-        />
+        {warehouseId ? (
+          <StorageLocationPicker
+            warehouseId={warehouseId}
+            value={locationId}
+            onChange={setLocationId}
+            required
+          />
+        ) : (
+          <p className="text-xs text-rose-700">Set default warehouse to choose a receive location.</p>
+        )}
 
         {isLot && (
           <div className="space-y-2">

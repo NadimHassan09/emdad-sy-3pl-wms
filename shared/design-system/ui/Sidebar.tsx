@@ -72,8 +72,8 @@ export function SidebarBrand({ collapsed, logo, children, className }: SidebarBr
       className={cn(
         'flex items-center justify-center gap-2.5',
         'overflow-hidden whitespace-nowrap',
-        'h-[var(--topbar-h)]',
-        collapsed ? 'px-0' : 'px-4',
+        'h-11',
+        collapsed ? 'px-0' : 'px-3',
         className,
       )}
       style={{ backgroundColor: 'var(--sidebar-brand-bg)' }}
@@ -104,8 +104,8 @@ export function SidebarNav({ children, className }: { children: ReactNode; class
     <nav
       aria-label="Main navigation"
       className={cn(
-        'flex flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden',
-        'p-3',
+        'flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden',
+        'p-2',
         className,
       )}
     >
@@ -243,14 +243,14 @@ export function SidebarLink({
   ...rest
 }: SidebarLinkProps) {
   const base = cn(
-    'flex items-center gap-3 rounded-xl text-sm font-medium',
+    'flex items-center gap-2 rounded-lg text-[13px] font-medium leading-tight',
     'transition-[background-color,color,box-shadow] duration-fast ease-standard',
     'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30',
     collapsed
-      ? 'h-8 w-8 justify-center p-0 rounded-lg'
+      ? 'h-7 w-7 justify-center p-0 rounded-md'
       : nested
-      ? 'px-3 py-2'
-      : 'px-3 py-2',
+      ? 'px-2 py-0.5'
+      : 'px-2 py-1',
     className,
   );
 
@@ -289,7 +289,7 @@ export function SidebarLink({
     >
       {icon && (
         <span
-          className="flex h-5 w-5 shrink-0 items-center justify-center"
+          className="flex h-4 w-4 shrink-0 items-center justify-center"
           aria-hidden="true"
           style={{
             color: isActive ? 'rgba(255,255,255,0.95)' : 'var(--sidebar-icon-muted)',

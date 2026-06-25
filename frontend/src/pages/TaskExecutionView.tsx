@@ -10,6 +10,7 @@ import { Button } from '../components/Button';
 import { Column, DataTable } from '../components/DataTable';
 import { Combobox } from '../components/Combobox';
 import { PageHeader } from '../components/PageHeader';
+import { CompletedTaskNextSteps } from '../components/tasks/CompletedTaskNextSteps';
 import { TaskDetailsCard } from '../components/tasks/TaskDetailsCard';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
@@ -17,6 +18,7 @@ import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useAuth } from '../auth/AuthContext';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
+import { useWarehouseLabel } from '../hooks/useWarehouseLabel';
 import { applyTaskMutationEnvelope } from '../lib/task-mutation-cache';
 import { isOperatorRole } from '../lib/rbac';
 import { taskAssignedWorkerLabel } from '../lib/task-worker-label';
@@ -641,6 +643,17 @@ export function TaskExecutionView() {
         />
       ) : null}
 
+      {isCompleted &&
+      referenceId &&
+      (wf?.referenceType === 'inbound_order' || wf?.referenceType === 'outbound_order') ? (
+        <CompletedTaskNextSteps
+          referenceType={wf.referenceType}
+          referenceId={referenceId}
+          currentTaskId={id}
+          companyIdOverride={companyIdOverride}
+        />
+      ) : null}
+
       {taskType === 'qc' && showAssignBar && sts !== 'completed' ? (
         <TaskManagerSkipBlock taskType={taskType} taskId={id} />
       ) : null}
@@ -875,6 +888,7 @@ function ExecuteFormSwitcher(props: {
     readOnly = false,
   } = props;
   const { t } = useWmsTranslation();
+  const { warehouseLabel } = useWarehouseLabel();
 
   if (taskType === 'receiving' && isRecord(payload) && Array.isArray(payload.lines)) {
     return (
@@ -1023,7 +1037,7 @@ function ExecuteFormSwitcher(props: {
           {t(['No structured form for', 'لا يوجد نموذج منظم لـ'])}{' '}
           <span className="font-mono">{taskType}</span>{' '}
           {t(['yet (warehouse', 'بعد (المستودع'])}{' '}
-          <span className="font-mono">{warehouseId || '—'}</span>).{' '}
+          <span className="font-mono">{warehouseLabel(warehouseId)}</span>).{' '}
           {t(['Use the supervisor JSON page.', 'استخدم صفحة JSON للمشرف.'])}
         </>
       )}

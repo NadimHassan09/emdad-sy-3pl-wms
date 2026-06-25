@@ -19,8 +19,7 @@ export type PutawayPrintInput = {
   drafts: PutawayLineDraft[];
   lineById: Map<string, InboundOrderLine>;
   stagingByLineId: Map<string, string>;
-  allLocations: Location[];
-  destinationLocations: Location[];
+  locationById: Map<string, Location>;
   targetQty: Record<string, number>;
 };
 
@@ -29,10 +28,10 @@ export function buildPutawayPrintHtml(data: PutawayPrintInput): string {
   const lineRows = data.drafts
     .map((d) => {
       const ol = data.lineById.get(d.inbound_order_line_id);
-      const src = data.allLocations.find(
-        (l) => l.id === data.stagingByLineId.get(d.inbound_order_line_id),
+      const src = data.locationById.get(
+        data.stagingByLineId.get(d.inbound_order_line_id) ?? '',
       );
-      const dest = data.destinationLocations.find((l) => l.id === d.destination_location_id);
+      const dest = data.locationById.get(d.destination_location_id);
       const target = data.targetQty[d.inbound_order_line_id] ?? 0;
       const status = lineStatusLabel(
         computeLineStatus(d, target),
@@ -80,13 +79,13 @@ export function openPutawayPrintPdf(data: PutawayPrintInput): boolean {
 
 export function putawayDestinationSummary(
   drafts: PutawayLineDraft[],
-  destinationLocations: Location[],
+  locationById: Map<string, Location>,
 ): string {
   const ids = [...new Set(drafts.map((d) => d.destination_location_id?.trim()).filter(Boolean))];
   if (ids.length === 0) return '—';
   return ids
     .map((id) => {
-      const loc = destinationLocations.find((l) => l.id === id);
+      const loc = locationById.get(id);
       return loc
         ? `${loc.fullPath}${loc.barcode ? ` · ${loc.barcode}` : ''}`
         : id;
@@ -97,13 +96,13 @@ export function putawayDestinationSummary(
 export function putawaySourceSummary(
   drafts: PutawayLineDraft[],
   stagingByLineId: Map<string, string>,
-  allLocations: Location[],
+  locationById: Map<string, Location>,
 ): string {
   const ids = [...new Set(drafts.map((d) => stagingByLineId.get(d.inbound_order_line_id)).filter(Boolean))];
   if (ids.length === 0) return '—';
   return ids
     .map((id) => {
-      const loc = allLocations.find((l) => l.id === id);
+      const loc = locationById.get(id!);
       return loc
         ? `${loc.fullPath}${loc.barcode ? ` · ${loc.barcode}` : ''}`
         : id!;

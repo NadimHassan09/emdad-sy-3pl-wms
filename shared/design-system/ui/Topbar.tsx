@@ -18,10 +18,12 @@ import { createPortal } from 'react-dom';
 import { Button } from './Button';
 import { cn } from './cn';
 import { FILTER_RESET_BUTTON_CLASS } from './filter-button-styles';
+import {
+  clampTopbarDropdownLeft,
+  topbarDropdownTop,
+} from './topbar-dropdown-utils';
 
 const MENU_WIDTH = 240;
-const MENU_TOP = 100;
-const VIEWPORT_PAD = 16;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Topbar root
@@ -145,6 +147,8 @@ export interface TopbarUserMenuProps {
   onSignOut?: () => void;
   signOutLabel?: string;
   languageLabel?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 function UserAvatar({ connected }: { connected?: boolean }) {
@@ -181,17 +185,7 @@ function UserAvatar({ connected }: { connected?: boolean }) {
 }
 
 function clampMenuLeft(triggerRect: DOMRect, menuWidth: number): number {
-  const isRtl = document.documentElement.dir === 'rtl';
-  let left: number;
-
-  if (isRtl) {
-    left = triggerRect.left;
-  } else {
-    left = triggerRect.right - menuWidth;
-  }
-
-  const maxLeft = window.innerWidth - menuWidth - VIEWPORT_PAD;
-  return Math.max(VIEWPORT_PAD, Math.min(left, maxLeft));
+  return clampTopbarDropdownLeft(triggerRect, menuWidth);
 }
 
 function TopbarUserMenuDropdown({
@@ -319,11 +313,20 @@ export function TopbarUserMenu({
   onSignOut,
   signOutLabel = 'Sign out',
   languageLabel = 'Language',
+  open: openProp,
+  onOpenChange,
 }: TopbarUserMenuProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : internalOpen;
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
 
   const close = () => setOpen(false);
 
@@ -333,7 +336,7 @@ export function TopbarUserMenu({
     function updatePosition() {
       const rect = triggerRef.current!.getBoundingClientRect();
       setMenuPos({
-        top: MENU_TOP,
+        top: topbarDropdownTop(rect),
         left: clampMenuLeft(rect, MENU_WIDTH),
       });
     }
@@ -375,7 +378,7 @@ export function TopbarUserMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(!open)}
       >
         <UserAvatar connected={connected} />
         <div className="hidden min-w-0 sm:flex sm:flex-col items-start text-start max-w-[160px]">

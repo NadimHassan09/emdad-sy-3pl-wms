@@ -18,7 +18,7 @@ export type PickPrintInput = {
   operatorNotes: string;
   drafts: PickLineDraft[];
   lineMeta: Map<string, OutboundOrderLine>;
-  allLocations: Location[];
+  locationById: Map<string, Location>;
   lotNumberById: Map<string, string>;
 };
 
@@ -27,7 +27,7 @@ export function buildPickPrintHtml(data: PickPrintInput): string {
   const lineRows = data.drafts
     .map((d) => {
       const ol = data.lineMeta.get(d.outboundOrderLineId);
-      const loc = data.allLocations.find((l) => l.id === d.locationId);
+      const loc = data.locationById.get(d.locationId);
       const lot = d.lotId ? (data.lotNumberById.get(d.lotId) ?? d.lotId.slice(0, 8)) : '—';
       const status = pickLineStatusLabel(computePickLineStatus(d));
       return `<tr>

@@ -4,6 +4,7 @@ import { BarcodeScanModal } from '../../../components/BarcodeScanModal';
 import { Button } from '../../../components/Button';
 import { FilterPanel } from '../../../components/FilterPanel';
 import { TextField } from '../../../components/TextField';
+import { useWmsTranslation } from '../../../lib/ui-i18n';
 import type { PickLineFilters } from './pick-utils';
 
 type ScanTarget = 'product' | 'location' | null;
@@ -13,6 +14,8 @@ function FilterScanField({
   value,
   placeholder,
   ariaLabel,
+  scanAria,
+  scanTitle,
   onChange,
   onScanClick,
 }: {
@@ -20,6 +23,8 @@ function FilterScanField({
   value: string;
   placeholder: string;
   ariaLabel: string;
+  scanAria: string;
+  scanTitle: string;
   onChange: (value: string) => void;
   onScanClick: () => void;
 }) {
@@ -43,8 +48,8 @@ function FilterScanField({
           size="md"
           className="mt-0 shrink-0 px-2.5"
           onClick={onScanClick}
-          aria-label={`Scan ${label.toLowerCase()}`}
-          title={`Scan ${label.toLowerCase()}`}
+          aria-label={scanAria}
+          title={scanTitle}
         >
           <BarcodeScanIcon className="h-5 w-5" />
         </Button>
@@ -71,6 +76,7 @@ export function PickLinesFilterCard({
   resultCount: number;
   totalCount: number;
 }) {
+  const { t } = useWmsTranslation();
   const [scanTarget, setScanTarget] = useState<ScanTarget>(null);
   const showingFiltered = resultCount !== totalCount;
 
@@ -81,37 +87,47 @@ export function PickLinesFilterCard({
     setScanTarget(null);
   }
 
+  const productLabel = t(['Product', 'المنتج']);
+  const locationLabel = t(['Location', 'الموقع']);
+
   return (
     <>
       <FilterPanel
-        title="Filters"
+        title={t(['Filters', 'الفلاتر'])}
         onApply={onApply}
         onReset={onReset}
-        applyLabel="Apply filters"
-        resetLabel="Reset filters"
+        applyLabel={t(['Apply filters', 'تطبيق الفلاتر'])}
+        resetLabel={t(['Reset filters', 'إعادة تعيين الفلاتر'])}
         className="!mb-0"
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-4">
           <FilterScanField
-            label="Product"
+            label={productLabel}
             value={draft.product}
-            placeholder="SKU, product name, or barcode"
-            ariaLabel="Filter by product"
+            placeholder={t(['SKU, product name, or Barcode', 'SKU أو اسم المنتج أو Barcode'])}
+            ariaLabel={t(['Filter by product', 'تصفية حسب المنتج'])}
+            scanAria={t(['Scan product', 'مسح المنتج'])}
+            scanTitle={t(['Scan product', 'مسح المنتج'])}
             onChange={(product) => onDraftChange({ ...draft, product })}
             onScanClick={() => setScanTarget('product')}
           />
           <FilterScanField
-            label="Location"
+            label={locationLabel}
             value={draft.location}
-            placeholder="Bin path, name, or barcode"
-            ariaLabel="Filter by location"
+            placeholder={t(['Bin path, name, or Barcode', 'مسار Bin أو الاسم أو Barcode'])}
+            ariaLabel={t(['Filter by location', 'تصفية حسب الموقع'])}
+            scanAria={t(['Scan location', 'مسح الموقع'])}
+            scanTitle={t(['Scan location', 'مسح الموقع'])}
             onChange={(location) => onDraftChange({ ...draft, location })}
             onScanClick={() => setScanTarget('location')}
           />
         </div>
         {showingFiltered ? (
           <p className="text-xs text-slate-500">
-            Showing {resultCount} of {totalCount} lines
+            {t([
+              `Showing ${resultCount} of ${totalCount} lines`,
+              `عرض ${resultCount} من ${totalCount} سطر`,
+            ])}
           </p>
         ) : null}
       </FilterPanel>

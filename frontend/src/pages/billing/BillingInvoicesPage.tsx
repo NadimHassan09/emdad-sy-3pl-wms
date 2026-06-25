@@ -124,95 +124,102 @@ export function BillingInvoicesPage() {
         onApply={applyFilters}
         onReset={resetFilters}
         loading={pagination.isFetching}
+        applyLabel="Apply filters"
+        resetLabel="Reset filters"
       >
-        <TextField
-          label="Search invoice"
-          value={draftFilters.search}
-          onChange={(e) => setDraft({ search: e.target.value })}
-          placeholder="Invoice number"
-        />
-        <Combobox
-          label="Client"
-          value={draftFilters.companyId}
-          onChange={(v) => setDraft({ companyId: v })}
-          options={companyFilterComboboxOptions(companiesQuery.data, 'All clients')}
-        />
-        <SelectField
-          label="Status"
-          value={draftFilters.status}
-          onChange={(e) => {
-            const v = e.target.value as unknown as InvoiceStatusFilter;
-            setDraft({ status: v });
-          }}
-          options={[
-            { value: '', label: 'All' },
-            { value: 'draft', label: 'Draft' },
-            { value: 'open', label: 'Open' },
-            { value: 'paid', label: 'Paid' },
-            { value: 'cancelled', label: 'Cancelled' },
-          ]}
-        />
-        <SelectField
-          label="Cycle status"
-          value={draftFilters.cycleStatus}
-          onChange={(e) =>
-            setDraft({ cycleStatus: e.target.value as ListFilters['cycleStatus'] })
-          }
-          options={[
-            { value: '', label: 'All' },
-            { value: 'active', label: 'Active' },
-            { value: 'renewed', label: 'Renewed' },
-            { value: 'expired', label: 'Expired' },
-          ]}
-        />
-        <TextField
-          label="Date from"
-          type="date"
-          value={draftFilters.dateFrom}
-          onChange={(e) => setDraft({ dateFrom: e.target.value })}
-        />
-        <TextField
-          label="Date to"
-          type="date"
-          value={draftFilters.dateTo}
-          onChange={(e) => setDraft({ dateTo: e.target.value })}
-        />
-        <TextField
-          label="Cycle expiry from"
-          type="date"
-          value={draftFilters.expiryFrom}
-          onChange={(e) => setDraft({ expiryFrom: e.target.value })}
-        />
-        <TextField
-          label="Cycle expiry to"
-          type="date"
-          value={draftFilters.expiryTo}
-          onChange={(e) => setDraft({ expiryTo: e.target.value })}
-        />
-        <SelectField
-          label="Sort by"
-          value={draftFilters.sort_by}
-          onChange={(e) =>
-            setDraft({ sort_by: e.target.value as ListFilters['sort_by'] })
-          }
-          options={[
-            { value: 'createdAt', label: 'Created' },
-            { value: 'invoiceNumber', label: 'Invoice number' },
-            { value: 'totalAmount', label: 'Amount' },
-            { value: 'status', label: 'Status' },
-          ]}
-        />
-        <SelectField
-          label="Sort direction"
-          value={draftFilters.sort_dir}
-          onChange={(e) =>
-            setDraft({ sort_dir: e.target.value as 'asc' | 'desc' })
-          }
-          options={[
-            { value: 'desc', label: 'Descending' },
-            { value: 'asc', label: 'Ascending' },
-          ]}
-        />
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <TextField
+            label="Invoice #"
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder="Search invoice..."
+            className="font-mono"
+          />
+          <Combobox
+            label="Client"
+            value={draftFilters.companyId}
+            onChange={(v) => setDraft({ companyId: v })}
+            options={companyFilterComboboxOptions(companiesQuery.data, 'All clients')}
+            placeholder="All clients"
+          />
+          <SelectField
+            label="Status"
+            value={draftFilters.status}
+            onChange={(e) => {
+              const v = e.target.value as unknown as InvoiceStatusFilter;
+              setDraft({ status: v });
+            }}
+            options={[
+              { value: '', label: 'All statuses' },
+              { value: 'draft', label: 'Draft' },
+              { value: 'open', label: 'Open' },
+              { value: 'overdue', label: 'Overdue' },
+              { value: 'paid', label: 'Paid' },
+              { value: 'cancelled', label: 'Cancelled' },
+            ]}
+          />
+          <SelectField
+            label="Cycle status"
+            value={draftFilters.cycleStatus}
+            onChange={(e) =>
+              setDraft({ cycleStatus: e.target.value as ListFilters['cycleStatus'] })
+            }
+            options={[
+              { value: '', label: 'All statuses' },
+              { value: 'active', label: 'Active' },
+              { value: 'renewed', label: 'Renewed' },
+              { value: 'expired', label: 'Expired' },
+            ]}
+          />
+          <TextField
+            label="Created from"
+            type="date"
+            value={draftFilters.dateFrom}
+            onChange={(e) => setDraft({ dateFrom: e.target.value })}
+          />
+          <TextField
+            label="Created to"
+            type="date"
+            value={draftFilters.dateTo}
+            onChange={(e) => setDraft({ dateTo: e.target.value })}
+          />
+          <TextField
+            label="Cycle expiry from"
+            type="date"
+            value={draftFilters.expiryFrom}
+            onChange={(e) => setDraft({ expiryFrom: e.target.value })}
+          />
+          <TextField
+            label="Cycle expiry to"
+            type="date"
+            value={draftFilters.expiryTo}
+            onChange={(e) => setDraft({ expiryTo: e.target.value })}
+          />
+          <SelectField
+            label="Sort by"
+            value={draftFilters.sort_by}
+            onChange={(e) =>
+              setDraft({ sort_by: e.target.value as ListFilters['sort_by'] })
+            }
+            options={[
+              { value: 'createdAt', label: 'Created' },
+              { value: 'invoiceNumber', label: 'Invoice number' },
+              { value: 'totalAmount', label: 'Amount' },
+              { value: 'status', label: 'Status' },
+            ]}
+          />
+          <SelectField
+            label="Sort direction"
+            value={draftFilters.sort_dir}
+            onChange={(e) =>
+              setDraft({ sort_dir: e.target.value as 'asc' | 'desc' })
+            }
+            options={[
+              { value: 'desc', label: 'Descending' },
+              { value: 'asc', label: 'Ascending' },
+            ]}
+          />
+        </div>
       </FilterPanel>
 
       <DataTable

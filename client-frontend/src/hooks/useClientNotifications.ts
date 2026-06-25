@@ -17,7 +17,6 @@ export function useClientNotifications() {
   const query = useQuery({
     queryKey: CLIENT_NOTIFICATIONS_QUERY_KEY,
     queryFn: () => fetchClientNotifications(),
-    refetchInterval: 60_000,
   });
 
   const unreadCount = query.data?.unreadCount ?? 0;

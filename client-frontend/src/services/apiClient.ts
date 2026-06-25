@@ -2,9 +2,9 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 import { clearStoredBearer, getStoredBearer } from './authStorage';
 import { isSuccessEnvelope } from '../types/api';
+import { getClientApiBaseUrl } from './apiBaseUrl';
 
-const baseURL =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? 'http://localhost:3000/api/client';
+const baseURL = getClientApiBaseUrl();
 
 let onUnauthorized: (() => void) | null = null;
 

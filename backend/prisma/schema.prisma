@@ -1564,3 +1564,19 @@ model Notification {
   @@index([companyId, isRead], map: "idx_notifications_company")
   @@map("notifications")
 }
+
+/// Lead capture submissions from external HTML landing pages (public form).
+model LeadFormSubmission {
+  id           String   @id @default(uuid()) @db.Uuid
+  fullName     String   @map("full_name")
+  phone        String
+  email        String
+  activityType String   @map("activity_type")
+  message      String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)], map: "idx_lead_form_submissions_created_at_desc")
+  @@index([activityType], map: "idx_lead_form_submissions_activity_type")
+  @@map("lead_form_submissions")
+}

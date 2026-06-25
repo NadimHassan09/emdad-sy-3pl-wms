@@ -3,9 +3,9 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { CompaniesApi } from '../api/companies';
-import { InventoryApi, LedgerRow, StockRow } from '../api/inventory';
-import { LocationsApi } from '../api/locations';
+import { InventoryApi, LedgerRow } from '../api/inventory';
 import { ProductsApi, type ProductListQuery } from '../api/products';
+import { AdjustmentStockLocationPicker } from '../components/locations/AdjustmentStockLocationPicker';
 import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { ADJUSTMENT_CANCEL_BUTTON_CLASS } from '../components/adjustments/adjustment-button-styles';
@@ -18,8 +18,15 @@ import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
+import { useResolvedLocations } from '../hooks/useResolvedLocations';
 import { fmtLedgerQty } from '../lib/ledger-display';
-import { isAdjustmentStockLocationType, locationTypeLabel } from '../lib/location-types';
+import {
+  buildStockSourceLocationOptions,
+  transferableQtyAtRow,
+  uniqueStockLocationIds,
+} from '../lib/inventory-location-options';
+import { localizedLocationTypeLabel } from '../lib/ui-labels/locations';
+import { useWmsTranslation } from '../lib/ui-i18n';
 
 /** Subset of `LocationType` allowed for internal transfers (matches backend adjustment-stock types). */
 type TransferLocationTypeFilter = '' | 'internal' | 'fridge' | 'quarantine' | 'scrap';
@@ -52,19 +59,6 @@ function productListQuery(
     default:
       return base;
   }
-}
-
-/** Matches backend decrement: on-hand minus reserved (never raw on-hand only). */
-function transferableQtyAtRow(row: StockRow): number {
-  const avail = Number(row.quantityAvailable);
-  if (Number.isFinite(avail)) return Math.max(0, avail);
-  const onHand = Number(row.quantityOnHand);
-  const reserved = Number(row.quantityReserved);
-  if (Number.isFinite(onHand) && Number.isFinite(reserved)) {
-    return Math.max(0, onHand - reserved);
-  }
-  if (Number.isFinite(onHand)) return Math.max(0, onHand);
-  return 0;
 }
 
 export function InternalTransferPage() {
@@ -187,6 +181,7 @@ function CreateInternalTransferModal({
   onClose: () => void;
   warehouseId: string;
 }) {
+  const { t } = useWmsTranslation();
   const toast = useToast();
   const qc = useQueryClient();
 
@@ -285,18 +280,6 @@ function CreateInternalTransferModal({
     staleTime: 60_000,
   });
 
-  const locs = useQuery({
-    queryKey: QK.locationsFlat(warehouseId, false),
-    queryFn: () => LocationsApi.list(warehouseId),
-    enabled: !!warehouseId && open,
-    staleTime: 5 * 60_000,
-  });
-
-  const adjustmentLocations = useMemo(
-    () => (locs.data ?? []).filter((l) => isAdjustmentStockLocationType(l.type)),
-    [locs.data],
-  );
-
   const stockByProduct = useQuery({
     queryKey: [...QK.inventoryStock, 'internal-transfer-create', warehouseId, stockCompanyId, productId],
     queryFn: () =>
@@ -310,9 +293,18 @@ function CreateInternalTransferModal({
     staleTime: 30_000,
   });
 
+  const stockLocationIds = useMemo(
+    () => uniqueStockLocationIds(stockByProduct.data?.items ?? []),
+    [stockByProduct.data?.items],
+  );
+
+  const { locationById } = useResolvedLocations(
+    open && productId && stockByProduct.isFetched ? stockLocationIds : [],
+  );
+
   const eligibleLocationIds = useMemo(
-    () => new Set(adjustmentLocations.map((l) => l.id)),
-    [adjustmentLocations],
+    () => new Set([...locationById.keys()]),
+    [locationById],
   );
 
   const lotOptionsWithStock = useMemo(() => {
@@ -349,60 +341,27 @@ function CreateInternalTransferModal({
     lots.data,
   ]);
 
-  const sourceLocationOptions = useMemo(() => {
-    if (!productId || (lotTracked && !lotId)) return [];
-
-    const items = stockByProduct.data?.items ?? [];
-    const locMap = new Map(adjustmentLocations.map((l) => [l.id, l]));
-    const availByLoc = new Map<string, number>();
-
-    for (const row of items) {
-      const loc = locMap.get(row.locationId);
-      if (!loc) continue;
-      if (sourceTypeFilter && loc.type !== sourceTypeFilter) continue;
-
-      const rowLot = row.lotId ?? row.lot?.id ?? null;
-      if (lotTracked) {
-        if (rowLot !== lotId) continue;
-      } else if (rowLot) {
-        continue;
-      }
-
-      const qty = transferableQtyAtRow(row);
-      if (qty <= 0) continue;
-      availByLoc.set(loc.id, (availByLoc.get(loc.id) ?? 0) + qty);
-    }
-
-    return [...availByLoc.entries()]
-      .map(([id, avail]) => {
-        const loc = locMap.get(id)!;
-        return {
-          id,
-          label: loc.fullPath,
-          hint: `${locationTypeLabel(loc.type)} · avail ${avail.toLocaleString()}`,
-        };
-      })
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [
-    stockByProduct.data?.items,
-    adjustmentLocations,
-    lotTracked,
-    lotId,
-    productId,
-    sourceTypeFilter,
-  ]);
-
-  const destLocationOptions = useMemo(
+  const sourceLocationOptions = useMemo(
     () =>
-      adjustmentLocations
-        .filter((l) => l.id !== fromLocationId)
-        .filter((l) => !destTypeFilter || l.type === destTypeFilter)
-        .map((l) => ({
-          id: l.id,
-          label: l.fullPath,
-          hint: `${locationTypeLabel(l.type)} · ${l.barcode}`,
-        })),
-    [adjustmentLocations, fromLocationId, destTypeFilter],
+      buildStockSourceLocationOptions({
+        stockItems: stockByProduct.data?.items ?? [],
+        locationById,
+        productId,
+        lotId,
+        lotTracked,
+        sourceTypeFilter: sourceTypeFilter || undefined,
+        typeLabel: (type) => localizedLocationTypeLabel(type, t),
+        availWord: t(['avail', 'متاح']),
+      }),
+    [
+      stockByProduct.data?.items,
+      locationById,
+      productId,
+      lotId,
+      lotTracked,
+      sourceTypeFilter,
+      t,
+    ],
   );
 
   const availableQty = useMemo(() => {
@@ -647,19 +606,19 @@ function CreateInternalTransferModal({
                     : 'No on-hand stock in an eligible bin for this product.'
               }
             />
-            <Combobox
+            <AdjustmentStockLocationPicker
               label="Destination location"
               required
+              warehouseId={warehouseId}
               value={toLocationId}
               onChange={setToLocationId}
+              typeFilter={destTypeFilter || ''}
+              excludeId={fromLocationId}
               disabled={!warehouseId || !fromLocationId}
-              options={destLocationOptions.map((o) => ({
-                value: o.id,
-                label: o.label,
-                hint: o.hint,
-              }))}
-              placeholder={!fromLocationId ? 'Pick source first...' : 'Where stock goes...'}
-              emptyMessage="No other eligible bins in this warehouse."
+              placeholder={
+                !fromLocationId ? 'Pick source first...' : 'Search destination bin...'
+              }
+              emptyMessage="No matching destination bins. Try another search or type filter."
             />
           </div>
 

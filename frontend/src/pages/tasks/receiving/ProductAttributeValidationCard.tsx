@@ -1,6 +1,7 @@
 import type { Product } from '../../../api/products';
 import { Button } from '../../../components/Button';
 import { TextField } from '../../../components/TextField';
+import { useWmsTranslation } from '../../../lib/ui-i18n';
 import type { ProductAttributeDraft } from './receiving-types';
 import { formatDim } from './receiving-utils';
 
@@ -19,6 +20,8 @@ export function ProductAttributeValidationCard({
   onConfirm,
   readOnly,
 }: Props) {
+  const { t } = useWmsTranslation();
+
   const registered = {
     lengthCm: formatDim(product.lengthCm),
     widthCm: formatDim(product.widthCm),
@@ -26,50 +29,51 @@ export function ProductAttributeValidationCard({
     weightKg: formatDim(product.weightKg),
   };
 
+  const dimensionFields = [
+    { label: t(['Length (cm)', 'الطول (cm)']), key: 'lengthCm' as const, reg: registered.lengthCm },
+    { label: t(['Width (cm)', 'العرض (cm)']), key: 'widthCm' as const, reg: registered.widthCm },
+    { label: t(['Height (cm)', 'الارتفاع (cm)']), key: 'heightCm' as const, reg: registered.heightCm },
+    { label: t(['Weight (kg)', 'الوزن (kg)']), key: 'weightKg' as const, reg: registered.weightKg },
+  ];
+
   return (
     <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
-            First inbound — validate physical attributes
+            {t(['First inbound — validate physical attributes', 'أول استلام — التحقق من الخصائص الفيزيائية'])}
           </p>
           <p className="mt-1 text-sm font-medium text-slate-900">{product.name}</p>
           <p className="font-mono text-xs text-slate-600">{product.sku}</p>
         </div>
         {draft.completed ? (
           <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-            Validated
+            {t(['Validated', 'تم التحقق'])}
           </span>
         ) : (
           <span className="rounded-full bg-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-950">
-            Required
+            {t(['Required', 'مطلوب'])}
           </span>
         )}
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {(
-          [
-            ['Length (cm)', 'lengthCm', registered.lengthCm],
-            ['Width (cm)', 'widthCm', registered.widthCm],
-            ['Height (cm)', 'heightCm', registered.heightCm],
-            ['Weight (kg)', 'weightKg', registered.weightKg],
-          ] as const
-        ).map(([label, key, reg]) => (
+        {dimensionFields.map(({ label, key, reg }) => (
           <div key={key} className="rounded-xl border border-white/80 bg-white p-3">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
             <p className="mt-1 text-xs text-slate-500">
-              System: <span className="font-mono text-slate-800">{reg}</span>
+              {t(['System:', 'النظام:'])}{' '}
+              <span className="font-mono text-slate-800">{reg}</span>
             </p>
             {!readOnly && (
               <input
                 type="text"
                 inputMode="decimal"
                 className="mt-2 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
-                placeholder="Measured"
+                placeholder={t(['Measured', 'المقاس'])}
                 value={draft[key]}
                 onChange={(e) => onChange({ [key]: e.target.value })}
-                aria-label={`Measured ${label}`}
+                aria-label={t(['Measured value', 'القيمة المقاسة'])}
               />
             )}
             {readOnly && draft[key] ? (
@@ -88,10 +92,13 @@ export function ProductAttributeValidationCard({
               checked={draft.confirmedMatch}
               onChange={(e) => onChange({ confirmedMatch: e.target.checked })}
             />
-            Physical measurements match system registration
+            {t([
+              'Physical measurements match system registration',
+              'القياسات الفيزيائية تطابق تسجيل النظام',
+            ])}
           </label>
           <TextField
-            label="Validation notes (optional)"
+            label={t(['Validation notes (optional)', 'ملاحظات التحقق (اختياري)'])}
             value={draft.notes}
             onChange={(e) => onChange({ notes: e.target.value })}
             className="mt-3"
@@ -103,7 +110,7 @@ export function ProductAttributeValidationCard({
             disabled={!draft.confirmedMatch && !draft.lengthCm && !draft.widthCm}
             onClick={onConfirm}
           >
-            Confirm attribute validation
+            {t(['Confirm attribute validation', 'تأكيد التحقق من الخصائص'])}
           </Button>
         </>
       ) : null}

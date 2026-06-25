@@ -12,6 +12,7 @@ export const ADMIN_NAV_ICONS: Record<string, string> = {
   Warehouses: 'fa-solid fa-warehouse',
   Reports: 'fa-solid fa-chart-simple',
   Customers: 'fa-solid fa-users',
+  Forms: 'fa-solid fa-file-lines',
     Users: 'fa-solid fa-user-gear',
   AuditLogs: 'fa-solid fa-clock-rotate-left',
   Settings: 'fa-solid fa-gear',
@@ -33,7 +34,7 @@ export function renderSidebarNavIcon(iconKey: string): ReactNode {
     ADMIN_NAV_ICONS[iconKey] ?? CLIENT_NAV_ICONS[iconKey] ?? 'fa-solid fa-circle';
   return (
     <i
-      className={cn(faClass, 'inline-block w-[18px] text-center text-[15px] leading-none')}
+      className={cn(faClass, 'inline-block w-4 text-center text-[13px] leading-none')}
       aria-hidden="true"
     />
   );

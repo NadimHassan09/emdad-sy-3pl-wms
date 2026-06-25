@@ -15,6 +15,10 @@ import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '../hooks/useChunkedServerPagination';
 import { useFilters } from '../hooks/useFilters';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import {
@@ -111,13 +115,16 @@ export function InventoryLedgerPage() {
     [appliedFilters, wid],
   );
 
-  const ledger = useQuery({
-    queryKey: [...QK.ledger, ledgerParams],
-    queryFn: () => InventoryApi.ledger({ limit: 500, ...ledgerParams }),
+  const pagination = useChunkedServerPagination<LedgerRow>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey: ledgerParams,
+    fetchChunk: (offset, limit) => InventoryApi.ledger({ ...ledgerParams, offset, limit }),
+    rtQueryKeyPrefix: QK.ledger,
+    chunkQueryKeyPrefix: 'ledger-chunk',
     enabled: !!wid,
   });
 
-  const ledgerRows = useMemo(() => ledger.data?.items ?? [], [ledger.data?.items]);
+  const totalPages = Math.max(1, Math.ceil(pagination.total / pagination.pageSize));
 
   const columns: Column<LedgerRow>[] = useMemo(
     () => [
@@ -193,7 +200,7 @@ export function InventoryLedgerPage() {
         title={t('Ledger filters', 'فلاتر السجل')}
         onApply={applyFilters}
         onReset={resetFilters}
-        loading={ledger.isFetching}
+        loading={pagination.isFetching}
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
       >
@@ -268,11 +275,12 @@ export function InventoryLedgerPage() {
       <DataTable
         title={t('Inventory ledger', 'سجل المخزون')}
         columns={columns}
-        rows={ledgerRows}
+        rows={pagination.rows}
         rowKey={ledgerRowKey}
-        loading={ledger.isLoading || !wid}
+        loading={pagination.isInitialLoading || !wid}
         empty={wid ? 'No ledger rows for the current filters.' : 'Warehouse not resolved yet.'}
         onRowClick={(r) => navigate(ledgerEntryDetailPath(r.id, r.createdAt, r.companyId))}
+        serverPagination={pagination.serverPagination}
         labels={{
           rowsSuffix: t('rows', 'صف'),
           resultsSuffix: t('results', 'نتيجة'),
@@ -283,8 +291,11 @@ export function InventoryLedgerPage() {
         }}
       />
       <p className="mt-2 text-xs text-slate-500">
-        {ledger.data
-          ? `${ledgerRows.length} movement(s) · ${ledger.data.total} row(s) from server`
+        {pagination.total > 0
+          ? t(
+              `${pagination.total} movement(s) · page ${pagination.page} of ${totalPages}`,
+              `${pagination.total} حركة · صفحة ${pagination.page} من ${totalPages}`,
+            )
           : ''}
       </p>
 

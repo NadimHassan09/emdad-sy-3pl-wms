@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { InventoryApi, StockRow } from '../api/inventory';
@@ -9,6 +9,10 @@ import { Column, DataTable } from '../components/DataTable';
 import { PageHeader } from '../components/PageHeader';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '../hooks/useChunkedServerPagination';
 
 const fmtQty = (s: string) => Number(s).toLocaleString(undefined, { maximumFractionDigits: 4 });
 
@@ -127,21 +131,39 @@ export function InventoryProductDetailPage() {
     enabled: !!productId,
   });
 
-  const stock = useQuery({
-    queryKey: [...QK.inventoryStock, 'detail', productId, wid],
-    queryFn: () => InventoryApi.stock({ productId, warehouseId: wid || undefined, limit: 500 }),
+  const stockFilterKey = useMemo(
+    () => ({ productId, warehouseId: wid || '' }),
+    [productId, wid],
+  );
+
+  const fetchStockChunk = useCallback(
+    (offset: number, limit: number) =>
+      InventoryApi.stock({
+        productId,
+        warehouseId: wid || undefined,
+        offset,
+        limit,
+      }),
+    [productId, wid],
+  );
+
+  const stockPagination = useChunkedServerPagination<StockRow>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey: stockFilterKey,
+    fetchChunk: fetchStockChunk,
+    rtQueryKeyPrefix: QK.inventoryStock,
+    chunkQueryKeyPrefix: 'inventory-stock-chunk',
     enabled: !!productId && !!wid,
   });
 
   const stockRows = useMemo(() => {
-    const items = stock.data?.items ?? [];
-    return items.slice().sort((a, b) => {
+    return stockPagination.rows.slice().sort((a, b) => {
       const lotA = a.lot?.lotNumber ?? '';
       const lotB = b.lot?.lotNumber ?? '';
       if (lotA !== lotB) return lotA.localeCompare(lotB);
       return a.location.fullPath.localeCompare(b.location.fullPath);
     });
-  }, [stock.data?.items]);
+  }, [stockPagination.rows]);
 
   const columns: Column<StockRow>[] = useMemo(
     () => [
@@ -181,7 +203,9 @@ export function InventoryProductDetailPage() {
 
   if (!productId) return null;
   if (!wid) return <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>;
-  if (product.isLoading || stock.isLoading) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (product.isLoading || stockPagination.isInitialLoading) {
+    return <p className="text-sm text-slate-500">Loading…</p>;
+  }
   if (product.isError || !product.data)
     return <p className="text-sm text-rose-600">Product not found.</p>;
 
@@ -203,11 +227,12 @@ export function InventoryProductDetailPage() {
         columns={columns}
         rows={stockRows}
         rowKey={(r) => r.id}
-        loading={stock.isFetching}
+        loading={stockPagination.isInitialLoading}
         empty={t(
           'No stock rows for this product with current visibility.',
           'لا توجد صفوف مخزون لهذا المنتج ضمن الصلاحيات الحالية.',
         )}
+        serverPagination={stockPagination.serverPagination}
         labels={{
           rowsSuffix: t('rows', 'صف'),
           resultsSuffix: t('results', 'نتيجة'),

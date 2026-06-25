@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
-import { LocationsApi } from '../../api/locations';
 import {
   ReturnsApi,
   type ReturnItemCondition,
@@ -10,18 +9,14 @@ import {
   type ReturnOrderLine,
 } from '../../api/returns';
 import { Button } from '../../components/Button';
-import { Combobox } from '../../components/Combobox';
+import { DispositionLocationPicker } from '../../components/locations/DispositionLocationPicker';
 import { PageHeader } from '../../components/PageHeader';
 import { SelectField } from '../../components/SelectField';
 import { StatusBadge } from '../../components/StatusBadge';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
-import {
-  canPostDisposition,
-  dispositionLabel,
-  locationTypesForDisposition,
-} from '../../lib/return-labels';
+import { canPostDisposition, dispositionLabel } from '../../lib/return-labels';
 import { isOperatorRole } from '../../lib/rbac';
 import { useAuth } from '../../auth/AuthContext';
 
@@ -78,13 +73,6 @@ export function ReturnProcessPage() {
 
   const order = detail.data;
   const warehouseId = order?.warehouseId ?? order?.warehouse?.id ?? '';
-
-  const locations = useQuery({
-    queryKey: QK.locationsFlat(warehouseId, false),
-    queryFn: () => LocationsApi.list(warehouseId, false),
-    enabled: !!warehouseId,
-    staleTime: 5 * 60_000,
-  });
 
   const startReceivingMut = useMutation({
     mutationFn: () => ReturnsApi.startReceiving(id),
@@ -181,20 +169,6 @@ export function ReturnProcessPage() {
     if (activeLine.disposition) setDisposition(activeLine.disposition);
     if (activeLine.targetLocationId) setTargetLocationId(activeLine.targetLocationId);
   }, [activeLine?.id, activeLine?.receivedQuantity]);
-
-  const locationOptions = useMemo(() => {
-    const types = locationTypesForDisposition(disposition);
-    const locs = (locations.data ?? []).filter(
-      (loc) => types.length === 0 || types.includes(loc.type),
-    );
-    return [
-      { value: '', label: t('Select location…', 'اختر الموقع…') },
-      ...locs.map((l) => ({
-        value: l.id,
-        label: `${l.fullPath} (${l.type})`,
-      })),
-    ];
-  }, [locations.data, disposition, isArabic]);
 
   const busy =
     receiveMut.isPending ||
@@ -364,12 +338,14 @@ export function ReturnProcessPage() {
                   label: dispositionLabel(d, isArabic),
                 }))}
               />
-              {canPostDisposition(disposition) ? (
-                <Combobox
-                  label={t('Target location', 'الموقع المستهدف')}
+              {canPostDisposition(disposition) && warehouseId ? (
+                <DispositionLocationPicker
+                  warehouseId={warehouseId}
+                  disposition={disposition}
                   value={targetLocationId}
                   onChange={setTargetLocationId}
-                  options={locationOptions}
+                  label={t('Target location', 'الموقع المستهدف')}
+                  disabled={busy}
                 />
               ) : null}
               <TextField
@@ -397,12 +373,16 @@ export function ReturnProcessPage() {
                 {dispositionLabel(activeLine.disposition, isArabic)} →{' '}
                 {activeLine.targetLocation?.fullPath ?? t('pick location', 'اختر موقع')}
               </p>
-              {!activeLine.targetLocationId && canPostDisposition(disposition) ? (
-                <Combobox
-                  label={t('Target location', 'الموقع المستهدف')}
+              {!activeLine.targetLocationId &&
+              canPostDisposition(disposition) &&
+              warehouseId ? (
+                <DispositionLocationPicker
+                  warehouseId={warehouseId}
+                  disposition={disposition}
                   value={targetLocationId}
                   onChange={setTargetLocationId}
-                  options={locationOptions}
+                  label={t('Target location', 'الموقع المستهدف')}
+                  disabled={busy}
                 />
               ) : null}
               <Button

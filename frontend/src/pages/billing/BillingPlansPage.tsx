@@ -322,99 +322,104 @@ export function BillingPlansPage() {
         onApply={applyFilters}
         onReset={resetFilters}
         loading={pagination.isFetching}
+        applyLabel="Apply filters"
+        resetLabel="Reset filters"
       >
-        <TextField
-          label="Search client"
-          value={draftFilters.search}
-          onChange={(e) => setDraft({ search: e.target.value })}
-          placeholder="Client name"
-        />
-        <Combobox
-          label="Client"
-          value={draftFilters.companyId}
-          onChange={(v) => setDraft({ companyId: v })}
-          options={companyFilterComboboxOptions(companiesQuery.data, 'All clients')}
-        />
-        <SelectField
-          label="Cycle status"
-          value={draftFilters.cycleStatus}
-          onChange={(e) => setDraft({ cycleStatus: e.target.value as CycleStatusFilter })}
-          options={[
-            { value: '', label: 'All' },
-            { value: 'active', label: 'Active' },
-            { value: 'renewed', label: 'Renewed' },
-            { value: 'expired', label: 'Expired' },
-            { value: 'none', label: 'No cycle' },
-          ]}
-        />
-        <SelectField
-          label="Days remaining"
-          value={draftFilters.daysRemaining}
-          onChange={(e) => {
-            const v = e.target.value as unknown as DaysRemainingFilter;
-            setDraft({ daysRemaining: v });
-          }}
-          options={[
-            { value: '', label: 'All' },
-            { value: 'critical', label: '≤ 7 days' },
-            { value: 'warning', label: '8–30 days' },
-            { value: 'healthy', label: '> 30 days' },
-            { value: 'expired', label: 'Expired' },
-            { value: 'none', label: 'No cycle' },
-          ]}
-        />
-        <SelectField
-          label="Billing status"
-          value={draftFilters.billingStatus}
-          onChange={(e) => {
-            const v = e.target.value as unknown as BillingStatusFilter;
-            setDraft({ billingStatus: v });
-          }}
-          options={[
-            { value: '', label: 'All' },
-            { value: 'operational', label: 'Operational' },
-            { value: 'restricted', label: 'Restricted' },
-            { value: 'inactive', label: 'Inactive' },
-          ]}
-        />
-        <TextField
-          label="Expiry from"
-          type="date"
-          value={draftFilters.expiryFrom}
-          onChange={(e) => setDraft({ expiryFrom: e.target.value })}
-        />
-        <TextField
-          label="Expiry to"
-          type="date"
-          value={draftFilters.expiryTo}
-          onChange={(e) => setDraft({ expiryTo: e.target.value })}
-        />
-        <SelectField
-          label="Sort by"
-          value={draftFilters.sort_by}
-          onChange={(e) =>
-            setDraft({
-              sort_by: e.target.value as ListFilters['sort_by'],
-            })
-          }
-          options={[
-            { value: 'createdAt', label: 'Created' },
-            { value: 'companyName', label: 'Client name' },
-            { value: 'cycleEnd', label: 'Cycle end' },
-            { value: 'daysRemaining', label: 'Days remaining' },
-          ]}
-        />
-        <SelectField
-          label="Sort direction"
-          value={draftFilters.sort_dir}
-          onChange={(e) =>
-            setDraft({ sort_dir: e.target.value as 'asc' | 'desc' })
-          }
-          options={[
-            { value: 'desc', label: 'Descending' },
-            { value: 'asc', label: 'Ascending' },
-          ]}
-        />
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <TextField
+            label="Search client"
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder="Client name"
+          />
+          <Combobox
+            label="Client"
+            value={draftFilters.companyId}
+            onChange={(v) => setDraft({ companyId: v })}
+            options={companyFilterComboboxOptions(companiesQuery.data, 'All clients')}
+            placeholder="All clients"
+          />
+          <SelectField
+            label="Cycle status"
+            value={draftFilters.cycleStatus}
+            onChange={(e) => setDraft({ cycleStatus: e.target.value as CycleStatusFilter })}
+            options={[
+              { value: '', label: 'All statuses' },
+              { value: 'active', label: 'Active' },
+              { value: 'renewed', label: 'Renewed' },
+              { value: 'expired', label: 'Expired' },
+              { value: 'none', label: 'No cycle' },
+            ]}
+          />
+          <SelectField
+            label="Days remaining"
+            value={draftFilters.daysRemaining}
+            onChange={(e) => {
+              const v = e.target.value as unknown as DaysRemainingFilter;
+              setDraft({ daysRemaining: v });
+            }}
+            options={[
+              { value: '', label: 'All' },
+              { value: 'critical', label: '≤ 7 days' },
+              { value: 'warning', label: '8–30 days' },
+              { value: 'healthy', label: '> 30 days' },
+              { value: 'expired', label: 'Expired' },
+              { value: 'none', label: 'No cycle' },
+            ]}
+          />
+          <SelectField
+            label="Billing status"
+            value={draftFilters.billingStatus}
+            onChange={(e) => {
+              const v = e.target.value as unknown as BillingStatusFilter;
+              setDraft({ billingStatus: v });
+            }}
+            options={[
+              { value: '', label: 'All statuses' },
+              { value: 'operational', label: 'Operational' },
+              { value: 'restricted', label: 'Restricted' },
+              { value: 'inactive', label: 'Inactive' },
+            ]}
+          />
+          <TextField
+            label="Expiry from"
+            type="date"
+            value={draftFilters.expiryFrom}
+            onChange={(e) => setDraft({ expiryFrom: e.target.value })}
+          />
+          <TextField
+            label="Expiry to"
+            type="date"
+            value={draftFilters.expiryTo}
+            onChange={(e) => setDraft({ expiryTo: e.target.value })}
+          />
+          <SelectField
+            label="Sort by"
+            value={draftFilters.sort_by}
+            onChange={(e) =>
+              setDraft({
+                sort_by: e.target.value as ListFilters['sort_by'],
+              })
+            }
+            options={[
+              { value: 'createdAt', label: 'Created' },
+              { value: 'companyName', label: 'Client name' },
+              { value: 'cycleEnd', label: 'Cycle end' },
+              { value: 'daysRemaining', label: 'Days remaining' },
+            ]}
+          />
+          <SelectField
+            label="Sort direction"
+            value={draftFilters.sort_dir}
+            onChange={(e) =>
+              setDraft({ sort_dir: e.target.value as 'asc' | 'desc' })
+            }
+            options={[
+              { value: 'desc', label: 'Descending' },
+              { value: 'asc', label: 'Ascending' },
+            ]}
+          />
+        </div>
       </FilterPanel>
 
       <DataTable

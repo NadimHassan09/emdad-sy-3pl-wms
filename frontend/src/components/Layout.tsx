@@ -100,6 +100,8 @@ function sidebarLabel(label: string, isArabic: boolean): string {
 
     Customers: 'العملاء',
 
+    Forms: 'النماذج',
+
     Users: 'المستخدمون',
 
     'Audit logs': 'سجل التدقيق',

@@ -10,7 +10,7 @@ interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   hint?: string;
   error?: string;
-  options: Option[];
+  options: readonly Option[];
   placeholder?: string;
 }
 

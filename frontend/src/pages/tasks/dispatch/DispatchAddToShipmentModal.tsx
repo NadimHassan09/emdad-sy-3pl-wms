@@ -6,6 +6,7 @@ import { Button } from '../../../components/Button';
 import { Modal } from '../../../components/Modal';
 import { TextField } from '../../../components/TextField';
 import { useToast } from '../../../components/ToastProvider';
+import { useWmsTranslation } from '../../../lib/ui-i18n';
 import type { DispatchLineDraft, DispatchPackageDraft } from './dispatch-types';
 import { findDispatchLineByProductScan, findPackageByLabel, parseQty } from './dispatch-utils';
 
@@ -30,6 +31,7 @@ export function DispatchAddToShipmentModal({
   onAddProduct: (lineId: string, qty: number) => boolean;
   onAddPackage: (pkgId: string) => boolean;
 }) {
+  const { t } = useWmsTranslation();
   const toast = useToast();
   const [mode, setMode] = useState<AddMode>('product');
   const [productInput, setProductInput] = useState('');
@@ -52,7 +54,7 @@ export function DispatchAddToShipmentModal({
   function handleAddProduct() {
     const trimmed = productInput.trim();
     if (!trimmed) {
-      toast.error('Enter SKU, product name, or scan a barcode.');
+      toast.error(t(['Enter SKU, product name, or scan a Barcode.', 'أدخل SKU أو اسم المنتج أو امسح Barcode.']));
       return;
     }
     const lineId =
@@ -65,12 +67,12 @@ export function DispatchAddToShipmentModal({
         return sku.includes(q) || name.includes(q);
       });
     if (!lineId) {
-      toast.error('No matching product on this shipment.');
+      toast.error(t(['No matching product on this shipment.', 'لا منتج مطابق على هذه الشحنة.']));
       return;
     }
     const qty = parseQty(productQty);
     if (qty <= 0) {
-      toast.error('Enter a positive quantity.');
+      toast.error(t(['Enter a positive quantity.', 'أدخل كمية موجبة.']));
       return;
     }
     if (onAddProduct(lineId, qty)) {
@@ -87,7 +89,7 @@ export function DispatchAddToShipmentModal({
     }
     const pkg = findPackageByLabel(trimmed, packages);
     if (!pkg) {
-      toast.error('Package label not on this shipment.');
+      toast.error(t(['Package label not on this shipment.', 'ملصق الطرد غير موجود على هذه الشحنة.']));
       return;
     }
     if (onAddPackage(pkg.id)) {
@@ -121,19 +123,19 @@ export function DispatchAddToShipmentModal({
       <Modal
         open={open}
         onClose={handleClose}
-        title="Add to shipment"
+        title={t(['Add to shipment', 'إضافة إلى الشحنة'])}
         widthClass="max-w-md"
         footer={
           <div className="flex flex-wrap justify-end gap-2">
             <Button type="button" variant="secondary" onClick={handleClose}>
-              Cancel
+              {t(['Cancel', 'إلغاء'])}
             </Button>
             <Button
               type="button"
               variant="brand"
               onClick={mode === 'product' ? handleAddProduct : handleAddPackage}
             >
-              Add
+              {t(['Add', 'إضافة'])}
             </Button>
           </div>
         }
@@ -147,7 +149,7 @@ export function DispatchAddToShipmentModal({
               }`}
               onClick={() => setMode('product')}
             >
-              By product
+              {t(['By product', 'حسب المنتج'])}
             </button>
             <button
               type="button"
@@ -156,23 +158,23 @@ export function DispatchAddToShipmentModal({
               }`}
               onClick={() => setMode('package')}
             >
-              By package
+              {t(['By package', 'حسب الطرد'])}
             </button>
           </div>
 
           {mode === 'product' ? (
             <div className="space-y-3">
               <div>
-                <span className="text-sm font-medium text-slate-700">Product</span>
+                <span className="text-sm font-medium text-slate-700">{t(['Product', 'المنتج'])}</span>
                 <div className="mt-1 flex gap-2">
                   <div className="min-w-0 flex-1">
                     <TextField
                       name="dispatchAddProduct"
                       value={productInput}
                       onChange={(e) => setProductInput(e.target.value)}
-                      placeholder="SKU, name, or barcode"
+                      placeholder={t(['SKU, name, or Barcode', 'SKU أو الاسم أو Barcode'])}
                       className="!mt-0 w-full"
-                      aria-label="Product"
+                      aria-label={t(['Product', 'المنتج'])}
                     />
                   </div>
                   <Button
@@ -189,20 +191,23 @@ export function DispatchAddToShipmentModal({
                 </div>
               </div>
               <TextField
-                label="Quantity to ship"
+                label={t(['Quantity to ship', 'الكمية للشحن'])}
                 name="dispatchAddProductQty"
                 value={productQty}
                 onChange={(e) => setProductQty(e.target.value)}
                 inputMode="decimal"
               />
               <p className="text-xs text-slate-500">
-                {lines.length} line(s) on this order. Quantity cannot exceed picked amount.
+                {t([
+                  `${lines.length} line(s) on this order. Quantity cannot exceed picked amount.`,
+                  `${lines.length} سطر(أسطر) على هذا الطلب. لا يمكن تجاوز الكمية المُلتقطة.`,
+                ])}
               </p>
             </div>
           ) : (
             <div className="space-y-3">
               <div>
-                <span className="text-sm font-medium text-slate-700">Package label</span>
+                <span className="text-sm font-medium text-slate-700">{t(['Package label', 'ملصق الطرد'])}</span>
                 <div className="mt-1 flex gap-2">
                   <div className="min-w-0 flex-1">
                     <TextField
@@ -229,7 +234,7 @@ export function DispatchAddToShipmentModal({
               </div>
               {unscannedPackages.length > 0 ? (
                 <div>
-                  <p className="text-xs font-medium text-slate-600">Pending packages</p>
+                  <p className="text-xs font-medium text-slate-600">{t(['Pending packages', 'طرود معلّقة'])}</p>
                   <ul className="mt-1 max-h-32 space-y-1 overflow-y-auto rounded-lg border border-slate-100 p-2">
                     {unscannedPackages.map((p) => (
                       <li key={p.id}>
@@ -245,7 +250,9 @@ export function DispatchAddToShipmentModal({
                   </ul>
                 </div>
               ) : (
-                <p className="text-xs text-slate-500">All packages are already marked as loaded.</p>
+                <p className="text-xs text-slate-500">
+                  {t(['All packages are already marked as loaded.', 'جميع الطرود مُعلَّمة كمحمّلة.'])}
+                </p>
               )}
             </div>
           )}

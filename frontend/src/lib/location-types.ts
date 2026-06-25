@@ -160,6 +160,26 @@ export function isPutawayDestinationLocationType(type: string | null | undefined
   return isAdjustmentStockLocationType(type);
 }
 
+const PUTAWAY_DESTINATION_TYPES: LocationType[] = ['internal', 'fridge', 'quarantine', 'scrap'];
+const PUTAWAY_QUARANTINE_DESTINATION_TYPES: LocationType[] = ['quarantine', 'scrap'];
+
+/** Allowed destination types for putaway task execution (remote lookup filter). */
+export function putawayDestinationTypes(
+  taskType: 'putaway' | 'putaway_quarantine',
+): LocationType[] {
+  return taskType === 'putaway_quarantine'
+    ? PUTAWAY_QUARANTINE_DESTINATION_TYPES
+    : PUTAWAY_DESTINATION_TYPES;
+}
+
+export function isAllowedPutawayDestination(
+  type: string | null | undefined,
+  taskType: 'putaway' | 'putaway_quarantine',
+): boolean {
+  if (!type) return false;
+  return putawayDestinationTypes(taskType).includes(type as LocationType);
+}
+
 /**
  * Inbound staging dock: Prisma `input` (receiving / dock node). Other dock-like types are excluded.
  */

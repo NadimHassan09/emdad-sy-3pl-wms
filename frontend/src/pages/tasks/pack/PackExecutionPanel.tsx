@@ -8,10 +8,10 @@ import { Column, DataTable } from '../../../components/DataTable';
 import { useToast } from '../../../components/ToastProvider';
 import { PackageDetailsModal } from './PackageDetailsModal';
 import {
-  displayWarehouseLabel,
   formatTaskDateOnly,
   outboundOrderTitle,
 } from '../../../lib/task-details-helpers';
+import { useWarehouseLabel } from '../../../hooks/useWarehouseLabel';
 import { taskTypeIconClass } from '../../../lib/task-type-icons';
 import { useWmsTranslation } from '../../../lib/ui-i18n';
 import { localizedPackageTypeOptions, localizedTaskTypeTitle } from '../../../lib/ui-labels/task-execution';
@@ -66,6 +66,7 @@ export function PackExecutionPanel({
 }: Props) {
   const { t } = useWmsTranslation();
   const toast = useToast();
+  const { warehouseLabel } = useWarehouseLabel();
   const savedDraft = readPackDraft(executionState);
 
   const lineFingerprint = useMemo(() => lineIds.join('\u001e'), [lineIds]);
@@ -277,7 +278,7 @@ export function PackExecutionPanel({
         {
           iconClass: 'fa-solid fa-warehouse',
           label: t(['Warehouse', 'المستودع']),
-          value: displayWarehouseLabel(warehouseId),
+          value: warehouseLabel(warehouseId),
         },
       ]}
       summary={outbound?.destinationAddress?.trim() || undefined}

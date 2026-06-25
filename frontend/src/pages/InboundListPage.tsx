@@ -9,6 +9,7 @@ import {
   CreateInboundOrderInput,
   InboundApi,
   InboundOrder,
+  InboundOrderStatus,
 } from '../api/inbound';
 import { Product, ProductsApi } from '../api/products';
 import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
@@ -22,12 +23,17 @@ import {
   FilterPanel,
 } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
+import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '../hooks/useChunkedServerPagination';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { inboundHasQuantityShortfall } from '../lib/inbound-shortfall';
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../lib/order-planning-dates';
@@ -37,6 +43,7 @@ const DEFAULT_COMPANY_ID = (import.meta.env.VITE_MOCK_COMPANY_ID as string | und
 type ListDraft = {
   orderSearch: string;
   companyId: string;
+  status: string;
   createdFrom: string;
   createdTo: string;
 };
@@ -81,6 +88,14 @@ function inboundLabel(label: string, isArabic: boolean): string {
     Back: 'رجوع',
     Create: 'إنشاء',
     'All clients': 'كل العملاء',
+    'All statuses': 'كل الحالات',
+    Draft: 'مسودة',
+    'Pending approval': 'بانتظار الموافقة',
+    Confirmed: 'مؤكد',
+    'In progress': 'قيد التنفيذ',
+    'Partially received': 'مستلم جزئيا',
+    Completed: 'مكتمل',
+    Cancelled: 'ملغي',
     'Expected arrival date cannot be before today.':
       'لا يمكن أن يكون تاريخ الوصول المتوقع قبل اليوم.',
   };
@@ -101,6 +116,7 @@ export function InboundListPage() {
     () => ({
       orderSearch: '',
       companyId: '',
+      status: '',
       createdFrom: '',
       createdTo: '',
     }),
@@ -114,17 +130,20 @@ export function InboundListPage() {
     () => ({
       warehouseId: wid || undefined,
       companyId: appliedFilters.companyId || undefined,
+      status: (appliedFilters.status.trim() || undefined) as InboundOrderStatus | undefined,
       orderSearch: appliedFilters.orderSearch.trim() || undefined,
       createdFrom: appliedFilters.createdFrom.trim() || undefined,
       createdTo: appliedFilters.createdTo.trim() || undefined,
-      limit: 200,
     }),
     [appliedFilters, wid],
   );
 
-  const list = useQuery({
-    queryKey: [...QK.inboundOrders, listParams],
-    queryFn: () => InboundApi.list(listParams),
+  const pagination = useChunkedServerPagination<InboundOrder>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey: listParams,
+    fetchChunk: (offset, limit) => InboundApi.list({ ...listParams, offset, limit }),
+    rtQueryKeyPrefix: QK.inboundOrders,
+    chunkQueryKeyPrefix: 'inbound-orders-chunk',
     enabled: !!wid,
   });
 
@@ -137,6 +156,20 @@ export function InboundListPage() {
   const clientFilterOptions = useMemo(
     () => companyFilterComboboxOptions(companies.data, t('All clients')),
     [companies.data, isArabic],
+  );
+
+  const statusFilterOptions = useMemo(
+    () => [
+      { value: '', label: t('All statuses') },
+      { value: 'draft', label: t('Draft') },
+      { value: 'pending_approval', label: t('Pending approval') },
+      { value: 'confirmed', label: t('Confirmed') },
+      { value: 'in_progress', label: t('In progress') },
+      { value: 'partially_received', label: t('Partially received') },
+      { value: 'completed', label: t('Completed') },
+      { value: 'cancelled', label: t('Cancelled') },
+    ],
+    [isArabic],
   );
 
   const createMut = useMutation({
@@ -200,13 +233,13 @@ export function InboundListPage() {
         />
       )}
 
-      {list.isError && (
+      {pagination.isError && (
         <Alert
           variant="error"
           title="Could not load inbound orders"
           description="Check your connection and try refreshing the page."
           action={
-            <Alert.Action variant="error" onClick={() => list.refetch()}>
+            <Alert.Action variant="error" onClick={() => pagination.refetch()}>
               Retry
             </Alert.Action>
           }
@@ -218,11 +251,11 @@ export function InboundListPage() {
         title={t('Order filters')}
         onApply={applyFilters}
         onReset={resetFilters}
-        loading={list.isFetching}
+        loading={pagination.isFetching}
         applyLabel={t('Apply filters')}
         resetLabel={t('Reset filters')}
       >
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <TextField
             label={t('Order #')}
             value={draftFilters.orderSearch}
@@ -236,6 +269,13 @@ export function InboundListPage() {
             onChange={(v) => setDraft({ companyId: v })}
             options={clientFilterOptions}
             placeholder={t('All clients')}
+          />
+          <SelectField
+            label={t('Status')}
+            name="inboundStatusFilter"
+            value={draftFilters.status}
+            onChange={(e) => setDraft({ status: e.target.value })}
+            options={statusFilterOptions}
           />
           <TextField
             label={t('Created from')}
@@ -265,11 +305,12 @@ export function InboundListPage() {
           </Button>
         }
         columns={columns}
-        rows={list.data?.items ?? []}
+        rows={pagination.rows}
         rowKey={(o) => o.id}
-        loading={list.isLoading || !wid}
+        loading={pagination.isInitialLoading || !wid}
         onRowClick={(o) => navigate(`/orders/inbound/${o.id}`)}
         empty={wid ? 'No inbound orders match the filters.' : 'Warehouse not resolved yet.'}
+        serverPagination={pagination.serverPagination}
         labels={{
           rowsSuffix: t('rows'),
           resultsSuffix: t('results'),

@@ -142,7 +142,12 @@ async function bootstrap() {
   installRequestTracingAndStructuredLogs(app);
   installPm2ClusterSignals(app, lifecycle, logger);
 
-  const corsOrigins = (config.get<string>('CORS_ORIGINS') ?? 'http://localhost:5173')
+  const corsOrigins = [
+    config.get<string>('CORS_ORIGINS') ?? 'http://localhost:5173',
+    // Trusted external landing-page domains permitted to call the public /api/forms/submit endpoint.
+    config.get<string>('LANDING_FORM_CORS_ORIGINS') ?? '',
+  ]
+    .join(',')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);

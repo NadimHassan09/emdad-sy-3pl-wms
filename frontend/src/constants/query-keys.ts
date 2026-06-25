@@ -88,6 +88,12 @@ export const QK = {
     detail: (id: string) => ['return-orders', 'detail', id] as const,
     outboundQuota: (outboundId: string) => ['return-orders', 'outbound-quota', outboundId] as const,
   },
+  forms: {
+    all: ['forms'] as const,
+    list: (params: Record<string, unknown>) => ['forms', 'list', params] as const,
+    detail: (id: string) => ['forms', 'detail', id] as const,
+    activityTypes: ['forms', 'activity-types'] as const,
+  },
   backups: {
     all: ['backups'] as const,
     list: (params: Record<string, unknown>) => ['backups', 'list', params] as const,

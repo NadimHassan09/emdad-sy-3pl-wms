@@ -779,6 +779,19 @@ export class WarehouseTasksService {
 
       await this.assertFrontierAndSkillsTx(tx, task, workerId ? [workerId] : [activeWorker]);
 
+      // Persist the executing worker as the active assignment so the tasks list and
+      // audit trail show who performed the task (start with a worker == implicit assign).
+      if (workerId && task.assignments[0]?.workerId !== workerId) {
+        await this.ensureWorker(workerId, user);
+        await tx.taskAssignment.updateMany({
+          where: { taskId, unassignedAt: null },
+          data: { unassignedAt: new Date() },
+        });
+        await tx.taskAssignment.create({
+          data: { taskId, workerId, assignedById: user.id },
+        });
+      }
+
       if (task.status === WarehouseTaskStatus.pending) {
         await this.bumpStatus(tx, taskId, task.lockVersion, WarehouseTaskStatus.in_progress, {
           startedAt: new Date(),

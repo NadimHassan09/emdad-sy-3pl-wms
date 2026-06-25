@@ -3,7 +3,6 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { type AddAdjustmentLineInput } from '../../api/adjustments';
 import { InventoryApi, type StockRow } from '../../api/inventory';
-import { LocationsApi } from '../../api/locations';
 import { ProductsApi, type ProductListQuery } from '../../api/products';
 import { BarcodeScanIcon } from '../BarcodeScanIcon';
 import { BarcodeScanModal } from '../BarcodeScanModal';
@@ -13,7 +12,13 @@ import { SelectField } from '../SelectField';
 import { TextField } from '../TextField';
 import { useToast } from '../ToastProvider';
 import { QK } from '../../constants/query-keys';
-import { isAdjustmentStockLocationType } from '../../lib/location-types';
+import { useResolvedLocations } from '../../hooks/useResolvedLocations';
+import {
+  buildAdjustmentStockLocationOptions,
+  uniqueStockLocationIds,
+} from '../../lib/inventory-location-options';
+import type { LocalizedMessage } from '../../lib/ui-i18n';
+import { localizedLocationTypeLabel } from '../../lib/ui-labels/locations';
 
 type ProductSearchCategory = 'name' | 'sku' | 'barcode';
 
@@ -59,6 +64,16 @@ export function AddAdjustmentLineForm({
     typeof window !== 'undefined' &&
     (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (en: string, ar: string) => (isArabic ? ar : en);
+  const resolveMsg = (msg: LocalizedMessage): string => {
+    if (typeof msg === 'string') return msg;
+    if (Array.isArray(msg)) {
+      const [en, ar] = msg as readonly [string, string];
+      return isArabic ? ar : en;
+    }
+    const obj = msg as { en: string; ar: string };
+    return isArabic ? obj.ar : obj.en;
+  };
+  const typeLabelFn = (type: string) => localizedLocationTypeLabel(type, resolveMsg);
   const toast = useToast();
   const [productSearchCategory, setProductSearchCategory] = useState<ProductSearchCategory>('name');
   const [productSearch, setProductSearch] = useState('');
@@ -120,17 +135,6 @@ export function AddAdjustmentLineForm({
     staleTime: 60_000,
   });
 
-  const locs = useQuery({
-    queryKey: QK.locationsFlat(scope.warehouseId, false),
-    queryFn: () => LocationsApi.list(scope.warehouseId),
-    staleTime: 5 * 60_000,
-  });
-
-  const adjustmentLocations = useMemo(
-    () => (locs.data ?? []).filter((l) => isAdjustmentStockLocationType(l.type)),
-    [locs.data],
-  );
-
   const stockByProduct = useQuery({
     queryKey: [
       ...QK.inventoryStock,
@@ -151,10 +155,24 @@ export function AddAdjustmentLineForm({
     staleTime: 30_000,
   });
 
-  const adjustmentLocationsWithProduct = useMemo(() => {
-    const ids = new Set((stockByProduct.data?.items ?? []).map((r) => r.locationId));
-    return adjustmentLocations.filter((l) => ids.has(l.id));
-  }, [adjustmentLocations, stockByProduct.data?.items]);
+  const stockLocationIds = useMemo(
+    () => uniqueStockLocationIds(stockByProduct.data?.items ?? []),
+    [stockByProduct.data?.items],
+  );
+
+  const { locationById } = useResolvedLocations(
+    productId && stockByProduct.isFetched ? stockLocationIds : [],
+  );
+
+  const adjustmentLocationsWithProduct = useMemo(
+    () =>
+      buildAdjustmentStockLocationOptions({
+        stockItems: stockByProduct.data?.items ?? [],
+        locationById,
+        typeLabel: typeLabelFn,
+      }),
+    [stockByProduct.data?.items, locationById, isArabic],
+  );
 
   const validProductLocationIds = useMemo(
     () => new Set(adjustmentLocationsWithProduct.map((l) => l.id)),
@@ -221,7 +239,7 @@ export function AddAdjustmentLineForm({
       body.lotId = lotId;
     }
 
-    const loc = adjustmentLocations.find((l) => l.id === locationId);
+    const loc = locationById.get(locationId);
     const lotLabel =
       productMeta.trackingType === 'lot' && lotId
         ? (lots.data ?? []).find((lot) => lot.id === lotId)?.lotNumber
@@ -301,8 +319,8 @@ export function AddAdjustmentLineForm({
             disabled={!productId || stockByProduct.isPending}
             options={adjustmentLocationsWithProduct.map((l) => ({
               value: l.id,
-              label: l.fullPath,
-              hint: `${l.type} · ${l.barcode}`,
+              label: l.label,
+              hint: l.hint,
             }))}
             placeholder={
               !productId

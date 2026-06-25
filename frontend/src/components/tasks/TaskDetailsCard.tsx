@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { useWmsTranslation } from '../../lib/ui-i18n';
 import { StatusBadge } from '../StatusBadge';
 
 export type TaskDetailField = {
@@ -29,7 +30,7 @@ export function TaskDetailsCard({
   iconClass = 'fa-solid fa-clipboard-list',
   fields,
   summary,
-  summaryTitle = 'Summary',
+  summaryTitle: summaryTitleProp,
 }: {
   /** Task type shown above the primary title (e.g. Receiving). */
   taskTypeLabel: string;
@@ -42,6 +43,8 @@ export function TaskDetailsCard({
   summary?: ReactNode;
   summaryTitle?: string;
 }) {
+  const { t } = useWmsTranslation();
+  const summaryTitle = summaryTitleProp ?? t(['Summary', 'الملخص']);
   const summaryText =
     typeof summary === 'string' ? summary.trim() : summary == null ? '' : null;
 
@@ -71,7 +74,9 @@ export function TaskDetailsCard({
 
       {fields.length > 0 ? (
         <>
-          <h3 className="mt-6 text-sm font-semibold text-slate-800">Task information</h3>
+          <h3 className="mt-6 text-sm font-semibold text-slate-800">
+            {t(['Task information', 'معلومات المهمة'])}
+          </h3>
           <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {fields.map((f) => (
               <TaskDetailFieldRow key={f.label} {...f} />
@@ -88,7 +93,11 @@ export function TaskDetailsCard({
           </div>
           <div className="mt-3 rounded-xl bg-slate-50 px-4 py-3.5 text-sm leading-relaxed text-slate-700">
             {summaryText !== null ? (
-              summaryText || <span className="text-slate-400">No notes for this task.</span>
+              summaryText || (
+                <span className="text-slate-400">
+                  {t(['No notes for this task.', 'لا توجد ملاحظات لهذه المهمة.'])}
+                </span>
+              )
             ) : (
               summary
             )}

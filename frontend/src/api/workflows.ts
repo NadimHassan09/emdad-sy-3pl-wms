@@ -15,7 +15,11 @@ export interface WorkflowTimelineTask {
   status: string;
   is_current_runnable?: boolean;
   runnability_blocked_reason?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdAt?: string | null;
   assignments?: Array<{
+    assignedAt?: string | null;
     worker?: {
       id: string;
       displayName: string;

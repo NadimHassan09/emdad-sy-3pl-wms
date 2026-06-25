@@ -41,13 +41,12 @@ export function pickLineFiltersAfterScan(
   current: PickLineFilters,
   field: 'product' | 'location',
   code: string,
-  allLocations: Location[],
+  resolvedLocationPath?: string,
 ): PickLineFilters {
   const trimmed = code.trim();
   if (!trimmed) return current;
   if (field === 'location') {
-    const hit = matchLocationByScan(trimmed, allLocations);
-    return { ...current, location: hit?.fullPath ?? trimmed };
+    return { ...current, location: resolvedLocationPath ?? trimmed };
   }
   return { ...current, product: trimmed };
 }
@@ -165,10 +164,9 @@ export function initialPickDrafts(
 
 export function sortDraftsByLocationPath(
   drafts: PickLineDraft[],
-  locations: Location[],
+  locationById: Map<string, Location>,
 ): PickLineDraft[] {
-  const pathOf = (id: string) =>
-    locations.find((l) => l.id === id)?.fullPath ?? id;
+  const pathOf = (id: string) => locationById.get(id)?.fullPath ?? id;
   return [...drafts].sort((a, b) => pathOf(a.locationId).localeCompare(pathOf(b.locationId)));
 }
 
@@ -222,14 +220,14 @@ export function filterPickDrafts(
   drafts: PickLineDraft[],
   filters: PickLineFilters,
   lineMeta: Map<string, OutboundOrderLine>,
-  allLocations: Location[],
+  locationById: Map<string, Location>,
   lotNumberById: Map<string, string>,
 ): PickLineDraft[] {
   return drafts.filter((d) => {
     const status = computePickLineStatus(d);
     if (filters.status && status !== filters.status) return false;
     const ol = lineMeta.get(d.outboundOrderLineId);
-    const loc = allLocations.find((l) => l.id === d.locationId);
+    const loc = locationById.get(d.locationId);
     const lot =
       d.lotId != null ? (lotNumberById.get(d.lotId) ?? d.lotId.slice(0, 8)) : undefined;
     if (!matchesPickProductFilter(filters.product, ol)) return false;

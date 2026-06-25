@@ -6,19 +6,25 @@ export type WarehouseMetricFooter =
   | { kind: 'trend'; value: number; caption: string }
   | { kind: 'status'; text: string };
 
-function CardArrowButton({ variant }: { variant: 'primary' | 'default' }) {
+function CardIconBadge({
+  iconClass,
+  variant,
+}: {
+  iconClass: string;
+  variant: 'primary' | 'default';
+}) {
   const isPrimary = variant === 'primary';
   return (
     <span
       className={
-        'flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ' +
+        'flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ' +
         (isPrimary
-          ? 'bg-white/95 text-slate-800 hover:bg-white'
-          : 'border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50')
+          ? 'bg-white/15 text-white ring-1 ring-white/25'
+          : 'border border-slate-200 bg-slate-50 text-brand-700 group-hover:border-brand-200 group-hover:bg-brand-50')
       }
       aria-hidden="true"
     >
-      <i className="fa-solid fa-arrow-up-right text-sm" />
+      <i className={`${iconClass} text-base`} />
     </span>
   );
 }
@@ -58,13 +64,15 @@ export function WarehouseOverviewMetricCard({
   value,
   to,
   variant = 'default',
+  icon,
   footer,
 }: {
   title: string;
   value: string;
   to: string;
   variant?: 'primary' | 'default';
-  footer: WarehouseMetricFooter;
+  icon: string;
+  footer?: WarehouseMetricFooter;
 }) {
   const isPrimary = variant === 'primary';
 
@@ -72,7 +80,7 @@ export function WarehouseOverviewMetricCard({
     <Link
       to={to}
       className={
-        'group flex min-h-[148px] flex-col rounded-2xl p-5 shadow-sm transition-[box-shadow,transform] duration-fast ease-standard ' +
+        'group flex min-h-[120px] flex-col rounded-2xl p-5 shadow-sm transition-[box-shadow,transform] duration-fast ease-standard ' +
         'hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ' +
         (isPrimary
           ? 'text-white hover:-translate-y-0.5'
@@ -88,7 +96,7 @@ export function WarehouseOverviewMetricCard({
     >
       <div className="flex items-start justify-between gap-3">
         <p className={`text-sm font-medium ${isPrimary ? 'text-white/90' : 'text-slate-600'}`}>{title}</p>
-        <CardArrowButton variant={variant} />
+        <CardIconBadge iconClass={icon} variant={variant} />
       </div>
       <p
         className={
@@ -98,7 +106,7 @@ export function WarehouseOverviewMetricCard({
       >
         {value}
       </p>
-      <CardFooter footer={footer} variant={variant} />
+      {footer ? <CardFooter footer={footer} variant={variant} /> : null}
     </Link>
   );
 }
@@ -108,7 +116,7 @@ export function WarehouseOverviewMetricCardSkeleton({ primary }: { primary?: boo
   return (
     <div
       className={
-        'flex min-h-[148px] flex-col rounded-2xl p-5 ' +
+        'flex min-h-[120px] flex-col rounded-2xl p-5 ' +
         (primary ? '' : 'border border-slate-100 bg-white shadow-sm')
       }
       style={
@@ -119,10 +127,9 @@ export function WarehouseOverviewMetricCardSkeleton({ primary }: { primary?: boo
     >
       <div className="flex items-start justify-between gap-3">
         <Skeleton height={14} width="60%" className={bone} />
-        <Skeleton height={36} width={36} shape="circle" className={bone} />
+        <Skeleton height={40} width={40} shape="circle" className={bone} />
       </div>
       <Skeleton height={36} width="45%" className={cn('mt-4', bone)} />
-      <Skeleton height={12} width="70%" className={cn('mt-4', bone)} />
     </div>
   );
 }

@@ -119,7 +119,6 @@ export function filterPutawayDrafts(
   lineById: Map<string, InboundOrderLine>,
   targetQty: Record<string, number>,
   lotsByProductId: Map<string, Array<{ id: string; lotNumber: string }>>,
-  _allLocations: Location[],
 ): PutawayLineDraft[] {
   return drafts.filter((d) => {
     const ol = lineById.get(d.inbound_order_line_id);

@@ -20,10 +20,10 @@ import type { TaskLineFilters } from '../../../lib/task-line-filters';
 import { useTaskProgressSave } from '../../../hooks/useTaskProgressSave';
 import { useToast } from '../../../components/ToastProvider';
 import {
-  displayWarehouseLabel,
   formatTaskDateOnly,
   outboundOrderTitle,
 } from '../../../lib/task-details-helpers';
+import { useWarehouseLabel } from '../../../hooks/useWarehouseLabel';
 import { taskTypeIconClass } from '../../../lib/task-type-icons';
 import { useWmsTranslation } from '../../../lib/ui-i18n';
 import {
@@ -99,6 +99,7 @@ export function DispatchExecutionPanel({
 }: Props) {
   const { t } = useWmsTranslation();
   const toast = useToast();
+  const { warehouseLabel } = useWarehouseLabel();
   const savedDraft = readDispatchDraft(executionState);
   const packPackagesFromSibling = readPackDraftPackages(packExecutionState);
 
@@ -453,7 +454,7 @@ export function DispatchExecutionPanel({
         {
           iconClass: 'fa-solid fa-warehouse',
           label: t(['Warehouse', 'المستودع']),
-          value: displayWarehouseLabel(warehouseId),
+          value: warehouseLabel(warehouseId),
         },
       ]}
       summary={outbound?.destinationAddress?.trim() || undefined}

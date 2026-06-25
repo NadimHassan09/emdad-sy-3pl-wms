@@ -3,17 +3,11 @@ import type { Product } from '../../../api/products';
 import { Button } from '../../../components/Button';
 import { Modal } from '../../../components/Modal';
 import { TextField } from '../../../components/TextField';
+import { useWmsTranslation } from '../../../lib/ui-i18n';
 import type { ProductAttributeDraft } from './receiving-types';
 import { formatDim } from './receiving-utils';
 
 type SpecField = 'lengthCm' | 'widthCm' | 'heightCm' | 'weightKg';
-
-const SPEC_FIELDS: Array<{ key: SpecField; label: string }> = [
-  { key: 'lengthCm', label: 'Length (cm)' },
-  { key: 'widthCm', label: 'Width (cm)' },
-  { key: 'heightCm', label: 'Height (cm)' },
-  { key: 'weightKg', label: 'Weight (kg)' },
-];
 
 type Props = {
   open: boolean;
@@ -32,7 +26,15 @@ export function ProductSpecsValidationModal({
   onConfirm,
   onClose,
 }: Props) {
+  const { t } = useWmsTranslation();
   const [editing, setEditing] = useState<Partial<Record<SpecField, boolean>>>({});
+
+  const specFields: Array<{ key: SpecField; label: string }> = [
+    { key: 'lengthCm', label: t(['Length (cm)', 'الطول (سم)']) },
+    { key: 'widthCm', label: t(['Width (cm)', 'العرض (سم)']) },
+    { key: 'heightCm', label: t(['Height (cm)', 'الارتفاع (سم)']) },
+    { key: 'weightKg', label: t(['Weight (kg)', 'الوزن (كغ)']) },
+  ];
 
   const registered = useMemo(
     () =>
@@ -62,19 +64,19 @@ export function ProductSpecsValidationModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title="Validate product specs"
+      title={t(['Validate product specs', 'التحقق من مواصفات المنتج'])}
       widthClass="max-w-lg"
       footer={
         <>
           <Button type="button" variant="secondary" onClick={handleClose}>
-            Cancel
+            {t(['Cancel', 'إلغاء'])}
           </Button>
           <Button
             type="button"
             onClick={handleConfirm}
             disabled={!draft.confirmedMatch && !draft.lengthCm && !draft.widthCm}
           >
-            Confirm validation
+            {t(['Confirm validation', 'تأكيد التحقق'])}
           </Button>
         </>
       }
@@ -87,7 +89,7 @@ export function ProductSpecsValidationModal({
           </div>
 
           <div className="space-y-3">
-            {SPEC_FIELDS.map(({ key, label }) => {
+            {specFields.map(({ key, label }) => {
               const isEditing = !!editing[key];
               const reg = registered?.[key] ?? '—';
               return (
@@ -98,13 +100,21 @@ export function ProductSpecsValidationModal({
                       value={isEditing ? draft[key] : reg === '—' ? '' : reg}
                       disabled={!isEditing}
                       onChange={(e) => onChange({ [key]: e.target.value })}
-                      hint={isEditing ? `Registered: ${reg}` : undefined}
+                      hint={
+                        isEditing
+                          ? t([`Registered: ${reg}`, `المسجّل: ${reg}`])
+                          : undefined
+                      }
                     />
                   </div>
                   <button
                     type="button"
                     className="mb-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-100"
-                    aria-label={isEditing ? `Stop editing ${label}` : `Edit ${label}`}
+                    aria-label={
+                      isEditing
+                        ? t([`Stop editing ${label}`, `إيقاف تعديل ${label}`])
+                        : t([`Edit ${label}`, `تعديل ${label}`])
+                    }
                     onClick={() =>
                       setEditing((prev) => ({
                         ...prev,
@@ -126,17 +136,20 @@ export function ProductSpecsValidationModal({
               checked={draft.confirmedMatch}
               onChange={(e) => onChange({ confirmedMatch: e.target.checked })}
             />
-            Physical measurements match system registration
+            {t([
+              'Physical measurements match system registration',
+              'القياسات الفعلية تطابق التسجيل في النظام',
+            ])}
           </label>
 
           <TextField
-            label="Validation notes (optional)"
+            label={t(['Validation notes (optional)', 'ملاحظات التحقق (اختياري)'])}
             value={draft.notes}
             onChange={(e) => onChange({ notes: e.target.value })}
           />
         </div>
       ) : (
-        <p className="text-sm text-slate-600">Product not found.</p>
+        <p className="text-sm text-slate-600">{t(['Product not found.', 'المنتج غير موجود.'])}</p>
       )}
     </Modal>
   );

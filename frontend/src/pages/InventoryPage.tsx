@@ -17,6 +17,10 @@ import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '../hooks/useChunkedServerPagination';
 
 const fmtQty = (s: string): string => {
   const n = Number(s);
@@ -163,9 +167,13 @@ export function InventoryPage() {
     [appliedFilters, warehouseIdForced],
   );
 
-  const summary = useQuery({
-    queryKey: [...QK.inventoryStockByProduct, summaryParams],
-    queryFn: () => InventoryApi.stockByProductSummary({ limit: 200, ...summaryParams }),
+  const pagination = useChunkedServerPagination<ProductStockSummaryRow>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey: summaryParams,
+    fetchChunk: (offset, limit) =>
+      InventoryApi.stockByProductSummary({ ...summaryParams, offset, limit }),
+    rtQueryKeyPrefix: QK.inventoryStockByProduct,
+    chunkQueryKeyPrefix: 'inventory-stock-by-product-chunk',
     enabled: !!warehouseIdForced,
   });
 
@@ -195,7 +203,7 @@ export function InventoryPage() {
         />
       )}
 
-      {summary.isError && (
+      {pagination.isError && (
         <Alert
           variant="error"
           title={t('Failed to load inventory', 'فشل تحميل المخزون')}
@@ -205,7 +213,7 @@ export function InventoryPage() {
           )}
           className="mb-4"
         >
-          <Alert.Action onClick={() => summary.refetch()}>{t('Retry', 'إعادة المحاولة')}</Alert.Action>
+          <Alert.Action onClick={() => pagination.refetch()}>{t('Retry', 'إعادة المحاولة')}</Alert.Action>
         </Alert>
       )}
 
@@ -213,7 +221,7 @@ export function InventoryPage() {
         title={t('Inventory filters', 'فلاتر المخزون')}
         onApply={applyFilters}
         onReset={resetFilters}
-        loading={summary.isFetching}
+        loading={pagination.isFetching}
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
       >
@@ -266,15 +274,16 @@ export function InventoryPage() {
       <DataTable
         title={t('Inventory', 'المخزون')}
         columns={summaryColumns}
-        rows={summary.data?.items ?? []}
+        rows={pagination.rows}
         rowKey={(r) => r.productId}
-        loading={summary.isLoading || !warehouseIdForced}
+        loading={pagination.isInitialLoading || !warehouseIdForced}
         empty={
           warehouseIdForced
             ? 'No on-hand stock matches the current filters.'
             : 'Warehouse not resolved yet.'
         }
         onRowClick={(r) => navigate(`/inventory/product/${r.productId}`)}
+        serverPagination={pagination.serverPagination}
         labels={{
           rowsSuffix: t('rows', 'صف'),
           resultsSuffix: t('results', 'نتيجة'),
@@ -286,7 +295,9 @@ export function InventoryPage() {
       />
 
       <p className="mt-3 text-xs text-slate-500">
-        {summary.data ? `${summary.data.total} product${summary.data.total === 1 ? '' : 's'} with stock` : ''}
+        {pagination.total > 0
+          ? `${pagination.total} product${pagination.total === 1 ? '' : 's'} with stock`
+          : ''}
       </p>
 
       <BarcodeScanModal

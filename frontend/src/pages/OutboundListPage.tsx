@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { CompaniesApi } from '../api/companies';
 import { InventoryApi } from '../api/inventory';
-import { CreateOutboundOrderInput, OutboundApi, OutboundOrder } from '../api/outbound';
+import { CreateOutboundOrderInput, OutboundApi, OutboundOrder, OutboundOrderStatus } from '../api/outbound';
 import type { Product } from '../api/products';
 import { ProductsApi } from '../api/products';
 import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
@@ -20,12 +20,17 @@ import {
   FilterPanel,
 } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
+import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '../hooks/useChunkedServerPagination';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../lib/order-planning-dates';
 
@@ -41,6 +46,7 @@ function formatProductOnHand(p: Product): string {
 type OutListDraft = {
   orderSearch: string;
   companyId: string;
+  status: string;
   createdFrom: string;
   createdTo: string;
 };
@@ -88,6 +94,16 @@ function outboundLabel(label: string, isArabic: boolean): string {
     '+ Add line': '+ إضافة بند',
     'Pick a client first': 'اختر عميلاً أولاً',
     'All clients': 'كل العملاء',
+    'All statuses': 'كل الحالات',
+    Draft: 'مسودة',
+    'Pending approval': 'بانتظار الموافقة',
+    'Pending stock': 'بانتظار المخزون',
+    Confirmed: 'مؤكد',
+    Picking: 'التقاط',
+    Packing: 'تغليف',
+    'Ready to ship': 'جاهز للشحن',
+    Shipped: 'تم الشحن',
+    Cancelled: 'ملغي',
   };
   return ar[label] ?? label;
 }
@@ -106,6 +122,7 @@ export function OutboundListPage() {
     () => ({
       orderSearch: '',
       companyId: '',
+      status: '',
       createdFrom: '',
       createdTo: '',
     }),
@@ -119,17 +136,20 @@ export function OutboundListPage() {
     () => ({
       warehouseId: wid || undefined,
       companyId: appliedFilters.companyId || undefined,
+      status: (appliedFilters.status.trim() || undefined) as OutboundOrderStatus | undefined,
       orderSearch: appliedFilters.orderSearch.trim() || undefined,
       createdFrom: appliedFilters.createdFrom.trim() || undefined,
       createdTo: appliedFilters.createdTo.trim() || undefined,
-      limit: 200,
     }),
     [appliedFilters, wid],
   );
 
-  const list = useQuery({
-    queryKey: [...QK.outboundOrders, listParams],
-    queryFn: () => OutboundApi.list(listParams),
+  const pagination = useChunkedServerPagination<OutboundOrder>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey: listParams,
+    fetchChunk: (offset, limit) => OutboundApi.list({ ...listParams, offset, limit }),
+    rtQueryKeyPrefix: QK.outboundOrders,
+    chunkQueryKeyPrefix: 'outbound-orders-chunk',
     enabled: !!wid,
   });
 
@@ -142,6 +162,22 @@ export function OutboundListPage() {
   const clientFilterOptions = useMemo(
     () => companyFilterComboboxOptions(companies.data, t('All clients')),
     [companies.data, isArabic],
+  );
+
+  const statusFilterOptions = useMemo(
+    () => [
+      { value: '', label: t('All statuses') },
+      { value: 'draft', label: t('Draft') },
+      { value: 'pending_approval', label: t('Pending approval') },
+      { value: 'pending_stock', label: t('Pending stock') },
+      { value: 'confirmed', label: t('Confirmed') },
+      { value: 'picking', label: t('Picking') },
+      { value: 'packing', label: t('Packing') },
+      { value: 'ready_to_ship', label: t('Ready to ship') },
+      { value: 'shipped', label: t('Shipped') },
+      { value: 'cancelled', label: t('Cancelled') },
+    ],
+    [isArabic],
   );
 
   const createMut = useMutation({
@@ -192,15 +228,15 @@ export function OutboundListPage() {
         />
       )}
 
-      {list.isError && (
+      {pagination.isError && (
         <Alert
           variant="error"
           title="Failed to load outbound orders"
           description="There was a problem retrieving your orders. Check your connection and try again."
           className="mb-4"
-          onDismiss={() => list.refetch()}
+          onDismiss={() => pagination.refetch()}
         >
-          <Alert.Action onClick={() => list.refetch()}>Retry</Alert.Action>
+          <Alert.Action onClick={() => pagination.refetch()}>Retry</Alert.Action>
         </Alert>
       )}
 
@@ -208,11 +244,11 @@ export function OutboundListPage() {
         title={t('Order filters')}
         onApply={applyFilters}
         onReset={resetFilters}
-        loading={list.isFetching}
+        loading={pagination.isFetching}
         applyLabel={t('Apply filters')}
         resetLabel={t('Reset filters')}
       >
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <TextField
           label={t('Order #')}
           value={draftFilters.orderSearch}
@@ -226,6 +262,13 @@ export function OutboundListPage() {
           onChange={(v) => setDraft({ companyId: v })}
           options={clientFilterOptions}
           placeholder={t('All clients')}
+        />
+        <SelectField
+          label={t('Status')}
+          name="outboundStatusFilter"
+          value={draftFilters.status}
+          onChange={(e) => setDraft({ status: e.target.value })}
+          options={statusFilterOptions}
         />
         <TextField
           label={t('Created from')}
@@ -255,9 +298,10 @@ export function OutboundListPage() {
           </DsButton>
         }
         columns={columns}
-        rows={list.data?.items ?? []}
+        rows={pagination.rows}
         rowKey={(o) => o.id}
-        loading={list.isLoading || !wid}
+        serverPagination={pagination.serverPagination}
+        loading={pagination.isInitialLoading || !wid}
         onRowClick={(o) => navigate(`/orders/outbound/${o.id}`)}
         empty={wid ? 'No outbound orders match the filters.' : 'Warehouse not resolved yet.'}
         labels={{

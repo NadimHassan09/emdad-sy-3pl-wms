@@ -6,6 +6,8 @@ import { Column, DataTable } from '../../../components/DataTable';
 import { TaskDetailsCard } from '../../../components/tasks/TaskDetailsCard';
 import type { Location } from '../../../api/locations';
 import { ProductsApi, type ProductLot } from '../../../api/products';
+import { BarcodeScanIcon } from '../../../components/BarcodeScanIcon';
+import { BarcodeScanModal } from '../../../components/BarcodeScanModal';
 import { Button } from '../../../components/Button';
 import { PutawayDestinationPicker } from './PutawayDestinationPicker';
 import { useResolvedLocations } from '../../../hooks/useResolvedLocations';
@@ -17,7 +19,13 @@ import {
 import type { TaskLineFilters } from '../../../lib/task-line-filters';
 import { useToast } from '../../../components/ToastProvider';
 import { QK } from '../../../constants/query-keys';
-import { displayWarehouseLabel, inboundOrderTitle } from '../../../lib/task-details-helpers';
+import { resolveLocationByScan } from '../../../lib/location-resolve';
+import {
+  isAllowedPutawayDestination,
+  putawayDestinationTypes,
+} from '../../../lib/location-types';
+import { inboundOrderTitle } from '../../../lib/task-details-helpers';
+import { useWarehouseLabel } from '../../../hooks/useWarehouseLabel';
 import { taskTypeIconClass } from '../../../lib/task-type-icons';
 import { useWmsTranslation } from '../../../lib/ui-i18n';
 import {
@@ -123,6 +131,7 @@ export function PutawayExecutionPanel({
 }: Props) {
   const { t } = useWmsTranslation();
   const toast = useToast();
+  const { warehouseLabel } = useWarehouseLabel();
   const isMdUp = useMediaQuery('(min-width: 768px)');
   const savedDraft = readPutawayDraft(executionState);
 
@@ -370,7 +379,7 @@ export function PutawayExecutionPanel({
         {
           iconClass: 'fa-solid fa-warehouse',
           label: t(['Warehouse', 'المستودع']),
-          value: displayWarehouseLabel(warehouseId),
+          value: warehouseLabel(warehouseId),
         },
         {
           iconClass: 'fa-solid fa-arrows-turn-right',
@@ -564,6 +573,37 @@ function PutawayLinesTable({
   onSplit?: (rowKey: string) => void;
 }) {
   const { t } = useWmsTranslation();
+  const toast = useToast();
+  const [scanRowKey, setScanRowKey] = useState<string | null>(null);
+
+  const applyDestinationScan = useCallback(
+    async (rowKey: string, code: string) => {
+      const trimmed = code.trim();
+      if (!trimmed) {
+        toast.error(t(['Scan a location barcode.', 'امسح barcode الموقع.']));
+        return;
+      }
+      const hit = await resolveLocationByScan(warehouseId, trimmed, {
+        types: putawayDestinationTypes(taskType),
+      });
+      if (!hit || !isAllowedPutawayDestination(hit.type, taskType)) {
+        toast.error(
+          t([
+            'No eligible storage bin matches this barcode.',
+            'لا يوجد صندوق تخزين مطابق لهذا barcode.',
+          ]),
+        );
+        return;
+      }
+      onPatch?.(rowKey, { destination_location_id: hit.id, destVerified: true });
+      toast.success(
+        t([`Destination: ${hit.fullPath}`, `الوجهة: ${hit.fullPath}`]),
+      );
+      setScanRowKey(null);
+    },
+    [onPatch, taskType, toast, t, warehouseId],
+  );
+
   const columns: Column<PutawayLineDraft>[] = [
     {
       header: t(['Product', 'المنتج']),
@@ -604,6 +644,7 @@ function PutawayLinesTable({
             warehouseId={warehouseId}
             taskType={taskType}
             value={d.destination_location_id}
+            dropdownInFlow
             onChange={(v) => onPatch?.(d.rowKey, { destination_location_id: v, destVerified: !!v })}
           />
         );
@@ -647,6 +688,24 @@ function PutawayLinesTable({
     ...(!readOnly
       ? [
           {
+            header: t(['Scan', 'مسح']),
+            accessor: (d: PutawayLineDraft) => (
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                aria-label={t(['Scan destination barcode', 'مسح barcode الوجهة'])}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setScanRowKey(d.rowKey);
+                }}
+              >
+                <BarcodeScanIcon className="h-5 w-5" />
+              </button>
+            ),
+            width: '56px',
+            className: 'text-center',
+          } satisfies Column<PutawayLineDraft>,
+          {
             header: t(['Actions', 'إجراءات']),
             accessor: (d: PutawayLineDraft) => (
               <Button type="button" size="sm" variant="secondary" onClick={() => onSplit?.(d.rowKey)}>
@@ -660,29 +719,40 @@ function PutawayLinesTable({
   ];
 
   return (
-    <DataTable
-      title={t(['Movement lines', 'أسطر الحركة'])}
-      actions={
-        onExportPrint ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={drafts.length === 0}
-            onClick={() => onExportPrint()}
-          >
-            {t(['Export PDF', 'تصدير PDF'])}
-          </Button>
-        ) : undefined
-      }
-      columns={columns}
-      rows={drafts}
-      rowKey={(d) => d.rowKey}
-      empty={
-        totalLineCount === 0
-          ? t(['No putaway lines.', 'لا أسطر تخزين.'])
-          : t(['No lines match the current filters.', 'لا أسطر تطابق الفلاتر الحالية.'])
-      }
-    />
+    <>
+      <DataTable
+        title={t(['Movement lines', 'أسطر الحركة'])}
+        actions={
+          onExportPrint ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={drafts.length === 0}
+              onClick={() => onExportPrint()}
+            >
+              {t(['Export PDF', 'تصدير PDF'])}
+            </Button>
+          ) : undefined
+        }
+        columns={columns}
+        rows={drafts}
+        rowKey={(d) => d.rowKey}
+        empty={
+          totalLineCount === 0
+            ? t(['No putaway lines.', 'لا أسطر تخزين.'])
+            : t(['No lines match the current filters.', 'لا أسطر تطابق الفلاتر الحالية.'])
+        }
+      />
+      {!readOnly ? (
+        <BarcodeScanModal
+          open={scanRowKey !== null}
+          onClose={() => setScanRowKey(null)}
+          onScan={(code) => {
+            if (scanRowKey) void applyDestinationScan(scanRowKey, code);
+          }}
+        />
+      ) : null}
+    </>
   );
 }

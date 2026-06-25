@@ -46,8 +46,3 @@ export function outboundOrderTitle(
   }
   return orderNumber;
 }
-
-export function displayWarehouseLabel(warehouseId: string): string {
-  const t = warehouseId.trim();
-  return t.length ? t : '—';
-}

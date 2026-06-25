@@ -81,6 +81,7 @@ export type DashboardOverview = {
     totalItemsInStock: number;
     itemsInCatalog: number;
     totalCustomers: number;
+    activeUsers?: number;
   };
   openOrders: {
     inbound: number;

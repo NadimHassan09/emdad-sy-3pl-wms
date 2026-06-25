@@ -4,6 +4,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().max(65535).default(3000),
   CORS_ORIGINS: z.string().min(1).default('http://localhost:5173'),
+  // Comma-separated list of trusted external landing-page origins allowed to POST /api/forms/submit.
+  LANDING_FORM_CORS_ORIGINS: z.string().optional(),
   JWT_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16).optional(),
   HTTP_JSON_BODY_LIMIT: z.string().optional(),

@@ -17,7 +17,6 @@ import { PickLinesFilterCard } from './PickLinesFilterCard';
 import { useToast } from '../../../components/ToastProvider';
 import { locationTypeLabel } from '../../../lib/location-types';
 import {
-  displayWarehouseLabel,
   formatTaskDateOnly,
   formatTaskDateTime,
   outboundOrderTitle,
@@ -26,6 +25,7 @@ import { taskTypeIconClass } from '../../../lib/task-type-icons';
 import { useWmsTranslation } from '../../../lib/ui-i18n';
 import { localizedPickLineStatus, localizedTaskTypeTitle } from '../../../lib/ui-labels/task-execution';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
+import { useWarehouseLabel } from '../../../hooks/useWarehouseLabel';
 import { openPickPrintPdf } from './pick-print';
 import type { PickExecutionDraft, PickLineDraft, PickReservationRow } from './pick-types';
 import {
@@ -88,6 +88,7 @@ export function PickExecutionPanel({
 }: Props) {
   const { t } = useWmsTranslation();
   const toast = useToast();
+  const { warehouseLabel } = useWarehouseLabel();
   const isMdUp = useMediaQuery('(min-width: 768px)');
   const savedDraft = readPickDraft(executionState);
 
@@ -403,7 +404,7 @@ export function PickExecutionPanel({
         {
           iconClass: 'fa-solid fa-warehouse',
           label: t(['Warehouse', 'المستودع']),
-          value: displayWarehouseLabel(warehouseId),
+          value: warehouseLabel(warehouseId),
         },
       ]}
       summary={
