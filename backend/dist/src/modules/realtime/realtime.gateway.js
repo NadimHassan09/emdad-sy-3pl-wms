@@ -18,18 +18,21 @@ const company_access_service_1 = require("../../common/company-access/company-ac
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const realtime_socket_auth_1 = require("./realtime-socket-auth");
 const realtime_service_1 = require("./realtime.service");
+const presence_service_1 = require("./presence.service");
 let RealtimeGateway = RealtimeGateway_1 = class RealtimeGateway {
     config;
     prisma;
     companyAccess;
     realtime;
+    presence;
     log = new common_1.Logger(RealtimeGateway_1.name);
     server;
-    constructor(config, prisma, companyAccess, realtime) {
+    constructor(config, prisma, companyAccess, realtime, presence) {
         this.config = config;
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.realtime = realtime;
+        this.presence = presence;
     }
     afterInit(server) {
         this.realtime.attachServer(server);
@@ -59,7 +62,9 @@ let RealtimeGateway = RealtimeGateway_1 = class RealtimeGateway {
                 return;
             }
             client.join((0, realtime_socket_auth_1.companyRoomName)(principal.companyId));
+            client.join((0, realtime_socket_auth_1.userRoomName)(principal.userId));
             client.data.roomCompanyId = principal.companyId;
+            this.presence.handleConnect(client, principal);
             this.log.debug(`Client socket ${client.id} joined ${(0, realtime_socket_auth_1.companyRoomName)(principal.companyId)}`);
             return;
         }
@@ -78,10 +83,14 @@ let RealtimeGateway = RealtimeGateway_1 = class RealtimeGateway {
             return;
         }
         client.join((0, realtime_socket_auth_1.companyRoomName)(tenantScope.activeCompanyId));
+        client.join(realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM);
+        client.join((0, realtime_socket_auth_1.userRoomName)(principal.userId));
         client.data.roomCompanyId = tenantScope.activeCompanyId;
-        this.log.debug(`Internal socket ${client.id} joined ${(0, realtime_socket_auth_1.companyRoomName)(tenantScope.activeCompanyId)}`);
+        this.presence.handleConnect(client, principal);
+        this.log.debug(`Internal socket ${client.id} joined ${(0, realtime_socket_auth_1.companyRoomName)(tenantScope.activeCompanyId)} and ${realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM}`);
     }
     handleDisconnect(client) {
+        this.presence.handleDisconnect(client);
         const p = client.data.principal;
         this.log.debug(`Socket disconnected ${client.id} (${p?.kind ?? '?'})`);
     }
@@ -99,6 +108,7 @@ exports.RealtimeGateway = RealtimeGateway = RealtimeGateway_1 = __decorate([
     __metadata("design:paramtypes", [config_1.ConfigService,
         prisma_service_1.PrismaService,
         company_access_service_1.CompanyAccessService,
-        realtime_service_1.RealtimeService])
+        realtime_service_1.RealtimeService,
+        presence_service_1.PresenceService])
 ], RealtimeGateway);
 //# sourceMappingURL=realtime.gateway.js.map

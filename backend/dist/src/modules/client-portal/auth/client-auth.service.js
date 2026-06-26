@@ -16,19 +16,30 @@ const jwt_1 = require("@nestjs/jwt");
 const client_1 = require("@prisma/client");
 const password_service_1 = require("../../../common/crypto/password.service");
 const prisma_service_1 = require("../../../common/prisma/prisma.service");
+const login_brute_force_service_1 = require("../../../common/security/login-brute-force.service");
+const request_ip_util_1 = require("../../../common/security/request-ip.util");
 const CLIENT_ROLES = [client_1.UserRole.client_admin, client_1.UserRole.client_staff];
 let ClientAuthService = class ClientAuthService {
     prisma;
     password;
     jwt;
     config;
-    constructor(prisma, password, jwt, config) {
+    loginBruteForce;
+    constructor(prisma, password, jwt, config, loginBruteForce) {
         this.prisma = prisma;
         this.password = password;
         this.jwt = jwt;
         this.config = config;
+        this.loginBruteForce = loginBruteForce;
     }
-    async login(dto, res) {
+    async login(dto, req, res) {
+        const ip = (0, request_ip_util_1.getClientIp)(req);
+        this.loginBruteForce.assertAllowed('client', ip);
+        const attemptCtx = {
+            ipAddress: ip,
+            email: dto.email,
+            userAgent: req?.headers['user-agent'] ?? null,
+        };
         const email = dto.email.trim().toLowerCase();
         const user = await this.prisma.user.findUnique({
             where: { email },
@@ -43,13 +54,16 @@ let ClientAuthService = class ClientAuthService {
             },
         });
         if (!user || user.status !== client_1.UserStatus.active) {
+            this.loginBruteForce.recordFailure('client', attemptCtx);
             throw new common_1.UnauthorizedException('Invalid email or password.');
         }
         if (user.companyId === null || !CLIENT_ROLES.includes(user.role)) {
+            this.loginBruteForce.recordFailure('client', attemptCtx);
             throw new common_1.ForbiddenException('This portal is only for client users. Internal staff must use the WMS application.');
         }
         const valid = await this.password.verify(dto.password, user.passwordHash);
         if (!valid) {
+            this.loginBruteForce.recordFailure('client', attemptCtx);
             throw new common_1.UnauthorizedException('Invalid email or password.');
         }
         if (this.password.isLegacyScrypt(user.passwordHash)) {
@@ -82,6 +96,7 @@ let ClientAuthService = class ClientAuthService {
                 path: '/',
             });
         }
+        this.loginBruteForce.recordSuccess('client', ip);
         const company = await this.prisma.company.findUnique({
             where: { id: user.companyId },
             select: { name: true },
@@ -141,6 +156,7 @@ exports.ClientAuthService = ClientAuthService = __decorate([
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         password_service_1.PasswordService,
         jwt_1.JwtService,
-        config_1.ConfigService])
+        config_1.ConfigService,
+        login_brute_force_service_1.LoginBruteForceService])
 ], ClientAuthService);
 //# sourceMappingURL=client-auth.service.js.map

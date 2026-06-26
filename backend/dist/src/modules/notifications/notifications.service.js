@@ -13,6 +13,8 @@ exports.NotificationsService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const realtime_activity_payload_1 = require("../realtime/realtime-activity.payload");
+const realtime_service_1 = require("../realtime/realtime.service");
 const IN_APP_CHANNELS = [
     client_1.NotificationChannel.in_app,
     client_1.NotificationChannel.both,
@@ -22,6 +24,7 @@ const ADMIN_NOTIFY_ROLES = [
     client_1.UserRole.wh_manager,
     client_1.UserRole.wh_operator,
 ];
+const SLA_MANAGER_NOTIFY_ROLES = [client_1.UserRole.super_admin, client_1.UserRole.wh_manager];
 function toDto(row) {
     return {
         id: row.id,
@@ -37,8 +40,10 @@ function toDto(row) {
 }
 let NotificationsService = class NotificationsService {
     prisma;
-    constructor(prisma) {
+    realtime;
+    constructor(prisma, realtime) {
         this.prisma = prisma;
+        this.realtime = realtime;
     }
     scopeWhere(user) {
         return {
@@ -46,21 +51,33 @@ let NotificationsService = class NotificationsService {
             userId: user.id,
         };
     }
-    async list(user, limit = 50) {
-        const where = this.scopeWhere(user);
-        const [items, unreadCount] = await Promise.all([
+    async list(user, params = {}) {
+        const baseWhere = this.scopeWhere(user);
+        const where = { ...baseWhere };
+        if (params.isRead === true)
+            where.isRead = true;
+        if (params.isRead === false)
+            where.isRead = false;
+        const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
+        const offset = Math.max(params.offset ?? 0, 0);
+        const [items, total, unreadCount] = await Promise.all([
             this.prisma.notification.findMany({
                 where,
                 orderBy: { createdAt: 'desc' },
-                take: Math.min(Math.max(limit, 1), 100),
+                skip: offset,
+                take: limit,
             }),
+            this.prisma.notification.count({ where }),
             this.prisma.notification.count({
-                where: { ...where, isRead: false },
+                where: { ...baseWhere, isRead: false },
             }),
         ]);
         return {
             items: items.map(toDto),
             unreadCount,
+            total,
+            limit,
+            offset,
         };
     }
     async markRead(user, id) {
@@ -73,14 +90,74 @@ let NotificationsService = class NotificationsService {
             where: { id },
             data: { isRead: true, readAt: new Date() },
         });
-        return toDto(updated);
+        const dto = toDto(updated);
+        this.realtime.emitNotificationRead(user.id, { notification: dto });
+        return dto;
     }
     async markAllRead(user) {
         const result = await this.prisma.notification.updateMany({
             where: { ...this.scopeWhere(user), isRead: false },
             data: { isRead: true, readAt: new Date() },
         });
+        if (result.count > 0) {
+            this.realtime.emitNotificationRead(user.id, { markAllRead: true });
+        }
         return { updated: result.count };
+    }
+    async notifyManagersSlaBreach(input) {
+        const type = `admin_sla_breach_l${input.escalationLevel}`;
+        const existing = await this.prisma.notification.findFirst({
+            where: {
+                type,
+                referenceType: 'warehouse_task',
+                referenceId: input.taskId,
+            },
+            select: { id: true },
+        });
+        if (existing)
+            return 0;
+        const managers = await this.prisma.user.findMany({
+            where: {
+                status: client_1.UserStatus.active,
+                role: { in: SLA_MANAGER_NOTIFY_ROLES },
+            },
+            select: { id: true },
+        });
+        if (managers.length === 0)
+            return 0;
+        const taskRef = input.taskId.slice(0, 8);
+        const title = input.escalationLevel === 1
+            ? 'Task SLA breached'
+            : `Task SLA breach — escalation ${input.escalationLevel}`;
+        const body = `${input.taskTypeLabel} task ${taskRef} at ${input.warehouseName} (${input.companyName}) ` +
+            `is ${input.overdueMinutes} min past its ${input.slaMinutes} min SLA.`;
+        await this.prisma.notification.createMany({
+            data: managers.map((manager) => ({
+                userId: manager.id,
+                type,
+                title,
+                body,
+                referenceType: 'warehouse_task',
+                referenceId: input.taskId,
+                channel: client_1.NotificationChannel.in_app,
+            })),
+        });
+        const rows = await this.prisma.notification.findMany({
+            where: {
+                type,
+                referenceType: 'warehouse_task',
+                referenceId: input.taskId,
+                userId: { not: null },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+        });
+        for (const row of rows) {
+            if (!row.userId)
+                continue;
+            this.realtime.emitNotificationCreated((0, realtime_activity_payload_1.notificationPayload)(row), { userId: row.userId });
+        }
+        return managers.length;
     }
     async notifyAdminsClientProductAdded(input) {
         const admins = await this.prisma.user.findMany({
@@ -103,6 +180,11 @@ let NotificationsService = class NotificationsService {
                 referenceId: input.productId,
                 channel: client_1.NotificationChannel.in_app,
             })),
+        });
+        await this.emitRecentAdminNotifications({
+            type: 'admin_client_product_added',
+            referenceType: 'product',
+            referenceId: input.productId,
         });
     }
     async notifyAdminsPendingApproval(input) {
@@ -132,15 +214,31 @@ let NotificationsService = class NotificationsService {
                 channel: client_1.NotificationChannel.in_app,
             })),
         });
+        await this.emitRecentAdminNotifications({
+            type,
+            referenceType,
+            referenceId: input.orderId,
+        });
     }
     async dismissPendingAdminNotifications(referenceType, referenceId) {
         const type = referenceType === 'inbound_order'
             ? 'admin_inbound_pending_approval'
             : 'admin_outbound_pending_approval';
+        const rows = await this.prisma.notification.findMany({
+            where: { referenceType, referenceId, type, isRead: false },
+            select: { id: true, userId: true },
+        });
+        if (rows.length === 0)
+            return;
         await this.prisma.notification.updateMany({
             where: { referenceType, referenceId, type, isRead: false },
             data: { isRead: true, readAt: new Date() },
         });
+        for (const row of rows) {
+            if (row.userId) {
+                this.realtime.emitNotificationDeleted(row.userId, row.id);
+            }
+        }
     }
     async notifyClientOrderConfirmed(input) {
         const referenceType = input.orderType === 'inbound' ? 'inbound_order' : 'outbound_order';
@@ -186,7 +284,7 @@ let NotificationsService = class NotificationsService {
         });
         if (existing)
             return;
-        await this.prisma.notification.create({
+        const created = await this.prisma.notification.create({
             data: {
                 companyId: input.companyId,
                 type: input.type,
@@ -197,11 +295,32 @@ let NotificationsService = class NotificationsService {
                 channel: client_1.NotificationChannel.in_app,
             },
         });
+        this.realtime.emitNotificationCreated((0, realtime_activity_payload_1.notificationPayload)(created), {
+            companyId: input.companyId,
+        });
+    }
+    async emitRecentAdminNotifications(filter) {
+        const rows = await this.prisma.notification.findMany({
+            where: {
+                type: filter.type,
+                referenceType: filter.referenceType,
+                referenceId: filter.referenceId,
+                userId: { not: null },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 50,
+        });
+        for (const row of rows) {
+            if (!row.userId)
+                continue;
+            this.realtime.emitNotificationCreated((0, realtime_activity_payload_1.notificationPayload)(row), { userId: row.userId });
+        }
     }
 };
 exports.NotificationsService = NotificationsService;
 exports.NotificationsService = NotificationsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        realtime_service_1.RealtimeService])
 ], NotificationsService);
 //# sourceMappingURL=notifications.service.js.map

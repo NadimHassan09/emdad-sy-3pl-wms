@@ -12,17 +12,22 @@ const core_1 = require("@nestjs/core");
 const config_1 = require("@nestjs/config");
 const schedule_1 = require("@nestjs/schedule");
 const throttler_1 = require("@nestjs/throttler");
+const lifecycle_module_1 = require("./common/lifecycle/lifecycle.module");
+const cron_leader_module_1 = require("./common/cron/cron-leader.module");
 const env_validation_1 = require("./common/config/env.validation");
 const company_access_module_1 = require("./common/company-access/company-access.module");
 const crypto_module_1 = require("./common/crypto/crypto.module");
 const prisma_module_1 = require("./common/prisma/prisma.module");
 const redis_module_1 = require("./common/redis/redis.module");
+const security_module_1 = require("./common/security/security.module");
 const adjustments_module_1 = require("./modules/adjustments/adjustments.module");
 const cycle_count_module_1 = require("./modules/cycle-count/cycle-count.module");
 const audit_logs_module_1 = require("./modules/audit-logs/audit-logs.module");
+const backups_module_1 = require("./modules/backups/backups.module");
 const auth_module_1 = require("./modules/auth/auth.module");
 const jwt_auth_guard_1 = require("./modules/auth/guards/jwt-auth.guard");
 const client_portal_module_1 = require("./modules/client-portal/client-portal.module");
+const billing_module_1 = require("./modules/billing/billing.module");
 const companies_module_1 = require("./modules/companies/companies.module");
 const dashboard_module_1 = require("./modules/dashboard/dashboard.module");
 const inbound_module_1 = require("./modules/inbound/inbound.module");
@@ -37,6 +42,8 @@ const warehouses_module_1 = require("./modules/warehouses/warehouses.module");
 const warehouse_workflow_module_1 = require("./modules/warehouse-workflow/warehouse-workflow.module");
 const notifications_module_1 = require("./modules/notifications/notifications.module");
 const realtime_module_1 = require("./modules/realtime/realtime.module");
+const reports_module_1 = require("./modules/reports/reports.module");
+const forms_module_1 = require("./modules/forms/forms.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -49,6 +56,8 @@ exports.AppModule = AppModule = __decorate([
                 cache: true,
                 expandVariables: true,
             }),
+            lifecycle_module_1.LifecycleModule,
+            cron_leader_module_1.CronLeaderModule,
             schedule_1.ScheduleModule.forRoot(),
             throttler_1.ThrottlerModule.forRoot({
                 throttlers: [
@@ -60,11 +69,13 @@ exports.AppModule = AppModule = __decorate([
             }),
             company_access_module_1.CompanyAccessModule,
             crypto_module_1.CryptoModule,
+            security_module_1.SecurityModule,
             auth_module_1.AuthModule,
             prisma_module_1.PrismaModule,
             redis_module_1.RedisModule,
             notifications_module_1.NotificationsModule,
             companies_module_1.CompaniesModule,
+            billing_module_1.BillingModule,
             dashboard_module_1.DashboardModule,
             client_portal_module_1.ClientPortalModule,
             users_module_1.UsersModule,
@@ -79,8 +90,11 @@ exports.AppModule = AppModule = __decorate([
             adjustments_module_1.AdjustmentsModule,
             cycle_count_module_1.CycleCountModule,
             audit_logs_module_1.AuditLogsModule,
+            backups_module_1.BackupsModule,
             warehouse_workflow_module_1.WarehouseWorkflowModule,
             realtime_module_1.RealtimeModule,
+            reports_module_1.ReportsModule,
+            forms_module_1.FormsModule,
         ],
         providers: [
             { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard },

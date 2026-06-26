@@ -68,7 +68,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], InventoryController.prototype, "stockByProduct", null);
 __decorate([
-    (0, common_1.Get)(['stock', 'current-stock']),
+    (0, common_1.Get)('stock'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),

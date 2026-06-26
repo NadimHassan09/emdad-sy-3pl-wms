@@ -9,12 +9,22 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ListBackupsQueryDto = void 0;
+exports.ListBackupsQueryDto = exports.BACKUP_HISTORY_JOB_TYPES = void 0;
+const client_1 = require("@prisma/client");
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
+exports.BACKUP_HISTORY_JOB_TYPES = [
+    client_1.BackupJobType.manual,
+    client_1.BackupJobType.scheduled,
+    client_1.BackupJobType.upload,
+    client_1.BackupJobType.pre_snapshot,
+];
 class ListBackupsQueryDto {
     limit = 20;
     offset = 0;
+    type;
+    status;
+    search;
 }
 exports.ListBackupsQueryDto = ListBackupsQueryDto;
 __decorate([
@@ -32,4 +42,20 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], ListBackupsQueryDto.prototype, "offset", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(exports.BACKUP_HISTORY_JOB_TYPES),
+    __metadata("design:type", String)
+], ListBackupsQueryDto.prototype, "type", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(client_1.BackupJobStatus),
+    __metadata("design:type", String)
+], ListBackupsQueryDto.prototype, "status", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], ListBackupsQueryDto.prototype, "search", void 0);
 //# sourceMappingURL=list-backups-query.dto.js.map

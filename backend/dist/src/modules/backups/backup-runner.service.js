@@ -79,7 +79,7 @@ let BackupRunnerService = BackupRunnerService_1 = class BackupRunnerService {
                 data: {
                     status: client_1.BackupJobStatus.running,
                     startedAt: new Date(),
-                    progressPercent: 5,
+                    progressPercent: 0,
                     artifactPath,
                     dumpFilename,
                 },
@@ -156,11 +156,11 @@ let BackupRunnerService = BackupRunnerService_1 = class BackupRunnerService {
     }
     estimateProgress(bytesWritten, estimatedBytes) {
         if (estimatedBytes > 0 && bytesWritten > 0) {
-            return Math.min(90, 5 + Math.floor((bytesWritten / estimatedBytes) * 85));
+            return Math.min(90, Math.floor((bytesWritten / estimatedBytes) * 90));
         }
         if (bytesWritten > 0)
             return Math.min(85, 10 + Math.floor(bytesWritten / 1_000_000) * 5);
-        return 10;
+        return 0;
     }
     async updateProgress(jobId, progressPercent, bytesWritten) {
         await this.prisma.backupJob.update({

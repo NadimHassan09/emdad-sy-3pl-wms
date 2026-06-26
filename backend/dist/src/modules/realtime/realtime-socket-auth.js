@@ -33,8 +33,10 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.INTERNAL_MASTER_DATA_ROOM = void 0;
 exports.normalizeCompanyId = normalizeCompanyId;
 exports.companyRoomName = companyRoomName;
+exports.userRoomName = userRoomName;
 exports.authenticateSocketConnection = authenticateSocketConnection;
 exports.isValidCompanyRoomId = isValidCompanyRoomId;
 const client_1 = require("@prisma/client");
@@ -52,6 +54,10 @@ function normalizeCompanyId(value) {
 function companyRoomName(companyId) {
     return `tenant:company:${companyId}`;
 }
+function userRoomName(userId) {
+    return `room:user:${userId}`;
+}
+exports.INTERNAL_MASTER_DATA_ROOM = 'room:internal:master-data';
 function tryVerify(token, secret) {
     try {
         const p = jwt.verify(token, secret);

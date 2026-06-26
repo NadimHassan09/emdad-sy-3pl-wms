@@ -11,6 +11,7 @@ const common_1 = require("@nestjs/common");
 const audit_module_1 = require("../../common/audit/audit.module");
 const inventory_module_1 = require("../inventory/inventory.module");
 const warehouse_workflow_module_1 = require("../warehouse-workflow/warehouse-workflow.module");
+const billing_module_1 = require("../billing/billing.module");
 const outbound_controller_1 = require("./outbound.controller");
 const outbound_service_1 = require("./outbound.service");
 let OutboundModule = class OutboundModule {
@@ -18,7 +19,7 @@ let OutboundModule = class OutboundModule {
 exports.OutboundModule = OutboundModule;
 exports.OutboundModule = OutboundModule = __decorate([
     (0, common_1.Module)({
-        imports: [inventory_module_1.InventoryModule, warehouse_workflow_module_1.WarehouseWorkflowModule, audit_module_1.AuditModule],
+        imports: [inventory_module_1.InventoryModule, warehouse_workflow_module_1.WarehouseWorkflowModule, audit_module_1.AuditModule, billing_module_1.BillingModule],
         controllers: [outbound_controller_1.OutboundController],
         providers: [outbound_service_1.OutboundService],
         exports: [outbound_service_1.OutboundService],

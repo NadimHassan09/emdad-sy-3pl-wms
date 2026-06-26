@@ -22,11 +22,14 @@ let WorkflowWorkersController = class WorkflowWorkersController {
     constructor(workers) {
         this.workers = workers;
     }
-    list(user, warehouseId) {
-        return this.workers.list(user, warehouseId);
+    list(user, warehouseId, companyId) {
+        return this.workers.list(user, warehouseId, companyId);
     }
-    loadByWarehouse(user, warehouseId) {
-        return this.workers.workerLoad(user, warehouseId);
+    loadByWarehouse(user, warehouseId, companyId) {
+        return this.workers.workerLoad(user, warehouseId, companyId);
+    }
+    listUnlinked(user) {
+        return this.workers.listUnlinked(user);
     }
     create(user, body) {
         return this.workers.create(user, body);
@@ -40,18 +43,28 @@ __decorate([
     (0, common_1.Get)(),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('warehouseId')),
+    __param(2, (0, common_1.Query)('companyId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", void 0)
 ], WorkflowWorkersController.prototype, "list", null);
 __decorate([
     (0, common_1.Get)('load'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('warehouseId')),
+    __param(2, (0, common_1.Query)('companyId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", void 0)
 ], WorkflowWorkersController.prototype, "loadByWarehouse", null);
+__decorate([
+    (0, common_1.Get)('unlinked'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], WorkflowWorkersController.prototype, "listUnlinked", null);
 __decorate([
     (0, common_1.Post)(),
     (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),

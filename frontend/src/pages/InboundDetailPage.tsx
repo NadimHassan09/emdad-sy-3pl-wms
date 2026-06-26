@@ -1,15 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { ConfirmInboundBody, InboundApi, InboundOrderLine, ReceiveLineInput } from '../api/inbound';
 import { Button } from '@ds';
 import { ReceivingDockPicker } from '../components/locations/ReceivingDockPicker';
 import { StorageLocationPicker } from '../components/locations/StorageLocationPicker';
 
+import { useAuth } from '../auth/AuthContext';
 import { Button as LegacyButton } from '../components/Button';
 import { Combobox } from '../components/Combobox';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { FILTER_RESET_BUTTON_CLASS, FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
@@ -23,6 +25,7 @@ import { useTaskOnlyMode } from '../hooks/useTaskOnlyMode';
 import { generateLotNumber } from '../lib/identifiers';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
 import { inboundHasQuantityShortfall } from '../lib/inbound-shortfall';
+import { canAccessInternalTransfer } from '../lib/rbac';
 
 const fmtQty = (s: string) => Number(s).toLocaleString(undefined, { maximumFractionDigits: 4 });
 function inboundDetailLabel(label: string, isArabic: boolean): string {
@@ -36,6 +39,13 @@ function inboundDetailLabel(label: string, isArabic: boolean): string {
     Client: 'العميل',
     Created: 'تاريخ الإنشاء',
     'Cancel order': 'إلغاء الطلب',
+    'Delete order': 'حذف الطلب',
+    'Delete this order?': 'حذف هذا الطلب؟',
+    'This permanently removes the order and its lines. This action cannot be undone.':
+      'سيؤدي هذا إلى حذف الطلب وبنوده نهائياً. لا يمكن التراجع عن هذا الإجراء.',
+    Delete: 'حذف',
+    Cancel: 'إلغاء',
+    'Order deleted.': 'تم حذف الطلب.',
     'Confirm order': 'تأكيد الطلب',
     'Approve order': 'اعتماد الطلب',
     'Order #': 'رقم الطلب #',
@@ -58,6 +68,10 @@ export function InboundDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const toast = useToast();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = canAccessInternalTransfer(user?.role);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [receivingLine, setReceivingLine] = useState<InboundOrderLine | null>(null);
 
   const taskOnlyMode = useTaskOnlyMode();
@@ -112,6 +126,17 @@ export function InboundDetailPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const deleteMut = useMutation({
+    mutationFn: () => InboundApi.remove(id),
+    onSuccess: () => {
+      toast.success(t('Order deleted.'));
+      setDeleteOpen(false);
+      qc.invalidateQueries({ queryKey: QK.inboundOrders });
+      navigate('/orders/inbound');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const receiveMut = useMutation({
     mutationFn: (vars: { lineId: string; input: ReceiveLineInput }) =>
       InboundApi.receive(id, vars.lineId, vars.input),
@@ -133,6 +158,8 @@ export function InboundDetailPage() {
   const canConfirm = o.status === 'draft' || o.status === 'pending_approval';
   const canCancel =
     o.status === 'draft' || o.status === 'pending_approval' || o.status === 'confirmed';
+  const canDelete =
+    isAdmin && ['draft', 'pending_approval', 'cancelled'].includes(o.status);
   const canReceive =
     !taskOnlyMode && ['confirmed', 'in_progress', 'partially_received'].includes(o.status);
 
@@ -186,17 +213,33 @@ export function InboundDetailPage() {
       <FilterPanel
         title={t('Order details')}
         headerActions={
-          canCancel ? (
-            <Button
-              type="button"
-              variant="danger"
-              size="md"
-              onClick={() => cancelMut.mutate()}
-              loading={cancelMut.isPending}
-              className={`${FILTER_RESET_BUTTON_CLASS} h-[34px] !py-0`}
-            >
-              {t('Cancel order')}
-            </Button>
+          canCancel || canDelete ? (
+            <>
+              {canDelete ? (
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="md"
+                  onClick={() => setDeleteOpen(true)}
+                  loading={deleteMut.isPending}
+                  className={`${FILTER_RESET_BUTTON_CLASS} h-[34px] !py-0`}
+                >
+                  {t('Delete order')}
+                </Button>
+              ) : null}
+              {canCancel ? (
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="md"
+                  onClick={() => cancelMut.mutate()}
+                  loading={cancelMut.isPending}
+                  className={`${FILTER_RESET_BUTTON_CLASS} h-[34px] !py-0`}
+                >
+                  {t('Cancel order')}
+                </Button>
+              ) : null}
+            </>
           ) : undefined
         }
       >
@@ -302,6 +345,21 @@ export function InboundDetailPage() {
           }
         />
       )}
+
+      <ConfirmModal
+        open={deleteOpen}
+        title={t('Delete this order?')}
+        confirmLabel={t('Delete')}
+        cancelLabel={t('Cancel')}
+        danger
+        loading={deleteMut.isPending}
+        onClose={() => !deleteMut.isPending && setDeleteOpen(false)}
+        onConfirm={() => deleteMut.mutate()}
+      >
+        <p className="text-sm">
+          {t('This permanently removes the order and its lines. This action cannot be undone.')}
+        </p>
+      </ConfirmModal>
     </>
   );
 }

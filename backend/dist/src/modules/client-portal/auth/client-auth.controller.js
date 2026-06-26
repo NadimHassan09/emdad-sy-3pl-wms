@@ -24,8 +24,8 @@ let ClientAuthController = class ClientAuthController {
     constructor(auth) {
         this.auth = auth;
     }
-    login(dto, res) {
-        return this.auth.login(dto, res);
+    login(dto, req, res) {
+        return this.auth.login(dto, req, res);
     }
     logout(res) {
         res.clearCookie('client_access_token', {
@@ -44,9 +44,10 @@ __decorate([
     (0, common_1.Post)('login'),
     (0, common_1.HttpCode)(200),
     __param(0, (0, common_1.Body)()),
-    __param(1, (0, common_1.Res)({ passthrough: true })),
+    __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Res)({ passthrough: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [client_login_dto_1.ClientLoginDto, Object]),
+    __metadata("design:paramtypes", [client_login_dto_1.ClientLoginDto, Object, Object]),
     __metadata("design:returntype", void 0)
 ], ClientAuthController.prototype, "login", null);
 __decorate([

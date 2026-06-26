@@ -21,6 +21,8 @@ const task_read_cache_service_1 = require("../../common/redis/task-read-cache.se
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const task_inventory_effects_service_1 = require("./task-inventory-effects.service");
 const workflow_orchestration_service_1 = require("./workflow-orchestration.service");
+const billing_invoice_calculation_service_1 = require("../billing/billing-invoice-calculation.service");
+const billing_recalculation_triggers_util_1 = require("../billing/billing-recalculation-triggers.util");
 const task_payload_schema_1 = require("./task-payload.schema");
 const task_transitions_1 = require("./task-transitions");
 const task_runnable_util_1 = require("./task-runnable.util");
@@ -37,7 +39,8 @@ let WarehouseTasksService = class WarehouseTasksService {
     notifications;
     companyAccess;
     audit;
-    constructor(prisma, effects, cacheInv, orchestration, taskReadCache, realtime, notifications, companyAccess, audit) {
+    billingInvoiceCalc;
+    constructor(prisma, effects, cacheInv, orchestration, taskReadCache, realtime, notifications, companyAccess, audit, billingInvoiceCalc) {
         this.prisma = prisma;
         this.effects = effects;
         this.cacheInv = cacheInv;
@@ -47,11 +50,82 @@ let WarehouseTasksService = class WarehouseTasksService {
         this.notifications = notifications;
         this.companyAccess = companyAccess;
         this.audit = audit;
+        this.billingInvoiceCalc = billingInvoiceCalc;
     }
     assertTaskWorkflowTenant(user, workflowCompanyId) {
         this.companyAccess.assertSameCompany(user, workflowCompanyId);
     }
     async list(user, query) {
+        const where = await this.buildListWhere(user, query);
+        const includeRunnability = query.includeRunnability === true;
+        const [items, total] = await this.prisma.$transaction([
+            this.prisma.warehouseTask.findMany({
+                where,
+                take: query.limit,
+                skip: query.offset,
+                orderBy: { updatedAt: 'desc' },
+                select: this.listTaskSelect(includeRunnability),
+            }),
+            this.prisma.warehouseTask.count({ where }),
+        ]);
+        if (!includeRunnability) {
+            return {
+                items,
+                total,
+                limit: query.limit,
+                offset: query.offset,
+            };
+        }
+        const enriched = await this.withRunnableFlags(items);
+        return {
+            items: enriched,
+            total,
+            limit: query.limit,
+            offset: query.offset,
+        };
+    }
+    listTaskSelect(includeRunnability) {
+        return {
+            id: true,
+            taskType: true,
+            status: true,
+            updatedAt: true,
+            ...(includeRunnability ? { workflowInstanceId: true } : {}),
+            workflowInstance: {
+                select: {
+                    id: true,
+                    companyId: true,
+                    referenceType: true,
+                    referenceId: true,
+                    warehouseId: true,
+                },
+            },
+            ...(includeRunnability
+                ? {
+                    requiredSkills: {
+                        select: { skillCode: true, minimumProficiency: true },
+                    },
+                }
+                : {}),
+            assignments: {
+                where: { unassignedAt: null },
+                orderBy: { assignedAt: 'desc' },
+                take: 1,
+                select: {
+                    unassignedAt: true,
+                    workerId: true,
+                    worker: {
+                        select: {
+                            id: true,
+                            displayName: true,
+                            user: { select: { fullName: true, email: true } },
+                        },
+                    },
+                },
+            },
+        };
+    }
+    async buildListWhere(user, query) {
         const where = {};
         if (query.status)
             where.status = query.status;
@@ -66,7 +140,7 @@ let WarehouseTasksService = class WarehouseTasksService {
         if (user.role === client_1.UserRole.wh_operator) {
             const operatorWorkerId = await this.workerIdForUser(user.id);
             if (!operatorWorkerId) {
-                return { items: [], total: 0, limit: query.limit, offset: query.offset };
+                return { id: { in: [] } };
             }
             and.push({
                 assignments: { some: { workerId: operatorWorkerId, unassignedAt: null } },
@@ -97,47 +171,7 @@ let WarehouseTasksService = class WarehouseTasksService {
         }
         if (and.length)
             where.AND = and;
-        return this.prisma.$transaction([
-            this.prisma.warehouseTask.findMany({
-                where,
-                take: query.limit,
-                skip: query.offset,
-                orderBy: { updatedAt: 'desc' },
-                include: {
-                    workflowInstance: {
-                        select: {
-                            id: true,
-                            companyId: true,
-                            referenceType: true,
-                            referenceId: true,
-                            warehouseId: true,
-                        },
-                    },
-                    requiredSkills: true,
-                    assignments: {
-                        where: { unassignedAt: null },
-                        orderBy: { assignedAt: 'desc' },
-                        take: 1,
-                        include: {
-                            worker: {
-                                include: {
-                                    user: { select: { fullName: true, email: true } },
-                                },
-                            },
-                        },
-                    },
-                },
-            }),
-            this.prisma.warehouseTask.count({ where }),
-        ]).then(async ([items, total]) => {
-            const enriched = await this.withRunnableFlags(items);
-            return {
-                items: enriched,
-                total,
-                limit: query.limit,
-                offset: query.offset,
-            };
-        });
+        return where;
     }
     async getById(taskId, user) {
         const companyKey = user.companyId ?? '_';
@@ -542,6 +576,16 @@ let WarehouseTasksService = class WarehouseTasksService {
             if (!activeWorker)
                 throw new common_1.BadRequestException('Assign a worker before starting.');
             await this.assertFrontierAndSkillsTx(tx, task, workerId ? [workerId] : [activeWorker]);
+            if (workerId && task.assignments[0]?.workerId !== workerId) {
+                await this.ensureWorker(workerId, user);
+                await tx.taskAssignment.updateMany({
+                    where: { taskId, unassignedAt: null },
+                    data: { unassignedAt: new Date() },
+                });
+                await tx.taskAssignment.create({
+                    data: { taskId, workerId, assignedById: user.id },
+                });
+            }
             if (task.status === client_1.WarehouseTaskStatus.pending) {
                 await this.bumpStatus(tx, taskId, task.lockVersion, client_1.WarehouseTaskStatus.in_progress, {
                     startedAt: new Date(),
@@ -594,6 +638,22 @@ let WarehouseTasksService = class WarehouseTasksService {
                 });
             }
             await this.appendEvent(tx, taskId, 'started', user.id, { workerId: activeWorker });
+            const started = await tx.warehouseTask.findUniqueOrThrow({
+                where: { id: taskId },
+                include: { workflowInstance: true },
+            });
+            await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
+                action: 'TASK_STARTED',
+                resourceType: 'warehouse_task',
+                resourceId: taskId,
+                companyId: started.workflowInstance.companyId,
+                previousState: { status: task.status },
+                newState: {
+                    status: client_1.WarehouseTaskStatus.in_progress,
+                    taskType: task.taskType,
+                    workerId: activeWorker,
+                },
+            }));
         });
         await this.cacheInv.afterTaskAndStockMutation();
         void this.realtime.emitTaskUpdatedByTaskId(taskId);
@@ -620,6 +680,8 @@ let WarehouseTasksService = class WarehouseTasksService {
         let outboundCompleted;
         let idempotentPickNoop = false;
         let idempotentDispatchNoop = false;
+        let billingCompanyId = null;
+        let billingTaskType = null;
         await this.prisma.$transaction(async (tx) => {
             await this.lockTask(tx, taskId);
             const task = await tx.warehouseTask.findUnique({
@@ -655,6 +717,8 @@ let WarehouseTasksService = class WarehouseTasksService {
             await this.assertFrontierAndSkillsTx(tx, task, assignmentIds);
             const exec = this.parseExecState(task.executionState);
             const companyId = task.workflowInstance.companyId;
+            billingCompanyId = companyId;
+            billingTaskType = body.task_type;
             switch (body.task_type) {
                 case 'receiving': {
                     const inboundId = receivingOrderId(task.payload);
@@ -745,6 +809,19 @@ let WarehouseTasksService = class WarehouseTasksService {
                     completedById: user.id,
                 },
             }));
+            if (body.task_type === 'receiving') {
+                const inboundId = receivingOrderId(task.payload);
+                await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
+                    action: 'INBOUND_RECEIVED',
+                    resourceType: 'inbound_order',
+                    resourceId: inboundId,
+                    companyId: finalized.workflowInstance.companyId,
+                    newState: {
+                        receivingTaskId: taskId,
+                        taskType: body.task_type,
+                    },
+                }));
+            }
             if (body.task_type === 'dispatch') {
                 const dispatchPayload = parseDispatchTaskPayloadAllowLegacy(task.payload);
                 await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
@@ -792,6 +869,16 @@ let WarehouseTasksService = class WarehouseTasksService {
             }
             await this.cacheInv.afterTaskAndStockMutation();
             void this.realtime.emitTaskUpdatedByTaskId(taskId, { inventorySource: 'task_complete' });
+            if (billingCompanyId && billingTaskType) {
+                const trigger = (0, billing_recalculation_triggers_util_1.billingTriggerForWarehouseTask)({
+                    taskType: billingTaskType,
+                    inboundCompleted: !!inboundCompleted,
+                    outboundCompleted: !!outboundCompleted,
+                });
+                if (trigger) {
+                    void this.billingInvoiceCalc.recalculateForCompany(billingCompanyId, trigger);
+                }
+            }
         }
         return this.loadTaskEnvelope(taskId, user);
     }
@@ -1364,7 +1451,8 @@ exports.WarehouseTasksService = WarehouseTasksService = __decorate([
         realtime_service_1.RealtimeService,
         notifications_service_1.NotificationsService,
         company_access_service_1.CompanyAccessService,
-        audit_log_service_1.AuditLogService])
+        audit_log_service_1.AuditLogService,
+        billing_invoice_calculation_service_1.BillingInvoiceCalculationService])
 ], WarehouseTasksService);
 function parsePickPayload(raw) {
     if (!isRecord(raw))
@@ -1419,6 +1507,15 @@ function parseDispatchTaskPayloadAllowLegacy(raw) {
     if (pickTaskId !== undefined && typeof pickTaskId !== 'string') {
         throw new common_1.BadRequestException('dispatch task payload pick_task_id malformed.');
     }
-    return { outbound_order_id: raw.outbound_order_id, pick_task_id: pickTaskId };
+    const sourcePackingLocationId = raw
+        .source_packing_location_id;
+    if (sourcePackingLocationId !== undefined && typeof sourcePackingLocationId !== 'string') {
+        throw new common_1.BadRequestException('dispatch task payload source_packing_location_id malformed.');
+    }
+    return {
+        outbound_order_id: raw.outbound_order_id,
+        pick_task_id: pickTaskId,
+        source_packing_location_id: sourcePackingLocationId,
+    };
 }
 //# sourceMappingURL=warehouse-tasks.service.js.map

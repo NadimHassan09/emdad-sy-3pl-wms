@@ -15,12 +15,18 @@ const client_1 = require("@prisma/client");
 const company_read_scope_1 = require("../../common/auth/company-read-scope");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
+const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const tenant_rls_1 = require("../../common/prisma/tenant-rls");
+const realtime_service_1 = require("../realtime/realtime.service");
+const realtime_ops_payload_1 = require("../realtime/realtime-ops.payload");
 const cycle_count_constants_1 = require("./cycle-count.constants");
 const cycle_count_snapshot_service_1 = require("./cycle-count-snapshot.service");
 const cycle_count_line_mutation_service_1 = require("./cycle-count-line-mutation.service");
 const cycle_count_variance_detection_service_1 = require("./cycle-count-variance-detection.service");
 const cycle_count_variance_service_1 = require("./cycle-count-variance.service");
+const list_cycle_counts_query_dto_1 = require("./dto/list-cycle-counts-query.dto");
+const list_product_history_query_dto_1 = require("./dto/list-product-history-query.dto");
 const SCHEDULE_INCLUDE = {
     company: { select: { id: true, name: true } },
     warehouse: { select: { id: true, code: true, name: true } },
@@ -50,13 +56,17 @@ let CycleCountService = class CycleCountService {
     lineMutation;
     varianceDetection;
     variances;
-    constructor(prisma, companyAccess, snapshot, lineMutation, varianceDetection, variances) {
+    audit;
+    realtime;
+    constructor(prisma, companyAccess, snapshot, lineMutation, varianceDetection, variances, audit, realtime) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.snapshot = snapshot;
         this.lineMutation = lineMutation;
         this.varianceDetection = varianceDetection;
         this.variances = variances;
+        this.audit = audit;
+        this.realtime = realtime;
     }
     async upsertSchedule(user, dto) {
         if (!(0, cycle_count_constants_1.isValidCycleCountInterval)(dto.intervalDays)) {
@@ -92,11 +102,11 @@ let CycleCountService = class CycleCountService {
     }
     listSchedules(user, companyIdParam) {
         const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, companyIdParam);
-        return this.prisma.cycleCountSchedule.findMany({
-            where: { companyId },
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => tx.cycleCountSchedule.findMany({
+            where: companyId ? { companyId } : {},
             include: SCHEDULE_INCLUDE,
             orderBy: [{ warehouseId: 'asc' }],
-        });
+        }));
     }
     async createManual(user, dto) {
         const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
@@ -129,31 +139,70 @@ let CycleCountService = class CycleCountService {
                 throw new common_1.BadRequestException('No stock rows match the cycle count scope (check products and warehouse).');
             }
             await this.snapshot.insertLines(tx, count.id, rows, dto.assignedWorkerId);
-            return tx.cycleCount.findUniqueOrThrow({
+            const detail = await tx.cycleCount.findUniqueOrThrow({
                 where: { id: count.id },
                 include: COUNT_DETAIL_INCLUDE,
             });
+            await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
+                action: 'CYCLE_COUNT_CREATED',
+                resourceType: 'cycle_count',
+                resourceId: detail.id,
+                companyId: detail.companyId,
+                newState: {
+                    status: detail.status,
+                    warehouseId: detail.warehouseId,
+                    lineCount: detail.lines.length,
+                    source: detail.source,
+                },
+            }));
+            return detail;
+        }).then((detail) => {
+            this.emitCycleCountEvent(detail, 'created');
+            return detail;
         });
     }
     list(user, query) {
         const where = {};
         const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
-        where.companyId = companyId;
+        if (companyId) {
+            where.companyId = companyId;
+        }
         if (query.warehouseId)
             where.warehouseId = query.warehouseId;
-        if (query.status)
+        if ((0, list_cycle_counts_query_dto_1.parseDiscrepancyOnly)(query.discrepancyOnly)) {
+            where.status = client_1.CycleCountStatus.pending_review;
+        }
+        else if (query.status) {
             where.status = query.status;
-        return this.prisma.cycleCount.findMany({
-            where,
-            include: {
-                company: { select: { id: true, name: true } },
-                warehouse: { select: { id: true, code: true, name: true } },
-                assignedWorker: { select: { id: true, displayName: true } },
-                _count: { select: { lines: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-            take: query.limit,
-            skip: query.offset,
+        }
+        if (query.assignedWorkerId)
+            where.assignedWorkerId = query.assignedWorkerId;
+        if (query.createdFrom || query.createdTo) {
+            const createdAt = {};
+            if (query.createdFrom)
+                createdAt.gte = new Date(`${query.createdFrom}T00:00:00.000Z`);
+            if (query.createdTo)
+                createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
+            where.createdAt = createdAt;
+        }
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const [items, total] = await Promise.all([
+                tx.cycleCount.findMany({
+                    where,
+                    include: {
+                        company: { select: { id: true, name: true } },
+                        warehouse: { select: { id: true, code: true, name: true } },
+                        assignedWorker: { select: { id: true, displayName: true } },
+                        schedule: { select: { id: true, intervalDays: true } },
+                        _count: { select: { lines: true } },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    take: query.limit,
+                    skip: query.offset,
+                }),
+                tx.cycleCount.count({ where }),
+            ]);
+            return { items, total, limit: query.limit, offset: query.offset };
         });
     }
     async findById(user, id) {
@@ -181,6 +230,9 @@ let CycleCountService = class CycleCountService {
                 updatedAt: now,
             },
             include: COUNT_DETAIL_INCLUDE,
+        }).then((updated) => {
+            this.emitCycleCountEvent(updated, 'updated');
+            return updated;
         });
     }
     async assignSession(user, id, dto) {
@@ -200,6 +252,9 @@ let CycleCountService = class CycleCountService {
                 updatedAt: new Date(),
             },
             include: COUNT_DETAIL_INCLUDE,
+        }).then((updated) => {
+            this.emitCycleCountEvent(updated, 'updated');
+            return updated;
         });
     }
     async assignLine(user, countId, lineId, dto) {
@@ -293,6 +348,9 @@ let CycleCountService = class CycleCountService {
             });
             const detected = await this.varianceDetection.detectFromCount(tx, id);
             return { ...updated, variancesDetected: detected };
+        }).then((updated) => {
+            this.emitCycleCountEvent(updated, 'updated');
+            return updated;
         });
     }
     async complete(user, id) {
@@ -320,6 +378,18 @@ let CycleCountService = class CycleCountService {
                 },
                 include: COUNT_DETAIL_INCLUDE,
             });
+            await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
+                action: 'CYCLE_COUNT_COMPLETED',
+                resourceType: 'cycle_count',
+                resourceId: id,
+                companyId: count.companyId,
+                previousState: { status: count.status },
+                newState: {
+                    status: updated.status,
+                    completedAt: completedAt.toISOString(),
+                    lineCount: updated.lines.length,
+                },
+            }));
             const productIds = [
                 ...new Set(updated.lines.map((l) => l.productId)),
             ];
@@ -352,6 +422,9 @@ let CycleCountService = class CycleCountService {
                 });
             }
             return updated;
+        }).then((updated) => {
+            this.emitCycleCountEvent(updated, 'completed');
+            return updated;
         });
     }
     async cancel(user, id) {
@@ -368,22 +441,75 @@ let CycleCountService = class CycleCountService {
                 updatedAt: new Date(),
             },
             include: COUNT_DETAIL_INCLUDE,
+        }).then((updated) => {
+            this.emitCycleCountEvent(updated, 'updated');
+            return updated;
         });
+    }
+    emitCycleCountEvent(count, kind) {
+        const withCount = {
+            ...count,
+            _count: { lines: count.lines?.length ?? 0 },
+        };
+        const listItem = (0, realtime_ops_payload_1.cycleCountListItemPayload)(withCount);
+        const detail = (0, realtime_ops_payload_1.cycleCountDetailPayload)(count);
+        const payload = { listItem, count: detail };
+        switch (kind) {
+            case 'created':
+                this.realtime.emitCycleCountCreated(count.companyId, payload);
+                break;
+            case 'updated':
+                this.realtime.emitCycleCountUpdated(count.companyId, payload);
+                break;
+            case 'completed':
+                this.realtime.emitCycleCountCompleted(count.companyId, payload);
+                break;
+        }
+    }
+    async publishRealtimeUpdate(countId) {
+        const count = await this.prisma.cycleCount.findUnique({
+            where: { id: countId },
+            include: COUNT_DETAIL_INCLUDE,
+        });
+        if (count)
+            this.emitCycleCountEvent(count, 'updated');
     }
     listProductHistory(user, query) {
         const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
-        return this.prisma.cycleCountProductHistory.findMany({
-            where: {
-                companyId,
-                warehouseId: query.warehouseId,
-                ...(query.productId ? { productId: query.productId } : {}),
-            },
-            include: {
-                product: { select: { id: true, sku: true, name: true } },
-            },
-            orderBy: { nextDueAt: 'asc' },
-            take: query.limit,
-            skip: query.offset,
+        const where = {
+            warehouseId: query.warehouseId,
+            ...(query.productId ? { productId: query.productId } : {}),
+        };
+        if (companyId) {
+            where.companyId = companyId;
+        }
+        if ((0, list_product_history_query_dto_1.parseOverdueOnly)(query.overdueOnly)) {
+            where.nextDueAt = { lt: new Date() };
+        }
+        if (query.lastCountedFrom || query.lastCountedTo) {
+            const lastCountedAt = {};
+            if (query.lastCountedFrom) {
+                lastCountedAt.gte = new Date(`${query.lastCountedFrom}T00:00:00.000Z`);
+            }
+            if (query.lastCountedTo) {
+                lastCountedAt.lte = new Date(`${query.lastCountedTo}T23:59:59.999Z`);
+            }
+            where.lastCountedAt = lastCountedAt;
+        }
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const [items, total] = await Promise.all([
+                tx.cycleCountProductHistory.findMany({
+                    where,
+                    include: {
+                        product: { select: { id: true, sku: true, name: true } },
+                    },
+                    orderBy: { nextDueAt: 'asc' },
+                    take: query.limit,
+                    skip: query.offset,
+                }),
+                tx.cycleCountProductHistory.count({ where }),
+            ]);
+            return { items, total, limit: query.limit, offset: query.offset };
         });
     }
     async findDueProductIds(companyId, warehouseId, intervalDays, includeZeroOnHand) {
@@ -538,6 +664,8 @@ exports.CycleCountService = CycleCountService = __decorate([
         cycle_count_snapshot_service_1.CycleCountSnapshotService,
         cycle_count_line_mutation_service_1.CycleCountLineMutationService,
         cycle_count_variance_detection_service_1.CycleCountVarianceDetectionService,
-        cycle_count_variance_service_1.CycleCountVarianceService])
+        cycle_count_variance_service_1.CycleCountVarianceService,
+        audit_log_service_1.AuditLogService,
+        realtime_service_1.RealtimeService])
 ], CycleCountService);
 //# sourceMappingURL=cycle-count.service.js.map

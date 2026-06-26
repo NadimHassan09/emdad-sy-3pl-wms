@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const schedule_1 = require("@nestjs/schedule");
 const client_1 = require("@prisma/client");
 const audit_log_service_1 = require("../../common/audit/audit-log.service");
+const cron_leader_service_1 = require("../../common/cron/cron-leader.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const backup_bootstrap_constants_1 = require("./backup-bootstrap.constants");
 const backup_config_1 = require("./backup-config");
@@ -24,16 +25,21 @@ let BackupHealthAlertService = BackupHealthAlertService_1 = class BackupHealthAl
     backupConfig;
     health;
     audit;
+    cronLeader;
     logger = new common_1.Logger(BackupHealthAlertService_1.name);
     emitted = new Map();
     systemPrincipal = null;
-    constructor(prisma, backupConfig, health, audit) {
+    constructor(prisma, backupConfig, health, audit, cronLeader) {
         this.prisma = prisma;
         this.backupConfig = backupConfig;
         this.health = health;
         this.audit = audit;
+        this.cronLeader = cronLeader;
     }
     async evaluateAndAlert() {
+        await this.cronLeader.runExclusive('backup-health-alert', 960, () => this.runEvaluateAndAlert());
+    }
+    async runEvaluateAndAlert() {
         if (!this.backupConfig.enabled || !this.backupConfig.healthMonitoringEnabled) {
             return;
         }
@@ -112,6 +118,7 @@ exports.BackupHealthAlertService = BackupHealthAlertService = BackupHealthAlertS
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         backup_config_1.BackupConfig,
         backup_health_service_1.BackupHealthService,
-        audit_log_service_1.AuditLogService])
+        audit_log_service_1.AuditLogService,
+        cron_leader_service_1.CronLeaderService])
 ], BackupHealthAlertService);
 //# sourceMappingURL=backup-health-alert.service.js.map

@@ -155,6 +155,9 @@ let CycleCountExecutionService = class CycleCountExecutionService {
                 include: EXECUTION_COUNT_INCLUDE,
             });
             return (0, cycle_count_blind_presenter_1.presentBlindCycleCountTask)(full);
+        }).then(async (task) => {
+            await this.cycleCounts.publishRealtimeUpdate(countId);
+            return task;
         });
     }
     async submitLineCount(user, countId, lineId, dto) {
@@ -174,6 +177,7 @@ let CycleCountExecutionService = class CycleCountExecutionService {
                 input: dto,
             });
         });
+        await this.cycleCounts.publishRealtimeUpdate(countId);
         return this.getTask(user, countId);
     }
     async skipLine(user, countId, lineId, dto) {
@@ -193,6 +197,7 @@ let CycleCountExecutionService = class CycleCountExecutionService {
                 countNotes: dto.countNotes,
             });
         });
+        await this.cycleCounts.publishRealtimeUpdate(countId);
         return this.getTask(user, countId);
     }
     async finishTask(user, countId) {
@@ -310,17 +315,17 @@ let CycleCountExecutionService = class CycleCountExecutionService {
             });
             if (worker)
                 return worker.id;
-            throw new common_1.ForbiddenException('Cycle count execution requires an operator linked to a Worker profile.');
+            throw new common_1.ForbiddenException('Cycle count execution requires a warehouse operator with an active linked worker profile.');
         }
         const worker = await this.prisma.worker.findUnique({
             where: { userId: user.id },
             select: { id: true, status: true },
         });
         if (!worker) {
-            throw new common_1.ForbiddenException('Your user account is not linked to a Worker profile. Ask an admin to link Users → Worker.');
+            throw new common_1.ForbiddenException('Your account is not linked to a worker profile. An admin must open Users → Warehouse users, edit your account, and provision or link a worker profile before you can execute cycle counts.');
         }
         if (worker.status !== 'active') {
-            throw new common_1.ForbiddenException('Your worker profile is inactive.');
+            throw new common_1.ForbiddenException('Your worker profile is inactive. Ask an admin to reactivate your user account and worker profile under Users → Warehouse users.');
         }
         return worker.id;
     }

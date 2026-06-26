@@ -105,4 +105,8 @@ export const OutboundApi = {
     const { data } = await api.post<OutboundOrder>(`/outbound-orders/${id}/cancel`);
     return data;
   },
+  async remove(id: string): Promise<{ id: string; deleted: boolean }> {
+    const { data } = await api.delete<{ id: string; deleted: boolean }>(`/outbound-orders/${id}`);
+    return data;
+  },
 };

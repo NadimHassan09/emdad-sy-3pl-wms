@@ -22,9 +22,15 @@ let NotificationsController = class NotificationsController {
     constructor(notifications) {
         this.notifications = notifications;
     }
-    list(user, limit) {
-        const n = limit ? Number(limit) : 50;
-        return this.notifications.list(user, Number.isFinite(n) ? n : 50);
+    list(user, limit, offset, isRead) {
+        const parsedLimit = limit != null ? Number(limit) : undefined;
+        const parsedOffset = offset != null ? Number(offset) : undefined;
+        const readFilter = isRead === 'true' ? true : isRead === 'false' ? false : undefined;
+        return this.notifications.list(user, {
+            limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+            offset: Number.isFinite(parsedOffset) ? parsedOffset : undefined,
+            isRead: readFilter,
+        });
     }
     markRead(user, id) {
         return this.notifications.markRead(user, id);
@@ -38,8 +44,10 @@ __decorate([
     (0, common_1.Get)(),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)('limit')),
+    __param(2, (0, common_1.Query)('offset')),
+    __param(3, (0, common_1.Query)('isRead')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:paramtypes", [Object, String, String, String]),
     __metadata("design:returntype", void 0)
 ], NotificationsController.prototype, "list", null);
 __decorate([

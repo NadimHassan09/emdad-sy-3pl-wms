@@ -23,8 +23,8 @@ let AuthController = class AuthController {
     constructor(auth) {
         this.auth = auth;
     }
-    login(dto, res) {
-        return this.auth.login(dto, res);
+    login(dto, req, res) {
+        return this.auth.login(dto, req, res);
     }
     refresh(req, res) {
         return this.auth.refresh(req, res);
@@ -42,9 +42,10 @@ __decorate([
     (0, common_1.Post)('login'),
     (0, common_1.HttpCode)(200),
     __param(0, (0, common_1.Body)()),
-    __param(1, (0, common_1.Res)({ passthrough: true })),
+    __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Res)({ passthrough: true })),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [login_dto_1.LoginDto, Object]),
+    __metadata("design:paramtypes", [login_dto_1.LoginDto, Object, Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "login", null);
 __decorate([

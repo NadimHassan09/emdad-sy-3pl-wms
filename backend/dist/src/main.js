@@ -8,13 +8,14 @@ const node_crypto_1 = require("node:crypto");
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const core_1 = require("@nestjs/core");
-const platform_socket_io_1 = require("@nestjs/platform-socket.io");
 const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const express_1 = __importDefault(require("express"));
 const helmet_1 = __importDefault(require("helmet"));
 const app_module_1 = require("./app.module");
+const application_lifecycle_service_1 = require("./common/lifecycle/application-lifecycle.service");
 const all_exceptions_filter_1 = require("./common/filters/all-exceptions.filter");
 const response_interceptor_1 = require("./common/interceptors/response.interceptor");
+const redis_io_adapter_1 = require("./common/redis/redis-io.adapter");
 function sanitizeValue(value) {
     if (Array.isArray(value)) {
         return value.map((item) => sanitizeValue(item));
@@ -80,13 +81,29 @@ function installRequestTracingAndStructuredLogs(app) {
         next();
     });
 }
+function installPm2ClusterSignals(app, lifecycle, logger) {
+    if (typeof process.send === 'function') {
+        process.on('message', (msg) => {
+            if (msg === 'shutdown') {
+                lifecycle.markShuttingDown('pm2_shutdown_message');
+                void app.close().then(() => {
+                    logger.log('PM2 shutdown message handled — application closed.');
+                });
+            }
+        });
+    }
+}
 async function bootstrap() {
     const logger = new common_1.Logger('Bootstrap');
     const app = await core_1.NestFactory.create(app_module_1.AppModule, { bufferLogs: false });
     const config = app.get(config_1.ConfigService);
+    const lifecycle = app.get(application_lifecycle_service_1.ApplicationLifecycleService);
     const isProd = config.get('NODE_ENV') === 'production';
     validateStartupSafety(config, isProd);
-    app.useWebSocketAdapter(new platform_socket_io_1.IoAdapter(app));
+    app.enableShutdownHooks();
+    const redisIoAdapter = new redis_io_adapter_1.RedisIoAdapter(app);
+    await redisIoAdapter.connectToRedis();
+    app.useWebSocketAdapter(redisIoAdapter);
     app.use((0, helmet_1.default)({
         crossOriginEmbedderPolicy: false,
         contentSecurityPolicy: isProd ? undefined : false,
@@ -101,7 +118,12 @@ async function bootstrap() {
     app.use((0, cookie_parser_1.default)());
     app.use(sanitizeRequestPayload);
     installRequestTracingAndStructuredLogs(app);
-    const corsOrigins = (config.get('CORS_ORIGINS') ?? 'http://localhost:5173')
+    installPm2ClusterSignals(app, lifecycle, logger);
+    const corsOrigins = [
+        config.get('CORS_ORIGINS') ?? 'http://localhost:5173',
+        config.get('LANDING_FORM_CORS_ORIGINS') ?? '',
+    ]
+        .join(',')
         .split(',')
         .map((o) => o.trim())
         .filter(Boolean);
@@ -144,11 +166,15 @@ async function bootstrap() {
     app.setGlobalPrefix('api');
     const port = parseInt(config.get('PORT') ?? '3000', 10);
     await app.listen(port);
+    lifecycle.markReady();
+    if (typeof process.send === 'function') {
+        process.send('ready');
+    }
     if (isProd) {
-        logger.log(`[wms] backend listening on port ${port}`);
+        logger.log(`[wms] backend listening on port ${port} (instance=${lifecycle.instanceId()}, pid=${process.pid})`);
     }
     else {
-        logger.log(`[wms] backend listening on http://localhost:${port}/api`);
+        logger.log(`[wms] backend listening on http://localhost:${port}/api (instance=${lifecycle.instanceId()})`);
     }
 }
 bootstrap();

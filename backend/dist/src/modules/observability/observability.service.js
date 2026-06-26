@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const application_lifecycle_service_1 = require("../../common/lifecycle/application-lifecycle.service");
 const redis_service_1 = require("../../common/redis/redis.service");
 const realtime_service_1 = require("../realtime/realtime.service");
 const ops_policy_config_1 = require("./ops-policy.config");
@@ -23,12 +24,14 @@ let ObservabilityService = class ObservabilityService {
     realtime;
     config;
     policy;
-    constructor(prisma, redis, realtime, config, policy) {
+    lifecycle;
+    constructor(prisma, redis, realtime, config, policy, lifecycle) {
         this.prisma = prisma;
         this.redis = redis;
         this.realtime = realtime;
         this.config = config;
         this.policy = policy;
+        this.lifecycle = lifecycle;
     }
     assertLivenessEnabled() {
         if (!this.policy.livenessEnabled) {
@@ -52,6 +55,17 @@ let ObservabilityService = class ObservabilityService {
         };
     }
     async ready() {
+        if (!this.lifecycle.isAcceptingTraffic()) {
+            const failureBody = {
+                success: false,
+                error: {
+                    code: 'SERVICE_UNAVAILABLE',
+                    message: 'Application is draining or not ready.',
+                    details: { cluster: this.lifecycle.clusterInfo() },
+                },
+            };
+            throw new common_1.HttpException(failureBody, common_1.HttpStatus.SERVICE_UNAVAILABLE);
+        }
         const checks = {
             db: 'ok',
             redis: this.redis.isEnabled() ? 'ok' : 'disabled',
@@ -90,6 +104,7 @@ let ObservabilityService = class ObservabilityService {
         }
         if (this.policy.readinessVerbose) {
             details.websocket = websocket;
+            details.cluster = this.lifecycle.clusterInfo();
             details.queues = {
                 pending,
                 inProgress,
@@ -166,6 +181,7 @@ exports.ObservabilityService = ObservabilityService = __decorate([
         redis_service_1.RedisService,
         realtime_service_1.RealtimeService,
         config_1.ConfigService,
-        ops_policy_config_1.OpsPolicyConfig])
+        ops_policy_config_1.OpsPolicyConfig,
+        application_lifecycle_service_1.ApplicationLifecycleService])
 ], ObservabilityService);
 //# sourceMappingURL=observability.service.js.map

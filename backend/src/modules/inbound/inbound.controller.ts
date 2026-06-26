@@ -1,13 +1,16 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/auth/current-user.decorator';
+import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { ConfirmInboundBodyDto } from './dto/confirm-inbound-body.dto';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
@@ -50,6 +53,15 @@ export class InboundController {
     @Param('id', ParseUuidLoosePipe) id: string,
   ) {
     return this.inbound.cancel(id, user);
+  }
+
+  @Delete(':id')
+  @UseGuards(InternalAdminGuard)
+  remove(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.inbound.remove(id, user);
   }
 
   @Post(':id/lines/:lineId/receive')

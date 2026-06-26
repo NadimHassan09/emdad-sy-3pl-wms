@@ -75,6 +75,13 @@ function isInboundConfirmable(status: InboundOrderStatus): boolean {
   return INBOUND_CONFIRMABLE.includes(status);
 }
 
+// Orders in these states are not yet confirmed/complete, so an admin may permanently delete them.
+const INBOUND_DELETABLE: InboundOrderStatus[] = [
+  InboundOrderStatus.draft,
+  InboundOrderStatus.pending_approval,
+  InboundOrderStatus.cancelled,
+];
+
 @Injectable()
 export class InboundService {
   constructor(
@@ -389,6 +396,57 @@ export class InboundService {
       listItem: adminInboundListItem(cancelled),
     });
     return cancelled;
+  }
+
+  /**
+   * Permanently delete an inbound order that has not been confirmed/completed.
+   * Only allowed for draft, pending-approval, or cancelled orders. Order lines
+   * are removed via cascade; any stray workflow rows are cleaned defensively.
+   */
+  async remove(id: string, user: AuthPrincipal) {
+    const order = await this.findById(id, user);
+    if (!INBOUND_DELETABLE.includes(order.status)) {
+      throw new InvalidStateException(
+        `Only draft, pending-approval, or cancelled inbound orders can be deleted (current: ${order.status}).`,
+      );
+    }
+
+    await withTenantRls(this.prisma, user, async (tx) => {
+      // Safety net: these states never have stock movements. Refuse rather than
+      // silently destroy ledger history if any unexpectedly exist.
+      const ledgerCount = await tx.inventoryLedger.count({
+        where: { referenceType: 'inbound_order', referenceId: id },
+      });
+      if (ledgerCount > 0) {
+        throw new InvalidStateException(
+          'This order has stock movements recorded and cannot be deleted.',
+        );
+      }
+      // No workflows exist for these states, but clean any orphan rows defensively
+      // (workflow instances are not FK-linked to the order).
+      await tx.workflowInstance.deleteMany({
+        where: { referenceType: 'inbound_order', referenceId: id },
+      });
+      await tx.inboundOrder.delete({ where: { id } });
+    });
+
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'INBOUND_ORDER_DELETED',
+        resourceType: 'inbound_order',
+        resourceId: id,
+        companyId: order.companyId,
+        previousState: { status: order.status, orderNumber: order.orderNumber },
+        newState: { deleted: true },
+      }),
+    );
+    this.realtime.emitInboundOrderUpdated(order.companyId, {
+      orderId: id,
+      status: order.status,
+      reason: 'delete',
+      listItem: adminInboundListItem(order),
+    });
+    return { id, deleted: true };
   }
 
   /**

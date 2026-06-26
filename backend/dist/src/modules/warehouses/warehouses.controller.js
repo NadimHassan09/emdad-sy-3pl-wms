@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WarehousesController = void 0;
 const common_1 = require("@nestjs/common");
+const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
 const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard");
 const parse_uuid_loose_pipe_1 = require("../../common/pipes/parse-uuid-loose.pipe");
 const create_warehouse_dto_1 = require("./dto/create-warehouse.dto");
@@ -26,8 +27,8 @@ let WarehousesController = class WarehousesController {
     constructor(warehouses) {
         this.warehouses = warehouses;
     }
-    create(dto) {
-        return this.warehouses.create(dto);
+    create(user, dto) {
+        return this.warehouses.create(user, dto);
     }
     list(query) {
         return this.warehouses.list(query);
@@ -35,26 +36,27 @@ let WarehousesController = class WarehousesController {
     nextCode() {
         return this.warehouses.nextCode();
     }
-    update(id, dto) {
-        return this.warehouses.update(id, dto);
+    update(user, id, dto) {
+        return this.warehouses.update(user, id, dto);
     }
-    remove(id) {
-        return this.warehouses.softDelete(id);
+    remove(user, id) {
+        return this.warehouses.softDelete(user, id);
     }
     findOne(id) {
         return this.warehouses.findById(id);
     }
-    setStatus(id, dto) {
-        return this.warehouses.setStatus(id, dto.status);
+    setStatus(user, id, dto) {
+        return this.warehouses.setStatus(user, id, dto.status);
     }
 };
 exports.WarehousesController = WarehousesController;
 __decorate([
     (0, common_1.Post)(),
     (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
-    __param(0, (0, common_1.Body)()),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_warehouse_dto_1.CreateWarehouseDto]),
+    __metadata("design:paramtypes", [Object, create_warehouse_dto_1.CreateWarehouseDto]),
     __metadata("design:returntype", void 0)
 ], WarehousesController.prototype, "create", null);
 __decorate([
@@ -73,18 +75,20 @@ __decorate([
 __decorate([
     (0, common_1.Patch)(':id'),
     (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
-    __param(1, (0, common_1.Body)()),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_warehouse_dto_1.UpdateWarehouseDto]),
+    __metadata("design:paramtypes", [Object, String, update_warehouse_dto_1.UpdateWarehouseDto]),
     __metadata("design:returntype", void 0)
 ], WarehousesController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], WarehousesController.prototype, "remove", null);
 __decorate([
@@ -97,10 +101,11 @@ __decorate([
 __decorate([
     (0, common_1.Patch)(':id/status'),
     (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
-    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
-    __param(1, (0, common_1.Body)()),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_warehouse_status_dto_1.UpdateWarehouseStatusDto]),
+    __metadata("design:paramtypes", [Object, String, update_warehouse_status_dto_1.UpdateWarehouseStatusDto]),
     __metadata("design:returntype", void 0)
 ], WarehousesController.prototype, "setStatus", null);
 exports.WarehousesController = WarehousesController = __decorate([

@@ -8,6 +8,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CryptoModule = void 0;
 const common_1 = require("@nestjs/common");
+const encryption_service_1 = require("./encryption.service");
 const password_service_1 = require("./password.service");
 let CryptoModule = class CryptoModule {
 };
@@ -15,8 +16,8 @@ exports.CryptoModule = CryptoModule;
 exports.CryptoModule = CryptoModule = __decorate([
     (0, common_1.Global)(),
     (0, common_1.Module)({
-        providers: [password_service_1.PasswordService],
-        exports: [password_service_1.PasswordService],
+        providers: [password_service_1.PasswordService, encryption_service_1.EncryptionService],
+        exports: [password_service_1.PasswordService, encryption_service_1.EncryptionService],
     })
 ], CryptoModule);
 //# sourceMappingURL=crypto.module.js.map

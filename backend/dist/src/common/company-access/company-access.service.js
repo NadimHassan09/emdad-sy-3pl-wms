@@ -73,7 +73,9 @@ let CompanyAccessService = class CompanyAccessService {
     }
     assertSameCompany(user, resourceCompanyId) {
         this.assertCompanyAccess(user, resourceCompanyId);
-        if (user.companyId && resourceCompanyId !== user.companyId) {
+        if (user.companyId &&
+            resourceCompanyId !== user.companyId &&
+            user.tenantScope !== 'all') {
             throw new common_1.NotFoundException('Resource not found.');
         }
     }
@@ -87,7 +89,10 @@ let CompanyAccessService = class CompanyAccessService {
             throw new common_1.BadRequestException('companyId is required (select an authorized client tenant for this session).');
         }
         this.assertCompanyAccess(user, effective);
-        if (requested && user.companyId && requested !== user.companyId) {
+        if (requested &&
+            user.companyId &&
+            requested !== user.companyId &&
+            user.tenantScope !== 'all') {
             throw new common_1.ForbiddenException('companyId does not match the active tenant for this session.');
         }
         return effective;
@@ -98,11 +103,11 @@ let CompanyAccessService = class CompanyAccessService {
             this.assertCompanyAccess(user, q);
             return q;
         }
-        if (user.companyId) {
-            return user.companyId;
-        }
         if (user.tenantScope === 'all') {
             return undefined;
+        }
+        if (user.companyId) {
+            return user.companyId;
         }
         return undefined;
     }
@@ -111,7 +116,7 @@ let CompanyAccessService = class CompanyAccessService {
         if (scoped)
             return scoped;
         if (user.tenantScope === 'all') {
-            throw new common_1.BadRequestException(rbac_policy_1.TENANT_SCOPE_REQUIRED_MESSAGE);
+            return undefined;
         }
         if (!user.companyId) {
             throw new common_1.BadRequestException(rbac_policy_1.TENANT_SCOPE_REQUIRED_MESSAGE);

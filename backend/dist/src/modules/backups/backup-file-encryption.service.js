@@ -33,6 +33,25 @@ let BackupFileEncryptionService = class BackupFileEncryptionService {
         await (0, promises_1.writeFile)(targetPath, output, { mode: 0o600 });
         return output.length;
     }
+    async decryptDumpFile(sourceEncPath, targetPath) {
+        const key = this.resolveKey();
+        const input = await (0, promises_1.readFile)(sourceEncPath);
+        const minSize = MAGIC.length + IV_BYTES + 16;
+        if (input.length < minSize) {
+            throw new common_1.ServiceUnavailableException('Encrypted backup file is too short or corrupt.');
+        }
+        if (!input.subarray(0, MAGIC.length).equals(MAGIC)) {
+            throw new common_1.ServiceUnavailableException('Encrypted backup file has invalid format.');
+        }
+        const iv = input.subarray(MAGIC.length, MAGIC.length + IV_BYTES);
+        const authTag = input.subarray(input.length - 16);
+        const ciphertext = input.subarray(MAGIC.length + IV_BYTES, input.length - 16);
+        const decipher = (0, node_crypto_1.createDecipheriv)(ALGORITHM, key, iv);
+        decipher.setAuthTag(authTag);
+        const plain = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+        await (0, promises_1.writeFile)(targetPath, plain, { mode: 0o600 });
+        return plain.length;
+    }
     resolveKey() {
         const raw = this.config.get('BACKUP_ENCRYPTION_KEY')?.trim();
         if (!raw) {

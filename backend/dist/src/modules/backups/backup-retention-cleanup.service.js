@@ -14,6 +14,7 @@ exports.BackupRetentionCleanupService = void 0;
 const common_1 = require("@nestjs/common");
 const schedule_1 = require("@nestjs/schedule");
 const client_1 = require("@prisma/client");
+const cron_leader_service_1 = require("../../common/cron/cron-leader.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const backup_config_1 = require("./backup-config");
 const backup_operations_service_1 = require("./backup-operations.service");
@@ -25,17 +26,22 @@ let BackupRetentionCleanupService = BackupRetentionCleanupService_1 = class Back
     operations;
     runner;
     retention;
+    cronLeader;
     logger = new common_1.Logger(BackupRetentionCleanupService_1.name);
     cleanupInFlight = false;
     systemPrincipal = null;
-    constructor(prisma, backupConfig, operations, runner, retention) {
+    constructor(prisma, backupConfig, operations, runner, retention, cronLeader) {
         this.prisma = prisma;
         this.backupConfig = backupConfig;
         this.operations = operations;
         this.runner = runner;
         this.retention = retention;
+        this.cronLeader = cronLeader;
     }
     async runScheduledCleanup() {
+        await this.cronLeader.runExclusive('backup-retention-cleanup', 7200, () => this.runScheduledCleanupWork());
+    }
+    async runScheduledCleanupWork() {
         if (!this.backupConfig.enabled || !this.backupConfig.retentionCleanupEnabled) {
             return;
         }
@@ -95,6 +101,7 @@ exports.BackupRetentionCleanupService = BackupRetentionCleanupService = BackupRe
         backup_config_1.BackupConfig,
         backup_operations_service_1.BackupOperationsService,
         backup_runner_service_1.BackupRunnerService,
-        backup_retention_service_1.BackupRetentionService])
+        backup_retention_service_1.BackupRetentionService,
+        cron_leader_service_1.CronLeaderService])
 ], BackupRetentionCleanupService);
 //# sourceMappingURL=backup-retention-cleanup.service.js.map

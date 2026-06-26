@@ -13,6 +13,8 @@ exports.ClientNotificationsService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../../common/prisma/prisma.service");
+const realtime_activity_payload_1 = require("../../realtime/realtime-activity.payload");
+const realtime_service_1 = require("../../realtime/realtime.service");
 const IN_APP_CHANNELS = [
     client_1.NotificationChannel.in_app,
     client_1.NotificationChannel.both,
@@ -32,8 +34,10 @@ function toDto(row) {
 }
 let ClientNotificationsService = class ClientNotificationsService {
     prisma;
-    constructor(prisma) {
+    realtime;
+    constructor(prisma, realtime) {
         this.prisma = prisma;
+        this.realtime = realtime;
     }
     scopeWhere(client) {
         return {
@@ -44,14 +48,18 @@ let ClientNotificationsService = class ClientNotificationsService {
             ],
         };
     }
-    async list(client, limit = 50) {
+    async list(client, params = {}) {
         const where = this.scopeWhere(client);
-        const [items, unreadCount] = await Promise.all([
+        const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
+        const offset = Math.max(params.offset ?? 0, 0);
+        const [items, total, unreadCount] = await Promise.all([
             this.prisma.notification.findMany({
                 where,
                 orderBy: { createdAt: 'desc' },
-                take: Math.min(Math.max(limit, 1), 100),
+                skip: offset,
+                take: limit,
             }),
+            this.prisma.notification.count({ where }),
             this.prisma.notification.count({
                 where: { ...where, isRead: false },
             }),
@@ -59,6 +67,9 @@ let ClientNotificationsService = class ClientNotificationsService {
         return {
             items: items.map(toDto),
             unreadCount,
+            total,
+            limit,
+            offset,
         };
     }
     async markRead(client, id) {
@@ -71,13 +82,16 @@ let ClientNotificationsService = class ClientNotificationsService {
             where: { id },
             data: { isRead: true, readAt: new Date() },
         });
-        return toDto(updated);
+        const dto = toDto(updated);
+        this.realtime.emitNotificationRead(client.id, { notification: (0, realtime_activity_payload_1.notificationPayload)(updated) });
+        return dto;
     }
     async markAllRead(client) {
         const result = await this.prisma.notification.updateMany({
             where: { ...this.scopeWhere(client), isRead: false },
             data: { isRead: true, readAt: new Date() },
         });
+        this.realtime.emitNotificationRead(client.id, { markAllRead: true });
         return { updated: result.count };
     }
     async notifyCompany(companyId, input) {
@@ -95,7 +109,7 @@ let ClientNotificationsService = class ClientNotificationsService {
             if (existing)
                 return;
         }
-        await this.prisma.notification.create({
+        const created = await this.prisma.notification.create({
             data: {
                 companyId,
                 userId: null,
@@ -107,11 +121,13 @@ let ClientNotificationsService = class ClientNotificationsService {
                 channel: client_1.NotificationChannel.in_app,
             },
         });
+        this.realtime.emitNotificationCreated((0, realtime_activity_payload_1.notificationPayload)(created), { companyId });
     }
 };
 exports.ClientNotificationsService = ClientNotificationsService;
 exports.ClientNotificationsService = ClientNotificationsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        realtime_service_1.RealtimeService])
 ], ClientNotificationsService);
 //# sourceMappingURL=client-notifications.service.js.map

@@ -16,14 +16,17 @@ const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const backup_bootstrap_constants_1 = require("./backup-bootstrap.constants");
 const backup_config_1 = require("./backup-config");
+const backup_drive_integration_service_1 = require("./backup-drive-integration.service");
 let BackupStoragePolicyService = class BackupStoragePolicyService {
     prisma;
     backupConfig;
     audit;
-    constructor(prisma, backupConfig, audit) {
+    driveIntegration;
+    constructor(prisma, backupConfig, audit, driveIntegration) {
         this.prisma = prisma;
         this.backupConfig = backupConfig;
         this.audit = audit;
+        this.driveIntegration = driveIntegration;
     }
     async getSettings() {
         const row = await this.ensureSettingsRow();
@@ -36,7 +39,7 @@ let BackupStoragePolicyService = class BackupStoragePolicyService {
         };
     }
     async updateDefaultPolicy(user, dto) {
-        this.assertDrivePolicyAllowed(dto.defaultPolicy);
+        await this.assertDrivePolicyAllowed(dto.defaultPolicy);
         const row = await this.prisma.backupStorageSettings.upsert({
             where: { id: backup_bootstrap_constants_1.STORAGE_SETTINGS_ID },
             create: {
@@ -98,11 +101,15 @@ let BackupStoragePolicyService = class BackupStoragePolicyService {
             },
         });
     }
-    assertDrivePolicyAllowed(policy) {
+    async assertDrivePolicyAllowed(policy) {
         if (policy === client_1.BackupStoragePolicy.local_only)
             return;
         if (!this.backupConfig.gdriveEnabled) {
             throw new common_1.BadRequestException('Drive storage policies require BACKUP_GDRIVE_ENABLED=true and a connected Google Drive account.');
+        }
+        const connected = await this.driveIntegration.isConnected();
+        if (!connected) {
+            throw new common_1.BadRequestException('Drive storage policies require a connected Google Drive account.');
         }
     }
 };
@@ -111,6 +118,7 @@ exports.BackupStoragePolicyService = BackupStoragePolicyService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         backup_config_1.BackupConfig,
-        audit_log_service_1.AuditLogService])
+        audit_log_service_1.AuditLogService,
+        backup_drive_integration_service_1.BackupDriveIntegrationService])
 ], BackupStoragePolicyService);
 //# sourceMappingURL=backup-storage-policy.service.js.map

@@ -1,0 +1,1 @@
+const n=["backup.","system.factory_reset"];function c(t){return n.some(e=>t.startsWith(e))}const i=new Set(["backup.health.warning","backup.health.critical"]);function s(t){return i.has(t)}const a=new Set(["backup.drive.retention.cleanup","backup.drive.deleted"]);function u(t){return a.has(t)}export{u as a,s as b,c as i};

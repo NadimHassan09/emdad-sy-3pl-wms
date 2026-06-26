@@ -22,12 +22,16 @@ const assert_product_orderable_1 = require("../../common/utils/assert-product-or
 const order_planning_date_1 = require("../../common/utils/order-planning-date");
 const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantity");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const tenant_rls_1 = require("../../common/prisma/tenant-rls");
 const ledger_idempotency_service_1 = require("../inventory/ledger-idempotency.service");
 const stock_helpers_1 = require("../inventory/stock.helpers");
 const outbound_confirm_lock_util_1 = require("./outbound-confirm-lock.util");
 const feature_flags_1 = require("../warehouse-workflow/feature-flags");
 const notifications_service_1 = require("../notifications/notifications.service");
 const realtime_service_1 = require("../realtime/realtime.service");
+const billing_access_service_1 = require("../billing/billing-access.service");
+const billing_invoice_calculation_service_1 = require("../billing/billing-invoice-calculation.service");
+const realtime_client_payload_1 = require("../realtime/realtime-client.payload");
 const workflow_bootstrap_service_1 = require("../warehouse-workflow/workflow-bootstrap.service");
 const ORDER_INCLUDE = {
     company: { select: { id: true, name: true } },
@@ -63,7 +67,9 @@ let OutboundService = class OutboundService {
     notifications;
     companyAccess;
     audit;
-    constructor(prisma, stock, ledger, config, workflowBootstrap, realtime, notifications, companyAccess, audit) {
+    billingAccess;
+    billingInvoiceCalc;
+    constructor(prisma, stock, ledger, config, workflowBootstrap, realtime, notifications, companyAccess, audit, billingAccess, billingInvoiceCalc) {
         this.prisma = prisma;
         this.stock = stock;
         this.ledger = ledger;
@@ -73,85 +79,91 @@ let OutboundService = class OutboundService {
         this.notifications = notifications;
         this.companyAccess = companyAccess;
         this.audit = audit;
+        this.billingAccess = billingAccess;
+        this.billingInvoiceCalc = billingInvoiceCalc;
     }
     async create(user, dto, opts) {
         const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
-        const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
-        const products = await this.prisma.product.findMany({
-            where: { id: { in: productIds } },
-            select: {
-                id: true,
-                companyId: true,
-                sku: true,
-                name: true,
-                status: true,
-                uom: true,
-            },
-        });
-        if (products.length !== productIds.length) {
-            throw new common_1.NotFoundException('One or more products not found.');
-        }
-        const wrongCompany = products.find((p) => p.companyId !== companyId);
-        if (wrongCompany) {
-            throw new common_1.BadRequestException('All line products must belong to the same company as the order.');
-        }
-        for (const p of products) {
-            (0, assert_product_orderable_1.assertProductOrderableForOrders)(p.status);
-        }
-        (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(dto.requiredShipDate, 'Required ship date');
-        const productById = new Map(products.map((p) => [p.id, p]));
-        for (const l of dto.lines) {
-            const p = productById.get(l.productId);
-            (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(p.uom, l.requestedQuantity, 'Requested quantity');
-        }
-        await this.assertSufficientStockForLines(companyId, dto.lines, products);
-        const created = await this.prisma.outboundOrder.create({
-            data: {
-                companyId,
-                status: opts?.pendingClientApproval ? client_1.OutboundOrderStatus.pending_approval : undefined,
-                destinationAddress: dto.destinationAddress,
-                requiredShipDate: new Date(dto.requiredShipDate),
-                carrier: dto.carrier,
-                clientReference: dto.clientReference,
-                notes: dto.notes,
-                requiresPacking: dto.requiresPacking !== false,
-                createdBy: user.id,
-                lines: {
-                    create: dto.lines.map((l, idx) => ({
-                        productId: l.productId,
-                        requestedQuantity: new client_1.Prisma.Decimal(l.requestedQuantity),
-                        specificLotId: l.specificLotId,
-                        lineNumber: idx + 1,
-                    })),
+        await this.billingAccess.assertOperationalBilling(companyId);
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
+            const products = await tx.product.findMany({
+                where: { id: { in: productIds } },
+                select: {
+                    id: true,
+                    companyId: true,
+                    sku: true,
+                    name: true,
+                    status: true,
+                    uom: true,
                 },
-            },
-            include: ORDER_INCLUDE,
-        });
-        this.realtime.emitOutboundOrderCreated(created.companyId, {
-            orderId: created.id,
-            status: created.status,
-        });
-        if (opts?.pendingClientApproval) {
-            await this.notifications.notifyAdminsPendingApproval({
-                companyId: created.companyId,
-                companyName: created.company.name,
-                orderType: 'outbound',
-                orderId: created.id,
-                orderNumber: created.orderNumber,
             });
-        }
-        await this.audit.log(this.audit.fromPrincipal(user, {
-            action: 'OUTBOUND_ORDER_CREATED',
-            resourceType: 'outbound_order',
-            resourceId: created.id,
-            companyId: created.companyId,
-            newState: {
+            if (products.length !== productIds.length) {
+                throw new common_1.NotFoundException('One or more products not found.');
+            }
+            const wrongCompany = products.find((p) => p.companyId !== companyId);
+            if (wrongCompany) {
+                throw new common_1.BadRequestException('All line products must belong to the same company as the order.');
+            }
+            for (const p of products) {
+                (0, assert_product_orderable_1.assertProductOrderableForOrders)(p.status);
+            }
+            (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(dto.requiredShipDate, 'Required ship date');
+            const productById = new Map(products.map((p) => [p.id, p]));
+            for (const l of dto.lines) {
+                const p = productById.get(l.productId);
+                (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(p.uom, l.requestedQuantity, 'Requested quantity');
+            }
+            await this.assertSufficientStockForLines(companyId, dto.lines, products);
+            const created = await tx.outboundOrder.create({
+                data: {
+                    companyId,
+                    status: opts?.pendingClientApproval ? client_1.OutboundOrderStatus.pending_approval : undefined,
+                    destinationAddress: dto.destinationAddress,
+                    requiredShipDate: new Date(dto.requiredShipDate),
+                    carrier: dto.carrier,
+                    clientReference: dto.clientReference,
+                    notes: dto.notes,
+                    requiresPacking: dto.requiresPacking !== false,
+                    createdBy: user.id,
+                    lines: {
+                        create: dto.lines.map((l, idx) => ({
+                            productId: l.productId,
+                            requestedQuantity: new client_1.Prisma.Decimal(l.requestedQuantity),
+                            specificLotId: l.specificLotId,
+                            lineNumber: idx + 1,
+                        })),
+                    },
+                },
+                include: ORDER_INCLUDE,
+            });
+            this.realtime.emitOutboundOrderCreated(created.companyId, {
+                orderId: created.id,
                 status: created.status,
-                lineCount: created.lines.length,
-                requiresPacking: created.requiresPacking,
-            },
-        }));
-        return created;
+                listItem: (0, realtime_client_payload_1.adminOutboundListItem)(created),
+            });
+            if (opts?.pendingClientApproval) {
+                await this.notifications.notifyAdminsPendingApproval({
+                    companyId: created.companyId,
+                    companyName: created.company.name,
+                    orderType: 'outbound',
+                    orderId: created.id,
+                    orderNumber: created.orderNumber,
+                });
+            }
+            await this.audit.log(this.audit.fromPrincipal(user, {
+                action: 'OUTBOUND_ORDER_CREATED',
+                resourceType: 'outbound_order',
+                resourceId: created.id,
+                companyId: created.companyId,
+                newState: {
+                    status: created.status,
+                    lineCount: created.lines.length,
+                    requiresPacking: created.requiresPacking,
+                },
+            }));
+            return created;
+        });
     }
     async assertSufficientStockForLines(companyId, lines, products) {
         const productIds = Array.from(new Set(lines.map((l) => l.productId)));
@@ -199,8 +211,10 @@ let OutboundService = class OutboundService {
     async list(user, query) {
         const baseAnd = [];
         const where = {};
-        const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
-        where.companyId = companyId;
+        const companyId = (0, company_read_scope_1.readCompanyIdCatalogFilter)(this.companyAccess, user, query.companyId);
+        if (companyId) {
+            where.companyId = companyId;
+        }
         if (query.status)
             where.status = query.status;
         if (query.orderSearch?.trim()) {
@@ -228,43 +242,49 @@ let OutboundService = class OutboundService {
         }
         if (baseAnd.length > 0)
             where.AND = baseAnd;
-        return this.prisma.$transaction([
-            this.prisma.outboundOrder.findMany({
-                where,
-                orderBy: { createdAt: 'desc' },
-                include: {
-                    company: { select: { id: true, name: true } },
-                    _count: { select: { lines: true } },
-                },
-                take: query.limit,
-                skip: query.offset,
-            }),
-            this.prisma.outboundOrder.count({ where }),
-        ]).then(([items, total]) => ({ items, total, limit: query.limit, offset: query.offset }));
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const [items, total] = await Promise.all([
+                tx.outboundOrder.findMany({
+                    where,
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        company: { select: { id: true, name: true } },
+                        _count: { select: { lines: true } },
+                    },
+                    take: query.limit,
+                    skip: query.offset,
+                }),
+                tx.outboundOrder.count({ where }),
+            ]);
+            return { items, total, limit: query.limit, offset: query.offset };
+        });
     }
     async findById(id, user) {
-        const order = await this.prisma.outboundOrder.findUnique({
-            where: { id },
-            include: ORDER_INCLUDE,
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const order = await tx.outboundOrder.findUnique({
+                where: { id },
+                include: ORDER_INCLUDE,
+            });
+            if (!order)
+                throw new common_1.NotFoundException('Outbound order not found.');
+            this.companyAccess.validateResourceOwnership(user, order);
+            return order;
         });
-        if (!order)
-            throw new common_1.NotFoundException('Outbound order not found.');
-        this.companyAccess.validateResourceOwnership(user, order);
-        return order;
     }
     async cancel(id, user) {
         const order = await this.findById(id, user);
         if (!['draft', 'pending_approval'].includes(order.status)) {
             throw new domain_exceptions_1.InvalidStateException(`Outbound orders can only be cancelled while in draft or pending approval (current: ${order.status}).`);
         }
-        const cancelled = await this.prisma.outboundOrder.update({
+        const cancelled = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => tx.outboundOrder.update({
             where: { id },
             data: { status: 'cancelled', cancelledAt: new Date(), cancelledBy: user.id },
             include: ORDER_INCLUDE,
-        });
+        }));
         this.realtime.emitOutboundOrderUpdated(cancelled.companyId, {
             orderId: cancelled.id,
             status: cancelled.status,
+            listItem: (0, realtime_client_payload_1.adminOutboundListItem)(cancelled),
             reason: 'cancel',
         });
         await this.audit.log(this.audit.fromPrincipal(user, {
@@ -277,15 +297,54 @@ let OutboundService = class OutboundService {
         }));
         return cancelled;
     }
+    async remove(id, user) {
+        const order = await this.findById(id, user);
+        const deletable = [
+            client_1.OutboundOrderStatus.draft,
+            client_1.OutboundOrderStatus.pending_approval,
+            client_1.OutboundOrderStatus.cancelled,
+        ];
+        if (!deletable.includes(order.status)) {
+            throw new domain_exceptions_1.InvalidStateException(`Only draft, pending-approval, or cancelled outbound orders can be deleted (current: ${order.status}).`);
+        }
+        await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const ledgerCount = await tx.inventoryLedger.count({
+                where: { referenceType: 'outbound_order', referenceId: id },
+            });
+            if (ledgerCount > 0) {
+                throw new domain_exceptions_1.InvalidStateException('This order has stock movements recorded and cannot be deleted.');
+            }
+            await tx.workflowInstance.deleteMany({
+                where: { referenceType: 'outbound_order', referenceId: id },
+            });
+            await tx.outboundOrder.delete({ where: { id } });
+        });
+        await this.audit.log(this.audit.fromPrincipal(user, {
+            action: 'OUTBOUND_ORDER_DELETED',
+            resourceType: 'outbound_order',
+            resourceId: id,
+            companyId: order.companyId,
+            previousState: { status: order.status, orderNumber: order.orderNumber },
+            newState: { deleted: true },
+        }));
+        this.realtime.emitOutboundOrderUpdated(order.companyId, {
+            orderId: id,
+            status: order.status,
+            reason: 'delete',
+            listItem: (0, realtime_client_payload_1.adminOutboundListItem)(order),
+        });
+        return { id, deleted: true };
+    }
     async confirmWithoutDeduction(user, orderId) {
-        const before = await this.prisma.outboundOrder.findUnique({
+        const before = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => tx.outboundOrder.findUnique({
             where: { id: orderId },
             select: { status: true, companyId: true, orderNumber: true, id: true },
-        });
+        }));
         if (before) {
             this.companyAccess.validateResourceOwnership(user, before);
         }
         const txResult = await this.prisma.$transaction(async (tx) => {
+            await (0, tenant_rls_1.setTenantRlsContext)(tx, user);
             const gate = await this.gateConfirmTransaction(tx, user, orderId);
             if (gate.kind === 'idempotent') {
                 return { idempotent: true, order: gate.order };
@@ -320,6 +379,7 @@ let OutboundService = class OutboundService {
             orderId: updated.id,
             status: updated.status,
             reason: 'confirm_without_deduction',
+            listItem: (0, realtime_client_payload_1.adminOutboundListItem)(updated),
         });
         if (before?.status === client_1.OutboundOrderStatus.pending_approval) {
             await this.notifications.notifyClientOrderConfirmed({
@@ -341,10 +401,10 @@ let OutboundService = class OutboundService {
         return updated;
     }
     async confirmAndDeduct(user, orderId, body) {
-        const before = await this.prisma.outboundOrder.findUnique({
+        const before = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => tx.outboundOrder.findUnique({
             where: { id: orderId },
             select: { status: true, companyId: true, orderNumber: true, id: true },
-        });
+        }));
         if (!before)
             throw new common_1.NotFoundException('Outbound order not found.');
         this.companyAccess.validateResourceOwnership(user, before);
@@ -354,6 +414,7 @@ let OutboundService = class OutboundService {
             }
             const wh = body.warehouseId;
             const txResult = await this.prisma.$transaction(async (tx) => {
+                await (0, tenant_rls_1.setTenantRlsContext)(tx, user);
                 const gate = await this.gateConfirmTransaction(tx, user, orderId);
                 if (gate.kind === 'idempotent') {
                     return { fresh: false, order: gate.order };
@@ -389,6 +450,7 @@ let OutboundService = class OutboundService {
                 orderId: wfConfirmed.id,
                 status: wfConfirmed.status,
                 reason: 'confirm_task_flow',
+                listItem: (0, realtime_client_payload_1.adminOutboundListItem)(wfConfirmed),
             });
             if (before.status === client_1.OutboundOrderStatus.pending_approval) {
                 await this.notifications.notifyClientOrderConfirmed({
@@ -413,6 +475,7 @@ let OutboundService = class OutboundService {
             return this.confirmWithoutDeduction(user, orderId);
         }
         const txResult = await this.prisma.$transaction(async (tx) => {
+            await (0, tenant_rls_1.setTenantRlsContext)(tx, user);
             const gate = await this.gateConfirmTransaction(tx, user, orderId);
             if (gate.kind === 'idempotent') {
                 return { fresh: false, order: gate.order };
@@ -452,10 +515,12 @@ let OutboundService = class OutboundService {
             orderId: shipped.id,
             status: shipped.status,
             reason: 'confirm_and_deduct',
+            listItem: (0, realtime_client_payload_1.adminOutboundListItem)(shipped),
         });
         this.realtime.emitInventoryChanged(shipped.companyId, {
             source: 'outbound_ship',
             orderId: shipped.id,
+            productId: shipped.lines[0]?.productId,
         });
         if (before?.status === client_1.OutboundOrderStatus.pending_approval) {
             await this.notifications.notifyClientOrderConfirmed({
@@ -487,6 +552,7 @@ let OutboundService = class OutboundService {
             companyId: shipped.companyId,
             newState: { source: 'confirm_and_deduct', movementType: 'outbound_pick' },
         }));
+        void this.billingInvoiceCalc.recalculateForCompany(shipped.companyId, 'outbound_completed');
         return shipped;
     }
     async gateConfirmTransaction(tx, user, orderId) {
@@ -627,6 +693,8 @@ exports.OutboundService = OutboundService = __decorate([
         realtime_service_1.RealtimeService,
         notifications_service_1.NotificationsService,
         company_access_service_1.CompanyAccessService,
-        audit_log_service_1.AuditLogService])
+        audit_log_service_1.AuditLogService,
+        billing_access_service_1.BillingAccessService,
+        billing_invoice_calculation_service_1.BillingInvoiceCalculationService])
 ], OutboundService);
 //# sourceMappingURL=outbound.service.js.map

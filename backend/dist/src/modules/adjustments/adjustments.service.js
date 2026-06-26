@@ -18,7 +18,11 @@ const storage_location_types_1 = require("../../common/constants/storage-locatio
 const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantity");
 const location_operational_1 = require("../../common/utils/location-operational");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
+const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const tenant_rls_1 = require("../../common/prisma/tenant-rls");
+const realtime_service_1 = require("../realtime/realtime.service");
+const realtime_ops_payload_1 = require("../realtime/realtime-ops.payload");
 const stock_helpers_1 = require("../inventory/stock.helpers");
 const create_adjustment_dto_1 = require("./dto/create-adjustment.dto");
 const ADJUSTMENT_DETAIL_INCLUDE = {
@@ -41,10 +45,14 @@ let AdjustmentsService = class AdjustmentsService {
     prisma;
     stock;
     companyAccess;
-    constructor(prisma, stock, companyAccess) {
+    audit;
+    realtime;
+    constructor(prisma, stock, companyAccess, audit, realtime) {
         this.prisma = prisma;
         this.stock = stock;
         this.companyAccess = companyAccess;
+        this.audit = audit;
+        this.realtime = realtime;
     }
     async create(user, dto) {
         const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
@@ -62,6 +70,9 @@ let AdjustmentsService = class AdjustmentsService {
                 createdBy: user.id,
             },
             include: ADJUSTMENT_DETAIL_INCLUDE,
+        }).then((adj) => {
+            this.realtime.emitAdjustmentCreated(companyId, (0, realtime_ops_payload_1.adjustmentPayload)(adj));
+            return adj;
         });
     }
     async patch(user, id, dto) {
@@ -81,7 +92,9 @@ let AdjustmentsService = class AdjustmentsService {
     list(user, query) {
         const where = {};
         const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
-        where.companyId = companyId;
+        if (companyId) {
+            where.companyId = companyId;
+        }
         if (query.status)
             where.status = query.status;
         if (query.warehouseId)
@@ -104,21 +117,24 @@ let AdjustmentsService = class AdjustmentsService {
                 createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
             where.createdAt = createdAt;
         }
-        return this.prisma.$transaction([
-            this.prisma.stockAdjustment.findMany({
-                where,
-                include: ADJUSTMENT_DETAIL_INCLUDE,
-                orderBy: { createdAt: 'desc' },
-                take: query.limit,
-                skip: query.offset,
-            }),
-            this.prisma.stockAdjustment.count({ where }),
-        ]).then(([items, total]) => ({
-            items,
-            total,
-            limit: query.limit,
-            offset: query.offset,
-        }));
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const [items, total] = await Promise.all([
+                tx.stockAdjustment.findMany({
+                    where,
+                    include: ADJUSTMENT_DETAIL_INCLUDE,
+                    orderBy: { createdAt: 'desc' },
+                    take: query.limit,
+                    skip: query.offset,
+                }),
+                tx.stockAdjustment.count({ where }),
+            ]);
+            return {
+                items,
+                total,
+                limit: query.limit,
+                offset: query.offset,
+            };
+        });
     }
     async findById(id, user) {
         const row = await this.prisma.stockAdjustment.findUnique({
@@ -248,7 +264,7 @@ let AdjustmentsService = class AdjustmentsService {
         const ledgerRefType = opts?.ledgerReferenceType ?? client_1.LedgerRefType.adjustment;
         const ledgerRefId = opts?.ledgerReferenceId ?? id;
         try {
-            return await this.prisma.$transaction(async (tx) => {
+            const approved = await this.prisma.$transaction(async (tx) => {
                 const adj = await tx.stockAdjustment.findUnique({
                     where: { id },
                     include: { lines: true },
@@ -348,11 +364,31 @@ let AdjustmentsService = class AdjustmentsService {
                         });
                     }
                 }
-                return tx.stockAdjustment.findUniqueOrThrow({
+                const approved = await tx.stockAdjustment.findUniqueOrThrow({
                     where: { id },
                     include: ADJUSTMENT_DETAIL_INCLUDE,
                 });
+                await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
+                    action: 'INVENTORY_ADJUSTED',
+                    resourceType: 'stock_adjustment',
+                    resourceId: id,
+                    companyId: adj.companyId,
+                    previousState: { status: 'draft', lineCount: adj.lines.length },
+                    newState: {
+                        status: approved.status,
+                        reason: approved.reason,
+                        lineCount: approved.lines.length,
+                        warehouseId: approved.warehouseId,
+                    },
+                }));
+                return approved;
             });
+            this.realtime.emitAdjustmentApproved(approved.companyId, (0, realtime_ops_payload_1.adjustmentPayload)(approved));
+            this.realtime.emitInventoryChanged(approved.companyId, {
+                source: 'adjustment',
+                productId: approved.lines[0]?.productId,
+            });
+            return approved;
         }
         catch (e) {
             if (e instanceof Error &&
@@ -382,6 +418,8 @@ exports.AdjustmentsService = AdjustmentsService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         stock_helpers_1.StockHelpers,
-        company_access_service_1.CompanyAccessService])
+        company_access_service_1.CompanyAccessService,
+        audit_log_service_1.AuditLogService,
+        realtime_service_1.RealtimeService])
 ], AdjustmentsService);
 //# sourceMappingURL=adjustments.service.js.map

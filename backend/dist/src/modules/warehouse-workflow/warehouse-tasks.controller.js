@@ -40,8 +40,9 @@ let WarehouseTasksController = class WarehouseTasksController {
             referenceId: query.referenceId,
             updatedFrom: query.updatedFrom ? new Date(query.updatedFrom) : undefined,
             updatedTo: query.updatedTo ? new Date(query.updatedTo) : undefined,
-            limit: query.limit ?? 100,
+            limit: query.limit ?? list_tasks_query_dto_1.TASK_LIST_DEFAULT_LIMIT,
             offset: query.offset ?? 0,
+            includeRunnability: (0, list_tasks_query_dto_1.parseIncludeRunnability)(query.includeRunnability),
         });
     }
     pathOrder(user, id) {

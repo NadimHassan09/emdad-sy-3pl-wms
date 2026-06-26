@@ -1,0 +1,299 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.REPORT_REGISTRY = void 0;
+exports.getReportDefinition = getReportDefinition;
+exports.listReportIds = listReportIds;
+const client_1 = require("@prisma/client");
+const ADMIN_REPORT_ROLES = [
+    client_1.UserRole.super_admin,
+    client_1.UserRole.wh_manager,
+    client_1.UserRole.finance,
+];
+const INVENTORY_COLUMNS = [
+    { id: 'sku', header: 'SKU' },
+    { id: 'product', header: 'Product' },
+    { id: 'client', header: 'Client' },
+    { id: 'location', header: 'Location' },
+    { id: 'lot', header: 'Lot' },
+    { id: 'expiry', header: 'Expiry' },
+    { id: 'onHand', header: 'On hand' },
+    { id: 'reserved', header: 'Reserved' },
+    { id: 'available', header: 'Available' },
+    { id: 'stockStatus', header: 'Status' },
+    { id: 'uom', header: 'UoM' },
+    { id: 'warehouse', header: 'Warehouse' },
+];
+const MOVES_COLUMNS = [
+    { id: 'date', header: 'Date' },
+    { id: 'product', header: 'Product' },
+    { id: 'sku', header: 'SKU' },
+    { id: 'client', header: 'Client' },
+    { id: 'movement', header: 'Movement' },
+    { id: 'status', header: 'Status' },
+    { id: 'quantity', header: 'Qty' },
+    { id: 'reference', header: 'Reference' },
+    { id: 'operator', header: 'Operator' },
+    { id: 'lot', header: 'Lot' },
+    { id: 'fromLocation', header: 'From' },
+    { id: 'toLocation', header: 'To' },
+];
+const WAREHOUSE_COLUMNS = [
+    { id: 'week', header: 'Week' },
+    { id: 'inboundCount', header: 'Inbound' },
+    { id: 'outboundCount', header: 'Outbound' },
+    { id: 'totalCount', header: 'Total' },
+];
+const WORKER_PRODUCTIVITY_COLUMNS = [
+    { id: 'worker', header: 'Worker' },
+    { id: 'completedTasks', header: 'Completed tasks' },
+    { id: 'taskTypes', header: 'Task types' },
+    { id: 'avgCycleHours', header: 'Avg cycle (h)' },
+    { id: 'pickPackCount', header: 'Pick/pack count' },
+];
+const ORDER_CYCLE_TIME_COLUMNS = [
+    { id: 'orderType', header: 'Order type' },
+    { id: 'orderNumber', header: 'Order #' },
+    { id: 'client', header: 'Client' },
+    { id: 'status', header: 'Status' },
+    { id: 'cycleHours', header: 'Cycle (h)' },
+    { id: 'milestoneStart', header: 'Start' },
+    { id: 'milestoneEnd', header: 'End' },
+];
+const INBOUND_ACCURACY_COLUMNS = [
+    { id: 'orderNumber', header: 'Order #' },
+    { id: 'client', header: 'Client' },
+    { id: 'status', header: 'Status' },
+    { id: 'lineCount', header: 'Lines' },
+    { id: 'discrepancyLines', header: 'Discrepancies' },
+    { id: 'accuracyPercent', header: 'Accuracy %' },
+    { id: 'receivedVsExpected', header: 'Received/expected' },
+];
+const OUTBOUND_FILL_RATE_COLUMNS = [
+    { id: 'orderNumber', header: 'Order #' },
+    { id: 'client', header: 'Client' },
+    { id: 'status', header: 'Status' },
+    { id: 'requestedQty', header: 'Requested' },
+    { id: 'pickedQty', header: 'Picked' },
+    { id: 'fillRatePercent', header: 'Fill rate %' },
+    { id: 'shortShip', header: 'Short ship' },
+];
+const SLA_COMPLIANCE_COLUMNS = [
+    { id: 'taskType', header: 'Task type' },
+    { id: 'totalTasks', header: 'Total tasks' },
+    { id: 'onTimeTasks', header: 'On time' },
+    { id: 'breachedTasks', header: 'Breached' },
+    { id: 'escalatedTasks', header: 'Escalated' },
+    { id: 'compliancePercent', header: 'Compliance %' },
+];
+const STOCK_AGING_COLUMNS = [
+    { id: 'sku', header: 'SKU' },
+    { id: 'product', header: 'Product' },
+    { id: 'client', header: 'Client' },
+    { id: 'location', header: 'Location' },
+    { id: 'lastMovement', header: 'Last movement' },
+    { id: 'daysSinceMovement', header: 'Days since movement' },
+    { id: 'agingBucket', header: 'Aging bucket' },
+    { id: 'onHand', header: 'On hand' },
+    { id: 'stagnant', header: 'Stagnant' },
+];
+const LOT_EXPIRY_COLUMNS = [
+    { id: 'sku', header: 'SKU' },
+    { id: 'product', header: 'Product' },
+    { id: 'lot', header: 'Lot' },
+    { id: 'expiry', header: 'Expiry' },
+    { id: 'daysUntil', header: 'Days until expiry' },
+    { id: 'agingBucket', header: 'Expiry bucket' },
+    { id: 'location', header: 'Location' },
+    { id: 'quantity', header: 'Quantity' },
+];
+const CAPACITY_UTILIZATION_COLUMNS = [
+    { id: 'location', header: 'Location' },
+    { id: 'type', header: 'Type' },
+    { id: 'skuCount', header: 'SKU count' },
+    { id: 'totalQty', header: 'Total qty' },
+    { id: 'utilization', header: 'Utilization' },
+];
+const RETURN_RATE_COLUMNS = [
+    { id: 'client', header: 'Client' },
+    { id: 'outboundOrders', header: 'Outbound orders' },
+    { id: 'returnOrders', header: 'Return orders' },
+    { id: 'returnRatePercent', header: 'Return rate %' },
+];
+const REVENUE_BY_CLIENT_COLUMNS = [
+    { id: 'client', header: 'Client' },
+    { id: 'invoiceCount', header: 'Invoices' },
+    { id: 'revenue', header: 'Revenue' },
+];
+const RECEIVABLES_AGING_COLUMNS = [
+    { id: 'invoiceNumber', header: 'Invoice #' },
+    { id: 'client', header: 'Client' },
+    { id: 'status', header: 'Status' },
+    { id: 'amount', header: 'Amount' },
+    { id: 'issuedAt', header: 'Issued' },
+    { id: 'dueDate', header: 'Due' },
+    { id: 'daysPastDue', header: 'Days past due' },
+    { id: 'agingBucket', header: 'Aging bucket' },
+];
+exports.REPORT_REGISTRY = [
+    {
+        id: 'warehouse-analysis',
+        title: 'Warehouse Analysis',
+        filterKeys: ['warehouse', 'client', 'dateRange'],
+        exportColumns: WAREHOUSE_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: true,
+        supportsKpis: true,
+        supportsAggregate: true,
+        exportFileName: 'warehouse-analysis',
+    },
+    {
+        id: 'inventory',
+        title: 'Inventory',
+        filterKeys: ['warehouse', 'client', 'sku', 'status'],
+        exportColumns: INVENTORY_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: true,
+        supportsKpis: false,
+        supportsAggregate: true,
+        exportFileName: 'inventory',
+    },
+    {
+        id: 'product-moves',
+        title: 'Product Moves',
+        filterKeys: ['warehouse', 'client', 'sku', 'status', 'dateRange', 'groupBy'],
+        exportColumns: MOVES_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: true,
+        supportsKpis: false,
+        supportsAggregate: true,
+        exportFileName: 'product-moves',
+    },
+    {
+        id: 'worker-productivity',
+        title: 'Worker Productivity',
+        filterKeys: ['warehouse', 'client', 'dateRange', 'status'],
+        exportColumns: WORKER_PRODUCTIVITY_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: true,
+        supportsKpis: false,
+        supportsAggregate: true,
+        exportFileName: 'worker-productivity',
+    },
+    {
+        id: 'order-cycle-time',
+        title: 'Order Cycle Time',
+        filterKeys: ['warehouse', 'client', 'dateRange'],
+        exportColumns: ORDER_CYCLE_TIME_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: true,
+        supportsKpis: false,
+        supportsAggregate: true,
+        exportFileName: 'order-cycle-time',
+    },
+    {
+        id: 'inbound-accuracy',
+        title: 'Inbound Accuracy',
+        filterKeys: ['warehouse', 'client', 'dateRange'],
+        exportColumns: INBOUND_ACCURACY_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: true,
+        supportsKpis: false,
+        supportsAggregate: true,
+        exportFileName: 'inbound-accuracy',
+    },
+    {
+        id: 'outbound-fill-rate',
+        title: 'Outbound Fill Rate',
+        filterKeys: ['warehouse', 'client', 'dateRange'],
+        exportColumns: OUTBOUND_FILL_RATE_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: true,
+        supportsKpis: false,
+        supportsAggregate: true,
+        exportFileName: 'outbound-fill-rate',
+    },
+    {
+        id: 'sla-compliance',
+        title: 'SLA Compliance',
+        filterKeys: ['warehouse', 'client', 'dateRange', 'status'],
+        exportColumns: SLA_COMPLIANCE_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: true,
+        supportsKpis: false,
+        supportsAggregate: true,
+        exportFileName: 'sla-compliance',
+    },
+    {
+        id: 'stock-aging',
+        title: 'Stock Aging',
+        filterKeys: ['warehouse', 'client', 'sku', 'status'],
+        exportColumns: STOCK_AGING_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: true,
+        supportsKpis: false,
+        supportsAggregate: true,
+        exportFileName: 'stock-aging',
+    },
+    {
+        id: 'lot-expiry',
+        title: 'Lot Expiry',
+        filterKeys: ['warehouse', 'client', 'sku', 'status'],
+        exportColumns: LOT_EXPIRY_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: true,
+        supportsKpis: false,
+        supportsAggregate: true,
+        exportFileName: 'lot-expiry',
+    },
+    {
+        id: 'capacity-utilization',
+        title: 'Capacity Utilization',
+        filterKeys: ['warehouse', 'client', 'sku'],
+        exportColumns: CAPACITY_UTILIZATION_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: true,
+        supportsKpis: false,
+        supportsAggregate: true,
+        exportFileName: 'capacity-utilization',
+    },
+    {
+        id: 'return-rate',
+        title: 'Return Rate',
+        filterKeys: ['warehouse', 'client', 'dateRange'],
+        exportColumns: RETURN_RATE_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: true,
+        supportsKpis: false,
+        supportsAggregate: true,
+        exportFileName: 'return-rate',
+    },
+    {
+        id: 'revenue-by-client',
+        title: 'Revenue by Client',
+        filterKeys: ['client', 'dateRange', 'status'],
+        exportColumns: REVENUE_BY_CLIENT_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: false,
+        supportsKpis: false,
+        supportsAggregate: true,
+        exportFileName: 'revenue-by-client',
+    },
+    {
+        id: 'receivables-aging',
+        title: 'Receivables Aging',
+        filterKeys: ['client', 'status'],
+        exportColumns: RECEIVABLES_AGING_COLUMNS,
+        allowedRoles: ADMIN_REPORT_ROLES,
+        requiresWarehouse: false,
+        supportsKpis: false,
+        supportsAggregate: true,
+        exportFileName: 'receivables-aging',
+    },
+];
+function getReportDefinition(reportId) {
+    return exports.REPORT_REGISTRY.find((r) => r.id === reportId);
+}
+function listReportIds() {
+    return exports.REPORT_REGISTRY.map((r) => r.id);
+}
+//# sourceMappingURL=report-registry.config.js.map

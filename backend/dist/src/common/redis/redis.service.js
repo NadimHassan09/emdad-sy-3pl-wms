@@ -99,6 +99,42 @@ let RedisService = RedisService_1 = class RedisService {
             this.log.debug(`Redis unlink error for ${key}: ${e.message}`);
         }
     }
+    async setNx(key, value, ttlSec) {
+        if (!this.client)
+            return false;
+        try {
+            await this.ensureConnected();
+            const result = await this.client.set(this.k(key), value, 'EX', Math.max(1, ttlSec), 'NX');
+            return result === 'OK';
+        }
+        catch (e) {
+            this.log.debug(`Redis setNx error for ${key}: ${e.message}`);
+            return false;
+        }
+    }
+    async getString(key) {
+        if (!this.client)
+            return null;
+        try {
+            await this.ensureConnected();
+            return await this.client.get(this.k(key));
+        }
+        catch (e) {
+            this.log.debug(`Redis get error for ${key}: ${e.message}`);
+            return null;
+        }
+    }
+    async expire(key, ttlSec) {
+        if (!this.client)
+            return;
+        try {
+            await this.ensureConnected();
+            await this.client.expire(this.k(key), Math.max(1, ttlSec));
+        }
+        catch (e) {
+            this.log.debug(`Redis expire error for ${key}: ${e.message}`);
+        }
+    }
     async deleteByPrefix(prefix) {
         if (!this.client)
             return;

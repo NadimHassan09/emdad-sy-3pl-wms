@@ -11,16 +11,34 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WarehousesService = void 0;
 const common_1 = require("@nestjs/common");
+const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const coerce_boolean_1 = require("../../common/utils/coerce-boolean");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const realtime_service_1 = require("../realtime/realtime.service");
+const realtime_master_data_payload_1 = require("../realtime/realtime-master-data.payload");
 const WAREHOUSE_CODE_LOCK_KEY = 0x57484344;
+function warehouseAuditSnapshot(wh) {
+    return {
+        id: wh.id,
+        code: wh.code,
+        name: wh.name,
+        address: wh.address,
+        city: wh.city,
+        country: wh.country,
+        status: wh.status,
+    };
+}
 let WarehousesService = class WarehousesService {
     prisma;
-    constructor(prisma) {
+    realtime;
+    audit;
+    constructor(prisma, realtime, audit) {
         this.prisma = prisma;
+        this.realtime = realtime;
+        this.audit = audit;
     }
-    async create(dto) {
-        return this.prisma.$transaction(async (tx) => {
+    async create(user, dto) {
+        const created = await this.prisma.$transaction(async (tx) => {
             let code = dto.code?.trim();
             if (!code) {
                 await tx.$executeRaw `SELECT pg_advisory_xact_lock(${WAREHOUSE_CODE_LOCK_KEY})`;
@@ -36,6 +54,14 @@ let WarehousesService = class WarehousesService {
                 },
             });
         });
+        await this.audit.log(this.audit.fromPrincipal(user, {
+            action: 'WAREHOUSE_CREATED',
+            resourceType: 'warehouse',
+            resourceId: created.id,
+            newState: warehouseAuditSnapshot(created),
+        }));
+        this.realtime.emitWarehouseCreated((0, realtime_master_data_payload_1.warehouseRealtimePayload)(created));
+        return created;
     }
     list(query) {
         const includeInactive = (0, coerce_boolean_1.coerceOptionalBool)(query?.includeInactive) === true;
@@ -55,12 +81,21 @@ let WarehousesService = class WarehousesService {
         const code = await this.computeNextCode(this.prisma);
         return { code };
     }
-    async setStatus(id, status) {
-        await this.findById(id);
-        return this.prisma.warehouse.update({ where: { id }, data: { status } });
+    async setStatus(user, id, status) {
+        const before = await this.findById(id);
+        const updated = await this.prisma.warehouse.update({ where: { id }, data: { status } });
+        await this.audit.log(this.audit.fromPrincipal(user, {
+            action: 'WAREHOUSE_STATUS_CHANGED',
+            resourceType: 'warehouse',
+            resourceId: id,
+            previousState: warehouseAuditSnapshot(before),
+            newState: warehouseAuditSnapshot(updated),
+        }));
+        this.realtime.emitWarehouseUpdated((0, realtime_master_data_payload_1.warehouseRealtimePayload)(updated));
+        return updated;
     }
-    async update(id, dto) {
-        await this.findById(id);
+    async update(user, id, dto) {
+        const before = await this.findById(id);
         const data = {};
         if (dto.name !== undefined)
             data.name = dto.name;
@@ -71,12 +106,21 @@ let WarehousesService = class WarehousesService {
         if (dto.country !== undefined)
             data.country = dto.country;
         if (Object.keys(data).length === 0) {
-            return this.findById(id);
+            return before;
         }
-        return this.prisma.warehouse.update({ where: { id }, data });
+        const updated = await this.prisma.warehouse.update({ where: { id }, data });
+        await this.audit.log(this.audit.fromPrincipal(user, {
+            action: 'WAREHOUSE_UPDATED',
+            resourceType: 'warehouse',
+            resourceId: id,
+            previousState: warehouseAuditSnapshot(before),
+            newState: warehouseAuditSnapshot(updated),
+        }));
+        this.realtime.emitWarehouseUpdated((0, realtime_master_data_payload_1.warehouseRealtimePayload)(updated));
+        return updated;
     }
-    async softDelete(id) {
-        await this.findById(id);
+    async softDelete(user, id) {
+        const before = await this.findById(id);
         const activeLocs = await this.prisma.location.count({
             where: {
                 warehouseId: id,
@@ -86,10 +130,19 @@ let WarehousesService = class WarehousesService {
         if (activeLocs > 0) {
             throw new common_1.ConflictException('Cannot deactivate warehouse while non-archived locations exist.');
         }
-        return this.prisma.warehouse.update({
+        const updated = await this.prisma.warehouse.update({
             where: { id },
             data: { status: 'inactive' },
         });
+        await this.audit.log(this.audit.fromPrincipal(user, {
+            action: 'WAREHOUSE_DEACTIVATED',
+            resourceType: 'warehouse',
+            resourceId: id,
+            previousState: warehouseAuditSnapshot(before),
+            newState: warehouseAuditSnapshot(updated),
+        }));
+        this.realtime.emitWarehouseUpdated((0, realtime_master_data_payload_1.warehouseRealtimePayload)(updated));
+        return updated;
     }
     async computeNextCode(client) {
         const rows = await client.$queryRaw `
@@ -104,6 +157,8 @@ let WarehousesService = class WarehousesService {
 exports.WarehousesService = WarehousesService;
 exports.WarehousesService = WarehousesService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        realtime_service_1.RealtimeService,
+        audit_log_service_1.AuditLogService])
 ], WarehousesService);
 //# sourceMappingURL=warehouses.service.js.map

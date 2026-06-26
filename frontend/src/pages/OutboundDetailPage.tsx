@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { OutboundApi, OutboundOrderLine, type ConfirmOutboundBody } from '../api/outbound';
 import { Button } from '@ds';
 
+import { useAuth } from '../auth/AuthContext';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { Combobox } from '../components/Combobox';
 import { FILTER_APPLY_BUTTON_CLASS, FILTER_RESET_BUTTON_CLASS, FilterPanel } from '../components/FilterPanel';
@@ -15,6 +17,7 @@ import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useTaskOnlyMode } from '../hooks/useTaskOnlyMode';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
+import { canAccessInternalTransfer } from '../lib/rbac';
 
 const fmtQty = (s: string) => Number(s).toLocaleString(undefined, { maximumFractionDigits: 4 });
 function outboundDetailLabel(label: string, isArabic: boolean): string {
@@ -26,6 +29,13 @@ function outboundDetailLabel(label: string, isArabic: boolean): string {
     Client: 'العميل',
     Created: 'تاريخ الإنشاء',
     'Cancel order': 'إلغاء الطلب',
+    'Delete order': 'حذف الطلب',
+    'Delete this order?': 'حذف هذا الطلب؟',
+    'This permanently removes the order and its lines. This action cannot be undone.':
+      'سيؤدي هذا إلى حذف الطلب وبنوده نهائياً. لا يمكن التراجع عن هذا الإجراء.',
+    Delete: 'حذف',
+    Cancel: 'إلغاء',
+    'Order deleted.': 'تم حذف الطلب.',
     'Confirm & start workflow': 'تأكيد وبدء سير العمل',
     'Confirm & deduct stock': 'تأكيد وخصم المخزون',
     'Approve order': 'اعتماد الطلب',
@@ -48,6 +58,10 @@ export function OutboundDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const toast = useToast();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = canAccessInternalTransfer(user?.role);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const taskOnlyMode = useTaskOnlyMode();
   const { warehouseId, warehouses } = useDefaultWarehouseId();
@@ -104,6 +118,17 @@ export function OutboundDetailPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const deleteMut = useMutation({
+    mutationFn: () => OutboundApi.remove(id),
+    onSuccess: () => {
+      toast.success(t('Order deleted.'));
+      setDeleteOpen(false);
+      qc.invalidateQueries({ queryKey: QK.outboundOrders });
+      navigate('/orders/outbound');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   if (!id) return null;
   if (order.isLoading) return <p className="text-sm text-slate-500">Loading…</p>;
   if (order.isError || !order.data)
@@ -112,6 +137,8 @@ export function OutboundDetailPage() {
   const o = order.data;
   const canConfirm = o.status === 'draft' || o.status === 'pending_approval';
   const canCancel = o.status === 'draft' || o.status === 'pending_approval';
+  const canDelete =
+    isAdmin && ['draft', 'pending_approval', 'cancelled'].includes(o.status);
   const outboundConfirmBlocked = taskOnlyMode && canConfirm && !effectiveWarehouseId;
 
   const lineColumns: Column<OutboundOrderLine>[] = [
@@ -148,8 +175,20 @@ export function OutboundDetailPage() {
       <FilterPanel
         title={t('Order details')}
         headerActions={
-          canCancel || canConfirm ? (
+          canCancel || canConfirm || canDelete ? (
             <>
+              {canDelete ? (
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="md"
+                  onClick={() => setDeleteOpen(true)}
+                  loading={deleteMut.isPending}
+                  className={`${FILTER_RESET_BUTTON_CLASS} h-[34px] !py-0`}
+                >
+                  {t('Delete order')}
+                </Button>
+              ) : null}
               {canCancel ? (
                 <Button
                   type="button"
@@ -239,6 +278,21 @@ export function OutboundDetailPage() {
           Confirming atomically allocates stock FEFO and ships in one legacy transaction unless stock is insufficient.
         </p>
       ) : null}
+
+      <ConfirmModal
+        open={deleteOpen}
+        title={t('Delete this order?')}
+        confirmLabel={t('Delete')}
+        cancelLabel={t('Cancel')}
+        danger
+        loading={deleteMut.isPending}
+        onClose={() => !deleteMut.isPending && setDeleteOpen(false)}
+        onConfirm={() => deleteMut.mutate()}
+      >
+        <p className="text-sm">
+          {t('This permanently removes the order and its lines. This action cannot be undone.')}
+        </p>
+      </ConfirmModal>
     </>
   );
 }
