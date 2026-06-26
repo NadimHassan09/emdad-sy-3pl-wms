@@ -9,9 +9,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ListTasksQueryDto = void 0;
+exports.ListTasksQueryDto = exports.TASK_LIST_MAX_LIMIT = exports.TASK_LIST_DEFAULT_LIMIT = void 0;
+exports.parseIncludeRunnability = parseIncludeRunnability;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
+exports.TASK_LIST_DEFAULT_LIMIT = 50;
+exports.TASK_LIST_MAX_LIMIT = 2000;
 class ListTasksQueryDto {
     status;
     taskType;
@@ -22,6 +25,7 @@ class ListTasksQueryDto {
     updatedTo;
     limit;
     offset;
+    includeRunnability;
 }
 exports.ListTasksQueryDto = ListTasksQueryDto;
 __decorate([
@@ -64,6 +68,7 @@ __decorate([
     (0, class_transformer_1.Type)(() => Number),
     (0, class_validator_1.IsInt)(),
     (0, class_validator_1.Min)(1),
+    (0, class_validator_1.Max)(exports.TASK_LIST_MAX_LIMIT),
     __metadata("design:type", Number)
 ], ListTasksQueryDto.prototype, "limit", void 0);
 __decorate([
@@ -73,4 +78,12 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], ListTasksQueryDto.prototype, "offset", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['true', 'false', '1', '0']),
+    __metadata("design:type", String)
+], ListTasksQueryDto.prototype, "includeRunnability", void 0);
+function parseIncludeRunnability(raw) {
+    return raw === 'true' || raw === '1';
+}
 //# sourceMappingURL=list-tasks-query.dto.js.map

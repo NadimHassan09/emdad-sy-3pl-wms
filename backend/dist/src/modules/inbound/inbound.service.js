@@ -23,11 +23,15 @@ const location_operational_1 = require("../../common/utils/location-operational"
 const identifiers_1 = require("../../common/generators/identifiers");
 const assert_product_orderable_1 = require("../../common/utils/assert-product-orderable");
 const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantity");
+const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const tenant_rls_1 = require("../../common/prisma/tenant-rls");
 const stock_helpers_1 = require("../inventory/stock.helpers");
 const feature_flags_1 = require("../warehouse-workflow/feature-flags");
 const notifications_service_1 = require("../notifications/notifications.service");
 const realtime_service_1 = require("../realtime/realtime.service");
+const billing_access_service_1 = require("../billing/billing-access.service");
+const realtime_client_payload_1 = require("../realtime/realtime-client.payload");
 const workflow_bootstrap_service_1 = require("../warehouse-workflow/workflow-bootstrap.service");
 const ORDER_INCLUDE = {
     company: { select: { id: true, name: true } },
@@ -57,6 +61,11 @@ const INBOUND_CONFIRMABLE = [
 function isInboundConfirmable(status) {
     return INBOUND_CONFIRMABLE.includes(status);
 }
+const INBOUND_DELETABLE = [
+    client_1.InboundOrderStatus.draft,
+    client_1.InboundOrderStatus.pending_approval,
+    client_1.InboundOrderStatus.cancelled,
+];
 let InboundService = class InboundService {
     prisma;
     stock;
@@ -65,7 +74,9 @@ let InboundService = class InboundService {
     realtime;
     notifications;
     companyAccess;
-    constructor(prisma, stock, config, workflowBootstrap, realtime, notifications, companyAccess) {
+    audit;
+    billingAccess;
+    constructor(prisma, stock, config, workflowBootstrap, realtime, notifications, companyAccess, audit, billingAccess) {
         this.prisma = prisma;
         this.stock = stock;
         this.config = config;
@@ -73,82 +84,102 @@ let InboundService = class InboundService {
         this.realtime = realtime;
         this.notifications = notifications;
         this.companyAccess = companyAccess;
+        this.audit = audit;
+        this.billingAccess = billingAccess;
     }
     async create(user, dto, opts) {
         const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
-        const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
-        const products = await this.prisma.product.findMany({
-            where: { id: { in: productIds } },
-            select: { id: true, companyId: true, status: true, trackingType: true, uom: true },
-        });
-        if (products.length !== productIds.length) {
-            throw new common_1.NotFoundException('One or more products not found.');
-        }
-        const wrongCompany = products.find((p) => p.companyId !== companyId);
-        if (wrongCompany) {
-            throw new common_1.BadRequestException('All line products must belong to the same company as the order.');
-        }
-        for (const p of products) {
-            (0, assert_product_orderable_1.assertProductOrderableForOrders)(p.status);
-        }
-        (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(dto.expectedArrivalDate, 'Expected arrival date');
-        const productById = new Map(products.map((p) => [p.id, p]));
-        const lineCreates = [];
-        for (let idx = 0; idx < dto.lines.length; idx++) {
-            const l = dto.lines[idx];
-            const p = productById.get(l.productId);
-            (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(p.uom, l.expectedQuantity, 'Expected quantity');
-            let expectedLotNumber = l.expectedLotNumber?.trim() ?? null;
-            if (p.trackingType === 'lot') {
-                if (!expectedLotNumber) {
-                    expectedLotNumber = await this.allocateInboundExpectedLotNumber(l.productId);
+        await this.billingAccess.assertOperationalBilling(companyId);
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
+            const products = await tx.product.findMany({
+                where: { id: { in: productIds } },
+                select: { id: true, companyId: true, status: true, trackingType: true, uom: true },
+            });
+            if (products.length !== productIds.length) {
+                throw new common_1.NotFoundException('One or more products not found.');
+            }
+            const wrongCompany = products.find((p) => p.companyId !== companyId);
+            if (wrongCompany) {
+                throw new common_1.BadRequestException('All line products must belong to the same company as the order.');
+            }
+            for (const p of products) {
+                (0, assert_product_orderable_1.assertProductOrderableForOrders)(p.status);
+            }
+            (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(dto.expectedArrivalDate, 'Expected arrival date');
+            const productById = new Map(products.map((p) => [p.id, p]));
+            const lineCreates = [];
+            for (let idx = 0; idx < dto.lines.length; idx++) {
+                const l = dto.lines[idx];
+                const p = productById.get(l.productId);
+                (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(p.uom, l.expectedQuantity, 'Expected quantity');
+                let expectedLotNumber = l.expectedLotNumber?.trim() ?? null;
+                if (p.trackingType === 'lot') {
+                    if (!expectedLotNumber) {
+                        expectedLotNumber = await this.allocateInboundExpectedLotNumber(l.productId);
+                    }
                 }
+                else {
+                    expectedLotNumber = null;
+                }
+                lineCreates.push({
+                    product: { connect: { id: l.productId } },
+                    expectedQuantity: new client_1.Prisma.Decimal(l.expectedQuantity),
+                    expectedLotNumber,
+                    expectedExpiryDate: l.expectedExpiryDate ? new Date(l.expectedExpiryDate) : null,
+                    lineNumber: idx + 1,
+                });
             }
-            else {
-                expectedLotNumber = null;
-            }
-            lineCreates.push({
-                product: { connect: { id: l.productId } },
-                expectedQuantity: new client_1.Prisma.Decimal(l.expectedQuantity),
-                expectedLotNumber,
-                expectedExpiryDate: l.expectedExpiryDate ? new Date(l.expectedExpiryDate) : null,
-                lineNumber: idx + 1,
-            });
-        }
-        const order = await this.prisma.inboundOrder.create({
-            data: {
-                companyId,
-                status: opts?.pendingClientApproval ? client_1.InboundOrderStatus.pending_approval : undefined,
-                expectedArrivalDate: new Date(dto.expectedArrivalDate),
-                clientReference: dto.clientReference,
-                notes: dto.notes,
-                createdBy: user.id,
-                lines: {
-                    create: lineCreates,
+            const order = await tx.inboundOrder.create({
+                data: {
+                    companyId,
+                    status: opts?.pendingClientApproval ? client_1.InboundOrderStatus.pending_approval : undefined,
+                    expectedArrivalDate: new Date(dto.expectedArrivalDate),
+                    clientReference: dto.clientReference,
+                    notes: dto.notes,
+                    createdBy: user.id,
+                    lines: {
+                        create: lineCreates,
+                    },
                 },
-            },
-            include: ORDER_INCLUDE,
-        });
-        this.realtime.emitInboundOrderCreated(order.companyId, {
-            orderId: order.id,
-            status: order.status,
-        });
-        if (opts?.pendingClientApproval) {
-            await this.notifications.notifyAdminsPendingApproval({
-                companyId: order.companyId,
-                companyName: order.company.name,
-                orderType: 'inbound',
-                orderId: order.id,
-                orderNumber: order.orderNumber,
+                include: ORDER_INCLUDE,
             });
-        }
-        return order;
+            this.realtime.emitInboundOrderCreated(order.companyId, {
+                orderId: order.id,
+                status: order.status,
+                listItem: (0, realtime_client_payload_1.adminInboundListItem)(order),
+            });
+            if (opts?.pendingClientApproval) {
+                await this.notifications.notifyAdminsPendingApproval({
+                    companyId: order.companyId,
+                    companyName: order.company.name,
+                    orderType: 'inbound',
+                    orderId: order.id,
+                    orderNumber: order.orderNumber,
+                });
+            }
+            await this.audit.log(this.audit.fromPrincipal(user, {
+                action: 'INBOUND_CREATED',
+                resourceType: 'inbound_order',
+                resourceId: order.id,
+                companyId: order.companyId,
+                newState: {
+                    orderNumber: order.orderNumber,
+                    status: order.status,
+                    lineCount: order.lines.length,
+                    expectedArrivalDate: order.expectedArrivalDate.toISOString(),
+                },
+            }));
+            return order;
+        });
     }
     async list(user, query) {
         const baseAnd = [];
         const where = {};
-        const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
-        where.companyId = companyId;
+        const companyId = (0, company_read_scope_1.readCompanyIdCatalogFilter)(this.companyAccess, user, query.companyId);
+        if (companyId) {
+            where.companyId = companyId;
+        }
         if (query.status)
             where.status = query.status;
         if (query.orderSearch?.trim()) {
@@ -176,32 +207,37 @@ let InboundService = class InboundService {
         }
         if (baseAnd.length > 0)
             where.AND = baseAnd;
-        return this.prisma.$transaction([
-            this.prisma.inboundOrder.findMany({
-                where,
-                orderBy: { createdAt: 'desc' },
-                include: {
-                    company: { select: { id: true, name: true } },
-                    _count: { select: { lines: true } },
-                    lines: {
-                        select: { id: true, productId: true, expectedQuantity: true, receivedQuantity: true, lineNumber: true },
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const [items, total] = await Promise.all([
+                tx.inboundOrder.findMany({
+                    where,
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        company: { select: { id: true, name: true } },
+                        _count: { select: { lines: true } },
+                        lines: {
+                            select: { id: true, productId: true, expectedQuantity: true, receivedQuantity: true, lineNumber: true },
+                        },
                     },
-                },
-                take: query.limit,
-                skip: query.offset,
-            }),
-            this.prisma.inboundOrder.count({ where }),
-        ]).then(([items, total]) => ({ items, total, limit: query.limit, offset: query.offset }));
+                    take: query.limit,
+                    skip: query.offset,
+                }),
+                tx.inboundOrder.count({ where }),
+            ]);
+            return { items, total, limit: query.limit, offset: query.offset };
+        });
     }
     async findById(id, user) {
-        const order = await this.prisma.inboundOrder.findUnique({
-            where: { id },
-            include: ORDER_INCLUDE,
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const order = await tx.inboundOrder.findUnique({
+                where: { id },
+                include: ORDER_INCLUDE,
+            });
+            if (!order)
+                throw new common_1.NotFoundException('Inbound order not found.');
+            this.companyAccess.validateResourceOwnership(user, order);
+            return order;
         });
-        if (!order)
-            throw new common_1.NotFoundException('Inbound order not found.');
-        this.companyAccess.validateResourceOwnership(user, order);
-        return order;
     }
     async confirm(user, id, body) {
         const order = await this.findById(id, user);
@@ -219,7 +255,9 @@ let InboundService = class InboundService {
             if (!body?.warehouseId || !body.stagingByLineId) {
                 throw new common_1.BadRequestException('When TASK_ONLY_FLOWS=true, confirm body must include warehouseId and stagingByLineId (per line).');
             }
+            const previousStatus = order.status;
             await this.prisma.$transaction(async (tx) => {
+                await (0, tenant_rls_1.setTenantRlsContext)(tx, user);
                 const wh = body.warehouseId;
                 const cur = await tx.inboundOrder.findUnique({ where: { id } });
                 if (!cur)
@@ -233,12 +271,25 @@ let InboundService = class InboundService {
                     data: { status: 'in_progress', confirmedAt: new Date() },
                 });
                 await this.workflowBootstrap.startInboundWorkflowTx(tx, user, id, wh, body.stagingByLineId);
+                await this.audit.logTx(tx, this.audit.fromPrincipal(user, {
+                    action: 'INBOUND_CONFIRMED',
+                    resourceType: 'inbound_order',
+                    resourceId: id,
+                    companyId: cur.companyId,
+                    previousState: { status: previousStatus },
+                    newState: {
+                        status: 'in_progress',
+                        warehouseId: wh,
+                        stagingByLineId: body.stagingByLineId,
+                    },
+                }));
             });
             const updated = await this.findById(id, user);
             this.realtime.emitInboundOrderUpdated(updated.companyId, {
                 orderId: updated.id,
                 status: updated.status,
                 reason: 'confirm',
+                listItem: (0, realtime_client_payload_1.adminInboundListItem)(updated),
             });
             if (wasPendingApproval) {
                 await this.notifications.notifyClientOrderConfirmed({
@@ -251,15 +302,27 @@ let InboundService = class InboundService {
             }
             return updated;
         }
-        await this.prisma.inboundOrder.update({
-            where: { id },
-            data: { status: 'confirmed', confirmedAt: new Date() },
+        const previousStatus = order.status;
+        await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            await tx.inboundOrder.update({
+                where: { id },
+                data: { status: 'confirmed', confirmedAt: new Date() },
+            });
         });
+        await this.audit.log(this.audit.fromPrincipal(user, {
+            action: 'INBOUND_CONFIRMED',
+            resourceType: 'inbound_order',
+            resourceId: id,
+            companyId: order.companyId,
+            previousState: { status: previousStatus },
+            newState: { status: 'confirmed' },
+        }));
         const confirmed = await this.findById(id, user);
         this.realtime.emitInboundOrderUpdated(confirmed.companyId, {
             orderId: confirmed.id,
             status: confirmed.status,
             reason: 'confirm',
+            listItem: (0, realtime_client_payload_1.adminInboundListItem)(confirmed),
         });
         if (wasPendingApproval) {
             await this.notifications.notifyClientOrderConfirmed({
@@ -277,7 +340,7 @@ let InboundService = class InboundService {
         if (!['draft', 'pending_approval', 'confirmed'].includes(order.status)) {
             throw new domain_exceptions_1.InvalidStateException(`Inbound orders can only be cancelled while in draft, pending approval, or confirmed (current: ${order.status}).`);
         }
-        const cancelled = await this.prisma.inboundOrder.update({
+        const cancelled = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => tx.inboundOrder.update({
             where: { id },
             data: {
                 status: 'cancelled',
@@ -285,19 +348,54 @@ let InboundService = class InboundService {
                 cancelledBy: user.id,
             },
             include: ORDER_INCLUDE,
-        });
+        }));
         this.realtime.emitInboundOrderUpdated(cancelled.companyId, {
             orderId: cancelled.id,
             status: cancelled.status,
             reason: 'cancel',
+            listItem: (0, realtime_client_payload_1.adminInboundListItem)(cancelled),
         });
         return cancelled;
+    }
+    async remove(id, user) {
+        const order = await this.findById(id, user);
+        if (!INBOUND_DELETABLE.includes(order.status)) {
+            throw new domain_exceptions_1.InvalidStateException(`Only draft, pending-approval, or cancelled inbound orders can be deleted (current: ${order.status}).`);
+        }
+        await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const ledgerCount = await tx.inventoryLedger.count({
+                where: { referenceType: 'inbound_order', referenceId: id },
+            });
+            if (ledgerCount > 0) {
+                throw new domain_exceptions_1.InvalidStateException('This order has stock movements recorded and cannot be deleted.');
+            }
+            await tx.workflowInstance.deleteMany({
+                where: { referenceType: 'inbound_order', referenceId: id },
+            });
+            await tx.inboundOrder.delete({ where: { id } });
+        });
+        await this.audit.log(this.audit.fromPrincipal(user, {
+            action: 'INBOUND_ORDER_DELETED',
+            resourceType: 'inbound_order',
+            resourceId: id,
+            companyId: order.companyId,
+            previousState: { status: order.status, orderNumber: order.orderNumber },
+            newState: { deleted: true },
+        }));
+        this.realtime.emitInboundOrderUpdated(order.companyId, {
+            orderId: id,
+            status: order.status,
+            reason: 'delete',
+            listItem: (0, realtime_client_payload_1.adminInboundListItem)(order),
+        });
+        return { id, deleted: true };
     }
     async receiveLine(user, orderId, lineId, dto) {
         if ((0, feature_flags_1.taskOnlyFlows)(this.config)) {
             throw new common_1.GoneException('Use warehouse RECEIVING task completion when TASK_ONLY_FLOWS=true; line receive API is disabled.');
         }
         const received = await this.prisma.$transaction(async (tx) => {
+            await (0, tenant_rls_1.setTenantRlsContext)(tx, user);
             const order = await tx.inboundOrder.findUnique({ where: { id: orderId } });
             if (!order)
                 throw new common_1.NotFoundException('Inbound order not found.');
@@ -442,14 +540,17 @@ let InboundService = class InboundService {
             });
         });
         if (received) {
+            const receivedLine = received.lines.find((l) => l.id === lineId);
             this.realtime.emitInboundOrderUpdated(received.companyId, {
                 orderId: received.id,
                 status: received.status,
                 reason: 'receive_line',
+                listItem: (0, realtime_client_payload_1.adminInboundListItem)(received),
             });
             this.realtime.emitInventoryChanged(received.companyId, {
                 source: 'inbound_receive_line',
                 orderId: received.id,
+                productId: receivedLine?.productId,
             });
         }
         return received;
@@ -502,6 +603,8 @@ exports.InboundService = InboundService = __decorate([
         workflow_bootstrap_service_1.WorkflowBootstrapService,
         realtime_service_1.RealtimeService,
         notifications_service_1.NotificationsService,
-        company_access_service_1.CompanyAccessService])
+        company_access_service_1.CompanyAccessService,
+        audit_log_service_1.AuditLogService,
+        billing_access_service_1.BillingAccessService])
 ], InboundService);
 //# sourceMappingURL=inbound.service.js.map

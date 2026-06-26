@@ -13,6 +13,7 @@ exports.WorkflowOrchestrationService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const execution_state_location_util_1 = require("./execution-state-location.util");
 const task_sla_defaults_1 = require("./task-sla-defaults");
 let WorkflowOrchestrationService = class WorkflowOrchestrationService {
     prisma;
@@ -407,6 +408,27 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
             },
         });
         const boundPickTaskId = await this.resolvePickTaskIdForDispatchEnqueue(tx, instanceId, pickTaskId);
+        const wf = await tx.workflowInstance.findUnique({
+            where: { id: instanceId },
+            select: { warehouseId: true },
+        });
+        const pickTask = await tx.warehouseTask.findUnique({
+            where: { id: boundPickTaskId },
+            select: { executionState: true },
+        });
+        let sourcePackingLocationId = (0, execution_state_location_util_1.readPickDraftPackingDestinationId)(pickTask?.executionState) ?? undefined;
+        if (!sourcePackingLocationId && wf?.warehouseId) {
+            const defaultPacking = await tx.location.findFirst({
+                where: {
+                    warehouseId: wf.warehouseId,
+                    type: client_1.LocationType.packing,
+                    status: client_1.LocationStatus.active,
+                },
+                orderBy: { fullPath: 'asc' },
+                select: { id: true },
+            });
+            sourcePackingLocationId = defaultPacking?.id;
+        }
         await tx.warehouseTask.create({
             data: {
                 workflowInstanceId: instanceId,
@@ -417,6 +439,7 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
                 payload: {
                     outbound_order_id: orderId,
                     pick_task_id: boundPickTaskId,
+                    ...(sourcePackingLocationId ? { source_packing_location_id: sourcePackingLocationId } : {}),
                 },
             },
         });

@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard");
 const parse_uuid_loose_pipe_1 = require("../../common/pipes/parse-uuid-loose.pipe");
 const create_location_dto_1 = require("./dto/create-location.dto");
+const list_locations_lookup_query_dto_1 = require("./dto/list-locations-lookup-query.dto");
 const list_locations_query_dto_1 = require("./dto/list-locations-query.dto");
 const update_location_dto_1 = require("./dto/update-location.dto");
 const locations_service_1 = require("./locations.service");
@@ -31,11 +32,8 @@ let LocationsController = class LocationsController {
     list(query) {
         return this.locations.list(query);
     }
-    tree(warehouseId) {
-        if (!warehouseId) {
-            throw new common_1.BadRequestException('warehouseId query param is required for tree view.');
-        }
-        return this.locations.tree(warehouseId);
+    lookup(query) {
+        return this.locations.lookup(query);
     }
     purgeContext(warehouseId) {
         if (!warehouseId) {
@@ -73,12 +71,12 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], LocationsController.prototype, "list", null);
 __decorate([
-    (0, common_1.Get)('tree'),
-    __param(0, (0, common_1.Query)('warehouseId')),
+    (0, common_1.Get)('lookup'),
+    __param(0, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [list_locations_lookup_query_dto_1.ListLocationsLookupQueryDto]),
     __metadata("design:returntype", void 0)
-], LocationsController.prototype, "tree", null);
+], LocationsController.prototype, "lookup", null);
 __decorate([
     (0, common_1.Get)('purge-context'),
     (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),

@@ -18,6 +18,9 @@ const auth_groups_1 = require("../../common/auth/auth-groups");
 const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const password_service_1 = require("../../common/crypto/password.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const login_brute_force_service_1 = require("../../common/security/login-brute-force.service");
+const request_ip_util_1 = require("../../common/security/request-ip.util");
+const realtime_service_1 = require("../realtime/realtime.service");
 const refresh_session_service_1 = require("./refresh-session.service");
 const CLIENT_ROLES = [client_1.UserRole.client_admin, client_1.UserRole.client_staff];
 const ACCESS_COOKIE_NAME = 'access_token';
@@ -31,15 +34,26 @@ let AuthService = class AuthService {
     config;
     audit;
     refreshSessions;
-    constructor(prisma, password, jwt, config, audit, refreshSessions) {
+    realtime;
+    loginBruteForce;
+    constructor(prisma, password, jwt, config, audit, refreshSessions, realtime, loginBruteForce) {
         this.prisma = prisma;
         this.password = password;
         this.jwt = jwt;
         this.config = config;
         this.audit = audit;
         this.refreshSessions = refreshSessions;
+        this.realtime = realtime;
+        this.loginBruteForce = loginBruteForce;
     }
-    async login(dto, res) {
+    async login(dto, req, res) {
+        const ip = (0, request_ip_util_1.getClientIp)(req);
+        this.loginBruteForce.assertAllowed('internal', ip);
+        const attemptCtx = {
+            ipAddress: ip,
+            email: dto.email,
+            userAgent: req?.headers['user-agent'] ?? null,
+        };
         const email = dto.email.trim().toLowerCase();
         const user = await this.prisma.user.findUnique({
             where: { email },
@@ -55,13 +69,16 @@ let AuthService = class AuthService {
             },
         });
         if (!user || user.status !== client_1.UserStatus.active) {
+            this.loginBruteForce.recordFailure('internal', attemptCtx);
             throw new common_1.UnauthorizedException('Invalid email or password.');
         }
         if (user.companyId !== null || CLIENT_ROLES.includes(user.role)) {
+            this.loginBruteForce.recordFailure('internal', attemptCtx);
             throw new common_1.ForbiddenException('Client accounts cannot access this system.');
         }
         const valid = await this.password.verify(dto.password, user.passwordHash);
         if (!valid) {
+            this.loginBruteForce.recordFailure('internal', attemptCtx);
             throw new common_1.UnauthorizedException('Invalid email or password.');
         }
         const now = new Date();
@@ -104,6 +121,8 @@ let AuthService = class AuthService {
             this.setAccessCookie(res, access_token, accessMaxAgeMs);
             this.setRefreshCookie(res, refresh_token, refreshMaxAgeMs);
         }
+        this.loginBruteForce.recordSuccess('internal', ip);
+        this.realtime.emitAuthSessionChanged(user.id, { type: 'login', userId: user.id });
         return {
             access_token,
             token_type: 'Bearer',
@@ -141,6 +160,11 @@ let AuthService = class AuthService {
             throw new common_1.ForbiddenException('Client accounts cannot access this system.');
         }
         if (payload.ver !== user.tokenVersion) {
+            this.realtime.emitAuthSessionChanged(user.id, {
+                type: 'expired',
+                userId: user.id,
+                reason: 'token_version_mismatch',
+            });
             throw new common_1.UnauthorizedException('Session has been invalidated. Please log in again.');
         }
         let rotation;
@@ -156,6 +180,11 @@ let AuthService = class AuthService {
                     previousState: { familyId: payload.fid, presentedJti: payload.jti },
                     newState: { message: err.message },
                 }));
+                this.realtime.emitAuthSessionChanged(user.id, {
+                    type: 'forced_logout',
+                    userId: user.id,
+                    reason: 'refresh_replay',
+                });
             }
             throw err;
         }
@@ -190,6 +219,7 @@ let AuthService = class AuthService {
             this.setAccessCookie(res, access_token, accessMaxAgeMs);
             this.setRefreshCookie(res, refresh_token, refreshMaxAgeMs);
         }
+        this.realtime.emitAuthSessionChanged(user.id, { type: 'refresh', userId: user.id });
         return {
             access_token,
             token_type: 'Bearer',
@@ -214,6 +244,10 @@ let AuthService = class AuthService {
                         previousState: { tokenVersion: prev.tokenVersion, familyId: payload.fid },
                         newState: { tokenVersion: nextVersion },
                     }));
+                    this.realtime.emitAuthSessionChanged(payload.sub, {
+                        type: 'logout',
+                        userId: payload.sub,
+                    });
                 }
             }
         }
@@ -347,6 +381,8 @@ exports.AuthService = AuthService = __decorate([
         jwt_1.JwtService,
         config_1.ConfigService,
         audit_log_service_1.AuditLogService,
-        refresh_session_service_1.RefreshSessionService])
+        refresh_session_service_1.RefreshSessionService,
+        realtime_service_1.RealtimeService,
+        login_brute_force_service_1.LoginBruteForceService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

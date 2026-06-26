@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.InboundController = void 0;
 const common_1 = require("@nestjs/common");
 const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
+const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard");
 const confirm_inbound_body_dto_1 = require("./dto/confirm-inbound-body.dto");
 const parse_uuid_loose_pipe_1 = require("../../common/pipes/parse-uuid-loose.pipe");
 const create_inbound_dto_1 = require("./dto/create-inbound.dto");
@@ -40,6 +41,9 @@ let InboundController = class InboundController {
     }
     cancel(user, id) {
         return this.inbound.cancel(id, user);
+    }
+    remove(user, id) {
+        return this.inbound.remove(id, user);
     }
     receive(user, id, lineId, dto) {
         return this.inbound.receiveLine(user, id, lineId, dto);
@@ -87,6 +91,15 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], InboundController.prototype, "cancel", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], InboundController.prototype, "remove", null);
 __decorate([
     (0, common_1.Post)(':id/lines/:lineId/receive'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

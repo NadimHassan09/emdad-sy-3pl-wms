@@ -10,11 +10,30 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ListLocationsQueryDto = void 0;
+const client_1 = require("@prisma/client");
+const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
+const pagination_dto_1 = require("../../../common/dto/pagination.dto");
 const query_transform_1 = require("../../../common/transformers/query-transform");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
-class ListLocationsQueryDto {
+const LOCATION_TYPES = Object.values(client_1.LocationType);
+const LOCATION_STATUSES = Object.values(client_1.LocationStatus);
+function QueryTrimmedString() {
+    return (0, class_transformer_1.Transform)(({ value }) => {
+        if (value === undefined || value === null || value === '')
+            return undefined;
+        if (typeof value !== 'string')
+            return value;
+        const t = value.trim();
+        return t === '' ? undefined : t;
+    });
+}
+class ListLocationsQueryDto extends pagination_dto_1.PaginationDto {
     warehouseId;
+    parentId;
+    search;
+    status;
+    type;
     includeArchived;
 }
 exports.ListLocationsQueryDto = ListLocationsQueryDto;
@@ -25,9 +44,32 @@ __decorate([
     __metadata("design:type", String)
 ], ListLocationsQueryDto.prototype, "warehouseId", void 0);
 __decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, is_uuid_loose_1.IsUuidLoose)(),
+    __metadata("design:type", String)
+], ListLocationsQueryDto.prototype, "parentId", void 0);
+__decorate([
+    QueryTrimmedString(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], ListLocationsQueryDto.prototype, "search", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(client_1.LocationStatus),
+    __metadata("design:type", String)
+], ListLocationsQueryDto.prototype, "status", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(LOCATION_TYPES),
+    __metadata("design:type", String)
+], ListLocationsQueryDto.prototype, "type", void 0);
+__decorate([
     (0, query_transform_1.QueryBoolOptional)(),
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], ListLocationsQueryDto.prototype, "includeArchived", void 0);
 //# sourceMappingURL=list-locations-query.dto.js.map

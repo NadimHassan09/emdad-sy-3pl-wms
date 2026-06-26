@@ -364,6 +364,62 @@ export class OutboundService {
   }
 
   /**
+   * Permanently delete an outbound order that has not been confirmed/completed.
+   * Only allowed for draft, pending-approval, or cancelled orders. Order lines
+   * are removed via cascade; any stray workflow rows are cleaned defensively.
+   */
+  async remove(id: string, user: AuthPrincipal) {
+    const order = await this.findById(id, user);
+    const deletable: OutboundOrderStatus[] = [
+      OutboundOrderStatus.draft,
+      OutboundOrderStatus.pending_approval,
+      OutboundOrderStatus.cancelled,
+    ];
+    if (!deletable.includes(order.status)) {
+      throw new InvalidStateException(
+        `Only draft, pending-approval, or cancelled outbound orders can be deleted (current: ${order.status}).`,
+      );
+    }
+
+    await withTenantRls(this.prisma, user, async (tx) => {
+      // Safety net: these states never have stock movements. Refuse rather than
+      // silently destroy ledger history if any unexpectedly exist.
+      const ledgerCount = await tx.inventoryLedger.count({
+        where: { referenceType: 'outbound_order', referenceId: id },
+      });
+      if (ledgerCount > 0) {
+        throw new InvalidStateException(
+          'This order has stock movements recorded and cannot be deleted.',
+        );
+      }
+      // No workflows exist for these states, but clean any orphan rows defensively
+      // (workflow instances are not FK-linked to the order).
+      await tx.workflowInstance.deleteMany({
+        where: { referenceType: 'outbound_order', referenceId: id },
+      });
+      await tx.outboundOrder.delete({ where: { id } });
+    });
+
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'OUTBOUND_ORDER_DELETED',
+        resourceType: 'outbound_order',
+        resourceId: id,
+        companyId: order.companyId,
+        previousState: { status: order.status, orderNumber: order.orderNumber },
+        newState: { deleted: true },
+      }),
+    );
+    this.realtime.emitOutboundOrderUpdated(order.companyId, {
+      orderId: id,
+      status: order.status,
+      reason: 'delete',
+      listItem: adminOutboundListItem(order),
+    });
+    return { id, deleted: true };
+  }
+
+  /**
    * Phase 1 simplified outbound flow: draft → (confirm) → shipped.
    * Stock validation already happened at create time; the FEFO walk and
    * per-row decrement guards still run as defence-in-depth in case stock

@@ -17,6 +17,7 @@ const inbound_module_1 = require("../inbound/inbound.module");
 const inventory_module_1 = require("../inventory/inventory.module");
 const outbound_module_1 = require("../outbound/outbound.module");
 const products_module_1 = require("../products/products.module");
+const billing_module_1 = require("../billing/billing.module");
 const client_auth_controller_1 = require("./auth/client-auth.controller");
 const client_auth_service_1 = require("./auth/client-auth.service");
 const jwt_client_auth_guard_1 = require("./auth/jwt-client-auth.guard");
@@ -31,6 +32,10 @@ const client_notifications_controller_1 = require("./notifications/client-notifi
 const client_notifications_service_1 = require("./notifications/client-notifications.service");
 const client_stock_controller_1 = require("./stock/client-stock.controller");
 const client_stock_service_1 = require("./stock/client-stock.service");
+const client_billing_controller_1 = require("./billing/client-billing.controller");
+const client_billing_service_1 = require("./billing/client-billing.service");
+const client_dashboard_controller_1 = require("./dashboard/client-dashboard.controller");
+const client_dashboard_service_1 = require("./dashboard/client-dashboard.service");
 let ClientPortalModule = class ClientPortalModule {
 };
 exports.ClientPortalModule = ClientPortalModule;
@@ -55,6 +60,7 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             products_module_1.ProductsModule,
             inbound_module_1.InboundModule,
             outbound_module_1.OutboundModule,
+            billing_module_1.BillingModule,
         ],
         controllers: [
             client_auth_controller_1.ClientAuthController,
@@ -63,6 +69,8 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             client_inbound_orders_controller_1.ClientInboundOrdersController,
             client_outbound_orders_controller_1.ClientOutboundOrdersController,
             client_notifications_controller_1.ClientNotificationsController,
+            client_billing_controller_1.ClientBillingController,
+            client_dashboard_controller_1.ClientDashboardController,
         ],
         providers: [
             client_auth_service_1.ClientAuthService,
@@ -71,6 +79,8 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             client_inbound_orders_service_1.ClientInboundOrdersService,
             client_outbound_orders_service_1.ClientOutboundOrdersService,
             client_notifications_service_1.ClientNotificationsService,
+            client_billing_service_1.ClientBillingService,
+            client_dashboard_service_1.ClientDashboardService,
             jwt_client_strategy_1.JwtClientStrategy,
             jwt_client_auth_guard_1.JwtClientAuthGuard,
         ],

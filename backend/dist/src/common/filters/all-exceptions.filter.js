@@ -57,6 +57,7 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
             const response = exception.getResponse();
             let message = exception.message;
             let details;
+            let customCode;
             if (typeof response === 'string') {
                 message = response;
             }
@@ -64,13 +65,16 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
                 const r = response;
                 message = r.message ?? message;
                 details = r.message ?? r.error ?? response;
+                if (typeof r.code === 'string' && r.code.trim()) {
+                    customCode = r.code.trim();
+                }
             }
             return {
                 status,
                 body: {
                     success: false,
                     error: {
-                        code: this.codeFromStatus(status),
+                        code: customCode ?? this.codeFromStatus(status),
                         message: this.sanitizeMessage(Array.isArray(message) ? message.join('; ') : message, isProd, status),
                         ...(isProd ? {} : { details: this.sanitizeDetails(details) }),
                         ...(requestId ? { requestId } : {}),
@@ -272,6 +276,8 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
                 return 'CONFLICT';
             case 422:
                 return 'UNPROCESSABLE_ENTITY';
+            case 429:
+                return 'TOO_MANY_REQUESTS';
             default:
                 return 'ERROR';
         }

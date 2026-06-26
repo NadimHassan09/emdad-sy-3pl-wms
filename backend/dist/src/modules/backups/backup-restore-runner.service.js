@@ -1,10 +1,43 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
 var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
@@ -13,9 +46,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BackupRestoreRunnerService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const promises_1 = require("node:fs/promises");
+const path = __importStar(require("node:path"));
 const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const backup_config_1 = require("./backup-config");
+const backup_drive_integration_service_1 = require("./backup-drive-integration.service");
+const backup_drive_service_1 = require("./backup-drive.service");
+const backup_file_encryption_service_1 = require("./backup-file-encryption.service");
 const backup_maintenance_service_1 = require("./backup-maintenance.service");
 const backup_storage_service_1 = require("./backup-storage.service");
 const backup_operations_service_1 = require("./backup-operations.service");
@@ -28,9 +66,12 @@ let BackupRestoreRunnerService = BackupRestoreRunnerService_1 = class BackupRest
     maintenance;
     operations;
     audit;
+    driveIntegration;
+    drive;
+    fileEncryption;
     logger = new common_1.Logger(BackupRestoreRunnerService_1.name);
     progressCache = new Map();
-    constructor(prisma, backupConfig, storage, pg, maintenance, operations, audit) {
+    constructor(prisma, backupConfig, storage, pg, maintenance, operations, audit, driveIntegration, drive, fileEncryption) {
         this.prisma = prisma;
         this.backupConfig = backupConfig;
         this.storage = storage;
@@ -38,6 +79,9 @@ let BackupRestoreRunnerService = BackupRestoreRunnerService_1 = class BackupRest
         this.maintenance = maintenance;
         this.operations = operations;
         this.audit = audit;
+        this.driveIntegration = driveIntegration;
+        this.drive = drive;
+        this.fileEncryption = fileEncryption;
     }
     enqueueRestore(restoreJobId, sourceBackupId, user, createPreSnapshot) {
         if (!this.operations.tryAcquire(restoreJobId)) {
@@ -51,13 +95,18 @@ let BackupRestoreRunnerService = BackupRestoreRunnerService_1 = class BackupRest
     }
     async runRestore(restoreJobId, sourceBackupId, user, createPreSnapshot) {
         let preSnapshotId = null;
+        let tempEncPath = null;
+        let tempDumpPath = null;
         try {
             this.maintenance.enable('backup_restore');
             const source = await this.prisma.backupJob.findUnique({ where: { id: sourceBackupId } });
             if (!source || source.status !== client_1.BackupJobStatus.completed) {
                 throw new Error('Source backup is not available for restore.');
             }
-            const sourcePath = this.storage.resolveDumpPath(source.artifactPath, source.dumpFilename, sourceBackupId);
+            const resolved = await this.resolveSourceDumpPath(sourceBackupId, source);
+            const sourcePath = resolved.path;
+            tempEncPath = resolved.tempEncPath;
+            tempDumpPath = resolved.tempDumpPath;
             const sourceSize = await this.storage.fileSize(sourcePath);
             if (sourceSize <= 0)
                 throw new Error('Source dump file is missing on disk.');
@@ -136,6 +185,44 @@ let BackupRestoreRunnerService = BackupRestoreRunnerService_1 = class BackupRest
                 newState: { message, preSnapshotId, sourceBackupId },
             }));
         }
+        finally {
+            await this.cleanupTempRestoreFiles(tempEncPath, tempDumpPath);
+        }
+    }
+    async resolveSourceDumpPath(sourceBackupId, source) {
+        const localPath = this.storage.resolveDumpPath(source.artifactPath, source.dumpFilename, sourceBackupId);
+        const localSize = await this.storage.fileSize(localPath);
+        if (localSize > 0) {
+            return { path: localPath, tempEncPath: null, tempDumpPath: null };
+        }
+        if (!source.gdriveFileId ||
+            source.gdriveSyncStatus !== client_1.BackupDriveSyncStatus.synced ||
+            !this.backupConfig.gdriveEnabled) {
+            return { path: localPath, tempEncPath: null, tempDumpPath: null };
+        }
+        const connected = await this.driveIntegration.isConnected();
+        if (!connected) {
+            throw new Error('Source dump is on Google Drive but Drive is not connected.');
+        }
+        const refreshToken = await this.driveIntegration.getRefreshToken();
+        if (!refreshToken) {
+            throw new Error('Source dump is on Google Drive but Drive credentials are missing.');
+        }
+        await this.storage.ensureJobDir(sourceBackupId);
+        const tempEnc = path.join(this.storage.jobDirectory(sourceBackupId), `${sourceBackupId}.restore.enc`);
+        const tempDump = this.storage.dumpPath(sourceBackupId);
+        this.logger.log(`Downloading encrypted backup ${sourceBackupId} from Google Drive for restore`);
+        await this.drive.downloadEncryptedDump({
+            refreshToken,
+            fileId: source.gdriveFileId,
+            targetPath: tempEnc,
+        });
+        await this.fileEncryption.decryptDumpFile(tempEnc, tempDump);
+        return { path: tempDump, tempEncPath: tempEnc, tempDumpPath: tempDump };
+    }
+    async cleanupTempRestoreFiles(tempEncPath, tempDumpPath) {
+        await (0, promises_1.unlink)(tempEncPath ?? '').catch(() => undefined);
+        await (0, promises_1.unlink)(tempDumpPath ?? '').catch(() => undefined);
     }
     async rollbackFromSnapshot(preSnapshotId, restoreJobId) {
         this.logger.warn(`Rolling back restore ${restoreJobId} from pre-snapshot ${preSnapshotId}`);
@@ -289,6 +376,9 @@ exports.BackupRestoreRunnerService = BackupRestoreRunnerService = BackupRestoreR
         backup_pg_tools_service_1.BackupPgToolsService,
         backup_maintenance_service_1.BackupMaintenanceService,
         backup_operations_service_1.BackupOperationsService,
-        audit_log_service_1.AuditLogService])
+        audit_log_service_1.AuditLogService,
+        backup_drive_integration_service_1.BackupDriveIntegrationService,
+        backup_drive_service_1.BackupDriveService,
+        backup_file_encryption_service_1.BackupFileEncryptionService])
 ], BackupRestoreRunnerService);
 //# sourceMappingURL=backup-restore-runner.service.js.map

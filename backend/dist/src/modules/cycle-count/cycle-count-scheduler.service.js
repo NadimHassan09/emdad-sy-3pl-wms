@@ -15,20 +15,26 @@ const common_1 = require("@nestjs/common");
 const schedule_1 = require("@nestjs/schedule");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const cron_leader_service_1 = require("../../common/cron/cron-leader.service");
 const cycle_count_service_1 = require("./cycle-count.service");
 let CycleCountSchedulerService = CycleCountSchedulerService_1 = class CycleCountSchedulerService {
     prisma;
     cycleCounts;
+    cronLeader;
     log = new common_1.Logger(CycleCountSchedulerService_1.name);
     systemUserId = null;
-    constructor(prisma, cycleCounts) {
+    constructor(prisma, cycleCounts, cronLeader) {
         this.prisma = prisma;
         this.cycleCounts = cycleCounts;
+        this.cronLeader = cronLeader;
     }
     async onModuleInit() {
         await this.resolveSystemUser();
     }
     async tick() {
+        await this.cronLeader.runExclusive('cycle-count-scheduler', 7200, () => this.runTick());
+    }
+    async runTick() {
         try {
             const actorId = await this.resolveSystemUser();
             if (!actorId) {
@@ -68,6 +74,7 @@ __decorate([
 exports.CycleCountSchedulerService = CycleCountSchedulerService = CycleCountSchedulerService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        cycle_count_service_1.CycleCountService])
+        cycle_count_service_1.CycleCountService,
+        cron_leader_service_1.CronLeaderService])
 ], CycleCountSchedulerService);
 //# sourceMappingURL=cycle-count-scheduler.service.js.map

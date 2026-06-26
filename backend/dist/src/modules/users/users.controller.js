@@ -20,6 +20,7 @@ const parse_uuid_loose_pipe_1 = require("../../common/pipes/parse-uuid-loose.pip
 const create_user_dto_1 = require("./dto/create-user.dto");
 const list_users_query_dto_1 = require("./dto/list-users-query.dto");
 const update_user_dto_1 = require("./dto/update-user.dto");
+const upsert_user_worker_profile_dto_1 = require("./dto/upsert-user-worker-profile.dto");
 const users_service_1 = require("./users.service");
 let UsersController = class UsersController {
     users;
@@ -28,6 +29,12 @@ let UsersController = class UsersController {
     }
     list(user, query) {
         return this.users.list(user, query);
+    }
+    getWorkerProfile(user, id) {
+        return this.users.getWorkerProfile(id, user);
+    }
+    upsertWorkerProfile(user, id, dto) {
+        return this.users.upsertWorkerProfile(id, dto, user);
     }
     findOne(user, id) {
         return this.users.findById(id, user);
@@ -54,6 +61,25 @@ __decorate([
     __metadata("design:paramtypes", [Object, list_users_query_dto_1.ListUsersQueryDto]),
     __metadata("design:returntype", void 0)
 ], UsersController.prototype, "list", null);
+__decorate([
+    (0, common_1.Get)(':id/worker-profile'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "getWorkerProfile", null);
+__decorate([
+    (0, common_1.Put)(':id/worker-profile'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, upsert_user_worker_profile_dto_1.UpsertUserWorkerProfileDto]),
+    __metadata("design:returntype", void 0)
+], UsersController.prototype, "upsertWorkerProfile", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

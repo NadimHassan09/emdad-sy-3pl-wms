@@ -19,6 +19,9 @@ const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const assert_product_orderable_1 = require("../../common/utils/assert-product-orderable");
 const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantity");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const tenant_rls_1 = require("../../common/prisma/tenant-rls");
+const realtime_service_1 = require("../realtime/realtime.service");
+const realtime_ops_payload_1 = require("../realtime/realtime-ops.payload");
 const list_return_orders_query_dto_1 = require("./dto/list-return-orders-query.dto");
 const outbound_confirm_lock_util_1 = require("../outbound/outbound-confirm-lock.util");
 const return_line_integrity_util_1 = require("./return-line-integrity.util");
@@ -65,12 +68,14 @@ let ReturnsService = class ReturnsService {
     quantityGuard;
     workflow;
     audit;
-    constructor(prisma, companyAccess, quantityGuard, workflow, audit) {
+    realtime;
+    constructor(prisma, companyAccess, quantityGuard, workflow, audit, realtime) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.quantityGuard = quantityGuard;
         this.workflow = workflow;
         this.audit = audit;
+        this.realtime = realtime;
     }
     async create(user, dto) {
         const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
@@ -169,17 +174,20 @@ let ReturnsService = class ReturnsService {
         });
         await this.audit.log(this.audit.fromPrincipal(user, {
             companyId,
-            action: 'return.created',
+            action: 'RETURN_CREATED',
             resourceType: 'return_order',
             resourceId: order.id,
             newState: { orderNumber: order.orderNumber, lineCount: order.lines.length },
         }));
+        this.emitReturnEvent(order, 'created');
         return order;
     }
     async list(user, query) {
         const where = {};
         const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
-        where.companyId = companyId;
+        if (companyId) {
+            where.companyId = companyId;
+        }
         if (query.status)
             where.status = query.status;
         if (query.originalOutboundOrderId) {
@@ -207,36 +215,39 @@ let ReturnsService = class ReturnsService {
         }
         if (andParts.length > 0)
             where.AND = andParts;
-        return this.prisma.$transaction([
-            this.prisma.returnOrder.findMany({
-                where,
-                orderBy: { createdAt: 'desc' },
-                include: {
-                    company: { select: { id: true, name: true } },
-                    originalOutbound: { select: { id: true, orderNumber: true, status: true } },
-                    _count: { select: { lines: true } },
-                    lines: {
-                        select: {
-                            expectedQuantity: true,
-                            receivedQuantity: true,
-                            disposition: true,
-                            product: { select: { sku: true } },
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const [rows, total] = await Promise.all([
+                tx.returnOrder.findMany({
+                    where,
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        company: { select: { id: true, name: true } },
+                        originalOutbound: { select: { id: true, orderNumber: true, status: true } },
+                        _count: { select: { lines: true } },
+                        lines: {
+                            select: {
+                                expectedQuantity: true,
+                                receivedQuantity: true,
+                                disposition: true,
+                                product: { select: { sku: true } },
+                            },
                         },
                     },
-                },
-                take: query.limit,
-                skip: query.offset,
-            }),
-            this.prisma.returnOrder.count({ where }),
-        ]).then(([rows, total]) => ({
-            items: rows.map(({ lines, ...order }) => ({
-                ...order,
-                summary: (0, return_line_integrity_util_1.buildReturnListSummary)(lines),
-            })),
-            total,
-            limit: query.limit,
-            offset: query.offset,
-        }));
+                    take: query.limit,
+                    skip: query.offset,
+                }),
+                tx.returnOrder.count({ where }),
+            ]);
+            return {
+                items: rows.map(({ lines, ...order }) => ({
+                    ...order,
+                    summary: (0, return_line_integrity_util_1.buildReturnListSummary)(lines),
+                })),
+                total,
+                limit: query.limit,
+                offset: query.offset,
+            };
+        });
     }
     async getOutboundReturnQuota(user, outboundOrderId, excludeReturnOrderId) {
         const outbound = await this.prisma.outboundOrder.findUnique({
@@ -287,10 +298,11 @@ let ReturnsService = class ReturnsService {
         });
         await this.audit.log(this.audit.fromPrincipal(user, {
             companyId: order.companyId,
-            action: 'return.confirmed',
+            action: 'RETURN_CONFIRMED',
             resourceType: 'return_order',
             resourceId: id,
         }));
+        this.emitReturnEvent(updated, 'confirmed');
         return updated;
     }
     async startReceiving(user, id) {
@@ -305,6 +317,9 @@ let ReturnsService = class ReturnsService {
                 receivingStartedAt: new Date(),
             },
             include: ORDER_INCLUDE,
+        }).then((updated) => {
+            this.emitReturnEvent(updated, 'updated');
+            return updated;
         });
     }
     async receiveLine(user, returnOrderId, lineId, dto) {
@@ -336,7 +351,7 @@ let ReturnsService = class ReturnsService {
         });
         await this.audit.log(this.audit.fromPrincipal(user, {
             companyId: order.companyId,
-            action: 'return.line.received',
+            action: 'RETURN_LINE_RECEIVED',
             resourceType: 'return_order_line',
             resourceId: lineId,
             newState: {
@@ -344,6 +359,7 @@ let ReturnsService = class ReturnsService {
                 receivedQuantity: nextReceived.toString(),
             },
         }));
+        this.emitReturnEvent(result, 'updated');
         return result;
     }
     inspectLine(user, returnOrderId, lineId, dto) {
@@ -372,10 +388,11 @@ let ReturnsService = class ReturnsService {
         });
         await this.audit.log(this.audit.fromPrincipal(user, {
             companyId: order.companyId,
-            action: 'return.completed',
+            action: 'RETURN_COMPLETED',
             resourceType: 'return_order',
             resourceId: id,
         }));
+        this.emitReturnEvent(updated, 'completed');
         return updated;
     }
     async cancel(user, id) {
@@ -397,11 +414,31 @@ let ReturnsService = class ReturnsService {
         });
         await this.audit.log(this.audit.fromPrincipal(user, {
             companyId: order.companyId,
-            action: 'return.cancelled',
+            action: 'RETURN_CANCELLED',
             resourceType: 'return_order',
             resourceId: id,
         }));
+        this.emitReturnEvent(updated, 'updated');
         return updated;
+    }
+    emitReturnEvent(order, kind) {
+        const listItem = (0, realtime_ops_payload_1.returnListItemPayload)(order);
+        const detail = (0, realtime_ops_payload_1.returnDetailPayload)(order);
+        const payload = { listItem, return: detail };
+        switch (kind) {
+            case 'created':
+                this.realtime.emitReturnCreated(order.companyId, payload);
+                break;
+            case 'updated':
+                this.realtime.emitReturnUpdated(order.companyId, payload);
+                break;
+            case 'confirmed':
+                this.realtime.emitReturnConfirmed(order.companyId, payload);
+                break;
+            case 'completed':
+                this.realtime.emitReturnCompleted(order.companyId, payload);
+                break;
+        }
     }
     async assertWarehouse(warehouseId) {
         const wh = await this.prisma.warehouse.findUnique({
@@ -455,6 +492,7 @@ exports.ReturnsService = ReturnsService = __decorate([
         company_access_service_1.CompanyAccessService,
         return_quantity_validation_1.ReturnQuantityValidation,
         return_workflow_service_1.ReturnWorkflowService,
-        audit_log_service_1.AuditLogService])
+        audit_log_service_1.AuditLogService,
+        realtime_service_1.RealtimeService])
 ], ReturnsService);
 //# sourceMappingURL=returns.service.js.map

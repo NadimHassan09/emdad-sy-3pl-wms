@@ -8,8 +8,10 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InboundModule = void 0;
 const common_1 = require("@nestjs/common");
+const audit_module_1 = require("../../common/audit/audit.module");
 const inventory_module_1 = require("../inventory/inventory.module");
 const warehouse_workflow_module_1 = require("../warehouse-workflow/warehouse-workflow.module");
+const billing_module_1 = require("../billing/billing.module");
 const inbound_controller_1 = require("./inbound.controller");
 const inbound_service_1 = require("./inbound.service");
 let InboundModule = class InboundModule {
@@ -17,7 +19,7 @@ let InboundModule = class InboundModule {
 exports.InboundModule = InboundModule;
 exports.InboundModule = InboundModule = __decorate([
     (0, common_1.Module)({
-        imports: [inventory_module_1.InventoryModule, warehouse_workflow_module_1.WarehouseWorkflowModule],
+        imports: [audit_module_1.AuditModule, inventory_module_1.InventoryModule, warehouse_workflow_module_1.WarehouseWorkflowModule, billing_module_1.BillingModule],
         controllers: [inbound_controller_1.InboundController],
         providers: [inbound_service_1.InboundService],
         exports: [inbound_service_1.InboundService],

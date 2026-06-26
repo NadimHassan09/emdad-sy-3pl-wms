@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>شعارك — نظام إدارة المخزون</title>
+  <meta name="description" content="نظام متكامل يساعدك على إدارة مخزونك ومتابعة عملياتك بدقة وسهولة في مكان واحد." />
+
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <!-- Arabic font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Tajawal', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: {
+              50: '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0', 300: '#86efac',
+              400: '#4ade80', 500: '#16a34a', 600: '#15803d', 700: '#166534',
+              800: '#14532d', 900: '#0f3d23', 950: '#0a2a18',
+            },
+          },
+          keyframes: {
+            fadeUp: { '0%': { opacity: 0, transform: 'translateY(16px)' }, '100%': { opacity: 1, transform: 'translateY(0)' } },
+          },
+          animation: { fadeUp: 'fadeUp .6s ease both' },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Tajawal', sans-serif; }
+    .hero-overlay { background: linear-gradient(90deg, rgba(10,42,24,.92) 0%, rgba(15,61,35,.78) 45%, rgba(15,61,35,.35) 100%); }
+    .faq-answer { max-height: 0; overflow: hidden; transition: max-height .35s ease; }
+    .faq-item.open .faq-answer { max-height: 320px; }
+    .faq-item.open .faq-icon { transform: rotate(45deg); }
+    .card-hover { transition: transform .25s ease, box-shadow .25s ease; }
+    .card-hover:hover { transform: translateY(-6px); box-shadow: 0 18px 40px -18px rgba(20,83,45,.45); }
+  </style>
+</head>
+
+<body class="bg-white text-slate-800 antialiased">
+
+  <!-- ===================== Header ===================== -->
+  <header class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-100">
+    <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+      <!-- Logo -->
+      <a href="#home" class="flex items-center gap-2">
+        <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-white">
+          <i class="fa-solid fa-leaf text-lg"></i>
+        </span>
+        <span class="text-xl font-extrabold text-brand-800">شعارك</span>
+      </a>
+
+      <!-- Desktop nav -->
+      <nav class="hidden items-center gap-8 text-sm font-bold text-slate-600 lg:flex">
+        <a href="#home" class="transition hover:text-brand-600">الرئيسية</a>
+        <a href="#about" class="transition hover:text-brand-600">من نحن</a>
+        <a href="#services" class="transition hover:text-brand-600">خدمات</a>
+        <a href="#contact" class="transition hover:text-brand-600">تواصل معنا</a>
+      </nav>
+
+      <!-- Actions -->
+      <div class="flex items-center gap-3">
+        <button id="langBtn" class="hidden items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50 sm:flex">
+          <i class="fa-solid fa-globe text-xs"></i> عربي <i class="fa-solid fa-chevron-down text-[10px]"></i>
+        </button>
+        <a href="#quote" class="hidden rounded-lg bg-brand-500 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-brand-600 sm:inline-block">
+          احصل على عرض سعر
+        </a>
+        <button id="menuBtn" class="rounded-lg border border-slate-200 p-2 text-slate-600 lg:hidden" aria-label="القائمة">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile nav -->
+    <div id="mobileMenu" class="hidden border-t border-slate-100 bg-white lg:hidden">
+      <nav class="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3 text-sm font-bold text-slate-700">
+        <a href="#home" class="rounded-lg px-3 py-2 hover:bg-slate-50">الرئيسية</a>
+        <a href="#about" class="rounded-lg px-3 py-2 hover:bg-slate-50">من نحن</a>
+        <a href="#services" class="rounded-lg px-3 py-2 hover:bg-slate-50">خدمات</a>
+        <a href="#contact" class="rounded-lg px-3 py-2 hover:bg-slate-50">تواصل معنا</a>
+        <a href="#quote" class="mt-1 rounded-lg bg-brand-500 px-3 py-2 text-center text-white">احصل على عرض سعر</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ===================== Hero ===================== -->
+  <section id="home" class="relative isolate overflow-hidden">
+    <img src="https://images.unsplash.com/photo-1565891741441-64926e441838?auto=format&fit=crop&w=1920&q=80"
+         alt="مستودع" class="absolute inset-0 -z-10 h-full w-full object-cover" />
+    <div class="hero-overlay absolute inset-0 -z-10"></div>
+
+    <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:py-28">
+      <div class="max-w-2xl animate-fadeUp">
+        <h1 class="text-4xl font-extrabold leading-tight text-white sm:text-5xl">
+          إدارة مخزونك
+          <span class="block text-brand-300">ببساطة واحترافية</span>
+        </h1>
+        <p class="mt-5 text-lg leading-relaxed text-slate-100/90">
+          نظام متكامل يساعدك على إدارة مخزونك ومتابعة عملياتك بدقة وسهولة في مكان واحد.
+        </p>
+
+        <div class="mt-8 flex flex-wrap gap-3">
+          <a href="#about" class="rounded-xl bg-slate-900 px-6 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-slate-800">
+            تعرف على المزيد
+          </a>
+          <a href="#quote" class="rounded-xl bg-brand-500 px-6 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-brand-600">
+            احصل على عرض سعر مجاني
+          </a>
+        </div>
+
+        <ul class="mt-10 flex flex-wrap gap-x-8 gap-y-3 text-sm font-bold text-white/90">
+          <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-brand-300"></i> سهولة الاستخدام</li>
+          <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-brand-300"></i> تحديثات لحظية</li>
+          <li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-brand-300"></i> دعم فني مستمر</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Features ===================== -->
+  <section id="about" class="bg-slate-50 py-20">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6">
+      <div class="mx-auto max-w-2xl text-center">
+        <span class="text-sm font-bold text-brand-600">مميزاتنا</span>
+        <h2 class="mt-2 text-3xl font-extrabold text-slate-900">كل ما تحتاجه لإدارة مخزونك بكفاءة</h2>
+        <p class="mt-3 text-slate-500">نقدم لك الأدوات التي تساعدك على التحكم الكامل في مخزونك وعملياتك اليومية.</p>
+      </div>
+
+      <div class="mt-12 grid items-center gap-10 lg:grid-cols-2">
+        <!-- Cards -->
+        <div class="grid gap-5 sm:grid-cols-2">
+          <article class="card-hover rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+            <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><i class="fa-solid fa-chart-simple text-lg"></i></span>
+            <h3 class="mt-4 text-lg font-extrabold text-slate-900">تقارير وتحليلات</h3>
+            <p class="mt-2 text-sm leading-relaxed text-slate-500">تقارير تفصيلية وتحليلات دقيقة تساعدك على اتخاذ القرارات الأفضل.</p>
+          </article>
+          <article class="card-hover rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+            <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><i class="fa-solid fa-wand-magic-sparkles text-lg"></i></span>
+            <h3 class="mt-4 text-lg font-extrabold text-slate-900">سهولة الاستخدام</h3>
+            <p class="mt-2 text-sm leading-relaxed text-slate-500">واجهة بسيطة وسهلة تمكّن فريقك من العمل بكفاءة دون تعقيد.</p>
+          </article>
+          <article class="card-hover rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+            <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><i class="fa-solid fa-arrows-rotate text-lg"></i></span>
+            <h3 class="mt-4 text-lg font-extrabold text-slate-900">متابعة لحظية</h3>
+            <p class="mt-2 text-sm leading-relaxed text-slate-500">تابع حركة المخزون والطلبات لحظة بلحظة من أي مكان.</p>
+          </article>
+          <article class="card-hover rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+            <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><i class="fa-solid fa-shield-halved text-lg"></i></span>
+            <h3 class="mt-4 text-lg font-extrabold text-slate-900">دقة وموثوقية</h3>
+            <p class="mt-2 text-sm leading-relaxed text-slate-500">بيانات دقيقة وموثوقة تضمن لك إدارة مخزون خالية من الأخطاء.</p>
+          </article>
+        </div>
+
+        <!-- Laptop image -->
+        <div class="relative">
+          <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80"
+               alt="لوحة تحكم النظام" class="w-full rounded-2xl shadow-xl ring-1 ring-slate-100" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Services (dark) ===================== -->
+  <section id="services" class="bg-brand-800 py-20 text-white">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6">
+      <div class="grid items-center gap-12 lg:grid-cols-2">
+        <!-- Image -->
+        <div class="relative order-last lg:order-first">
+          <img src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=1200&q=80"
+               alt="عامل المستودع" class="w-full rounded-2xl object-cover shadow-2xl ring-1 ring-white/10" />
+        </div>
+
+        <!-- Content -->
+        <div>
+          <span class="text-sm font-bold text-brand-300">خدماتنا</span>
+          <h2 class="mt-2 text-3xl font-extrabold">حلول متكاملة تدعم أعمالك</h2>
+          <p class="mt-3 text-white/70">نقدم مجموعة من الخدمات المتكاملة المصممة لتلبية احتياجات إدارة المخزون لديك.</p>
+
+          <div class="mt-8 grid gap-4 sm:grid-cols-2">
+            <div class="card-hover rounded-2xl bg-brand-900/60 p-5 ring-1 ring-white/10">
+              <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500/20 text-brand-300"><i class="fa-solid fa-boxes-stacked"></i></span>
+              <h3 class="mt-3 font-extrabold">إدارة المخزون</h3>
+              <p class="mt-1 text-sm text-white/70">تنظيم وتتبع المخزون بدقة وكفاءة عالية.</p>
+            </div>
+            <div class="card-hover rounded-2xl bg-brand-900/60 p-5 ring-1 ring-white/10">
+              <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500/20 text-brand-300"><i class="fa-solid fa-chart-line"></i></span>
+              <h3 class="mt-3 font-extrabold">التقارير والتحليلات</h3>
+              <p class="mt-1 text-sm text-white/70">تقارير شاملة تساعدك على اتخاذ القرار السليم.</p>
+            </div>
+            <div class="card-hover rounded-2xl bg-brand-900/60 p-5 ring-1 ring-white/10">
+              <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500/20 text-brand-300"><i class="fa-solid fa-clipboard-list"></i></span>
+              <h3 class="mt-3 font-extrabold">إدارة الطلبات</h3>
+              <p class="mt-1 text-sm text-white/70">متابعة الطلبات من الاستلام حتى التسليم.</p>
+            </div>
+            <div class="card-hover rounded-2xl bg-brand-900/60 p-5 ring-1 ring-white/10">
+              <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500/20 text-brand-300"><i class="fa-solid fa-box-open"></i></span>
+              <h3 class="mt-3 font-extrabold">دعم الأصناف</h3>
+              <p class="mt-1 text-sm text-white/70">إدارة كاملة لأصنافك وبياناتها في أي وقت.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Growth / Stats ===================== -->
+  <section class="bg-white py-20">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6">
+      <div class="grid items-center gap-10 lg:grid-cols-12">
+        <!-- Image -->
+        <div class="relative lg:col-span-4">
+          <img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&w=900&q=80"
+               alt="فريق العمل" class="w-full rounded-2xl object-cover shadow-xl" />
+          <div class="absolute bottom-4 right-4 rounded-2xl bg-white/95 px-4 py-3 shadow-lg ring-1 ring-slate-100">
+            <p class="text-2xl font-extrabold text-brand-600">+250</p>
+            <p class="text-xs text-slate-500">شركة تثق بنا</p>
+          </div>
+        </div>
+
+        <!-- Text + checklist -->
+        <div class="lg:col-span-5">
+          <span class="text-sm font-bold text-brand-600">لماذا تختار نظامنا؟</span>
+          <h2 class="mt-2 text-3xl font-extrabold text-slate-900">نظام يساعدك على النمو والتوسع</h2>
+          <p class="mt-3 text-slate-500">نوفر لك الأدوات والميزات التي تحتاجها لتطوير أعمالك وزيادة الكفاءة وتقليل التكاليف.</p>
+
+          <ul class="mt-6 space-y-3 text-sm font-bold text-slate-700">
+            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-brand-500"></i> تعزيز الكفاءة وزيادة الدقة</li>
+            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-brand-500"></i> توفير الوقت والجهد</li>
+            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-brand-500"></i> الوصول إلى بياناتك في أي مكان</li>
+            <li class="flex items-center gap-3"><i class="fa-solid fa-circle-check text-brand-500"></i> تكامل سهل مع الأنظمة الأخرى</li>
+          </ul>
+        </div>
+
+        <!-- Stats -->
+        <div class="space-y-4 lg:col-span-3">
+          <div class="flex items-center gap-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-100">
+            <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600"><i class="fa-solid fa-users"></i></span>
+            <div><p class="text-2xl font-extrabold text-slate-900">99.9%</p><p class="text-xs text-slate-500">وقت التشغيل</p></div>
+          </div>
+          <div class="flex items-center gap-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-100">
+            <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600"><i class="fa-solid fa-box"></i></span>
+            <div><p class="text-2xl font-extrabold text-slate-900">+10K</p><p class="text-xs text-slate-500">طلب تتم إدارته</p></div>
+          </div>
+          <div class="flex items-center gap-4 rounded-2xl bg-slate-50 p-5 ring-1 ring-slate-100">
+            <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-brand-100 text-brand-600"><i class="fa-solid fa-chart-simple"></i></span>
+            <div><p class="text-2xl font-extrabold text-slate-900">+98%</p><p class="text-xs text-slate-500">رضا العملاء</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Quote form + FAQ ===================== -->
+  <section id="quote" class="bg-slate-50 py-20">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6">
+      <div class="grid gap-10 lg:grid-cols-3">
+
+        <!-- Form -->
+        <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100 sm:p-8">
+          <h2 class="text-2xl font-extrabold text-slate-900">احصل على عرض سعر الآن</h2>
+          <p class="mt-1 text-sm text-slate-500">املأ النموذج وسنتواصل معك في أقرب وقت.</p>
+
+          <form id="leadForm" class="mt-6 space-y-4" novalidate>
+            <div>
+              <label class="mb-1 block text-sm font-bold text-slate-700" for="fullName">الاسم الكامل</label>
+              <input id="fullName" name="fullName" type="text" required minlength="2" maxlength="150"
+                     placeholder="الاسم الكامل"
+                     class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-bold text-slate-700" for="email">البريد الإلكتروني</label>
+              <input id="email" name="email" type="email" required dir="ltr"
+                     placeholder="example@email.com"
+                     class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-bold text-slate-700" for="phone">رقم الهاتف</label>
+              <input id="phone" name="phone" type="tel" required dir="ltr"
+                     placeholder="+20 123 456 7890"
+                     class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-bold text-slate-700" for="activityType">نوع النشاط</label>
+              <input id="activityType" name="activityType" type="text" required minlength="2" maxlength="100"
+                     placeholder="اكتب نوع نشاطك (تجزئة، جملة، تصنيع...)"
+                     class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-bold text-slate-700" for="message">رسالتك</label>
+              <textarea id="message" name="message" rows="3" maxlength="2000"
+                        placeholder="اكتب رسالتك هنا..."
+                        class="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100"></textarea>
+            </div>
+
+            <button id="submitBtn" type="submit"
+                    class="flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60">
+              <span id="submitLabel">إرسال الطلب</span>
+              <i id="submitSpinner" class="fa-solid fa-spinner fa-spin hidden"></i>
+            </button>
+
+            <p id="formMessage" class="hidden rounded-xl px-4 py-3 text-sm font-bold"></p>
+          </form>
+        </div>
+
+        <!-- FAQ -->
+        <div class="lg:col-span-1">
+          <h2 class="text-2xl font-extrabold text-slate-900">الأسئلة الشائعة</h2>
+          <div class="mt-6 space-y-3" id="faqList">
+            <div class="faq-item rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
+              <button type="button" class="faq-toggle flex w-full items-center justify-between gap-3 px-5 py-4 text-right text-sm font-bold text-slate-800">
+                ما هي مدة تجربة النظام؟ <i class="faq-icon fa-solid fa-plus text-brand-500 transition"></i>
+              </button>
+              <div class="faq-answer px-5"><p class="pb-4 text-sm leading-relaxed text-slate-500">يوفر النظام تجربة مجانية لمدة 14 يوماً دون أي التزامات لتجربة كافة المميزات.</p></div>
+            </div>
+            <div class="faq-item rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
+              <button type="button" class="faq-toggle flex w-full items-center justify-between gap-3 px-5 py-4 text-right text-sm font-bold text-slate-800">
+                هل يمكنني تخصيص النظام حسب احتياجاتي؟ <i class="faq-icon fa-solid fa-plus text-brand-500 transition"></i>
+              </button>
+              <div class="faq-answer px-5"><p class="pb-4 text-sm leading-relaxed text-slate-500">نعم، النظام مرن ويمكن تخصيصه ليناسب طبيعة عملك ومتطلباتك المختلفة.</p></div>
+            </div>
+            <div class="faq-item rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
+              <button type="button" class="faq-toggle flex w-full items-center justify-between gap-3 px-5 py-4 text-right text-sm font-bold text-slate-800">
+                هل يدعم النظام تعدد المستودعات؟ <i class="faq-icon fa-solid fa-plus text-brand-500 transition"></i>
+              </button>
+              <div class="faq-answer px-5"><p class="pb-4 text-sm leading-relaxed text-slate-500">بالتأكيد، يمكنك إدارة عدة مستودعات ومواقع تخزين من لوحة تحكم واحدة.</p></div>
+            </div>
+            <div class="faq-item rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
+              <button type="button" class="faq-toggle flex w-full items-center justify-between gap-3 px-5 py-4 text-right text-sm font-bold text-slate-800">
+                هل توجد رسوم خفية؟ <i class="faq-icon fa-solid fa-plus text-brand-500 transition"></i>
+              </button>
+              <div class="faq-answer px-5"><p class="pb-4 text-sm leading-relaxed text-slate-500">لا توجد أي رسوم خفية، الأسعار واضحة وشاملة لكل ما تحتاجه.</p></div>
+            </div>
+            <div class="faq-item rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
+              <button type="button" class="faq-toggle flex w-full items-center justify-between gap-3 px-5 py-4 text-right text-sm font-bold text-slate-800">
+                كيف يتم دعم العملاء؟ <i class="faq-icon fa-solid fa-plus text-brand-500 transition"></i>
+              </button>
+              <div class="faq-answer px-5"><p class="pb-4 text-sm leading-relaxed text-slate-500">نوفر دعماً فنياً مستمراً عبر القنوات المختلفة لمساعدتك في أي وقت.</p></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FAQ image -->
+        <div class="hidden lg:block">
+          <img src="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=900&q=80"
+               alt="رافعة شوكية" class="h-full w-full rounded-2xl object-cover shadow-xl" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Footer ===================== -->
+  <footer id="contact" class="bg-brand-900 py-14 text-white">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6">
+      <div class="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+        <!-- Brand -->
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-white"><i class="fa-solid fa-leaf"></i></span>
+            <span class="text-xl font-extrabold">شعارك</span>
+          </div>
+          <p class="mt-4 text-sm leading-relaxed text-white/70">نظام متكامل لإدارة المخزون يساعد أعمالك على النمو بكفاءة.</p>
+          <div class="mt-5 flex items-center gap-3">
+            <a href="#" aria-label="LinkedIn" class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition hover:bg-brand-500"><i class="fa-brands fa-linkedin-in"></i></a>
+            <a href="#" aria-label="Twitter" class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition hover:bg-brand-500"><i class="fa-brands fa-x-twitter"></i></a>
+            <a href="#" aria-label="Facebook" class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition hover:bg-brand-500"><i class="fa-brands fa-facebook-f"></i></a>
+            <a href="#" aria-label="Instagram" class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 transition hover:bg-brand-500"><i class="fa-brands fa-instagram"></i></a>
+          </div>
+        </div>
+
+        <!-- Services -->
+        <div>
+          <h4 class="text-sm font-extrabold">خدمات</h4>
+          <ul class="mt-4 space-y-2 text-sm text-white/70">
+            <li><a href="#services" class="transition hover:text-brand-300">إدارة المخزون</a></li>
+            <li><a href="#services" class="transition hover:text-brand-300">إدارة الطلبات</a></li>
+            <li><a href="#services" class="transition hover:text-brand-300">التقارير والتحليلات</a></li>
+            <li><a href="#services" class="transition hover:text-brand-300">دعم الأصناف</a></li>
+          </ul>
+        </div>
+
+        <!-- Quick links -->
+        <div>
+          <h4 class="text-sm font-extrabold">روابط سريعة</h4>
+          <ul class="mt-4 space-y-2 text-sm text-white/70">
+            <li><a href="#home" class="transition hover:text-brand-300">الرئيسية</a></li>
+            <li><a href="#about" class="transition hover:text-brand-300">من نحن</a></li>
+            <li><a href="#services" class="transition hover:text-brand-300">خدمات</a></li>
+            <li><a href="#contact" class="transition hover:text-brand-300">تواصل معنا</a></li>
+          </ul>
+        </div>
+
+        <!-- Contact -->
+        <div>
+          <h4 class="text-sm font-extrabold">تواصل معنا</h4>
+          <ul class="mt-4 space-y-3 text-sm text-white/70">
+            <li class="flex items-center gap-2"><i class="fa-solid fa-envelope text-brand-300"></i> <span dir="ltr">info@yourdomain.com</span></li>
+            <li class="flex items-center gap-2"><i class="fa-solid fa-phone text-brand-300"></i> <span dir="ltr">+20 123 456 7890</span></li>
+            <li class="flex items-center gap-2"><i class="fa-solid fa-location-dot text-brand-300"></i> القاهرة، مصر</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="mt-12 border-t border-white/10 pt-6 text-center text-xs text-white/60">
+        © 2024 شعارك. جميع الحقوق محفوظة.
+      </div>
+    </div>
+  </footer>
+
+  <!-- ===================== Scripts ===================== -->
+  <script>
+    /* ====== CONFIG: point this to your WMS backend origin ====== */
+    const API_BASE = 'https://admin.emdadsy.com'; // e.g. http://localhost:3000 during local testing
+    const SUBMIT_ENDPOINT = API_BASE + '/api/forms/submit';
+
+    /* Mobile menu */
+    const menuBtn = document.getElementById('menuBtn');
+    const mobileMenu = document.getElementById('mobileMenu');
+    menuBtn?.addEventListener('click', () => mobileMenu.classList.toggle('hidden'));
+    mobileMenu?.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => mobileMenu.classList.add('hidden')));
+
+    /* FAQ accordion */
+    document.querySelectorAll('.faq-toggle').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const item = btn.closest('.faq-item');
+        const isOpen = item.classList.contains('open');
+        document.querySelectorAll('.faq-item').forEach((i) => i.classList.remove('open'));
+        if (!isOpen) item.classList.add('open');
+      });
+    });
+
+    /* Lead form submit -> WMS Forms module */
+    const form = document.getElementById('leadForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const submitLabel = document.getElementById('submitLabel');
+    const submitSpinner = document.getElementById('submitSpinner');
+    const formMessage = document.getElementById('formMessage');
+
+    function showMessage(text, ok) {
+      formMessage.textContent = text;
+      formMessage.className =
+        'rounded-xl px-4 py-3 text-sm font-bold ' +
+        (ok ? 'bg-brand-50 text-brand-700' : 'bg-red-50 text-red-700');
+      formMessage.classList.remove('hidden');
+    }
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      formMessage.classList.add('hidden');
+
+      const payload = {
+        fullName: form.fullName.value.trim(),
+        email: form.email.value.trim(),
+        phone: form.phone.value.trim(),
+        activityType: form.activityType.value.trim(),
+        message: form.message.value.trim(),
+      };
+
+      if (!payload.fullName || !payload.email || !payload.phone || !payload.activityType) {
+        showMessage('يرجى تعبئة جميع الحقول المطلوبة.', false);
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitSpinner.classList.remove('hidden');
+      submitLabel.textContent = 'جاري الإرسال...';
+
+      try {
+        const res = await fetch(SUBMIT_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+          showMessage('تم إرسال طلبك بنجاح! سنتواصل معك قريباً.', true);
+          form.reset();
+        } else if (res.status === 429) {
+          showMessage('لقد أرسلت عدة طلبات. يرجى المحاولة بعد قليل.', false);
+        } else {
+          let msg = 'تعذّر إرسال الطلب. يرجى التحقق من البيانات والمحاولة مرة أخرى.';
+          try {
+            const data = await res.json();
+            const apiMsg = data?.error?.message ?? data?.message;
+            if (Array.isArray(apiMsg)) msg = apiMsg.join('، ');
+            else if (typeof apiMsg === 'string') msg = apiMsg;
+          } catch (_) {}
+          showMessage(msg, false);
+        }
+      } catch (err) {
+        showMessage('تعذّر الاتصال بالخادم. تحقق من اتصالك بالإنترنت.', false);
+      } finally {
+        submitBtn.disabled = false;
+        submitSpinner.classList.add('hidden');
+        submitLabel.textContent = 'إرسال الطلب';
+      }
+    });
+  </script>
+</body>
+</html>

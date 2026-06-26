@@ -8,19 +8,24 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ListCycleCountsQueryDto = void 0;
+exports.parseDiscrepancyOnly = parseDiscrepancyOnly;
 const client_1 = require("@prisma/client");
 const class_validator_1 = require("class-validator");
 const pagination_dto_1 = require("../../../common/dto/pagination.dto");
 const query_transform_1 = require("../../../common/transformers/query-transform");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
 const STATUSES = Object.values(client_1.CycleCountStatus);
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
 class ListCycleCountsQueryDto extends pagination_dto_1.PaginationDto {
     companyId;
     warehouseId;
     status;
+    assignedWorkerId;
+    discrepancyOnly;
+    createdFrom;
+    createdTo;
 }
 exports.ListCycleCountsQueryDto = ListCycleCountsQueryDto;
 __decorate([
@@ -39,6 +44,33 @@ __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsIn)(STATUSES),
-    __metadata("design:type", typeof (_a = typeof client_1.CycleCountStatus !== "undefined" && client_1.CycleCountStatus) === "function" ? _a : Object)
+    __metadata("design:type", String)
 ], ListCycleCountsQueryDto.prototype, "status", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, is_uuid_loose_1.IsUuidLoose)(),
+    __metadata("design:type", String)
+], ListCycleCountsQueryDto.prototype, "assignedWorkerId", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['true', 'false', '1', '0', 'yes']),
+    __metadata("design:type", String)
+], ListCycleCountsQueryDto.prototype, "discrepancyOnly", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(DAY, { message: 'createdFrom must be YYYY-MM-DD' }),
+    __metadata("design:type", String)
+], ListCycleCountsQueryDto.prototype, "createdFrom", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(DAY, { message: 'createdTo must be YYYY-MM-DD' }),
+    __metadata("design:type", String)
+], ListCycleCountsQueryDto.prototype, "createdTo", void 0);
+function parseDiscrepancyOnly(raw) {
+    return raw === 'true' || raw === '1' || raw === 'yes';
+}
 //# sourceMappingURL=list-cycle-counts-query.dto.js.map

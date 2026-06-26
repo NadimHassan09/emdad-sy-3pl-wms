@@ -25,6 +25,7 @@ class StockQueryDto extends pagination_dto_1.PaginationDto {
     locationId;
     warehouseId;
     sku;
+    status;
     productSearch;
     productName;
     productBarcode;
@@ -65,6 +66,12 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], StockQueryDto.prototype, "sku", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(Object.values(client_1.StockStatus)),
+    __metadata("design:type", String)
+], StockQueryDto.prototype, "status", void 0);
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),

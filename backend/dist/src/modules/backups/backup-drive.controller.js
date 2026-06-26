@@ -19,6 +19,7 @@ const current_user_decorator_1 = require("../../common/auth/current-user.decorat
 const public_decorator_1 = require("../../common/auth/public.decorator");
 const roles_decorator_1 = require("../../common/auth/roles.decorator");
 const roles_guard_1 = require("../../common/auth/roles.guard");
+const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard");
 const super_admin_guard_1 = require("../../common/auth/super-admin.guard");
 const backup_config_1 = require("./backup-config");
 const backup_drive_auth_service_1 = require("./backup-drive-auth.service");
@@ -110,7 +111,7 @@ __decorate([
 ], BackupDriveController.prototype, "testConnection", null);
 __decorate([
     (0, common_1.Get)('status'),
-    (0, common_1.UseGuards)(super_admin_guard_1.SuperAdminGuard),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)

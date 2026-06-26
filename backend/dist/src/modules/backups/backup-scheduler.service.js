@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const schedule_1 = require("@nestjs/schedule");
 const client_1 = require("@prisma/client");
 const audit_log_service_1 = require("../../common/audit/audit-log.service");
+const cron_leader_service_1 = require("../../common/cron/cron-leader.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const backup_config_1 = require("./backup-config");
 const backup_operations_service_1 = require("./backup-operations.service");
@@ -28,21 +29,26 @@ let BackupSchedulerService = BackupSchedulerService_1 = class BackupSchedulerSer
     runner;
     audit;
     storagePolicy;
+    cronLeader;
     logger = new common_1.Logger(BackupSchedulerService_1.name);
     systemPrincipal = null;
     scheduledRunInFlight = false;
-    constructor(prisma, backupConfig, operations, runner, audit, storagePolicy) {
+    constructor(prisma, backupConfig, operations, runner, audit, storagePolicy, cronLeader) {
         this.prisma = prisma;
         this.backupConfig = backupConfig;
         this.operations = operations;
         this.runner = runner;
         this.audit = audit;
         this.storagePolicy = storagePolicy;
+        this.cronLeader = cronLeader;
     }
     async onModuleInit() {
         await this.resolveSystemPrincipal();
     }
     async tick() {
+        await this.cronLeader.runExclusive('backup-scheduler', 90, () => this.runTick());
+    }
+    async runTick() {
         if (!this.backupConfig.enabled || !this.backupConfig.schedulerEnabled) {
             return;
         }
@@ -180,6 +186,7 @@ exports.BackupSchedulerService = BackupSchedulerService = BackupSchedulerService
         backup_operations_service_1.BackupOperationsService,
         backup_runner_service_1.BackupRunnerService,
         audit_log_service_1.AuditLogService,
-        backup_storage_policy_service_1.BackupStoragePolicyService])
+        backup_storage_policy_service_1.BackupStoragePolicyService,
+        cron_leader_service_1.CronLeaderService])
 ], BackupSchedulerService);
 //# sourceMappingURL=backup-scheduler.service.js.map

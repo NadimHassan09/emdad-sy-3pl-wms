@@ -1,0 +1,1 @@
+const c={piece:["Piece","قطعة"],kg:["Kilogram","كيلوغرام"],litre:["Litre","لتر"],carton:["Carton","كرتون"],pallet:["Pallet","طبلية"],box:["Box","صندوق"],roll:["Roll","لفة"]};function r(e,t){const o=c[e];return o?t(o):e}function n(e,t){const a={active:["Active","نشط"],suspended:["Suspended","موقوف"],archived:["Archived","مؤرشف"]}[e];return a?t(a):e}export{c as P,n as a,r as p};

@@ -438,7 +438,9 @@ let AuditLogsService = class AuditLogsService {
     assertRowVisible(user, row) {
         if (row.company_id) {
             this.companyAccess.assertCompanyAccess(user, row.company_id);
-            if (user.companyId && row.company_id !== user.companyId) {
+            if (user.companyId &&
+                row.company_id !== user.companyId &&
+                user.tenantScope !== 'all') {
                 throw new common_1.NotFoundException('Audit log entry not found.');
             }
             return;

@@ -1,13 +1,16 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/auth/current-user.decorator';
+import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
@@ -49,5 +52,14 @@ export class OutboundController {
     @Param('id', ParseUuidLoosePipe) id: string,
   ) {
     return this.outbound.cancel(id, user);
+  }
+
+  @Delete(':id')
+  @UseGuards(InternalAdminGuard)
+  remove(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.outbound.remove(id, user);
   }
 }

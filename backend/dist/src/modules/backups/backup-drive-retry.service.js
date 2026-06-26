@@ -14,6 +14,7 @@ exports.BackupDriveRetryService = void 0;
 const common_1 = require("@nestjs/common");
 const schedule_1 = require("@nestjs/schedule");
 const client_1 = require("@prisma/client");
+const cron_leader_service_1 = require("../../common/cron/cron-leader.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const backup_config_1 = require("./backup-config");
 const backup_drive_sync_service_1 = require("./backup-drive-sync.service");
@@ -21,15 +22,20 @@ let BackupDriveRetryService = BackupDriveRetryService_1 = class BackupDriveRetry
     prisma;
     backupConfig;
     driveSync;
+    cronLeader;
     logger = new common_1.Logger(BackupDriveRetryService_1.name);
     retryInFlight = false;
     systemPrincipal = null;
-    constructor(prisma, backupConfig, driveSync) {
+    constructor(prisma, backupConfig, driveSync, cronLeader) {
         this.prisma = prisma;
         this.backupConfig = backupConfig;
         this.driveSync = driveSync;
+        this.cronLeader = cronLeader;
     }
     async processRetries() {
+        await this.cronLeader.runExclusive('backup-drive-retry', 150, () => this.runProcessRetries());
+    }
+    async runProcessRetries() {
         if (!this.backupConfig.enabled || !this.backupConfig.gdriveEnabled)
             return;
         if (this.retryInFlight)
@@ -100,6 +106,7 @@ exports.BackupDriveRetryService = BackupDriveRetryService = BackupDriveRetryServ
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         backup_config_1.BackupConfig,
-        backup_drive_sync_service_1.BackupDriveSyncService])
+        backup_drive_sync_service_1.BackupDriveSyncService,
+        cron_leader_service_1.CronLeaderService])
 ], BackupDriveRetryService);
 //# sourceMappingURL=backup-drive-retry.service.js.map

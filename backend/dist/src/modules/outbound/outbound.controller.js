@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.OutboundController = void 0;
 const common_1 = require("@nestjs/common");
 const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
+const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard");
 const parse_uuid_loose_pipe_1 = require("../../common/pipes/parse-uuid-loose.pipe");
 const create_outbound_dto_1 = require("./dto/create-outbound.dto");
 const confirm_outbound_body_dto_1 = require("./dto/confirm-outbound-body.dto");
@@ -39,6 +40,9 @@ let OutboundController = class OutboundController {
     }
     cancel(user, id) {
         return this.outbound.cancel(id, user);
+    }
+    remove(user, id) {
+        return this.outbound.remove(id, user);
     }
 };
 exports.OutboundController = OutboundController;
@@ -83,6 +87,15 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], OutboundController.prototype, "cancel", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "remove", null);
 exports.OutboundController = OutboundController = __decorate([
     (0, common_1.Controller)('outbound-orders'),
     __metadata("design:paramtypes", [outbound_service_1.OutboundService])

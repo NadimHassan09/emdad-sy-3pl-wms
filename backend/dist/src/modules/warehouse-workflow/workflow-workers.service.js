@@ -21,12 +21,12 @@ let WorkflowWorkersService = class WorkflowWorkersService {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
     }
-    async list(user, warehouseId) {
-        const tenantCompanyId = this.companyAccess.getReadFilterCompanyId(user);
-        if (!tenantCompanyId)
+    async list(user, warehouseId, companyIdParam) {
+        const tenantCompanyId = this.companyAccess.getReadFilterCompanyId(user, companyIdParam);
+        if (!warehouseId && !tenantCompanyId && user.tenantScope !== 'all') {
             return [];
+        }
         const where = {
-            companyId: tenantCompanyId,
             status: client_1.WorkerOperationalStatus.active,
             userId: { not: null },
             user: {
@@ -38,9 +38,27 @@ let WorkflowWorkersService = class WorkflowWorkersService {
         if (warehouseId) {
             where.OR = [{ warehouseId }, { warehouseId: null }];
         }
+        else if (tenantCompanyId) {
+            where.companyId = tenantCompanyId;
+        }
         return this.prisma.worker.findMany({
             where,
             include: { roles: true, user: { select: { id: true, email: true, fullName: true, role: true } } },
+            orderBy: { displayName: 'asc' },
+        });
+    }
+    async listUnlinked(user) {
+        const tenantCompanyId = this.companyAccess.getReadFilterCompanyId(user);
+        const where = {
+            userId: null,
+            status: client_1.WorkerOperationalStatus.active,
+        };
+        if (tenantCompanyId) {
+            where.companyId = tenantCompanyId;
+        }
+        return this.prisma.worker.findMany({
+            where,
+            include: { roles: true },
             orderBy: { displayName: 'asc' },
         });
     }
@@ -60,10 +78,16 @@ let WorkflowWorkersService = class WorkflowWorkersService {
             include: { roles: true },
         });
     }
-    async workerLoad(user, warehouseId) {
-        const tenantCompanyId = this.companyAccess.requireActiveTenant(user, 'An active client tenant is required for worker load.');
+    async workerLoad(user, warehouseId, companyIdParam) {
+        const tenantCompanyId = this.companyAccess.getReadFilterCompanyId(user, companyIdParam);
+        if (!warehouseId && !tenantCompanyId && user.tenantScope !== 'all') {
+            return [];
+        }
         const whFilter = warehouseId
             ? client_1.Prisma.sql `AND (w.warehouse_id = ${warehouseId}::uuid OR w.warehouse_id IS NULL)`
+            : client_1.Prisma.empty;
+        const companyFilter = !warehouseId && tenantCompanyId
+            ? client_1.Prisma.sql `AND w.company_id = ${tenantCompanyId}::uuid`
             : client_1.Prisma.empty;
         const rows = await this.prisma.$queryRaw(client_1.Prisma.sql `
       SELECT
@@ -75,12 +99,12 @@ let WorkflowWorkersService = class WorkflowWorkersService {
       FROM v_wms_worker_load v
       INNER JOIN workers w ON w.id = v.worker_id
       INNER JOIN users u ON u.id = w.user_id
-      WHERE w.company_id = ${tenantCompanyId}::uuid
-        AND w.status = 'active'::worker_operational_status
+      WHERE w.status = 'active'::worker_operational_status
         AND w.user_id IS NOT NULL
         AND u.company_id IS NULL
         AND u.role = ${client_1.UserRole.wh_operator}::user_role
         AND u.status = 'active'::user_status
+      ${companyFilter}
       ${whFilter}
       ORDER BY v.load_score DESC NULLS LAST, v.full_name ASC
     `);

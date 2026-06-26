@@ -60,7 +60,7 @@ let CycleCountVarianceService = class CycleCountVarianceService {
         const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
         return this.prisma.cycleCountVariance.findMany({
             where: {
-                companyId,
+                ...(companyId ? { companyId } : {}),
                 ...(query.cycleCountId ? { cycleCountId: query.cycleCountId } : {}),
                 ...(query.status ? { status: query.status } : {}),
             },

@@ -14,6 +14,7 @@ exports.BackupDriveRetentionCleanupService = void 0;
 const common_1 = require("@nestjs/common");
 const schedule_1 = require("@nestjs/schedule");
 const client_1 = require("@prisma/client");
+const cron_leader_service_1 = require("../../common/cron/cron-leader.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const backup_config_1 = require("./backup-config");
 const backup_drive_retention_service_1 = require("./backup-drive-retention.service");
@@ -25,17 +26,22 @@ let BackupDriveRetentionCleanupService = BackupDriveRetentionCleanupService_1 = 
     operations;
     runner;
     driveRetention;
+    cronLeader;
     logger = new common_1.Logger(BackupDriveRetentionCleanupService_1.name);
     cleanupInFlight = false;
     systemPrincipal = null;
-    constructor(prisma, backupConfig, operations, runner, driveRetention) {
+    constructor(prisma, backupConfig, operations, runner, driveRetention, cronLeader) {
         this.prisma = prisma;
         this.backupConfig = backupConfig;
         this.operations = operations;
         this.runner = runner;
         this.driveRetention = driveRetention;
+        this.cronLeader = cronLeader;
     }
     async runScheduledCleanup() {
+        await this.cronLeader.runExclusive('backup-drive-retention-cleanup', 7200, () => this.runScheduledCleanupWork());
+    }
+    async runScheduledCleanupWork() {
         if (!this.backupConfig.enabled || !this.backupConfig.gdriveRetentionCleanupEnabled)
             return;
         if (!this.backupConfig.gdriveEnabled)
@@ -96,6 +102,7 @@ exports.BackupDriveRetentionCleanupService = BackupDriveRetentionCleanupService 
         backup_config_1.BackupConfig,
         backup_operations_service_1.BackupOperationsService,
         backup_runner_service_1.BackupRunnerService,
-        backup_drive_retention_service_1.BackupDriveRetentionService])
+        backup_drive_retention_service_1.BackupDriveRetentionService,
+        cron_leader_service_1.CronLeaderService])
 ], BackupDriveRetentionCleanupService);
 //# sourceMappingURL=backup-drive-retention-cleanup.service.js.map

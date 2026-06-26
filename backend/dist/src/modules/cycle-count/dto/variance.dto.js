@@ -8,7 +8,6 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReviewVarianceDto = exports.ListVariancesQueryDto = void 0;
 const client_1 = require("@prisma/client");
@@ -39,7 +38,7 @@ __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsIn)(STATUSES),
-    __metadata("design:type", typeof (_a = typeof client_1.CycleCountVarianceStatus !== "undefined" && client_1.CycleCountVarianceStatus) === "function" ? _a : Object)
+    __metadata("design:type", String)
 ], ListVariancesQueryDto.prototype, "status", void 0);
 class ReviewVarianceDto {
     action;

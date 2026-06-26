@@ -107,6 +107,10 @@ export const InboundApi = {
     const { data } = await api.post<InboundOrder>(`/inbound-orders/${id}/cancel`);
     return data;
   },
+  async remove(id: string): Promise<{ id: string; deleted: boolean }> {
+    const { data } = await api.delete<{ id: string; deleted: boolean }>(`/inbound-orders/${id}`);
+    return data;
+  },
   async receive(orderId: string, lineId: string, input: ReceiveLineInput): Promise<InboundOrder> {
     const { data } = await api.post<InboundOrder>(
       `/inbound-orders/${orderId}/lines/${lineId}/receive`,

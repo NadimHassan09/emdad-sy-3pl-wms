@@ -6,6 +6,7 @@ const envSchema = zod_1.z.object({
     NODE_ENV: zod_1.z.enum(['development', 'test', 'production']).default('development'),
     PORT: zod_1.z.coerce.number().int().positive().max(65535).default(3000),
     CORS_ORIGINS: zod_1.z.string().min(1).default('http://localhost:5173'),
+    LANDING_FORM_CORS_ORIGINS: zod_1.z.string().optional(),
     JWT_SECRET: zod_1.z.string().min(16),
     JWT_REFRESH_SECRET: zod_1.z.string().min(16).optional(),
     HTTP_JSON_BODY_LIMIT: zod_1.z.string().optional(),
@@ -60,6 +61,7 @@ const envSchema = zod_1.z.object({
     BACKUP_GDRIVE_CONNECT_SUCCESS_URL: zod_1.z.string().url().optional(),
     BACKUP_ENCRYPTION_KEY: zod_1.z.string().min(16).optional(),
     BACKUP_GDRIVE_STARTUP_STRICT: zod_1.z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+    CRON_LEADER_ENABLED: zod_1.z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
 });
 function envBool(raw) {
     if (raw === undefined || raw === null || raw === '')

@@ -12,6 +12,7 @@ const audit_module_1 = require("../../common/audit/audit.module");
 const redis_module_1 = require("../../common/redis/redis.module");
 const prisma_module_1 = require("../../common/prisma/prisma.module");
 const auth_module_1 = require("../auth/auth.module");
+const billing_module_1 = require("../billing/billing.module");
 const inventory_module_1 = require("../inventory/inventory.module");
 const workflow_bootstrap_service_1 = require("./workflow-bootstrap.service");
 const workflow_orchestration_service_1 = require("./workflow-orchestration.service");
@@ -24,6 +25,7 @@ const workflow_execution_gate_guard_1 = require("./workflow-execution-gate.guard
 const workflow_workers_controller_1 = require("./workflow-workers.controller");
 const analytics_overview_controller_1 = require("./analytics-overview.controller");
 const sla_escalation_service_1 = require("./sla-escalation.service");
+const sla_audit_service_1 = require("./sla-audit.service");
 const workflow_recovery_service_1 = require("./workflow-recovery.service");
 const workflow_engine_service_1 = require("./workflow-engine.service");
 let WarehouseWorkflowModule = class WarehouseWorkflowModule {
@@ -31,7 +33,7 @@ let WarehouseWorkflowModule = class WarehouseWorkflowModule {
 exports.WarehouseWorkflowModule = WarehouseWorkflowModule;
 exports.WarehouseWorkflowModule = WarehouseWorkflowModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, inventory_module_1.InventoryModule, redis_module_1.RedisModule, auth_module_1.AuthModule, audit_module_1.AuditModule],
+        imports: [prisma_module_1.PrismaModule, inventory_module_1.InventoryModule, redis_module_1.RedisModule, auth_module_1.AuthModule, audit_module_1.AuditModule, billing_module_1.BillingModule],
         controllers: [
             workflow_controller_1.WorkflowController,
             warehouse_tasks_controller_1.WarehouseTasksController,
@@ -46,6 +48,7 @@ exports.WarehouseWorkflowModule = WarehouseWorkflowModule = __decorate([
             task_inventory_effects_service_1.TaskInventoryEffectsService,
             workflow_workers_service_1.WorkflowWorkersService,
             sla_escalation_service_1.SlaEscalationService,
+            sla_audit_service_1.SlaAuditService,
             workflow_recovery_service_1.WorkflowRecoveryService,
             workflow_execution_gate_guard_1.WorkflowExecutionGateGuard,
         ],

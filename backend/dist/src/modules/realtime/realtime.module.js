@@ -10,6 +10,7 @@ exports.RealtimeModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const prisma_module_1 = require("../../common/prisma/prisma.module");
+const presence_service_1 = require("./presence.service");
 const realtime_gateway_1 = require("./realtime.gateway");
 const realtime_service_1 = require("./realtime.service");
 let RealtimeModule = class RealtimeModule {
@@ -19,8 +20,8 @@ exports.RealtimeModule = RealtimeModule = __decorate([
     (0, common_1.Global)(),
     (0, common_1.Module)({
         imports: [config_1.ConfigModule, prisma_module_1.PrismaModule],
-        providers: [realtime_gateway_1.RealtimeGateway, realtime_service_1.RealtimeService],
-        exports: [realtime_service_1.RealtimeService],
+        providers: [realtime_gateway_1.RealtimeGateway, realtime_service_1.RealtimeService, presence_service_1.PresenceService],
+        exports: [realtime_service_1.RealtimeService, presence_service_1.PresenceService],
     })
 ], RealtimeModule);
 //# sourceMappingURL=realtime.module.js.map
