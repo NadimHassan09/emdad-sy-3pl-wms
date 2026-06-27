@@ -62,9 +62,28 @@ export class BillingCycleProcessorService {
       let nextCycleId: string | null = null;
       const company = await this.prisma.company.findUnique({
         where: { id: cycle.companyId },
-        select: { name: true },
+        select: { name: true, status: true },
       });
       const companyName = company?.name ?? cycle.companyId;
+      // Archived / closed / purged customers must not generate new invoices or renew.
+      const billingLockedStatuses: CompanyStatus[] = [
+        CompanyStatus.archived,
+        CompanyStatus.purged,
+        CompanyStatus.closed,
+        CompanyStatus.offboarding,
+      ];
+      const billingLocked = !!company && billingLockedStatuses.includes(company.status);
+
+      if (billingLocked) {
+        await this.prisma.billingCycle.update({
+          where: { id: cycle.id },
+          data: { status: 'expired' },
+        });
+        this.log.log(
+          `Skipped billing renewal/invoicing for ${company!.status} company ${cycle.companyId}.`,
+        );
+        continue;
+      }
 
       await this.prisma.$transaction(async (tx) => {
         await this.invoiceCalc.finalizeCycleInvoice(tx, cycle.id);

@@ -78,13 +78,14 @@ export async function inboundIdsVisibleForWarehouse(
   const idSet = new Set<string>(
     [...receivedHere.map((r) => r.referenceId), ...neverReceivedOrders.map((o) => o.id)].filter(Boolean),
   );
-  // Always include draft orders matching the same tenant filters. Drafts have no receive
-  // ledger rows yet; edge cases in the ledger-derived set must not hide them from list UIs.
-  const preWorkflowRows = await prisma.inboundOrder.findMany({
-    where: { ...baseWhere, status: { in: ['draft', 'pending_approval'] } },
+  // Always include draft and cancelled orders matching the same tenant filters.
+  // Drafts have no receive ledger yet, and cancelled orders may have none at all
+  // (and their workflow is torn down on cancel) — neither must be hidden from list UIs.
+  const alwaysVisibleRows = await prisma.inboundOrder.findMany({
+    where: { ...baseWhere, status: { in: ['draft', 'pending_approval', 'cancelled'] } },
     select: { id: true },
   });
-  for (const o of preWorkflowRows) idSet.add(o.id);
+  for (const o of alwaysVisibleRows) idSet.add(o.id);
 
   return idSet.size ? { id: { in: [...idSet] } } : { id: { in: [] } };
 }
@@ -138,11 +139,14 @@ export async function outboundIdsVisibleForWarehouse(
   const idSet = new Set<string>(
     [...pickedHere.map((r) => r.referenceId), ...neverPickedOrders.map((o) => o.id)].filter(Boolean),
   );
-  const preWorkflowOutRows = await prisma.outboundOrder.findMany({
-    where: { ...baseWhere, status: { in: ['draft', 'pending_approval'] } },
+  // Always include draft and cancelled orders matching the same tenant filters.
+  // Cancelled orders may have no pick ledger and their workflow is removed on
+  // cancel, so they would otherwise vanish from list UIs.
+  const alwaysVisibleOutRows = await prisma.outboundOrder.findMany({
+    where: { ...baseWhere, status: { in: ['draft', 'pending_approval', 'cancelled'] } },
     select: { id: true },
   });
-  for (const o of preWorkflowOutRows) idSet.add(o.id);
+  for (const o of alwaysVisibleOutRows) idSet.add(o.id);
 
   return idSet.size ? { id: { in: [...idSet] } } : { id: { in: [] } };
 }

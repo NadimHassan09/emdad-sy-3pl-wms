@@ -27,6 +27,11 @@ const COMPANY_LIST_SELECT = {
     billingCycle: true,
     paymentTermsDays: true,
     notes: true,
+    suspendedAt: true,
+    suspensionReason: true,
+    archivedAt: true,
+    archiveReason: true,
+    purgedAt: true,
     createdAt: true,
     updatedAt: true,
 };
@@ -42,7 +47,10 @@ let CompaniesService = class CompaniesService {
         if (user.tenantScope === 'restricted') {
             where.id = { in: user.authorizedCompanyIds };
         }
-        if (!query.includeAll) {
+        if (query.status) {
+            where.status = query.status;
+        }
+        else if (!query.includeAll) {
             where.status = client_1.CompanyStatus.active;
         }
         if (query.search?.trim()) {

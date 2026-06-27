@@ -12,9 +12,11 @@ import {
   InboundOrderStatus,
 } from '../api/inbound';
 import { Product, ProductsApi } from '../api/products';
+import { useAuth } from '../auth/AuthContext';
 import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { Combobox } from '../components/Combobox';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { OrderDraftLinesTable } from '../components/OrderDraftLinesTable';
 import {
@@ -23,6 +25,7 @@ import {
   FilterPanel,
 } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
+import { RowActionsMenu, type RowAction } from '../components/RowActionsMenu';
 import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
@@ -36,7 +39,9 @@ import {
 } from '../hooks/useChunkedServerPagination';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { inboundHasQuantityShortfall } from '../lib/inbound-shortfall';
+import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../lib/order-planning-dates';
+import { canAccessInternalTransfer } from '../lib/rbac';
 
 const DEFAULT_COMPANY_ID = (import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined) ?? '';
 
@@ -96,6 +101,20 @@ function inboundLabel(label: string, isArabic: boolean): string {
     'Partially received': 'مستلم جزئيا',
     Completed: 'مكتمل',
     Cancelled: 'ملغي',
+    Actions: 'الإجراءات',
+    Edit: 'تعديل',
+    Delete: 'حذف',
+    'Cancel order': 'إلغاء الطلب',
+    'Open actions': 'فتح الإجراءات',
+    'Cancel this order?': 'إلغاء هذا الطلب؟',
+    'Cancelling stops all remaining work and deletes the order’s tasks. Already-received stock is not changed. This cannot be undone.':
+      'سيؤدي الإلغاء إلى إيقاف جميع الأعمال المتبقية وحذف مهام الطلب. لن يتم تغيير المخزون المستلم بالفعل. لا يمكن التراجع عن هذا الإجراء.',
+    'Delete this order?': 'حذف هذا الطلب؟',
+    'This permanently removes the order and its lines. This action cannot be undone.':
+      'سيؤدي هذا إلى حذف الطلب وبنوده نهائياً. لا يمكن التراجع عن هذا الإجراء.',
+    'Keep order': 'الاحتفاظ بالطلب',
+    'Order cancelled.': 'تم إلغاء الطلب.',
+    'Order deleted.': 'تم حذف الطلب.',
     'Expected arrival date cannot be before today.':
       'لا يمكن أن يكون تاريخ الوصول المتوقع قبل اليوم.',
   };
@@ -106,7 +125,11 @@ export function InboundListPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = canAccessInternalTransfer(user?.role);
   const [open, setOpen] = useState(false);
+  const [toCancel, setToCancel] = useState<InboundOrder | null>(null);
+  const [toDelete, setToDelete] = useState<InboundOrder | null>(null);
   const isArabic =
     typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (label: string) => inboundLabel(label, isArabic);
@@ -183,6 +206,41 @@ export function InboundListPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const cancelMut = useMutation({
+    mutationFn: (orderId: string) => InboundApi.cancel(orderId),
+    onSuccess: (_data, orderId) => {
+      toast.success(t('Order cancelled.'));
+      setToCancel(null);
+      qc.invalidateQueries({ queryKey: QK.inboundOrders });
+      invalidateWorkflowTasksInventory(qc, { referenceId: orderId, referenceType: 'inbound_order' });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (orderId: string) => InboundApi.remove(orderId),
+    onSuccess: () => {
+      toast.success(t('Order deleted.'));
+      setToDelete(null);
+      qc.invalidateQueries({ queryKey: QK.inboundOrders });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const rowActions = (o: InboundOrder): RowAction[] => {
+    const actions: RowAction[] = [];
+    if (o.status === 'draft' || o.status === 'pending_approval') {
+      actions.push({ key: 'edit', label: t('Edit'), onClick: () => navigate(`/orders/inbound/${o.id}`) });
+    }
+    if (o.status !== 'completed' && o.status !== 'cancelled') {
+      actions.push({ key: 'cancel', label: t('Cancel order'), danger: true, onClick: () => setToCancel(o) });
+    }
+    if (isAdmin && o.status === 'cancelled') {
+      actions.push({ key: 'delete', label: t('Delete'), danger: true, onClick: () => setToDelete(o) });
+    }
+    return actions;
+  };
+
   const columns: Column<InboundOrder>[] = useMemo(
     () => [
       {
@@ -217,8 +275,15 @@ export function InboundListPage() {
         header: t('Created'),
         accessor: (o) => new Date(o.createdAt).toLocaleString(),
       },
+      {
+        header: t('Actions'),
+        accessor: (o) => <RowActionsMenu items={rowActions(o)} ariaLabel={t('Open actions')} />,
+        className: 'w-1 whitespace-nowrap text-center',
+        width: '90px',
+      },
     ],
-    [isArabic],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isArabic, isAdmin],
   );
 
   return (
@@ -328,6 +393,38 @@ export function InboundListPage() {
         onSubmit={(input) => createMut.mutate(input)}
         isArabic={isArabic}
       />
+
+      <ConfirmModal
+        open={!!toCancel}
+        title={t('Cancel this order?')}
+        confirmLabel={t('Cancel order')}
+        cancelLabel={t('Keep order')}
+        danger
+        loading={cancelMut.isPending}
+        onClose={() => !cancelMut.isPending && setToCancel(null)}
+        onConfirm={() => toCancel && cancelMut.mutate(toCancel.id)}
+      >
+        <p className="text-sm">
+          {t(
+            'Cancelling stops all remaining work and deletes the order’s tasks. Already-received stock is not changed. This cannot be undone.',
+          )}
+        </p>
+      </ConfirmModal>
+
+      <ConfirmModal
+        open={!!toDelete}
+        title={t('Delete this order?')}
+        confirmLabel={t('Delete')}
+        cancelLabel={t('Cancel')}
+        danger
+        loading={deleteMut.isPending}
+        onClose={() => !deleteMut.isPending && setToDelete(null)}
+        onConfirm={() => toDelete && deleteMut.mutate(toDelete.id)}
+      >
+        <p className="text-sm">
+          {t('This permanently removes the order and its lines. This action cannot be undone.')}
+        </p>
+      </ConfirmModal>
     </>
   );
 }
@@ -387,21 +484,28 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
     setLines((prev) => prev.map((l) => ({ ...l, productId: '' })));
   }, [companyId]);
 
+  // Only active products are orderable; suspended/archived rows are rejected by
+  // the backend, so keep them out of the create form entirely.
+  const orderableProducts = useMemo(
+    () => (products.data?.items ?? []).filter((p) => p.status === 'active'),
+    [products.data],
+  );
+
   const productOptions = useMemo(
     () =>
-      (products.data?.items ?? []).map((p) => ({
+      orderableProducts.map((p) => ({
         value: p.id,
         label: `${p.sku} — ${p.name}`,
         hint: `On hand ${formatProductOnHand(p)} ${p.uom}`,
       })),
-    [products.data],
+    [orderableProducts],
   );
 
   const productsById = useMemo(() => {
     const m = new Map<string, Product>();
-    for (const p of products.data?.items ?? []) m.set(p.id, p);
+    for (const p of orderableProducts) m.set(p.id, p);
     return m;
-  }, [products.data]);
+  }, [orderableProducts]);
 
   const tableLines = useMemo(
     () =>
@@ -450,13 +554,19 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
         limit: 50,
       });
       const norm = code.toLowerCase();
-      const exact = items.filter((p) => (p.barcode ?? '').trim().toLowerCase() === norm);
-      const product = exact.length === 1 ? exact[0]! : items.length === 1 ? items[0]! : null;
+      const orderable = items.filter((p) => p.status === 'active');
+      const exact = orderable.filter((p) => (p.barcode ?? '').trim().toLowerCase() === norm);
+      const product = exact.length === 1 ? exact[0]! : orderable.length === 1 ? orderable[0]! : null;
       if (!product) {
+        const suspendedMatch = items.some(
+          (p) => p.status !== 'active' && (p.barcode ?? '').trim().toLowerCase() === norm,
+        );
         toast.error(
-          exact.length > 1
-            ? 'Multiple products share this barcode fragment — type a longer code or pick from the list.'
-            : 'No product found for this barcode.',
+          suspendedMatch
+            ? 'This product is suspended and cannot be added to orders.'
+            : exact.length > 1
+              ? 'Multiple products share this barcode fragment — type a longer code or pick from the list.'
+              : 'No product found for this barcode.',
         );
         return;
       }

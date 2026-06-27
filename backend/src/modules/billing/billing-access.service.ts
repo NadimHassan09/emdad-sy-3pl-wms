@@ -11,6 +11,16 @@ import {
 /** Warehouse capacity that may be allocated to client billing plans (10% reserved). */
 export const WAREHOUSE_ALLOCATABLE_CAPACITY_RATIO = 0.9;
 
+/** Lifecycle statuses that block operational/billing access (no new cycles or invoices). */
+export const BILLING_BLOCKED_STATUSES: CompanyStatus[] = [
+  CompanyStatus.restricted,
+  CompanyStatus.suspended,
+  CompanyStatus.archived,
+  CompanyStatus.closed,
+  CompanyStatus.offboarding,
+  CompanyStatus.purged,
+];
+
 @Injectable()
 export class BillingVolumeCapacityService {
   constructor(private readonly prisma: PrismaService) {}
@@ -133,7 +143,7 @@ export class BillingAccessService {
     if (!company) {
       return { operationalAllowed: false, accountStatus: 'no_plan', daysRemaining: null };
     }
-    if (company.status === CompanyStatus.restricted) {
+    if (BILLING_BLOCKED_STATUSES.includes(company.status)) {
       return { operationalAllowed: false, accountStatus: 'restricted', daysRemaining: null };
     }
 
@@ -176,7 +186,7 @@ export class BillingAccessService {
     if (!company) {
       throw new BillingPlanRequiredException('Company not found.');
     }
-    if (company.status === CompanyStatus.restricted) {
+    if (BILLING_BLOCKED_STATUSES.includes(company.status)) {
       throw new BillingCycleExpiredException();
     }
 

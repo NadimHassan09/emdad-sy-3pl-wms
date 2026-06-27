@@ -75,12 +75,9 @@ function isInboundConfirmable(status: InboundOrderStatus): boolean {
   return INBOUND_CONFIRMABLE.includes(status);
 }
 
-// Orders in these states are not yet confirmed/complete, so an admin may permanently delete them.
-const INBOUND_DELETABLE: InboundOrderStatus[] = [
-  InboundOrderStatus.draft,
-  InboundOrderStatus.pending_approval,
-  InboundOrderStatus.cancelled,
-];
+// Only cancelled orders may be permanently deleted by an admin. Every other
+// status must be cancelled first.
+const INBOUND_DELETABLE: InboundOrderStatus[] = [InboundOrderStatus.cancelled];
 
 @Injectable()
 export class InboundService {
@@ -373,13 +370,25 @@ export class InboundService {
 
   async cancel(id: string, user: AuthPrincipal) {
     const order = await this.findById(id, user);
-    if (!['draft', 'pending_approval', 'confirmed'].includes(order.status)) {
+    // An order can be cancelled any time before it is finished.
+    if (
+      order.status === InboundOrderStatus.completed ||
+      order.status === InboundOrderStatus.cancelled
+    ) {
       throw new InvalidStateException(
-        `Inbound orders can only be cancelled while in draft, pending approval, or confirmed (current: ${order.status}).`,
+        `Inbound orders cannot be cancelled once ${order.status} (current: ${order.status}).`,
       );
     }
-    const cancelled = await withTenantRls(this.prisma, user, async (tx) =>
-      tx.inboundOrder.update({
+    const previousStatus = order.status;
+    const cancelled = await withTenantRls(this.prisma, user, async (tx) => {
+      // Cancelling mid-workflow tears down all remaining work for this order:
+      // deleting the workflow instance cascades its nodes, tasks, assignments
+      // and events. Any stock already received is intentionally left untouched —
+      // cancellation never moves inventory or changes product quantities.
+      await tx.workflowInstance.deleteMany({
+        where: { referenceType: 'inbound_order', referenceId: id },
+      });
+      return tx.inboundOrder.update({
         where: { id },
         data: {
           status: 'cancelled',
@@ -387,6 +396,16 @@ export class InboundService {
           cancelledBy: user.id,
         },
         include: ORDER_INCLUDE,
+      });
+    });
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'INBOUND_ORDER_CANCELLED',
+        resourceType: 'inbound_order',
+        resourceId: cancelled.id,
+        companyId: cancelled.companyId,
+        previousState: { status: previousStatus },
+        newState: { status: cancelled.status, cancelledBy: user.id },
       }),
     );
     this.realtime.emitInboundOrderUpdated(cancelled.companyId, {
@@ -407,7 +426,7 @@ export class InboundService {
     const order = await this.findById(id, user);
     if (!INBOUND_DELETABLE.includes(order.status)) {
       throw new InvalidStateException(
-        `Only draft, pending-approval, or cancelled inbound orders can be deleted (current: ${order.status}).`,
+        `Only cancelled inbound orders can be deleted. Cancel the order first (current: ${order.status}).`,
       );
     }
 

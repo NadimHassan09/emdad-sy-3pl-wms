@@ -132,6 +132,8 @@ function stockByProductPageSql(ctx, limit, offset) {
     return client_1.Prisma.sql `
     SELECT cs.product_id,
            SUM(cs.quantity_on_hand)::text AS total_quantity,
+           SUM(cs.quantity_reserved)::text AS reserved_quantity,
+           SUM(cs.quantity_available)::text AS available_quantity,
            p.sku,
            p.name,
            p.uom::text AS uom,

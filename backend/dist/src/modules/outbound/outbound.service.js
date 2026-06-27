@@ -273,14 +273,21 @@ let OutboundService = class OutboundService {
     }
     async cancel(id, user) {
         const order = await this.findById(id, user);
-        if (!['draft', 'pending_approval'].includes(order.status)) {
-            throw new domain_exceptions_1.InvalidStateException(`Outbound orders can only be cancelled while in draft or pending approval (current: ${order.status}).`);
+        if (order.status === client_1.OutboundOrderStatus.shipped ||
+            order.status === client_1.OutboundOrderStatus.cancelled) {
+            throw new domain_exceptions_1.InvalidStateException(`Outbound orders cannot be cancelled once ${order.status} (current: ${order.status}).`);
         }
-        const cancelled = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => tx.outboundOrder.update({
-            where: { id },
-            data: { status: 'cancelled', cancelledAt: new Date(), cancelledBy: user.id },
-            include: ORDER_INCLUDE,
-        }));
+        const previousStatus = order.status;
+        const cancelled = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            await tx.workflowInstance.deleteMany({
+                where: { referenceType: 'outbound_order', referenceId: id },
+            });
+            return tx.outboundOrder.update({
+                where: { id },
+                data: { status: 'cancelled', cancelledAt: new Date(), cancelledBy: user.id },
+                include: ORDER_INCLUDE,
+            });
+        });
         this.realtime.emitOutboundOrderUpdated(cancelled.companyId, {
             orderId: cancelled.id,
             status: cancelled.status,
@@ -292,20 +299,15 @@ let OutboundService = class OutboundService {
             resourceType: 'outbound_order',
             resourceId: cancelled.id,
             companyId: cancelled.companyId,
-            previousState: { status: order.status },
+            previousState: { status: previousStatus },
             newState: { status: cancelled.status, cancelledBy: user.id },
         }));
         return cancelled;
     }
     async remove(id, user) {
         const order = await this.findById(id, user);
-        const deletable = [
-            client_1.OutboundOrderStatus.draft,
-            client_1.OutboundOrderStatus.pending_approval,
-            client_1.OutboundOrderStatus.cancelled,
-        ];
-        if (!deletable.includes(order.status)) {
-            throw new domain_exceptions_1.InvalidStateException(`Only draft, pending-approval, or cancelled outbound orders can be deleted (current: ${order.status}).`);
+        if (order.status !== client_1.OutboundOrderStatus.cancelled) {
+            throw new domain_exceptions_1.InvalidStateException(`Only cancelled outbound orders can be deleted. Cancel the order first (current: ${order.status}).`);
         }
         await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             const ledgerCount = await tx.inventoryLedger.count({

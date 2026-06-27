@@ -50,7 +50,7 @@ let JwtClientStrategy = class JwtClientStrategy extends (0, passport_1.PassportS
                 role: true,
                 status: true,
                 companyId: true,
-                company: { select: { name: true } },
+                company: { select: { name: true, status: true } },
             },
         });
         if (!user || user.status !== client_1.UserStatus.active) {
@@ -58,6 +58,9 @@ let JwtClientStrategy = class JwtClientStrategy extends (0, passport_1.PassportS
         }
         if (user.companyId === null || !CLIENT_ROLES.includes(user.role)) {
             throw new common_1.UnauthorizedException('Session is no longer valid.');
+        }
+        if (!user.company || user.company.status !== client_1.CompanyStatus.active) {
+            throw new common_1.ForbiddenException('Your account is currently inactive. Please contact support.');
         }
         return {
             id: user.id,

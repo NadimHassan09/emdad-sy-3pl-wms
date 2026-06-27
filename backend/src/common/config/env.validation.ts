@@ -18,6 +18,8 @@ const envSchema = z.object({
   OPS_DIAGNOSTICS_ENABLED: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
   OPS_PROBE_SECRET: z.string().min(16).optional(),
   AUDIT_RETENTION_DAYS: z.coerce.number().int().min(0).max(3650).optional(),
+  // Minimum days a customer must remain ARCHIVED before becoming eligible for permanent purge.
+  CUSTOMER_PURGE_RETENTION_DAYS: z.coerce.number().int().min(0).max(3650).optional(),
   AUDIT_QUERY_MAX_LIMIT: z.coerce.number().int().min(1).max(100).optional(),
   AUDIT_QUERY_MAX_OFFSET: z.coerce.number().int().min(0).max(50_000).optional(),
   AUDIT_QUERY_MAX_DATE_RANGE_DAYS: z.coerce.number().int().min(1).max(366).optional(),

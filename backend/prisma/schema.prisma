@@ -26,6 +26,9 @@ enum CompanyStatus {
   offboarding
   closed
   restricted
+  suspended
+  archived
+  purged
 
   @@map("company_status")
 }
@@ -498,6 +501,13 @@ model Company {
   status           CompanyStatus    @default(active)
   notes            String?
   workflowUxSettings Json?            @map("workflow_ux_settings") @db.JsonB
+  suspendedAt       DateTime?        @map("suspended_at") @db.Timestamptz(6)
+  suspendedBy       String?          @map("suspended_by") @db.Uuid
+  suspensionReason  String?          @map("suspension_reason")
+  archivedAt        DateTime?        @map("archived_at") @db.Timestamptz(6)
+  archivedBy        String?          @map("archived_by") @db.Uuid
+  archiveReason     String?          @map("archive_reason")
+  purgedAt          DateTime?        @map("purged_at") @db.Timestamptz(6)
   createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
 

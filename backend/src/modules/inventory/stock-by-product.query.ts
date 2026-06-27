@@ -17,6 +17,8 @@ export type StockByProductSqlContext = {
 export type StockByProductRow = {
   product_id: string;
   total_quantity: string;
+  reserved_quantity: string;
+  available_quantity: string;
   sku: string;
   name: string;
   uom: string;
@@ -186,6 +188,8 @@ export function stockByProductPageSql(
   return Prisma.sql`
     SELECT cs.product_id,
            SUM(cs.quantity_on_hand)::text AS total_quantity,
+           SUM(cs.quantity_reserved)::text AS reserved_quantity,
+           SUM(cs.quantity_available)::text AS available_quantity,
            p.sku,
            p.name,
            p.uom::text AS uom,

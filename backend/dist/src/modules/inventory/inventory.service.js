@@ -212,6 +212,9 @@ let InventoryService = class InventoryService {
             const items = pageRows.map((r) => ({
                 productId: r.product_id,
                 totalQuantity: r.total_quantity,
+                onHand: r.total_quantity,
+                reserved: r.reserved_quantity,
+                available: r.available_quantity,
                 product: {
                     id: r.product_id,
                     sku: r.sku,
@@ -227,7 +230,7 @@ let InventoryService = class InventoryService {
     async stock(user, query) {
         const where = await this.resolveCurrentStockWhere(user, query);
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
-            const [items, total] = await Promise.all([
+            const [items, total, agg] = await Promise.all([
                 tx.currentStock.findMany({
                     where,
                     include: {
@@ -243,8 +246,26 @@ let InventoryService = class InventoryService {
                     skip: query.offset,
                 }),
                 tx.currentStock.count({ where }),
+                tx.currentStock.aggregate({
+                    where,
+                    _sum: {
+                        quantityOnHand: true,
+                        quantityReserved: true,
+                        quantityAvailable: true,
+                    },
+                }),
             ]);
-            return { items, total, limit: query.limit, offset: query.offset };
+            return {
+                items,
+                total,
+                limit: query.limit,
+                offset: query.offset,
+                totals: {
+                    quantityOnHand: (agg._sum.quantityOnHand ?? 0).toString(),
+                    quantityReserved: (agg._sum.quantityReserved ?? 0).toString(),
+                    quantityAvailable: (agg._sum.quantityAvailable ?? 0).toString(),
+                },
+            };
         });
     }
     async ledger(user, query) {

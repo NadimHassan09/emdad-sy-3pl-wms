@@ -137,8 +137,7 @@ export function OutboundDetailPage() {
   const o = order.data;
   const canConfirm = o.status === 'draft' || o.status === 'pending_approval';
   const canCancel = o.status === 'draft' || o.status === 'pending_approval';
-  const canDelete =
-    isAdmin && ['draft', 'pending_approval', 'cancelled'].includes(o.status);
+  const canDelete = isAdmin && o.status === 'cancelled';
   const outboundConfirmBlocked = taskOnlyMode && canConfirm && !effectiveWarehouseId;
 
   const lineColumns: Column<OutboundOrderLine>[] = [

@@ -332,18 +332,31 @@ export class OutboundService {
 
   async cancel(id: string, user: AuthPrincipal) {
     const order = await this.findById(id, user);
-    if (!['draft', 'pending_approval'].includes(order.status)) {
+    // An order can be cancelled any time before it ships. Stock is only deducted
+    // when dispatch completes (status becomes `shipped`), so cancelling an
+    // in-progress order never needs to touch — or restore — inventory.
+    if (
+      order.status === OutboundOrderStatus.shipped ||
+      order.status === OutboundOrderStatus.cancelled
+    ) {
       throw new InvalidStateException(
-        `Outbound orders can only be cancelled while in draft or pending approval (current: ${order.status}).`,
+        `Outbound orders cannot be cancelled once ${order.status} (current: ${order.status}).`,
       );
     }
-    const cancelled = await withTenantRls(this.prisma, user, async (tx) =>
-      tx.outboundOrder.update({
+    const previousStatus = order.status;
+    const cancelled = await withTenantRls(this.prisma, user, async (tx) => {
+      // Tear down all remaining work for this order: deleting the workflow
+      // instance cascades its nodes, tasks, assignments and events. No inventory
+      // is moved — product quantities are left exactly as they are.
+      await tx.workflowInstance.deleteMany({
+        where: { referenceType: 'outbound_order', referenceId: id },
+      });
+      return tx.outboundOrder.update({
         where: { id },
         data: { status: 'cancelled', cancelledAt: new Date(), cancelledBy: user.id },
         include: ORDER_INCLUDE,
-      }),
-    );
+      });
+    });
     this.realtime.emitOutboundOrderUpdated(cancelled.companyId, {
       orderId: cancelled.id,
       status: cancelled.status,
@@ -356,7 +369,7 @@ export class OutboundService {
         resourceType: 'outbound_order',
         resourceId: cancelled.id,
         companyId: cancelled.companyId,
-        previousState: { status: order.status },
+        previousState: { status: previousStatus },
         newState: { status: cancelled.status, cancelledBy: user.id },
       }),
     );
@@ -370,14 +383,11 @@ export class OutboundService {
    */
   async remove(id: string, user: AuthPrincipal) {
     const order = await this.findById(id, user);
-    const deletable: OutboundOrderStatus[] = [
-      OutboundOrderStatus.draft,
-      OutboundOrderStatus.pending_approval,
-      OutboundOrderStatus.cancelled,
-    ];
-    if (!deletable.includes(order.status)) {
+    // Only cancelled orders may be permanently deleted. Every other status must
+    // be cancelled first.
+    if (order.status !== OutboundOrderStatus.cancelled) {
       throw new InvalidStateException(
-        `Only draft, pending-approval, or cancelled outbound orders can be deleted (current: ${order.status}).`,
+        `Only cancelled outbound orders can be deleted. Cancel the order first (current: ${order.status}).`,
       );
     }
 

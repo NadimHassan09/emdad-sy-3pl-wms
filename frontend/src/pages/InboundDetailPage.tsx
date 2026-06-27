@@ -158,8 +158,7 @@ export function InboundDetailPage() {
   const canConfirm = o.status === 'draft' || o.status === 'pending_approval';
   const canCancel =
     o.status === 'draft' || o.status === 'pending_approval' || o.status === 'confirmed';
-  const canDelete =
-    isAdmin && ['draft', 'pending_approval', 'cancelled'].includes(o.status);
+  const canDelete = isAdmin && o.status === 'cancelled';
   const canReceive =
     !taskOnlyMode && ['confirmed', 'in_progress', 'partially_received'].includes(o.status);
 

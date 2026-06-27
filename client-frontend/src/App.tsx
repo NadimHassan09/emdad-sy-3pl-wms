@@ -24,6 +24,7 @@ function lazyPage<M extends Record<string, React.ComponentType>>(
 }
 
 const LoginPage             = lazyPage(() => import('./pages/LoginPage'),             'LoginPage');
+const AccountStatusPage     = lazyPage(() => import('./pages/AccountStatusPage'),     'AccountStatusPage');
 const InboundOrdersPage     = lazyPage(() => import('./pages/InboundOrdersPage'),     'InboundOrdersPage');
 const InboundOrderDetailPage = lazyPage(() => import('./pages/InboundOrderDetailPage'), 'InboundOrderDetailPage');
 const OutboundOrdersPage    = lazyPage(() => import('./pages/OutboundOrdersPage'),    'OutboundOrdersPage');
@@ -48,6 +49,7 @@ function AppRoutes(): ReactElement {
       <RealtimeProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/account-inactive" element={<AccountStatusPage />} />
           <Route
             element={
               <RequireAuth>

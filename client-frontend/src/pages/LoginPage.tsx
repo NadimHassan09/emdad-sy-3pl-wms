@@ -1,6 +1,6 @@
 import type { FormEvent, ReactElement } from 'react';
 import { useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { LoginScreen } from '@ds';
 import { useAuth } from '../auth/AuthContext';
@@ -9,6 +9,7 @@ import { getLoginErrorMessage } from '../utils/loginError';
 export function LoginPage(): ReactElement {
   const { user, bootstrapped, login } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
 
   const [email, setEmail] = useState('');
@@ -50,6 +51,11 @@ export function LoginPage(): ReactElement {
     try {
       await login(email.trim(), password);
     } catch (err) {
+      const rawMessage = err instanceof Error ? err.message : '';
+      if (/inactive|غير نشط/i.test(rawMessage)) {
+        navigate('/account-inactive', { replace: true });
+        return;
+      }
       setError(getLoginErrorMessage(err, isArabic));
     } finally {
       setSubmitting(false);

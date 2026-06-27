@@ -66,6 +66,13 @@ let ClientAuthService = class ClientAuthService {
             this.loginBruteForce.recordFailure('client', attemptCtx);
             throw new common_1.UnauthorizedException('Invalid email or password.');
         }
+        const company = await this.prisma.company.findUnique({
+            where: { id: user.companyId },
+            select: { status: true, name: true },
+        });
+        if (!company || company.status !== client_1.CompanyStatus.active) {
+            throw new common_1.ForbiddenException('Your account is currently inactive. Please contact support for assistance.');
+        }
         if (this.password.isLegacyScrypt(user.passwordHash)) {
             const passwordHash = await this.password.hash(dto.password);
             await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
@@ -97,10 +104,6 @@ let ClientAuthService = class ClientAuthService {
             });
         }
         this.loginBruteForce.recordSuccess('client', ip);
-        const company = await this.prisma.company.findUnique({
-            where: { id: user.companyId },
-            select: { name: true },
-        });
         return {
             access_token,
             token_type: 'Bearer',

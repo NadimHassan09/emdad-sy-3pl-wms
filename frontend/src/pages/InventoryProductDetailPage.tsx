@@ -53,10 +53,14 @@ function ProductDetailField({
 function ProductDetailsSummaryCard({
   product,
   totalOnHand,
+  totalReserved,
+  totalAvailable,
   t,
 }: {
   product: Product;
   totalOnHand: string;
+  totalReserved: string;
+  totalAvailable: string;
   t: (en: string, ar: string) => string;
 }) {
   return (
@@ -112,6 +116,16 @@ function ProductDetailsSummaryCard({
           label={t('Total on hand', 'إجمالي المتوفر')}
           value={<span className="font-mono tabular-nums">{totalOnHand}</span>}
         />
+        <ProductDetailField
+          iconClass="fa-solid fa-lock"
+          label={t('Reserved', 'محجوز')}
+          value={<span className="font-mono tabular-nums">{totalReserved}</span>}
+        />
+        <ProductDetailField
+          iconClass="fa-solid fa-circle-check"
+          label={t('Available', 'متاح')}
+          value={<span className="font-mono tabular-nums">{totalAvailable}</span>}
+        />
       </div>
     </section>
   );
@@ -147,6 +161,16 @@ export function InventoryProductDetailPage() {
     [productId, wid],
   );
 
+  // Server-computed totals over the FULL matching set — never truncated by
+  // pagination — so the on-hand here matches the products catalog and grid.
+  const stockTotals = useQuery({
+    queryKey: [...QK.inventoryStock, 'totals', productId, wid || ''],
+    queryFn: () =>
+      InventoryApi.stock({ productId, warehouseId: wid || undefined, limit: 1, offset: 0 }),
+    enabled: !!productId && !!wid,
+    select: (res) => res.totals,
+  });
+
   const stockPagination = useChunkedServerPagination<StockRow>({
     chunkSize: CHUNK_SIZE_STANDARD,
     filterKey: stockFilterKey,
@@ -175,11 +199,27 @@ export function InventoryProductDetailPage() {
         width: '180px',
       },
       {
-        header: t('Quantity', 'الكمية'),
+        header: t('On hand', 'المتوفر'),
         accessor: (r) => (
           <span className="font-mono font-semibold text-slate-900">{fmtQty(r.quantityOnHand)}</span>
         ),
-        width: '140px',
+        width: '120px',
+        className: 'text-right',
+      },
+      {
+        header: t('Reserved', 'محجوز'),
+        accessor: (r) => (
+          <span className="font-mono text-slate-700">{fmtQty(r.quantityReserved)}</span>
+        ),
+        width: '110px',
+        className: 'text-right',
+      },
+      {
+        header: t('Available', 'متاح'),
+        accessor: (r) => (
+          <span className="font-mono text-slate-700">{fmtQty(r.quantityAvailable)}</span>
+        ),
+        width: '110px',
         className: 'text-right',
       },
       {
@@ -195,11 +235,9 @@ export function InventoryProductDetailPage() {
     [isArabic],
   );
 
-  const totalOnHand = useMemo(() => {
-    const sum = stockRows.reduce((acc, row) => acc + Number(row.quantityOnHand), 0);
-    if (Number.isNaN(sum)) return '0';
-    return fmtQty(String(sum));
-  }, [stockRows]);
+  const totalOnHand = fmtQty(stockTotals.data?.quantityOnHand ?? '0');
+  const totalReserved = fmtQty(stockTotals.data?.quantityReserved ?? '0');
+  const totalAvailable = fmtQty(stockTotals.data?.quantityAvailable ?? '0');
 
   if (!productId) return null;
   if (!wid) return <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>;
@@ -220,7 +258,13 @@ export function InventoryProductDetailPage() {
       </div>
       <PageHeader title={t('Product details', 'تفاصيل المنتج')} />
 
-      <ProductDetailsSummaryCard product={p} totalOnHand={totalOnHand} t={t} />
+      <ProductDetailsSummaryCard
+        product={p}
+        totalOnHand={totalOnHand}
+        totalReserved={totalReserved}
+        totalAvailable={totalAvailable}
+        t={t}
+      />
 
       <DataTable
         title={t('Lot / location breakdown', 'تفصيل الدفعة / الموقع')}

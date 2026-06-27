@@ -19,6 +19,7 @@ const envSchema = zod_1.z.object({
     OPS_DIAGNOSTICS_ENABLED: zod_1.z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
     OPS_PROBE_SECRET: zod_1.z.string().min(16).optional(),
     AUDIT_RETENTION_DAYS: zod_1.z.coerce.number().int().min(0).max(3650).optional(),
+    CUSTOMER_PURGE_RETENTION_DAYS: zod_1.z.coerce.number().int().min(0).max(3650).optional(),
     AUDIT_QUERY_MAX_LIMIT: zod_1.z.coerce.number().int().min(1).max(100).optional(),
     AUDIT_QUERY_MAX_OFFSET: zod_1.z.coerce.number().int().min(0).max(50_000).optional(),
     AUDIT_QUERY_MAX_DATE_RANGE_DAYS: zod_1.z.coerce.number().int().min(1).max(366).optional(),

@@ -11,6 +11,7 @@ import {
 } from '../api/companies';
 import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { Button } from '../components/Button';
+import { CustomerLifecycleModal } from '../components/clients/CustomerLifecycleModal';
 import { DataTable, type Column } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
@@ -19,14 +20,17 @@ import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
+import { useAuth } from '../auth/AuthContext';
 import { useFilters } from '../hooks/useFilters';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
 
 type ClientSearchCategory = 'name' | 'tradeName' | 'email' | 'phone' | 'city' | 'country';
+type ClientStatusFilter = 'all' | 'active' | 'suspended' | 'archived';
 
 type ClientListFilters = {
   search: string;
   searchCategory: ClientSearchCategory;
+  status: ClientStatusFilter;
 };
 
 const TEXTAREA_CLASS =
@@ -82,13 +86,16 @@ export function ClientsPage() {
   const t = (en: string, ar: string) => (isArabic ? ar : en);
   const qc = useQueryClient();
   const toast = useToast();
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'super_admin';
   const [createOpen, setCreateOpen] = useState(false);
   const [editRow, setEditRow] = useState<CompanyListRow | null>(null);
+  const [lifecycleRow, setLifecycleRow] = useState<CompanyListRow | null>(null);
   const [openActionId, setOpenActionId] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState<CreateCompanyPayload>(emptyCreate);
 
   const initialClientFilters = useMemo<ClientListFilters>(
-    () => ({ search: '', searchCategory: 'name' }),
+    () => ({ search: '', searchCategory: 'name', status: 'all' }),
     [],
   );
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
@@ -160,26 +167,6 @@ export function ClientsPage() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const suspendMut = useMutation({
-    mutationFn: (id: string) => CompaniesApi.suspend(id),
-    onSuccess: () => {
-      toast.success('Client suspended.');
-      setOpenActionId(null);
-      invalidate();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const removeMut = useMutation({
-    mutationFn: (id: string) => CompaniesApi.remove(id),
-    onSuccess: () => {
-      toast.success('Company deleted.');
-      setOpenActionId(null);
-      invalidate();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
   const openEdit = (r: CompanyListRow) => {
     setEditRow(r);
     setEditForm({
@@ -243,8 +230,7 @@ export function ClientsPage() {
         header: t('Actions', 'الإجراءات'),
         className: 'min-w-[120px] text-right',
         accessor: (r) => {
-          const busy =
-            suspendMut.isPending || removeMut.isPending || updateMut.isPending || createMut.isPending;
+          const busy = updateMut.isPending || createMut.isPending;
           return (
             <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
               <AnchoredDropdown
@@ -277,50 +263,37 @@ export function ClientsPage() {
                     openEdit(r);
                   }}
                 >
-                  Edit
+                  {t('Edit', 'تعديل')}
                 </button>
-                {r.status === 'active' ? (
+                {r.status !== 'purged' ? (
                   <button
                     type="button"
                     className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
                     data-client-action-menu-button="true"
                     onClick={() => {
-                      if (window.confirm(`Suspend operations for "${r.name}"?`)) suspendMut.mutate(r.id);
+                      setOpenActionId(null);
+                      setLifecycleRow(r);
                     }}
                   >
-                    Suspend
+                    {t('Manage account status', 'إدارة حالة الحساب')}
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
-                  data-client-action-menu-button="true"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Permanently delete "${r.name}"? This only succeeds if there are no linked products, orders, or users. Otherwise the server will reject the request.`,
-                      )
-                    ) {
-                      removeMut.mutate(r.id);
-                    }
-                  }}
-                >
-                  Delete
-                </button>
               </AnchoredDropdown>
             </div>
           );
         },
       },
     ],
-    [suspendMut.isPending, removeMut.isPending, updateMut.isPending, createMut.isPending, openActionId, isArabic],
+    [updateMut.isPending, createMut.isPending, openActionId, isArabic],
   );
 
   const errMsg = error instanceof Error ? error.message : null;
   const filteredRows = useMemo(() => {
     const q = appliedFilters.search.trim().toLowerCase();
-    if (!q) return rows;
+    const statusFilter = appliedFilters.status;
     return rows.filter((r) => {
+      if (statusFilter !== 'all' && r.status !== statusFilter) return false;
+      if (!q) return true;
       const value = (() => {
         switch (appliedFilters.searchCategory) {
           case 'tradeName':
@@ -340,7 +313,7 @@ export function ClientsPage() {
       })();
       return value.toLowerCase().includes(q);
     });
-  }, [rows, appliedFilters.search, appliedFilters.searchCategory]);
+  }, [rows, appliedFilters.search, appliedFilters.searchCategory, appliedFilters.status]);
 
   return (
     <>
@@ -377,6 +350,19 @@ export function ClientsPage() {
               { value: 'phone', label: t('Phone', 'الهاتف') },
               { value: 'city', label: t('City', 'المدينة') },
               { value: 'country', label: t('Country', 'الدولة') },
+            ]}
+            className="min-w-[8.75rem] max-w-[11rem] shrink-0"
+          />
+          <SelectField
+            label={t('Status', 'الحالة')}
+            name="clientStatusFilter"
+            value={draftFilters.status}
+            onChange={(e) => setDraft({ status: e.target.value as ClientStatusFilter })}
+            options={[
+              { value: 'all', label: t('All', 'الكل') },
+              { value: 'active', label: t('Active', 'نشط') },
+              { value: 'suspended', label: t('Suspended', 'موقوف') },
+              { value: 'archived', label: t('Archived', 'مؤرشف') },
             ]}
             className="min-w-[8.75rem] max-w-[11rem] shrink-0"
           />
@@ -580,6 +566,12 @@ export function ClientsPage() {
           />
         </form>
       </Modal>
+
+      <CustomerLifecycleModal
+        company={lifecycleRow}
+        isSuperAdmin={isSuperAdmin}
+        onClose={() => setLifecycleRow(null)}
+      />
     </>
   );
 }

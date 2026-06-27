@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { CompaniesApi } from '../api/companies';
 import { InventoryApi, ProductStockSummaryRow } from '../api/inventory';
+import { BarcodeImageModal } from '../components/BarcodeImageModal';
 import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { Alert } from '@ds';
@@ -46,6 +47,7 @@ const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
   {
     header: 'Product',
     accessor: (r) => <span className="font-medium text-slate-900">{r.product.name}</span>,
+    width: '320px',
   },
   {
     header: 'Client',
@@ -66,6 +68,32 @@ const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
         <span className="text-slate-400">—</span>
       ),
     width: '200px',
+  },
+  {
+    header: 'On hand',
+    accessor: (r) => (
+      <span className="font-mono text-right block font-semibold text-slate-900">
+        {fmtQty(r.onHand ?? r.totalQuantity)}
+      </span>
+    ),
+    width: '120px',
+    className: 'text-right',
+  },
+  {
+    header: 'Reserved',
+    accessor: (r) => (
+      <span className="font-mono text-right block text-slate-700">{fmtQty(r.reserved ?? '0')}</span>
+    ),
+    width: '110px',
+    className: 'text-right',
+  },
+  {
+    header: 'Available',
+    accessor: (r) => (
+      <span className="font-mono text-right block text-slate-700">{fmtQty(r.available ?? '0')}</span>
+    ),
+    width: '110px',
+    className: 'text-right',
   },
   {
     header: 'Total quantity',
@@ -132,6 +160,9 @@ export function InventoryPage() {
   const toast = useToast();
   const { warehouseId: warehouseIdForced } = useDefaultWarehouseId();
   const [scanOpen, setScanOpen] = useState(false);
+  const [barcodePreview, setBarcodePreview] = useState<{ value: string; name: string } | null>(
+    null,
+  );
 
   const initialInvFilters = useMemo<InvDraftFilters>(
     () => ({
@@ -182,9 +213,33 @@ export function InventoryPage() {
       { ...SUMMARY_COLUMNS[0], header: t('Product', 'المنتج') },
       { ...SUMMARY_COLUMNS[1], header: t('Client', 'العميل') },
       { ...SUMMARY_COLUMNS[2], header: t('SKU', 'رمز الصنف') },
-      { ...SUMMARY_COLUMNS[3], header: t('Barcode', 'الباركود') },
-      { ...SUMMARY_COLUMNS[4], header: t('Total quantity', 'إجمالي الكمية') },
-      { ...SUMMARY_COLUMNS[5], header: t('UOM', 'وحدة القياس') },
+      {
+        ...SUMMARY_COLUMNS[3],
+        header: t('Barcode', 'الباركود'),
+        width: '90px',
+        accessor: (r: ProductStockSummaryRow) =>
+          r.product.barcode ? (
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100 hover:text-brand-700"
+              title={t('Show barcode', 'عرض الباركود')}
+              aria-label={t('Show barcode', 'عرض الباركود')}
+              onClick={(e) => {
+                e.stopPropagation();
+                setBarcodePreview({ value: r.product.barcode!, name: r.product.name });
+              }}
+            >
+              <i className="fa-solid fa-barcode text-base" aria-hidden="true" />
+            </button>
+          ) : (
+            <span className="text-slate-400">—</span>
+          ),
+      },
+      { ...SUMMARY_COLUMNS[4], header: t('On hand', 'المتوفر') },
+      { ...SUMMARY_COLUMNS[5], header: t('Reserved', 'محجوز') },
+      { ...SUMMARY_COLUMNS[6], header: t('Available', 'متاح') },
+      { ...SUMMARY_COLUMNS[7], header: t('Total quantity', 'إجمالي الكمية') },
+      { ...SUMMARY_COLUMNS[8], header: t('UOM', 'وحدة القياس') },
     ],
     [isArabic],
   );
@@ -299,6 +354,13 @@ export function InventoryPage() {
           ? `${pagination.total} product${pagination.total === 1 ? '' : 's'} with stock`
           : ''}
       </p>
+
+      <BarcodeImageModal
+        open={!!barcodePreview}
+        onClose={() => setBarcodePreview(null)}
+        value={barcodePreview?.value ?? ''}
+        productName={barcodePreview?.name ?? ''}
+      />
 
       <BarcodeScanModal
         open={scanOpen}

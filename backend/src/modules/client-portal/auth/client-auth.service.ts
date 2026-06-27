@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { UserRole, UserStatus } from '@prisma/client';
+import { CompanyStatus, UserRole, UserStatus } from '@prisma/client';
 import type { Request, Response } from 'express';
 
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
@@ -65,6 +65,16 @@ export class ClientAuthService {
       throw new UnauthorizedException('Invalid email or password.');
     }
 
+    const company = await this.prisma.company.findUnique({
+      where: { id: user.companyId },
+      select: { status: true, name: true },
+    });
+    if (!company || company.status !== CompanyStatus.active) {
+      throw new ForbiddenException(
+        'Your account is currently inactive. Please contact support for assistance.',
+      );
+    }
+
     if (this.password.isLegacyScrypt(user.passwordHash)) {
       const passwordHash = await this.password.hash(dto.password);
       await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
@@ -100,11 +110,6 @@ export class ClientAuthService {
     }
 
     this.loginBruteForce.recordSuccess('client', ip);
-
-    const company = await this.prisma.company.findUnique({
-      where: { id: user.companyId },
-      select: { name: true },
-    });
 
     return {
       access_token,
