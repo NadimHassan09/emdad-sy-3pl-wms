@@ -345,11 +345,12 @@ let WarehouseTasksService = class WarehouseTasksService {
     }
     parseExecState(raw) {
         if (!isRecord(raw))
-            return { reservations: [] };
+            return { reservations: [], consumed: false };
+        const consumed = raw.consumed === true || raw.shipped === true;
         const r = raw.reservations;
         if (!Array.isArray(r))
-            return { reservations: [] };
-        return { reservations: r };
+            return { reservations: [], consumed };
+        return { reservations: r, consumed };
     }
     async resolvePickTaskForDispatchCompletion(tx, args) {
         const { workflowInstanceId, explicitPickTaskId } = args;
@@ -367,7 +368,7 @@ let WarehouseTasksService = class WarehouseTasksService {
                 throw new common_1.BadRequestException('Dispatch pick binding invalid: referenced pick task not found in this workflow.');
             }
             const pickExec = this.parseExecState(pick.executionState);
-            if (!pickExec.reservations.length) {
+            if (!pickExec.reservations.length || pickExec.consumed) {
                 throw new common_1.BadRequestException('Dispatch bound pick has no reservation snapshot.');
             }
             return pick;
@@ -380,7 +381,10 @@ let WarehouseTasksService = class WarehouseTasksService {
             },
             select: { id: true, executionState: true },
         });
-        const withReservations = completedPicks.filter((p) => this.parseExecState(p.executionState).reservations.length > 0);
+        const withReservations = completedPicks.filter((p) => {
+            const ex = this.parseExecState(p.executionState);
+            return ex.reservations.length > 0 && !ex.consumed;
+        });
         if (withReservations.length === 1)
             return withReservations[0];
         if (withReservations.length === 0) {
@@ -391,6 +395,8 @@ let WarehouseTasksService = class WarehouseTasksService {
     async releaseTaskHeldReservations(tx, taskId, executionState) {
         const exec = this.parseExecState(executionState);
         if (exec.reservations.length === 0)
+            return false;
+        if (exec.consumed)
             return false;
         await this.effects.releaseReservations(tx, exec.reservations);
         await tx.warehouseTask.update({
@@ -770,7 +776,12 @@ let WarehouseTasksService = class WarehouseTasksService {
                     if (boundPick) {
                         await tx.warehouseTask.update({
                             where: { id: boundPick.id },
-                            data: { executionState: client_1.Prisma.DbNull },
+                            data: {
+                                executionState: {
+                                    reservations: pickExec.reservations,
+                                    consumed: true,
+                                },
+                            },
                         });
                     }
                     break;

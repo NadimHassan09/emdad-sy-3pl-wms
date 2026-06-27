@@ -1,1 +1,0 @@
-import{b as t}from"./index-BEGfLsUP.js";function o(){const{user:n}=t(),e=n==null?void 0:n.role,a=e==="super_admin"||e==="wh_manager",s=e==="super_admin";return{canRead:a,canMutate:s,isSuperAdmin:s}}export{o as u};

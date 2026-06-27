@@ -1,0 +1,1 @@
+import{j as x}from"./vendor-react-l--lXxGO.js";import{M as i}from"./index-AXSKAR7h.js";function M({open:o,onClose:r,title:t,children:a,footer:m,widthClass:s="max-w-lg"}){return x.jsx(i,{open:o,onClose:r,title:t,footer:m,widthClass:s,children:a})}export{M};

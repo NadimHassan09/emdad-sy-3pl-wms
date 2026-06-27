@@ -431,12 +431,53 @@ export function PickExecutionPanel({
 
   if (readOnly) {
     if (!reservations.length) {
+      const historyLines = outbound?.lines ?? [];
       return (
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-          {t([
-            'No pick reservation snapshot is available for this task.',
-            'لا توجد لقطة حجز تقاط متاحة لهذه المهمة.',
-          ])}
+        <div className="space-y-4">
+          {pickDetailsCard}
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+            {t([
+              'Per-bin pick reservation details are not retained for this completed task. Showing the order line summary instead.',
+              'لم يتم الاحتفاظ بتفاصيل حجز الالتقاط لكل موقع لهذه المهمة المكتملة. يتم عرض ملخص أسطر الطلب بدلاً من ذلك.',
+            ])}
+          </div>
+          {historyLines.length > 0 ? (
+            <DataTable
+              title={t(['Pick lines', 'أسطر التقاط'])}
+              columns={
+                [
+                  {
+                    header: 'SKU',
+                    accessor: (l) => <span className="font-mono text-xs">{l.product?.sku ?? '—'}</span>,
+                    width: '120px',
+                  },
+                  {
+                    header: t(['Product', 'المنتج']),
+                    accessor: (l) => (
+                      <span className="font-medium text-slate-800">{l.product?.name ?? '—'}</span>
+                    ),
+                  },
+                  {
+                    header: t(['Required', 'المطلوب']),
+                    accessor: (l) => (
+                      <span className="font-mono tabular-nums text-xs">{l.requestedQuantity}</span>
+                    ),
+                    width: '90px',
+                  },
+                  {
+                    header: t(['Picked', 'مُلتقط']),
+                    accessor: (l) => (
+                      <span className="font-mono tabular-nums text-xs">{l.pickedQuantity}</span>
+                    ),
+                    width: '90px',
+                  },
+                ] as Column<OutboundOrderLine>[]
+              }
+              rows={historyLines}
+              rowKey={(l) => l.id}
+              empty={t(['No pick lines.', 'لا أسطر تقاط.'])}
+            />
+          ) : null}
         </div>
       );
     }

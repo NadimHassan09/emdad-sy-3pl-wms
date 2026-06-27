@@ -48,7 +48,7 @@ import {
   RUNN_BLOCKED_SKILL_GAP,
 } from './task-runnable.util';
 
-type ExecState = { reservations: ReservationSnapshot[] };
+type ExecState = { reservations: ReservationSnapshot[]; consumed: boolean };
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -458,10 +458,13 @@ export class WarehouseTasksService {
   }
 
   private parseExecState(raw: unknown): ExecState {
-    if (!isRecord(raw)) return { reservations: [] };
+    if (!isRecord(raw)) return { reservations: [], consumed: false };
+    // `consumed`/`shipped` marks a snapshot whose stock has already been shipped: it is
+    // retained for historical display but must never be released or re-shipped again.
+    const consumed = raw.consumed === true || raw.shipped === true;
     const r = raw.reservations;
-    if (!Array.isArray(r)) return { reservations: [] };
-    return { reservations: r as ReservationSnapshot[] };
+    if (!Array.isArray(r)) return { reservations: [], consumed };
+    return { reservations: r as ReservationSnapshot[], consumed };
   }
 
   /**
@@ -499,7 +502,7 @@ export class WarehouseTasksService {
       }
 
       const pickExec = this.parseExecState(pick.executionState);
-      if (!pickExec.reservations.length) {
+      if (!pickExec.reservations.length || pickExec.consumed) {
         throw new BadRequestException('Dispatch bound pick has no reservation snapshot.');
       }
       return pick;
@@ -514,9 +517,10 @@ export class WarehouseTasksService {
       select: { id: true, executionState: true },
     });
 
-    const withReservations = completedPicks.filter(
-      (p) => this.parseExecState(p.executionState).reservations.length > 0,
-    );
+    const withReservations = completedPicks.filter((p) => {
+      const ex = this.parseExecState(p.executionState);
+      return ex.reservations.length > 0 && !ex.consumed;
+    });
 
     if (withReservations.length === 1) return withReservations[0];
     if (withReservations.length === 0) {
@@ -538,6 +542,8 @@ export class WarehouseTasksService {
   ): Promise<boolean> {
     const exec = this.parseExecState(executionState);
     if (exec.reservations.length === 0) return false;
+    // Already-shipped (consumed) snapshots are kept for history and must not be released.
+    if (exec.consumed) return false;
     await this.effects.releaseReservations(tx, exec.reservations);
     await tx.warehouseTask.update({
       where: { id: taskId },
@@ -1038,11 +1044,18 @@ export class WarehouseTasksService {
             pickExec.reservations,
             body,
           );
-          // Prevent stale pick snapshots from being re-released after successful ship.
+          // Mark the bound pick snapshot as consumed (shipped) rather than deleting it.
+          // This prevents the slices from being re-released/re-shipped while keeping the
+          // reservation snapshot for the completed pick task's read-only view.
           if (boundPick) {
             await tx.warehouseTask.update({
               where: { id: boundPick.id },
-              data: { executionState: Prisma.DbNull },
+              data: {
+                executionState: {
+                  reservations: pickExec.reservations,
+                  consumed: true,
+                } as object as Prisma.InputJsonValue,
+              },
             });
           }
           break;
