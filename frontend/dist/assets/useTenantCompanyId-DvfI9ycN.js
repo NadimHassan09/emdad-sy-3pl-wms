@@ -1,1 +1,0 @@
-import{b as o}from"./index-D8-wzL1m.js";const a="00000000-0000-4000-8000-000000000001".trim()||"";function r(){var n;const{user:t}=o();return((n=t==null?void 0:t.tenantCompanyId)==null?void 0:n.trim())||a}export{r as u};

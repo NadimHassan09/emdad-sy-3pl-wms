@@ -152,7 +152,7 @@ export function initialPickDrafts(
         lotId: r.lotId,
         productId: r.productId,
         requiredQty: r.quantity,
-        pickedQty: r.quantity,
+        pickedQty: '',
         locationVerified: false,
         productVerified: false,
         notes: '',

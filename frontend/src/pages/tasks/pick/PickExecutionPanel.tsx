@@ -327,6 +327,16 @@ export function PickExecutionPanel({
       toast.error(t(['Resolve short picks before completing.', 'عالج نقص التقاط قبل الإكمال.']));
       return;
     }
+    const hasPending = drafts.some((d) => computePickLineStatus(d) === 'pending');
+    if (hasPending) {
+      toast.error(
+        t([
+          'Enter the picked quantity for every line before completing.',
+          'أدخل الكمية المُلتقطة لكل سطر قبل الإكمال.',
+        ]),
+      );
+      return;
+    }
     if (!reservations.length) {
       toast.error(t(['No pick reservations on this task.', 'لا توجد حجوزات تقاط لهذه المهمة.']));
       return;
