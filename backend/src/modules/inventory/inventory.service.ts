@@ -309,7 +309,7 @@ export class InventoryService {
     const where = await this.resolveCurrentStockWhere(user, query);
 
     return withTenantRls(this.prisma, user, async (tx) => {
-      const [items, total, agg] = await Promise.all([
+      const [items, total, agg, availAgg] = await Promise.all([
         tx.currentStock.findMany({
           where,
           include: {
@@ -334,8 +334,13 @@ export class InventoryService {
           _sum: {
             quantityOnHand: true,
             quantityReserved: true,
-            quantityAvailable: true,
           },
+        }),
+        // Available excludes receiving-area stock awaiting putaway: only
+        // `available` status slices can be picked/allocated to outbound.
+        tx.currentStock.aggregate({
+          where: { AND: [where, { status: 'available' }] },
+          _sum: { quantityAvailable: true },
         }),
       ]);
 
@@ -347,7 +352,7 @@ export class InventoryService {
         totals: {
           quantityOnHand: (agg._sum.quantityOnHand ?? 0).toString(),
           quantityReserved: (agg._sum.quantityReserved ?? 0).toString(),
-          quantityAvailable: (agg._sum.quantityAvailable ?? 0).toString(),
+          quantityAvailable: (availAgg._sum.quantityAvailable ?? 0).toString(),
         },
       };
     });

@@ -37,6 +37,7 @@ import type {
 import type { ResolveTaskDto } from './dto/resolve-task.dto';
 import { WorkflowOrchestrationService } from './workflow-orchestration.service';
 import { BillingInvoiceCalculationService } from '../billing/billing-invoice-calculation.service';
+import { DocumentGenerationService } from '../../pdf/document-generation.service';
 import { billingTriggerForWarehouseTask } from '../billing/billing-recalculation-triggers.util';
 import { TaskCompleteBody, safeParseTaskComplete, taskProgressRequestSchema } from './task-payload.schema';
 import { canTransitionTask } from './task-transitions';
@@ -67,6 +68,7 @@ export class WarehouseTasksService {
     private readonly companyAccess: CompanyAccessService,
     private readonly audit: AuditLogService,
     private readonly billingInvoiceCalc: BillingInvoiceCalculationService,
+    private readonly documentGeneration: DocumentGenerationService,
   ) {}
 
   private assertTaskWorkflowTenant(
@@ -1182,6 +1184,14 @@ export class WarehouseTasksService {
         if (trigger) {
           void this.billingInvoiceCalc.recalculateForCompany(billingCompanyId, trigger);
         }
+      }
+
+      // Immutable document generation (post-commit, error-safe, idempotent):
+      // GRN right after a Receiving task; Delivery Note once Dispatch is shipped.
+      if (billingTaskType === WarehouseTaskType.receiving) {
+        void this.documentGeneration.generateGrnForReceiving(taskId);
+      } else if (billingTaskType === WarehouseTaskType.dispatch && outboundCompleted) {
+        void this.documentGeneration.generateDnForDispatch(taskId);
       }
     }
 

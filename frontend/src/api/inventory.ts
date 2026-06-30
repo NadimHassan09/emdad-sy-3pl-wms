@@ -44,7 +44,7 @@ export interface StockRow {
   quantityOnHand: string;
   quantityReserved: string;
   quantityAvailable: string;
-  status: 'available' | 'quarantined';
+  status: 'available' | 'quarantined' | 'awaiting_putaway';
   lastMovementAt: string | null;
   product: { id: string; sku: string; name: string; uom: string };
   location: { id: string; name: string; fullPath: string; barcode: string };

@@ -1,0 +1,364 @@
+/* =========================================================================
+   EMDAD WMS — printer-friendly document stylesheet (GRN / DN)
+   A4 portrait · minimal ink · ~20% header / ~80% items table
+   Brand colors used as accents only (no solid fill blocks).
+   ========================================================================= */
+
+:root {
+  --green: #0b5e3c;
+  --green-dark: #08452c;
+  --green-light: #eaf6f0;
+  --text: #222222;
+  --muted: #555555;
+  --line: #08452c;
+  --thead: #eaf6f0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Cairo', 'Segoe UI', Arial, sans-serif;
+  color: var(--text);
+  font-size: 10px;
+  line-height: 1.4;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+@page {
+  size: A4 portrait;
+}
+
+.page {
+  padding: 0;
+}
+
+/* ----------------------------------------------------------------- header */
+.doc-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1.5px solid var(--green);
+}
+
+.doc-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 55%;
+}
+
+.doc-header__logo {
+  height: 40px;
+  width: auto;
+}
+
+.doc-header__company {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green-dark);
+  line-height: 1.2;
+}
+
+.doc-header__tagline {
+  font-size: 8px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+}
+
+.doc-header__doc {
+  text-align: end;
+  min-width: 160px;
+}
+
+[dir='rtl'] .doc-header__doc {
+  text-align: start;
+}
+
+.doc-header__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--green);
+  line-height: 1.15;
+}
+
+.doc-header__barcode {
+  display: block;
+  margin-top: 4px;
+  margin-inline-start: auto;
+  height: 36px;
+  width: auto;
+  max-width: 180px;
+}
+
+[dir='rtl'] .doc-header__barcode {
+  margin-inline-start: 0;
+  margin-inline-end: auto;
+}
+
+.doc-header__ref {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--green-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+.doc-header__date {
+  font-size: 9px;
+  color: var(--muted);
+}
+
+/* -------------------------------------------------------- parties / meta */
+.doc-parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 24px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.doc-parties__heading {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--green-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+
+.kv {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+
+.kv__k {
+  flex: 0 0 38%;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.kv__v {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text);
+  word-break: break-word;
+}
+
+/* -------------------------------------------------------------- items table */
+.doc-table-wrap {
+  margin-top: 6px;
+  flex: 1;
+}
+
+.doc-table-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--green-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 6px;
+  padding: 4px 0;
+  border-bottom: 2px solid var(--green);
+}
+
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  table-layout: fixed;
+  border: 1px solid var(--green-dark);
+}
+
+.doc-table thead th {
+  background: var(--green-light);
+  color: var(--green-dark);
+  font-weight: 700;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+  padding: 10px 7px;
+  border: 1px solid var(--green-dark);
+  text-align: center;
+  vertical-align: middle;
+  line-height: 1.25;
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+[dir='rtl'] .doc-table thead th {
+  text-align: center;
+}
+
+.doc-table tbody td {
+  padding: 11px 8px;
+  border: 1px solid var(--green-dark);
+  vertical-align: middle;
+  word-wrap: break-word;
+  font-size: 12.5px;
+  line-height: 1.4;
+  background: #ffffff;
+}
+
+.doc-table tbody tr {
+  page-break-inside: avoid;
+}
+
+.doc-table__row--empty td {
+  height: 36px;
+}
+
+.doc-table .num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+[dir='rtl'] .doc-table .num {
+  text-align: start;
+}
+
+.doc-table .center {
+  text-align: center;
+}
+
+.doc-table .sku {
+  font-weight: 700;
+  color: var(--green-dark);
+  font-size: 12.5px;
+}
+
+.doc-table .muted {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+/* plain condition text — no colored badges */
+.cond--ok {
+  color: var(--green-dark);
+  font-weight: 600;
+}
+
+.cond--warn {
+  color: #8a5a00;
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------- totals row */
+.doc-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-top: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  font-size: 9.5px;
+}
+
+.doc-totals span {
+  font-weight: 600;
+}
+
+.doc-totals strong {
+  color: var(--green-dark);
+  font-variant-numeric: tabular-nums;
+}
+
+/* -------------------------------------------------------------- meta footer */
+.doc-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-top: 4px;
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.doc-meta-line span strong {
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------- notes */
+.doc-notes {
+  margin-top: 10px;
+  padding: 6px 0;
+  border-top: 1px dashed var(--line);
+  font-size: 9.5px;
+  min-height: 28px;
+}
+
+.doc-notes__label {
+  font-weight: 700;
+  color: var(--green-dark);
+  margin-inline-end: 6px;
+}
+
+.doc-notes.empty {
+  color: var(--muted);
+}
+
+/* -------------------------------------------------------------- signatures */
+.section--keep {
+  page-break-inside: avoid;
+}
+
+.doc-signatures {
+  margin-top: 14px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.doc-signatures__title {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--green-dark);
+  margin-bottom: 10px;
+}
+
+.doc-signatures__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.doc-sign {
+  font-size: 9px;
+}
+
+.doc-sign__role {
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 18px;
+}
+
+.doc-sign__field {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.doc-sign__line {
+  flex: 1;
+  border-bottom: 1px solid var(--text);
+  min-height: 14px;
+}

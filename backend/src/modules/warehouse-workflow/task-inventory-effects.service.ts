@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { InboundQcStatus, MovementType, Prisma, ProductTrackingType } from '@prisma/client';
+import { InboundQcStatus, MovementType, Prisma, ProductTrackingType, StockStatus } from '@prisma/client';
 
 import { isQuarantineStorageLocationType } from '../../common/constants/storage-location-types';
 import {
@@ -236,6 +236,17 @@ export class TaskInventoryEffectsService {
         quantity: qty.toString(),
       });
 
+      // Two-phase inbound: received goods raise on-hand at the staging bin but
+      // stay NOT available for picking/allocation until putaway confirms the
+      // final bin. FEFO + availability reads only consider `available` rows.
+      await this.stock.setStockStatus(tx, {
+        companyId,
+        productId: line.productId,
+        locationId: stagingLocationId,
+        lotId,
+        status: StockStatus.awaiting_putaway,
+      });
+
       const idemKey = `bm:inbound:${inboundOrderId}:${line.productId}:task:${taskId}:line:${line.id}`;
       await this.ledgerDedup.appendIfAbsent(tx, idemKey, {
         companyId,
@@ -359,6 +370,17 @@ export class TaskInventoryEffectsService {
         warehouseId: dest.warehouseId,
         lotId,
         quantity: qty.toString(),
+      });
+
+      // Two-phase inbound: confirming the final bin makes the stock available.
+      // QC-hold putaway lands in a quarantine/scrap bin and stays quarantined
+      // (not pickable); normal putaway becomes available for outbound allocation.
+      await this.stock.setStockStatus(tx, {
+        companyId,
+        productId: src.productId,
+        locationId: l.destination_location_id,
+        lotId,
+        status: quarantineBinsOnly ? StockStatus.quarantined : StockStatus.available,
       });
     }
   }

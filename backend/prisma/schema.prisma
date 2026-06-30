@@ -203,6 +203,8 @@ enum ProductStatus {
 enum StockStatus {
   available
   quarantined
+  /// Received into a receiving/staging bin but not yet put away: counts toward on-hand, excluded from picking/allocation.
+  awaiting_putaway
 
   @@map("stock_status")
 }
@@ -530,6 +532,7 @@ model Company {
   billingPlans           BillingPlan[]
   billingCycles          BillingCycle[]
   invoices               Invoice[]
+  documents              Document[]
 
   @@map("companies")
 }
@@ -610,6 +613,41 @@ model InvoiceLine {
 
   @@index([invoiceId], map: "idx_invoice_lines_invoice")
   @@map("invoice_lines")
+}
+
+enum DocumentType {
+  grn
+  delivery_note
+
+  @@map("document_type")
+}
+
+/// Immutable generated PDF documents (GRN / Delivery Note). One row per
+/// (type, source task, language). Files are written once and never mutated.
+model Document {
+  id             String       @id @default(uuid()) @db.Uuid
+  companyId      String       @map("company_id") @db.Uuid
+  type           DocumentType
+  /// 'inbound_order' | 'outbound_order'
+  referenceType  String       @map("reference_type")
+  referenceId    String       @map("reference_id") @db.Uuid
+  /// Source warehouse task that triggered generation (receiving / dispatch).
+  taskId         String?      @map("task_id") @db.Uuid
+  documentNumber String       @map("document_number")
+  fileName       String       @map("file_name")
+  filePath       String       @map("file_path")
+  language       String       @default("en")
+  hash           String
+  fileSize       Int          @default(0) @map("file_size")
+  generatedBy    String?      @map("generated_by") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([type, taskId, language], map: "uq_document_task_lang")
+  @@index([companyId, type], map: "idx_documents_company_type")
+  @@index([referenceType, referenceId], map: "idx_documents_reference")
+  @@map("documents")
 }
 
 /// Explicit internal-user grants to operate on a 3PL client tenant (Phase 1.1).

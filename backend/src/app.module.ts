@@ -36,6 +36,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { FormsModule } from './modules/forms/forms.module';
+import { PdfModule } from './pdf/pdf.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { FormsModule } from './modules/forms/forms.module';
     RealtimeModule,
     ReportsModule,
     FormsModule,
+    PdfModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

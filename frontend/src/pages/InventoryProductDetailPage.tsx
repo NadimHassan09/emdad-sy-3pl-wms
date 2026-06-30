@@ -30,6 +30,26 @@ function uomLabel(uom: ProductUom) {
   return UOM_LABELS[uom] ?? uom;
 }
 
+function StockStatusBadge({ status, isArabic }: { status: StockRow['status']; isArabic: boolean }) {
+  const map: Record<StockRow['status'], { en: string; ar: string; cls: string }> = {
+    available: { en: 'Available', ar: 'متاح', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+    quarantined: { en: 'Quarantined', ar: 'حجر', cls: 'bg-amber-50 text-amber-700 ring-amber-200' },
+    awaiting_putaway: {
+      en: 'Awaiting putaway',
+      ar: 'بانتظار التخزين',
+      cls: 'bg-sky-50 text-sky-700 ring-sky-200',
+    },
+  };
+  const cfg = map[status] ?? map.available;
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${cfg.cls}`}
+    >
+      {isArabic ? cfg.ar : cfg.en}
+    </span>
+  );
+}
+
 function ProductDetailField({
   iconClass,
   label,
@@ -217,10 +237,17 @@ export function InventoryProductDetailPage() {
       {
         header: t('Available', 'متاح'),
         accessor: (r) => (
-          <span className="font-mono text-slate-700">{fmtQty(r.quantityAvailable)}</span>
+          <span className="font-mono text-slate-700">
+            {fmtQty(r.status === 'available' ? r.quantityAvailable : '0')}
+          </span>
         ),
         width: '110px',
         className: 'text-right',
+      },
+      {
+        header: t('Status', 'الحالة'),
+        accessor: (r) => <StockStatusBadge status={r.status} isArabic={isArabic} />,
+        width: '160px',
       },
       {
         header: t('Location name', 'اسم الموقع'),

@@ -63,6 +63,19 @@ const envSchema = z.object({
   BACKUP_ENCRYPTION_KEY: z.string().min(16).optional(),
   BACKUP_GDRIVE_STARTUP_STRICT: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
   CRON_LEADER_ENABLED: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+  // PDF document generation (GRN / Delivery Note).
+  DOCUMENT_STORAGE_DIR: z.string().min(1).optional(),
+  DOCUMENT_DEFAULT_LANG: z.enum(['en', 'ar']).optional(),
+  PUPPETEER_EXECUTABLE_PATH: z.string().min(1).optional(),
+  DOC_BRAND_NAME: z.string().min(1).optional(),
+  DOC_BRAND_NAME_AR: z.string().min(1).optional(),
+  DOC_BRAND_TAGLINE: z.string().min(1).optional(),
+  DOC_BRAND_TAGLINE_AR: z.string().min(1).optional(),
+  DOC_BRAND_PHONE: z.string().min(1).optional(),
+  DOC_BRAND_EMAIL: z.string().min(1).optional(),
+  DOC_BRAND_WEBSITE: z.string().min(1).optional(),
+  DOC_BRAND_ADDRESS_EN: z.string().min(1).optional(),
+  DOC_BRAND_ADDRESS_AR: z.string().min(1).optional(),
 });
 
 function envBool(raw: unknown): boolean {

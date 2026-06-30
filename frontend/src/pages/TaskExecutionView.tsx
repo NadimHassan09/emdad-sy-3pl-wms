@@ -11,6 +11,7 @@ import { Column, DataTable } from '../components/DataTable';
 import { Combobox } from '../components/Combobox';
 import { PageHeader } from '../components/PageHeader';
 import { CompletedTaskNextSteps } from '../components/tasks/CompletedTaskNextSteps';
+import { TaskDocumentActions } from '../components/documents/TaskDocumentActions';
 import { TaskDetailsCard } from '../components/tasks/TaskDetailsCard';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
@@ -640,6 +641,30 @@ export function TaskExecutionView() {
           submit={() => {}}
           busy={false}
           readOnly
+        />
+      ) : null}
+
+      {isCompleted &&
+      referenceId &&
+      taskType === 'receiving' &&
+      wf?.referenceType === 'inbound_order' ? (
+        <TaskDocumentActions
+          taskId={id}
+          taskType="receiving"
+          referenceType="inbound_order"
+          referenceId={referenceId}
+        />
+      ) : null}
+
+      {isCompleted &&
+      referenceId &&
+      taskType === 'dispatch' &&
+      wf?.referenceType === 'outbound_order' ? (
+        <TaskDocumentActions
+          taskId={id}
+          taskType="dispatch"
+          referenceType="outbound_order"
+          referenceId={referenceId}
         />
       ) : null}
 

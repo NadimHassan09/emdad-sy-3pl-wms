@@ -8,6 +8,7 @@ import { Button } from '@ds';
 import { useAuth } from '../auth/AuthContext';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
+import { OrderDocumentsCard } from '../components/documents/OrderDocumentsCard';
 import { Combobox } from '../components/Combobox';
 import { FILTER_APPLY_BUTTON_CLASS, FILTER_RESET_BUTTON_CLASS, FilterPanel } from '../components/FilterPanel';
 import { StatusBadge } from '../components/StatusBadge';
@@ -267,6 +268,12 @@ export function OutboundDetailPage() {
         referenceType="outbound_order"
         referenceId={id}
         enabled={!!id && o.status !== 'draft'}
+        companyIdOverride={o.companyId}
+      />
+
+      <OrderDocumentsCard
+        referenceType="outbound_order"
+        referenceId={id}
         companyIdOverride={o.companyId}
       />
 

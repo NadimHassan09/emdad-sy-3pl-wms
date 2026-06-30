@@ -1,0 +1,122 @@
+<section class="doc-parties">
+  <div class="doc-parties__col">
+    <div class="doc-parties__heading">{{L.receiptFor}}</div>
+    <div class="kv">
+      <span class="kv__k">{{L.client}}</span>
+      <span class="kv__v">{{party.client}}</span>
+    </div>
+    <div class="kv">
+      <span class="kv__k">{{L.warehouse}}</span>
+      <span class="kv__v">{{party.warehouse}}</span>
+    </div>
+    {{#if party.supplier}}
+    <div class="kv">
+      <span class="kv__k">{{L.supplier}}</span>
+      <span class="kv__v">{{party.supplier}}</span>
+    </div>
+    {{/if}}
+  </div>
+  <div class="doc-parties__col">
+    <div class="kv">
+      <span class="kv__k">{{L.inboundOrderNumber}}</span>
+      <span class="kv__v">{{party.orderNumber}}</span>
+    </div>
+    <div class="kv">
+      <span class="kv__k">{{L.reference}}</span>
+      <span class="kv__v">{{party.reference}}</span>
+    </div>
+    <div class="kv">
+      <span class="kv__k">{{L.receivingDate}}</span>
+      <span class="kv__v">{{party.date}}</span>
+    </div>
+    <div class="kv">
+      <span class="kv__k">{{L.operator}}</span>
+      <span class="kv__v">{{party.operator}}</span>
+    </div>
+    {{#if party.poNumber}}
+    <div class="kv">
+      <span class="kv__k">{{L.poNumber}}</span>
+      <span class="kv__v">{{party.poNumber}}</span>
+    </div>
+    {{/if}}
+  </div>
+</section>
+
+<section class="doc-table-wrap">
+  <div class="doc-table-label">{{L.items}}</div>
+  <table class="doc-table">
+    <thead>
+      <tr>
+        <th style="width:4%">{{L.colNo}}</th>
+        <th style="width:12%">{{L.colSku}}</th>
+        <th style="width:32%">{{L.colProduct}}</th>
+        <th style="width:14%">{{L.colBatch}}</th>
+        <th style="width:10%">{{L.colExpiry}}</th>
+        <th style="width:11%">{{L.colReceivedQty}}</th>
+        <th style="width:8%">{{L.colUnit}}</th>
+        <th style="width:9%">{{L.colCondition}}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each items}}
+      <tr>
+        <td class="center muted">{{this.idx}}</td>
+        <td class="sku">{{this.sku}}</td>
+        <td>{{this.name}}</td>
+        <td>{{this.batch}}</td>
+        <td class="center">{{this.expiry}}</td>
+        <td class="num">{{this.qty}}</td>
+        <td class="center">{{this.unit}}</td>
+        <td class="center {{this.conditionClass}}">{{this.conditionLabel}}</td>
+      </tr>
+      {{/each}}
+      {{#each emptyRows}}
+      <tr class="doc-table__row--empty">
+        <td class="center">&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td class="center">&nbsp;</td>
+        <td class="num">&nbsp;</td>
+        <td class="center">&nbsp;</td>
+        <td class="center">&nbsp;</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</section>
+
+<div class="doc-totals">
+  <span>{{L.totalSkus}}: <strong>{{summary.totalSkus}}</strong></span>
+  <span>{{L.totalQuantity}}: <strong>{{summary.totalQty}}</strong></span>
+  <span>{{L.totalItems}}: <strong>{{summary.totalItems}}</strong></span>
+</div>
+
+<div class="doc-meta-line">
+  <span>{{L.receivedBy}}: <strong>{{summary.receivedBy}}</strong></span>
+  <span>{{L.receivingTime}}: <strong>{{summary.receivingTime}}</strong></span>
+</div>
+
+<div class="doc-notes {{#unless notes}}empty{{/unless}}">
+  <span class="doc-notes__label">{{L.notes}}</span>
+  {{#if notes}}{{notes}}{{else}}{{L.notProvided}}{{/if}}
+</div>
+
+<section class="doc-signatures section--keep">
+  <div class="doc-signatures__title">{{L.signatures}}</div>
+  <div class="doc-signatures__grid">
+    {{#each signatures}}
+    <div class="doc-sign">
+      <div class="doc-sign__role">{{this.role}}</div>
+      <div class="doc-sign__field">
+        <span>{{L.signature}}</span>
+        <span class="doc-sign__line"></span>
+      </div>
+      <div class="doc-sign__field">
+        <span>{{L.nameAndDate}}</span>
+        <span class="doc-sign__line"></span>
+      </div>
+    </div>
+    {{/each}}
+  </div>
+</section>

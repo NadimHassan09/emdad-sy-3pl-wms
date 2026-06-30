@@ -135,23 +135,38 @@ export function PickExecutionPanel({
     setPackingDestinationId(dropOffLocations[0]!.id);
   }, [dropOffLocations, packingDestinationId]);
 
+  // Keep the freshest locationById available to the reset effect without making
+  // it a dependency — otherwise the effect would re-run (and wipe typed input)
+  // on every render where the Map identity changes.
+  const locationByIdRef = useRef(locationById);
+  locationByIdRef.current = locationById;
+
   const skipReservationReset = useRef(true);
   useEffect(() => {
     if (skipReservationReset.current) {
       skipReservationReset.current = false;
       return;
     }
+    // Only rebuild drafts when the actual reservation set changes. Sorting by the
+    // latest known locations happens in the dedicated effect below.
     setDrafts(
       sortDraftsByLocationPath(
         initialPickDrafts(reservations, savedDraft?.lines),
-        locationById,
+        locationByIdRef.current,
       ),
     );
-  }, [reservationsFingerprint, locationById]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reservationsFingerprint]);
 
   useEffect(() => {
     if (locationById.size === 0) return;
-    setDrafts((prev) => sortDraftsByLocationPath(prev, locationById));
+    setDrafts((prev) => {
+      const sorted = sortDraftsByLocationPath(prev, locationById);
+      // Preserve identity (and avoid an extra render) when order is unchanged.
+      const unchanged =
+        sorted.length === prev.length && sorted.every((d, i) => d.rowKey === prev[i]?.rowKey);
+      return unchanged ? prev : sorted;
+    });
   }, [locationById]);
 
   const lineMeta = useMemo(() => {

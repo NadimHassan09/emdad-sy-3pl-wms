@@ -7,10 +7,16 @@ import { QK } from '../constants/query-keys';
 export { EXECUTION_LOOKUP_LIMIT } from '../lib/location-resolve';
 
 export function useResolvedLocations(locationIds: string[]) {
-  const uniqueIds = useMemo(
-    () => [...new Set(locationIds.map((id) => id.trim()).filter(Boolean))],
-    [locationIds],
-  );
+  // Callers frequently pass a fresh array literal each render (e.g. [...ids, x]).
+  // Derive a stable string key so `uniqueIds` keeps the same identity unless the
+  // actual set of ids changes — otherwise every render produces a new array and
+  // a new `locationById` Map, which can trigger reset effects / render storms in
+  // consumers that depend on its identity.
+  const idsKey = [...new Set(locationIds.map((id) => id.trim()).filter(Boolean))]
+    .sort()
+    .join('\u001f');
+
+  const uniqueIds = useMemo(() => (idsKey ? idsKey.split('\u001f') : []), [idsKey]);
 
   const queries = useQueries({
     queries: uniqueIds.map((id) => ({
@@ -21,6 +27,15 @@ export function useResolvedLocations(locationIds: string[]) {
     })),
   });
 
+  // Fingerprint the resolved data so the Map identity is stable until the
+  // underlying locations actually change (not on every render).
+  const dataSig = queries
+    .map((q) => {
+      const d = q.data as import('../api/locations').Location | undefined;
+      return d ? `${d.id}:${d.fullPath ?? ''}` : '';
+    })
+    .join('\u001f');
+
   const locationById = useMemo(() => {
     const m = new Map<string, import('../api/locations').Location>();
     uniqueIds.forEach((id, i) => {
@@ -28,7 +43,9 @@ export function useResolvedLocations(locationIds: string[]) {
       if (loc) m.set(id, loc);
     });
     return m;
-  }, [uniqueIds, queries]);
+    // `queries` is intentionally excluded; `dataSig` captures meaningful changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uniqueIds, dataSig]);
 
   return { locationById, resolving: queries.some((q) => q.isFetching) };
 }

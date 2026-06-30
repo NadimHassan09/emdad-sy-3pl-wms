@@ -20,9 +20,10 @@ import { SlaEscalationService } from './sla-escalation.service';
 import { SlaAuditService } from './sla-audit.service';
 import { WorkflowRecoveryService } from './workflow-recovery.service';
 import { WorkflowEngineService } from './workflow-engine.service';
+import { PdfModule } from '../../pdf/pdf.module';
 
 @Module({
-  imports: [PrismaModule, InventoryModule, RedisModule, AuthModule, AuditModule, BillingModule],
+  imports: [PrismaModule, InventoryModule, RedisModule, AuthModule, AuditModule, BillingModule, PdfModule],
   controllers: [
     WorkflowController,
     WarehouseTasksController,
