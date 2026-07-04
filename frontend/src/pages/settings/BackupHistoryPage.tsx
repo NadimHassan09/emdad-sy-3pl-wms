@@ -338,7 +338,6 @@ export function BackupHistoryPage() {
         applyLabel={t(['Apply filters', 'تطبيق التصفية'])}
         resetLabel={t(['Reset filters', 'إعادة تعيين'])}
       >
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
           <TextField
             label={t(['Search', 'بحث'])}
             value={draftFilters.search}
@@ -357,7 +356,6 @@ export function BackupHistoryPage() {
             onChange={(e) => setDraft({ status: e.target.value as BackupJobStatus | '' })}
             options={[...statusOptions]}
           />
-        </div>
       </FilterPanel>
 
       {showCreateProgress ? (

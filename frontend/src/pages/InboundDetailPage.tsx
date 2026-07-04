@@ -212,6 +212,7 @@ export function InboundDetailPage() {
       </div>
       <FilterPanel
         title={t('Order details')}
+        variant="content"
         headerActions={
           canCancel || canDelete ? (
             <>
@@ -267,7 +268,7 @@ export function InboundDetailPage() {
       </FilterPanel>
 
       {taskOnlyMode && canConfirm ? (
-        <FilterPanel title={t('Receiving setup')}>
+        <FilterPanel title={t('Receiving setup')} variant="content">
           <div className="space-y-3 text-sm">
             {warehouses.length > 1 ? (
               <Combobox

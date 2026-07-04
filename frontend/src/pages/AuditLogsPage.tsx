@@ -306,13 +306,11 @@ export function AuditLogsPage() {
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
       >
-        <div className="flex min-w-0 flex-wrap items-end gap-3">
           <TextField
             label={t('Search', 'بحث')}
             value={draftFilters.search}
             onChange={(e) => setDraft({ search: e.target.value })}
             placeholder={t('Action, email, resource…', 'إجراء، بريد، مورد…')}
-            className="min-w-[8rem] flex-[1.2] basis-40"
           />
           <Combobox
             label={t('Company', 'الشركة')}
@@ -320,14 +318,12 @@ export function AuditLogsPage() {
             onChange={(v) => setDraft({ companyId: v })}
             options={clientFilterOptions}
             placeholder={t('All clients', 'كل العملاء')}
-            className="min-w-[7rem] flex-1 basis-32"
           />
           <TextField
             label={t('Actor email', 'بريد المستخدم')}
             value={draftFilters.actorEmail}
             onChange={(e) => setDraft({ actorEmail: e.target.value })}
             placeholder={t('Exact email', 'بريد مطابق')}
-            className="min-w-[7rem] flex-1 basis-32"
           />
           <SelectField
             label={t('Role', 'الدور')}
@@ -335,37 +331,32 @@ export function AuditLogsPage() {
             value={draftFilters.actorRole}
             onChange={(e) => setDraft({ actorRole: e.target.value })}
             options={roleOptions}
-            className="min-w-[6.5rem] flex-1 basis-28"
           />
           <TextField
             label={t('Action', 'الإجراء')}
             value={draftFilters.action}
             onChange={(e) => setDraft({ action: e.target.value })}
             placeholder="AUTH_LOGIN_SUCCESS"
-            className="min-w-[7rem] flex-1 basis-32 font-mono text-xs"
+            className="font-mono text-xs"
           />
           <TextField
             label={t('Resource type', 'نوع المورد')}
             value={draftFilters.resourceType}
             onChange={(e) => setDraft({ resourceType: e.target.value })}
             placeholder="user, warehouse_task…"
-            className="min-w-[7rem] flex-1 basis-32"
           />
           <TextField
             label={t('Date from', 'من تاريخ')}
             type="date"
             value={draftFilters.dateFrom}
             onChange={(e) => setDraft({ dateFrom: e.target.value })}
-            className="min-w-[7rem] max-w-[10.5rem] flex-[0.85] basis-28"
           />
           <TextField
             label={t('Date to', 'إلى تاريخ')}
             type="date"
             value={draftFilters.dateTo}
             onChange={(e) => setDraft({ dateTo: e.target.value })}
-            className="min-w-[7rem] max-w-[10.5rem] flex-[0.85] basis-28"
           />
-        </div>
       </FilterPanel>
 
       <DataTable

@@ -5,42 +5,26 @@ import { Link } from 'react-router-dom';
 import { WorkflowsApi, type WorkflowTimelineTask } from '../api/workflows';
 import { PANEL_CARD_CLASS, PANEL_TITLE_CLASS } from './FilterPanel';
 import { QK } from '../constants/query-keys';
+import { formatTaskDateTime } from '../lib/task-details-helpers';
+import {
+  formatTaskDuration,
+  isTaskTimingCompleteStatus,
+  taskDurationMs,
+  taskEndedAtIso,
+  taskStartedAtIso,
+  toTaskMs,
+} from '../lib/task-timing';
 import { taskAssignedWorkerLabel } from '../lib/task-worker-label';
-
-/** Parse an ISO timestamp to ms, or null when missing/invalid. */
-function toMs(iso?: string | null): number | null {
-  if (!iso) return null;
-  const ms = new Date(iso).getTime();
-  return Number.isNaN(ms) ? null : ms;
-}
 
 /** Timer starts when the task is assigned (fallback: started), stops at completion. */
 function taskStartMs(task: WorkflowTimelineTask): number | null {
-  return toMs(task.assignments?.[0]?.assignedAt) ?? toMs(task.startedAt);
-}
-
-function isTimerCompletedStatus(status: string): boolean {
-  return ['completed', 'done', 'shipped', 'approved', 'closed', 'cancelled'].includes(status);
-}
-
-function formatDuration(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const hms = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
-  return days > 0 ? `${days}d ${hms}` : hms;
+  return toTaskMs(taskStartedAtIso(task));
 }
 
 function TaskTimer({ task, now }: { task: WorkflowTimelineTask; now: number }) {
-  const start = taskStartMs(task);
-  if (start == null) return null;
-  const completed = isTimerCompletedStatus(task.status);
-  const end = completed ? toMs(task.completedAt) : null;
-  const elapsed = (completed && end != null ? end : now) - start;
-  if (elapsed < 0) return null;
+  const elapsed = taskDurationMs(task, now);
+  if (elapsed == null) return null;
+  const completed = isTaskTimingCompleteStatus(task.status);
 
   return (
     <div
@@ -55,7 +39,30 @@ function TaskTimer({ task, now }: { task: WorkflowTimelineTask; now: number }) {
         <circle cx="10" cy="10" r="7.2" />
         <path d="M10 6.4v4l2.6 1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      {formatDuration(elapsed)}
+      {formatTaskDuration(elapsed)}
+    </div>
+  );
+}
+
+function TaskDateRange({ task }: { task: WorkflowTimelineTask }) {
+  const startedIso = taskStartedAtIso(task);
+  const endedIso = taskEndedAtIso(task);
+  if (!startedIso && !endedIso) return null;
+
+  return (
+    <div className="mt-2 space-y-0.5 text-[11px] leading-snug text-slate-600">
+      {startedIso ? (
+        <div>
+          Started:{' '}
+          <span className="font-medium text-slate-800">{formatTaskDateTime(startedIso)}</span>
+        </div>
+      ) : null}
+      {endedIso ? (
+        <div>
+          Ended:{' '}
+          <span className="font-medium text-slate-800">{formatTaskDateTime(endedIso)}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -163,7 +170,7 @@ export function WorkflowOrderTimeline({
   const [now, setNow] = useState(() => Date.now());
   // Tick once per second only while at least one task is still running (assigned but not done).
   const hasRunningTimer = (q.data?.tasks ?? []).some(
-    (t) => taskStartMs(t) != null && !isTimerCompletedStatus(t.status),
+    (t) => taskStartMs(t) != null && !isTaskTimingCompleteStatus(t.status),
   );
   useEffect(() => {
     if (!hasRunningTimer) return;
@@ -234,6 +241,7 @@ export function WorkflowOrderTimeline({
                       </span>
                     </div>
                     <TaskTimer task={t} now={now} />
+                    <TaskDateRange task={t} />
                     <div className="mt-2 flex items-center justify-center gap-3">
                       <Link
                         to={

@@ -5,13 +5,12 @@ import { useNavigate } from 'react-router-dom';
 import { CompaniesApi } from '../api/companies';
 import { InventoryApi, ProductStockSummaryRow } from '../api/inventory';
 import { BarcodeImageModal } from '../components/BarcodeImageModal';
-import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { Alert } from '@ds';
-import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
+import { FilterScanButton } from '../components/FilterScanButton';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
@@ -280,13 +279,12 @@ export function InventoryPage() {
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
       >
-      <div className="flex flex-wrap items-end gap-3">
           <TextField
             label={t('Search', 'بحث')}
             value={draftFilters.searchQuery}
             onChange={(e) => setDraft({ searchQuery: e.target.value })}
             placeholder={t('Contains…', 'يحتوي على…')}
-            className={`min-w-[200px] flex-1 ${draftFilters.searchCategory !== 'name' ? 'font-mono' : ''}`}
+            className={draftFilters.searchCategory !== 'name' ? 'font-mono' : undefined}
           />
           <SelectField
             label={t('Search by', 'البحث حسب')}
@@ -296,18 +294,13 @@ export function InventoryPage() {
               setDraft({ searchCategory: e.target.value as InventorySearchCategory })
             }
             options={searchCategoryOptions}
-            className="min-w-[200px] max-w-xs shrink-0"
           />
-          <Button
-            type="button"
-            variant="secondary"
-            className="shrink-0 px-2.5"
-            title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
-            aria-label={t('Scan barcode', 'مسح الباركود')}
+          <FilterScanButton
+            label={t('Barcode', 'الباركود')}
             onClick={() => setScanOpen(true)}
-          >
-            <BarcodeScanIcon className="h-5 w-5" />
-          </Button>
+            title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
+            ariaLabel={t('Scan barcode', 'مسح الباركود')}
+          />
           <Combobox
             label={t('Client', 'العميل')}
             value={draftFilters.companyId}
@@ -321,9 +314,7 @@ export function InventoryPage() {
               })),
             ]}
             placeholder={t('All clients', 'كل العملاء')}
-            className="min-w-[220px] max-w-xs shrink-0"
           />
-      </div>
       </FilterPanel>
 
       <DataTable

@@ -12,6 +12,7 @@ import { useAuth } from '../auth/AuthContext';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
+import { FilterCheckboxField } from '../components/FilterCheckboxField';
 import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { SelectField } from '../components/SelectField';
@@ -196,14 +197,12 @@ export function WarehousesPage() {
             { value: 'inactive', label: 'Inactive' },
           ]}
         />
-        <label className="flex items-center gap-2 self-end pb-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={draftFilters.includeInactive}
-            onChange={(e) => setDraft({ includeInactive: e.target.checked })}
-          />
-          Include inactive in API fetch
-        </label>
+        <FilterCheckboxField
+          label="Include inactive"
+          description="Include inactive in API fetch"
+          checked={draftFilters.includeInactive}
+          onChange={(includeInactive) => setDraft({ includeInactive })}
+        />
       </FilterPanel>
 
       <DataTable

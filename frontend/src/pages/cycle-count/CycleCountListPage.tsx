@@ -294,40 +294,41 @@ export function CycleCountListPage() {
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين')}
       >
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {tab === 'sessions' ? (
-            <>
-              <SelectField
-                label={t('Status', 'الحالة')}
-                name="status"
-                value={draftFilters.status}
-                onChange={(e) => setDraft({ status: e.target.value })}
-                options={statusOptions}
-              />
-              <SelectField
-                label={t('Assigned worker', 'العامل')}
-                name="worker"
-                value={draftFilters.assignedWorkerId}
-                onChange={(e) => setDraft({ assignedWorkerId: e.target.value })}
-                options={workerOptions}
-              />
-              <SelectField
-                label={t('Discrepancy only', 'فروقات فقط')}
-                name="disc"
-                value={draftFilters.discrepancyOnly}
-                onChange={(e) => setDraft({ discrepancyOnly: e.target.value })}
-                options={yesNo}
-              />
-            </>
-          ) : (
-            <SelectField
-              label={t('Overdue only', 'متأخر فقط')}
-              name="overdue"
-              value={draftFilters.overdueOnly}
-              onChange={(e) => setDraft({ overdueOnly: e.target.value })}
-              options={yesNo}
-            />
-          )}
+        {tab === 'sessions' ? (
+          <SelectField
+            label={t('Status', 'الحالة')}
+            name="status"
+            value={draftFilters.status}
+            onChange={(e) => setDraft({ status: e.target.value })}
+            options={statusOptions}
+          />
+        ) : (
+          <SelectField
+            label={t('Overdue only', 'متأخر فقط')}
+            name="overdue"
+            value={draftFilters.overdueOnly}
+            onChange={(e) => setDraft({ overdueOnly: e.target.value })}
+            options={yesNo}
+          />
+        )}
+        {tab === 'sessions' ? (
+          <SelectField
+            label={t('Assigned worker', 'العامل')}
+            name="worker"
+            value={draftFilters.assignedWorkerId}
+            onChange={(e) => setDraft({ assignedWorkerId: e.target.value })}
+            options={workerOptions}
+          />
+        ) : null}
+        {tab === 'sessions' ? (
+          <SelectField
+            label={t('Discrepancy only', 'فروقات فقط')}
+            name="disc"
+            value={draftFilters.discrepancyOnly}
+            onChange={(e) => setDraft({ discrepancyOnly: e.target.value })}
+            options={yesNo}
+          />
+        ) : null}
           <TextField
             label={t('Date from', 'من تاريخ')}
             type="date"
@@ -340,7 +341,6 @@ export function CycleCountListPage() {
             value={draftFilters.dateTo}
             onChange={(e) => setDraft({ dateTo: e.target.value })}
           />
-        </div>
       </FilterPanel>
 
       <PillSubNav

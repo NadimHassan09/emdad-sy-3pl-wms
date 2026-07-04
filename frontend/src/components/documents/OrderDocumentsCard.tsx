@@ -151,7 +151,7 @@ export function OrderDocumentsCard({ referenceType, referenceId, companyIdOverri
   const isLoading = docsQuery.isLoading || timelineQuery.isLoading;
 
   return (
-    <FilterPanel title={t('Documents', 'المستندات')}>
+    <FilterPanel title={t('Documents', 'المستندات')} variant="content">
       {isLoading ? (
         <p className="text-sm text-slate-500">{t('Loading…', 'جارٍ التحميل…')}</p>
       ) : rows.length === 0 ? (

@@ -320,7 +320,6 @@ export function InboundListPage() {
         applyLabel={t('Apply filters')}
         resetLabel={t('Reset filters')}
       >
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <TextField
             label={t('Order #')}
             value={draftFilters.orderSearch}
@@ -354,7 +353,6 @@ export function InboundListPage() {
             value={draftFilters.createdTo}
             onChange={(e) => setDraft({ createdTo: e.target.value })}
           />
-        </div>
       </FilterPanel>
 
       <DataTable

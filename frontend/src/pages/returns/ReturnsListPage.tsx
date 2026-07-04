@@ -230,7 +230,6 @@ export function ReturnsListPage() {
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
         className="mb-4"
       >
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <TextField
             label={t('Search', 'بحث')}
             value={draftFilters.orderSearch}
@@ -255,7 +254,6 @@ export function ReturnsListPage() {
             value={draftFilters.createdTo}
             onChange={(e) => setDraft({ ...draftFilters, createdTo: e.target.value })}
           />
-        </div>
       </FilterPanel>
 
       {pagination.isError ? (

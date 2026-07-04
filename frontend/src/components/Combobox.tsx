@@ -1,5 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
+import {
+  FILTER_FIELD_CONTROL_CLASS,
+  FILTER_FIELD_CONTROL_ERROR_CLASS,
+  FILTER_FIELD_LABEL_CLASS,
+  FILTER_FIELD_LABEL_GAP_CLASS,
+} from './filter-panel-styles';
+
 export interface ComboboxOption {
   value: string;
   label: string;
@@ -108,9 +115,11 @@ export function Combobox({
   const display = open ? query : selected?.label ?? '';
 
   return (
-    <label htmlFor={inputId} className={`block ${className}`}>
-      {label && <span className="text-sm font-medium text-slate-700">{label}</span>}
-      <div ref={wrapperRef} className={`mt-1 ${dropdownInFlow ? '' : 'relative'}`}>
+    <label htmlFor={inputId} className={`block min-w-0 ${className}`}>
+      {label ? (
+        <span className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>{label}</span>
+      ) : null}
+      <div ref={wrapperRef} className={dropdownInFlow ? '' : 'relative'}>
         <input
           ref={inputRef}
           id={inputId}
@@ -128,13 +137,9 @@ export function Combobox({
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
-          className={`block w-full rounded-md border px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 ${
+          className={`${FILTER_FIELD_CONTROL_CLASS} ${
             clearable && value && !disabled ? 'pr-7' : ''
-          } ${
-            error
-              ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
-              : 'border-slate-300 focus:border-emerald-500 focus:ring-emerald-200'
-          } ${disabled ? 'cursor-not-allowed bg-slate-50 text-slate-500' : 'bg-white'}`}
+          } ${error ? FILTER_FIELD_CONTROL_ERROR_CLASS : ''}`}
         />
         {clearable && value && !disabled && (
           <button

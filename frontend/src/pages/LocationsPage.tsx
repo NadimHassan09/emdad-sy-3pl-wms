@@ -4,10 +4,10 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { InventoryApi, StockRow } from '../api/inventory';
 import { CreateLocationInput, Location, LocationsApi, LocationType } from '../api/locations';
 import { BarcodeImageModal } from '../components/BarcodeImageModal';
-import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { Button } from '../components/Button';
 import { FilterPanel } from '../components/FilterPanel';
+import { FilterScanButton } from '../components/FilterScanButton';
 import { LocationParentPicker } from '../components/locations/LocationParentPicker';
 import { LocationsDrillDownTable } from '../components/locations/LocationsDrillDownTable';
 import { Modal } from '../components/Modal';
@@ -263,47 +263,38 @@ export function LocationsPage() {
         applyLabel={t(['Apply filters', 'تطبيق الفلاتر'])}
         resetLabel={t(['Reset', 'إعادة تعيين'])}
       >
-        <div className="flex min-w-0 flex-wrap items-end gap-3">
           <TextField
             label={t(['Location name', 'اسم الموقع'])}
             value={draftFilters.name}
             onChange={(e) => setDraft({ name: e.target.value })}
             placeholder={t(['Contains…', 'يحتوي…'])}
-            className="min-w-[12.5rem] flex-1 basis-40"
           />
           <TextField
             label="Barcode"
             value={draftFilters.barcode}
             onChange={(e) => setDraft({ barcode: e.target.value })}
             placeholder={t(['Contains…', 'يحتوي…'])}
-            className="min-w-[10rem] flex-1 basis-32 font-mono"
+            className="font-mono"
           />
-          <Button
-            type="button"
-            variant="secondary"
-            className="h-[34px] shrink-0 px-2.5"
-            title={t(['Scan a barcode with the device camera', 'مسح Barcode بالكاميرا'])}
-            aria-label={t(['Scan barcode', 'مسح Barcode'])}
+          <FilterScanButton
+            label={t(['Scan barcode', 'مسح Barcode'])}
             onClick={() => setScanOpen(true)}
-          >
-            <BarcodeScanIcon className="h-5 w-5" />
-          </Button>
-          <div className="min-w-[11rem] max-w-[14rem] shrink-0">
-            <SelectField
-              label={t(['Location type', 'نوع الموقع'])}
-              name="locationTypeFilter"
-              value={draftFilters.locationType}
-              onChange={(e) => setDraft({ locationType: e.target.value })}
-              options={[
-                { value: '', label: t(['All types', 'كل الأنواع']) },
-                ...localizedLocationTypeSelectOptions(t).map((o) => ({
-                  value: o.value,
-                  label: o.label,
-                })),
-              ]}
-            />
-          </div>
-        </div>
+            title={t(['Scan a barcode with the device camera', 'مسح Barcode بالكاميرا'])}
+            ariaLabel={t(['Scan barcode', 'مسح Barcode'])}
+          />
+          <SelectField
+            label={t(['Location type', 'نوع الموقع'])}
+            name="locationTypeFilter"
+            value={draftFilters.locationType}
+            onChange={(e) => setDraft({ locationType: e.target.value })}
+            options={[
+              { value: '', label: t(['All types', 'كل الأنواع']) },
+              ...localizedLocationTypeSelectOptions(t).map((o) => ({
+                value: o.value,
+                label: o.label,
+              })),
+            ]}
+          />
       </FilterPanel>
 
       {!warehouseId ? (

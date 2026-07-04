@@ -29,6 +29,13 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     roles: ['super_admin', 'wh_manager', 'finance'],
   },
   {
+    labelKey: 'Contracts',
+    iconKey: 'Forms',
+    to: '/contracts',
+    match: (p) => p.startsWith('/contracts'),
+    roles: ['super_admin', 'wh_manager', 'wh_operator', 'finance'],
+  },
+  {
     labelKey: 'Inventory',
     iconKey: 'Inventory',
     to: '/inventory/stock',
@@ -141,6 +148,7 @@ function routeGroup(pathname: string): string {
   if (p === '/' || p.startsWith('/dashboard')) return 'dashboard';
   if (p.startsWith('/reports')) return 'reports';
   if (p.startsWith('/orders')) return 'orders';
+  if (p.startsWith('/contracts')) return 'contracts';
   if (p.startsWith('/inventory') || p === '/adjustments') return 'inventory';
   if (p === '/internal') return 'internal';
   if (p.startsWith('/tasks')) return 'tasks';
@@ -163,6 +171,7 @@ const ROUTE_GROUP_ROLES: Record<string, InternalRole[]> = {
   dashboard: ['super_admin', 'wh_manager', 'finance'],
   reports: ['super_admin', 'wh_manager', 'finance'],
   orders: ['super_admin', 'wh_manager', 'finance'],
+  contracts: ['super_admin', 'wh_manager', 'wh_operator', 'finance'],
   inventory: ['super_admin', 'wh_manager', 'finance'],
   tasks: ['super_admin', 'wh_manager', 'wh_operator'],
   'cycle-count': ['super_admin', 'wh_manager', 'wh_operator'],

@@ -327,15 +327,12 @@ export function ClientsPage() {
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
       >
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-full min-w-[10rem] max-w-[25%] flex-1 basis-32">
-            <TextField
-              label={t('Search', 'بحث')}
-              value={draftFilters.search}
-              onChange={(e) => setDraft({ search: e.target.value })}
-              placeholder={t('Search client...', 'ابحث عن عميل...')}
-            />
-          </div>
+          <TextField
+            label={t('Search', 'بحث')}
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder={t('Search client...', 'ابحث عن عميل...')}
+          />
           <SelectField
             label={t('Search by', 'البحث حسب')}
             name="clientSearchCategory"
@@ -351,7 +348,6 @@ export function ClientsPage() {
               { value: 'city', label: t('City', 'المدينة') },
               { value: 'country', label: t('Country', 'الدولة') },
             ]}
-            className="min-w-[8.75rem] max-w-[11rem] shrink-0"
           />
           <SelectField
             label={t('Status', 'الحالة')}
@@ -364,9 +360,7 @@ export function ClientsPage() {
               { value: 'suspended', label: t('Suspended', 'موقوف') },
               { value: 'archived', label: t('Archived', 'مؤرشف') },
             ]}
-            className="min-w-[8.75rem] max-w-[11rem] shrink-0"
           />
-        </div>
       </FilterPanel>
 
       <DataTable

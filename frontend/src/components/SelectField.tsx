@@ -1,6 +1,13 @@
 import { forwardRef } from 'react';
 import type { SelectHTMLAttributes } from 'react';
 
+import {
+  FILTER_FIELD_CONTROL_CLASS,
+  FILTER_FIELD_CONTROL_ERROR_CLASS,
+  FILTER_FIELD_LABEL_CLASS,
+  FILTER_FIELD_LABEL_GAP_CLASS,
+} from './filter-panel-styles';
+
 interface Option {
   value: string;
   label: string;
@@ -18,15 +25,15 @@ export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(
   ({ label, hint, error, options, placeholder, className = '', id, ...rest }, ref) => {
     const selectId = id ?? rest.name;
     return (
-      <label htmlFor={selectId} className="block">
-        {label && <span className="text-sm font-medium text-slate-700">{label}</span>}
+      <label htmlFor={selectId} className="block min-w-0">
+        {label ? (
+          <span className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>{label}</span>
+        ) : null}
         <select
           ref={ref}
           id={selectId}
-          className={`mt-1 block w-full rounded-md border px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 ${
-            error
-              ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
-              : 'border-slate-300 focus:border-emerald-500 focus:ring-emerald-200'
+          className={`${FILTER_FIELD_CONTROL_CLASS} ${
+            error ? FILTER_FIELD_CONTROL_ERROR_CLASS : ''
           } ${className}`}
           {...rest}
         >

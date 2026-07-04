@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import type { WarehouseTaskListItem } from '../api/tasks';
@@ -17,6 +17,14 @@ import {
   useServerPagination,
 } from '../hooks/useServerPagination';
 import { isOperatorRole } from '../lib/rbac';
+import { formatTaskDateTime } from '../lib/task-details-helpers';
+import {
+  formatTaskDuration,
+  isTaskTimingCompleteStatus,
+  taskListDurationMs,
+  taskListEndedAtIso,
+  taskListStartedAtIso,
+} from '../lib/task-timing';
 import { taskAssignedWorkerLabel } from '../lib/task-worker-label';
 import { useWmsTranslation } from '../lib/ui-i18n';
 
@@ -86,6 +94,17 @@ export function TasksListPage() {
     defaultPageSize: TASK_LIST_DEFAULT_PAGE_SIZE,
   });
 
+  const [now, setNow] = useState(() => Date.now());
+  const hasRunningTasks = pagination.rows.some(
+    (t) => taskListStartedAtIso(t) && !isTaskTimingCompleteStatus(t.status),
+  );
+
+  useEffect(() => {
+    if (!hasRunningTasks) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [hasRunningTasks]);
+
   const taskTypeOptions = [
     { value: '', label: t(['All task types', 'كل أنواع المهام']) },
     { value: 'receiving', label: t(['Receiving', 'استلام']) },
@@ -133,6 +152,32 @@ export function TasksListPage() {
       accessor: (r) => taskAssignedWorkerLabel(r.assignments),
       width: '180px',
     },
+    {
+      header: t(['Started at', 'بدأ في']),
+      accessor: (r) => (
+        <span className="text-xs text-slate-700">{formatTaskDateTime(taskListStartedAtIso(r))}</span>
+      ),
+      width: '170px',
+    },
+    {
+      header: t(['Ended at', 'انتهى في']),
+      accessor: (r) => (
+        <span className="text-xs text-slate-700">{formatTaskDateTime(taskListEndedAtIso(r))}</span>
+      ),
+      width: '170px',
+    },
+    {
+      header: t(['Duration', 'المدة']),
+      accessor: (r) => {
+        const durationMs = taskListDurationMs(r, now);
+        return (
+          <span className="font-mono text-xs tabular-nums text-slate-700">
+            {durationMs != null ? formatTaskDuration(durationMs) : '—'}
+          </span>
+        );
+      },
+      width: '110px',
+    },
   ];
 
   return (
@@ -145,7 +190,6 @@ export function TasksListPage() {
         applyLabel={t(['Apply filters', 'تطبيق الفلاتر'])}
         resetLabel={t(['Reset filters', 'إعادة تعيين الفلاتر'])}
       >
-        <div className="flex flex-wrap gap-5">
           <SelectField
             label={t(['Task type', 'نوع المهمة'])}
             name="taskTypeFilter"
@@ -169,7 +213,6 @@ export function TasksListPage() {
               'ابحث بمعرف الطلب أو معرف المهمة أو معرف العامل',
             ])}
           />
-        </div>
       </FilterPanel>
       <DataTable
         title={t(['Warehouse tasks', 'مهام المستودع'])}

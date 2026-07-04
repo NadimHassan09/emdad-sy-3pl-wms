@@ -4,12 +4,11 @@ import { useNavigate } from 'react-router-dom';
 
 import { CompaniesApi } from '../api/companies';
 import { InventoryApi, LedgerRow } from '../api/inventory';
-import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
-import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
+import { FilterScanButton } from '../components/FilterScanButton';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
@@ -204,13 +203,12 @@ export function InventoryLedgerPage() {
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
       >
-      <div className="flex min-w-0 flex-wrap items-end gap-3">
         <TextField
           label={t('Search', 'بحث')}
           value={draftFilters.searchQuery}
           onChange={(e) => setDraft({ searchQuery: e.target.value })}
           placeholder={t('Contains…', 'يحتوي على…')}
-          className={`min-w-[7.5rem] flex-1 basis-32 ${draftFilters.searchCategory !== 'name' ? 'font-mono text-xs' : ''}`}
+          className={draftFilters.searchCategory !== 'name' ? 'font-mono text-xs' : undefined}
         />
         <SelectField
           label={t('Search by', 'البحث حسب')}
@@ -220,18 +218,13 @@ export function InventoryLedgerPage() {
             setDraft({ searchCategory: e.target.value as LedgerSearchCategory })
           }
           options={searchCategoryOptions}
-          className="min-w-[6.5rem] max-w-[10.5rem] flex-[0.85] basis-28"
         />
-        <Button
-          type="button"
-          variant="secondary"
-          className="h-[34px] shrink-0 px-2.5"
-          title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
-          aria-label={t('Scan barcode', 'مسح الباركود')}
+        <FilterScanButton
+          label={t('Barcode', 'الباركود')}
           onClick={() => setScanOpen(true)}
-        >
-          <BarcodeScanIcon className="h-5 w-5" />
-        </Button>
+          title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
+          ariaLabel={t('Scan barcode', 'مسح الباركود')}
+        />
         <SelectField
           label={t('Movement type', 'نوع الحركة')}
           name="movementType"
@@ -245,7 +238,6 @@ export function InventoryLedgerPage() {
             { value: 'outbound', label: t('Outbound', 'صادر') },
             { value: 'adjustment', label: t('Adjustments', 'تعديلات') },
           ]}
-          className="min-w-[7rem] flex-1 basis-32"
         />
         <Combobox
           label={t('Client', 'العميل')}
@@ -253,23 +245,19 @@ export function InventoryLedgerPage() {
           onChange={(v) => setDraft({ companyId: v })}
           options={clientFilterOptions}
           placeholder={t('All clients', 'كل العملاء')}
-          className="min-w-[7rem] flex-1 basis-32"
         />
         <TextField
           label={t('Created from', 'تاريخ الإنشاء من')}
           type="date"
           value={draftFilters.createdFrom}
           onChange={(e) => setDraft({ createdFrom: e.target.value })}
-          className="min-w-[7rem] max-w-[10.5rem] flex-[0.8] basis-28"
         />
         <TextField
           label={t('Created to', 'تاريخ الإنشاء إلى')}
           type="date"
           value={draftFilters.createdTo}
           onChange={(e) => setDraft({ createdTo: e.target.value })}
-          className="min-w-[7rem] max-w-[10.5rem] flex-[0.8] basis-28"
         />
-      </div>
       </FilterPanel>
 
       <DataTable

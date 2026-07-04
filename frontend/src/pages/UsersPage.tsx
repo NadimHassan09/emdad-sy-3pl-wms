@@ -522,17 +522,13 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
       >
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-full min-w-[10rem] max-w-[25%] flex-1 basis-32">
-            <TextField
-              label={t('Search', 'بحث')}
-              value={draftFilters.search}
-              onChange={(e) => setDraft({ search: e.target.value })}
-              placeholder={t('Search by name or email', 'ابحث بالاسم أو البريد الإلكتروني')}
-            />
-          </div>
-          <div className="w-full min-w-[10rem] max-w-[25%] flex-1 basis-32">
-            <SelectField
+          <TextField
+            label={t('Search', 'بحث')}
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder={t('Search by name or email', 'ابحث بالاسم أو البريد الإلكتروني')}
+          />
+          <SelectField
               label={t('Role', 'الدور')}
               name="roleFilter"
               value={draftFilters.role}
@@ -544,8 +540,6 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
                   : CLIENT_ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label }))),
               ]}
             />
-          </div>
-        </div>
       </FilterPanel>
 
       <DataTable

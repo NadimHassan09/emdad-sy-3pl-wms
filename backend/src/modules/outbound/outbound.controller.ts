@@ -16,6 +16,7 @@ import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
 import { ConfirmOutboundBodyDto } from './dto/confirm-outbound-body.dto';
 import { ListOutboundQueryDto } from './dto/list-outbound-query.dto';
+import { QuickDirectedOutboundDto } from './dto/quick-directed-outbound.dto';
 import { OutboundService } from './outbound.service';
 
 @Controller('outbound-orders')
@@ -25,6 +26,11 @@ export class OutboundController {
   @Post()
   create(@CurrentUser() user: AuthPrincipal, @Body() dto: CreateOutboundOrderDto) {
     return this.outbound.create(user, dto);
+  }
+
+  @Post('quick-directed')
+  quickDirected(@CurrentUser() user: AuthPrincipal, @Body() dto: QuickDirectedOutboundDto) {
+    return this.outbound.quickDirectedOutbound(user, dto);
   }
 
   @Get()

@@ -20,6 +20,7 @@ import { DnPdfService } from './dn-pdf.service';
 import { DocumentsService } from './documents.service';
 import { GrnPdfService } from './grn-pdf.service';
 import { ListDocumentsQueryDto } from './dto/list-documents-query.dto';
+import { ListContractsQueryDto } from './dto/list-contracts-query.dto';
 import { normalizeLang } from './i18n';
 
 @Controller('documents')
@@ -31,6 +32,12 @@ export class DocumentsController {
     private readonly prisma: PrismaService,
     private readonly companyAccess: CompanyAccessService,
   ) {}
+
+  /** Paginated GRN / Delivery Note catalog (tenant scoped). */
+  @Get('catalog')
+  listCatalog(@CurrentUser() user: AuthPrincipal, @Query() query: ListContractsQueryDto) {
+    return this.documents.listCatalog(user, query);
+  }
 
   /** List immutable documents attached to an inbound/outbound order (tenant scoped). */
   @Get()

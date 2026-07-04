@@ -163,6 +163,7 @@ export function OutboundListPage() {
       orderSearch: appliedFilters.orderSearch.trim() || undefined,
       createdFrom: appliedFilters.createdFrom.trim() || undefined,
       createdTo: appliedFilters.createdTo.trim() || undefined,
+      quickDirectedOnly: false,
     }),
     [appliedFilters, wid],
   );
@@ -313,7 +314,6 @@ export function OutboundListPage() {
         applyLabel={t('Apply filters')}
         resetLabel={t('Reset filters')}
       >
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <TextField
           label={t('Order #')}
           value={draftFilters.orderSearch}
@@ -347,7 +347,6 @@ export function OutboundListPage() {
           value={draftFilters.createdTo}
           onChange={(e) => setDraft({ createdTo: e.target.value })}
         />
-      </div>
       </FilterPanel>
 
       <DataTable

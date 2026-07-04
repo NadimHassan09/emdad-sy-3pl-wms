@@ -174,6 +174,7 @@ export function OutboundDetailPage() {
       </div>
       <FilterPanel
         title={t('Order details')}
+        variant="content"
         headerActions={
           canCancel || canConfirm || canDelete ? (
             <>
@@ -277,7 +278,7 @@ export function OutboundDetailPage() {
         companyIdOverride={o.companyId}
       />
 
-      <DataTable columns={lineColumns} rows={o.lines} rowKey={(l) => l.id} />
+      <DataTable columns={lineColumns} rows={o.lines ?? []} rowKey={(l) => l.id} />
 
       {o.status === 'draft' && !taskOnlyMode ? (
         <p className="mt-3 text-xs text-slate-500">

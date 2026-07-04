@@ -1,28 +1,39 @@
-import { forwardRef } from 'react';
-import type { InputHTMLAttributes } from 'react';
+import { forwardRef, type InputHTMLAttributes, type ReactNode } from 'react';
+
+import {
+  FILTER_FIELD_CONTROL_CLASS,
+  FILTER_FIELD_CONTROL_ERROR_CLASS,
+  FILTER_FIELD_LABEL_CLASS,
+  FILTER_FIELD_LABEL_GAP_CLASS,
+} from './filter-panel-styles';
 
 interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   hint?: string;
   error?: string;
+  endAdornment?: ReactNode;
 }
 
 export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
-  ({ label, hint, error, className = '', id, ...rest }, ref) => {
+  ({ label, hint, error, endAdornment, className = '', id, ...rest }, ref) => {
     const inputId = id ?? rest.name;
+    const inputClassName = `${FILTER_FIELD_CONTROL_CLASS} ${
+      error ? FILTER_FIELD_CONTROL_ERROR_CLASS : ''
+    } ${endAdornment ? 'min-w-0 flex-1' : ''} ${className}`;
+
     return (
-      <label htmlFor={inputId} className="block">
-        {label && <span className="text-sm font-medium text-slate-700">{label}</span>}
-        <input
-          ref={ref}
-          id={inputId}
-          className={`mt-1 block w-full rounded-md border px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 ${
-            error
-              ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
-              : 'border-slate-300 focus:border-emerald-500 focus:ring-emerald-200'
-          } ${className}`}
-          {...rest}
-        />
+      <label htmlFor={inputId} className="block min-w-0">
+        {label ? (
+          <span className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>{label}</span>
+        ) : null}
+        {endAdornment ? (
+          <div className="flex items-stretch gap-2">
+            <input ref={ref} id={inputId} className={inputClassName} {...rest} />
+            <div className="shrink-0">{endAdornment}</div>
+          </div>
+        ) : (
+          <input ref={ref} id={inputId} className={inputClassName} {...rest} />
+        )}
         {error ? (
           <span className="mt-1 block text-xs text-rose-600">{error}</span>
         ) : hint ? (

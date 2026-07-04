@@ -40,6 +40,7 @@ const TasksListPage           = lazyPage(() => import('./pages/TasksListPage'), 
 const TaskDetailPage          = lazyPage(() => import('./pages/TaskDetailPage'),          'TaskDetailPage');
 const TaskExecutePage         = lazyPage(() => import('./pages/TaskExecutePage'),         'TaskExecutePage');
 const InternalTransferPage    = lazyPage(() => import('./pages/InternalTransferPage'),    'InternalTransferPage');
+const QuickDirectedOutboundPage = lazyPage(() => import('./pages/QuickDirectedOutboundPage'), 'QuickDirectedOutboundPage');
 const ReportsLayout                 = lazyPage(() => import('./pages/reports/ReportsLayout'),                 'ReportsLayout');
 const WarehouseAnalysisReportPage = lazyPage(() => import('./pages/reports/WarehouseAnalysisReportPage'), 'WarehouseAnalysisReportPage');
 const InventoryReportPage           = lazyPage(() => import('./pages/reports/InventoryReportPage'),           'InventoryReportPage');
@@ -64,6 +65,7 @@ const ClientUserDetailPage    = lazyPage(() => import('./pages/UserDetailPage'),
 const NotificationsPage         = lazyPage(() => import('./modules/notifications/NotificationsPage'), 'NotificationsPage');
 const LoginPage               = lazyPage(() => import('./pages/LoginPage'),               'LoginPage');
 const AuditLogsPage           = lazyPage(() => import('./pages/AuditLogsPage'),           'AuditLogsPage');
+const ContractsPage           = lazyPage(() => import('./pages/ContractsPage'),           'ContractsPage');
 const SettingsLayout          = lazyPage(() => import('./pages/settings/SettingsLayout'), 'SettingsLayout');
 const BackupHistoryPage       = lazyPage(() => import('./pages/settings/BackupHistoryPage'), 'BackupHistoryPage');
 const BackupUploadPage        = lazyPage(() => import('./pages/settings/BackupUploadPage'), 'BackupUploadPage');
@@ -121,7 +123,9 @@ export const router = createBrowserRouter([
       { path: 'orders/inbound', element: <InboundListPage /> },
       { path: 'orders/inbound/:id', element: <InboundDetailPage /> },
       { path: 'orders/outbound', element: <OutboundListPage /> },
+      { path: 'orders/directed-outbound', element: <QuickDirectedOutboundPage /> },
       { path: 'orders/outbound/:id', element: <OutboundDetailPage /> },
+      { path: 'contracts', element: <ContractsPage /> },
       { path: 'tasks', element: <TasksListPage /> },
       { path: 'tasks/:id/execute', element: <TaskExecutePage /> },
       { path: 'tasks/:id', element: <TaskDetailPage /> },
@@ -133,6 +137,7 @@ export const router = createBrowserRouter([
       { path: 'returns/:id/process', element: <ReturnProcessPage /> },
       { path: 'returns/:id', element: <ReturnDetailPage /> },
       { path: 'internal', element: <InternalTransferPage /> },
+      { path: 'directed-outbound', element: <Navigate to="/orders/directed-outbound" replace /> },
       {
         path: 'reports',
         element: <ReportsLayout />,

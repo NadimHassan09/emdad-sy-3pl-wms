@@ -25,11 +25,49 @@ export interface GeneratedDocument {
   language: DocumentLang;
 }
 
+export interface ContractListItem {
+  id: string;
+  type: DocumentType;
+  taskId: string | null;
+  documentNumber: string;
+  language: DocumentLang;
+  fileName: string;
+  fileSize: number;
+  createdAt: string;
+  referenceType: DocumentReferenceType;
+  referenceId: string;
+  companyId: string;
+  company: { id: string; name: string };
+  orderNumber: string | null;
+  pdfUrl: string;
+}
+
+export interface ListContractsParams {
+  companyId?: string;
+  search?: string;
+  type?: DocumentType;
+  language?: DocumentLang;
+  referenceType?: DocumentReferenceType;
+  createdFrom?: string;
+  createdTo?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export const DocumentsApi = {
   list(referenceType: DocumentReferenceType, referenceId: string): Promise<DocumentMeta[]> {
     return api
       .get('/documents', { params: { referenceType, referenceId } })
       .then((r) => r.data as DocumentMeta[]);
+  },
+
+  listCatalog(params: ListContractsParams = {}) {
+    return api
+      .get<{ items: ContractListItem[]; total: number; limit: number; offset: number }>(
+        '/documents/catalog',
+        { params: { limit: 50, ...params } },
+      )
+      .then((r) => r.data);
   },
 
   generateGrn(taskId: string, lang: DocumentLang): Promise<GeneratedDocument | null> {

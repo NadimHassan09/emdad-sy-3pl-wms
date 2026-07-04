@@ -233,7 +233,6 @@ export function AdjustmentsPage() {
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
       >
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
           <TextField
             label={t('Adjustment id', 'معرف التعديل')}
             value={draftFilters.adjustmentId}
@@ -277,7 +276,6 @@ export function AdjustmentsPage() {
             value={draftFilters.createdTo}
             onChange={(e) => setDraft({ createdTo: e.target.value })}
           />
-        </div>
       </FilterPanel>
 
       <DataTable

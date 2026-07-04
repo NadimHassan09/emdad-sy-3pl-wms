@@ -11,6 +11,7 @@ const MOVEMENT_TYPES = [
 const STOCK_STATUS = [
   { value: 'available', label: 'Available', labelAr: 'متاح' },
   { value: 'quarantined', label: 'Quarantined', labelAr: 'حجر' },
+  { value: 'awaiting_putaway', label: 'Awaiting putaway', labelAr: 'بانتظار التخزين' },
 ];
 
 const STOCK_AGING_BUCKETS = [

@@ -129,7 +129,7 @@ export function NewReturnModal({
   const productOptionsFromOutbound = useMemo(() => {
     const ob = outboundDetail.data;
     if (!ob) return [];
-    return ob.lines.map((l) => {
+    return (ob.lines ?? []).map((l) => {
       const q = quotaByLineId.get(l.id);
       const remaining = q?.remaining ?? Number(l.pickedQuantity);
       return {
@@ -180,7 +180,7 @@ export function NewReturnModal({
           return;
         }
         seenOutbound.add(row.outboundOrderLineId);
-        const obLine = outboundDetail.data?.lines.find((l) => l.id === row.outboundOrderLineId);
+        const obLine = outboundDetail.data?.lines?.find((l) => l.id === row.outboundOrderLineId);
         if (!obLine) continue;
         const max = quotaByLineId.get(obLine.id)?.remaining ?? Number(obLine.pickedQuantity);
         if (qty > max) {

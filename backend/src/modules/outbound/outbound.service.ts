@@ -43,6 +43,14 @@ import { WorkflowBootstrapService } from '../warehouse-workflow/workflow-bootstr
 import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
 import { ConfirmOutboundBodyDto } from './dto/confirm-outbound-body.dto';
 import { ListOutboundQueryDto } from './dto/list-outbound-query.dto';
+import { QuickDirectedOutboundDto } from './dto/quick-directed-outbound.dto';
+import {
+  buildQuickDirectedPickMessages,
+  type QuickDirectedPickSlice,
+  type QuickDirectedOutboundResult,
+} from './quick-directed-outbound.helper';
+import { findWarehouseStockFefo } from '../warehouse-workflow/task-allocation.helper';
+import { QUICK_DIRECTED_OUTBOUND_REF_PREFIX } from './quick-directed-outbound.constants';
 
 interface StockRow {
   id: string;
@@ -298,17 +306,43 @@ export class OutboundService {
       baseAnd.push(scope);
     }
 
+    if (query.quickDirectedOnly === true) {
+      baseAnd.push({
+        clientReference: { startsWith: QUICK_DIRECTED_OUTBOUND_REF_PREFIX },
+      });
+    } else if (query.quickDirectedOnly === false) {
+      baseAnd.push({
+        OR: [
+          { clientReference: null },
+          { NOT: { clientReference: { startsWith: QUICK_DIRECTED_OUTBOUND_REF_PREFIX } } },
+        ],
+      });
+    }
+
     if (baseAnd.length > 0) where.AND = baseAnd;
+
+    const listInclude = {
+      company: { select: { id: true, name: true } },
+      _count: { select: { lines: true } },
+      ...(query.quickDirectedOnly
+        ? {
+            lines: {
+              take: 1,
+              orderBy: { lineNumber: 'asc' as const },
+              include: {
+                product: { select: { id: true, sku: true, name: true, barcode: true } },
+              },
+            },
+          }
+        : {}),
+    } satisfies Prisma.OutboundOrderInclude;
 
     return withTenantRls(this.prisma, user, async (tx) => {
       const [items, total] = await Promise.all([
         tx.outboundOrder.findMany({
           where,
           orderBy: { createdAt: 'desc' },
-          include: {
-            company: { select: { id: true, name: true } },
-            _count: { select: { lines: true } },
-          },
+          include: listInclude,
           take: query.limit,
           skip: query.offset,
         }),
@@ -868,5 +902,327 @@ export class OutboundService {
       expiryDate: r.expiry_date,
       createdAt: r.created_at,
     }));
+  }
+
+  /**
+   * One-step directed outbound: allocate by warehouse FEFO/FIFO, deduct stock,
+   * close the order as shipped, and return pick directions for the operator.
+   */
+  async quickDirectedOutbound(
+    user: AuthPrincipal,
+    dto: QuickDirectedOutboundDto,
+  ): Promise<QuickDirectedOutboundResult> {
+    const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
+    await this.billingAccess.assertOperationalBilling(companyId);
+
+    const productCode = dto.productCode.trim();
+    if (!productCode) {
+      throw new BadRequestException('Product barcode or SKU is required.');
+    }
+
+    const txResult = await this.prisma.$transaction(async (tx) => {
+      await setTenantRlsContext(tx, user);
+
+      const warehouse = await tx.warehouse.findFirst({
+        where: { id: dto.warehouseId, status: 'active' },
+        select: { id: true, name: true },
+      });
+      if (!warehouse) {
+        throw new NotFoundException('Warehouse not found.');
+      }
+
+      const product = await tx.product.findFirst({
+        where: {
+          companyId,
+          OR: [
+            { barcode: { equals: productCode, mode: 'insensitive' } },
+            { sku: { equals: productCode, mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          barcode: true,
+          status: true,
+          uom: true,
+        },
+      });
+      if (!product) {
+        throw new NotFoundException('Product not found for the given barcode or SKU.');
+      }
+      assertProductOrderableForOrders(product.status);
+      assertDiscreteUomPositiveIntegerQuantity(product.uom, dto.quantity, 'Quantity');
+
+      const requested = new Prisma.Decimal(dto.quantity);
+      const warehouseAgg = await tx.currentStock.aggregate({
+        where: {
+          companyId,
+          warehouseId: dto.warehouseId,
+          productId: product.id,
+          status: 'available',
+        },
+        _sum: { quantityAvailable: true },
+      });
+      const warehouseAvailable = warehouseAgg._sum.quantityAvailable ?? new Prisma.Decimal(0);
+      if (requested.greaterThan(warehouseAvailable)) {
+        throw new InsufficientStockException(
+          `Insufficient stock in warehouse. Available: ${warehouseAvailable.toString()}`,
+          [
+            {
+              productId: product.id,
+              requested: requested.toString(),
+              available: warehouseAvailable.toString(),
+            },
+          ],
+        );
+      }
+
+      const today = new Date();
+      const shipDate = today.toISOString().slice(0, 10);
+      const order = await tx.outboundOrder.create({
+        data: {
+          companyId,
+          destinationAddress: `Quick directed outbound — ${warehouse.name}`,
+          requiredShipDate: new Date(shipDate),
+          requiresPacking: false,
+          notes: `Quick directed outbound | reason: ${dto.reasonCode}`,
+          clientReference: `${QUICK_DIRECTED_OUTBOUND_REF_PREFIX}${dto.reasonCode}`,
+          createdBy: user.id,
+          lines: {
+            create: [
+              {
+                productId: product.id,
+                requestedQuantity: requested,
+                lineNumber: 1,
+              },
+            ],
+          },
+        },
+        include: { lines: true },
+      });
+
+      await lockOutboundOrderRow(tx, order.id);
+      const claimed = await claimOutboundConfirmableOrder(tx, order.id, {
+        status: OutboundOrderStatus.picking,
+        confirmedAt: new Date(),
+        pickingStartedAt: new Date(),
+      });
+      if (!claimed) {
+        throw new InvalidStateException('Quick directed outbound could not claim the order.');
+      }
+
+      const line = order.lines[0]!;
+      const candidates = await findWarehouseStockFefo(
+        tx,
+        companyId,
+        dto.warehouseId,
+        product.id,
+      );
+
+      let remaining = new Prisma.Decimal(requested.toString());
+      const pickSlices: Array<{
+        locationId: string;
+        lotId: string | null;
+        quantity: Prisma.Decimal;
+      }> = [];
+
+      for (const row of candidates) {
+        if (remaining.lessThanOrEqualTo(0)) break;
+        const take = Prisma.Decimal.min(remaining, row.quantityAvailable);
+        if (take.lessThanOrEqualTo(0)) continue;
+
+        const meta = await this.stock.decrementWithMeta(tx, {
+          companyId,
+          productId: product.id,
+          locationId: row.locationId,
+          lotId: row.lotId,
+          quantity: take.toString(),
+        });
+
+        const idempotencyKey = `bm:quick-outbound:${order.id}:${product.id}:line:${line.id}:loc:${row.locationId}:lot:${row.lotId ?? 'null'}:${take.toString()}`;
+        await this.ledger.appendIfAbsent(tx, idempotencyKey, {
+          companyId,
+          productId: product.id,
+          lotId: row.lotId,
+          fromLocationId: row.locationId,
+          movementType: 'outbound_pick',
+          quantity: take,
+          quantityBefore: meta.before,
+          quantityAfter: meta.after,
+          referenceType: 'outbound_order',
+          referenceId: order.id,
+          operatorId: user.id,
+        });
+
+        pickSlices.push({
+          locationId: row.locationId,
+          lotId: row.lotId,
+          quantity: take,
+        });
+        remaining = remaining.minus(take);
+      }
+
+      if (remaining.greaterThan(0)) {
+        throw new InsufficientStockException(
+          `Insufficient stock. Available: ${warehouseAvailable.toString()}`,
+          [
+            {
+              productId: product.id,
+              requested: requested.toString(),
+              available: warehouseAvailable.toString(),
+            },
+          ],
+        );
+      }
+
+      await tx.outboundOrderLine.update({
+        where: { id: line.id },
+        data: {
+          pickedQuantity: requested,
+          status: 'done',
+        },
+      });
+
+      const finalized = await finalizeOutboundShipped(tx, order.id);
+      if (!finalized) {
+        throw new InvalidStateException('Quick directed outbound could not finalize to shipped.');
+      }
+
+      const locationIds = [...new Set(pickSlices.map((slice) => slice.locationId))];
+      const locations = await tx.location.findMany({
+        where: { id: { in: locationIds } },
+        select: { id: true, fullPath: true, name: true, barcode: true },
+      });
+      const locationById = new Map(locations.map((loc) => [loc.id, loc]));
+
+      const lotIds = pickSlices.map((slice) => slice.lotId).filter((id): id is string => !!id);
+      const lots =
+        lotIds.length === 0
+          ? []
+          : await tx.lot.findMany({
+              where: { id: { in: lotIds } },
+              select: { id: true, lotNumber: true },
+            });
+      const lotById = new Map(lots.map((lot) => [lot.id, lot]));
+
+      const directedPick: QuickDirectedPickSlice[] = pickSlices.map((slice) => {
+        const loc = locationById.get(slice.locationId);
+        const locationLabel = loc?.fullPath || loc?.name || loc?.barcode || slice.locationId;
+        const lot = slice.lotId ? lotById.get(slice.lotId) : null;
+        return {
+          locationId: slice.locationId,
+          locationLabel,
+          quantity: slice.quantity.toString(),
+          lotNumber: lot?.lotNumber ?? null,
+        };
+      });
+
+      const shipped = await tx.outboundOrder.findUnique({
+        where: { id: order.id },
+        select: { id: true, orderNumber: true, status: true },
+      });
+      if (!shipped) {
+        throw new NotFoundException('Outbound order not found.');
+      }
+
+      const messages = buildQuickDirectedPickMessages(directedPick);
+
+      return {
+        orderId: shipped.id,
+        orderNumber: shipped.orderNumber,
+        status: shipped.status,
+        product: {
+          id: product.id,
+          sku: product.sku,
+          name: product.name,
+          barcode: product.barcode,
+          uom: product.uom,
+        },
+        totalQuantity: requested.toString(),
+        reasonCode: dto.reasonCode,
+        directedPick,
+        ...messages,
+      };
+    });
+
+    this.realtime.emitOutboundOrderCreated(companyId, {
+      orderId: txResult.orderId,
+      status: txResult.status,
+      listItem: {
+        id: txResult.orderId,
+        orderNumber: txResult.orderNumber,
+        status: txResult.status,
+        companyId,
+        destinationAddress: `Quick directed outbound`,
+        requiredShipDate: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        lineCount: 1,
+      },
+    });
+    this.realtime.emitOutboundOrderUpdated(companyId, {
+      orderId: txResult.orderId,
+      status: txResult.status,
+      reason: 'quick_directed_outbound',
+      listItem: {
+        id: txResult.orderId,
+        orderNumber: txResult.orderNumber,
+        status: txResult.status,
+        companyId,
+        destinationAddress: `Quick directed outbound`,
+        requiredShipDate: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        lineCount: 1,
+      },
+    });
+    this.realtime.emitInventoryChanged(companyId, {
+      source: 'quick_directed_outbound',
+      orderId: txResult.orderId,
+      productId: txResult.product.id,
+    });
+
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'QUICK_DIRECTED_OUTBOUND',
+        resourceType: 'outbound_order',
+        resourceId: txResult.orderId,
+        companyId,
+        newState: {
+          orderNumber: txResult.orderNumber,
+          productId: txResult.product.id,
+          quantity: txResult.totalQuantity,
+          reasonCode: txResult.reasonCode,
+          directedPick: txResult.directedPick,
+        },
+      }),
+    );
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'OUTBOUND_ORDER_SHIPPED',
+        resourceType: 'outbound_order',
+        resourceId: txResult.orderId,
+        companyId,
+        newState: {
+          status: txResult.status,
+          flow: 'quick_directed',
+        },
+      }),
+    );
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'INVENTORY_MUTATION_APPLIED',
+        resourceType: 'outbound_order',
+        resourceId: txResult.orderId,
+        companyId,
+        newState: {
+          source: 'quick_directed_outbound',
+          movementType: 'outbound_pick',
+        },
+      }),
+    );
+
+    void this.billingInvoiceCalc.recalculateForCompany(companyId, 'outbound_completed');
+
+    return txResult;
   }
 }

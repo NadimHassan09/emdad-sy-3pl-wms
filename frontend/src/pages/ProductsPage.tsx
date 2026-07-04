@@ -15,9 +15,9 @@ import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { BarcodeImageModal } from '../components/BarcodeImageModal';
-import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { FilterPanel } from '../components/FilterPanel';
+import { FilterScanButton } from '../components/FilterScanButton';
 import { Modal } from '../components/Modal';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
@@ -450,13 +450,12 @@ export function ProductsPage() {
         applyLabel={t(['Apply filters', 'تطبيق الفلاتر'])}
         resetLabel={t(['Reset', 'إعادة تعيين'])}
       >
-      <div className="flex min-w-0 flex-wrap items-end gap-3">
         <TextField
           label={t(['Search', 'بحث'])}
           value={draftFilters.searchQuery}
           onChange={(e) => setDraft({ searchQuery: e.target.value })}
           placeholder={t(['Contains…', 'يحتوي…'])}
-          className={`min-w-[12.5rem] flex-1 basis-32 ${draftFilters.searchCategory !== 'name' ? 'font-mono' : ''}`}
+          className={draftFilters.searchCategory !== 'name' ? 'font-mono' : undefined}
         />
         <SelectField
           label={t(['Search by', 'البحث حسب'])}
@@ -466,27 +465,20 @@ export function ProductsPage() {
             setDraft({ searchCategory: e.target.value as ProductSearchCategory })
           }
           options={searchByOptions}
-          className="min-w-[8.75rem] max-w-[11rem] shrink-0"
         />
-        <Button
-          type="button"
-          variant="secondary"
-          className="h-[34px] shrink-0 px-2.5"
-          title={t(['Scan a barcode with the device camera', 'مسح Barcode بالكاميرا'])}
-          aria-label={t(['Scan barcode', 'مسح Barcode'])}
+        <FilterScanButton
+          label={t(['Barcode', 'الباركود'])}
           onClick={() => setScanOpen(true)}
-        >
-          <BarcodeScanIcon className="h-5 w-5" />
-        </Button>
+          title={t(['Scan a barcode with the device camera', 'مسح Barcode بالكاميرا'])}
+          ariaLabel={t(['Scan barcode', 'مسح Barcode'])}
+        />
         <Combobox
           label={t(['Client', 'العميل'])}
           value={draftFilters.companyId}
           onChange={(v) => setDraft({ companyId: v })}
           options={clientFilterOptions}
           placeholder={t(['All clients', 'كل العملاء'])}
-          className="min-w-[220px] max-w-xs shrink-0"
         />
-      </div>
       </FilterPanel>
 
       <DataTable

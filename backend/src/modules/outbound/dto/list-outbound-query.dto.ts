@@ -1,8 +1,8 @@
 import { OutboundOrderStatus } from '@prisma/client';
-import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 import { PaginationDto } from '../../../common/dto/pagination.dto';
-import { EmptyToUndefined } from '../../../common/transformers/query-transform';
+import { EmptyToUndefined, QueryBoolOptional } from '../../../common/transformers/query-transform';
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 
 const ORDER_STATUSES = Object.values(OutboundOrderStatus);
@@ -40,4 +40,11 @@ export class ListOutboundQueryDto extends PaginationDto {
   @IsOptional()
   @IsIn(ORDER_STATUSES)
   status?: OutboundOrderStatus;
+
+  /** When true, only quick directed outbound orders (`clientReference` QDO-*). When false, exclude them. */
+  @EmptyToUndefined()
+  @QueryBoolOptional()
+  @IsOptional()
+  @IsBoolean()
+  quickDirectedOnly?: boolean;
 }

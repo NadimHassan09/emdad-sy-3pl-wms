@@ -10,6 +10,8 @@ export interface WarehouseTaskListItem {
   id: string;
   taskType: string;
   status: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
   /** Server-computed frontier flag for workflow ordering. */
   is_current_runnable?: boolean;
   /** Null when runnable; stable code when blocked (ordering or skills). */
@@ -22,6 +24,7 @@ export interface WarehouseTaskListItem {
     warehouseId: string;
   };
   assignments?: Array<{
+    assignedAt?: string | null;
     worker?: {
       id: string;
       displayName: string;

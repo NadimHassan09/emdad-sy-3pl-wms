@@ -131,6 +131,8 @@ export class WarehouseTasksService {
       id: true,
       taskType: true,
       status: true,
+      startedAt: true,
+      completedAt: true,
       updatedAt: true,
       ...(includeRunnability ? { workflowInstanceId: true } : {}),
       workflowInstance: {
@@ -154,6 +156,7 @@ export class WarehouseTasksService {
         orderBy: { assignedAt: 'desc' },
         take: 1,
         select: {
+          assignedAt: true,
           unassignedAt: true,
           workerId: true,
           worker: {

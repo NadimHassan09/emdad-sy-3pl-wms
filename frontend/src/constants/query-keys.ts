@@ -21,6 +21,7 @@ export const QK = {
     ['inventory', 'ledger', 'entry', warehouseId, ledgerId, createdAt] as const,
   inboundOrders: ['inbound-orders'] as const,
   outboundOrders: ['outbound-orders'] as const,
+  contracts: ['contracts'] as const,
   notifications: {
     all: ['notifications'] as const,
     list: (params: Record<string, unknown>) => ['notifications', 'list', params] as const,

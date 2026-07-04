@@ -93,8 +93,9 @@ export function ReportFiltersPanel({
       loading={loading}
       applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
       resetLabel={t('Reset filters', 'إعادة تعيين')}
+      showMoreLabel={t('Show more', 'عرض المزيد')}
+      showLessLabel={t('Show less', 'عرض أقل')}
     >
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
         {report.filterKeys.includes('warehouse') && (
           <SelectField
             label={t('Warehouse', 'المستودع')}
@@ -169,7 +170,6 @@ export function ReportFiltersPanel({
             placeholder={t('All workers', 'كل العمال')}
           />
         )}
-      </div>
     </FilterPanel>
   );
 }

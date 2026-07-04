@@ -39,13 +39,14 @@ export interface OutboundOrder {
   requiredShipDate: string;
   carrier: string | null;
   trackingNumber: string | null;
+  clientReference?: string | null;
   notes: string | null;
   requiresPacking: boolean;
   confirmedAt: string | null;
   shippedAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
-  lines: OutboundOrderLine[];
+  lines?: OutboundOrderLine[];
   company?: { id: string; name: string };
   _count?: { lines: number };
 }
@@ -70,6 +71,46 @@ export interface ConfirmOutboundBody {
   warehouseId?: string;
 }
 
+export type QuickDirectedOutboundReasonCode =
+  | 'consumption'
+  | 'damage'
+  | 'sample'
+  | 'scrap'
+  | 'other';
+
+export interface QuickDirectedPickSlice {
+  locationId: string;
+  locationLabel: string;
+  quantity: string;
+  lotNumber: string | null;
+}
+
+export interface QuickDirectedOutboundResult {
+  orderId: string;
+  orderNumber: string;
+  status: OutboundOrderStatus;
+  product: {
+    id: string;
+    sku: string;
+    name: string;
+    barcode: string | null;
+    uom: string;
+  };
+  totalQuantity: string;
+  reasonCode: QuickDirectedOutboundReasonCode;
+  directedPick: QuickDirectedPickSlice[];
+  messageEn: string;
+  messageAr: string;
+}
+
+export interface QuickDirectedOutboundInput {
+  warehouseId: string;
+  companyId?: string;
+  productCode: string;
+  quantity: number;
+  reasonCode: QuickDirectedOutboundReasonCode;
+}
+
 export const OutboundApi = {
   async list(params: {
     warehouseId?: string;
@@ -78,6 +119,7 @@ export const OutboundApi = {
     orderSearch?: string;
     createdFrom?: string;
     createdTo?: string;
+    quickDirectedOnly?: boolean;
     limit?: number;
     offset?: number;
   } = {}): Promise<PageResult<OutboundOrder>> {
@@ -107,6 +149,15 @@ export const OutboundApi = {
   },
   async remove(id: string): Promise<{ id: string; deleted: boolean }> {
     const { data } = await api.delete<{ id: string; deleted: boolean }>(`/outbound-orders/${id}`);
+    return data;
+  },
+  async quickDirected(input: QuickDirectedOutboundInput): Promise<QuickDirectedOutboundResult> {
+    const headers = input.companyId ? { 'X-Company-Id': input.companyId } : undefined;
+    const { data } = await api.post<QuickDirectedOutboundResult>(
+      '/outbound-orders/quick-directed',
+      input,
+      { headers },
+    );
     return data;
   },
 };

@@ -325,7 +325,6 @@ export function BillingPlansPage() {
         applyLabel="Apply filters"
         resetLabel="Reset filters"
       >
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <TextField
             label="Search client"
             value={draftFilters.search}
@@ -419,7 +418,6 @@ export function BillingPlansPage() {
               { value: 'asc', label: 'Ascending' },
             ]}
           />
-        </div>
       </FilterPanel>
 
       <DataTable
