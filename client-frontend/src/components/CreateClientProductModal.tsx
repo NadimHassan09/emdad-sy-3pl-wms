@@ -61,7 +61,7 @@ export function CreateClientProductModal({
   const [barcode, setBarcode] = useState('');
   const [description, setDescription] = useState('');
   const [uom, setUom] = useState('piece');
-  const [expiryTracking, setExpiryTracking] = useState(true);
+  const [expiryTracking, setExpiryTracking] = useState(false);
   const [minStock, setMinStock] = useState('0');
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export function CreateClientProductModal({
     setBarcode('');
     setDescription('');
     setUom('piece');
-    setExpiryTracking(true);
+    setExpiryTracking(false);
     setMinStock('0');
   }, [open]);
 

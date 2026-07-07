@@ -119,7 +119,7 @@ export class BillingCycleProcessorService {
       });
 
       const issuedInvoice = await this.prisma.invoice.findFirst({
-        where: { billingCycleId: cycle.id, status: 'open' },
+        where: { billingCycleId: cycle.id, status: 'unpaid' },
         orderBy: { issuedAt: 'desc' },
         select: { id: true, invoiceNumber: true },
       });

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  BillingInvoiceLineSource,
   BillingInvoiceLineType,
   BillingInvoiceStatus,
   Prisma,
@@ -16,15 +17,29 @@ import {
   BillingRecalcResult,
   BillingRecalcTrigger,
 } from './billing-recalculation.types';
+import { computeInvoiceTotals, sumLineTotals } from './billing-totals.util';
 import { BillingUsageService } from './billing-usage.service';
 
 const MS_PER_DAY = 86_400_000;
+
+const SYSTEM_LINE_TYPES: BillingInvoiceLineType[] = [
+  'subscription',
+  'inbound',
+  'outbound',
+  'packaging',
+  'quality_check',
+  'excess_volume',
+  'excess_weight',
+];
 
 const PLAN_RATE_SELECT = {
   id: true,
   fixedSubscriptionFee: true,
   inboundOrderFee: true,
   outboundOrderFee: true,
+  outboundBaseFee: true,
+  outboundIncludedItems: true,
+  outboundAdditionalItemFee: true,
   packagingFee: true,
   qualityCheckFee: true,
   excessVolumeFeePerDay: true,
@@ -43,10 +58,6 @@ export class BillingInvoiceCalculationService {
     private readonly audit: AuditLogService,
   ) {}
 
-  /**
-   * Recalculates the draft invoice for the client's current billing cycle.
-   * Historical (non-draft) invoices are never modified.
-   */
   async recalculateForCompany(
     companyId: string,
     trigger: BillingRecalcTrigger,
@@ -62,19 +73,70 @@ export class BillingInvoiceCalculationService {
     }
   }
 
-  /** Finalize draft invoice when a billing cycle ends (immutable historical record). */
   async finalizeCycleInvoice(
     tx: Prisma.TransactionClient,
     billingCycleId: string,
   ): Promise<void> {
     const now = new Date();
-    await tx.invoice.updateMany({
+    const invoices = await tx.invoice.findMany({
       where: { billingCycleId, status: BillingInvoiceStatus.draft },
-      data: {
-        status: BillingInvoiceStatus.open,
-        issuedAt: now,
+      select: { id: true, companyId: true },
+    });
+
+    for (const inv of invoices) {
+      const company = await tx.company.findUnique({
+        where: { id: inv.companyId },
+        select: { paymentTermsDays: true },
+      });
+      const dueDate = new Date(now);
+      dueDate.setUTCDate(dueDate.getUTCDate() + (company?.paymentTermsDays ?? 30));
+
+      await tx.invoice.update({
+        where: { id: inv.id },
+        data: {
+          status: BillingInvoiceStatus.unpaid,
+          issuedAt: now,
+          dueDate,
+        },
+      });
+    }
+  }
+
+  async applyInvoiceTotals(
+    tx: Prisma.TransactionClient,
+    invoiceId: string,
+  ): Promise<Prisma.Decimal> {
+    const invoice = await tx.invoice.findUnique({
+      where: { id: invoiceId },
+      select: {
+        discountType: true,
+        discountValue: true,
+        vatPercentage: true,
+        lines: { select: { totalPrice: true } },
       },
     });
+    if (!invoice) return new Prisma.Decimal(0);
+
+    const subtotalAmount = sumLineTotals(invoice.lines);
+    const totals = computeInvoiceTotals({
+      subtotalAmount,
+      discountType: invoice.discountType,
+      discountValue: invoice.discountValue,
+      vatPercentage: invoice.vatPercentage,
+    });
+
+    await tx.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        subtotalAmount: totals.subtotalAmount,
+        discountAmount: totals.discountAmount,
+        vatAmount: totals.vatAmount,
+        grandTotal: totals.grandTotal,
+        totalAmount: totals.grandTotal,
+      },
+    });
+
+    return totals.grandTotal;
   }
 
   private async recalculateForCompanyInternal(
@@ -104,27 +166,26 @@ export class BillingInvoiceCalculationService {
     if (!rates) return null;
 
     const windowEnd = cycle.endsAt < now ? cycle.endsAt : now;
-    const metrics = await this.collectCycleMetrics(companyId, cycle.startsAt, windowEnd);
+    const metrics = await this.collectCycleMetrics(
+      companyId,
+      cycle.startsAt,
+      windowEnd,
+      rates,
+    );
     const daysElapsed = this.daysElapsedInCycle(cycle.startsAt, windowEnd);
     const lines = this.computeLines(rates, metrics, daysElapsed);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const invoice = await this.getOrCreateDraftInvoice(tx, companyId, cycle.id);
-      const previousTotal = invoice.totalAmount.toString();
+      const previousTotal = invoice.grandTotal.toString();
 
       for (const line of lines) {
-        await this.upsertInvoiceLine(tx, invoice.id, line);
+        await this.upsertSystemInvoiceLine(tx, invoice.id, line);
       }
 
-      const totalAmount = lines.reduce(
-        (sum, l) => sum.add(new Prisma.Decimal(l.totalPrice)),
-        new Prisma.Decimal(0),
-      );
+      await this.syncOrderChargeLines(tx, invoice.id, companyId, cycle.startsAt, windowEnd);
 
-      await tx.invoice.update({
-        where: { id: invoice.id },
-        data: { totalAmount },
-      });
+      const totalAmount = await this.applyInvoiceTotals(tx, invoice.id);
 
       return {
         invoiceId: invoice.id,
@@ -177,11 +238,19 @@ export class BillingInvoiceCalculationService {
       select: PLAN_RATE_SELECT,
     });
     if (!plan) return null;
+
+    const baseFee = plan.outboundBaseFee.gt(0)
+      ? plan.outboundBaseFee
+      : plan.outboundOrderFee;
+
     return rateSnapshotToDecimals({
       billingPlanId: plan.id,
       fixedSubscriptionFee: plan.fixedSubscriptionFee.toString(),
       inboundOrderFee: plan.inboundOrderFee.toString(),
-      outboundOrderFee: plan.outboundOrderFee.toString(),
+      outboundOrderFee: baseFee.toString(),
+      outboundBaseFee: baseFee.toString(),
+      outboundIncludedItems: plan.outboundIncludedItems,
+      outboundAdditionalItemFee: plan.outboundAdditionalItemFee.toString(),
       packagingFee: plan.packagingFee.toString(),
       qualityCheckFee: plan.qualityCheckFee.toString(),
       excessVolumeFeePerDay: plan.excessVolumeFeePerDay.toString(),
@@ -196,8 +265,9 @@ export class BillingInvoiceCalculationService {
     companyId: string,
     windowStart: Date,
     windowEnd: Date,
+    rates: ReturnType<typeof rateSnapshotToDecimals>,
   ) {
-    const [inboundCount, outboundCount, packagingCount, qcCount, usage] =
+    const [inboundCount, outboundOrders, packagingCount, qcCount, usage] =
       await Promise.all([
         this.prisma.inboundOrder.count({
           where: {
@@ -206,11 +276,14 @@ export class BillingInvoiceCalculationService {
             completedAt: { gte: windowStart, lte: windowEnd },
           },
         }),
-        this.prisma.outboundOrder.count({
+        this.prisma.outboundOrder.findMany({
           where: {
             companyId,
             status: 'shipped',
             shippedAt: { gte: windowStart, lte: windowEnd },
+          },
+          select: {
+            lines: { select: { pickedQuantity: true } },
           },
         }),
         this.prisma.warehouseTask.count({
@@ -232,14 +305,38 @@ export class BillingInvoiceCalculationService {
         this.usage.getCompanyUsage(companyId),
       ]);
 
+    const outboundTotalFee = this.computeTieredOutboundTotal(outboundOrders, rates);
+
     return {
       inboundCount,
-      outboundCount,
+      outboundTotalFee,
       packagingCount,
       qcCount,
       usageVolumeCbm: usage.volumeCbm,
       usageWeightKg: usage.weightKg,
     };
+  }
+
+  private computeTieredOutboundTotal(
+    orders: Array<{ lines: Array<{ pickedQuantity: Prisma.Decimal }> }>,
+    rates: ReturnType<typeof rateSnapshotToDecimals>,
+  ): Prisma.Decimal {
+    let total = new Prisma.Decimal(0);
+    const included = new Prisma.Decimal(rates.outboundIncludedItems);
+
+    for (const order of orders) {
+      const shippedItems = order.lines.reduce(
+        (sum, line) => sum.add(line.pickedQuantity),
+        new Prisma.Decimal(0),
+      );
+      const extraItems = Prisma.Decimal.max(shippedItems.sub(included), new Prisma.Decimal(0));
+      const orderFee = rates.outboundBaseFee.add(
+        extraItems.mul(rates.outboundAdditionalItemFee),
+      );
+      total = total.add(orderFee);
+    }
+
+    return total.toDecimalPlaces(2);
   }
 
   private computeLines(
@@ -275,8 +372,8 @@ export class BillingInvoiceCalculationService {
       },
       {
         type: 'outbound',
-        quantity: new Prisma.Decimal(metrics.outboundCount),
-        unitPrice: rates.outboundOrderFee,
+        quantity: new Prisma.Decimal(1),
+        unitPrice: metrics.outboundTotalFee,
       },
       {
         type: 'packaging',
@@ -311,6 +408,92 @@ export class BillingInvoiceCalculationService {
     });
   }
 
+  private async syncOrderChargeLines(
+    tx: Prisma.TransactionClient,
+    invoiceId: string,
+    companyId: string,
+    windowStart: Date,
+    windowEnd: Date,
+  ) {
+    const [inboundOrders, outboundOrders] = await Promise.all([
+      tx.inboundOrder.findMany({
+        where: {
+          companyId,
+          status: 'completed',
+          completedAt: { gte: windowStart, lte: windowEnd },
+        },
+        select: { id: true },
+      }),
+      tx.outboundOrder.findMany({
+        where: {
+          companyId,
+          status: 'shipped',
+          shippedAt: { gte: windowStart, lte: windowEnd },
+        },
+        select: { id: true },
+      }),
+    ]);
+
+    const inboundIds = inboundOrders.map((o) => o.id);
+    const outboundIds = outboundOrders.map((o) => o.id);
+
+    const charges =
+      inboundIds.length || outboundIds.length
+        ? await tx.orderManualCharge.findMany({
+            where: {
+              companyId,
+              OR: [
+                ...(inboundIds.length
+                  ? [{ referenceType: 'inbound_order', referenceId: { in: inboundIds } }]
+                  : []),
+                ...(outboundIds.length
+                  ? [{ referenceType: 'outbound_order', referenceId: { in: outboundIds } }]
+                  : []),
+              ],
+            },
+          })
+        : [];
+
+    const chargeIds = charges.map((c) => c.id);
+
+    await tx.invoiceLine.deleteMany({
+      where: {
+        invoiceId,
+        lineSource: BillingInvoiceLineSource.order,
+        ...(chargeIds.length ? { orderChargeId: { notIn: chargeIds } } : {}),
+      },
+    });
+
+    if (!chargeIds.length) {
+      await tx.invoiceLine.deleteMany({
+        where: { invoiceId, lineSource: BillingInvoiceLineSource.order },
+      });
+      return;
+    }
+
+    for (const charge of charges) {
+      const existing = await tx.invoiceLine.findFirst({
+        where: { invoiceId, orderChargeId: charge.id },
+      });
+
+      const data = {
+        type: BillingInvoiceLineType.order_charge,
+        lineSource: BillingInvoiceLineSource.order,
+        description: charge.description,
+        quantity: charge.quantity,
+        unitPrice: charge.unitPrice,
+        totalPrice: charge.totalPrice,
+        orderChargeId: charge.id,
+      };
+
+      if (existing) {
+        await tx.invoiceLine.update({ where: { id: existing.id }, data });
+      } else {
+        await tx.invoiceLine.create({ data: { invoiceId, ...data } });
+      }
+    }
+  }
+
   private daysElapsedInCycle(startsAt: Date, asOf: Date): number {
     const ms = Math.max(0, asOf.getTime() - startsAt.getTime());
     return Math.max(1, Math.ceil(ms / MS_PER_DAY));
@@ -327,11 +510,16 @@ export class BillingInvoiceCalculationService {
     if (existing) return existing;
 
     return tx.invoice.create({
-      data: { companyId, billingCycleId, status: BillingInvoiceStatus.draft },
+      data: {
+        companyId,
+        billingCycleId,
+        invoiceSource: 'cycle',
+        status: BillingInvoiceStatus.draft,
+      },
     });
   }
 
-  private async upsertInvoiceLine(
+  private async upsertSystemInvoiceLine(
     tx: Prisma.TransactionClient,
     invoiceId: string,
     line: BillingLineComputation,
@@ -341,23 +529,25 @@ export class BillingInvoiceCalculationService {
     const totalPrice = new Prisma.Decimal(line.totalPrice);
 
     const existing = await tx.invoiceLine.findFirst({
-      where: { invoiceId, type: line.type },
+      where: {
+        invoiceId,
+        type: line.type,
+        lineSource: BillingInvoiceLineSource.system,
+      },
     });
 
+    const data = { quantity, unitPrice, totalPrice };
+
     if (existing) {
-      return tx.invoiceLine.update({
-        where: { id: existing.id },
-        data: { quantity, unitPrice, totalPrice },
-      });
+      return tx.invoiceLine.update({ where: { id: existing.id }, data });
     }
 
     return tx.invoiceLine.create({
       data: {
         invoiceId,
         type: line.type,
-        quantity,
-        unitPrice,
-        totalPrice,
+        lineSource: BillingInvoiceLineSource.system,
+        ...data,
       },
     });
   }

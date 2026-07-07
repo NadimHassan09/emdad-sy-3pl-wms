@@ -2,14 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 
 import { BillingApi } from '../../api/billing';
 import { QK } from '../../constants/query-keys';
-import { formatDecimal, humanizeInvoiceStatus, invoiceStatusClass, parseRateSnapshot } from '../../lib/billing-invoice-display';
-import { openBillingInvoicePrintPdf } from '../../lib/billing-invoice-print';
+import { formatDecimal, humanizeInvoiceStatus, invoiceStatusClass } from '../../lib/billing-invoice-display';
 import { Button } from '../Button';
 import { useToast } from '../ToastProvider';
 
 export function BillingInvoicePreviewCard({
   companyId,
-  companyName,
 }: {
   companyId: string;
   companyName?: string;
@@ -24,32 +22,19 @@ export function BillingInvoicePreviewCard({
   const data = query.data;
   const preview = data?.preview;
 
-  const handleExportPdf = () => {
-    if (!data || !preview) return;
-    const ok = openBillingInvoicePrintPdf({
-      invoiceNumber: preview.invoiceNumber,
-      companyName: companyName ?? companyId,
-      status: preview.status,
-      cycle: {
-        startsAt: data.cycle.startsAt,
-        endsAt: data.cycle.endsAt,
-        status: data.cycle.status,
-      },
-      createdAt: new Date().toISOString(),
-      issuedAt: null,
-      totalAmount: preview.grandTotal,
-      lines: preview.lines,
-      snapshot: parseRateSnapshot(data.cycle.rateSnapshot),
-      daysRemaining: data.cycle.daysRemaining,
-      previewNote: 'Live draft preview — not a finalized invoice.',
-      usageSummary: {
-        usedVolumeCbm: data.usage.usedVolumeCbm,
-        allocatedVolumeCbm: data.usage.allocatedVolumeCbm,
-        usedWeightKg: data.usage.usedWeightKg,
-        allocatedWeightKg: data.usage.allocatedWeightKg,
-      },
-    });
-    if (!ok) toast.error('Could not open print dialog. Allow pop-ups and try again.');
+  const handleExportPdf = async () => {
+    if (!preview?.invoiceId) return;
+    try {
+      const blob = await BillingApi.downloadInvoicePdf(preview.invoiceId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${preview.invoiceNumber || 'invoice-preview'}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Could not download PDF.');
+    }
   };
 
   return (

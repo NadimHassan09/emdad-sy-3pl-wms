@@ -34,7 +34,7 @@ import {
 const INVOICE_STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
   { value: 'draft', label: 'Draft' },
-  { value: 'open', label: 'Open' },
+  { value: 'unpaid', label: 'Unpaid' },
   { value: 'paid', label: 'Paid' },
   { value: 'cancelled', label: 'Cancelled' },
 ];
@@ -347,7 +347,7 @@ export function BillingPage(): ReactElement {
                   <span className={invoiceStatusClass(summary.currentInvoice.status)}>
                     {humanizeInvoiceStatus(summary.currentInvoice.status)}
                   </span>
-                  <span>{formatDecimal(summary.currentInvoice.totalAmount)}</span>
+                  <span>{formatDecimal(summary.currentInvoice.grandTotal ?? summary.currentInvoice.totalAmount)}</span>
                   <Link to={`/billing/invoices/${summary.currentInvoice.id}`}>
                     {t('View invoice')}
                   </Link>

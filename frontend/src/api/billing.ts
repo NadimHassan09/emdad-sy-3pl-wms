@@ -10,6 +10,9 @@ export type BillingPlanRow = {
   fixedSubscriptionFee: string;
   inboundOrderFee: string;
   outboundOrderFee: string;
+  outboundBaseFee: string;
+  outboundIncludedItems: number;
+  outboundAdditionalItemFee: string;
   packagingFee: string;
   qualityCheckFee: string;
   excessVolumeFeePerDay: string;
@@ -63,7 +66,16 @@ export type BillingExpiringBuckets = {
 
 export type BillingCyclePreview = {
   companyId: string;
-  plan: { id: string; cycleLengthDays: number; reservedVolume: string; reservedWeight: string; fixedSubscriptionFee: string };
+  plan: {
+    id: string;
+    cycleLengthDays: number;
+    reservedVolume: string;
+    reservedWeight: string;
+    fixedSubscriptionFee: string;
+    outboundBaseFee: string;
+    outboundIncludedItems: number;
+    outboundAdditionalItemFee: string;
+  };
   cycle: { id: string; startsAt: string; endsAt: string; status: string; daysRemaining: number; rateSnapshot: unknown };
   usage: { usedVolumeCbm: string; usedWeightKg: string; allocatedVolumeCbm: string; allocatedWeightKg: string };
   preview: {
@@ -74,6 +86,9 @@ export type BillingCyclePreview = {
     tax: string;
     discount: string;
     grandTotal: string;
+    vatPercentage: string;
+    discountType: 'fixed' | 'percentage' | null;
+    discountValue: string | null;
     lines: BillingInvoiceLineRow[];
   } | null;
 };
@@ -85,6 +100,9 @@ export type CreateBillingPlanPayload = {
   fixedSubscriptionFee?: number;
   inboundOrderFee?: number;
   outboundOrderFee?: number;
+  outboundBaseFee?: number;
+  outboundIncludedItems?: number;
+  outboundAdditionalItemFee?: number;
   packagingFee?: number;
   qualityCheckFee?: number;
   excessVolumeFeePerDay?: number;
@@ -98,7 +116,11 @@ export type UpdateBillingPlanPayload = Partial<
   Omit<CreateBillingPlanPayload, 'companyId' | 'cycleStartsAt'>
 >;
 
-export type BillingInvoiceStatus = 'draft' | 'open' | 'paid' | 'cancelled' | 'overdue';
+export type BillingInvoiceStatus = 'draft' | 'unpaid' | 'paid' | 'cancelled' | 'open' | 'overdue';
+
+export type BillingInvoiceSource = 'cycle' | 'ad_hoc';
+
+export type BillingInvoiceLineSource = 'system' | 'manual' | 'order';
 
 export type BillingInvoiceLineType =
   | 'subscription'
@@ -107,14 +129,20 @@ export type BillingInvoiceLineType =
   | 'packaging'
   | 'quality_check'
   | 'excess_volume'
-  | 'excess_weight';
+  | 'excess_weight'
+  | 'manual'
+  | 'order_charge';
 
 export type BillingInvoiceLineRow = {
   id: string;
   type: BillingInvoiceLineType;
+  lineSource: BillingInvoiceLineSource;
+  description: string | null;
   quantity: string;
   unitPrice: string;
   totalPrice: string;
+  orderChargeId?: string | null;
+  createdAt?: string;
 };
 
 export type BillingInvoiceCycleSummary = {
@@ -131,6 +159,9 @@ export type BillingRateSnapshot = {
   fixedSubscriptionFee: string;
   inboundOrderFee: string;
   outboundOrderFee: string;
+  outboundBaseFee: string;
+  outboundIncludedItems: number;
+  outboundAdditionalItemFee: string;
   packagingFee: string;
   qualityCheckFee: string;
   excessVolumeFeePerDay: string;
@@ -143,15 +174,58 @@ export type BillingRateSnapshot = {
 export type BillingInvoiceRow = {
   id: string;
   companyId: string;
-  billingCycleId: string;
+  billingCycleId: string | null;
+  invoiceSource: BillingInvoiceSource;
   invoiceNumber: string;
   status: BillingInvoiceStatus;
+  subtotalAmount: string;
+  discountType: 'fixed' | 'percentage' | null;
+  discountValue: string | null;
+  discountAmount: string;
+  vatPercentage: string;
+  vatAmount: string;
+  grandTotal: string;
   totalAmount: string;
   issuedAt: string | null;
+  dueDate: string | null;
   createdAt: string;
   updatedAt: string;
-  billingCycle?: BillingInvoiceCycleSummary;
+  billingCycle?: BillingInvoiceCycleSummary | null;
   lines?: BillingInvoiceLineRow[];
+};
+
+export type OrderManualChargeRow = {
+  id: string;
+  companyId: string;
+  referenceType: string;
+  referenceId: string;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  totalPrice: string;
+  createdBy: string | null;
+  createdAt: string;
+};
+
+export type CreateManualInvoiceLinePayload = {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+export type CreateAdHocInvoicePayload = {
+  companyId: string;
+  invoiceDate: string;
+  dueDate: string;
+  lines: CreateManualInvoiceLinePayload[];
+};
+
+export type UpdateInvoicePayload = {
+  invoiceDate?: string;
+  dueDate?: string;
+  discountType?: 'fixed' | 'percentage' | null;
+  discountValue?: number | null;
+  vatPercentage?: number;
 };
 
 export type BillingPlanOverviewItem = {
@@ -252,7 +326,6 @@ export const BillingApi = {
     return data;
   },
 
-  /** Detail pages — all plans for one client (unpaginated slice). */
   async listPlans(companyId?: string): Promise<BillingPlanRow[]> {
     const { data } = await api.get<PageResult<BillingPlanOverviewItem>>('/billing/plans', {
       params: { companyId, limit: 100, offset: 0 },
@@ -310,6 +383,74 @@ export const BillingApi = {
     return data;
   },
 
+  async createAdHocInvoice(payload: CreateAdHocInvoicePayload): Promise<BillingInvoiceRow> {
+    const { data } = await api.post<BillingInvoiceRow>('/billing/invoices/ad-hoc', payload);
+    return data;
+  },
+
+  async updateInvoice(id: string, payload: UpdateInvoicePayload): Promise<BillingInvoiceRow> {
+    const { data } = await api.patch<BillingInvoiceRow>(`/billing/invoices/${id}`, payload);
+    return data;
+  },
+
+  async issueInvoice(id: string): Promise<BillingInvoiceRow> {
+    const { data } = await api.post<BillingInvoiceRow>(`/billing/invoices/${id}/issue`);
+    return data;
+  },
+
+  async addManualLine(
+    invoiceId: string,
+    payload: CreateManualInvoiceLinePayload,
+  ): Promise<BillingInvoiceLineRow> {
+    const { data } = await api.post(`/billing/invoices/${invoiceId}/lines`, payload);
+    return data;
+  },
+
+  async updateManualLine(
+    invoiceId: string,
+    lineId: string,
+    payload: Partial<CreateManualInvoiceLinePayload>,
+  ): Promise<BillingInvoiceLineRow> {
+    const { data } = await api.patch(`/billing/invoices/${invoiceId}/lines/${lineId}`, payload);
+    return data;
+  },
+
+  async removeManualLine(invoiceId: string, lineId: string): Promise<void> {
+    await api.delete(`/billing/invoices/${invoiceId}/lines/${lineId}`);
+  },
+
+  async downloadInvoicePdf(id: string): Promise<Blob> {
+    const { data } = await api.get<Blob>(`/billing/invoices/${id}/pdf`, {
+      responseType: 'blob',
+    });
+    return data;
+  },
+
+  async listOrderCharges(
+    referenceType: string,
+    referenceId: string,
+  ): Promise<OrderManualChargeRow[]> {
+    const { data } = await api.get<OrderManualChargeRow[]>('/billing/order-charges', {
+      params: { referenceType, referenceId },
+    });
+    return data;
+  },
+
+  async createOrderCharge(payload: {
+    referenceType: string;
+    referenceId: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+  }): Promise<OrderManualChargeRow> {
+    const { data } = await api.post<OrderManualChargeRow>('/billing/order-charges', payload);
+    return data;
+  },
+
+  async deleteOrderCharge(id: string): Promise<void> {
+    await api.delete(`/billing/order-charges/${id}`);
+  },
+
   async listExpiringSoon(limit = 5): Promise<BillingExpiringCycleRow[]> {
     const { data } = await api.get<BillingExpiringCycleRow[]>('/billing/cycles/expiring-soon', {
       params: { limit },
@@ -360,7 +501,7 @@ export const BillingApi = {
 
   async updateInvoiceStatus(
     id: string,
-    status: 'paid' | 'cancelled' | 'open',
+    status: 'paid' | 'cancelled' | 'unpaid',
   ): Promise<BillingInvoiceRow> {
     const { data } = await api.patch<BillingInvoiceRow>(`/billing/invoices/${id}/status`, {
       status,

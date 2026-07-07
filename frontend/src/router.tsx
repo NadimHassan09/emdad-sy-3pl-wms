@@ -65,6 +65,7 @@ const ClientUserDetailPage    = lazyPage(() => import('./pages/UserDetailPage'),
 const NotificationsPage         = lazyPage(() => import('./modules/notifications/NotificationsPage'), 'NotificationsPage');
 const LoginPage               = lazyPage(() => import('./pages/LoginPage'),               'LoginPage');
 const AuditLogsPage           = lazyPage(() => import('./pages/AuditLogsPage'),           'AuditLogsPage');
+const FinalContractPage     = lazyPage(() => import('./pages/FinalContractPage'),     'FinalContractPage');
 const ContractsPage           = lazyPage(() => import('./pages/ContractsPage'),           'ContractsPage');
 const SettingsLayout          = lazyPage(() => import('./pages/settings/SettingsLayout'), 'SettingsLayout');
 const BackupHistoryPage       = lazyPage(() => import('./pages/settings/BackupHistoryPage'), 'BackupHistoryPage');
@@ -125,7 +126,10 @@ export const router = createBrowserRouter([
       { path: 'orders/outbound', element: <OutboundListPage /> },
       { path: 'orders/directed-outbound', element: <QuickDirectedOutboundPage /> },
       { path: 'orders/outbound/:id', element: <OutboundDetailPage /> },
-      { path: 'contracts', element: <ContractsPage /> },
+      { path: 'contracts', element: <Navigate to="/contracts/grn" replace /> },
+      { path: 'contracts/grn', element: <ContractsPage /> },
+      { path: 'contracts/dn', element: <ContractsPage /> },
+      { path: 'contracts/final-contract', element: <FinalContractPage /> },
       { path: 'tasks', element: <TasksListPage /> },
       { path: 'tasks/:id/execute', element: <TaskExecutePage /> },
       { path: 'tasks/:id', element: <TaskDetailPage /> },

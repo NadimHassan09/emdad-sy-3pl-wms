@@ -9,6 +9,7 @@ import { useAuth } from '../auth/AuthContext';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { OrderDocumentsCard } from '../components/documents/OrderDocumentsCard';
+import { OrderManualChargesSection } from '../components/billing/OrderManualChargesSection';
 import { Combobox } from '../components/Combobox';
 import { FILTER_APPLY_BUTTON_CLASS, FILTER_RESET_BUTTON_CLASS, FilterPanel } from '../components/FilterPanel';
 import { StatusBadge } from '../components/StatusBadge';
@@ -46,6 +47,7 @@ function outboundDetailLabel(label: string, isArabic: boolean): string {
     Carrier: 'الناقل',
     'Shipped at': 'تم الشحن في',
     Destination: 'الوجهة',
+    Notes: 'ملاحظات',
     SKU: 'رمز الصنف',
     Product: 'المنتج',
     Tracking: 'التتبع',
@@ -235,6 +237,12 @@ export function OutboundDetailPage() {
           <Field label={t('Carrier')} value={o.carrier ?? '—'} />
           <Field label={t('Shipped at')} value={o.shippedAt ? new Date(o.shippedAt).toLocaleString() : '—'} />
           <Field label={t('Destination')} value={o.destinationAddress} />
+          <div className="col-span-2 md:col-span-4">
+            <Field
+              label={t('Notes')}
+              value={o.notes ? <span className="whitespace-pre-wrap">{o.notes}</span> : '—'}
+            />
+          </div>
         </div>
       </FilterPanel>
 
@@ -276,6 +284,12 @@ export function OutboundDetailPage() {
         referenceType="outbound_order"
         referenceId={id}
         companyIdOverride={o.companyId}
+      />
+
+      <OrderManualChargesSection
+        referenceType="outbound_order"
+        referenceId={id}
+        canEdit={user?.role === 'super_admin' || user?.role === 'wh_manager'}
       />
 
       <DataTable columns={lineColumns} rows={o.lines ?? []} rowKey={(l) => l.id} />

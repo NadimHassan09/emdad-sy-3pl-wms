@@ -204,7 +204,9 @@ export function BillingPlanDetailPage() {
               <DetailField label="Cycle length" value={`${activePlan.cycleLengthDays} days`} />
               <DetailField label="Fixed subscription fee" value={formatDecimal(activePlan.fixedSubscriptionFee)} />
               <DetailField label="Inbound order fee" value={formatDecimal(activePlan.inboundOrderFee, 4)} />
-              <DetailField label="Outbound order fee" value={formatDecimal(activePlan.outboundOrderFee, 4)} />
+              <DetailField label="Outbound base fee" value={formatDecimal(activePlan.outboundBaseFee ?? activePlan.outboundOrderFee)} />
+              <DetailField label="Outbound included items" value={String(activePlan.outboundIncludedItems ?? 0)} />
+              <DetailField label="Outbound additional item fee" value={formatDecimal(activePlan.outboundAdditionalItemFee ?? '0')} />
               <DetailField label="Packaging fee" value={formatDecimal(activePlan.packagingFee, 4)} />
               <DetailField label="Quality check fee" value={formatDecimal(activePlan.qualityCheckFee, 4)} />
               <DetailField

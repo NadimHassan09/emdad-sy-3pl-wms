@@ -30,6 +30,7 @@ const InboundOrderDetailPage = lazyPage(() => import('./pages/InboundOrderDetail
 const OutboundOrdersPage    = lazyPage(() => import('./pages/OutboundOrdersPage'),    'OutboundOrdersPage');
 const OutboundOrderDetailPage = lazyPage(() => import('./pages/OutboundOrderDetailPage'), 'OutboundOrderDetailPage');
 const ProductsPage          = lazyPage(() => import('./pages/ProductsPage'),          'ProductsPage');
+const ProductDetailPage     = lazyPage(() => import('./pages/ProductDetailPage'),     'ProductDetailPage');
 const StockPage             = lazyPage(() => import('./pages/StockPage'),             'StockPage');
 const DashboardPage         = lazyPage(() => import('./pages/DashboardPage'),         'DashboardPage');
 const BillingPage           = lazyPage(() => import('./pages/BillingPage'),           'BillingPage');
@@ -71,6 +72,14 @@ function AppRoutes(): ReactElement {
               element={
                 <RequireRouteAccess>
                   <ProductsPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="products/:id"
+              element={
+                <RequireRouteAccess>
+                  <ProductDetailPage />
                 </RequireRouteAccess>
               }
             />

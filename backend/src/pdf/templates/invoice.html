@@ -1,0 +1,60 @@
+<table class="doc-table">
+  <thead>
+    <tr>
+      <th>{{L.description}}</th>
+      <th class="num">{{L.quantity}}</th>
+      <th class="num">{{L.unitPrice}}</th>
+      <th class="num">{{L.total}}</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each lines}}
+    <tr>
+      <td>{{this.description}}</td>
+      <td class="num">{{this.quantity}}</td>
+      <td class="num">{{this.unitPrice}}</td>
+      <td class="num">{{this.total}}</td>
+    </tr>
+    {{/each}}
+  </tbody>
+</table>
+
+<section class="meta-grid meta-grid--2" style="margin-top: 16px;">
+  <div class="meta-block">
+    <div class="meta-block__title">{{L.billTo}}</div>
+    <div class="meta-block__value">{{customer.name}}</div>
+    {{#if customer.email}}<div class="meta-block__sub">{{customer.email}}</div>{{/if}}
+    {{#if customer.phone}}<div class="meta-block__sub">{{customer.phone}}</div>{{/if}}
+    {{#if customer.address}}<div class="meta-block__sub">{{customer.address}}</div>{{/if}}
+  </div>
+  <div class="meta-block">
+    <div class="meta-block__title">{{L.invoiceDetails}}</div>
+    <div class="meta-block__row"><span>{{L.dueDate}}</span><span>{{dueDate}}</span></div>
+    {{#if cycleLabel}}
+    <div class="meta-block__row"><span>{{L.billingCycle}}</span><span>{{cycleLabel}}</span></div>
+    {{/if}}
+  </div>
+</section>
+
+<table class="doc-table totals-table" style="margin-top: 16px; max-width: 360px; margin-left: auto;">
+  <tbody>
+    <tr>
+      <td colspan="3" class="totals-label">{{L.subtotal}}</td>
+      <td class="num">{{totals.subtotal}}</td>
+    </tr>
+    {{#if totals.discount}}
+    <tr>
+      <td colspan="3" class="totals-label">{{L.discount}}</td>
+      <td class="num">-{{totals.discount}}</td>
+    </tr>
+    {{/if}}
+    <tr>
+      <td colspan="3" class="totals-label">{{L.vat}} ({{totals.vatPercentage}}%)</td>
+      <td class="num">{{totals.vat}}</td>
+    </tr>
+    <tr class="totals-grand">
+      <td colspan="3" class="totals-label">{{L.grandTotal}}</td>
+      <td class="num">{{totals.grandTotal}}</td>
+    </tr>
+  </tbody>
+</table>

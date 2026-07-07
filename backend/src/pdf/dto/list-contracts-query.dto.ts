@@ -35,6 +35,12 @@ export class ListContractsQueryDto extends PaginationDto {
   @IsIn(['inbound_order', 'outbound_order'])
   referenceType?: 'inbound_order' | 'outbound_order';
 
+  /** `pending` = missing EN or AR; `generated` = at least one language exists; `complete` = both languages. */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(['pending', 'generated', 'complete'])
+  generationStatus?: 'pending' | 'generated' | 'complete';
+
   @EmptyToUndefined()
   @IsOptional()
   @Matches(DAY, { message: 'createdFrom must be YYYY-MM-DD' })

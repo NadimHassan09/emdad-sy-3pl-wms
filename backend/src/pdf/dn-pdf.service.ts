@@ -5,6 +5,7 @@ import { DocumentType } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { DocumentBranding, resolveBranding } from './branding';
 import { DocumentStorageService } from './document-storage.service';
+import { DocumentSlotOverridesService } from './document-slot-overrides.service';
 import { DocumentsService } from './documents.service';
 import { GeneratedDocumentResult, GenerateDocumentOptions } from './grn-pdf.service';
 import {
@@ -30,6 +31,7 @@ export class DnPdfService {
     private readonly pdf: PdfService,
     private readonly storage: DocumentStorageService,
     private readonly documents: DocumentsService,
+    private readonly slotOverrides: DocumentSlotOverridesService,
     config: ConfigService,
   ) {
     this.branding = resolveBranding(config);
@@ -101,6 +103,7 @@ export class DnPdfService {
     const carrier = (order.carrier ?? '').trim() || '—';
     const tracking = (order.trackingNumber ?? '').trim() || '—';
     const barcode = await barcodePngDataUri(documentNumber);
+    const slot = (await this.slotOverrides.getEditable(taskId, DocumentType.delivery_note)).fields;
 
     const context = {
       lang,
@@ -116,15 +119,15 @@ export class DnPdfService {
       },
       party: {
         customer: order.company?.name ?? '—',
-        destination: order.destinationAddress || '—',
+        destination: slot.destination || order.destinationAddress || '—',
         warehouse: warehouse?.name ?? warehouse?.code ?? '—',
         orderNumber: order.orderNumber || '—',
-        reference: order.clientReference || '—',
+        reference: slot.clientReference || '—',
         date: formatDocDate(order.shippedAt ?? task.completedAt ?? generatedAt, lang),
-        carrier,
-        tracking,
-        vehicle: '',
-        driver: '',
+        carrier: slot.carrier || carrier,
+        tracking: slot.trackingNumber || tracking,
+        vehicle: slot.vehicle || '—',
+        driver: slot.driver || '—',
       },
       items,
       emptyRows: emptyTableRowSlots(items.length),
@@ -136,7 +139,7 @@ export class DnPdfService {
         releasedBy: operatorName,
         dispatchTime: formatDocDateTime(order.shippedAt ?? task.completedAt ?? generatedAt, lang),
       },
-      notes: (order.notes ?? '').trim(),
+      notes: slot.notes,
       signatures: [
         { role: t('warehouseSign'), signature: L.signature, nameAndDate: L.nameAndDate },
         { role: t('driverSign'), signature: L.signature, nameAndDate: L.nameAndDate },

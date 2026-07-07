@@ -14,7 +14,9 @@ function flattenFilterPanelChildren(children: ReactNode): ReactNode[] {
   Children.forEach(children, (child) => {
     if (child == null || child === false || child === true) return;
     if (isValidElement(child) && child.type === Fragment) {
-      items.push(...flattenFilterPanelChildren(child.props.children));
+      items.push(
+        ...flattenFilterPanelChildren((child.props as { children?: ReactNode }).children),
+      );
       return;
     }
     if (Array.isArray(child)) {

@@ -254,7 +254,7 @@ export function productRequiresExpiry(
 ): boolean {
   const p = fullProduct ?? ol?.product;
   if (!p) return false;
-  return p.expiryTracking === true || p.trackingType === 'lot';
+  return p.trackingType === 'lot' && p.expiryTracking === true;
 }
 
 export function resolveLineExpiryDisplay(

@@ -93,13 +93,16 @@ export function accountStatusClass(status: string): string {
 
 export function invoiceStatusClass(status: string): string {
   if (status === 'paid') return 'badge badge-complete';
-  if (status === 'open') return 'badge badge-progress';
+  if (status === 'unpaid' || status === 'open' || status === 'overdue') return 'badge badge-progress';
   if (status === 'cancelled') return 'badge badge-cancelled';
   return 'badge badge-draft';
 }
 
 export function humanizeInvoiceStatus(status: string): string {
-  if (status === 'overdue') return 'Overdue';
+  if (status === 'unpaid' || status === 'open' || status === 'overdue') return 'Unpaid';
+  if (status === 'draft') return 'Draft';
+  if (status === 'paid') return 'Paid';
+  if (status === 'cancelled') return 'Cancelled';
   return status.replace(/_/g, ' ');
 }
 

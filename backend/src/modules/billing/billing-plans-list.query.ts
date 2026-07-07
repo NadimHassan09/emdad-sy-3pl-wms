@@ -10,6 +10,9 @@ export type BillingPlanOverviewSqlRow = {
   fixed_subscription_fee: Prisma.Decimal;
   inbound_order_fee: Prisma.Decimal;
   outbound_order_fee: Prisma.Decimal;
+  outbound_base_fee: Prisma.Decimal;
+  outbound_included_items: number;
+  outbound_additional_item_fee: Prisma.Decimal;
   packaging_fee: Prisma.Decimal;
   quality_check_fee: Prisma.Decimal;
   excess_volume_fee_per_day: Prisma.Decimal;
@@ -72,6 +75,9 @@ export function billingPlansOverviewCountSql(
         p.fixed_subscription_fee,
         p.inbound_order_fee,
         p.outbound_order_fee,
+        p.outbound_base_fee,
+        p.outbound_included_items,
+        p.outbound_additional_item_fee,
         p.packaging_fee,
         p.quality_check_fee,
         p.excess_volume_fee_per_day,
@@ -147,6 +153,9 @@ export function billingPlansOverviewListSql(
         p.fixed_subscription_fee,
         p.inbound_order_fee,
         p.outbound_order_fee,
+        p.outbound_base_fee,
+        p.outbound_included_items,
+        p.outbound_additional_item_fee,
         p.packaging_fee,
         p.quality_check_fee,
         p.excess_volume_fee_per_day,

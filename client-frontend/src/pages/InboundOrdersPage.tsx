@@ -174,21 +174,19 @@ export function InboundOrdersPage(): ReactElement {
         applyLabel={t('Apply filters')}
         resetLabel={t('Reset filters')}
       >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <TextField
-            label={t('Order #')}
-            value={draftFilters.orderSearch}
-            onChange={(e) => setDraft({ orderSearch: e.target.value })}
-            placeholder={t('Search order...')}
-            className="font-mono text-xs"
-          />
-          <SelectField
-            label={t('Status')}
-            value={draftFilters.status}
-            onChange={(e) => setDraft({ status: e.target.value })}
-            options={statusOptions}
-          />
-        </div>
+        <TextField
+          label={t('Order #')}
+          value={draftFilters.orderSearch}
+          onChange={(e) => setDraft({ orderSearch: e.target.value })}
+          placeholder={t('Search order...')}
+          className="font-mono text-xs"
+        />
+        <SelectField
+          label={t('Status')}
+          value={draftFilters.status}
+          onChange={(e) => setDraft({ status: e.target.value })}
+          options={statusOptions}
+        />
       </FilterPanel>
 
       <DataTable

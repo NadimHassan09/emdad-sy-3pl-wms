@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 
 import { Alert, Button } from '@ds';
 import type { Column } from '@wms/components/DataTable';
@@ -44,7 +45,6 @@ function productsLabel(label: string, isArabic: boolean): string {
   const ar: Record<string, string> = {
     Products: 'المنتجات',
     'Product catalog': 'كتالوج المنتجات',
-    'Your product catalog for inbound and outbound orders.': 'كتالوج منتجاتك لطلبات الوارد والصادر.',
     '+ New product': '+ منتج جديد',
     'Product filters': 'فلاتر المنتجات',
     'Apply filters': 'تطبيق الفلاتر',
@@ -54,7 +54,6 @@ function productsLabel(label: string, isArabic: boolean): string {
     Barcode: 'الباركود',
     UoM: 'وحدة القياس',
     Status: 'الحالة',
-    'On hand': 'المتوفر',
     'No products found.': 'لا توجد منتجات.',
     'Could not load products': 'تعذر تحميل المنتجات',
     'Product created.': 'تم إنشاء المنتج.',
@@ -76,6 +75,7 @@ function productStatusClass(status: ClientProductRow['status']): string {
 }
 
 export function ProductsPage(): ReactElement {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const canCreateProducts = isClientAdmin(user?.role);
   const queryClient = useQueryClient();
@@ -159,24 +159,12 @@ export function ProductsPage(): ReactElement {
         ),
         width: '110px',
       },
-      {
-        header: t('On hand'),
-        accessor: (p) => (
-          <span className="block text-right font-mono font-semibold">{p.totalOnHand ?? '0'}</span>
-        ),
-        width: '120px',
-        className: 'text-right',
-      },
     ],
     [isArabic],
   );
 
   return (
     <>
-      <p className="mb-3 text-sm text-slate-600">
-        {t('Your product catalog for inbound and outbound orders.')}
-      </p>
-
       {createSuccess && (
         <Alert
           variant="success"
@@ -213,28 +201,26 @@ export function ProductsPage(): ReactElement {
         applyLabel={t('Apply filters')}
         resetLabel={t('Reset filters')}
       >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <TextField
-            label={t('Name')}
-            value={draftFilters.name}
-            onChange={(e) => setDraft({ name: e.target.value })}
-            placeholder={t('Contains…')}
-          />
-          <TextField
-            label={t('SKU')}
-            value={draftFilters.sku}
-            onChange={(e) => setDraft({ sku: e.target.value })}
-            className="font-mono text-xs"
-            placeholder={t('Contains…')}
-          />
-          <TextField
-            label={t('Barcode')}
-            value={draftFilters.barcode}
-            onChange={(e) => setDraft({ barcode: e.target.value })}
-            className="font-mono text-xs"
-            placeholder={t('Contains…')}
-          />
-        </div>
+        <TextField
+          label={t('Name')}
+          value={draftFilters.name}
+          onChange={(e) => setDraft({ name: e.target.value })}
+          placeholder={t('Contains…')}
+        />
+        <TextField
+          label={t('SKU')}
+          value={draftFilters.sku}
+          onChange={(e) => setDraft({ sku: e.target.value })}
+          className="font-mono text-xs"
+          placeholder={t('Contains…')}
+        />
+        <TextField
+          label={t('Barcode')}
+          value={draftFilters.barcode}
+          onChange={(e) => setDraft({ barcode: e.target.value })}
+          className="font-mono text-xs"
+          placeholder={t('Contains…')}
+        />
       </FilterPanel>
 
       <DataTable
@@ -266,6 +252,7 @@ export function ProductsPage(): ReactElement {
         rows={pagination.rows}
         rowKey={(p) => p.id}
         loading={pagination.isInitialLoading}
+        onRowClick={(p) => navigate(`/products/${p.id}`)}
         empty={t('No products found.')}
         serverPagination={pagination.serverPagination}
         labels={{

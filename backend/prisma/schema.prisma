@@ -43,12 +43,35 @@ enum BillingCycleStatus {
 
 enum BillingInvoiceStatus {
   draft
-  open
+  unpaid
   paid
   cancelled
-  overdue
+  open     @map("open") // deprecated — migrated to unpaid
+  overdue  @map("overdue") // deprecated — migrated to unpaid
 
   @@map("billing_invoice_status")
+}
+
+enum BillingInvoiceSource {
+  cycle
+  ad_hoc
+
+  @@map("billing_invoice_source")
+}
+
+enum BillingDiscountType {
+  fixed
+  percentage
+
+  @@map("billing_discount_type")
+}
+
+enum BillingInvoiceLineSource {
+  system
+  manual
+  order
+
+  @@map("billing_invoice_line_source")
 }
 
 enum BillingInvoiceLineType {
@@ -59,6 +82,8 @@ enum BillingInvoiceLineType {
   quality_check
   excess_volume
   excess_weight
+  manual
+  order_charge
 
   @@map("billing_invoice_line_type")
 }
@@ -532,7 +557,9 @@ model Company {
   billingPlans           BillingPlan[]
   billingCycles          BillingCycle[]
   invoices               Invoice[]
+  orderManualCharges     OrderManualCharge[]
   documents              Document[]
+  finalContracts         FinalContract[]
 
   @@map("companies")
 }
@@ -545,6 +572,9 @@ model BillingPlan {
   fixedSubscriptionFee    Decimal  @default(0) @map("fixed_subscription_fee") @db.Decimal(12, 2)
   inboundOrderFee         Decimal  @default(0) @map("inbound_order_fee") @db.Decimal(10, 4)
   outboundOrderFee        Decimal  @default(0) @map("outbound_order_fee") @db.Decimal(10, 4)
+  outboundBaseFee         Decimal  @default(0) @map("outbound_base_fee") @db.Decimal(12, 2)
+  outboundIncludedItems   Int      @default(0) @map("outbound_included_items")
+  outboundAdditionalItemFee Decimal @default(0) @map("outbound_additional_item_fee") @db.Decimal(12, 2)
   packagingFee            Decimal  @default(0) @map("packaging_fee") @db.Decimal(10, 4)
   qualityCheckFee         Decimal  @default(0) @map("quality_check_fee") @db.Decimal(10, 4)
   excessVolumeFeePerDay   Decimal  @default(0) @map("excess_volume_fee_per_day") @db.Decimal(10, 4)
@@ -583,16 +613,25 @@ model BillingCycle {
 model Invoice {
   id             String               @id @default(uuid()) @db.Uuid
   companyId      String               @map("company_id") @db.Uuid
-  billingCycleId String               @map("billing_cycle_id") @db.Uuid
+  billingCycleId String?              @map("billing_cycle_id") @db.Uuid
+  invoiceSource  BillingInvoiceSource @default(cycle) @map("invoice_source")
   invoiceNumber  String               @unique @default("") @map("invoice_number")
   status         BillingInvoiceStatus @default(draft)
+  subtotalAmount Decimal              @default(0) @map("subtotal_amount") @db.Decimal(14, 2)
+  discountType   BillingDiscountType? @map("discount_type")
+  discountValue  Decimal?             @map("discount_value") @db.Decimal(14, 4)
+  discountAmount Decimal              @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  vatPercentage  Decimal              @default(0) @map("vat_percentage") @db.Decimal(8, 4)
+  vatAmount      Decimal              @default(0) @map("vat_amount") @db.Decimal(14, 2)
+  grandTotal     Decimal              @default(0) @map("grand_total") @db.Decimal(14, 2)
   totalAmount    Decimal              @default(0) @map("total_amount") @db.Decimal(14, 2)
   issuedAt       DateTime?            @map("issued_at") @db.Timestamptz(6)
+  dueDate        DateTime?            @map("due_date") @db.Date
   createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime             @default(now()) @map("updated_at") @db.Timestamptz(6)
+  updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   company      Company       @relation(fields: [companyId], references: [id])
-  billingCycle BillingCycle  @relation(fields: [billingCycleId], references: [id])
+  billingCycle BillingCycle? @relation(fields: [billingCycleId], references: [id])
   lines        InvoiceLine[]
 
   @@index([companyId], map: "idx_invoices_company")
@@ -601,23 +640,47 @@ model Invoice {
 }
 
 model InvoiceLine {
-  id         String                 @id @default(uuid()) @db.Uuid
-  invoiceId  String                 @map("invoice_id") @db.Uuid
-  type       BillingInvoiceLineType
-  quantity   Decimal                @db.Decimal(15, 4)
-  unitPrice  Decimal                @map("unit_price") @db.Decimal(10, 4)
-  totalPrice Decimal                @map("total_price") @db.Decimal(14, 2)
-  createdAt  DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  id            String                   @id @default(uuid()) @db.Uuid
+  invoiceId     String                   @map("invoice_id") @db.Uuid
+  type          BillingInvoiceLineType
+  lineSource    BillingInvoiceLineSource @default(system) @map("line_source")
+  description   String?
+  quantity      Decimal                  @db.Decimal(15, 4)
+  unitPrice     Decimal                  @map("unit_price") @db.Decimal(10, 4)
+  totalPrice    Decimal                  @map("total_price") @db.Decimal(14, 2)
+  orderChargeId String?                  @map("order_charge_id") @db.Uuid
+  createdAt     DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId], map: "idx_invoice_lines_invoice")
+  @@index([invoiceId, lineSource], map: "idx_invoice_lines_source")
   @@map("invoice_lines")
+}
+
+model OrderManualCharge {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  referenceType String   @map("reference_type")
+  referenceId   String   @map("reference_id") @db.Uuid
+  description   String
+  quantity      Decimal  @default(1) @db.Decimal(15, 4)
+  unitPrice     Decimal  @default(0) @map("unit_price") @db.Decimal(12, 4)
+  totalPrice    Decimal  @default(0) @map("total_price") @db.Decimal(14, 2)
+  createdBy     String?  @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([referenceType, referenceId], map: "idx_order_manual_charges_ref")
+  @@index([companyId], map: "idx_order_manual_charges_company")
+  @@map("order_manual_charges")
 }
 
 enum DocumentType {
   grn
   delivery_note
+  final_contract
 
   @@map("document_type")
 }
@@ -648,6 +711,54 @@ model Document {
   @@index([companyId, type], map: "idx_documents_company_type")
   @@index([referenceType, referenceId], map: "idx_documents_reference")
   @@map("documents")
+}
+
+/// 3PL warehouse service agreement between provider and client.
+model FinalContract {
+  id                     String   @id @default(uuid()) @db.Uuid
+  companyId              String   @map("company_id") @db.Uuid
+  contractNumber         String   @unique @map("contract_number")
+  issueDate              DateTime @map("issue_date") @db.Date
+  clientCompanyName      String   @map("client_company_name")
+  clientCompanyType      String?  @map("client_company_type")
+  clientAddress          String?  @map("client_address")
+  clientPhone            String?  @map("client_phone")
+  clientEmail            String?  @map("client_email")
+  clientTaxId            String?  @map("client_tax_id")
+  clientSignatoryName    String?  @map("client_signatory_name")
+  clientSignatoryTitle   String?  @map("client_signatory_title")
+  rateStorage            Decimal  @map("rate_storage") @db.Decimal(12, 2)
+  rateInboundHandling    Decimal  @map("rate_inbound_handling") @db.Decimal(12, 2)
+  rateOutboundHandling   Decimal  @map("rate_outbound_handling") @db.Decimal(12, 2)
+  rateValueAddedServices  Decimal  @map("rate_value_added_services") @db.Decimal(12, 2)
+  rateReturnProcessing   Decimal  @map("rate_return_processing") @db.Decimal(12, 2)
+  createdBy              String?  @map("created_by") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId], map: "idx_final_contracts_company")
+  @@index([issueDate], map: "idx_final_contracts_issue_date")
+  @@map("final_contracts")
+}
+
+/// Per-task overrides for GRN / DN PDF fields (editable from the contracts catalog).
+model DocumentSlotOverride {
+  taskId          String   @id @map("task_id") @db.Uuid
+  clientReference String?  @map("client_reference")
+  notes           String?
+  supplier        String?
+  poNumber        String?  @map("po_number")
+  operatorName    String?  @map("operator_name")
+  destination     String?
+  carrier         String?
+  trackingNumber  String?  @map("tracking_number")
+  vehicle         String?
+  driver          String?
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("document_slot_overrides")
 }
 
 /// Explicit internal-user grants to operate on a 3PL client tenant (Phase 1.1).

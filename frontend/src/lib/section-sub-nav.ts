@@ -128,6 +128,27 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
     ],
   },
   {
+    ariaLabelKey: 'Contracts navigation',
+    matchSection: (p) => p.startsWith('/contracts'),
+    items: [
+      {
+        labelKey: 'GRN',
+        to: '/contracts/grn',
+        match: (p) => p.startsWith('/contracts/grn'),
+      },
+      {
+        labelKey: 'Delivery note',
+        to: '/contracts/dn',
+        match: (p) => p.startsWith('/contracts/dn'),
+      },
+      {
+        labelKey: 'Final contract',
+        to: '/contracts/final-contract',
+        match: (p) => p.startsWith('/contracts/final-contract'),
+      },
+    ],
+  },
+  {
     ariaLabelKey: 'Returns navigation',
     matchSection: (p) => p.startsWith('/returns') && !/^\/returns\/[^/]+(\/process)?$/.test(p),
     items: [
@@ -231,6 +252,10 @@ export function sectionSubNavLabel(label: string, isArabic: boolean): string {
     'Inbound orders': 'طلبات الوارد',
     'Outbound orders': 'طلبات الصادر',
     'Quick outbound': 'إخراج سريع',
+    'Contracts navigation': 'تنقل العقود',
+    GRN: 'GRN',
+    'Delivery note': 'إشعار تسليم',
+    'Final contract': 'العقد النهائي',
     'Tasks navigation': 'تنقل المهام',
     Tasks: 'المهام',
     Receive: 'استلام',

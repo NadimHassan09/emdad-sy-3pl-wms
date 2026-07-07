@@ -41,6 +41,7 @@ const STATUS_CLASS: Record<string, string> = {
   archived: 'badge-draft',
   purged: 'badge-cancelled',
   open: 'badge-progress',
+  unpaid: 'badge-progress',
   paid: 'badge-complete',
   overdue: 'badge-cancelled',
 };
@@ -90,6 +91,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     archived: 'مؤرشف',
     purged: 'محذوف نهائيا',
     open: 'مفتوحة',
+    unpaid: 'غير مدفوعة',
     paid: 'مدفوعة',
     overdue: 'متأخرة',
   };

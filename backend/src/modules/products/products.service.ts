@@ -120,7 +120,7 @@ export class ProductsService {
               description: dto.description,
               trackingType: 'lot',
               uom: dto.uom ?? 'piece',
-              expiryTracking: dto.expiryTracking ?? true,
+              expiryTracking: dto.expiryTracking ?? false,
               minStockThreshold: dto.minStockThreshold ?? 0,
               lengthCm:
                 dto.lengthCm != null

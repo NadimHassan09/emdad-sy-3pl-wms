@@ -10,6 +10,9 @@ export type ClientBillingPlan = {
   fixedSubscriptionFee: string;
   inboundOrderFee: string;
   outboundOrderFee: string;
+  outboundBaseFee?: string;
+  outboundIncludedItems?: number;
+  outboundAdditionalItemFee?: string;
   packagingFee: string;
   qualityCheckFee: string;
   excessVolumeFeePerDay: string;
@@ -39,11 +42,15 @@ export type ClientInvoiceLineType =
   | 'packaging'
   | 'quality_check'
   | 'excess_volume'
-  | 'excess_weight';
+  | 'excess_weight'
+  | 'manual'
+  | 'order_charge';
 
 export type ClientInvoiceLine = {
   id: string;
   type: ClientInvoiceLineType;
+  lineSource?: 'system' | 'manual' | 'order';
+  description?: string | null;
   quantity: string;
   unitPrice: string;
   totalPrice: string;
@@ -52,14 +59,21 @@ export type ClientInvoiceLine = {
 export type ClientInvoice = {
   id: string;
   companyId: string;
-  billingCycleId: string;
+  billingCycleId: string | null;
+  invoiceSource?: 'cycle' | 'ad_hoc';
   invoiceNumber: string;
-  status: 'draft' | 'open' | 'paid' | 'cancelled';
+  status: 'draft' | 'unpaid' | 'paid' | 'cancelled' | 'open' | 'overdue';
+  subtotalAmount?: string;
+  discountAmount?: string;
+  vatAmount?: string;
+  vatPercentage?: string;
+  grandTotal?: string;
   totalAmount: string;
+  dueDate?: string | null;
   issuedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  billingCycle?: ClientBillingCycle;
+  billingCycle?: ClientBillingCycle | null;
   lines?: ClientInvoiceLine[];
 };
 

@@ -1,8 +1,10 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 
 import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
+import { PrismaService } from '../../../common/prisma/prisma.service';
+import { InventoryService } from '../../inventory/inventory.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { ListProductsQueryDto } from '../../products/dto/list-products-query.dto';
 import { ProductsService } from '../../products/products.service';
@@ -13,6 +15,8 @@ export class ClientProductsService {
   constructor(
     private readonly products: ProductsService,
     private readonly notifications: NotificationsService,
+    private readonly inventory: InventoryService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async list(client: ClientPrincipal, query: ListProductsQueryDto) {
@@ -20,6 +24,41 @@ export class ClientProductsService {
       ...query,
       companyId: client.companyId,
     });
+  }
+
+  async findById(client: ClientPrincipal, id: string) {
+    const principal = clientAuthPrincipal(client);
+    const product = await this.products.findById(id, principal);
+
+    const agg = await this.prisma.currentStock.aggregate({
+      where: { companyId: client.companyId, productId: id },
+      _sum: { quantityOnHand: true, quantityReserved: true },
+    });
+    const onHand = agg._sum.quantityOnHand ?? new Prisma.Decimal(0);
+    const reserved = agg._sum.quantityReserved ?? new Prisma.Decimal(0);
+
+    const avail = await this.inventory.availability(principal, id, client.companyId);
+
+    return {
+      id: product.id,
+      name: product.name,
+      sku: product.sku,
+      barcode: product.barcode,
+      description: product.description,
+      uom: product.uom,
+      status: product.status,
+      expiryTracking: product.expiryTracking,
+      minStockThreshold: product.minStockThreshold?.toString() ?? '0',
+      lengthCm: product.lengthCm?.toString() ?? null,
+      widthCm: product.widthCm?.toString() ?? null,
+      heightCm: product.heightCm?.toString() ?? null,
+      weightKg: product.weightKg?.toString() ?? null,
+      createdAt: product.createdAt.toISOString(),
+      updatedAt: product.updatedAt.toISOString(),
+      totalOnHand: onHand.toString(),
+      totalReserved: reserved.toString(),
+      totalAvailable: avail.available,
+    };
   }
 
   async create(client: ClientPrincipal, dto: ClientCreateProductDto) {

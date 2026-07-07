@@ -362,3 +362,73 @@ body {
   border-bottom: 1px solid var(--text);
   min-height: 14px;
 }
+
+/* -------------------------------------------------------- final contract */
+.fc-section {
+  margin-bottom: 12px;
+  page-break-inside: avoid;
+}
+
+.fc-intro {
+  margin: 6px 0 0;
+  font-size: 9px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.fc-services {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 12px;
+}
+
+.fc-services__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 9px;
+  line-height: 1.35;
+  background: var(--green-light);
+}
+
+.fc-services__idx {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--green-dark);
+}
+
+.fc-footnote {
+  margin: 6px 0 0;
+  font-size: 8px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.fc-terms {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 20px;
+}
+
+.fc-list {
+  margin: 0;
+  padding-inline-start: 16px;
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.fc-list li {
+  margin-bottom: 4px;
+}
+
+.fc-list--single {
+  columns: 2;
+  column-gap: 20px;
+}
+
+.fc-signatures {
+  grid-template-columns: 1fr 1fr;
+}

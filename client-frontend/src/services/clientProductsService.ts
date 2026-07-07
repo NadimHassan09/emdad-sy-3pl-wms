@@ -14,6 +14,27 @@ export interface ClientProductRow {
   totalOnHand?: string;
 }
 
+export interface ClientProductDetail {
+  id: string;
+  name: string;
+  sku: string;
+  barcode: string | null;
+  description: string | null;
+  uom: string;
+  status: 'active' | 'suspended' | 'archived';
+  expiryTracking: boolean;
+  minStockThreshold: string;
+  lengthCm: string | null;
+  widthCm: string | null;
+  heightCm: string | null;
+  weightKg: string | null;
+  createdAt: string;
+  updatedAt: string;
+  totalOnHand: string;
+  totalReserved: string;
+  totalAvailable: string;
+}
+
 export interface ClientProductsPage {
   items: ClientProductRow[];
   total: number;
@@ -40,6 +61,11 @@ export async function fetchClientProducts(params: {
   productBarcode?: string;
 }): Promise<ClientProductsPage> {
   const { data } = await apiClient.get<ClientProductsPage>('/products', { params });
+  return data;
+}
+
+export async function fetchClientProduct(id: string): Promise<ClientProductDetail> {
+  const { data } = await apiClient.get<ClientProductDetail>(`/products/${id}`);
   return data;
 }
 

@@ -33,6 +33,24 @@ export class UpdateBillingPlanDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  outboundBaseFee?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  outboundIncludedItems?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  outboundAdditionalItemFee?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
   packagingFee?: number;
 
   @IsOptional()

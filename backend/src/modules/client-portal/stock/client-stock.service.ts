@@ -12,6 +12,9 @@ export interface ClientStockProductRow {
   productName: string;
   sku: string;
   totalQuantity: string;
+  onHand: string;
+  reserved: string;
+  available: string;
   uom: string;
   /** Earliest non-null lot expiry among on-hand rows for this product, ISO `YYYY-MM-DD`, or null. */
   expiryDate: string | null;
@@ -59,6 +62,9 @@ export class ClientStockService {
         productName: row.product.name,
         sku: row.product.sku,
         totalQuantity: row.totalQuantity,
+        onHand: row.onHand,
+        reserved: row.reserved,
+        available: row.available,
         uom: row.product.uom,
         expiryDate: minExpiry.get(row.productId) ?? null,
       })),

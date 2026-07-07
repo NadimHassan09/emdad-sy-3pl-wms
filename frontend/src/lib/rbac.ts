@@ -31,7 +31,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
   {
     labelKey: 'Contracts',
     iconKey: 'Forms',
-    to: '/contracts',
+    to: '/contracts/grn',
     match: (p) => p.startsWith('/contracts'),
     roles: ['super_admin', 'wh_manager', 'wh_operator', 'finance'],
   },

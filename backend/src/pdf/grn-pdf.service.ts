@@ -5,6 +5,7 @@ import { DocumentType } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { DocumentBranding, resolveBranding } from './branding';
 import { DocumentStorageService } from './document-storage.service';
+import { DocumentSlotOverridesService } from './document-slot-overrides.service';
 import { DocumentsService } from './documents.service';
 import {
   DocLang,
@@ -43,6 +44,7 @@ export class GrnPdfService {
     private readonly pdf: PdfService,
     private readonly storage: DocumentStorageService,
     private readonly documents: DocumentsService,
+    private readonly slotOverrides: DocumentSlotOverridesService,
     config: ConfigService,
   ) {
     this.branding = resolveBranding(config);
@@ -147,6 +149,7 @@ export class GrnPdfService {
       existing?.documentNumber ?? (await this.documents.nextNumber(DocumentType.grn));
     const operatorName = operator?.fullName ?? '—';
     const barcode = await barcodePngDataUri(documentNumber);
+    const slot = (await this.slotOverrides.getEditable(taskId, DocumentType.grn)).fields;
 
     const context = {
       lang,
@@ -163,12 +166,12 @@ export class GrnPdfService {
       party: {
         client: order.company?.name ?? '—',
         warehouse: warehouse?.name ?? warehouse?.code ?? '—',
-        supplier: '',
+        supplier: slot.supplier || '—',
         orderNumber: order.orderNumber || '—',
-        reference: order.clientReference || '—',
+        reference: slot.clientReference || '—',
         date: formatDocDate(task.completedAt ?? generatedAt, lang),
-        operator: operatorName,
-        poNumber: '',
+        operator: slot.operatorName || operatorName,
+        poNumber: slot.poNumber || '—',
       },
       items,
       emptyRows: emptyTableRowSlots(items.length),
@@ -179,7 +182,7 @@ export class GrnPdfService {
         receivedBy: operatorName,
         receivingTime: formatDocDateTime(task.completedAt ?? generatedAt, lang),
       },
-      notes: (order.notes ?? '').trim(),
+      notes: slot.notes,
       signatures: [
         { role: t('warehouseOfficer'), signature: L.signature, nameAndDate: L.nameAndDate },
         { role: t('supervisor'), signature: L.signature, nameAndDate: L.nameAndDate },

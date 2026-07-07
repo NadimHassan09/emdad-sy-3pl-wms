@@ -1,15 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { BillingApi, type BillingInvoiceRow } from '../../api/billing';
 import { CompaniesApi } from '../../api/companies';
+import { Button } from '../../components/Button';
+import { CreateAdHocInvoiceModal } from '../../components/billing/CreateAdHocInvoiceModal';
 import { Combobox } from '../../components/Combobox';
 import { DataTable, type Column } from '../../components/DataTable';
 import { FilterPanel } from '../../components/FilterPanel';
 import { SelectField } from '../../components/SelectField';
 import { StatusBadge } from '../../components/StatusBadge';
 import { TextField } from '../../components/TextField';
+import { useAuth } from '../../auth/AuthContext';
 import { QK } from '../../constants/query-keys';
 import { useFilters } from '../../hooks/useFilters';
 import {
@@ -49,6 +52,9 @@ const INITIAL_FILTERS: ListFilters = {
 
 export function BillingInvoicesPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [adHocOpen, setAdHocOpen] = useState(false);
+  const canCreate = user?.role === 'super_admin' || user?.role === 'wh_manager';
 
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters<ListFilters>(INITIAL_FILTERS);
@@ -119,6 +125,20 @@ export function BillingInvoicesPage() {
 
   return (
     <div className="space-y-4">
+      {canCreate ? (
+        <div className="flex justify-end">
+          <Button variant="brand" onClick={() => setAdHocOpen(true)}>
+            Create ad-hoc invoice
+          </Button>
+        </div>
+      ) : null}
+
+      <CreateAdHocInvoiceModal
+        open={adHocOpen}
+        companies={companiesQuery.data ?? []}
+        onClose={() => setAdHocOpen(false)}
+      />
+
       <FilterPanel
         title="Invoice filters"
         onApply={applyFilters}
@@ -151,8 +171,7 @@ export function BillingInvoicesPage() {
             options={[
               { value: '', label: 'All statuses' },
               { value: 'draft', label: 'Draft' },
-              { value: 'open', label: 'Open' },
-              { value: 'overdue', label: 'Overdue' },
+              { value: 'unpaid', label: 'Unpaid' },
               { value: 'paid', label: 'Paid' },
               { value: 'cancelled', label: 'Cancelled' },
             ]}

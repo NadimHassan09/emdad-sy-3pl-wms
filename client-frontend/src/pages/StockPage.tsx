@@ -12,7 +12,6 @@ import {
   useChunkedServerPagination,
 } from '@wms/hooks/useChunkedServerPagination';
 
-import { useAuth } from '../auth/AuthContext';
 import { isClientArabic } from '../lib/client-ui-language';
 import { fetchStockPage, type ClientStockRow } from '../services/stockService';
 
@@ -31,7 +30,9 @@ function stockLabel(label: string, isArabic: boolean): string {
     'Name or SKU': 'الاسم أو SKU',
     'Product name': 'اسم المنتج',
     SKU: 'رمز SKU',
-    Qty: 'الكمية',
+    'On hand': 'المتوفر',
+    Reserved: 'محجوز',
+    Available: 'متاح',
     UoM: 'وحدة القياس',
     Expiry: 'انتهاء الصلاحية',
     'No stock found.': 'لا يوجد مخزون.',
@@ -59,7 +60,6 @@ function formatExpiry(isoDate: string): string {
 }
 
 export function StockPage(): ReactElement {
-  const { user } = useAuth();
   const isArabic = isClientArabic();
   const t = (label: string) => stockLabel(label, isArabic);
 
@@ -95,11 +95,27 @@ export function StockPage(): ReactElement {
         width: '200px',
       },
       {
-        header: t('Qty'),
+        header: t('On hand'),
         accessor: (r) => (
-          <span className="font-mono block text-right font-semibold">{fmtQty(r.totalQuantity)}</span>
+          <span className="block text-right font-mono font-semibold">{fmtQty(r.onHand)}</span>
         ),
-        width: '140px',
+        width: '120px',
+        className: 'text-right',
+      },
+      {
+        header: t('Reserved'),
+        accessor: (r) => (
+          <span className="block text-right font-mono">{fmtQty(r.reserved)}</span>
+        ),
+        width: '120px',
+        className: 'text-right',
+      },
+      {
+        header: t('Available'),
+        accessor: (r) => (
+          <span className="block text-right font-mono font-semibold">{fmtQty(r.available)}</span>
+        ),
+        width: '120px',
         className: 'text-right',
       },
       {
@@ -116,7 +132,6 @@ export function StockPage(): ReactElement {
     [isArabic],
   );
 
-  const description = user?.companyName ? user.companyName : undefined;
   const tableLabels = {
     rowsSuffix: t('rows'),
     resultsSuffix: t('results'),
@@ -150,20 +165,17 @@ export function StockPage(): ReactElement {
         applyLabel={t('Apply filters')}
         resetLabel={t('Reset filters')}
       >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <TextField
-            label={t('Search products')}
-            value={draftFilters.productSearch}
-            onChange={(e) => setDraft({ productSearch: e.target.value })}
-            placeholder={t('Name or SKU')}
-          />
-        </div>
+        <TextField
+          label={t('Search products')}
+          value={draftFilters.productSearch}
+          onChange={(e) => setDraft({ productSearch: e.target.value })}
+          placeholder={t('Name or SKU')}
+        />
       </FilterPanel>
 
       <DataTable
         title={t('Stock')}
         titleAs="h1"
-        description={description}
         columns={columns}
         rows={pagination.rows}
         rowKey={(r) => `${r.productId}-${r.expiryDate ?? 'none'}`}

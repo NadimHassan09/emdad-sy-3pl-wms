@@ -36,6 +36,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { FormsModule } from './modules/forms/forms.module';
+import { FinalContractsModule } from './modules/final-contracts/final-contracts.module';
 import { PdfModule } from './pdf/pdf.module';
 
 @Module({
@@ -85,6 +86,7 @@ import { PdfModule } from './pdf/pdf.module';
     RealtimeModule,
     ReportsModule,
     FormsModule,
+    FinalContractsModule,
     PdfModule,
   ],
   providers: [

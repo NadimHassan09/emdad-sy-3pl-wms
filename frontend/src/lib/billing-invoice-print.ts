@@ -25,11 +25,13 @@ const LINE_TYPE_ORDER: BillingInvoiceLineType[] = [
 const LINE_TYPE_LABELS: Record<BillingInvoiceLineType, string> = {
   subscription: 'Fixed subscription',
   inbound: 'Inbound totals',
-  outbound: 'Outbound totals',
+  outbound: 'Outbound totals (tiered)',
   packaging: 'Packaging totals',
   quality_check: 'Quality check totals',
   excess_volume: 'Volume charges',
   excess_weight: 'Weight charges',
+  manual: 'Manual charges',
+  order_charge: 'Order charges (VAS)',
 };
 
 export type BillingInvoicePrintInput = {

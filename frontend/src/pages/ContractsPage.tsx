@@ -1,11 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import { CompaniesApi } from '../api/companies';
 import {
   DocumentsApi,
-  type ContractListItem,
+  type ContractCatalogRow,
+  type ContractGenerationFilter,
+  type ContractGenerationStatus,
   type DocumentLang,
   type DocumentReferenceType,
   type DocumentType,
@@ -13,7 +15,9 @@ import {
 import { Alert } from '@ds';
 import { Button } from '../components/Button';
 import { Column, DataTable } from '../components/DataTable';
+import { EditDocumentSlotModal } from '../components/documents/EditDocumentSlotModal';
 import { FilterPanel } from '../components/FilterPanel';
+import { RowActionsMenu } from '../components/RowActionsMenu';
 import { Combobox } from '../components/Combobox';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
@@ -30,49 +34,68 @@ import { useWmsTranslation } from '../lib/ui-i18n';
 type ContractFilters = {
   search: string;
   companyId: string;
-  type: string;
   language: string;
-  referenceType: string;
+  generationStatus: string;
   createdFrom: string;
   createdTo: string;
 };
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+type ContractsRouteKind = 'grn' | 'dn';
+
+function resolveRouteKind(pathname: string): ContractsRouteKind {
+  return pathname.startsWith('/contracts/dn') ? 'dn' : 'grn';
 }
 
-function contractTypeLabel(type: DocumentType, isArabic: boolean): string {
-  if (type === 'grn') return isArabic ? 'GRN' : 'GRN';
-  return isArabic ? 'Delivery note' : 'Delivery note';
+function documentTypeForRoute(kind: ContractsRouteKind): DocumentType {
+  return kind === 'grn' ? 'grn' : 'delivery_note';
 }
 
-function referenceTypeLabel(referenceType: DocumentReferenceType, isArabic: boolean): string {
-  if (referenceType === 'inbound_order') {
-    return isArabic ? 'Inbound' : 'Inbound';
-  }
-  return isArabic ? 'Outbound' : 'Outbound';
+function referenceTypeForRoute(kind: ContractsRouteKind): DocumentReferenceType {
+  return kind === 'grn' ? 'inbound_order' : 'outbound_order';
 }
 
-function orderPath(row: ContractListItem): string {
+function orderPath(row: ContractCatalogRow): string {
   return row.referenceType === 'inbound_order'
     ? `/orders/inbound/${row.referenceId}`
     : `/orders/outbound/${row.referenceId}`;
 }
 
+function primaryDocumentNumber(row: ContractCatalogRow): string {
+  return row.en?.documentNumber ?? row.ar?.documentNumber ?? '';
+}
+
+function generationStatusLabel(
+  status: ContractGenerationStatus,
+  t: (message: [string, string]) => string,
+): string {
+  if (status === 'complete') return t(['Complete', 'مكتمل']);
+  if (status === 'partial') return t(['Partial', 'جزئي']);
+  return t(['Not generated', 'لم يُنشأ']);
+}
+
+function generationStatusClass(status: ContractGenerationStatus): string {
+  if (status === 'complete') return 'bg-emerald-50 text-emerald-800';
+  if (status === 'partial') return 'bg-amber-50 text-amber-800';
+  return 'bg-slate-100 text-slate-600';
+}
+
 export function ContractsPage() {
+  const { pathname } = useLocation();
+  const routeKind = resolveRouteKind(pathname);
+  const documentType = documentTypeForRoute(routeKind);
+  const referenceType = referenceTypeForRoute(routeKind);
   const { t, isArabic } = useWmsTranslation();
   const toast = useToast();
-  const [openingId, setOpeningId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [editRow, setEditRow] = useState<ContractCatalogRow | null>(null);
 
   const initialFilters = useMemo<ContractFilters>(
     () => ({
       search: '',
       companyId: '',
-      type: '',
       language: '',
-      referenceType: '',
+      generationStatus: '',
       createdFrom: '',
       createdTo: '',
     }),
@@ -86,23 +109,29 @@ export function ContractsPage() {
     () => ({
       companyId: appliedFilters.companyId || undefined,
       search: appliedFilters.search.trim() || undefined,
-      type: (appliedFilters.type.trim() || undefined) as DocumentType | undefined,
+      type: documentType,
+      referenceType,
       language: (appliedFilters.language.trim() || undefined) as DocumentLang | undefined,
-      referenceType: (appliedFilters.referenceType.trim() || undefined) as
-        | DocumentReferenceType
+      generationStatus: (appliedFilters.generationStatus.trim() || undefined) as
+        | ContractGenerationFilter
         | undefined,
       createdFrom: appliedFilters.createdFrom.trim() || undefined,
       createdTo: appliedFilters.createdTo.trim() || undefined,
     }),
-    [appliedFilters],
+    [appliedFilters, documentType, referenceType],
   );
 
-  const pagination = useChunkedServerPagination<ContractListItem>({
+  const queryKeyPrefix = useMemo(
+    () => (routeKind === 'grn' ? QK.contractsGrn : QK.contractsDn),
+    [routeKind],
+  );
+
+  const pagination = useChunkedServerPagination<ContractCatalogRow>({
     chunkSize: CHUNK_SIZE_STANDARD,
     filterKey: listParams,
     fetchChunk: (offset, limit) => DocumentsApi.listCatalog({ ...listParams, offset, limit }),
-    rtQueryKeyPrefix: QK.contracts,
-    chunkQueryKeyPrefix: 'contracts-chunk',
+    rtQueryKeyPrefix: queryKeyPrefix,
+    chunkQueryKeyPrefix: routeKind === 'grn' ? 'contracts-grn-chunk' : 'contracts-dn-chunk',
   });
 
   const companies = useQuery({
@@ -116,35 +145,77 @@ export function ContractsPage() {
     [companies.data, isArabic],
   );
 
-  async function openPdf(row: ContractListItem) {
-    setOpeningId(row.id);
+  const pageTitle =
+    routeKind === 'grn'
+      ? t(['Goods receipt notes (GRN)', 'سندات استلام البضاعة (GRN)'])
+      : t(['Delivery notes (DN)', 'سندات التسليم (DN)']);
+
+  const emptyMessage =
+    routeKind === 'grn'
+      ? t(['No GRN slots match the filters.', 'لا توجد GRN مطابقة للفلاتر.'])
+      : t(['No delivery note slots match the filters.', 'لا توجد سندات تسليم مطابقة للفلاتر.']);
+
+  const filterDescription =
+    routeKind === 'grn'
+      ? t([
+          'Find GRN slots by order, client, or generation status. Create or open English and Arabic PDFs here.',
+          'ابحث عن GRN حسب الطلب أو العميل أو حالة الإنشاء. أنشئ أو افتح PDF بالإنجليزية والعربية من هنا.',
+        ])
+      : t([
+          'Find delivery note slots by order, client, or generation status. Create or open English and Arabic PDFs here.',
+          'ابحث عن سندات التسليم حسب الطلب أو العميل أو حالة الإنشاء. أنشئ أو افتح PDF بالإنجليزية والعربية من هنا.',
+        ]);
+
+  async function handleLangAction(row: ContractCatalogRow, lang: DocumentLang) {
+    const key = `${row.slotKey}:${lang}`;
+    setBusyKey(key);
     try {
-      await DocumentsApi.openInNewTab(row.id);
+      const slot = lang === 'en' ? row.en : row.ar;
+      if (slot) {
+        await DocumentsApi.openInNewTab(slot.documentId);
+        return;
+      }
+
+      const created =
+        row.type === 'grn'
+          ? await DocumentsApi.generateGrn(row.taskId, lang)
+          : await DocumentsApi.generateDn(row.taskId, lang);
+
+      await queryClient.invalidateQueries({ queryKey: queryKeyPrefix });
+      if (created?.id) await DocumentsApi.openInNewTab(created.id);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : t(['Could not open PDF.', 'تعذر فتح PDF.']),
       );
     } finally {
-      setOpeningId(null);
+      setBusyKey(null);
     }
   }
 
-  const columns: Column<ContractListItem>[] = useMemo(
+  const columns: Column<ContractCatalogRow>[] = useMemo(
     () => [
       {
         header: t(['Contract #', 'رقم العقد']),
-        accessor: (row) => <span className="font-mono font-medium text-slate-900">{row.documentNumber}</span>,
+        accessor: (row) => {
+          const number = primaryDocumentNumber(row);
+          return number ? (
+            <span className="font-mono font-medium text-slate-900">{number}</span>
+          ) : (
+            <span className="font-mono text-xs text-slate-400">{t(['Pending', 'معلق'])}</span>
+          );
+        },
         width: '160px',
       },
       {
-        header: t(['Type', 'النوع']),
-        accessor: (row) => contractTypeLabel(row.type, isArabic),
+        header: t(['Status', 'الحالة']),
+        accessor: (row) => (
+          <span
+            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${generationStatusClass(row.generationStatus)}`}
+          >
+            {generationStatusLabel(row.generationStatus, t)}
+          </span>
+        ),
         width: '120px',
-      },
-      {
-        header: t(['Language', 'اللغة']),
-        accessor: (row) => (row.language === 'ar' ? t(['Arabic', 'العربية']) : t(['English', 'English'])),
-        width: '90px',
       },
       {
         header: t(['Client', 'العميل']),
@@ -168,43 +239,76 @@ export function ContractsPage() {
         width: '150px',
       },
       {
-        header: t(['Source', 'المصدر']),
-        accessor: (row) => referenceTypeLabel(row.referenceType, isArabic),
-        width: '100px',
-      },
-      {
-        header: t(['Size', 'الحجم']),
-        accessor: (row) => (
-          <span className="font-mono text-xs text-slate-600">{formatFileSize(row.fileSize)}</span>
-        ),
-        width: '90px',
-      },
-      {
-        header: t(['Created', 'تاريخ الإنشاء']),
-        accessor: (row) => new Date(row.createdAt).toLocaleString(),
+        header: t(['Completed', 'تاريخ الإكمال']),
+        accessor: (row) =>
+          row.completedAt ? new Date(row.completedAt).toLocaleString() : '—',
         width: '170px',
       },
       {
-        header: t(['PDF', 'PDF']),
+        header: t(['English PDF', 'PDF إنجليزي']),
+        accessor: (row) => {
+          const key = `${row.slotKey}:en`;
+          const existing = row.en;
+          return (
+            <Button
+              type="button"
+              variant={existing ? 'secondary' : 'primary'}
+              size="sm"
+              loading={busyKey === key}
+              onClick={(event) => {
+                event.stopPropagation();
+                void handleLangAction(row, 'en');
+              }}
+            >
+              {existing ? t(['Open PDF', 'فتح PDF']) : t(['Create PDF', 'إنشاء PDF'])}
+            </Button>
+          );
+        },
+        width: '120px',
+        className: 'text-right',
+      },
+      {
+        header: t(['Arabic PDF', 'PDF عربي']),
+        accessor: (row) => {
+          const key = `${row.slotKey}:ar`;
+          const existing = row.ar;
+          return (
+            <Button
+              type="button"
+              variant={existing ? 'secondary' : 'primary'}
+              size="sm"
+              loading={busyKey === key}
+              onClick={(event) => {
+                event.stopPropagation();
+                void handleLangAction(row, 'ar');
+              }}
+            >
+              {existing ? t(['Open PDF', 'فتح PDF']) : t(['Create PDF', 'إنشاء PDF'])}
+            </Button>
+          );
+        },
+        width: '120px',
+        className: 'text-right',
+      },
+      {
+        header: t(['Actions', 'إجراءات']),
         accessor: (row) => (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            loading={openingId === row.id}
-            onClick={(event) => {
-              event.stopPropagation();
-              void openPdf(row);
-            }}
-          >
-            {t(['Open', 'فتح'])}
-          </Button>
+          <RowActionsMenu
+            ariaLabel={t(['Open actions', 'فتح الإجراءات'])}
+            items={[
+              {
+                key: 'edit',
+                label: t(['Edit fields', 'تعديل الحقول']),
+                onClick: () => setEditRow(row),
+              },
+            ]}
+          />
         ),
-        width: '90px',
+        width: '80px',
         className: 'text-right',
       },
     ],
-    [isArabic, openingId],
+    [busyKey, isArabic],
   );
 
   return (
@@ -214,8 +318,8 @@ export function ContractsPage() {
           variant="error"
           title={t(['Failed to load contracts', 'فشل تحميل العقود'])}
           description={t([
-            'There was a problem retrieving GRN and delivery note documents.',
-            'حدثت مشكلة أثناء جلب مستندات GRN وإشعار التسليم.',
+            'There was a problem retrieving contract documents.',
+            'حدثت مشكلة أثناء جلب مستندات العقود.',
           ])}
           className="mb-4"
           onDismiss={() => pagination.refetch()}
@@ -228,10 +332,7 @@ export function ContractsPage() {
 
       <FilterPanel
         title={t(['Contract filters', 'فلاتر العقود'])}
-        description={t([
-          'Find GRN and delivery note PDFs by contract number, client, or related order.',
-          'ابحث عن PDF لـ GRN وإشعار التسليم برقم العقد أو العميل أو الطلب المرتبط.',
-        ])}
+        description={filterDescription}
         onApply={applyFilters}
         onReset={resetFilters}
         loading={pagination.isFetching}
@@ -253,14 +354,15 @@ export function ContractsPage() {
           placeholder={t(['All clients', 'كل العملاء'])}
         />
         <SelectField
-          label={t(['Type', 'النوع'])}
-          name="contractTypeFilter"
-          value={draftFilters.type}
-          onChange={(event) => setDraft({ type: event.target.value })}
+          label={t(['Generation', 'حالة الإنشاء'])}
+          name="contractGenerationFilter"
+          value={draftFilters.generationStatus}
+          onChange={(event) => setDraft({ generationStatus: event.target.value })}
           options={[
-            { value: '', label: t(['All types', 'كل الأنواع']) },
-            { value: 'grn', label: 'GRN' },
-            { value: 'delivery_note', label: t(['Delivery note', 'إشعار تسليم']) },
+            { value: '', label: t(['All statuses', 'كل الحالات']) },
+            { value: 'pending', label: t(['Needs generation', 'يحتاج إنشاء']) },
+            { value: 'generated', label: t(['Has PDF', 'يوجد PDF']) },
+            { value: 'complete', label: t(['Both languages', 'اللغتان']) },
           ]}
         />
         <SelectField
@@ -274,25 +376,14 @@ export function ContractsPage() {
             { value: 'ar', label: t(['Arabic', 'العربية']) },
           ]}
         />
-        <SelectField
-          label={t(['Order type', 'نوع الطلب'])}
-          name="contractReferenceFilter"
-          value={draftFilters.referenceType}
-          onChange={(event) => setDraft({ referenceType: event.target.value })}
-          options={[
-            { value: '', label: t(['All orders', 'كل الطلبات']) },
-            { value: 'inbound_order', label: t(['Inbound', 'وارد']) },
-            { value: 'outbound_order', label: t(['Outbound', 'صادر']) },
-          ]}
-        />
         <TextField
-          label={t(['Created from', 'تاريخ الإنشاء من'])}
+          label={t(['Completed from', 'تاريخ الإكمال من'])}
           type="date"
           value={draftFilters.createdFrom}
           onChange={(event) => setDraft({ createdFrom: event.target.value })}
         />
         <TextField
-          label={t(['Created to', 'تاريخ الإنشاء إلى'])}
+          label={t(['Completed to', 'تاريخ الإكمال إلى'])}
           type="date"
           value={draftFilters.createdTo}
           onChange={(event) => setDraft({ createdTo: event.target.value })}
@@ -300,17 +391,13 @@ export function ContractsPage() {
       </FilterPanel>
 
       <DataTable
-        title={t(['Contracts', 'العقود'])}
+        title={pageTitle}
         columns={columns}
         rows={pagination.rows}
-        rowKey={(row) => row.id}
+        rowKey={(row) => row.slotKey}
         serverPagination={pagination.serverPagination}
         loading={pagination.isInitialLoading}
-        onRowClick={(row) => void openPdf(row)}
-        empty={t([
-          'No GRN or delivery note contracts match the filters.',
-          'لا توجد عقود GRN أو إشعار تسليم مطابقة للفلاتر.',
-        ])}
+        empty={emptyMessage}
         labels={{
           rowsSuffix: t(['rows', 'صف']),
           resultsSuffix: t(['results', 'نتيجة']),
@@ -319,6 +406,13 @@ export function ContractsPage() {
           next: t(['Next', 'التالي']),
           rowsPerPageAria: t(['Rows per page', 'عدد الصفوف لكل صفحة']),
         }}
+      />
+
+      <EditDocumentSlotModal
+        open={!!editRow}
+        row={editRow}
+        onClose={() => setEditRow(null)}
+        onSaved={() => void queryClient.invalidateQueries({ queryKey: queryKeyPrefix })}
       />
     </>
   );

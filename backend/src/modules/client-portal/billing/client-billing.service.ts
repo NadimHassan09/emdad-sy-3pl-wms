@@ -108,7 +108,7 @@ export class ClientBillingService {
     const limit = Math.min(Math.max(params.limit, 1), 200);
     const offset = Math.max(params.offset, 0);
 
-    const allowedStatuses = ['draft', 'open', 'paid', 'cancelled'] as const;
+    const allowedStatuses = ['draft', 'unpaid', 'paid', 'cancelled'] as const;
     const statusFilter =
       params.status && allowedStatuses.includes(params.status as (typeof allowedStatuses)[number])
         ? (params.status as (typeof allowedStatuses)[number])
@@ -125,9 +125,16 @@ export class ClientBillingService {
           id: true,
           companyId: true,
           billingCycleId: true,
+          invoiceSource: true,
           invoiceNumber: true,
           status: true,
+          subtotalAmount: true,
+          discountAmount: true,
+          vatAmount: true,
+          vatPercentage: true,
+          grandTotal: true,
           totalAmount: true,
+          dueDate: true,
           issuedAt: true,
           createdAt: true,
           updatedAt: true,

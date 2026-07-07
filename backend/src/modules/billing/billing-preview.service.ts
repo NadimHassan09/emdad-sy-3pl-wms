@@ -5,6 +5,7 @@ import { CompanyAccessService } from '../../common/company-access/company-access
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
 import { BillingUsageService } from './billing-usage.service';
+import { INVOICE_SELECT } from './billing-invoices.service';
 
 @Injectable()
 export class BillingPreviewService {
@@ -15,10 +16,6 @@ export class BillingPreviewService {
     private readonly invoiceCalc: BillingInvoiceCalculationService,
   ) {}
 
-  /**
-   * Live draft-invoice preview for the client's current billing cycle.
-   * Triggers recalculation before returning (preview is not persisted as open).
-   */
   async getCompanyPreview(user: AuthPrincipal, companyId: string) {
     this.companyAccess.assertCompanyAccess(user, companyId);
 
@@ -30,6 +27,9 @@ export class BillingPreviewService {
         reservedVolume: true,
         reservedWeight: true,
         fixedSubscriptionFee: true,
+        outboundBaseFee: true,
+        outboundIncludedItems: true,
+        outboundAdditionalItemFee: true,
       },
     });
     if (!plan) throw new NotFoundException('No active billing plan for this client.');
@@ -56,21 +56,7 @@ export class BillingPreviewService {
 
     const invoice = await this.prisma.invoice.findFirst({
       where: { billingCycleId: cycle.id, status: 'draft' },
-      select: {
-        id: true,
-        invoiceNumber: true,
-        status: true,
-        totalAmount: true,
-        lines: {
-          select: {
-            id: true,
-            type: true,
-            quantity: true,
-            unitPrice: true,
-            totalPrice: true,
-          },
-        },
-      },
+      select: INVOICE_SELECT,
     });
 
     const usageTotals = await this.usage.getCompanyUsage(companyId);
@@ -101,10 +87,13 @@ export class BillingPreviewService {
             invoiceId: invoice.id,
             invoiceNumber: invoice.invoiceNumber,
             status: invoice.status,
-            subtotal: invoice.totalAmount.toString(),
-            tax: '0',
-            discount: '0',
-            grandTotal: invoice.totalAmount.toString(),
+            subtotal: invoice.subtotalAmount.toString(),
+            tax: invoice.vatAmount.toString(),
+            discount: invoice.discountAmount.toString(),
+            grandTotal: invoice.grandTotal.toString(),
+            vatPercentage: invoice.vatPercentage.toString(),
+            discountType: invoice.discountType,
+            discountValue: invoice.discountValue?.toString() ?? null,
             lines: invoice.lines.map((l) => ({
               ...l,
               quantity: l.quantity.toString(),

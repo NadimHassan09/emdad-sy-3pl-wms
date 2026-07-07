@@ -22,6 +22,9 @@ export function parseRateSnapshot(raw: unknown): BillingRateSnapshot | null {
     'fixedSubscriptionFee',
     'inboundOrderFee',
     'outboundOrderFee',
+    'outboundBaseFee',
+    'outboundIncludedItems',
+    'outboundAdditionalItemFee',
     'packagingFee',
     'qualityCheckFee',
     'excessVolumeFeePerDay',
@@ -30,6 +33,10 @@ export function parseRateSnapshot(raw: unknown): BillingRateSnapshot | null {
     'reservedWeight',
   ] as const;
   for (const key of keys) {
+    if (key === 'outboundIncludedItems') {
+      if (typeof o[key] !== 'number' && typeof o[key] !== 'string') return null;
+      continue;
+    }
     if (typeof o[key] !== 'string') return null;
   }
   return {
@@ -37,6 +44,14 @@ export function parseRateSnapshot(raw: unknown): BillingRateSnapshot | null {
     fixedSubscriptionFee: o.fixedSubscriptionFee as string,
     inboundOrderFee: o.inboundOrderFee as string,
     outboundOrderFee: o.outboundOrderFee as string,
+    outboundBaseFee:
+      typeof o.outboundBaseFee === 'string' ? o.outboundBaseFee : (o.outboundOrderFee as string),
+    outboundIncludedItems:
+      typeof o.outboundIncludedItems === 'number'
+        ? o.outboundIncludedItems
+        : Number(o.outboundIncludedItems ?? 0),
+    outboundAdditionalItemFee:
+      typeof o.outboundAdditionalItemFee === 'string' ? o.outboundAdditionalItemFee : '0',
     packagingFee: o.packagingFee as string,
     qualityCheckFee: o.qualityCheckFee as string,
     excessVolumeFeePerDay: o.excessVolumeFeePerDay as string,
@@ -101,19 +116,47 @@ export function renewalStatusLabel(status?: string): string {
 
 export function humanizeInvoiceStatus(status: string): string {
   if (status === 'draft') return 'Draft';
-  if (status === 'open') return 'Open';
+  if (status === 'unpaid') return 'Unpaid';
+  if (status === 'open') return 'Unpaid';
   if (status === 'paid') return 'Paid';
   if (status === 'cancelled') return 'Cancelled';
-  if (status === 'overdue') return 'Overdue';
+  if (status === 'overdue') return 'Unpaid';
   return status;
 }
 
 export function invoiceStatusClass(status: string): string {
   if (status === 'paid') return 'badge badge-complete';
-  if (status === 'open') return 'badge badge-progress';
-  if (status === 'overdue') return 'badge badge-cancelled';
+  if (status === 'unpaid' || status === 'open' || status === 'overdue') return 'badge badge-progress';
   if (status === 'cancelled') return 'badge badge-cancelled';
   return 'badge';
+}
+
+export function lineLabel(line: BillingInvoiceLineRow): string {
+  if (line.description?.trim()) return line.description.trim();
+  const labels: Record<string, string> = {
+    subscription: 'Fixed subscription',
+    inbound: 'Inbound orders',
+    outbound: 'Outbound orders (tiered)',
+    packaging: 'Packaging',
+    quality_check: 'Quality check',
+    excess_volume: 'Excess volume',
+    excess_weight: 'Excess weight',
+    manual: 'Manual charge',
+    order_charge: 'Order charge (VAS)',
+  };
+  return labels[line.type] ?? line.type;
+}
+
+export function systemLines(lines: BillingInvoiceLineRow[] | undefined): BillingInvoiceLineRow[] {
+  return (lines ?? []).filter((l) => l.lineSource === 'system');
+}
+
+export function manualLines(lines: BillingInvoiceLineRow[] | undefined): BillingInvoiceLineRow[] {
+  return (lines ?? []).filter((l) => l.lineSource === 'manual');
+}
+
+export function orderChargeLines(lines: BillingInvoiceLineRow[] | undefined): BillingInvoiceLineRow[] {
+  return (lines ?? []).filter((l) => l.lineSource === 'order');
 }
 
 export { formatDate, formatDecimal } from './billing-plan-overview';

@@ -211,6 +211,25 @@ export function BillingInvoiceDetailPage(): ReactElement {
               />
               <ChargeRow label={t('Volume charges')} amount={lineTotalByType(lines, 'excess_volume')} />
               <ChargeRow label={t('Weight charges')} amount={lineTotalByType(lines, 'excess_weight')} />
+              {lines
+                .filter((l) => l.lineSource === 'manual' || l.lineSource === 'order' || l.type === 'manual' || l.type === 'order_charge')
+                .map((line) => (
+                  <ChargeRow
+                    key={line.id}
+                    label={line.description ?? line.type}
+                    amount={line.totalPrice}
+                  />
+                ))}
+              <ChargeRow label="Subtotal" amount={data.subtotalAmount ?? data.totalAmount} />
+              {Number(data.discountAmount ?? 0) > 0 ? (
+                <ChargeRow label="Discount" amount={`-${data.discountAmount}`} />
+              ) : null}
+              {Number(data.vatAmount ?? 0) > 0 ? (
+                <ChargeRow
+                  label={`VAT (${formatDecimal(data.vatPercentage ?? '0', 2)}%)`}
+                  amount={data.vatAmount ?? '0'}
+                />
+              ) : null}
               <div
                 style={{
                   display: 'flex',
@@ -223,7 +242,7 @@ export function BillingInvoiceDetailPage(): ReactElement {
               >
                 <span>{t('Grand total')}</span>
                 <span className="font-mono" dir="ltr">
-                  {formatDecimal(data.totalAmount)}
+                  {formatDecimal(data.grandTotal ?? data.totalAmount)}
                 </span>
               </div>
             </section>

@@ -14,6 +14,7 @@ import { Combobox } from '../components/Combobox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { OrderDocumentsCard } from '../components/documents/OrderDocumentsCard';
+import { OrderManualChargesSection } from '../components/billing/OrderManualChargesSection';
 import { FILTER_RESET_BUTTON_CLASS, FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { StatusBadge } from '../components/StatusBadge';
@@ -54,6 +55,7 @@ function inboundDetailLabel(label: string, isArabic: boolean): string {
     'Expected arrival': 'تاريخ الوصول المتوقع',
     'Confirmed at': 'تم التأكيد في',
     'Completed at': 'تم الإكمال في',
+    Notes: 'ملاحظات',
     Warehouse: 'المستودع',
     SKU: 'رمز الصنف',
     Product: 'المنتج',
@@ -264,6 +266,12 @@ export function InboundDetailPage() {
         <Field label={t('Expected arrival')} value={new Date(o.expectedArrivalDate).toLocaleDateString()} />
         <Field label={t('Confirmed at')} value={o.confirmedAt ? new Date(o.confirmedAt).toLocaleString() : '—'} />
         <Field label={t('Completed at')} value={o.completedAt ? new Date(o.completedAt).toLocaleString() : '—'} />
+        <div className="col-span-2 md:col-span-4">
+          <Field
+            label={t('Notes')}
+            value={o.notes ? <span className="whitespace-pre-wrap">{o.notes}</span> : '—'}
+          />
+        </div>
         </div>
       </FilterPanel>
 
@@ -306,6 +314,12 @@ export function InboundDetailPage() {
         referenceType="inbound_order"
         referenceId={id}
         companyIdOverride={o.companyId}
+      />
+
+      <OrderManualChargesSection
+        referenceType="inbound_order"
+        referenceId={id}
+        canEdit={user?.role === 'super_admin' || user?.role === 'wh_manager'}
       />
 
       <DataTable

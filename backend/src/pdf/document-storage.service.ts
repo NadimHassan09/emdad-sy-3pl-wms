@@ -22,6 +22,7 @@ export class DocumentStorageService {
   private readonly subdir: Record<DocumentType, string> = {
     [DocumentType.grn]: 'grn',
     [DocumentType.delivery_note]: 'delivery-notes',
+    [DocumentType.final_contract]: 'final-contracts',
   };
 
   constructor(config: ConfigService) {

@@ -1,11 +1,16 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, Min } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, Min, MinLength } from 'class-validator';
 
 import { BillingInvoiceLineType } from '@prisma/client';
 
 export class CreateInvoiceLineDto {
+  @IsOptional()
   @IsEnum(BillingInvoiceLineType)
-  type!: BillingInvoiceLineType;
+  type?: BillingInvoiceLineType;
+
+  @IsString()
+  @MinLength(1)
+  description!: string;
 
   @Type(() => Number)
   @IsNumber()

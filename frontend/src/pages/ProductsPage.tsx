@@ -569,7 +569,7 @@ function CreateProductModal({
   const [widthCm, setWidthCm] = useState('');
   const [heightCm, setHeightCm] = useState('');
   const [weightKg, setWeightKg] = useState('');
-  const [expiryTracking, setExpiryTracking] = useState(true);
+  const [expiryTracking, setExpiryTracking] = useState(false);
 
   const companies = useQuery({
     queryKey: QK.companies,
@@ -599,7 +599,7 @@ function CreateProductModal({
     setWidthCm('');
     setHeightCm('');
     setWeightKg('');
-    setExpiryTracking(true);
+    setExpiryTracking(false);
   };
 
   const handleClose = () => {
@@ -796,7 +796,7 @@ function EditProductModal({ open, product, loading, onClose, onSubmit }: EditPro
   const [widthCm, setWidthCm] = useState('');
   const [heightCm, setHeightCm] = useState('');
   const [weightKg, setWeightKg] = useState('');
-  const [expiryTracking, setExpiryTracking] = useState(true);
+  const [expiryTracking, setExpiryTracking] = useState(false);
 
   useEffect(() => {
     if (product) {
