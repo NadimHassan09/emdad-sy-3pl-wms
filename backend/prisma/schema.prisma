@@ -298,10 +298,14 @@ enum OutboundOrderStatus {
   pending_approval
   pending_stock
   confirmed
+  allocated
   picking
   packing
   ready_to_ship
+  out_for_delivery
   shipped
+  delivered
+  returned
   cancelled
 
   @@map("outbound_order_status")
@@ -355,6 +359,58 @@ enum ReturnItemDisposition {
   inspection_required
 
   @@map("return_item_disposition")
+}
+
+enum InboundSourceType {
+  purchase
+  return
+  transfer
+
+  @@map("inbound_source_type")
+}
+
+enum OmsPaymentMethod {
+  COD
+  PREPAID
+  CREDIT
+
+  @@map("oms_payment_method")
+}
+
+enum OmsCodStatus {
+  pending
+  collected
+  remitted
+  settled
+
+  @@map("oms_cod_status")
+}
+
+enum OmsAllocationStatus {
+  none
+  allocated
+  released
+  fulfilled
+
+  @@map("oms_allocation_status")
+}
+
+enum OmsSalesChannelType {
+  shopify
+  woocommerce
+  salla
+  zid
+  custom_rest
+
+  @@map("oms_sales_channel_type")
+}
+
+enum ReservationStatus {
+  active
+  fulfilled
+  released
+
+  @@map("reservation_status")
 }
 
 enum PackageStatus {
@@ -560,6 +616,10 @@ model Company {
   orderManualCharges     OrderManualCharge[]
   documents              Document[]
   finalContracts         FinalContract[]
+  stockReservations      StockReservation[]
+  omsOrderEvents         OmsOrderEvent[]
+  omsSalesChannels       OmsSalesChannel[]
+  omsIntegrationEvents   OmsIntegrationEvent[]
 
   @@map("companies")
 }
@@ -815,6 +875,7 @@ model User {
   backupSchedulesUpdated      BackupSchedule[]     @relation("BackupScheduleUpdatedBy")
   backupDriveIntegrations     BackupDriveIntegration[] @relation("BackupDriveConnectedBy")
   backupStorageSettingsUpdated BackupStorageSettings[] @relation("BackupStorageSettingsUpdatedBy")
+  omsOrderEventsCreated      OmsOrderEvent[]          @relation("OmsOrderEventCreatedBy")
 
   @@map("users")
 }
@@ -994,6 +1055,7 @@ model Location {
   cycleCountVariances    CycleCountVariance[]
   packages               Package[]
   returnOrderLines       ReturnOrderLine[]
+  stockReservations      StockReservation[]
 
   @@index([warehouseId, parentId, sortOrder], map: "idx_locations_wh_parent_sort")
   @@map("locations")
@@ -1032,6 +1094,7 @@ model Product {
   cycleCountLines            CycleCountLine[]
   cycleCountVariances        CycleCountVariance[]
   cycleCountProductHistory   CycleCountProductHistory[]
+  stockReservations          StockReservation[]
 
   @@unique([companyId, sku], map: "uq_product_sku_per_company")
   @@map("products")
@@ -1054,6 +1117,7 @@ model Lot {
   cycleCountVariances    CycleCountVariance[]
   returnOrderLines       ReturnOrderLine[]
   packages               Package[]
+  stockReservations      StockReservation[]
 
   @@unique([productId, lotNumber], map: "uq_lot_per_product")
   @@map("lots")
@@ -1330,6 +1394,9 @@ model InboundOrder {
   expectedArrivalDate DateTime           @map("expected_arrival_date") @db.Date
   clientReference     String?            @map("client_reference")
   notes               String?
+  sourceType          InboundSourceType? @map("source_type")
+  storeChannel        String?            @map("store_channel")
+  externalReference   String?            @map("external_reference")
   confirmedAt         DateTime?          @map("confirmed_at") @db.Timestamptz(6)
   completedAt         DateTime?          @map("completed_at") @db.Timestamptz(6)
   cancelledAt         DateTime?          @map("cancelled_at") @db.Timestamptz(6)
@@ -1371,31 +1438,56 @@ model InboundOrderLine {
 // ---------------------------------------------------------------------------
 
 model OutboundOrder {
-  id                 String              @id @default(uuid()) @db.Uuid
-  companyId          String              @map("company_id") @db.Uuid
+  id                   String              @id @default(uuid()) @db.Uuid
+  companyId            String              @map("company_id") @db.Uuid
   /// DEFAULT '' — populated by trigger fn_outbound_order_number on INSERT
-  orderNumber        String              @unique @default("") @map("order_number")
-  status             OutboundOrderStatus @default(draft)
-  destinationAddress String              @map("destination_address")
-  requiredShipDate   DateTime            @map("required_ship_date") @db.Date
-  carrier            String?
-  trackingNumber     String?             @map("tracking_number")
-  clientReference    String?             @map("client_reference")
-  notes              String?
-  requiresPacking    Boolean             @default(true) @map("requires_packing")
-  confirmedAt        DateTime?           @map("confirmed_at") @db.Timestamptz(6)
-  pickingStartedAt   DateTime?           @map("picking_started_at") @db.Timestamptz(6)
-  shippedAt          DateTime?           @map("shipped_at") @db.Timestamptz(6)
-  cancelledAt        DateTime?           @map("cancelled_at") @db.Timestamptz(6)
-  cancelledBy        String?             @map("cancelled_by") @db.Uuid
-  createdBy          String              @map("created_by") @db.Uuid
-  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
+  orderNumber          String              @unique @default("") @map("order_number")
+  status               OutboundOrderStatus @default(draft)
+  destinationAddress   String              @map("destination_address")
+  requiredShipDate     DateTime            @map("required_ship_date") @db.Date
+  carrier              String?
+  trackingNumber       String?             @map("tracking_number")
+  clientReference      String?             @map("client_reference")
+  notes                String?
+  requiresPacking      Boolean             @default(true) @map("requires_packing")
+  recipientName        String?             @map("recipient_name")
+  recipientPhone       String?             @map("recipient_phone")
+  city                 String?
+  district             String?
+  addressLine1         String?             @map("address_line1")
+  addressLine2         String?             @map("address_line2")
+  deliveryInstructions String?             @map("delivery_instructions")
+  paymentMethod        OmsPaymentMethod?   @map("payment_method")
+  subtotal             Decimal?            @db.Decimal(15, 4)
+  shippingFee          Decimal?            @map("shipping_fee") @db.Decimal(15, 4)
+  codAmount            Decimal?            @map("cod_amount") @db.Decimal(15, 4)
+  currency             String?             @default("SYP")
+  codCollectedAt       DateTime?           @map("cod_collected_at") @db.Timestamptz(6)
+  codRemittedAt        DateTime?           @map("cod_remitted_at") @db.Timestamptz(6)
+  codStatus            OmsCodStatus?       @map("cod_status")
+  allocationStatus     OmsAllocationStatus @default(none) @map("allocation_status")
+  allocatedAt          DateTime?           @map("allocated_at") @db.Timestamptz(6)
+  outForDeliveryAt     DateTime?           @map("out_for_delivery_at") @db.Timestamptz(6)
+  deliveredAt          DateTime?           @map("delivered_at") @db.Timestamptz(6)
+  returnedAt           DateTime?           @map("returned_at") @db.Timestamptz(6)
+  storeChannel         String?             @map("store_channel")
+  externalReference    String?             @map("external_reference")
+  confirmedAt          DateTime?           @map("confirmed_at") @db.Timestamptz(6)
+  pickingStartedAt     DateTime?           @map("picking_started_at") @db.Timestamptz(6)
+  shippedAt            DateTime?           @map("shipped_at") @db.Timestamptz(6)
+  cancelledAt          DateTime?           @map("cancelled_at") @db.Timestamptz(6)
+  cancelledBy          String?             @map("cancelled_by") @db.Uuid
+  createdBy            String              @map("created_by") @db.Uuid
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  company      Company             @relation(fields: [companyId], references: [id])
-  creator      User                @relation("OutboundCreatedBy", fields: [createdBy], references: [id])
-  lines        OutboundOrderLine[]
-  returnOrders ReturnOrder[]
+  company           Company             @relation(fields: [companyId], references: [id])
+  creator           User                @relation("OutboundCreatedBy", fields: [createdBy], references: [id])
+  lines             OutboundOrderLine[]
+  returnOrders      ReturnOrder[]
+  stockReservations StockReservation[]
+  omsEvents         OmsOrderEvent[]
+  integrationEvents OmsIntegrationEvent[]
 
   @@map("outbound_orders")
 }
@@ -1409,14 +1501,102 @@ model OutboundOrderLine {
   specificLotId      String?            @map("specific_lot_id") @db.Uuid
   status             OutboundLineStatus @default(pending)
   lineNumber         Int                @map("line_number")
+  unitPrice          Decimal?           @map("unit_price") @db.Decimal(15, 4)
+  lineTotal          Decimal?           @map("line_total") @db.Decimal(15, 4)
+  discountAmount     Decimal?           @map("discount_amount") @db.Decimal(15, 4)
   createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   order              OutboundOrder      @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
   product            Product            @relation(fields: [productId], references: [id])
   returnOrderLines   ReturnOrderLine[]
+  stockReservations  StockReservation[]
 
   @@map("outbound_order_lines")
+}
+
+/// Drives current_stock.quantity_reserved via DB trigger (see 0_init migration).
+model StockReservation {
+  id                  String            @id @default(uuid()) @db.Uuid
+  companyId           String            @map("company_id") @db.Uuid
+  productId           String            @map("product_id") @db.Uuid
+  locationId          String            @map("location_id") @db.Uuid
+  lotId               String?           @map("lot_id") @db.Uuid
+  outboundOrderId     String            @map("outbound_order_id") @db.Uuid
+  outboundOrderLineId String?           @map("outbound_order_line_id") @db.Uuid
+  quantity            Decimal           @db.Decimal(15, 4)
+  status              ReservationStatus @default(active)
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company           Company            @relation(fields: [companyId], references: [id])
+  product           Product            @relation(fields: [productId], references: [id])
+  location          Location           @relation(fields: [locationId], references: [id])
+  lot               Lot?               @relation(fields: [lotId], references: [id])
+  outboundOrder     OutboundOrder      @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
+  outboundOrderLine OutboundOrderLine? @relation(fields: [outboundOrderLineId], references: [id], onDelete: SetNull)
+
+  @@index([outboundOrderId], map: "idx_reservations_order")
+  @@index([companyId, productId, status], map: "idx_reservations_company")
+  @@map("stock_reservations")
+}
+
+model OmsOrderEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  outboundOrderId String   @map("outbound_order_id") @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  eventType       String   @map("event_type")
+  payload         Json?
+  createdBy       String?  @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  outboundOrder OutboundOrder @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
+  company       Company       @relation(fields: [companyId], references: [id])
+  creator       User?         @relation("OmsOrderEventCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([outboundOrderId, createdAt(sort: Desc)], map: "idx_oms_order_events_order")
+  @@map("oms_order_events")
+}
+
+model OmsSalesChannel {
+  id                String              @id @default(uuid()) @db.Uuid
+  companyId         String              @map("company_id") @db.Uuid
+  channelType       OmsSalesChannelType @map("channel_type")
+  name              String
+  externalStoreId   String?             @map("external_store_id")
+  webhookSecretHash String              @map("webhook_secret_hash")
+  isActive          Boolean             @default(true) @map("is_active")
+  config            Json?
+  lastSyncAt        DateTime?           @map("last_sync_at") @db.Timestamptz(6)
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company           Company               @relation(fields: [companyId], references: [id])
+  integrationEvents OmsIntegrationEvent[]
+
+  @@index([companyId], map: "idx_oms_sales_channels_company")
+  @@map("oms_sales_channels")
+}
+
+model OmsIntegrationEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  salesChannelId  String?  @map("sales_channel_id") @db.Uuid
+  outboundOrderId String?  @map("outbound_order_id") @db.Uuid
+  eventType       String   @map("event_type")
+  externalId      String?  @map("external_id")
+  payload         Json?
+  status          String   @default("received")
+  errorMessage    String?  @map("error_message")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  company       Company          @relation(fields: [companyId], references: [id])
+  salesChannel  OmsSalesChannel? @relation(fields: [salesChannelId], references: [id], onDelete: SetNull)
+  outboundOrder OutboundOrder?   @relation(fields: [outboundOrderId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt(sort: Desc)], map: "idx_oms_integration_events_company")
+  @@index([salesChannelId, createdAt(sort: Desc)], map: "idx_oms_integration_events_channel")
+  @@map("oms_integration_events")
 }
 
 // ---------------------------------------------------------------------------

@@ -88,6 +88,13 @@ export function RealtimeProvider({ children }: Props): ReactElement {
     }): void => {
       patchClientOutboundUpdated(qc, payload);
     };
+    const onOmsOrderEvent = (payload: { orderId?: string }): void => {
+      if (!payload?.orderId) return;
+      void qc.invalidateQueries({ queryKey: ['client', 'outbound-orders'] });
+      void qc.invalidateQueries({ queryKey: ['client', 'outbound-orders', payload.orderId] });
+      void qc.invalidateQueries({ queryKey: ['client', 'outbound-orders', payload.orderId, 'oms'] });
+      void qc.invalidateQueries({ queryKey: ['client', 'cod-report'] });
+    };
     const onInventory = (payload: { stockRow?: ClientStockRow }): void => {
       if (payload.stockRow) patchClientStockRow(qc, payload.stockRow);
     };
@@ -114,6 +121,7 @@ export function RealtimeProvider({ children }: Props): ReactElement {
     socket.on(RealtimeEvents.INBOUND_ORDER_UPDATED, onInboundUpdated);
     socket.on(RealtimeEvents.OUTBOUND_ORDER_CREATED, onOutboundCreated);
     socket.on(RealtimeEvents.OUTBOUND_ORDER_UPDATED, onOutboundUpdated);
+    socket.on(RealtimeEvents.OMS_ORDER_EVENT, onOmsOrderEvent);
     socket.on(RealtimeEvents.TASK_UPDATED, onInventory);
     socket.on(RealtimeEvents.INVENTORY_CHANGED, onInventory);
     socket.on(RealtimeEvents.PRODUCT_CREATED, onProductCreated);
@@ -127,6 +135,7 @@ export function RealtimeProvider({ children }: Props): ReactElement {
       socket.off(RealtimeEvents.INBOUND_ORDER_UPDATED, onInboundUpdated);
       socket.off(RealtimeEvents.OUTBOUND_ORDER_CREATED, onOutboundCreated);
       socket.off(RealtimeEvents.OUTBOUND_ORDER_UPDATED, onOutboundUpdated);
+      socket.off(RealtimeEvents.OMS_ORDER_EVENT, onOmsOrderEvent);
       socket.off(RealtimeEvents.TASK_UPDATED, onInventory);
       socket.off(RealtimeEvents.INVENTORY_CHANGED, onInventory);
       socket.off(RealtimeEvents.PRODUCT_CREATED, onProductCreated);

@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { OutboundApi, OutboundOrderLine, type ConfirmOutboundBody } from '../api/outbound';
+import { OmsApi } from '../api/oms';
 import { Button } from '@ds';
 
 import { useAuth } from '../auth/AuthContext';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
+import { OutboundOmsPanel } from '../components/outbound/OutboundOmsPanel';
 import { OrderDocumentsCard } from '../components/documents/OrderDocumentsCard';
 import { OrderManualChargesSection } from '../components/billing/OrderManualChargesSection';
 import { Combobox } from '../components/Combobox';
@@ -87,6 +89,12 @@ export function OutboundDetailPage() {
   const order = useQuery({
     queryKey: [...QK.outboundOrders, id],
     queryFn: () => OutboundApi.get(id),
+    enabled: !!id,
+  });
+
+  const omsOrder = useQuery({
+    queryKey: [...QK.outboundOrders, id, 'oms'],
+    queryFn: () => OmsApi.getOrder(id),
     enabled: !!id,
   });
 
@@ -245,6 +253,17 @@ export function OutboundDetailPage() {
           </div>
         </div>
       </FilterPanel>
+
+      {omsOrder.data ? (
+        <OutboundOmsPanel
+          orderId={id}
+          order={omsOrder.data}
+          onRefresh={() => {
+            void omsOrder.refetch();
+            void order.refetch();
+          }}
+        />
+      ) : null}
 
       {taskOnlyMode && canConfirm ? (
         <div className="mb-4 space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-4 text-sm text-amber-950">

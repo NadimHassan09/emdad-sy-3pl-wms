@@ -56,7 +56,14 @@ const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
 
 function routeGroup(pathname: string): string {
   if (pathname === '/dashboard' || pathname === '/') return 'home';
-  if (pathname.startsWith('/inbound-orders') || pathname.startsWith('/outbound-orders')) return 'orders';
+  if (
+    pathname.startsWith('/inbound-orders') ||
+    pathname.startsWith('/outbound-orders') ||
+    pathname.startsWith('/cod-reports') ||
+    pathname.startsWith('/returns')
+  ) {
+    return 'orders';
+  }
   if (pathname.startsWith('/products')) return 'products';
   if (pathname.startsWith('/stock')) return 'stock';
   if (pathname.startsWith('/billing')) return 'billing';

@@ -76,6 +76,8 @@ const envSchema = z.object({
   DOC_BRAND_WEBSITE: z.string().min(1).optional(),
   DOC_BRAND_ADDRESS_EN: z.string().min(1).optional(),
   DOC_BRAND_ADDRESS_AR: z.string().min(1).optional(),
+  // OMS — when true, reserve stock on order create (admin OMS) and on warehouse confirm (client portal).
+  ALLOCATE_ON_ORDER_CREATE: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
 });
 
 function envBool(raw: unknown): boolean {

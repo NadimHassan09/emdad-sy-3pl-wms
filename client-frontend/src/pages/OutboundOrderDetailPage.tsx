@@ -4,6 +4,8 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { fetchClientOutboundOrder } from '../services/clientOutboundOrdersService';
+import { fetchClientOmsOrder } from '../services/clientOmsOrdersService';
+import { ClientOrderTrackingPanel } from '../components/ClientOrderTrackingPanel';
 
 export function OutboundOrderDetailPage(): ReactElement {
   const { id = '' } = useParams<{ id: string }>();
@@ -11,6 +13,12 @@ export function OutboundOrderDetailPage(): ReactElement {
   const { data, isLoading, error } = useQuery({
     queryKey: ['client', 'outbound-orders', id],
     queryFn: () => fetchClientOutboundOrder(id),
+    enabled: !!id,
+  });
+
+  const omsQuery = useQuery({
+    queryKey: ['client', 'outbound-orders', id, 'oms'],
+    queryFn: () => fetchClientOmsOrder(id),
     enabled: !!id,
   });
 
@@ -114,6 +122,60 @@ export function OutboundOrderDetailPage(): ReactElement {
                 </div>
               ) : null}
             </dl>
+
+            {omsQuery.data ? (
+              <>
+                <div className="card" style={{ marginTop: '1.5rem', padding: '1rem' }}>
+                  <h2 className="card__title" style={{ fontSize: '1.1rem' }}>Customer</h2>
+                  <dl className="details">
+                    <div className="details__row">
+                      <dt>Name</dt>
+                      <dd>{omsQuery.data.recipientName ?? '—'}</dd>
+                    </div>
+                    <div className="details__row">
+                      <dt>Phone</dt>
+                      <dd>{omsQuery.data.recipientPhone ?? '—'}</dd>
+                    </div>
+                    <div className="details__row">
+                      <dt>City</dt>
+                      <dd>{omsQuery.data.city ?? '—'}</dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {(omsQuery.data.paymentMethod || omsQuery.data.codAmount) ? (
+                  <div className="card" style={{ marginTop: '1rem', padding: '1rem' }}>
+                    <h2 className="card__title" style={{ fontSize: '1.1rem' }}>Financial</h2>
+                    <dl className="details">
+                      <div className="details__row">
+                        <dt>Payment</dt>
+                        <dd>{omsQuery.data.paymentMethod ?? '—'}</dd>
+                      </div>
+                      {omsQuery.data.codAmount ? (
+                        <div className="details__row">
+                          <dt>COD amount</dt>
+                          <dd>{omsQuery.data.codAmount} {omsQuery.data.currency ?? ''}</dd>
+                        </div>
+                      ) : null}
+                      {omsQuery.data.codStatus ? (
+                        <div className="details__row">
+                          <dt>COD status</dt>
+                          <dd>{omsQuery.data.codStatus}</dd>
+                        </div>
+                      ) : null}
+                      {omsQuery.data.subtotal ? (
+                        <div className="details__row">
+                          <dt>Subtotal</dt>
+                          <dd>{omsQuery.data.subtotal}</dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                  </div>
+                ) : null}
+
+                <ClientOrderTrackingPanel order={omsQuery.data} />
+              </>
+            ) : null}
 
             <h2 className="card__title" style={{ marginTop: '1.5rem', fontSize: '1.1rem' }}>
               Line items

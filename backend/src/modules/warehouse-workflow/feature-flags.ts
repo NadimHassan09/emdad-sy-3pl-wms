@@ -18,3 +18,8 @@ export function taskOnlyFlows(config: ConfigService): boolean {
   if (raw === 'false' || raw === '0' || raw === 'no' || raw === 'off') return false;
   return true;
 }
+
+/** When true, OMS allocates stock via stock_reservations on order create/confirm. */
+export function allocateOnOrderCreate(config: ConfigService): boolean {
+  return (config.get<string>('ALLOCATE_ON_ORDER_CREATE') ?? '').trim().toLowerCase() === 'true';
+}

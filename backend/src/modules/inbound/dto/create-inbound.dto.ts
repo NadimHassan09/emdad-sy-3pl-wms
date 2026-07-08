@@ -3,6 +3,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsEnum,
   IsNumber,
   IsOptional,
   IsPositive,
@@ -10,6 +11,7 @@ import {
   Length,
   ValidateNested,
 } from 'class-validator';
+import { InboundSourceType } from '@prisma/client';
 
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 
@@ -46,6 +48,18 @@ export class CreateInboundOrderDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsEnum(InboundSourceType)
+  sourceType?: InboundSourceType;
+
+  @IsOptional()
+  @IsString()
+  storeChannel?: string;
+
+  @IsOptional()
+  @IsString()
+  externalReference?: string;
 
   @IsArray()
   @ArrayMinSize(1)

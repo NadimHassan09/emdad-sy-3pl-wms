@@ -4,6 +4,7 @@ import { io, type Socket } from 'socket.io-client';
 
 import { useAuth } from '../auth/AuthContext';
 import { getAccessToken } from '../auth/authStorage';
+import { QK } from '../constants/query-keys';
 import { RealtimeEvents } from './constants';
 import type { WarehouseTaskListItem } from '../api/tasks';
 import {
@@ -127,6 +128,18 @@ export function RealtimeProvider({ children }: Props): ReactElement {
       status?: string;
     }): void => {
       patchOutboundUpdated(qc, payload);
+    };
+    const onOmsOrderEvent = (payload: {
+      orderId?: string;
+      status?: string;
+      event?: string;
+    }): void => {
+      if (!payload?.orderId) return;
+      void qc.invalidateQueries({ queryKey: QK.outboundOrders });
+      void qc.invalidateQueries({ queryKey: [...QK.outboundOrders, payload.orderId] });
+      void qc.invalidateQueries({ queryKey: [...QK.outboundOrders, payload.orderId, 'oms'] });
+      void qc.invalidateQueries({ queryKey: ['oms', 'dashboard'] });
+      void qc.invalidateQueries({ queryKey: QK.dashboardOverview });
     };
     const onTask = (payload: {
       taskId?: string;
@@ -319,6 +332,7 @@ export function RealtimeProvider({ children }: Props): ReactElement {
     socket.on(RealtimeEvents.INBOUND_ORDER_UPDATED, onInboundUpdated);
     socket.on(RealtimeEvents.OUTBOUND_ORDER_CREATED, onOutboundCreated);
     socket.on(RealtimeEvents.OUTBOUND_ORDER_UPDATED, onOutboundUpdated);
+    socket.on(RealtimeEvents.OMS_ORDER_EVENT, onOmsOrderEvent);
     socket.on(RealtimeEvents.TASK_UPDATED, onTask);
     socket.on(RealtimeEvents.INVENTORY_CHANGED, onInventory);
     socket.on(RealtimeEvents.PRODUCT_CREATED, onProductCreated);
@@ -361,6 +375,7 @@ export function RealtimeProvider({ children }: Props): ReactElement {
       socket.off(RealtimeEvents.INBOUND_ORDER_UPDATED, onInboundUpdated);
       socket.off(RealtimeEvents.OUTBOUND_ORDER_CREATED, onOutboundCreated);
       socket.off(RealtimeEvents.OUTBOUND_ORDER_UPDATED, onOutboundUpdated);
+      socket.off(RealtimeEvents.OMS_ORDER_EVENT, onOmsOrderEvent);
       socket.off(RealtimeEvents.TASK_UPDATED, onTask);
       socket.off(RealtimeEvents.INVENTORY_CHANGED, onInventory);
       socket.off(RealtimeEvents.PRODUCT_CREATED, onProductCreated);

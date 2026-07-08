@@ -74,6 +74,11 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
         match: (p) => p.startsWith('/orders/outbound'),
       },
       {
+        labelKey: 'OMS dashboard',
+        to: '/orders/oms',
+        match: (p) => p === '/orders/oms',
+      },
+      {
         labelKey: 'Quick outbound',
         to: '/orders/directed-outbound',
         match: (p) => p === '/orders/directed-outbound',

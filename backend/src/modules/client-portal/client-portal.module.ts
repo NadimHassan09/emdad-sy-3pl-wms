@@ -10,6 +10,8 @@ import { InventoryModule } from '../inventory/inventory.module';
 import { OutboundModule } from '../outbound/outbound.module';
 import { ProductsModule } from '../products/products.module';
 import { BillingModule } from '../billing/billing.module';
+import { OmsModule } from '../oms/oms.module';
+import { ReturnsModule } from '../returns/returns.module';
 import { ClientAuthController } from './auth/client-auth.controller';
 import { ClientAuthService } from './auth/client-auth.service';
 import { JwtClientAuthGuard } from './auth/jwt-client-auth.guard';
@@ -28,6 +30,10 @@ import { ClientBillingController } from './billing/client-billing.controller';
 import { ClientBillingService } from './billing/client-billing.service';
 import { ClientDashboardController } from './dashboard/client-dashboard.controller';
 import { ClientDashboardService } from './dashboard/client-dashboard.service';
+import { ClientOmsOrdersController } from './oms/client-oms-orders.controller';
+import { ClientOmsOrdersService } from './oms/client-oms-orders.service';
+import { ClientReturnsController } from './returns/client-returns.controller';
+import { ClientReturnsService } from './returns/client-returns.service';
 
 @Module({
   imports: [
@@ -51,6 +57,8 @@ import { ClientDashboardService } from './dashboard/client-dashboard.service';
     InboundModule,
     OutboundModule,
     BillingModule,
+    OmsModule,
+    ReturnsModule,
   ],
   controllers: [
     ClientAuthController,
@@ -61,6 +69,8 @@ import { ClientDashboardService } from './dashboard/client-dashboard.service';
     ClientNotificationsController,
     ClientBillingController,
     ClientDashboardController,
+    ClientOmsOrdersController,
+    ClientReturnsController,
   ],
   providers: [
     ClientAuthService,
@@ -71,6 +81,8 @@ import { ClientDashboardService } from './dashboard/client-dashboard.service';
     ClientNotificationsService,
     ClientBillingService,
     ClientDashboardService,
+    ClientOmsOrdersService,
+    ClientReturnsService,
     JwtClientStrategy,
     JwtClientAuthGuard,
   ],

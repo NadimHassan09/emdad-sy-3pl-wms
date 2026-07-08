@@ -152,6 +152,9 @@ export class InboundService {
         expectedArrivalDate: new Date(dto.expectedArrivalDate),
         clientReference: dto.clientReference,
         notes: dto.notes,
+        sourceType: dto.sourceType,
+        storeChannel: dto.storeChannel,
+        externalReference: dto.externalReference,
         createdBy: user.id,
         lines: {
           create: lineCreates,

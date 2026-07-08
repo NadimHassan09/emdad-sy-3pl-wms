@@ -113,6 +113,14 @@ export class RealtimeService {
     this.scheduleDashboard('orders');
   }
 
+  emitOmsOrderEvent(
+    companyId: string,
+    payload: { orderId: string; status: string; event: string },
+  ): void {
+    this.emit(companyId, RealtimeEvents.OMS_ORDER_EVENT, payload);
+    this.scheduleDashboard('orders');
+  }
+
   emitTaskUpdated(
     companyId: string,
     payload: {

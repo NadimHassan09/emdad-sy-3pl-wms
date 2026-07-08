@@ -12,4 +12,5 @@ export const RealtimeEvents = {
   NOTIFICATION_CREATED: 'notification.created',
   NOTIFICATION_READ: 'notification.read',
   NOTIFICATION_DELETED: 'notification.deleted',
+  OMS_ORDER_EVENT: 'oms.order.event',
 } as const;

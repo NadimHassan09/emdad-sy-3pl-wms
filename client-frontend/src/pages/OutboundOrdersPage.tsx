@@ -45,7 +45,11 @@ type OutboundListDraft = {
 function outboundLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
-    'Outbound orders': 'طلبات الصادر',
+    'Outbound orders': 'طلباتي',
+    'My orders': 'طلباتي',
+    Recipient: 'المستلم',
+    Payment: 'الدفع',
+    'COD status': 'حالة COD',
     '+ New outbound': '+ صادر جديد',
     'Waiting for approval': 'بانتظار الموافقة',
     'Order filters': 'فلاتر الطلبات',
@@ -138,6 +142,21 @@ export function OutboundOrdersPage(): ReactElement {
         className: 'w-1 whitespace-nowrap',
       },
       {
+        header: t('Recipient'),
+        accessor: (o) => o.recipientName ?? '—',
+        width: '140px',
+      },
+      {
+        header: t('Payment'),
+        accessor: (o) => o.paymentMethod ?? '—',
+        width: '100px',
+      },
+      {
+        header: t('COD status'),
+        accessor: (o) => o.codStatus ?? '—',
+        width: '110px',
+      },
+      {
         header: t('Required ship'),
         accessor: (o) => new Date(o.requiredShipDate).toLocaleDateString(),
         width: '160px',
@@ -191,7 +210,7 @@ export function OutboundOrdersPage(): ReactElement {
       </FilterPanel>
 
       <DataTable
-        title={t('Outbound orders')}
+        title={t('My orders')}
         titleAs="h1"
         actions={
           <Button

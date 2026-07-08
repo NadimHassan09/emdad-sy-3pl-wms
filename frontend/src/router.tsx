@@ -35,6 +35,7 @@ const AdjustmentDetailPage    = lazyPage(() => import('./pages/AdjustmentDetailP
 const InboundListPage         = lazyPage(() => import('./pages/InboundListPage'),         'InboundListPage');
 const InboundDetailPage       = lazyPage(() => import('./pages/InboundDetailPage'),       'InboundDetailPage');
 const OutboundListPage        = lazyPage(() => import('./pages/OutboundListPage'),        'OutboundListPage');
+const OmsDashboardPage        = lazyPage(() => import('./pages/OmsDashboardPage'),        'OmsDashboardPage');
 const OutboundDetailPage      = lazyPage(() => import('./pages/OutboundDetailPage'),      'OutboundDetailPage');
 const TasksListPage           = lazyPage(() => import('./pages/TasksListPage'),           'TasksListPage');
 const TaskDetailPage          = lazyPage(() => import('./pages/TaskDetailPage'),          'TaskDetailPage');
@@ -56,6 +57,13 @@ const CapacityUtilizationReportPage = lazyPage(() => import('./pages/reports/Inv
 const ReturnRateReportPage          = lazyPage(() => import('./pages/reports/InventoryIntelligenceReportPages'), 'ReturnRateReportPage');
 const RevenueByClientReportPage     = lazyPage(() => import('./pages/reports/FinanceReportPages'),           'RevenueByClientReportPage');
 const ReceivablesAgingReportPage    = lazyPage(() => import('./pages/reports/FinanceReportPages'),           'ReceivablesAgingReportPage');
+const CodReportPage                 = lazyPage(() => import('./pages/reports/OmsReportPages'),               'CodReportPage');
+const MerchantOrdersReportPage      = lazyPage(() => import('./pages/reports/OmsReportPages'),               'MerchantOrdersReportPage');
+const SalesReportPage               = lazyPage(() => import('./pages/reports/OmsReportPages'),               'SalesReportPage');
+const ReturnsReportPage             = lazyPage(() => import('./pages/reports/OmsReportPages'),               'ReturnsReportPage');
+const DeliveryReportPage            = lazyPage(() => import('./pages/reports/OmsReportPages'),               'DeliveryReportPage');
+const AllocationReportPage          = lazyPage(() => import('./pages/reports/OmsReportPages'),               'AllocationReportPage');
+const InventoryReservedReportPage   = lazyPage(() => import('./pages/reports/OmsReportPages'),               'InventoryReservedReportPage');
 const ClientsPage             = lazyPage(() => import('./pages/ClientsPage'),             'ClientsPage');
 const CompanyDetailPage       = lazyPage(() => import('./pages/CompanyDetailPage'),       'CompanyDetailPage');
 const WarehouseUsersPage      = lazyPage(() => import('./pages/UsersPage'),               'WarehouseUsersPage');
@@ -126,6 +134,7 @@ export const router = createBrowserRouter([
       { path: 'orders/outbound', element: <OutboundListPage /> },
       { path: 'orders/directed-outbound', element: <QuickDirectedOutboundPage /> },
       { path: 'orders/outbound/:id', element: <OutboundDetailPage /> },
+      { path: 'orders/oms', element: <OmsDashboardPage /> },
       { path: 'contracts', element: <Navigate to="/contracts/grn" replace /> },
       { path: 'contracts/grn', element: <ContractsPage /> },
       { path: 'contracts/dn', element: <ContractsPage /> },
@@ -161,6 +170,13 @@ export const router = createBrowserRouter([
           { path: 'inbound-accuracy', element: <InboundAccuracyReportPage /> },
           { path: 'outbound-fill-rate', element: <OutboundFillRateReportPage /> },
           { path: 'sla-compliance', element: <SlaComplianceReportPage /> },
+          { path: 'cod-report', element: <CodReportPage /> },
+          { path: 'merchant-orders', element: <MerchantOrdersReportPage /> },
+          { path: 'sales-report', element: <SalesReportPage /> },
+          { path: 'returns-report', element: <ReturnsReportPage /> },
+          { path: 'delivery-report', element: <DeliveryReportPage /> },
+          { path: 'allocation-report', element: <AllocationReportPage /> },
+          { path: 'inventory-reserved', element: <InventoryReservedReportPage /> },
         ],
       },
       { path: 'clients', element: <ClientsPage /> },

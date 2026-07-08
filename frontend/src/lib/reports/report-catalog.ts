@@ -12,7 +12,14 @@ export type ReportCatalogId =
   | 'outbound-fill-rate'
   | 'sla-compliance'
   | 'revenue-by-client'
-  | 'receivables-aging';
+  | 'receivables-aging'
+  | 'cod-report'
+  | 'merchant-orders'
+  | 'sales-report'
+  | 'returns-report'
+  | 'delivery-report'
+  | 'allocation-report'
+  | 'inventory-reserved';
 
 export type ReportCatalogEntry = {
   id: ReportCatalogId;
@@ -21,7 +28,7 @@ export type ReportCatalogEntry = {
   titleAr: string;
   description: string;
   descriptionAr: string;
-  section?: 'inventory' | 'operations' | 'finance';
+  section?: 'inventory' | 'operations' | 'finance' | 'oms';
 };
 
 export const REPORT_CATALOG: ReportCatalogEntry[] = [
@@ -150,6 +157,69 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     description: 'Open and overdue invoices bucketed by days past due.',
     descriptionAr: 'الفواتير المفتوحة والمتأخرة مصنفة حسب أيام التأخير.',
     section: 'finance',
+  },
+  {
+    id: 'cod-report',
+    path: '/reports/cod-report',
+    title: 'COD Report',
+    titleAr: 'تقرير الدفع عند الاستلام',
+    description: 'COD orders with collection and settlement status.',
+    descriptionAr: 'طلبات الدفع عند الاستلام مع حالة التحصيل والتسوية.',
+    section: 'oms',
+  },
+  {
+    id: 'merchant-orders',
+    path: '/reports/merchant-orders',
+    title: 'Merchant Orders',
+    titleAr: 'طلبات التجار',
+    description: 'OMS merchant orders with payment and allocation status.',
+    descriptionAr: 'طلبات التجار مع الدفع وحالة التخصيص.',
+    section: 'oms',
+  },
+  {
+    id: 'sales-report',
+    path: '/reports/sales-report',
+    title: 'Sales Report',
+    titleAr: 'تقرير المبيعات',
+    description: 'Delivered order revenue by subtotal and shipping.',
+    descriptionAr: 'إيرادات الطلبات المسلّمة حسب المجموع والشحن.',
+    section: 'oms',
+  },
+  {
+    id: 'returns-report',
+    path: '/reports/returns-report',
+    title: 'Returns Report',
+    titleAr: 'تقرير المرتجعات',
+    description: 'Returned OMS orders with recipient and COD details.',
+    descriptionAr: 'طلبات OMS المرتجعة مع بيانات المستلم والدفع عند الاستلام.',
+    section: 'oms',
+  },
+  {
+    id: 'delivery-report',
+    path: '/reports/delivery-report',
+    title: 'Delivery Report',
+    titleAr: 'تقرير التسليم',
+    description: 'Carrier, tracking, and delivery milestones.',
+    descriptionAr: 'الناقل والتتبع ومراحل التسليم.',
+    section: 'oms',
+  },
+  {
+    id: 'allocation-report',
+    path: '/reports/allocation-report',
+    title: 'Allocation Report',
+    titleAr: 'تقرير التخصيص',
+    description: 'Order allocation status and reservation counts.',
+    descriptionAr: 'حالة تخصيص الطلبات وعدد الحجوزات.',
+    section: 'oms',
+  },
+  {
+    id: 'inventory-reserved',
+    path: '/reports/inventory-reserved',
+    title: 'Inventory Reserved',
+    titleAr: 'المخزون المحجوز',
+    description: 'Active stock reservations linked to outbound orders.',
+    descriptionAr: 'حجوزات المخزون النشطة المرتبطة بالطلبات الصادرة.',
+    section: 'oms',
   },
 ];
 

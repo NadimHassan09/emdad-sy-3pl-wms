@@ -37,6 +37,7 @@ export const RealtimeEvents = {
   DASHBOARD_INVENTORY_UPDATED: 'dashboard.inventory.updated',
   DASHBOARD_ORDERS_UPDATED: 'dashboard.orders.updated',
   DASHBOARD_TASKS_UPDATED: 'dashboard.tasks.updated',
+  OMS_ORDER_EVENT: 'oms.order.event',
   PRESENCE_ONLINE: 'presence.online',
   PRESENCE_OFFLINE: 'presence.offline',
   AUTH_SESSION_CHANGED: 'auth.session.changed',

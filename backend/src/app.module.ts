@@ -37,6 +37,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { FormsModule } from './modules/forms/forms.module';
 import { FinalContractsModule } from './modules/final-contracts/final-contracts.module';
+import { OmsModule } from './modules/oms/oms.module';
 import { PdfModule } from './pdf/pdf.module';
 
 @Module({
@@ -87,6 +88,7 @@ import { PdfModule } from './pdf/pdf.module';
     ReportsModule,
     FormsModule,
     FinalContractsModule,
+    OmsModule,
     PdfModule,
   ],
   providers: [

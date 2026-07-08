@@ -5,10 +5,14 @@ export type OutboundOrderStatus =
   | 'pending_approval'
   | 'pending_stock'
   | 'confirmed'
+  | 'allocated'
   | 'picking'
   | 'packing'
   | 'ready_to_ship'
+  | 'out_for_delivery'
   | 'shipped'
+  | 'delivered'
+  | 'returned'
   | 'cancelled';
 
 export interface OutboundOrderLine {

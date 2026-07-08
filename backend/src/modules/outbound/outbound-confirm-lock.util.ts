@@ -5,6 +5,7 @@ import { OutboundOrderStatus, Prisma } from '@prisma/client';
 export const OUTBOUND_CONFIRMABLE: OutboundOrderStatus[] = [
   OutboundOrderStatus.draft,
   OutboundOrderStatus.pending_approval,
+  OutboundOrderStatus.allocated,
 ];
 
 /** Statuses indicating confirm already ran (safe idempotent replay). */

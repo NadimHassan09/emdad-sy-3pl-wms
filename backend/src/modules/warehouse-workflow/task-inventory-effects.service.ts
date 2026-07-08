@@ -67,7 +67,26 @@ export class TaskInventoryEffectsService {
       requestedQty: Prisma.Decimal;
       specificLotId: string | null;
     }>,
+    outboundOrderId?: string,
   ): Promise<ReservationSnapshot[]> {
+    if (outboundOrderId) {
+      const existing = await tx.stockReservation.findMany({
+        where: { outboundOrderId, status: 'active' },
+        include: { location: { select: { warehouseId: true } } },
+      });
+      if (existing.length > 0) {
+        return existing.map((r) => ({
+          outboundOrderLineId: r.outboundOrderLineId ?? '',
+          companyId: r.companyId,
+          productId: r.productId,
+          locationId: r.locationId,
+          warehouseId: r.location.warehouseId,
+          lotId: r.lotId,
+          quantity: r.quantity.toString(),
+        }));
+      }
+    }
+
     const planned: ReservationSnapshot[] = [];
 
     for (const line of sortPickLinesForLocking(lines)) {
@@ -511,9 +530,15 @@ export class TaskInventoryEffectsService {
       });
     }
 
+    await tx.stockReservation.updateMany({
+      where: { outboundOrderId, status: 'active' },
+      data: { status: 'fulfilled' },
+    });
+
     await tx.outboundOrder.update({
       where: { id: outboundOrderId },
       data: {
+        allocationStatus: 'fulfilled',
         status: 'shipped',
         shippedAt: new Date(),
         carrier: body.carrier ?? order.carrier,

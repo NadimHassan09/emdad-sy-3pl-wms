@@ -1,7 +1,10 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OutboundOrderStatus, Prisma } from '@prisma/client';
@@ -39,6 +42,12 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { BillingAccessService } from '../billing/billing-access.service';
 import { BillingInvoiceCalculationService } from '../billing/billing-invoice-calculation.service';
 import { adminOutboundListItem } from '../realtime/realtime-client.payload';
+import { OmsOrderEventsService } from '../oms/oms-order-events.service';
+import { OrderAllocationService } from '../oms/order-allocation.service';
+import {
+  type OmsOrderCreateExtras,
+  omsOrderDataFromExtras,
+} from '../oms/oms-order.types';
 import { WorkflowBootstrapService } from '../warehouse-workflow/workflow-bootstrap.service';
 import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
 import { ConfirmOutboundBodyDto } from './dto/confirm-outbound-body.dto';
@@ -105,6 +114,12 @@ export class OutboundService {
     private readonly audit: AuditLogService,
     private readonly billingAccess: BillingAccessService,
     private readonly billingInvoiceCalc: BillingInvoiceCalculationService,
+    @Optional()
+    @Inject(forwardRef(() => OrderAllocationService))
+    private readonly orderAllocation?: OrderAllocationService,
+    @Optional()
+    @Inject(forwardRef(() => OmsOrderEventsService))
+    private readonly omsEvents?: OmsOrderEventsService,
   ) {}
 
   /**
@@ -120,7 +135,7 @@ export class OutboundService {
   async create(
     user: AuthPrincipal,
     dto: CreateOutboundOrderDto,
-    opts?: { pendingClientApproval?: boolean },
+    opts?: { pendingClientApproval?: boolean; oms?: OmsOrderCreateExtras },
   ) {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
     await this.billingAccess.assertOperationalBilling(companyId);
@@ -172,45 +187,97 @@ export class OutboundService {
         notes: dto.notes,
         requiresPacking: dto.requiresPacking !== false,
         createdBy: user.id,
+        ...omsOrderDataFromExtras(opts?.oms),
         lines: {
-          create: dto.lines.map((l, idx) => ({
-            productId: l.productId,
-            requestedQuantity: new Prisma.Decimal(l.requestedQuantity),
-            specificLotId: l.specificLotId,
-            lineNumber: idx + 1,
-          })),
+          create: dto.lines.map((l, idx) => {
+            const extras = opts?.oms?.lineExtras?.[idx];
+            return {
+              productId: l.productId,
+              requestedQuantity: new Prisma.Decimal(l.requestedQuantity),
+              specificLotId: l.specificLotId,
+              lineNumber: idx + 1,
+              unitPrice:
+                extras?.unitPrice != null
+                  ? new Prisma.Decimal(extras.unitPrice)
+                  : undefined,
+              lineTotal:
+                extras?.lineTotal != null
+                  ? new Prisma.Decimal(extras.lineTotal)
+                  : undefined,
+              discountAmount:
+                extras?.discountAmount != null
+                  ? new Prisma.Decimal(extras.discountAmount)
+                  : undefined,
+            };
+          }),
         },
       },
       include: ORDER_INCLUDE,
     });
-    this.realtime.emitOutboundOrderCreated(created.companyId, {
-      orderId: created.id,
-      status: created.status,
-      listItem: adminOutboundListItem(created),
+
+    if (opts?.oms?.recordOmsEvent !== false && this.omsEvents) {
+      await this.omsEvents.record(tx, {
+        outboundOrderId: created.id,
+        companyId: created.companyId,
+        eventType: 'order.created',
+        createdBy: user.id,
+        payload: { source: opts?.oms ? 'oms' : 'wms' },
+      });
+    }
+
+    if (
+      this.orderAllocation?.isEnabled() &&
+      opts?.oms?.allocateAfterCreate !== false &&
+      !opts?.pendingClientApproval
+    ) {
+      await this.orderAllocation.allocateOrder(tx, {
+        outboundOrderId: created.id,
+        companyId: created.companyId,
+        warehouseId: opts?.oms?.warehouseId,
+        actorUserId: user.id,
+        previousStatus: created.status,
+        lines: created.lines.map((line) => ({
+          outboundOrderLineId: line.id,
+          productId: line.productId,
+          requestedQty: line.requestedQuantity,
+          specificLotId: line.specificLotId,
+        })),
+      });
+    }
+
+    const fresh = await tx.outboundOrder.findUnique({
+      where: { id: created.id },
+      include: ORDER_INCLUDE,
+    });
+    const result = fresh ?? created;
+    this.realtime.emitOutboundOrderCreated(result.companyId, {
+      orderId: result.id,
+      status: result.status,
+      listItem: adminOutboundListItem(result),
     });
     if (opts?.pendingClientApproval) {
       await this.notifications.notifyAdminsPendingApproval({
-        companyId: created.companyId,
-        companyName: created.company.name,
+        companyId: result.companyId,
+        companyName: result.company.name,
         orderType: 'outbound',
-        orderId: created.id,
-        orderNumber: created.orderNumber,
+        orderId: result.id,
+        orderNumber: result.orderNumber,
       });
     }
     await this.audit.log(
       this.audit.fromPrincipal(user, {
         action: 'OUTBOUND_ORDER_CREATED',
         resourceType: 'outbound_order',
-        resourceId: created.id,
-        companyId: created.companyId,
+        resourceId: result.id,
+        companyId: result.companyId,
         newState: {
-          status: created.status,
-          lineCount: created.lines.length,
-          requiresPacking: created.requiresPacking,
+          status: result.status,
+          lineCount: result.lines.length,
+          requiresPacking: result.requiresPacking,
         },
       }),
     );
-    return created;
+    return result;
     });
   }
 
@@ -379,6 +446,13 @@ export class OutboundService {
     }
     const previousStatus = order.status;
     const cancelled = await withTenantRls(this.prisma, user, async (tx) => {
+      if (this.orderAllocation?.isEnabled()) {
+        await this.orderAllocation.releaseAllocation(tx, {
+          outboundOrderId: id,
+          companyId: order.companyId,
+          actorUserId: user.id,
+        });
+      }
       // Tear down all remaining work for this order: deleting the workflow
       // instance cascades its nodes, tasks, assignments and events. No inventory
       // is moved — product quantities are left exactly as they are.
@@ -488,6 +562,8 @@ export class OutboundService {
         return { idempotent: true as const, order: gate.order };
       }
 
+      await this.tryAllocateOnConfirm(tx, user, gate.order);
+
       const claimed = await claimOutboundConfirmableOrder(tx, orderId, {
         status: OutboundOrderStatus.picking,
         confirmedAt: new Date(),
@@ -567,6 +643,8 @@ export class OutboundService {
           return { fresh: false as const, order: gate.order };
         }
 
+        await this.tryAllocateOnConfirm(tx, user, gate.order, wh);
+
         const claimed = await claimOutboundConfirmableOrder(tx, orderId, {
           status: OutboundOrderStatus.picking,
           confirmedAt: new Date(),
@@ -633,6 +711,8 @@ export class OutboundService {
       if (gate.kind === 'idempotent') {
         return { fresh: false as const, order: gate.order };
       }
+
+      await this.tryAllocateOnConfirm(tx, user, gate.order, body?.warehouseId);
 
       const claimed = await claimOutboundConfirmableOrder(tx, orderId, {
         status: OutboundOrderStatus.picking,
@@ -766,6 +846,32 @@ export class OutboundService {
     }
 
     return { kind: 'proceed', order };
+  }
+
+  /** OMS allocation on confirm when ALLOCATE_ON_ORDER_CREATE is enabled (skips if already reserved). */
+  private async tryAllocateOnConfirm(
+    tx: Prisma.TransactionClient,
+    user: AuthPrincipal,
+    order: Prisma.OutboundOrderGetPayload<{ include: { lines: typeof CONFIRM_LINE_INCLUDE } }>,
+    warehouseId?: string,
+  ): Promise<void> {
+    if (!this.orderAllocation?.isEnabled()) return;
+    const has = await this.orderAllocation.hasActiveReservations(tx, order.id);
+    if (has) return;
+
+    await this.orderAllocation.allocateOrder(tx, {
+      outboundOrderId: order.id,
+      companyId: order.companyId,
+      warehouseId,
+      actorUserId: user.id,
+      previousStatus: order.status,
+      lines: order.lines.map((line) => ({
+        outboundOrderLineId: line.id,
+        productId: line.productId,
+        requestedQty: line.requestedQuantity,
+        specificLotId: line.specificLotId,
+      })),
+    });
   }
 
   private async deductOutboundOrderLines(

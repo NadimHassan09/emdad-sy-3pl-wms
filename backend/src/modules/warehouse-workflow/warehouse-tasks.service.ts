@@ -857,6 +857,7 @@ export class WarehouseTasksService {
           wf.companyId,
           wf.warehouseId,
           lines,
+          parsed.outbound_order_id,
         );
         await tx.warehouseTask.update({
           where: { id: taskId },

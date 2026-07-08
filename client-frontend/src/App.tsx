@@ -29,6 +29,9 @@ const InboundOrdersPage     = lazyPage(() => import('./pages/InboundOrdersPage')
 const InboundOrderDetailPage = lazyPage(() => import('./pages/InboundOrderDetailPage'), 'InboundOrderDetailPage');
 const OutboundOrdersPage    = lazyPage(() => import('./pages/OutboundOrdersPage'),    'OutboundOrdersPage');
 const OutboundOrderDetailPage = lazyPage(() => import('./pages/OutboundOrderDetailPage'), 'OutboundOrderDetailPage');
+const CodReportsPage          = lazyPage(() => import('./pages/CodReportsPage'),          'CodReportsPage');
+const ReturnsPage             = lazyPage(() => import('./pages/ReturnsPage'),             'ReturnsPage');
+const ReturnDetailPage        = lazyPage(() => import('./pages/ReturnDetailPage'),        'ReturnDetailPage');
 const ProductsPage          = lazyPage(() => import('./pages/ProductsPage'),          'ProductsPage');
 const ProductDetailPage     = lazyPage(() => import('./pages/ProductDetailPage'),     'ProductDetailPage');
 const StockPage             = lazyPage(() => import('./pages/StockPage'),             'StockPage');
@@ -112,6 +115,30 @@ function AppRoutes(): ReactElement {
               element={
                 <RequireRouteAccess>
                   <OutboundOrderDetailPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="cod-reports"
+              element={
+                <RequireRouteAccess>
+                  <CodReportsPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="returns"
+              element={
+                <RequireRouteAccess>
+                  <ReturnsPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="returns/:id"
+              element={
+                <RequireRouteAccess>
+                  <ReturnDetailPage />
                 </RequireRouteAccess>
               }
             />
