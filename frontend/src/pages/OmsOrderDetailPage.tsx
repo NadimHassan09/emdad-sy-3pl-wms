@@ -197,7 +197,7 @@ export function OmsOrderDetailPage() {
                 <th className="px-2 py-2">#</th>
                 <th className="px-2 py-2">Product</th>
                 <th className="px-2 py-2">Qty</th>
-                <th className="px-2 py-2">Unit price</th>
+                <th className="px-2 py-2">Price</th>
                 <th className="px-2 py-2">Line total</th>
               </tr>
             </thead>
@@ -223,7 +223,6 @@ export function OmsOrderDetailPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Subtotal" value={order.subtotal ?? '—'} />
             <Field label="Shipping fee" value={order.shippingFee ?? '—'} />
-            <Field label="COD amount" value={order.codAmount ?? '—'} />
             <Field label="Total" value={total ?? '—'} />
           </div>
         </Section>

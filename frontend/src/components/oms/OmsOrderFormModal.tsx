@@ -20,7 +20,9 @@ import { companyFilterComboboxOptions } from '../../lib/company-filter-options';
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../../lib/order-planning-dates';
 import { canAccessInternalTransfer } from '../../lib/rbac';
 
-type LineDraft = { productId: string; requestedQuantity: string };
+type LineDraft = { productId: string; requestedQuantity: string; unitPrice: string };
+
+const emptyLine = (): LineDraft => ({ productId: '', requestedQuantity: '1', unitPrice: '' });
 
 export function OmsOrderFormModal({
   open,
@@ -51,12 +53,11 @@ export function OmsOrderFormModal({
   const [paymentMethod, setPaymentMethod] = useState<OmsPaymentMethod | ''>('');
   const [subtotal, setSubtotal] = useState('');
   const [shippingFee, setShippingFee] = useState('');
-  const [codAmount, setCodAmount] = useState('');
   const [currency, setCurrency] = useState('SYP');
   const [storeChannel, setStoreChannel] = useState('');
   const [outboundOrderId, setOutboundOrderId] = useState('');
   const [outboundSearch, setOutboundSearch] = useState('');
-  const [lines, setLines] = useState<LineDraft[]>([{ productId: '', requestedQuantity: '1' }]);
+  const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
 
   const companies = useQuery({
     queryKey: QK.companies,
@@ -99,7 +100,6 @@ export function OmsOrderFormModal({
       setPaymentMethod(initial.paymentMethod ?? '');
       setSubtotal(initial.subtotal ?? '');
       setShippingFee(initial.shippingFee ?? '');
-      setCodAmount(initial.codAmount ?? '');
       setCurrency(initial.currency ?? 'SYP');
       setStoreChannel(initial.storeChannel ?? '');
       setOutboundOrderId(initial.outboundOrderId ?? '');
@@ -116,11 +116,10 @@ export function OmsOrderFormModal({
       setPaymentMethod('');
       setSubtotal('');
       setShippingFee('');
-      setCodAmount('');
       setCurrency('SYP');
       setStoreChannel('');
       setOutboundOrderId('');
-      setLines([{ productId: '', requestedQuantity: '1' }]);
+      setLines([emptyLine()]);
     }
   }, [open, mode, initial, user?.tenantCompanyId]);
 
@@ -158,15 +157,33 @@ export function OmsOrderFormModal({
     return opts;
   }, [outboundOptions.data, outboundOrderId, initial?.linkedOutboundOrder]);
 
+  const linesSubtotal = useMemo(() => {
+    return lines.reduce((sum, l) => {
+      const qty = Number(l.requestedQuantity);
+      const price = Number(l.unitPrice);
+      if (!l.productId || !(qty > 0) || !(price >= 0) || Number.isNaN(price)) return sum;
+      return sum + qty * price;
+    }, 0);
+  }, [lines]);
+
   const saveMut = useMutation({
     mutationFn: async () => {
       if (mode === 'create') {
         const parsedLines = lines
           .filter((l) => l.productId && Number(l.requestedQuantity) > 0)
-          .map((l) => ({
-            productId: l.productId,
-            requestedQuantity: Number(l.requestedQuantity),
-          }));
+          .map((l) => {
+            const qty = Number(l.requestedQuantity);
+            const unitPrice = Number(l.unitPrice);
+            if (Number.isNaN(unitPrice) || unitPrice < 0) {
+              throw new Error('Each product line needs a valid price.');
+            }
+            return {
+              productId: l.productId,
+              requestedQuantity: qty,
+              unitPrice,
+              lineTotal: qty * unitPrice,
+            };
+          });
 
         if (!effectiveCompanyId) throw new Error('Pick a client.');
         if (!outboundOrderId) throw new Error('Link an outbound order.');
@@ -174,7 +191,12 @@ export function OmsOrderFormModal({
           throw new Error('Required ship date cannot be before today.');
         }
         if (parsedLines.length === 0) throw new Error('Add at least one line.');
+        if (parsedLines.some((l) => l.unitPrice === undefined)) {
+          throw new Error('Each product line needs a price.');
+        }
 
+        const computedSubtotal = subtotal ? Number(subtotal) : linesSubtotal;
+        const ship = shippingFee ? Number(shippingFee) : 0;
         const payload: CreateOmsOrderInput = {
           companyId: effectiveCompanyId,
           requiredShipDate,
@@ -186,9 +208,11 @@ export function OmsOrderFormModal({
           carrier: carrier || undefined,
           notes: notes || undefined,
           paymentMethod: paymentMethod || undefined,
-          subtotal: subtotal ? Number(subtotal) : undefined,
-          shippingFee: shippingFee ? Number(shippingFee) : undefined,
-          codAmount: codAmount ? Number(codAmount) : undefined,
+          subtotal: computedSubtotal,
+          shippingFee: shippingFee ? ship : undefined,
+          // COD amount is derived from line prices + shipping (no separate field).
+          codAmount:
+            paymentMethod === 'COD' ? computedSubtotal + ship : undefined,
           currency: currency || undefined,
           storeChannel: storeChannel || undefined,
           outboundOrderId,
@@ -199,6 +223,8 @@ export function OmsOrderFormModal({
 
       if (!initial) throw new Error('Order not loaded.');
       if (!outboundOrderId) throw new Error('Link an outbound order.');
+      const editSubtotal = subtotal ? Number(subtotal) : undefined;
+      const editShip = shippingFee ? Number(shippingFee) : undefined;
       return OmsApi.update(initial.id, {
         recipientName,
         recipientPhone,
@@ -209,9 +235,13 @@ export function OmsOrderFormModal({
         carrier,
         notes,
         paymentMethod: paymentMethod || undefined,
-        subtotal: subtotal ? Number(subtotal) : undefined,
-        shippingFee: shippingFee ? Number(shippingFee) : undefined,
-        codAmount: codAmount ? Number(codAmount) : undefined,
+        subtotal: editSubtotal,
+        shippingFee: editShip,
+        codAmount:
+          paymentMethod === 'COD'
+            ? (editSubtotal ?? Number(initial.subtotal ?? 0)) +
+              (editShip ?? Number(initial.shippingFee ?? 0))
+            : undefined,
         currency,
         storeChannel,
         outboundOrderId,
@@ -304,9 +334,13 @@ export function OmsOrderFormModal({
               { value: 'CREDIT', label: 'Credit' },
             ]}
           />
-          <TextField label="Subtotal" value={subtotal} onChange={(e) => setSubtotal(e.target.value)} />
+          <TextField
+            label="Subtotal"
+            value={mode === 'create' && !subtotal ? String(linesSubtotal || '') : subtotal}
+            onChange={(e) => setSubtotal(e.target.value)}
+            placeholder={mode === 'create' ? 'From line prices' : undefined}
+          />
           <TextField label="Shipping fee" value={shippingFee} onChange={(e) => setShippingFee(e.target.value)} />
-          <TextField label="COD amount" value={codAmount} onChange={(e) => setCodAmount(e.target.value)} />
           <TextField label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)} />
         </div>
 
@@ -316,7 +350,7 @@ export function OmsOrderFormModal({
           <div className="space-y-2">
             <div className="text-sm font-medium text-slate-800">Order lines</div>
             {lines.map((line, idx) => (
-              <div key={idx} className="grid gap-2 md:grid-cols-[1fr_120px_auto]">
+              <div key={idx} className="grid gap-2 md:grid-cols-[1fr_100px_120px_auto]">
                 <Combobox
                   label={idx === 0 ? 'Product' : undefined}
                   value={line.productId}
@@ -339,6 +373,19 @@ export function OmsOrderFormModal({
                     )
                   }
                 />
+                <TextField
+                  label={idx === 0 ? 'Price' : undefined}
+                  value={line.unitPrice}
+                  onChange={(e) =>
+                    setLines((prev) =>
+                      prev.map((row, i) =>
+                        i === idx ? { ...row, unitPrice: e.target.value } : row,
+                      ),
+                    )
+                  }
+                  placeholder="0"
+                  required
+                />
                 <div className={idx === 0 ? 'pt-6' : 'pt-1'}>
                   <Button
                     type="button"
@@ -354,7 +401,7 @@ export function OmsOrderFormModal({
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setLines((prev) => [...prev, { productId: '', requestedQuantity: '1' }])}
+              onClick={() => setLines((prev) => [...prev, emptyLine()])}
             >
               + Add line
             </Button>

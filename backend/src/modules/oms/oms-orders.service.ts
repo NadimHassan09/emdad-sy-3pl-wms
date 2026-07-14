@@ -159,10 +159,35 @@ export class OmsOrdersService {
       assertDiscreteUomPositiveIntegerQuantity(p.uom, l.requestedQuantity, 'Requested quantity');
     }
 
-    const codStatus = deriveCodStatus(
-      dto.paymentMethod,
-      dto.codAmount != null ? new Prisma.Decimal(dto.codAmount) : null,
+    const linesWithTotals = dto.lines.map((l) => {
+      const qty = new Prisma.Decimal(l.requestedQuantity);
+      const unitPrice =
+        l.unitPrice != null ? new Prisma.Decimal(l.unitPrice) : null;
+      const lineTotal =
+        l.lineTotal != null
+          ? new Prisma.Decimal(l.lineTotal)
+          : unitPrice != null
+            ? unitPrice.mul(qty)
+            : null;
+      return { ...l, qty, unitPrice, lineTotal };
+    });
+
+    const computedSubtotal = linesWithTotals.reduce(
+      (sum, l) => (l.lineTotal != null ? sum.add(l.lineTotal) : sum),
+      new Prisma.Decimal(0),
     );
+    const subtotal =
+      dto.subtotal != null ? new Prisma.Decimal(dto.subtotal) : computedSubtotal;
+    const shippingFee =
+      dto.shippingFee != null ? new Prisma.Decimal(dto.shippingFee) : null;
+    const derivedCod =
+      dto.codAmount != null
+        ? new Prisma.Decimal(dto.codAmount)
+        : dto.paymentMethod === 'COD'
+          ? subtotal.add(shippingFee ?? 0)
+          : null;
+
+    const codStatus = deriveCodStatus(dto.paymentMethod, derivedCod);
 
     const order = await withTenantRls(this.prisma, user, async (tx) => {
       const created = await tx.omsOrder.create({
@@ -183,25 +208,22 @@ export class OmsOrdersService {
           addressLine2: dto.addressLine2,
           deliveryInstructions: dto.deliveryInstructions,
           paymentMethod: dto.paymentMethod,
-          subtotal: dto.subtotal != null ? new Prisma.Decimal(dto.subtotal) : undefined,
-          shippingFee:
-            dto.shippingFee != null ? new Prisma.Decimal(dto.shippingFee) : undefined,
-          codAmount: dto.codAmount != null ? new Prisma.Decimal(dto.codAmount) : undefined,
+          subtotal,
+          shippingFee: shippingFee ?? undefined,
+          codAmount: derivedCod ?? undefined,
           currency: dto.currency ?? 'SYP',
           codStatus: codStatus ?? undefined,
           storeChannel: dto.storeChannel,
           externalReference: dto.externalReference,
           createdBy: user.id,
           lines: {
-            create: dto.lines.map((l, idx) => ({
+            create: linesWithTotals.map((l, idx) => ({
               productId: l.productId,
-              requestedQuantity: new Prisma.Decimal(l.requestedQuantity),
+              requestedQuantity: l.qty,
               specificLotId: l.specificLotId,
               lineNumber: idx + 1,
-              unitPrice:
-                l.unitPrice != null ? new Prisma.Decimal(l.unitPrice) : undefined,
-              lineTotal:
-                l.lineTotal != null ? new Prisma.Decimal(l.lineTotal) : undefined,
+              unitPrice: l.unitPrice ?? undefined,
+              lineTotal: l.lineTotal ?? undefined,
               discountAmount:
                 l.discountAmount != null ? new Prisma.Decimal(l.discountAmount) : undefined,
             })),
@@ -275,6 +297,25 @@ export class OmsOrdersService {
     }
 
     const updated = await withTenantRls(this.prisma, user, async (tx) => {
+      const nextPayment = dto.paymentMethod ?? existing.paymentMethod;
+      const nextSubtotal =
+        dto.subtotal != null
+          ? new Prisma.Decimal(dto.subtotal)
+          : existing.subtotal;
+      const nextShipping =
+        dto.shippingFee != null
+          ? new Prisma.Decimal(dto.shippingFee)
+          : existing.shippingFee;
+      const nextCod =
+        dto.codAmount != null
+          ? new Prisma.Decimal(dto.codAmount)
+          : nextPayment === 'COD' &&
+              (dto.paymentMethod !== undefined ||
+                dto.subtotal !== undefined ||
+                dto.shippingFee !== undefined)
+            ? (nextSubtotal ?? new Prisma.Decimal(0)).add(nextShipping ?? 0)
+            : undefined;
+
       const row = await tx.omsOrder.update({
         where: { id: existing.id },
         data: {
@@ -298,8 +339,14 @@ export class OmsOrdersService {
             dto.subtotal != null ? new Prisma.Decimal(dto.subtotal) : undefined,
           shippingFee:
             dto.shippingFee != null ? new Prisma.Decimal(dto.shippingFee) : undefined,
-          codAmount:
-            dto.codAmount != null ? new Prisma.Decimal(dto.codAmount) : undefined,
+          ...(nextCod !== undefined ? { codAmount: nextCod } : {}),
+          ...(dto.paymentMethod !== undefined
+            ? {
+                codStatus:
+                  deriveCodStatus(nextPayment, nextCod ?? existing.codAmount) ??
+                  (nextPayment === 'COD' ? existing.codStatus : null),
+              }
+            : {}),
           currency: dto.currency,
           storeChannel: dto.storeChannel,
           externalReference: dto.externalReference,
