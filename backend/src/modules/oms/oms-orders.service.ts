@@ -172,19 +172,19 @@ export class OmsOrdersService {
       return { ...l, qty, unitPrice, lineTotal };
     });
 
-    const computedSubtotal = linesWithTotals.reduce(
+    const linesSum = linesWithTotals.reduce(
       (sum, l) => (l.lineTotal != null ? sum.add(l.lineTotal) : sum),
       new Prisma.Decimal(0),
     );
-    const subtotal =
-      dto.subtotal != null ? new Prisma.Decimal(dto.subtotal) : computedSubtotal;
     const shippingFee =
-      dto.shippingFee != null ? new Prisma.Decimal(dto.shippingFee) : null;
+      dto.shippingFee != null ? new Prisma.Decimal(dto.shippingFee) : new Prisma.Decimal(0);
+    // Subtotal = shipping fee + sum of each line total (price × qty).
+    const subtotal = linesSum.add(shippingFee);
     const derivedCod =
       dto.codAmount != null
         ? new Prisma.Decimal(dto.codAmount)
         : dto.paymentMethod === 'COD'
-          ? subtotal.add(shippingFee ?? 0)
+          ? subtotal
           : null;
 
     const codStatus = deriveCodStatus(dto.paymentMethod, derivedCod);
@@ -209,7 +209,7 @@ export class OmsOrdersService {
           deliveryInstructions: dto.deliveryInstructions,
           paymentMethod: dto.paymentMethod,
           subtotal,
-          shippingFee: shippingFee ?? undefined,
+          shippingFee: dto.shippingFee != null ? shippingFee : undefined,
           codAmount: derivedCod ?? undefined,
           currency: dto.currency ?? 'SYP',
           codStatus: codStatus ?? undefined,
@@ -298,14 +298,25 @@ export class OmsOrdersService {
 
     const updated = await withTenantRls(this.prisma, user, async (tx) => {
       const nextPayment = dto.paymentMethod ?? existing.paymentMethod;
-      const nextSubtotal =
-        dto.subtotal != null
-          ? new Prisma.Decimal(dto.subtotal)
-          : existing.subtotal;
       const nextShipping =
         dto.shippingFee != null
           ? new Prisma.Decimal(dto.shippingFee)
-          : existing.shippingFee;
+          : (existing.shippingFee ?? new Prisma.Decimal(0));
+
+      const linesSum = existing.lines.reduce((sum, l) => {
+        if (l.lineTotal != null) return sum.add(l.lineTotal);
+        if (l.unitPrice != null) {
+          return sum.add(l.unitPrice.mul(l.requestedQuantity));
+        }
+        return sum;
+      }, new Prisma.Decimal(0));
+
+      // Subtotal = shipping fee + sum of line totals (always recalculated).
+      const nextSubtotal =
+        dto.subtotal != null
+          ? new Prisma.Decimal(dto.subtotal)
+          : linesSum.add(nextShipping);
+
       const nextCod =
         dto.codAmount != null
           ? new Prisma.Decimal(dto.codAmount)
@@ -313,7 +324,7 @@ export class OmsOrdersService {
               (dto.paymentMethod !== undefined ||
                 dto.subtotal !== undefined ||
                 dto.shippingFee !== undefined)
-            ? (nextSubtotal ?? new Prisma.Decimal(0)).add(nextShipping ?? 0)
+            ? nextSubtotal
             : undefined;
 
       const row = await tx.omsOrder.update({
@@ -335,8 +346,7 @@ export class OmsOrdersService {
           clientReference: dto.clientReference,
           notes: dto.notes,
           paymentMethod: dto.paymentMethod,
-          subtotal:
-            dto.subtotal != null ? new Prisma.Decimal(dto.subtotal) : undefined,
+          subtotal: nextSubtotal,
           shippingFee:
             dto.shippingFee != null ? new Prisma.Decimal(dto.shippingFee) : undefined,
           ...(nextCod !== undefined ? { codAmount: nextCod } : {}),

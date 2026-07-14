@@ -51,7 +51,6 @@ export function OmsOrderFormModal({
   const [carrier, setCarrier] = useState('');
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<OmsPaymentMethod | ''>('');
-  const [subtotal, setSubtotal] = useState('');
   const [shippingFee, setShippingFee] = useState('');
   const [currency, setCurrency] = useState('SYP');
   const [storeChannel, setStoreChannel] = useState('');
@@ -98,7 +97,6 @@ export function OmsOrderFormModal({
       setCarrier(initial.carrier ?? '');
       setNotes(initial.notes ?? '');
       setPaymentMethod(initial.paymentMethod ?? '');
-      setSubtotal(initial.subtotal ?? '');
       setShippingFee(initial.shippingFee ?? '');
       setCurrency(initial.currency ?? 'SYP');
       setStoreChannel(initial.storeChannel ?? '');
@@ -114,7 +112,6 @@ export function OmsOrderFormModal({
       setCarrier('');
       setNotes('');
       setPaymentMethod('');
-      setSubtotal('');
       setShippingFee('');
       setCurrency('SYP');
       setStoreChannel('');
@@ -157,7 +154,7 @@ export function OmsOrderFormModal({
     return opts;
   }, [outboundOptions.data, outboundOrderId, initial?.linkedOutboundOrder]);
 
-  const linesSubtotal = useMemo(() => {
+  const linesSum = useMemo(() => {
     return lines.reduce((sum, l) => {
       const qty = Number(l.requestedQuantity);
       const price = Number(l.unitPrice);
@@ -165,6 +162,22 @@ export function OmsOrderFormModal({
       return sum + qty * price;
     }, 0);
   }, [lines]);
+
+  const shipAmount = shippingFee ? Number(shippingFee) || 0 : 0;
+
+  /** Subtotal = shipping fee + sum(price × qty) for each line. */
+  const calculatedSubtotal = useMemo(() => {
+    if (mode === 'edit' && initial) {
+      const existingLinesSum = initial.lines.reduce((sum, l) => {
+        if (l.lineTotal != null && l.lineTotal !== '') return sum + Number(l.lineTotal);
+        const qty = Number(l.requestedQuantity);
+        const price = Number(l.unitPrice ?? 0);
+        return sum + (Number.isFinite(qty * price) ? qty * price : 0);
+      }, 0);
+      return existingLinesSum + shipAmount;
+    }
+    return linesSum + shipAmount;
+  }, [mode, initial, linesSum, shipAmount]);
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -191,12 +204,7 @@ export function OmsOrderFormModal({
           throw new Error('Required ship date cannot be before today.');
         }
         if (parsedLines.length === 0) throw new Error('Add at least one line.');
-        if (parsedLines.some((l) => l.unitPrice === undefined)) {
-          throw new Error('Each product line needs a price.');
-        }
 
-        const computedSubtotal = subtotal ? Number(subtotal) : linesSubtotal;
-        const ship = shippingFee ? Number(shippingFee) : 0;
         const payload: CreateOmsOrderInput = {
           companyId: effectiveCompanyId,
           requiredShipDate,
@@ -208,11 +216,9 @@ export function OmsOrderFormModal({
           carrier: carrier || undefined,
           notes: notes || undefined,
           paymentMethod: paymentMethod || undefined,
-          subtotal: computedSubtotal,
-          shippingFee: shippingFee ? ship : undefined,
-          // COD amount is derived from line prices + shipping (no separate field).
-          codAmount:
-            paymentMethod === 'COD' ? computedSubtotal + ship : undefined,
+          subtotal: calculatedSubtotal,
+          shippingFee: shippingFee ? shipAmount : undefined,
+          codAmount: paymentMethod === 'COD' ? calculatedSubtotal : undefined,
           currency: currency || undefined,
           storeChannel: storeChannel || undefined,
           outboundOrderId,
@@ -223,8 +229,6 @@ export function OmsOrderFormModal({
 
       if (!initial) throw new Error('Order not loaded.');
       if (!outboundOrderId) throw new Error('Link an outbound order.');
-      const editSubtotal = subtotal ? Number(subtotal) : undefined;
-      const editShip = shippingFee ? Number(shippingFee) : undefined;
       return OmsApi.update(initial.id, {
         recipientName,
         recipientPhone,
@@ -235,13 +239,9 @@ export function OmsOrderFormModal({
         carrier,
         notes,
         paymentMethod: paymentMethod || undefined,
-        subtotal: editSubtotal,
-        shippingFee: editShip,
-        codAmount:
-          paymentMethod === 'COD'
-            ? (editSubtotal ?? Number(initial.subtotal ?? 0)) +
-              (editShip ?? Number(initial.shippingFee ?? 0))
-            : undefined,
+        subtotal: calculatedSubtotal,
+        shippingFee: shippingFee ? shipAmount : 0,
+        codAmount: paymentMethod === 'COD' ? calculatedSubtotal : undefined,
         currency,
         storeChannel,
         outboundOrderId,
@@ -334,14 +334,17 @@ export function OmsOrderFormModal({
               { value: 'CREDIT', label: 'Credit' },
             ]}
           />
-          <TextField
-            label="Subtotal"
-            value={mode === 'create' && !subtotal ? String(linesSubtotal || '') : subtotal}
-            onChange={(e) => setSubtotal(e.target.value)}
-            placeholder={mode === 'create' ? 'From line prices' : undefined}
-          />
           <TextField label="Shipping fee" value={shippingFee} onChange={(e) => setShippingFee(e.target.value)} />
           <TextField label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)} />
+          <div>
+            <div className="mb-1 text-xs font-medium text-slate-600">Subtotal</div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+              {calculatedSubtotal || 0}
+              <span className="ms-2 text-xs text-slate-500">
+                (lines + shipping)
+              </span>
+            </div>
+          </div>
         </div>
 
         <TextField label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />

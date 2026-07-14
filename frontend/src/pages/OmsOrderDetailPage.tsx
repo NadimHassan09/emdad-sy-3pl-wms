@@ -97,11 +97,7 @@ export function OmsOrderDetailPage() {
     return <p className="text-sm text-rose-600">Could not load e-commerce order.</p>;
   }
 
-  const total =
-    order.total ??
-    (order.subtotal || order.shippingFee
-      ? String(Number(order.subtotal ?? 0) + Number(order.shippingFee ?? 0))
-      : null);
+  const total = order.total ?? order.subtotal ?? null;
 
   return (
     <div className="space-y-4">
@@ -221,9 +217,8 @@ export function OmsOrderDetailPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Section title="Pricing Summary">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Subtotal" value={order.subtotal ?? '—'} />
             <Field label="Shipping fee" value={order.shippingFee ?? '—'} />
-            <Field label="Total" value={total ?? '—'} />
+            <Field label="Subtotal" value={order.subtotal ?? total ?? '—'} />
           </div>
         </Section>
 

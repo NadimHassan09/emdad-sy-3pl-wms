@@ -39,11 +39,30 @@ function buildLegacyDestination(order: OmsOrder): string {
   return order.destinationAddress;
 }
 
-function computeTotal(order: OmsOrder): string | null {
-  const sub = order.subtotal != null ? Number(order.subtotal) : null;
-  const ship = order.shippingFee != null ? Number(order.shippingFee) : null;
-  if (sub == null && ship == null) return null;
-  return String((sub ?? 0) + (ship ?? 0));
+function linesSum(order: OmsOrderWithRelations): number {
+  return (order.lines ?? []).reduce((sum, line) => {
+    if (line.lineTotal != null) return sum + Number(line.lineTotal);
+    if (line.unitPrice != null) {
+      return sum + Number(line.unitPrice) * Number(line.requestedQuantity);
+    }
+    return sum;
+  }, 0);
+}
+
+/** Subtotal = shipping fee + sum of each line total (price × qty). */
+function computeSubtotal(order: OmsOrderWithRelations): string | null {
+  const ship = order.shippingFee != null ? Number(order.shippingFee) : 0;
+  if ((order.lines?.length ?? 0) > 0) {
+    return String(linesSum(order) + ship);
+  }
+  if (order.subtotal != null) return order.subtotal.toString();
+  if (order.shippingFee != null) return String(ship);
+  return null;
+}
+
+function computeTotal(order: OmsOrderWithRelations): string | null {
+  // Total equals calculated subtotal (already includes shipping).
+  return computeSubtotal(order);
 }
 
 export function serializeOmsOrderLine(line: OmsOrderLineWithProduct) {
@@ -81,10 +100,11 @@ export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
 }
 
 export function serializeOmsOrder(order: OmsOrderWithRelations) {
+  const subtotal = computeSubtotal(order);
   return {
     ...order,
     destinationAddress: buildLegacyDestination(order),
-    subtotal: dec(order.subtotal),
+    subtotal,
     shippingFee: dec(order.shippingFee),
     codAmount: dec(order.codAmount),
     total: computeTotal(order),
