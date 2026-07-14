@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -18,6 +19,7 @@ import {
 } from './dto/oms-order.dto';
 import { OmsDashboardService } from './oms-dashboard.service';
 import { OmsOrdersService } from './oms-orders.service';
+import { ListOmsOrdersQueryDto } from './dto/list-oms-orders-query.dto';
 
 @Controller('oms')
 export class OmsController {
@@ -32,6 +34,11 @@ export class OmsController {
     @Query('companyId') companyId?: string,
   ) {
     return this.dashboard.summary(user, companyId);
+  }
+
+  @Get('orders')
+  list(@CurrentUser() user: AuthPrincipal, @Query() query: ListOmsOrdersQueryDto) {
+    return this.orders.list(user, query);
   }
 
   @Post('orders')
@@ -54,6 +61,14 @@ export class OmsController {
     @Body() dto: UpdateOmsOrderDto,
   ) {
     return this.orders.update(id, user, dto);
+  }
+
+  @Delete('orders/:id')
+  delete(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.orders.delete(id, user);
   }
 
   @Post('orders/:id/cancel')

@@ -1,1 +1,23 @@
 @import '../../shared/design-system/globals.css';
+
+/*
+ * Portaled modals — sit above app chrome (topbar, sidebar, sub-nav).
+ * Matches client portal portal rules; uses --z-max so nothing in the shell overlaps the dialog.
+ */
+#ds-portal-root > div.fixed {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: var(--z-max, 100) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 1rem !important;
+  box-sizing: border-box !important;
+}
+
+#ds-portal-root [role='dialog'] {
+  position: relative !important;
+  width: 100% !important;
+  max-height: min(90dvh, calc(100vh - 2rem)) !important;
+  margin: 0 auto !important;
+}

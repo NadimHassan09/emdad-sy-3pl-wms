@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { OutboundOrderStatus, Prisma } from '@prisma/client';
+import { OmsOrderStatus, Prisma } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { readCompanyIdCatalogFilter } from '../../common/auth/company-read-scope';
@@ -25,7 +25,7 @@ export class OmsDashboardService {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      const whereBase: Prisma.OutboundOrderWhereInput = {
+      const whereBase: Prisma.OmsOrderWhereInput = {
         ...(companyFilter ? { companyId: companyFilter } : {}),
       };
 
@@ -42,57 +42,59 @@ export class OmsDashboardService {
         codSettled,
         returns,
       ] = await Promise.all([
-        tx.outboundOrder.count({
+        tx.omsOrder.count({
           where: { ...whereBase, createdAt: { gte: todayStart } },
         }),
-        tx.outboundOrder.count({
+        tx.omsOrder.count({
           where: {
             ...whereBase,
-            status: {
-              in: [
-                OutboundOrderStatus.draft,
-                OutboundOrderStatus.pending_approval,
-                OutboundOrderStatus.pending_stock,
-              ],
-            },
+            status: { in: [OmsOrderStatus.draft, OmsOrderStatus.confirmed] },
           },
         }),
-        tx.outboundOrder.count({
+        tx.omsOrder.count({
           where: {
             ...whereBase,
-            status: OutboundOrderStatus.allocated,
+            status: OmsOrderStatus.allocated,
           },
         }),
-        tx.outboundOrder.count({
-          where: { ...whereBase, status: OutboundOrderStatus.picking },
-        }),
-        tx.outboundOrder.count({
-          where: { ...whereBase, status: OutboundOrderStatus.packing },
-        }),
-        tx.outboundOrder.count({
-          where: { ...whereBase, status: OutboundOrderStatus.out_for_delivery },
-        }),
-        tx.outboundOrder.count({
+        tx.omsOrder.count({
           where: {
             ...whereBase,
-            status: { in: [OutboundOrderStatus.delivered, OutboundOrderStatus.shipped] },
+            status: OmsOrderStatus.processing,
+            outboundOrder: { status: 'picking' },
+          },
+        }),
+        tx.omsOrder.count({
+          where: {
+            ...whereBase,
+            status: OmsOrderStatus.processing,
+            outboundOrder: { status: 'packing' },
+          },
+        }),
+        tx.omsOrder.count({
+          where: { ...whereBase, status: OmsOrderStatus.out_for_delivery },
+        }),
+        tx.omsOrder.count({
+          where: {
+            ...whereBase,
+            status: { in: [OmsOrderStatus.delivered, OmsOrderStatus.shipped] },
             OR: [
               { deliveredAt: { gte: todayStart } },
-              { shippedAt: { gte: todayStart } },
+              { outForDeliveryAt: { gte: todayStart } },
             ],
           },
         }),
-        tx.outboundOrder.count({
+        tx.omsOrder.count({
           where: { ...whereBase, codStatus: 'pending' },
         }),
-        tx.outboundOrder.count({
+        tx.omsOrder.count({
           where: { ...whereBase, codStatus: 'collected' },
         }),
-        tx.outboundOrder.count({
+        tx.omsOrder.count({
           where: { ...whereBase, codStatus: 'settled' },
         }),
-        tx.outboundOrder.count({
-          where: { ...whereBase, status: OutboundOrderStatus.returned },
+        tx.omsOrder.count({
+          where: { ...whereBase, status: OmsOrderStatus.returned },
         }),
       ]);
 

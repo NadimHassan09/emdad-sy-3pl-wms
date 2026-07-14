@@ -21,6 +21,7 @@ export const QK = {
     ['inventory', 'ledger', 'entry', warehouseId, ledgerId, createdAt] as const,
   inboundOrders: ['inbound-orders'] as const,
   outboundOrders: ['outbound-orders'] as const,
+  omsOrders: ['oms-orders'] as const,
   contracts: ['contracts'] as const,
   contractsGrn: ['contracts', 'grn'] as const,
   contractsDn: ['contracts', 'dn'] as const,

@@ -28,7 +28,7 @@ function tasksListTaskTypeMatch(pathname: string, search: string, taskType: stri
 
 /** Inbound/outbound order detail — sub-nav tabs are list-only. */
 function isOrdersDetailPath(pathname: string): boolean {
-  return /^\/orders\/(inbound|outbound)\/[^/]+$/.test(pathname);
+  return /^\/orders\/(inbound|outbound|oms)\/[^/]+$/.test(pathname);
 }
 
 export type SectionSubNavConfig = {
@@ -74,9 +74,9 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
         match: (p) => p.startsWith('/orders/outbound'),
       },
       {
-        labelKey: 'OMS dashboard',
+        labelKey: 'E-commerce order',
         to: '/orders/oms',
-        match: (p) => p === '/orders/oms',
+        match: (p) => p === '/orders/oms' || /^\/orders\/oms\/[^/]+$/.test(p),
       },
       {
         labelKey: 'Quick outbound',
@@ -256,6 +256,7 @@ export function sectionSubNavLabel(label: string, isArabic: boolean): string {
     'Orders navigation': 'تنقل الطلبات',
     'Inbound orders': 'طلبات الوارد',
     'Outbound orders': 'طلبات الصادر',
+    'E-commerce order': 'طلب التجارة الإلكترونية',
     'Quick outbound': 'إخراج سريع',
     'Contracts navigation': 'تنقل العقود',
     GRN: 'GRN',

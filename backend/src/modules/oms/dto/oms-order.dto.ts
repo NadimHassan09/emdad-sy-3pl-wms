@@ -127,6 +127,17 @@ export class CreateOmsOrderDto {
   @IsUuidLoose()
   warehouseId?: string;
 
+  @IsUuidLoose()
+  outboundOrderId!: string;
+
+  @IsOptional()
+  @IsString()
+  storeChannel?: string;
+
+  @IsOptional()
+  @IsString()
+  externalReference?: string;
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
@@ -184,6 +195,10 @@ export class UpdateOmsOrderDto {
   notes?: string;
 
   @IsOptional()
+  @IsString()
+  clientReference?: string;
+
+  @IsOptional()
   @IsEnum(OmsPaymentMethod)
   paymentMethod?: OmsPaymentMethod;
 
@@ -205,6 +220,18 @@ export class UpdateOmsOrderDto {
   @IsOptional()
   @IsString()
   currency?: string;
+
+  @IsOptional()
+  @IsUuidLoose()
+  outboundOrderId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  storeChannel?: string;
+
+  @IsOptional()
+  @IsString()
+  externalReference?: string;
 }
 
 export class AllocateOmsOrderDto {

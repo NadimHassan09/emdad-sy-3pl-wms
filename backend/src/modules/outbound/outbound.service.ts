@@ -43,6 +43,7 @@ import { BillingAccessService } from '../billing/billing-access.service';
 import { BillingInvoiceCalculationService } from '../billing/billing-invoice-calculation.service';
 import { adminOutboundListItem } from '../realtime/realtime-client.payload';
 import { OmsOrderEventsService } from '../oms/oms-order-events.service';
+import { OmsOrdersService } from '../oms/oms-orders.service';
 import { OrderAllocationService } from '../oms/order-allocation.service';
 import {
   type OmsOrderCreateExtras,
@@ -120,6 +121,9 @@ export class OutboundService {
     @Optional()
     @Inject(forwardRef(() => OmsOrderEventsService))
     private readonly omsEvents?: OmsOrderEventsService,
+    @Optional()
+    @Inject(forwardRef(() => OmsOrdersService))
+    private readonly omsOrders?: OmsOrdersService,
   ) {}
 
   /**
@@ -215,7 +219,21 @@ export class OutboundService {
       include: ORDER_INCLUDE,
     });
 
-    if (opts?.oms?.recordOmsEvent !== false && this.omsEvents) {
+    if (opts?.oms && this.omsOrders) {
+      await this.omsOrders.mirrorFromOutbound(tx, {
+        outbound: created,
+        lines: created.lines.map((line) => ({
+          productId: line.productId,
+          requestedQuantity: line.requestedQuantity,
+          specificLotId: line.specificLotId,
+          lineNumber: line.lineNumber,
+          unitPrice: line.unitPrice,
+          lineTotal: line.lineTotal,
+          discountAmount: line.discountAmount,
+        })),
+        actorUserId: user.id,
+      });
+    } else if (opts?.oms?.recordOmsEvent !== false && this.omsEvents) {
       await this.omsEvents.record(tx, {
         outboundOrderId: created.id,
         companyId: created.companyId,

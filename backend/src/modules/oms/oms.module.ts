@@ -22,6 +22,6 @@ import { OrderAllocationService } from './order-allocation.service';
     OmsDashboardService,
     OmsSalesChannelService,
   ],
-  exports: [OrderAllocationService, OmsOrderEventsService],
+  exports: [OrderAllocationService, OmsOrderEventsService, OmsOrdersService],
 })
 export class OmsModule {}

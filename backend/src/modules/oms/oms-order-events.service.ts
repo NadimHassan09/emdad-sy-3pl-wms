@@ -12,15 +12,20 @@ export class OmsOrderEventsService {
   async record(
     tx: Tx,
     params: {
-      outboundOrderId: string;
+      omsOrderId?: string;
+      outboundOrderId?: string;
       companyId: string;
       eventType: string;
       createdBy?: string;
       payload?: Record<string, unknown>;
     },
   ): Promise<void> {
+    if (!params.omsOrderId && !params.outboundOrderId) {
+      throw new Error('OMS event requires omsOrderId or outboundOrderId.');
+    }
     await tx.omsOrderEvent.create({
       data: {
+        omsOrderId: params.omsOrderId,
         outboundOrderId: params.outboundOrderId,
         companyId: params.companyId,
         eventType: params.eventType,
@@ -30,7 +35,17 @@ export class OmsOrderEventsService {
     });
   }
 
-  listForOrder(outboundOrderId: string) {
+  listForOrder(omsOrderId: string) {
+    return this.prisma.omsOrderEvent.findMany({
+      where: { omsOrderId },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        creator: { select: { id: true, fullName: true } },
+      },
+    });
+  }
+
+  listForOutboundOrder(outboundOrderId: string) {
     return this.prisma.omsOrderEvent.findMany({
       where: { outboundOrderId },
       orderBy: { createdAt: 'asc' },

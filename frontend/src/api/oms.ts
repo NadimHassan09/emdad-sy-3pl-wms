@@ -1,12 +1,70 @@
-import { api } from './client';
-import type { OutboundOrder } from './outbound';
+import { PageResult, api } from './client';
 
 export type OmsPaymentMethod = 'COD' | 'PREPAID' | 'CREDIT';
 export type OmsCodStatus = 'pending' | 'collected' | 'remitted' | 'settled';
 export type OmsAllocationStatus = 'none' | 'allocated' | 'released' | 'fulfilled';
+export type OmsOrderStatus =
+  | 'draft'
+  | 'confirmed'
+  | 'processing'
+  | 'allocated'
+  | 'ready_to_ship'
+  | 'out_for_delivery'
+  | 'shipped'
+  | 'delivered'
+  | 'returned'
+  | 'cancelled';
 
-export interface OmsOrderDetail extends OutboundOrder {
+export interface OmsOrderLine {
+  id: string;
+  productId: string;
+  requestedQuantity: string;
+  specificLotId: string | null;
+  lineNumber: number;
+  unitPrice?: string | null;
+  lineTotal?: string | null;
+  discountAmount?: string | null;
+  product?: {
+    id: string;
+    sku: string;
+    name: string;
+    barcode?: string | null;
+    status: string;
+    trackingType: string;
+    uom: string;
+  };
+}
+
+export interface LinkedOutboundSummary {
+  id: string;
+  orderNumber: string;
+  status: string;
+}
+
+export interface OmsOrderListItem {
+  id: string;
+  orderNumber: string;
+  status: OmsOrderStatus;
+  companyId: string;
+  company?: { id: string; name: string } | null;
   recipientName?: string | null;
+  storeChannel?: string | null;
+  total?: string | null;
+  currency?: string | null;
+  outboundOrderId?: string | null;
+  linkedOutboundOrder?: LinkedOutboundSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OmsOrderDetail extends OmsOrderListItem {
+  destinationAddress: string;
+  requiredShipDate: string;
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  clientReference?: string | null;
+  notes?: string | null;
+  requiresPacking: boolean;
   recipientPhone?: string | null;
   city?: string | null;
   district?: string | null;
@@ -17,7 +75,6 @@ export interface OmsOrderDetail extends OutboundOrder {
   subtotal?: string | null;
   shippingFee?: string | null;
   codAmount?: string | null;
-  currency?: string | null;
   codStatus?: OmsCodStatus | null;
   codCollectedAt?: string | null;
   codRemittedAt?: string | null;
@@ -26,6 +83,9 @@ export interface OmsOrderDetail extends OutboundOrder {
   outForDeliveryAt?: string | null;
   deliveredAt?: string | null;
   returnedAt?: string | null;
+  externalReference?: string | null;
+  warehouseStatus?: string | null;
+  lines: OmsOrderLine[];
   timeline?: OmsOrderEvent[];
   reservations?: OmsStockReservation[];
 }
@@ -61,6 +121,66 @@ export interface OmsDashboardSummary {
   returns: number;
 }
 
+export interface CreateOmsOrderLineInput {
+  productId: string;
+  requestedQuantity: number;
+  specificLotId?: string;
+  unitPrice?: number;
+  lineTotal?: number;
+  discountAmount?: number;
+}
+
+export interface CreateOmsOrderInput {
+  companyId?: string;
+  destinationAddress?: string;
+  requiredShipDate: string;
+  carrier?: string;
+  clientReference?: string;
+  notes?: string;
+  requiresPacking?: boolean;
+  recipientName?: string;
+  recipientPhone?: string;
+  city?: string;
+  district?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  deliveryInstructions?: string;
+  paymentMethod?: OmsPaymentMethod;
+  subtotal?: number;
+  shippingFee?: number;
+  codAmount?: number;
+  currency?: string;
+  warehouseId?: string;
+  outboundOrderId: string;
+  storeChannel?: string;
+  externalReference?: string;
+  lines: CreateOmsOrderLineInput[];
+}
+
+export interface UpdateOmsOrderInput {
+  recipientName?: string;
+  recipientPhone?: string;
+  city?: string;
+  district?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  deliveryInstructions?: string;
+  destinationAddress?: string;
+  requiredShipDate?: string;
+  carrier?: string;
+  trackingNumber?: string;
+  notes?: string;
+  clientReference?: string;
+  paymentMethod?: OmsPaymentMethod;
+  subtotal?: number;
+  shippingFee?: number;
+  codAmount?: number;
+  currency?: string;
+  outboundOrderId?: string | null;
+  storeChannel?: string;
+  externalReference?: string;
+}
+
 export const OmsApi = {
   dashboard(companyId?: string) {
     return api
@@ -68,8 +188,35 @@ export const OmsApi = {
       .then((r) => r.data);
   },
 
+  list(params: {
+    companyId?: string;
+    orderSearch?: string;
+    status?: OmsOrderStatus;
+    storeChannel?: string;
+    linkStatus?: 'linked' | 'unlinked';
+    createdFrom?: string;
+    createdTo?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<PageResult<OmsOrderListItem>> {
+    return api.get<PageResult<OmsOrderListItem>>('/oms/orders', { params }).then((r) => r.data);
+  },
+
+  create(input: CreateOmsOrderInput) {
+    const headers = input.companyId ? { 'X-Company-Id': input.companyId } : undefined;
+    return api.post<OmsOrderDetail>('/oms/orders', input, { headers }).then((r) => r.data);
+  },
+
   getOrder(id: string) {
     return api.get<OmsOrderDetail>(`/oms/orders/${id}`).then((r) => r.data);
+  },
+
+  update(id: string, input: UpdateOmsOrderInput) {
+    return api.patch<OmsOrderDetail>(`/oms/orders/${id}`, input).then((r) => r.data);
+  },
+
+  delete(id: string) {
+    return api.delete<{ ok: boolean }>(`/oms/orders/${id}`).then((r) => r.data);
   },
 
   timeline(id: string) {

@@ -6,8 +6,7 @@ import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { withTenantRls } from '../../../common/prisma/tenant-rls';
 import { OmsOrderEventsService } from '../../oms/oms-order-events.service';
-import { serializeOmsOrder } from '../../oms/oms-order.mapper';
-import { ClientOutboundOrdersService } from '../outbound/client-outbound-orders.service';
+import { OmsOrdersService } from '../../oms/oms-orders.service';
 
 export type ClientCodReportQuery = {
   limit: number;
@@ -21,35 +20,24 @@ export type ClientCodReportQuery = {
 export class ClientOmsOrdersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly outbound: ClientOutboundOrdersService,
+    private readonly omsOrders: OmsOrdersService,
     private readonly events: OmsOrderEventsService,
   ) {}
 
   async findOne(client: ClientPrincipal, id: string) {
-    const order = await this.outbound.findOne(client, id);
-    const timeline = await this.events.listForOrder(id);
-    const reservations = await this.prisma.stockReservation.findMany({
-      where: { outboundOrderId: id, companyId: client.companyId },
-      orderBy: { createdAt: 'asc' },
-    });
-    return {
-      ...serializeOmsOrder(order),
-      timeline,
-      reservations: reservations.map((r) => ({
-        ...r,
-        quantity: r.quantity.toString(),
-      })),
-    };
+    const user = clientAuthPrincipal(client);
+    const order = await this.omsOrders.findById(id, user);
+    return order;
   }
 
   async timeline(client: ClientPrincipal, id: string) {
-    await this.outbound.findOne(client, id);
-    return this.events.listForOrder(id);
+    const user = clientAuthPrincipal(client);
+    return this.omsOrders.timeline(id, user);
   }
 
   async codReport(client: ClientPrincipal, query: ClientCodReportQuery) {
     const user = clientAuthPrincipal(client);
-    const where: Prisma.OutboundOrderWhereInput = {
+    const where: Prisma.OmsOrderWhereInput = {
       companyId: client.companyId,
       paymentMethod: 'COD',
     };
@@ -70,7 +58,7 @@ export class ClientOmsOrdersService {
 
     return withTenantRls(this.prisma, user, async (tx) => {
       const [items, total, summary] = await Promise.all([
-        tx.outboundOrder.findMany({
+        tx.omsOrder.findMany({
           where,
           orderBy: { createdAt: 'desc' },
           take: query.limit,
@@ -89,8 +77,8 @@ export class ClientOmsOrdersService {
             deliveredAt: true,
           },
         }),
-        tx.outboundOrder.count({ where }),
-        tx.outboundOrder.aggregate({
+        tx.omsOrder.count({ where }),
+        tx.omsOrder.aggregate({
           where,
           _sum: { codAmount: true },
           _count: { id: true },

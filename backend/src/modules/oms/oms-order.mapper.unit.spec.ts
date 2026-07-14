@@ -54,17 +54,18 @@ describe('serializeOmsOrder', () => {
         {
           id: 'l1',
           requestedQuantity: new Prisma.Decimal('2'),
-          pickedQuantity: new Prisma.Decimal('0'),
           unitPrice: new Prisma.Decimal('5'),
           lineTotal: new Prisma.Decimal('10'),
           discountAmount: null,
         },
       ],
+      outboundOrder: null,
     };
 
     const serialized = serializeOmsOrder(order as never);
     expect(serialized.destinationAddress).toBe('Line 1, Aleppo');
     expect(serialized.subtotal).toBe('10');
     expect(serialized.lines[0]?.requestedQuantity).toBe('2');
+    expect(serialized.total).toBe('10');
   });
 });
