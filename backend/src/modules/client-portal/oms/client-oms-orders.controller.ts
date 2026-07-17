@@ -7,6 +7,7 @@ import { PaginationDto } from '../../../common/dto/pagination.dto';
 import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ClientOmsOrdersService } from './client-oms-orders.service';
+import { ListClientOmsOrdersQueryDto } from './dto/list-client-oms-orders-query.dto';
 
 class ClientCodReportQueryDto extends PaginationDto {
   codStatus?: string;
@@ -19,6 +20,11 @@ class ClientCodReportQueryDto extends PaginationDto {
 @Controller('client/oms')
 export class ClientOmsOrdersController {
   constructor(private readonly oms: ClientOmsOrdersService) {}
+
+  @Get('orders')
+  list(@ClientUser() client: ClientPrincipal, @Query() query: ListClientOmsOrdersQueryDto) {
+    return this.oms.list(client, query);
+  }
 
   @Get('orders/:id')
   findOne(@ClientUser() client: ClientPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {

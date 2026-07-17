@@ -59,6 +59,7 @@ function routeGroup(pathname: string): string {
   if (
     pathname.startsWith('/inbound-orders') ||
     pathname.startsWith('/outbound-orders') ||
+    pathname.startsWith('/ecommerce-orders') ||
     pathname.startsWith('/cod-reports') ||
     pathname.startsWith('/returns')
   ) {

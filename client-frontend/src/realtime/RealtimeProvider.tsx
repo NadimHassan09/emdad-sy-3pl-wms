@@ -93,6 +93,8 @@ export function RealtimeProvider({ children }: Props): ReactElement {
       void qc.invalidateQueries({ queryKey: ['client', 'outbound-orders'] });
       void qc.invalidateQueries({ queryKey: ['client', 'outbound-orders', payload.orderId] });
       void qc.invalidateQueries({ queryKey: ['client', 'outbound-orders', payload.orderId, 'oms'] });
+      void qc.invalidateQueries({ queryKey: ['client', 'ecommerce-orders'] });
+      void qc.invalidateQueries({ queryKey: ['client', 'ecommerce-orders', payload.orderId] });
       void qc.invalidateQueries({ queryKey: ['client', 'cod-report'] });
     };
     const onInventory = (payload: { stockRow?: ClientStockRow }): void => {

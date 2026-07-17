@@ -13,7 +13,10 @@ export type SectionSubNavConfig = {
 };
 
 function isOrdersDetailPath(pathname: string): boolean {
-  return /^\/(inbound|outbound)-orders\/[^/]+$/.test(pathname) || /^\/returns\/[^/]+$/.test(pathname);
+  return (
+    /^\/(inbound|outbound|ecommerce)-orders\/[^/]+$/.test(pathname) ||
+    /^\/returns\/[^/]+$/.test(pathname)
+  );
 }
 
 const ORDERS_SECTION: SectionSubNavConfig = {
@@ -22,6 +25,7 @@ const ORDERS_SECTION: SectionSubNavConfig = {
   matchSection: (p) =>
     (p.startsWith('/inbound-orders') ||
       p.startsWith('/outbound-orders') ||
+      p.startsWith('/ecommerce-orders') ||
       p.startsWith('/cod-reports') ||
       p.startsWith('/returns')) &&
     !isOrdersDetailPath(p),
@@ -37,6 +41,12 @@ const ORDERS_SECTION: SectionSubNavConfig = {
       labelAr: 'طلباتي',
       to: '/outbound-orders',
       match: (p) => p.startsWith('/outbound-orders'),
+    },
+    {
+      labelKey: 'E-commerce orders',
+      labelAr: 'طلبات التجارة الإلكترونية',
+      to: '/ecommerce-orders',
+      match: (p) => p.startsWith('/ecommerce-orders'),
     },
     {
       labelKey: 'COD reports',

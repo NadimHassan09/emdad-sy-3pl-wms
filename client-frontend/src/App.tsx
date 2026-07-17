@@ -29,6 +29,8 @@ const InboundOrdersPage     = lazyPage(() => import('./pages/InboundOrdersPage')
 const InboundOrderDetailPage = lazyPage(() => import('./pages/InboundOrderDetailPage'), 'InboundOrderDetailPage');
 const OutboundOrdersPage    = lazyPage(() => import('./pages/OutboundOrdersPage'),    'OutboundOrdersPage');
 const OutboundOrderDetailPage = lazyPage(() => import('./pages/OutboundOrderDetailPage'), 'OutboundOrderDetailPage');
+const EcommerceOrdersPage   = lazyPage(() => import('./pages/EcommerceOrdersPage'),   'EcommerceOrdersPage');
+const EcommerceOrderDetailPage = lazyPage(() => import('./pages/EcommerceOrderDetailPage'), 'EcommerceOrderDetailPage');
 const CodReportsPage          = lazyPage(() => import('./pages/CodReportsPage'),          'CodReportsPage');
 const ReturnsPage             = lazyPage(() => import('./pages/ReturnsPage'),             'ReturnsPage');
 const ReturnDetailPage        = lazyPage(() => import('./pages/ReturnDetailPage'),        'ReturnDetailPage');
@@ -115,6 +117,22 @@ function AppRoutes(): ReactElement {
               element={
                 <RequireRouteAccess>
                   <OutboundOrderDetailPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="ecommerce-orders"
+              element={
+                <RequireRouteAccess>
+                  <EcommerceOrdersPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="ecommerce-orders/:id"
+              element={
+                <RequireRouteAccess>
+                  <EcommerceOrderDetailPage />
                 </RequireRouteAccess>
               }
             />

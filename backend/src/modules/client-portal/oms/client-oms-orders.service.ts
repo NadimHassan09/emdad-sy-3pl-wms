@@ -5,8 +5,10 @@ import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal'
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { withTenantRls } from '../../../common/prisma/tenant-rls';
+import { ListOmsOrdersQueryDto } from '../../oms/dto/list-oms-orders-query.dto';
 import { OmsOrderEventsService } from '../../oms/oms-order-events.service';
 import { OmsOrdersService } from '../../oms/oms-orders.service';
+import { ListClientOmsOrdersQueryDto } from './dto/list-client-oms-orders-query.dto';
 
 export type ClientCodReportQuery = {
   limit: number;
@@ -23,6 +25,15 @@ export class ClientOmsOrdersService {
     private readonly omsOrders: OmsOrdersService,
     private readonly events: OmsOrderEventsService,
   ) {}
+
+  async list(client: ClientPrincipal, query: ListClientOmsOrdersQueryDto) {
+    const user = clientAuthPrincipal(client);
+    const scoped: ListOmsOrdersQueryDto = {
+      ...query,
+      companyId: client.companyId,
+    };
+    return this.omsOrders.list(user, scoped);
+  }
 
   async findOne(client: ClientPrincipal, id: string) {
     const user = clientAuthPrincipal(client);
