@@ -37,6 +37,7 @@ const InboundDetailPage       = lazyPage(() => import('./pages/InboundDetailPage
 const OutboundListPage        = lazyPage(() => import('./pages/OutboundListPage'),        'OutboundListPage');
 const OmsOrdersListPage       = lazyPage(() => import('./pages/OmsOrdersListPage'),       'OmsOrdersListPage');
 const OmsOrderDetailPage      = lazyPage(() => import('./pages/OmsOrderDetailPage'),      'OmsOrderDetailPage');
+const OmsDashboardPage        = lazyPage(() => import('./pages/OmsDashboardPage'),        'OmsDashboardPage');
 const OutboundDetailPage      = lazyPage(() => import('./pages/OutboundDetailPage'),      'OutboundDetailPage');
 const TasksListPage           = lazyPage(() => import('./pages/TasksListPage'),           'TasksListPage');
 const TaskDetailPage          = lazyPage(() => import('./pages/TaskDetailPage'),          'TaskDetailPage');
@@ -137,6 +138,9 @@ export const router = createBrowserRouter([
       { path: 'orders/outbound/:id', element: <OutboundDetailPage /> },
       { path: 'orders/oms', element: <OmsOrdersListPage /> },
       { path: 'orders/oms/:id', element: <OmsOrderDetailPage /> },
+      { path: 'oms', element: <Navigate to="/oms/dashboard" replace /> },
+      { path: 'oms/dashboard', element: <OmsDashboardPage /> },
+      { path: 'oms/orders/:id', element: <OmsOrderDetailPage /> },
       { path: 'contracts', element: <Navigate to="/contracts/grn" replace /> },
       { path: 'contracts/grn', element: <ContractsPage /> },
       { path: 'contracts/dn', element: <ContractsPage /> },

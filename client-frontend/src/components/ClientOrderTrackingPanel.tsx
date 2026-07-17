@@ -3,8 +3,8 @@ import type { ReactElement } from 'react';
 import type { ClientOmsOrderDetail } from '../services/clientOmsOrdersService';
 
 const MILESTONES = [
-  { key: 'created', label: 'Order placed' },
-  { key: 'allocated', label: 'Allocated' },
+  { key: 'pending_approval', label: 'Pending approval' },
+  { key: 'approved', label: 'Approved' },
   { key: 'picking', label: 'Picking' },
   { key: 'packing', label: 'Packing' },
   { key: 'ready_to_ship', label: 'Ready to ship' },
@@ -15,9 +15,16 @@ const MILESTONES = [
 function milestoneIndex(status: string): number {
   const idx = MILESTONES.findIndex((m) => m.key === status);
   if (idx >= 0) return idx;
-  if (status === 'shipped') return MILESTONES.findIndex((m) => m.key === 'delivered');
-  if (status === 'returned') return MILESTONES.length;
-  if (status === 'confirmed' || status === 'pending_approval' || status === 'draft') return 0;
+  if (status === 'shipped' || status === 'completed') {
+    return MILESTONES.findIndex((m) => m.key === 'delivered');
+  }
+  if (status === 'allocated' || status === 'confirmed' || status === 'processing') {
+    return MILESTONES.findIndex((m) => m.key === 'approved');
+  }
+  if (status === 'returned' || status === 'failed_delivery' || status === 'rejected') {
+    return MILESTONES.length;
+  }
+  if (status === 'draft' || status === 'pending_approval') return 0;
   return 0;
 }
 
@@ -28,7 +35,10 @@ type Props = {
 export function ClientOrderTrackingPanel({ order }: Props): ReactElement {
   const current = milestoneIndex(order.status);
   const isReturned = order.status === 'returned';
+  const isRejected = order.status === 'rejected';
+  const isFailed = order.status === 'failed_delivery';
   const isCancelled = order.status === 'cancelled';
+  const terminalBad = isReturned || isRejected || isFailed;
 
   return (
     <section className="card" style={{ marginTop: '1.5rem' }}>
@@ -37,8 +47,8 @@ export function ClientOrderTrackingPanel({ order }: Props): ReactElement {
       {!isCancelled ? (
         <ol style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', listStyle: 'none', padding: 0, margin: '1rem 0' }}>
           {MILESTONES.map((step, i) => {
-            const done = i <= current && !isReturned;
-            const active = i === current && !isReturned;
+            const done = i <= current && !terminalBad;
+            const active = i === current && !terminalBad;
             return (
               <li
                 key={step.key}
@@ -55,7 +65,7 @@ export function ClientOrderTrackingPanel({ order }: Props): ReactElement {
               </li>
             );
           })}
-          {isReturned ? (
+          {terminalBad ? (
             <li
               style={{
                 padding: '0.35rem 0.75rem',
@@ -65,7 +75,7 @@ export function ClientOrderTrackingPanel({ order }: Props): ReactElement {
                 color: '#991b1b',
               }}
             >
-              Returned
+              {isRejected ? 'Rejected' : isFailed ? 'Failed delivery' : 'Returned'}
             </li>
           ) : null}
         </ol>

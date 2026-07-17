@@ -11,7 +11,7 @@ import { OutboundService } from './outbound.service';
 @Module({
   imports: [
     InventoryModule,
-    WarehouseWorkflowModule,
+    forwardRef(() => WarehouseWorkflowModule),
     AuditModule,
     BillingModule,
     forwardRef(() => OmsModule),

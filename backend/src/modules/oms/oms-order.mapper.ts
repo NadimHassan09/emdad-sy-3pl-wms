@@ -1,6 +1,7 @@
 import type {
   OmsOrder,
   OmsOrderLine,
+  OmsOrderStatus,
   OutboundOrder,
   Prisma,
 } from '@prisma/client';
@@ -145,17 +146,17 @@ export function deriveCodStatus(
   return null;
 }
 
-export function mapOutboundStatusToOms(
-  status: string,
-): 'draft' | 'confirmed' | 'processing' | 'allocated' | 'ready_to_ship' | 'out_for_delivery' | 'shipped' | 'delivered' | 'returned' | 'cancelled' {
+/** Map warehouse outbound status → OMS status for ongoing sync. */
+export function mapOutboundStatusToOms(status: string): OmsOrderStatus {
   switch (status) {
     case 'confirmed':
-      return 'confirmed';
+      return 'approved';
     case 'allocated':
       return 'allocated';
     case 'picking':
+      return 'picking';
     case 'packing':
-      return 'processing';
+      return 'packing';
     case 'ready_to_ship':
       return 'ready_to_ship';
     case 'out_for_delivery':
@@ -168,7 +169,15 @@ export function mapOutboundStatusToOms(
       return 'returned';
     case 'cancelled':
       return 'cancelled';
+    case 'pending_approval':
+    case 'pending_stock':
+    case 'draft':
+      return 'approved';
     default:
-      return 'draft';
+      return 'processing';
   }
+}
+
+export function omsEventTypeForStatus(status: OmsOrderStatus): string {
+  return `order.${status}`;
 }

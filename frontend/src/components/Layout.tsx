@@ -48,6 +48,8 @@ import {
 
   SidebarNav,
 
+  SidebarSection,
+
   Topbar,
 
   TopbarMobileMenuButton,
@@ -83,6 +85,14 @@ function sidebarLabel(label: string, isArabic: boolean): string {
     Reports: 'التقارير',
 
     Orders: 'الطلبات',
+    WMS: 'إدارة المستودع',
+    OMS: 'إدارة الطلبات',
+    Inbound: 'الوارد',
+    Outbound: 'الصادر',
+    'OMS Dashboard': 'لوحة OMS',
+    'OMS Orders': 'طلبات OMS',
+    COD: 'COD',
+    'OMS Returns': 'مرتجعات OMS',
 
     Inventory: 'المخزون',
 
@@ -153,83 +163,92 @@ function displayName(user: { fullName?: string; email?: string | null }): string
 
 
 interface FlatNavItem {
-
   label: string;
-
   iconKey: string;
-
   to: string;
-
+  group: 'wms' | 'oms' | null;
   active: (pathname: string, search: string) => boolean;
-
 }
-
-
 
 function buildFlatNav(t: (s: string) => string, role: string | undefined): FlatNavItem[] {
   return navItemsForRole(role).map((item) => ({
     label: t(item.labelKey),
     iconKey: item.iconKey,
     to: item.to,
+    group: item.group ?? null,
     active: (p) => item.match(p),
   }));
 }
 
-
+function renderNavLink(
+  item: FlatNavItem,
+  pathname: string,
+  search: string,
+  navigate: (to: string) => void,
+  onLinkClick?: () => void,
+) {
+  const active = item.active(pathname, search);
+  return (
+    <SidebarLink
+      key={item.to}
+      href={item.to}
+      isActive={active}
+      icon={renderSidebarNavIcon(item.iconKey)}
+      onClick={(e) => {
+        e.preventDefault();
+        navigate(item.to);
+        onLinkClick?.();
+      }}
+    >
+      {item.label}
+    </SidebarLink>
+  );
+}
 
 function SidebarNavContent({
-
   items,
-
   pathname,
-
   search,
-
   navigate,
-
   onLinkClick,
-
+  t,
 }: {
-
   items: FlatNavItem[];
-
   pathname: string;
-
   search: string;
-
   navigate: (to: string) => void;
-
   onLinkClick?: () => void;
-
+  t: (s: string) => string;
 }) {
+  const ungrouped = items.filter((i) => !i.group);
+  const wmsItems = items.filter((i) => i.group === 'wms');
+  const omsItems = items.filter((i) => i.group === 'oms');
+  const wmsOpen = wmsItems.some((i) => i.active(pathname, search));
+  const omsOpen = omsItems.some((i) => i.active(pathname, search));
 
   return (
-
     <SidebarNav>
-
-      {items.map((item) => {
-        const active = item.active(pathname, search);
-        return (
-          <SidebarLink
-            key={item.to}
-            href={item.to}
-            isActive={active}
-            icon={renderSidebarNavIcon(item.iconKey)}
-            onClick={(e) => {
-              e.preventDefault();
-              navigate(item.to);
-              onLinkClick?.();
-            }}
-          >
-            {item.label}
-          </SidebarLink>
-        );
-      })}
-
+      {ungrouped.map((item) => renderNavLink(item, pathname, search, navigate, onLinkClick))}
+      {wmsItems.length > 0 ? (
+        <SidebarSection
+          label={t('WMS')}
+          icon={renderSidebarNavIcon('Warehouses')}
+          defaultOpen={wmsOpen || true}
+        >
+          {wmsItems.map((item) => renderNavLink(item, pathname, search, navigate, onLinkClick))}
+        </SidebarSection>
+      ) : null}
+      {omsItems.length > 0 ? (
+        <SidebarSection
+          label={t('OMS')}
+          icon={renderSidebarNavIcon('Orders')}
+          defaultOpen={omsOpen || true}
+        >
+          {omsItems.map((item) => renderNavLink(item, pathname, search, navigate, onLinkClick))}
+        </SidebarSection>
+      ) : null}
     </SidebarNav>
-
   );
-
 }
 
 
@@ -302,21 +321,14 @@ export function Layout() {
 
 
   const navContent = (
-
     <SidebarNavContent
-
       items={navItems}
-
       pathname={pathname}
-
       search={search}
-
       navigate={navigate}
-
       onLinkClick={() => setMobileNavOpen(false)}
-
+      t={t}
     />
-
   );
 
 

@@ -172,7 +172,7 @@ export function OmsOrdersListPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="E-commerce order" />
+      <PageHeader title="OMS Orders" />
 
       <FilterPanel title="Order filters" onApply={applyFilters} onReset={resetFilters}>
         <TextField
@@ -197,12 +197,21 @@ export function OmsOrdersListPage() {
           onChange={(e) => setDraft({ status: e.target.value })}
           options={[
             { value: '', label: 'All statuses' },
+            { value: 'pending_approval', label: 'Pending approval' },
+            { value: 'approved', label: 'Approved' },
+            { value: 'rejected', label: 'Rejected' },
             { value: 'draft', label: 'Draft' },
             { value: 'confirmed', label: 'Confirmed' },
-            { value: 'processing', label: 'Processing' },
             { value: 'allocated', label: 'Allocated' },
+            { value: 'picking', label: 'Picking' },
+            { value: 'packing', label: 'Packing' },
+            { value: 'ready_to_ship', label: 'Ready to ship' },
             { value: 'out_for_delivery', label: 'Out for delivery' },
+            { value: 'shipped', label: 'Shipped' },
             { value: 'delivered', label: 'Delivered' },
+            { value: 'failed_delivery', label: 'Failed delivery' },
+            { value: 'completed', label: 'Completed' },
+            { value: 'returned', label: 'Returned' },
             { value: 'cancelled', label: 'Cancelled' },
           ]}
         />
@@ -237,7 +246,7 @@ export function OmsOrdersListPage() {
       </FilterPanel>
 
       <DataTable
-        title="E-commerce order"
+        title="OMS Orders"
         actions={
           <Button
             variant="primary"
@@ -245,7 +254,7 @@ export function OmsOrdersListPage() {
             onClick={() => setCreateOpen(true)}
             className={FILTER_PRIMARY_BUTTON_CLASS}
           >
-            Create E-commerce Order
+            Create OMS Order
           </Button>
         }
         columns={columns}

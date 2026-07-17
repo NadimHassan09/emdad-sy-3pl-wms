@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 
 import { AuditModule } from '../../common/audit/audit.module';
 import { RedisModule } from '../../common/redis/redis.module';
@@ -6,6 +6,7 @@ import { PrismaModule } from '../../common/prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { BillingModule } from '../billing/billing.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { OmsModule } from '../oms/oms.module';
 import { WorkflowBootstrapService } from './workflow-bootstrap.service';
 import { WorkflowOrchestrationService } from './workflow-orchestration.service';
 import { WarehouseTasksService } from './warehouse-tasks.service';
@@ -23,7 +24,16 @@ import { WorkflowEngineService } from './workflow-engine.service';
 import { PdfModule } from '../../pdf/pdf.module';
 
 @Module({
-  imports: [PrismaModule, InventoryModule, RedisModule, AuthModule, AuditModule, BillingModule, PdfModule],
+  imports: [
+    PrismaModule,
+    InventoryModule,
+    RedisModule,
+    AuthModule,
+    AuditModule,
+    BillingModule,
+    PdfModule,
+    forwardRef(() => OmsModule),
+  ],
   controllers: [
     WorkflowController,
     WarehouseTasksController,

@@ -22,6 +22,7 @@ export const QK = {
   inboundOrders: ['inbound-orders'] as const,
   outboundOrders: ['outbound-orders'] as const,
   omsOrders: ['oms-orders'] as const,
+  omsDashboard: ['oms-dashboard'] as const,
   contracts: ['contracts'] as const,
   contractsGrn: ['contracts', 'grn'] as const,
   contractsDn: ['contracts', 'dn'] as const,

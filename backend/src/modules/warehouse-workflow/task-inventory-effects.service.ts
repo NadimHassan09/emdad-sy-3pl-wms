@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Optional, forwardRef } from '@nestjs/common';
 import { InboundQcStatus, MovementType, Prisma, ProductTrackingType, StockStatus } from '@prisma/client';
 
 import { isQuarantineStorageLocationType } from '../../common/constants/storage-location-types';
@@ -13,6 +13,7 @@ import {
 } from '../../common/utils/discrete-uom-quantity';
 import { LedgerIdempotencyService } from '../inventory/ledger-idempotency.service';
 import { StockHelpers } from '../inventory/stock.helpers';
+import { OmsOutboundSyncService } from '../oms/oms-outbound-sync.service';
 import { OrderNotificationTarget } from '../notifications/notifications.service';
 import { TaskCompleteBody } from './task-payload.schema';
 import { findWarehouseStockFefo } from './task-allocation.helper';
@@ -55,6 +56,9 @@ export class TaskInventoryEffectsService {
   constructor(
     private readonly stock: StockHelpers,
     private readonly ledgerDedup: LedgerIdempotencyService,
+    @Optional()
+    @Inject(forwardRef(() => OmsOutboundSyncService))
+    private readonly omsSync?: OmsOutboundSyncService,
   ) {}
 
   async buildPickReservations(
@@ -462,6 +466,7 @@ export class TaskInventoryEffectsService {
         status: order?.requiresPacking === false ? 'ready_to_ship' : 'packing',
       },
     });
+    await this.omsSync?.syncFromOutbound(tx, orderId);
   }
 
   async applyDispatchShip(
@@ -545,6 +550,7 @@ export class TaskInventoryEffectsService {
         trackingNumber: body.tracking ?? order.trackingNumber,
       },
     });
+    await this.omsSync?.syncFromOutbound(tx, outboundOrderId, operatorId);
 
     return {
       companyId: order.companyId,
@@ -596,6 +602,7 @@ export class TaskInventoryEffectsService {
       where: { id: outboundOrderId },
       data: { status: 'ready_to_ship' },
     });
+    await this.omsSync?.syncFromOutbound(tx, outboundOrderId);
   }
 
   /** Row lock on the outbound order for pick complete / dispatch ship (prevents concurrent order-line races). */

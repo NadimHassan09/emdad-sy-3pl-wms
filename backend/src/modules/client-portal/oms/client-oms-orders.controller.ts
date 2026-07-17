@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
@@ -7,6 +7,7 @@ import { PaginationDto } from '../../../common/dto/pagination.dto';
 import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ClientOmsOrdersService } from './client-oms-orders.service';
+import { CreateClientOmsOrderDto } from './dto/create-client-oms-order.dto';
 import { ListClientOmsOrdersQueryDto } from './dto/list-client-oms-orders-query.dto';
 
 class ClientCodReportQueryDto extends PaginationDto {
@@ -24,6 +25,11 @@ export class ClientOmsOrdersController {
   @Get('orders')
   list(@ClientUser() client: ClientPrincipal, @Query() query: ListClientOmsOrdersQueryDto) {
     return this.oms.list(client, query);
+  }
+
+  @Post('orders')
+  create(@ClientUser() client: ClientPrincipal, @Body() dto: CreateClientOmsOrderDto) {
+    return this.oms.create(client, dto);
   }
 
   @Get('orders/:id')

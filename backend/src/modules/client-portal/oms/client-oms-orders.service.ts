@@ -6,8 +6,10 @@ import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { withTenantRls } from '../../../common/prisma/tenant-rls';
 import { ListOmsOrdersQueryDto } from '../../oms/dto/list-oms-orders-query.dto';
+import { CreateOmsOrderDto } from '../../oms/dto/oms-order.dto';
 import { OmsOrderEventsService } from '../../oms/oms-order-events.service';
 import { OmsOrdersService } from '../../oms/oms-orders.service';
+import { CreateClientOmsOrderDto } from './dto/create-client-oms-order.dto';
 import { ListClientOmsOrdersQueryDto } from './dto/list-client-oms-orders-query.dto';
 
 export type ClientCodReportQuery = {
@@ -33,6 +35,32 @@ export class ClientOmsOrdersService {
       companyId: client.companyId,
     };
     return this.omsOrders.list(user, scoped);
+  }
+
+  async create(client: ClientPrincipal, dto: CreateClientOmsOrderDto) {
+    const user = clientAuthPrincipal(client);
+    const payload: CreateOmsOrderDto = {
+      companyId: client.companyId,
+      requiredShipDate: dto.requiredShipDate,
+      recipientName: dto.recipientName,
+      recipientPhone: dto.recipientPhone,
+      city: dto.city,
+      district: dto.district,
+      addressLine1: dto.addressLine1,
+      notes: dto.notes,
+      storeChannel: dto.storeChannel,
+      paymentMethod: dto.paymentMethod,
+      currency: dto.currency ?? 'SYP',
+      // Clients must not set shipping fee — admin sets it before/at approval.
+      lines: dto.lines.map((l) => ({
+        productId: l.productId,
+        requestedQuantity: l.requestedQuantity,
+        unitPrice: l.unitPrice,
+        lineTotal:
+          l.unitPrice != null ? l.unitPrice * l.requestedQuantity : undefined,
+      })),
+    };
+    return this.omsOrders.create(user, payload);
   }
 
   async findOne(client: ClientPrincipal, id: string) {

@@ -4,7 +4,6 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { CompaniesApi } from '../../api/companies';
 import type { CreateOmsOrderInput, OmsOrderDetail, OmsPaymentMethod } from '../../api/oms';
 import { OmsApi } from '../../api/oms';
-import { OutboundApi } from '../../api/outbound';
 import type { Product } from '../../api/products';
 import { ProductsApi } from '../../api/products';
 import { useAuth } from '../../auth/AuthContext';
@@ -40,6 +39,10 @@ export function OmsOrderFormModal({
   const toast = useToast();
   const { user } = useAuth();
   const isAdmin = canAccessInternalTransfer(user?.role);
+  const linesFrozen =
+    mode === 'edit' &&
+    !!initial &&
+    !['draft', 'pending_approval'].includes(initial.status);
 
   const [companyId, setCompanyId] = useState('');
   const [requiredShipDate, setRequiredShipDate] = useState(localCalendarDateYmd());
@@ -54,8 +57,6 @@ export function OmsOrderFormModal({
   const [shippingFee, setShippingFee] = useState('');
   const [currency, setCurrency] = useState('SYP');
   const [storeChannel, setStoreChannel] = useState('');
-  const [outboundOrderId, setOutboundOrderId] = useState('');
-  const [outboundSearch, setOutboundSearch] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
 
   const companies = useQuery({
@@ -70,18 +71,6 @@ export function OmsOrderFormModal({
     queryKey: [...QK.products, effectiveCompanyId],
     queryFn: () => ProductsApi.list({ companyId: effectiveCompanyId || undefined, limit: 200 }),
     enabled: !!effectiveCompanyId && open,
-  });
-
-  const outboundOptions = useQuery({
-    queryKey: ['outbound-lookup', effectiveCompanyId, outboundSearch],
-    queryFn: () =>
-      OutboundApi.list({
-        companyId: effectiveCompanyId || undefined,
-        orderSearch: outboundSearch || undefined,
-        limit: 50,
-        offset: 0,
-      }),
-    enabled: open && !!effectiveCompanyId,
   });
 
   useEffect(() => {
@@ -100,7 +89,6 @@ export function OmsOrderFormModal({
       setShippingFee(initial.shippingFee ?? '');
       setCurrency(initial.currency ?? 'SYP');
       setStoreChannel(initial.storeChannel ?? '');
-      setOutboundOrderId(initial.outboundOrderId ?? '');
     } else if (mode === 'create') {
       setCompanyId(user?.tenantCompanyId ?? '');
       setRequiredShipDate(localCalendarDateYmd());
@@ -115,7 +103,6 @@ export function OmsOrderFormModal({
       setShippingFee('');
       setCurrency('SYP');
       setStoreChannel('');
-      setOutboundOrderId('');
       setLines([emptyLine()]);
     }
   }, [open, mode, initial, user?.tenantCompanyId]);
@@ -135,24 +122,6 @@ export function OmsOrderFormModal({
         })),
     [products.data],
   );
-
-  const outboundComboboxOptions = useMemo(() => {
-    const opts = (outboundOptions.data?.items ?? []).map((o) => ({
-      value: o.id,
-      label: `${o.orderNumber} (${o.status})`,
-    }));
-    if (
-      outboundOrderId &&
-      !opts.some((o) => o.value === outboundOrderId) &&
-      initial?.linkedOutboundOrder
-    ) {
-      opts.unshift({
-        value: outboundOrderId,
-        label: `${initial.linkedOutboundOrder.orderNumber} (${initial.linkedOutboundOrder.status})`,
-      });
-    }
-    return opts;
-  }, [outboundOptions.data, outboundOrderId, initial?.linkedOutboundOrder]);
 
   const linesSum = useMemo(() => {
     return lines.reduce((sum, l) => {
@@ -199,7 +168,6 @@ export function OmsOrderFormModal({
           });
 
         if (!effectiveCompanyId) throw new Error('Pick a client.');
-        if (!outboundOrderId) throw new Error('Link an outbound order.');
         if (!isYmdOnOrAfterLocalToday(requiredShipDate)) {
           throw new Error('Required ship date cannot be before today.');
         }
@@ -221,14 +189,30 @@ export function OmsOrderFormModal({
           codAmount: paymentMethod === 'COD' ? calculatedSubtotal : undefined,
           currency: currency || undefined,
           storeChannel: storeChannel || undefined,
-          outboundOrderId,
           lines: parsedLines,
         };
         return OmsApi.create(payload);
       }
 
       if (!initial) throw new Error('Order not loaded.');
-      if (!outboundOrderId) throw new Error('Link an outbound order.');
+      if (linesFrozen) {
+        return OmsApi.update(initial.id, {
+          recipientName,
+          recipientPhone,
+          city,
+          district,
+          addressLine1,
+          requiredShipDate,
+          carrier,
+          notes,
+          paymentMethod: paymentMethod || undefined,
+          subtotal: calculatedSubtotal,
+          shippingFee: shippingFee ? shipAmount : 0,
+          codAmount: paymentMethod === 'COD' ? calculatedSubtotal : undefined,
+          currency,
+          storeChannel,
+        });
+      }
       return OmsApi.update(initial.id, {
         recipientName,
         recipientPhone,
@@ -244,13 +228,10 @@ export function OmsOrderFormModal({
         codAmount: paymentMethod === 'COD' ? calculatedSubtotal : undefined,
         currency,
         storeChannel,
-        outboundOrderId,
       });
     },
     onSuccess: (order) => {
-      toast.success(
-        mode === 'create' ? 'E-commerce order created.' : 'E-commerce order updated.',
-      );
+      toast.success(mode === 'create' ? 'OMS order created.' : 'OMS order updated.');
       onSaved(order);
       onClose();
     },
@@ -266,7 +247,7 @@ export function OmsOrderFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={mode === 'create' ? 'Create E-commerce Order' : 'Edit E-commerce Order'}
+      title={mode === 'create' ? 'Create OMS Order' : 'Edit OMS Order'}
       widthClass="max-w-4xl"
     >
       <form onSubmit={onSubmit} className="space-y-4">
@@ -280,9 +261,24 @@ export function OmsOrderFormModal({
           />
         ) : null}
 
+        {mode === 'create' ? (
+          <p className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            Order will be submitted as <span className="font-medium">pending approval</span>. Approving
+            generates the warehouse outbound order.
+          </p>
+        ) : null}
+
         <div className="grid gap-3 md:grid-cols-2">
-          <TextField label="Recipient name" value={recipientName} onChange={(e) => setRecipientName(e.target.value)} />
-          <TextField label="Recipient phone" value={recipientPhone} onChange={(e) => setRecipientPhone(e.target.value)} />
+          <TextField
+            label="Recipient name"
+            value={recipientName}
+            onChange={(e) => setRecipientName(e.target.value)}
+          />
+          <TextField
+            label="Recipient phone"
+            value={recipientPhone}
+            onChange={(e) => setRecipientPhone(e.target.value)}
+          />
           <CascadingAddressSelector
             value={{ city, district, addressLine1 }}
             onChange={(next) => {
@@ -304,21 +300,10 @@ export function OmsOrderFormModal({
             onChange={(e) => setRequiredShipDate(e.target.value)}
           />
           <TextField label="Carrier" value={carrier} onChange={(e) => setCarrier(e.target.value)} />
-          <TextField label="Sales channel" value={storeChannel} onChange={(e) => setStoreChannel(e.target.value)} />
-        </div>
-
-        <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-4">
-          <div className="mb-2 text-sm font-semibold text-slate-800">Warehouse Link</div>
-          <p className="mb-3 text-xs text-slate-500">Required — select the outbound warehouse order.</p>
-          <Combobox
-            label="Link to Outbound Order"
-            value={outboundOrderId}
-            onChange={setOutboundOrderId}
-            onSearchQueryChange={setOutboundSearch}
-            options={outboundComboboxOptions}
-            placeholder="Select Outbound Order"
-            clearable={false}
-            required
+          <TextField
+            label="Sales channel"
+            value={storeChannel}
+            onChange={(e) => setStoreChannel(e.target.value)}
           />
         </div>
 
@@ -334,15 +319,17 @@ export function OmsOrderFormModal({
               { value: 'CREDIT', label: 'Credit' },
             ]}
           />
-          <TextField label="Shipping fee" value={shippingFee} onChange={(e) => setShippingFee(e.target.value)} />
+          <TextField
+            label="Shipping fee"
+            value={shippingFee}
+            onChange={(e) => setShippingFee(e.target.value)}
+          />
           <TextField label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)} />
           <div>
             <div className="mb-1 text-xs font-medium text-slate-600">Subtotal</div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
               {calculatedSubtotal || 0}
-              <span className="ms-2 text-xs text-slate-500">
-                (lines + shipping)
-              </span>
+              <span className="ms-2 text-xs text-slate-500">(lines + shipping)</span>
             </div>
           </div>
         </div>
@@ -416,7 +403,7 @@ export function OmsOrderFormModal({
             Cancel
           </Button>
           <Button type="submit" loading={saveMut.isPending}>
-            {mode === 'create' ? 'Create E-commerce Order' : 'Save changes'}
+            {mode === 'create' ? 'Submit for approval' : 'Save changes'}
           </Button>
         </div>
       </form>

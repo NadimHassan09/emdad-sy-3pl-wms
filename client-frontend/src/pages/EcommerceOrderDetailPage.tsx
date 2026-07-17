@@ -51,13 +51,13 @@ export function EcommerceOrderDetailPage(): ReactElement {
       <div className="card">
         <p style={{ marginBottom: '1rem' }}>
           <Link className="muted" to="/ecommerce-orders" style={{ textDecoration: 'none' }}>
-            ← Back to e-commerce orders
+            ← Back to OMS orders
           </Link>
         </p>
 
         {notFound ? (
           <p className="banner banner--error" role="alert">
-            E-commerce order not found.
+            OMS order not found.
           </p>
         ) : orderQuery.error ? (
           <p className="banner banner--error" role="alert">
@@ -79,10 +79,15 @@ export function EcommerceOrderDetailPage(): ReactElement {
               }}
             >
               <h1 className="card__title" style={{ margin: 0 }}>
-                E-commerce order {data.orderNumber || data.id.slice(0, 8)}
+                OMS order {data.orderNumber || data.id.slice(0, 8)}
               </h1>
               <StatusBadge status={data.status} />
             </div>
+            {data.rejectionReason ? (
+              <p className="banner banner--error" role="status">
+                Rejected: {data.rejectionReason}
+              </p>
+            ) : null}
 
             <dl className="details">
               <div className="details__row">
@@ -141,14 +146,10 @@ export function EcommerceOrderDetailPage(): ReactElement {
                 <dt>Created</dt>
                 <dd>{formatDateTime(data.createdAt)}</dd>
               </div>
-              {data.linkedOutboundOrder ? (
+              {data.warehouseStatus ? (
                 <div className="details__row">
-                  <dt>Warehouse order</dt>
-                  <dd>
-                    <Link to={`/outbound-orders/${data.linkedOutboundOrder.id}`}>
-                      {data.linkedOutboundOrder.orderNumber}
-                    </Link>
-                  </dd>
+                  <dt>Fulfillment status</dt>
+                  <dd>{data.warehouseStatus}</dd>
                 </div>
               ) : null}
               {data.notes ? (

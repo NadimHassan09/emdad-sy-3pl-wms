@@ -18,6 +18,7 @@ import {
   Sidebar,
   SidebarLink,
   SidebarNav,
+  SidebarSection,
   Topbar,
   TopbarMobileMenuButton,
   TopbarNotifications,
@@ -29,6 +30,7 @@ import {
 } from '@ds';
 import { useClientNotifications } from '../hooks/useClientNotifications';
 import { clientNotificationHref } from '../services/clientNotificationsService';
+import type { ClientNavGroup } from '../lib/rbac';
 
 interface NavItem {
   label: string;
@@ -36,6 +38,7 @@ interface NavItem {
   iconKey: string;
   to: string;
   exact?: boolean;
+  group?: ClientNavGroup;
 }
 
 export function PortalLayout(): ReactElement {
@@ -67,26 +70,51 @@ export function PortalLayout(): ReactElement {
   }
 
   const navItems = clientNavForRole(user?.role);
+  const ungrouped = navItems.filter((i) => !i.group);
+  const wmsItems = navItems.filter((i) => i.group === 'wms');
+  const omsItems = navItems.filter((i) => i.group === 'oms');
+  const wmsOpen = wmsItems.some((i) => isActive(i));
+  const omsOpen = omsItems.some((i) => isActive(i));
+
+  const renderLink = (item: NavItem) => {
+    const active = isActive(item);
+    return (
+      <SidebarLink
+        key={item.to}
+        href={item.to}
+        isActive={active}
+        icon={renderSidebarNavIcon(item.iconKey)}
+        onClick={(e) => {
+          e.preventDefault();
+          navigate(item.to);
+        }}
+      >
+        {isArabic ? item.labelAr : item.label}
+      </SidebarLink>
+    );
+  };
 
   const navContent = (
     <SidebarNav>
-      {navItems.map((item) => {
-        const active = isActive(item);
-        return (
-          <SidebarLink
-            key={item.to}
-            href={item.to}
-            isActive={active}
-            icon={renderSidebarNavIcon(item.iconKey)}
-            onClick={(e) => {
-              e.preventDefault();
-              navigate(item.to);
-            }}
-          >
-            {isArabic ? item.labelAr : item.label}
-          </SidebarLink>
-        );
-      })}
+      {ungrouped.map(renderLink)}
+      {wmsItems.length > 0 ? (
+        <SidebarSection
+          label={isArabic ? 'إدارة المستودع' : 'WMS'}
+          icon={renderSidebarNavIcon('Stock')}
+          defaultOpen={wmsOpen || true}
+        >
+          {wmsItems.map(renderLink)}
+        </SidebarSection>
+      ) : null}
+      {omsItems.length > 0 ? (
+        <SidebarSection
+          label={isArabic ? 'إدارة الطلبات' : 'OMS'}
+          icon={renderSidebarNavIcon('Orders')}
+          defaultOpen={omsOpen || true}
+        >
+          {omsItems.map(renderLink)}
+        </SidebarSection>
+      ) : null}
     </SidebarNav>
   );
 

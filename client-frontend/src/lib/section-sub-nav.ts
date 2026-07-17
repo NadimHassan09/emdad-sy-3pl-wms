@@ -19,16 +19,11 @@ function isOrdersDetailPath(pathname: string): boolean {
   );
 }
 
-const ORDERS_SECTION: SectionSubNavConfig = {
-  ariaLabel: 'Orders navigation',
-  ariaLabelAr: 'تنقل الطلبات',
+const WMS_ORDERS_SECTION: SectionSubNavConfig = {
+  ariaLabel: 'Warehouse orders navigation',
+  ariaLabelAr: 'تنقل طلبات المستودع',
   matchSection: (p) =>
-    (p.startsWith('/inbound-orders') ||
-      p.startsWith('/outbound-orders') ||
-      p.startsWith('/ecommerce-orders') ||
-      p.startsWith('/cod-reports') ||
-      p.startsWith('/returns')) &&
-    !isOrdersDetailPath(p),
+    (p.startsWith('/inbound-orders') || p.startsWith('/outbound-orders')) && !isOrdersDetailPath(p),
   items: [
     {
       labelKey: 'Inbound orders',
@@ -42,15 +37,27 @@ const ORDERS_SECTION: SectionSubNavConfig = {
       to: '/outbound-orders',
       match: (p) => p.startsWith('/outbound-orders'),
     },
+  ],
+};
+
+const OMS_SECTION: SectionSubNavConfig = {
+  ariaLabel: 'OMS navigation',
+  ariaLabelAr: 'تنقل OMS',
+  matchSection: (p) =>
+    (p.startsWith('/ecommerce-orders') ||
+      p.startsWith('/cod-reports') ||
+      p.startsWith('/returns')) &&
+    !isOrdersDetailPath(p),
+  items: [
     {
-      labelKey: 'E-commerce orders',
-      labelAr: 'طلبات التجارة الإلكترونية',
+      labelKey: 'OMS Orders',
+      labelAr: 'طلبات OMS',
       to: '/ecommerce-orders',
       match: (p) => p.startsWith('/ecommerce-orders'),
     },
     {
-      labelKey: 'COD reports',
-      labelAr: 'تقارير COD',
+      labelKey: 'COD',
+      labelAr: 'COD',
       to: '/cod-reports',
       match: (p) => p.startsWith('/cod-reports'),
     },
@@ -63,7 +70,7 @@ const ORDERS_SECTION: SectionSubNavConfig = {
   ],
 };
 
-const SECTIONS: SectionSubNavConfig[] = [ORDERS_SECTION];
+const SECTIONS: SectionSubNavConfig[] = [WMS_ORDERS_SECTION, OMS_SECTION];
 
 export function resolveSectionSubNav(pathname: string): SectionSubNavConfig | null {
   return SECTIONS.find((c) => c.matchSection(pathname)) ?? null;

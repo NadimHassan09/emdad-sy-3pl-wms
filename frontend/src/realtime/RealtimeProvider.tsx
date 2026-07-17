@@ -135,10 +135,10 @@ export function RealtimeProvider({ children }: Props): ReactElement {
       event?: string;
     }): void => {
       if (!payload?.orderId) return;
+      void qc.invalidateQueries({ queryKey: QK.omsOrders });
+      void qc.invalidateQueries({ queryKey: [...QK.omsOrders, payload.orderId] });
+      void qc.invalidateQueries({ queryKey: QK.omsDashboard });
       void qc.invalidateQueries({ queryKey: QK.outboundOrders });
-      void qc.invalidateQueries({ queryKey: [...QK.outboundOrders, payload.orderId] });
-      void qc.invalidateQueries({ queryKey: [...QK.outboundOrders, payload.orderId, 'oms'] });
-      void qc.invalidateQueries({ queryKey: ['oms', 'dashboard'] });
       void qc.invalidateQueries({ queryKey: QK.dashboardOverview });
     };
     const onTask = (payload: {

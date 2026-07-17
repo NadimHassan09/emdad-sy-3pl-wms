@@ -5,14 +5,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { OmsApi } from '../api/oms';
 import { OmsOrderFormModal } from '../components/oms/OmsOrderFormModal';
 import { Button } from '../components/Button';
-import { Combobox } from '../components/Combobox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
+import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
-import { OutboundApi } from '../api/outbound';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -40,9 +39,10 @@ export function OmsOrderDetailPage() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [linkOpen, setLinkOpen] = useState(false);
-  const [outboundSearch, setOutboundSearch] = useState('');
-  const [selectedOutboundId, setSelectedOutboundId] = useState('');
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [approveShippingFee, setApproveShippingFee] = useState('');
+  const [rejectReason, setRejectReason] = useState('');
 
   const orderQuery = useQuery({
     queryKey: [...QK.omsOrders, id],
@@ -50,39 +50,56 @@ export function OmsOrderDetailPage() {
     enabled: !!id,
   });
 
-  const outboundOptions = useQuery({
-    queryKey: ['outbound-lookup', orderQuery.data?.companyId, outboundSearch],
-    queryFn: () =>
-      OutboundApi.list({
-        companyId: orderQuery.data?.companyId,
-        orderSearch: outboundSearch || undefined,
-        limit: 50,
-      }),
-    enabled: linkOpen && !!orderQuery.data?.companyId,
-  });
-
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: [...QK.omsOrders, id] });
     void qc.invalidateQueries({ queryKey: QK.omsOrders });
+    void qc.invalidateQueries({ queryKey: QK.omsDashboard });
   };
 
   const deleteMut = useMutation({
     mutationFn: () => OmsApi.delete(id),
     onSuccess: () => {
-      toast.success('E-commerce order deleted.');
+      toast.success('OMS order deleted.');
       void qc.invalidateQueries({ queryKey: QK.omsOrders });
       navigate('/orders/oms');
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const linkMut = useMutation({
-    mutationFn: (outboundOrderId: string | null) =>
-      OmsApi.update(id, { outboundOrderId }),
+  const approveMut = useMutation({
+    mutationFn: () => {
+      const fee = approveShippingFee.trim();
+      return OmsApi.approve(id, fee ? Number(fee) : undefined);
+    },
     onSuccess: () => {
-      toast.success('Warehouse link updated.');
-      setLinkOpen(false);
-      setSelectedOutboundId('');
+      toast.success('Order approved. Warehouse outbound created as draft.');
+      setApproveOpen(false);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const rejectMut = useMutation({
+    mutationFn: () => OmsApi.reject(id, rejectReason.trim() || undefined),
+    onSuccess: () => {
+      toast.success('Order rejected.');
+      setRejectOpen(false);
+      setRejectReason('');
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const actionMut = useMutation({
+    mutationFn: (action: 'delivered' | 'returned' | 'failedDelivery' | 'complete' | 'outForDelivery') => {
+      if (action === 'delivered') return OmsApi.delivered(id);
+      if (action === 'returned') return OmsApi.returned(id);
+      if (action === 'failedDelivery') return OmsApi.failedDelivery(id);
+      if (action === 'complete') return OmsApi.complete(id);
+      return OmsApi.outForDelivery(id);
+    },
+    onSuccess: () => {
+      toast.success('Status updated.');
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -94,36 +111,102 @@ export function OmsOrderDetailPage() {
     return <p className="text-sm text-slate-500">Loading…</p>;
   }
   if (orderQuery.isError || !order) {
-    return <p className="text-sm text-rose-600">Could not load e-commerce order.</p>;
+    return <p className="text-sm text-rose-600">Could not load OMS order.</p>;
   }
 
   const total = order.total ?? order.subtotal ?? null;
+  const canApprove = order.status === 'pending_approval' || order.status === 'draft';
+  const canReject = order.status === 'pending_approval' || order.status === 'draft';
+  const canEditCommercial =
+    order.status === 'draft' ||
+    order.status === 'pending_approval' ||
+    order.status === 'approved' ||
+    order.status === 'confirmed';
+  const canMarkOutForDelivery = ['ready_to_ship', 'packing', 'shipped', 'approved', 'allocated'].includes(
+    order.status,
+  );
+  const canMarkDelivered = ['out_for_delivery', 'shipped', 'ready_to_ship'].includes(order.status);
+  const canMarkFailed = ['out_for_delivery', 'shipped'].includes(order.status);
+  const canMarkReturned = ['delivered', 'failed_delivery', 'out_for_delivery', 'shipped'].includes(
+    order.status,
+  );
+  const canComplete = order.status === 'delivered';
 
   return (
     <div className="space-y-4">
       <PageHeader
-        title={`E-commerce ${order.orderNumber}`}
+        title={`OMS ${order.orderNumber}`}
         description={order.company?.name ?? undefined}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setEditOpen(true)}>
-              Edit Order
-            </Button>
+            {canApprove ? (
+              <Button
+                onClick={() => {
+                  setApproveShippingFee(order.shippingFee ?? '');
+                  setApproveOpen(true);
+                }}
+              >
+                Approve
+              </Button>
+            ) : null}
+            {canReject ? (
+              <Button variant="secondary" onClick={() => setRejectOpen(true)}>
+                Reject
+              </Button>
+            ) : null}
+            {canEditCommercial ? (
+              <Button variant="secondary" onClick={() => setEditOpen(true)}>
+                Edit
+              </Button>
+            ) : null}
+            {canMarkOutForDelivery ? (
+              <Button
+                variant="secondary"
+                loading={actionMut.isPending}
+                onClick={() => actionMut.mutate('outForDelivery')}
+              >
+                Out for delivery
+              </Button>
+            ) : null}
+            {canMarkDelivered ? (
+              <Button
+                variant="secondary"
+                loading={actionMut.isPending}
+                onClick={() => actionMut.mutate('delivered')}
+              >
+                Mark delivered
+              </Button>
+            ) : null}
+            {canMarkFailed ? (
+              <Button
+                variant="secondary"
+                loading={actionMut.isPending}
+                onClick={() => actionMut.mutate('failedDelivery')}
+              >
+                Failed delivery
+              </Button>
+            ) : null}
+            {canMarkReturned ? (
+              <Button
+                variant="secondary"
+                loading={actionMut.isPending}
+                onClick={() => actionMut.mutate('returned')}
+              >
+                Mark returned
+              </Button>
+            ) : null}
+            {canComplete ? (
+              <Button
+                variant="secondary"
+                loading={actionMut.isPending}
+                onClick={() => actionMut.mutate('complete')}
+              >
+                Complete
+              </Button>
+            ) : null}
             <Button variant="secondary" onClick={() => setDeleteOpen(true)}>
-              Delete Order
+              Delete
             </Button>
-            {order.outboundOrderId ? (
-              <>
-                <Button variant="secondary" onClick={() => setLinkOpen(true)}>
-                  Change Linked Outbound Order
-                </Button>
-                <Button variant="secondary" onClick={() => linkMut.mutate(null)}>
-                  Unlink Outbound Order
-                </Button>
-              </>
-            ) : (
-              <Button onClick={() => setLinkOpen(true)}>Link Outbound Order</Button>
-            )}
           </div>
         }
       />
@@ -135,22 +218,36 @@ export function OmsOrderDetailPage() {
             {order.storeChannel}
           </span>
         ) : null}
+        {order.rejectionReason ? (
+          <span className="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">
+            Rejected: {order.rejectionReason}
+          </span>
+        ) : null}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Section title="General Information">
+        <Section title="Overview">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Order number" value={order.orderNumber} />
             <Field label="Status" value={order.status} />
             <Field label="Client" value={order.company?.name ?? '—'} />
             <Field label="Client reference" value={order.clientReference ?? '—'} />
-            <Field label="External reference" value={order.externalReference ?? '—'} />
             <Field
               label="Required ship date"
               value={new Date(order.requiredShipDate).toLocaleDateString()}
             />
-            <Field label="Created" value={new Date(order.createdAt).toLocaleString()} />
-            <Field label="Updated" value={new Date(order.updatedAt).toLocaleString()} />
+            <Field
+              label="Submitted"
+              value={order.submittedAt ? new Date(order.submittedAt).toLocaleString() : '—'}
+            />
+            <Field
+              label="Approved"
+              value={order.approvedAt ? new Date(order.approvedAt).toLocaleString() : '—'}
+            />
+            <Field
+              label="Rejected"
+              value={order.rejectedAt ? new Date(order.rejectedAt).toLocaleString() : '—'}
+            />
           </div>
         </Section>
 
@@ -163,29 +260,27 @@ export function OmsOrderDetailPage() {
           </div>
         </Section>
 
-        <Section title="Shipping Information">
+        <Section title="Shipment">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Address" value={order.addressLine1 ?? order.destinationAddress} />
-            <Field label="Address line 2" value={order.addressLine2 ?? '—'} />
             <Field label="Carrier" value={order.carrier ?? '—'} />
             <Field label="Tracking" value={order.trackingNumber ?? '—'} />
-            <Field
-              label="Instructions"
-              value={order.deliveryInstructions ?? '—'}
-            />
+            <Field label="Instructions" value={order.deliveryInstructions ?? '—'} />
           </div>
         </Section>
 
-        <Section title="Billing Information">
+        <Section title="Payment">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Payment method" value={order.paymentMethod ?? '—'} />
             <Field label="COD status" value={order.codStatus ?? '—'} />
+            <Field label="Shipping fee" value={order.shippingFee ?? '—'} />
+            <Field label="Subtotal" value={order.subtotal ?? total ?? '—'} />
             <Field label="Currency" value={order.currency ?? '—'} />
           </div>
         </Section>
       </div>
 
-      <Section title="Order Items">
+      <Section title="Products">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
@@ -214,20 +309,7 @@ export function OmsOrderDetailPage() {
         </div>
       </Section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Section title="Pricing Summary">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Shipping fee" value={order.shippingFee ?? '—'} />
-            <Field label="Subtotal" value={order.subtotal ?? total ?? '—'} />
-          </div>
-        </Section>
-
-        <Section title="Notes">
-          <p className="whitespace-pre-wrap text-sm text-slate-700">{order.notes ?? '—'}</p>
-        </Section>
-      </div>
-
-      <Section title="Status Timeline">
+      <Section title="Timeline">
         {order.timeline && order.timeline.length > 0 ? (
           <ol className="space-y-3">
             {order.timeline.map((ev) => (
@@ -245,11 +327,11 @@ export function OmsOrderDetailPage() {
         )}
       </Section>
 
-      <Section title="Warehouse Integration">
+      <Section title="Warehouse (WMS)">
         {order.linkedOutboundOrder ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
-              label="Linked Outbound Order"
+              label="Linked outbound"
               value={
                 <Link
                   to={`/orders/outbound/${order.linkedOutboundOrder.id}`}
@@ -259,14 +341,16 @@ export function OmsOrderDetailPage() {
                 </Link>
               }
             />
-            <Field label="Warehouse status" value={order.warehouseStatus ?? order.linkedOutboundOrder.status} />
+            <Field
+              label="Warehouse status"
+              value={order.warehouseStatus ?? order.linkedOutboundOrder.status}
+            />
             <Field label="Allocation" value={order.allocationStatus ?? 'none'} />
           </div>
         ) : (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-slate-600">No Outbound Order Linked</p>
-            <Button onClick={() => setLinkOpen(true)}>Link Outbound Order</Button>
-          </div>
+          <p className="text-sm text-slate-600">
+            No outbound yet. Approve this order to generate a draft warehouse order.
+          </p>
         )}
       </Section>
 
@@ -280,7 +364,7 @@ export function OmsOrderDetailPage() {
 
       <ConfirmModal
         open={deleteOpen}
-        title="Delete this e-commerce order?"
+        title="Delete this OMS order?"
         confirmLabel="Delete"
         cancelLabel="Cancel"
         danger
@@ -293,34 +377,41 @@ export function OmsOrderDetailPage() {
         </p>
       </ConfirmModal>
 
-      <Modal
-        open={linkOpen}
-        onClose={() => setLinkOpen(false)}
-        title={order.outboundOrderId ? 'Change linked outbound order' : 'Link outbound order'}
-      >
+      <Modal open={approveOpen} onClose={() => setApproveOpen(false)} title="Approve OMS order">
         <div className="space-y-4">
-          <Combobox
-            label="Outbound order"
-            value={selectedOutboundId || order.outboundOrderId || ''}
-            onChange={setSelectedOutboundId}
-            onSearchQueryChange={setOutboundSearch}
-            options={(outboundOptions.data?.items ?? []).map((o) => ({
-              value: o.id,
-              label: `${o.orderNumber} (${o.status})`,
-            }))}
-            placeholder="Select outbound order"
+          <p className="text-sm text-slate-600">
+            Approving validates stock and creates a draft outbound order for the warehouse.
+          </p>
+          <TextField
+            label="Shipping fee (optional)"
+            value={approveShippingFee}
+            onChange={(e) => setApproveShippingFee(e.target.value)}
+            placeholder={order.shippingFee ?? '0'}
           />
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setLinkOpen(false)}>
+            <Button variant="secondary" onClick={() => setApproveOpen(false)}>
               Cancel
             </Button>
-            <Button
-              loading={linkMut.isPending}
-              onClick={() =>
-                linkMut.mutate(selectedOutboundId || order.outboundOrderId || null)
-              }
-            >
-              Save link
+            <Button loading={approveMut.isPending} onClick={() => approveMut.mutate()}>
+              Approve & create outbound
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={rejectOpen} onClose={() => setRejectOpen(false)} title="Reject OMS order">
+        <div className="space-y-4">
+          <TextField
+            label="Reason (optional)"
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setRejectOpen(false)}>
+              Cancel
+            </Button>
+            <Button loading={rejectMut.isPending} onClick={() => rejectMut.mutate()}>
+              Reject order
             </Button>
           </div>
         </div>

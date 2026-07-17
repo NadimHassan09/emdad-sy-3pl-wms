@@ -14,7 +14,9 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import {
   AllocateOmsOrderDto,
+  ApproveOmsOrderDto,
   CreateOmsOrderDto,
+  RejectOmsOrderDto,
   UpdateOmsOrderDto,
 } from './dto/oms-order.dto';
 import { OmsDashboardService } from './oms-dashboard.service';
@@ -71,12 +73,46 @@ export class OmsController {
     return this.orders.delete(id, user);
   }
 
+  @Post('orders/:id/approve')
+  approve(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: ApproveOmsOrderDto,
+  ) {
+    return this.orders.approve(id, user, dto);
+  }
+
+  @Post('orders/:id/reject')
+  reject(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: RejectOmsOrderDto,
+  ) {
+    return this.orders.reject(id, user, dto);
+  }
+
   @Post('orders/:id/cancel')
   cancel(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
   ) {
     return this.orders.cancel(id, user);
+  }
+
+  @Post('orders/:id/failed-delivery')
+  failedDelivery(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.orders.markFailedDelivery(id, user);
+  }
+
+  @Post('orders/:id/complete')
+  complete(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.orders.markCompleted(id, user);
   }
 
   @Post('orders/:id/allocate')

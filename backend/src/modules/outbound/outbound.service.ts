@@ -44,6 +44,7 @@ import { BillingInvoiceCalculationService } from '../billing/billing-invoice-cal
 import { adminOutboundListItem } from '../realtime/realtime-client.payload';
 import { OmsOrderEventsService } from '../oms/oms-order-events.service';
 import { OmsOrdersService } from '../oms/oms-orders.service';
+import { OmsOutboundSyncService } from '../oms/oms-outbound-sync.service';
 import { OrderAllocationService } from '../oms/order-allocation.service';
 import {
   type OmsOrderCreateExtras,
@@ -124,6 +125,9 @@ export class OutboundService {
     @Optional()
     @Inject(forwardRef(() => OmsOrdersService))
     private readonly omsOrders?: OmsOrdersService,
+    @Optional()
+    @Inject(forwardRef(() => OmsOutboundSyncService))
+    private readonly omsSync?: OmsOutboundSyncService,
   ) {}
 
   /**
@@ -477,11 +481,13 @@ export class OutboundService {
       await tx.workflowInstance.deleteMany({
         where: { referenceType: 'outbound_order', referenceId: id },
       });
-      return tx.outboundOrder.update({
+      const row = await tx.outboundOrder.update({
         where: { id },
         data: { status: 'cancelled', cancelledAt: new Date(), cancelledBy: user.id },
         include: ORDER_INCLUDE,
       });
+      await this.omsSync?.syncFromOutbound(tx, id, user.id);
+      return row;
     });
     this.realtime.emitOutboundOrderUpdated(cancelled.companyId, {
       orderId: cancelled.id,
@@ -596,6 +602,8 @@ export class OutboundService {
         return { idempotent: true as const, order: replay };
       }
 
+      await this.omsSync?.syncFromOutbound(tx, orderId, user.id);
+
       const updated = await tx.outboundOrder.findUnique({
         where: { id: orderId },
         include: ORDER_INCLUDE,
@@ -678,6 +686,7 @@ export class OutboundService {
         }
 
         await this.workflowBootstrap.startOutboundWorkflowTx(tx, user, orderId, wh);
+        await this.omsSync?.syncFromOutbound(tx, orderId, user.id);
         const order = await tx.outboundOrder.findUnique({
           where: { id: orderId },
           include: ORDER_INCLUDE,
@@ -751,6 +760,8 @@ export class OutboundService {
       if (!finalized) {
         throw new InvalidStateException('Outbound confirm could not finalize to shipped.');
       }
+
+      await this.omsSync?.syncFromOutbound(tx, orderId, user.id);
 
       const shipped = await tx.outboundOrder.findUnique({
         where: { id: orderId },

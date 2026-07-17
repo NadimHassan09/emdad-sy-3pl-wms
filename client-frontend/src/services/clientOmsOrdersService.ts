@@ -4,15 +4,44 @@ export type ClientOmsCodStatus = 'pending' | 'collected' | 'remitted' | 'settled
 
 export type ClientOmsOrderStatus =
   | 'draft'
+  | 'pending_approval'
+  | 'rejected'
+  | 'approved'
   | 'confirmed'
   | 'processing'
   | 'allocated'
+  | 'picking'
+  | 'packing'
   | 'ready_to_ship'
   | 'out_for_delivery'
   | 'shipped'
   | 'delivered'
+  | 'failed_delivery'
+  | 'completed'
   | 'returned'
   | 'cancelled';
+
+export type ClientOmsPaymentMethod = 'COD' | 'PREPAID' | 'CREDIT';
+
+export interface CreateClientOmsOrderLineInput {
+  productId: string;
+  requestedQuantity: number;
+  unitPrice?: number;
+}
+
+export interface CreateClientOmsOrderInput {
+  requiredShipDate: string;
+  recipientName?: string;
+  recipientPhone?: string;
+  city?: string;
+  district?: string;
+  addressLine1?: string;
+  notes?: string;
+  storeChannel?: string;
+  paymentMethod?: ClientOmsPaymentMethod;
+  currency?: string;
+  lines: CreateClientOmsOrderLineInput[];
+}
 
 export interface ClientOmsOrderListItem {
   id: string;
@@ -76,6 +105,10 @@ export interface ClientOmsOrderDetail {
   outForDeliveryAt?: string | null;
   deliveredAt?: string | null;
   returnedAt?: string | null;
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
   company?: { id: string; name: string } | null;
   linkedOutboundOrder?: { id: string; orderNumber: string; status: string } | null;
   warehouseStatus?: string | null;
@@ -133,6 +166,13 @@ export async function fetchClientOmsOrder(id: string): Promise<ClientOmsOrderDet
 
 export async function fetchClientOmsTimeline(id: string): Promise<ClientOmsOrderEvent[]> {
   const { data } = await apiClient.get<ClientOmsOrderEvent[]>(`/oms/orders/${id}/timeline`);
+  return data;
+}
+
+export async function createClientOmsOrder(
+  input: CreateClientOmsOrderInput,
+): Promise<ClientOmsOrderDetail> {
+  const { data } = await apiClient.post<ClientOmsOrderDetail>('/oms/orders', input);
   return data;
 }
 

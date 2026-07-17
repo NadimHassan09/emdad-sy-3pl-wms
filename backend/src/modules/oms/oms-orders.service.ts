@@ -1,7 +1,9 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import {
   OmsCodStatus,
@@ -22,9 +24,16 @@ import { assertProductOrderableForOrders } from '../../common/utils/assert-produ
 import { RealtimeService } from '../realtime/realtime.service';
 import { adminOutboundListItem } from '../realtime/realtime-client.payload';
 import { OutboundService } from '../outbound/outbound.service';
-import { AllocateOmsOrderDto, CreateOmsOrderDto, UpdateOmsOrderDto } from './dto/oms-order.dto';
+import {
+  AllocateOmsOrderDto,
+  ApproveOmsOrderDto,
+  CreateOmsOrderDto,
+  RejectOmsOrderDto,
+  UpdateOmsOrderDto,
+} from './dto/oms-order.dto';
 import { ListOmsOrdersQueryDto } from './dto/list-oms-orders-query.dto';
 import { OmsOrderEventsService } from './oms-order-events.service';
+import { OmsOutboundSyncService } from './oms-outbound-sync.service';
 import {
   composeDestinationAddress,
   deriveCodStatus,
@@ -62,10 +71,12 @@ const ORDER_INCLUDE = {
 export class OmsOrdersService {
   constructor(
     private readonly prisma: PrismaService,
+    @Inject(forwardRef(() => OutboundService))
     private readonly outbound: OutboundService,
     private readonly companyAccess: CompanyAccessService,
     private readonly allocation: OrderAllocationService,
     private readonly events: OmsOrderEventsService,
+    private readonly sync: OmsOutboundSyncService,
     private readonly realtime: RealtimeService,
   ) {}
 
@@ -123,25 +134,28 @@ export class OmsOrdersService {
   }
 
   async create(user: AuthPrincipal, dto: CreateOmsOrderDto) {
-    if (!dto.outboundOrderId) {
-      throw new BadRequestException('Outbound order link is required.');
-    }
-
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
     assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
 
-    await this.assertOutboundLinkable(user, dto.outboundOrderId, companyId);
+    if (dto.outboundOrderId) {
+      await this.assertOutboundLinkable(user, dto.outboundOrderId, companyId);
+    }
 
     let destination = composeDestinationAddress(dto);
-    if (!destination) {
+    if (!destination && dto.outboundOrderId) {
       const linked = await this.outbound.findById(dto.outboundOrderId, user);
       destination = linked.destinationAddress?.trim() || 'Linked outbound order';
+    }
+    if (!destination) {
+      throw new BadRequestException(
+        'Destination address is required (address line / city / destination).',
+      );
     }
 
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, companyId: true, status: true, uom: true },
+      select: { id: true, companyId: true, status: true, uom: true, sku: true },
     });
     if (products.length !== productIds.length) {
       throw new NotFoundException('One or more products not found.');
@@ -158,6 +172,9 @@ export class OmsOrdersService {
       const p = productById.get(l.productId)!;
       assertDiscreteUomPositiveIntegerQuantity(p.uom, l.requestedQuantity, 'Requested quantity');
     }
+
+    // Validate availability only — do not reserve until outbound is generated.
+    await this.assertSufficientStockForLines(companyId, dto.lines, products);
 
     const linesWithTotals = dto.lines.map((l) => {
       const qty = new Prisma.Decimal(l.requestedQuantity);
@@ -178,7 +195,6 @@ export class OmsOrdersService {
     );
     const shippingFee =
       dto.shippingFee != null ? new Prisma.Decimal(dto.shippingFee) : new Prisma.Decimal(0);
-    // Subtotal = shipping fee + sum of each line total (price × qty).
     const subtotal = linesSum.add(shippingFee);
     const derivedCod =
       dto.codAmount != null
@@ -188,12 +204,17 @@ export class OmsOrdersService {
           : null;
 
     const codStatus = deriveCodStatus(dto.paymentMethod, derivedCod);
+    const now = new Date();
+    const initialStatus = dto.outboundOrderId
+      ? OmsOrderStatus.draft
+      : OmsOrderStatus.pending_approval;
 
     const order = await withTenantRls(this.prisma, user, async (tx) => {
       const created = await tx.omsOrder.create({
         data: {
           companyId,
           outboundOrderId: dto.outboundOrderId,
+          status: initialStatus,
           destinationAddress: destination,
           requiredShipDate: new Date(dto.requiredShipDate),
           carrier: dto.carrier,
@@ -215,6 +236,7 @@ export class OmsOrdersService {
           codStatus: codStatus ?? undefined,
           storeChannel: dto.storeChannel,
           externalReference: dto.externalReference,
+          submittedAt: initialStatus === OmsOrderStatus.pending_approval ? now : undefined,
           createdBy: user.id,
           lines: {
             create: linesWithTotals.map((l, idx) => ({
@@ -238,8 +260,20 @@ export class OmsOrdersService {
         companyId: created.companyId,
         eventType: 'order.created',
         createdBy: user.id,
-        payload: { linkedOutbound: !!created.outboundOrderId },
+        payload: {
+          linkedOutbound: !!created.outboundOrderId,
+          status: created.status,
+        },
       });
+
+      if (created.status === OmsOrderStatus.pending_approval) {
+        await this.events.record(tx, {
+          omsOrderId: created.id,
+          companyId: created.companyId,
+          eventType: 'order.pending_approval',
+          createdBy: user.id,
+        });
+      }
 
       if (
         created.outboundOrderId &&
@@ -258,6 +292,168 @@ export class OmsOrdersService {
     if (!order) throw new NotFoundException('Order not found.');
     this.emitOms('order.created', order.companyId, order.id, order.status);
     return serializeOmsOrder(order);
+  }
+
+  async approve(id: string, user: AuthPrincipal, dto: ApproveOmsOrderDto = {}) {
+    const existing = await this.resolveOrder(id, user);
+    if (existing.status !== OmsOrderStatus.pending_approval) {
+      throw new InvalidStateException(
+        `Only pending_approval orders can be approved (current: ${existing.status}).`,
+      );
+    }
+    if (existing.outboundOrderId) {
+      throw new BadRequestException('Order already has a linked outbound order.');
+    }
+
+    const products = existing.lines.map((l) => ({
+      id: l.productId,
+      sku: l.product?.sku ?? l.productId,
+    }));
+    await this.assertSufficientStockForLines(
+      existing.companyId,
+      existing.lines.map((l) => ({
+        productId: l.productId,
+        requestedQuantity: Number(l.requestedQuantity),
+      })),
+      products,
+    );
+
+    const order = await withTenantRls(this.prisma, user, async (tx) => {
+      if (dto.shippingFee != null) {
+        const linesSum = existing.lines.reduce((sum, l) => {
+          if (l.lineTotal != null) return sum.add(l.lineTotal);
+          if (l.unitPrice != null) return sum.add(l.unitPrice.mul(l.requestedQuantity));
+          return sum;
+        }, new Prisma.Decimal(0));
+        const ship = new Prisma.Decimal(dto.shippingFee);
+        const subtotal = linesSum.add(ship);
+        await tx.omsOrder.update({
+          where: { id: existing.id },
+          data: {
+            shippingFee: ship,
+            subtotal,
+            codAmount:
+              existing.paymentMethod === 'COD' ? subtotal : existing.codAmount ?? undefined,
+          },
+        });
+      }
+
+      await this.sync.createOutboundFromOms(tx, {
+        omsOrderId: existing.id,
+        actorUserId: user.id,
+      });
+
+      return tx.omsOrder.findUnique({ where: { id: existing.id }, include: ORDER_INCLUDE });
+    });
+
+    if (!order) throw new NotFoundException('Order not found.');
+    if (order.outboundOrderId) {
+      this.realtime.emitOutboundOrderCreated(order.companyId, {
+        orderId: order.outboundOrderId,
+        status: 'draft',
+      });
+    }
+    this.emitOms('order.approved', order.companyId, order.id, order.status);
+    return serializeOmsOrder(order);
+  }
+
+  async reject(id: string, user: AuthPrincipal, dto: RejectOmsOrderDto = {}) {
+    const existing = await this.resolveOrder(id, user);
+    if (existing.status !== OmsOrderStatus.pending_approval) {
+      throw new InvalidStateException(
+        `Only pending_approval orders can be rejected (current: ${existing.status}).`,
+      );
+    }
+
+    const updated = await withTenantRls(this.prisma, user, async (tx) => {
+      const row = await tx.omsOrder.update({
+        where: { id: existing.id },
+        data: {
+          status: OmsOrderStatus.rejected,
+          rejectedAt: new Date(),
+          rejectedBy: user.id,
+          rejectionReason: dto.reason?.trim() || null,
+        },
+        include: ORDER_INCLUDE,
+      });
+      await this.events.record(tx, {
+        omsOrderId: row.id,
+        companyId: row.companyId,
+        eventType: 'order.rejected',
+        createdBy: user.id,
+        payload: { reason: dto.reason?.trim() || null },
+      });
+      return row;
+    });
+
+    this.emitOms('order.rejected', updated.companyId, updated.id, updated.status);
+    return serializeOmsOrder(updated);
+  }
+
+  async markFailedDelivery(id: string, user: AuthPrincipal) {
+    return this.transition(id, user, {
+      allowed: [
+        OmsOrderStatus.out_for_delivery,
+        OmsOrderStatus.shipped,
+        OmsOrderStatus.ready_to_ship,
+      ],
+      next: OmsOrderStatus.failed_delivery,
+      event: 'order.failed_delivery',
+      extra: {},
+    });
+  }
+
+  async markCompleted(id: string, user: AuthPrincipal) {
+    return this.transition(id, user, {
+      allowed: [OmsOrderStatus.delivered],
+      next: OmsOrderStatus.completed,
+      event: 'order.completed',
+      extra: {},
+    });
+  }
+
+  /** Rejects when summed line qty per product exceeds aggregate available stock. */
+  async assertSufficientStockForLines(
+    companyId: string,
+    lines: { productId: string; requestedQuantity: number }[],
+    products: { id: string; sku: string }[],
+  ): Promise<void> {
+    const productIds = Array.from(new Set(lines.map((l) => l.productId)));
+    const requestedByProduct = new Map<string, Prisma.Decimal>();
+    for (const l of lines) {
+      const cur = requestedByProduct.get(l.productId) ?? new Prisma.Decimal(0);
+      requestedByProduct.set(
+        l.productId,
+        cur.plus(new Prisma.Decimal(l.requestedQuantity)),
+      );
+    }
+
+    const availability = await this.prisma.currentStock.groupBy({
+      by: ['productId'],
+      where: {
+        companyId,
+        productId: { in: productIds },
+        status: 'available',
+      },
+      _sum: { quantityAvailable: true },
+    });
+    const availMap = new Map<string, Prisma.Decimal>(
+      availability.map((a) => [
+        a.productId,
+        a._sum.quantityAvailable ?? new Prisma.Decimal(0),
+      ]),
+    );
+    const skuById = new Map(products.map((p) => [p.id, p.sku]));
+
+    for (const [productId, requested] of requestedByProduct) {
+      const available = availMap.get(productId) ?? new Prisma.Decimal(0);
+      if (requested.greaterThan(available)) {
+        const sku = skuById.get(productId) ?? productId;
+        throw new BadRequestException(
+          `Insufficient stock for ${sku}: requested ${requested.toString()}, available ${available.toString()}.`,
+        );
+      }
+    }
   }
 
   async findById(id: string, user: AuthPrincipal) {
@@ -293,6 +489,12 @@ export class OmsOrdersService {
         : undefined;
 
     if (dto.outboundOrderId) {
+      // Soft-deprecate link-first: new links must go through approve → auto-generate outbound.
+      if (!existing.outboundOrderId) {
+        throw new BadRequestException(
+          'Manual outbound linking is deprecated. Approve the OMS order to generate a warehouse order.',
+        );
+      }
       await this.assertOutboundLinkable(user, dto.outboundOrderId, existing.companyId, existing.id);
     }
 
@@ -474,6 +676,9 @@ export class OmsOrdersService {
         OmsOrderStatus.shipped,
         OmsOrderStatus.allocated,
         OmsOrderStatus.processing,
+        OmsOrderStatus.picking,
+        OmsOrderStatus.packing,
+        OmsOrderStatus.approved,
       ],
       next: OmsOrderStatus.out_for_delivery,
       event: 'order.out_for_delivery',
@@ -483,6 +688,7 @@ export class OmsOrdersService {
         OutboundOrderStatus.shipped,
         OutboundOrderStatus.allocated,
         OutboundOrderStatus.packing,
+        OutboundOrderStatus.picking,
       ],
       outboundNext: OutboundOrderStatus.out_for_delivery,
     });
@@ -494,6 +700,7 @@ export class OmsOrdersService {
         OmsOrderStatus.out_for_delivery,
         OmsOrderStatus.shipped,
         OmsOrderStatus.ready_to_ship,
+        OmsOrderStatus.failed_delivery,
       ],
       next: OmsOrderStatus.delivered,
       event: 'order.delivered',
@@ -513,6 +720,7 @@ export class OmsOrdersService {
         OmsOrderStatus.delivered,
         OmsOrderStatus.out_for_delivery,
         OmsOrderStatus.shipped,
+        OmsOrderStatus.failed_delivery,
       ],
       next: OmsOrderStatus.returned,
       event: 'order.returned',

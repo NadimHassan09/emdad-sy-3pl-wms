@@ -61,7 +61,9 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
   },
   {
     ariaLabelKey: 'Orders navigation',
-    matchSection: (p) => p.startsWith('/orders') && !isOrdersDetailPath(p),
+    matchSection: (p) =>
+      (p.startsWith('/orders') && !isOrdersDetailPath(p) && !p.startsWith('/orders/oms')) ||
+      p.startsWith('/orders/directed-outbound'),
     items: [
       {
         labelKey: 'Inbound orders',
@@ -74,14 +76,38 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
         match: (p) => p.startsWith('/orders/outbound'),
       },
       {
-        labelKey: 'E-commerce order',
-        to: '/orders/oms',
-        match: (p) => p === '/orders/oms' || /^\/orders\/oms\/[^/]+$/.test(p),
-      },
-      {
         labelKey: 'Quick outbound',
         to: '/orders/directed-outbound',
         match: (p) => p === '/orders/directed-outbound',
+      },
+    ],
+  },
+  {
+    ariaLabelKey: 'OMS navigation',
+    matchSection: (p) =>
+      p.startsWith('/oms') ||
+      (p.startsWith('/orders/oms') && !/^\/orders\/oms\/[^/]+$/.test(p)) ||
+      p.startsWith('/reports/oms'),
+    items: [
+      {
+        labelKey: 'OMS Dashboard',
+        to: '/oms/dashboard',
+        match: (p) => p === '/oms/dashboard' || p === '/oms',
+      },
+      {
+        labelKey: 'OMS Orders',
+        to: '/orders/oms',
+        match: (p) => p === '/orders/oms' || p.startsWith('/orders/oms/') || p.startsWith('/oms/orders'),
+      },
+      {
+        labelKey: 'COD',
+        to: '/reports/oms/cod',
+        match: (p) => p.startsWith('/reports/oms/cod'),
+      },
+      {
+        labelKey: 'OMS Returns',
+        to: '/reports/oms/returns',
+        match: (p) => p.startsWith('/reports/oms/returns'),
       },
     ],
   },
@@ -256,8 +282,12 @@ export function sectionSubNavLabel(label: string, isArabic: boolean): string {
     'Orders navigation': 'تنقل الطلبات',
     'Inbound orders': 'طلبات الوارد',
     'Outbound orders': 'طلبات الصادر',
-    'E-commerce order': 'طلب التجارة الإلكترونية',
     'Quick outbound': 'إخراج سريع',
+    'OMS navigation': 'تنقل OMS',
+    'OMS Dashboard': 'لوحة OMS',
+    'OMS Orders': 'طلبات OMS',
+    COD: 'COD',
+    'OMS Returns': 'مرتجعات OMS',
     'Contracts navigation': 'تنقل العقود',
     GRN: 'GRN',
     'Delivery note': 'إشعار تسليم',

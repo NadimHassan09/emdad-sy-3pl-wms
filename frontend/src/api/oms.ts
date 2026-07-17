@@ -5,13 +5,20 @@ export type OmsCodStatus = 'pending' | 'collected' | 'remitted' | 'settled';
 export type OmsAllocationStatus = 'none' | 'allocated' | 'released' | 'fulfilled';
 export type OmsOrderStatus =
   | 'draft'
+  | 'pending_approval'
+  | 'rejected'
+  | 'approved'
   | 'confirmed'
   | 'processing'
   | 'allocated'
+  | 'picking'
+  | 'packing'
   | 'ready_to_ship'
   | 'out_for_delivery'
   | 'shipped'
   | 'delivered'
+  | 'failed_delivery'
+  | 'completed'
   | 'returned'
   | 'cancelled';
 
@@ -83,6 +90,12 @@ export interface OmsOrderDetail extends OmsOrderListItem {
   outForDeliveryAt?: string | null;
   deliveredAt?: string | null;
   returnedAt?: string | null;
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  approvedBy?: string | null;
+  rejectedAt?: string | null;
+  rejectedBy?: string | null;
+  rejectionReason?: string | null;
   externalReference?: string | null;
   warehouseStatus?: string | null;
   lines: OmsOrderLine[];
@@ -108,17 +121,35 @@ export interface OmsStockReservation {
 }
 
 export interface OmsDashboardSummary {
+  totalOrders?: number;
   ordersToday: number;
   pendingOrders: number;
+  pendingApproval?: number;
+  approved?: number;
   allocatedOrders: number;
   picking: number;
   packing: number;
   outForDelivery: number;
   deliveredToday: number;
+  cancelled?: number;
+  returns: number;
   codPending: number;
   codCollected: number;
   codSettled: number;
-  returns: number;
+  todaysRevenue?: string;
+  ordersByStatus?: Array<{ status: string; count: number }>;
+  ordersByChannel?: Array<{ channel: string; count: number }>;
+  ordersPerDay?: Array<{ day: string; count: number }>;
+  recentOrders?: Array<{
+    id: string;
+    orderNumber: string;
+    status: string;
+    recipientName?: string | null;
+    storeChannel?: string | null;
+    subtotal?: string | null;
+    currency?: string | null;
+    createdAt: string;
+  }>;
 }
 
 export interface CreateOmsOrderLineInput {
@@ -151,7 +182,7 @@ export interface CreateOmsOrderInput {
   codAmount?: number;
   currency?: string;
   warehouseId?: string;
-  outboundOrderId: string;
+  outboundOrderId?: string;
   storeChannel?: string;
   externalReference?: string;
   lines: CreateOmsOrderLineInput[];
@@ -219,6 +250,18 @@ export const OmsApi = {
     return api.delete<{ ok: boolean }>(`/oms/orders/${id}`).then((r) => r.data);
   },
 
+  approve(id: string, shippingFee?: number) {
+    return api
+      .post<OmsOrderDetail>(`/oms/orders/${id}/approve`, { shippingFee })
+      .then((r) => r.data);
+  },
+
+  reject(id: string, reason?: string) {
+    return api
+      .post<OmsOrderDetail>(`/oms/orders/${id}/reject`, { reason })
+      .then((r) => r.data);
+  },
+
   timeline(id: string) {
     return api.get<OmsOrderEvent[]>(`/oms/orders/${id}/timeline`).then((r) => r.data);
   },
@@ -243,6 +286,14 @@ export const OmsApi = {
 
   returned(id: string) {
     return api.post<OmsOrderDetail>(`/oms/orders/${id}/returned`).then((r) => r.data);
+  },
+
+  failedDelivery(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/failed-delivery`).then((r) => r.data);
+  },
+
+  complete(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/complete`).then((r) => r.data);
   },
 
   collectCod(id: string) {

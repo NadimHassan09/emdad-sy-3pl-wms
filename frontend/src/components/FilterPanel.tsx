@@ -109,17 +109,26 @@ export function FilterPanelGrid({
         {firstRow.map((child, index) => renderField(child, index))}
       </div>
 
-      <div
-        className={`${FILTER_OVERFLOW_TRANSITION_CLASS} ${expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
-      >
-        <div className="min-h-0 overflow-hidden">
-          <div className={`${FILTER_GRID_CLASS} pt-5`}>
-            {rest.map((child, index) => renderField(child, columns + index))}
+      {/*
+        Collapsed: grid-rows + overflow-hidden so extra rows can animate shut.
+        Expanded: render fields outside that clip wrapper so Combobox/select
+        menus from row 2+ paint above the "Show less" footer (shared by admin + client).
+      */}
+      {expanded ? (
+        <div className={`relative z-20 ${FILTER_GRID_CLASS} pt-5`}>
+          {rest.map((child, index) => renderField(child, columns + index))}
+        </div>
+      ) : (
+        <div className={`${FILTER_OVERFLOW_TRANSITION_CLASS} grid-rows-[0fr]`}>
+          <div className="min-h-0 overflow-hidden">
+            <div className={`${FILTER_GRID_CLASS} pt-5`}>
+              {rest.map((child, index) => renderField(child, columns + index))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="mt-5">{renderToggle(expanded)}</div>
+      <div className="relative z-0 mt-5">{renderToggle(expanded)}</div>
     </div>
   );
 }

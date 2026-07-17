@@ -8,6 +8,7 @@ import { OmsController } from './oms.controller';
 import { OmsDashboardService } from './oms-dashboard.service';
 import { OmsOrderEventsService } from './oms-order-events.service';
 import { OmsOrdersService } from './oms-orders.service';
+import { OmsOutboundSyncService } from './oms-outbound-sync.service';
 import { OmsSalesChannelService } from './sales-channels/oms-sales-channel.service';
 import { OmsWebhooksController } from './sales-channels/oms-webhooks.controller';
 import { OrderAllocationService } from './order-allocation.service';
@@ -18,10 +19,16 @@ import { OrderAllocationService } from './order-allocation.service';
   providers: [
     OrderAllocationService,
     OmsOrderEventsService,
+    OmsOutboundSyncService,
     OmsOrdersService,
     OmsDashboardService,
     OmsSalesChannelService,
   ],
-  exports: [OrderAllocationService, OmsOrderEventsService, OmsOrdersService],
+  exports: [
+    OrderAllocationService,
+    OmsOrderEventsService,
+    OmsOutboundSyncService,
+    OmsOrdersService,
+  ],
 })
 export class OmsModule {}

@@ -1,11 +1,14 @@
 /** Internal WMS roles (matches Prisma `UserRole` for warehouse staff). */
 export type InternalRole = 'super_admin' | 'wh_manager' | 'wh_operator' | 'finance';
 
+export type NavGroup = 'wms' | 'oms' | null;
+
 export type NavItemDef = {
   labelKey: string;
   iconKey: string;
   to: string;
   match: (pathname: string) => boolean;
+  group?: NavGroup;
 };
 
 const ALL_ROLES: InternalRole[] = ['super_admin', 'wh_manager', 'wh_operator', 'finance'];
@@ -21,11 +24,110 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     match: (p) => p === '/dashboard' || p.startsWith('/dashboard/'),
     roles: ['super_admin', 'wh_manager', 'finance'],
   },
+  // ── WMS group ──
   {
-    labelKey: 'Orders',
+    labelKey: 'Inbound',
     iconKey: 'Orders',
     to: '/orders/inbound',
-    match: (p) => p.startsWith('/orders'),
+    match: (p) => p.startsWith('/orders/inbound'),
+    group: 'wms',
+    roles: ['super_admin', 'wh_manager', 'finance'],
+  },
+  {
+    labelKey: 'Outbound',
+    iconKey: 'Orders',
+    to: '/orders/outbound',
+    match: (p) => p.startsWith('/orders/outbound') || p.startsWith('/orders/directed-outbound'),
+    group: 'wms',
+    roles: ['super_admin', 'wh_manager', 'finance'],
+  },
+  {
+    labelKey: 'Inventory',
+    iconKey: 'Inventory',
+    to: '/inventory/stock',
+    match: (p) => p.startsWith('/inventory') || p === '/adjustments',
+    group: 'wms',
+    roles: ['super_admin', 'wh_manager', 'finance'],
+  },
+  {
+    labelKey: 'Tasks',
+    iconKey: 'Tasks',
+    to: '/tasks',
+    match: (p) => p.startsWith('/tasks') || p === '/internal',
+    group: 'wms',
+    roles: ['super_admin', 'wh_manager', 'wh_operator'],
+  },
+  {
+    labelKey: 'Cycle count',
+    iconKey: 'Inventory',
+    to: '/cycle-count',
+    match: (p) => p.startsWith('/cycle-count'),
+    group: 'wms',
+    roles: ['super_admin', 'wh_manager', 'wh_operator'],
+  },
+  {
+    labelKey: 'Returns',
+    iconKey: 'Orders',
+    to: '/returns',
+    match: (p) => p.startsWith('/returns'),
+    group: 'wms',
+    roles: ['super_admin', 'wh_manager', 'wh_operator'],
+  },
+  {
+    labelKey: 'Products',
+    iconKey: 'Products',
+    to: '/products',
+    match: (p) => p.startsWith('/products'),
+    group: 'wms',
+    roles: ['super_admin', 'wh_manager'],
+  },
+  {
+    labelKey: 'Locations',
+    iconKey: 'Locations',
+    to: '/locations',
+    match: (p) => p.startsWith('/locations'),
+    group: 'wms',
+    roles: ['super_admin', 'wh_manager'],
+  },
+  {
+    labelKey: 'Warehouses',
+    iconKey: 'Warehouses',
+    to: '/warehouses',
+    match: (p) => p.startsWith('/warehouses'),
+    group: 'wms',
+    roles: ['super_admin', 'wh_manager'],
+  },
+  // ── OMS group ──
+  {
+    labelKey: 'OMS Dashboard',
+    iconKey: 'Dashboard',
+    to: '/oms/dashboard',
+    match: (p) => p === '/oms/dashboard' || p === '/oms',
+    group: 'oms',
+    roles: ['super_admin', 'wh_manager', 'finance'],
+  },
+  {
+    labelKey: 'OMS Orders',
+    iconKey: 'Orders',
+    to: '/orders/oms',
+    match: (p) => p.startsWith('/orders/oms') || p.startsWith('/oms/orders'),
+    group: 'oms',
+    roles: ['super_admin', 'wh_manager', 'finance'],
+  },
+  {
+    labelKey: 'COD',
+    iconKey: 'Reports',
+    to: '/reports/oms/cod',
+    match: (p) => p.startsWith('/reports/oms/cod'),
+    group: 'oms',
+    roles: ['super_admin', 'wh_manager', 'finance'],
+  },
+  {
+    labelKey: 'OMS Returns',
+    iconKey: 'Orders',
+    to: '/reports/oms/returns',
+    match: (p) => p.startsWith('/reports/oms/returns'),
+    group: 'oms',
     roles: ['super_admin', 'wh_manager', 'finance'],
   },
   {
@@ -36,59 +138,10 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     roles: ['super_admin', 'wh_manager', 'wh_operator', 'finance'],
   },
   {
-    labelKey: 'Inventory',
-    iconKey: 'Inventory',
-    to: '/inventory/stock',
-    match: (p) => p.startsWith('/inventory') || p === '/adjustments',
-    roles: ['super_admin', 'wh_manager', 'finance'],
-  },
-  {
-    labelKey: 'Tasks',
-    iconKey: 'Tasks',
-    to: '/tasks',
-    match: (p) => p.startsWith('/tasks') || p === '/internal',
-    roles: ['super_admin', 'wh_manager', 'wh_operator'],
-  },
-  {
-    labelKey: 'Cycle count',
-    iconKey: 'Inventory',
-    to: '/cycle-count',
-    match: (p) => p.startsWith('/cycle-count'),
-    roles: ['super_admin', 'wh_manager', 'wh_operator'],
-  },
-  {
-    labelKey: 'Returns',
-    iconKey: 'Orders',
-    to: '/returns',
-    match: (p) => p.startsWith('/returns'),
-    roles: ['super_admin', 'wh_manager', 'wh_operator'],
-  },
-  {
-    labelKey: 'Products',
-    iconKey: 'Products',
-    to: '/products',
-    match: (p) => p.startsWith('/products'),
-    roles: ['super_admin', 'wh_manager'],
-  },
-  {
-    labelKey: 'Locations',
-    iconKey: 'Locations',
-    to: '/locations',
-    match: (p) => p.startsWith('/locations'),
-    roles: ['super_admin', 'wh_manager'],
-  },
-  {
-    labelKey: 'Warehouses',
-    iconKey: 'Warehouses',
-    to: '/warehouses',
-    match: (p) => p.startsWith('/warehouses'),
-    roles: ['super_admin', 'wh_manager'],
-  },
-  {
     labelKey: 'Reports',
     iconKey: 'Reports',
     to: '/reports',
-    match: (p) => p.startsWith('/reports'),
+    match: (p) => p.startsWith('/reports') && !p.startsWith('/reports/oms'),
     roles: ['super_admin', 'wh_manager', 'finance'],
   },
   {
@@ -146,6 +199,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
 function routeGroup(pathname: string): string {
   const p = pathname.replace(/\/+$/, '') || '/';
   if (p === '/' || p.startsWith('/dashboard')) return 'dashboard';
+  if (p.startsWith('/oms')) return 'oms';
   if (p.startsWith('/reports')) return 'reports';
   if (p.startsWith('/orders')) return 'orders';
   if (p.startsWith('/contracts')) return 'contracts';
@@ -169,6 +223,7 @@ function routeGroup(pathname: string): string {
 
 const ROUTE_GROUP_ROLES: Record<string, InternalRole[]> = {
   dashboard: ['super_admin', 'wh_manager', 'finance'],
+  oms: ['super_admin', 'wh_manager', 'finance'],
   reports: ['super_admin', 'wh_manager', 'finance'],
   orders: ['super_admin', 'wh_manager', 'finance'],
   contracts: ['super_admin', 'wh_manager', 'wh_operator', 'finance'],
@@ -223,12 +278,15 @@ export function defaultHomePath(role: string | undefined): string {
 export function navItemsForRole(role: string | undefined): NavItemDef[] {
   const r = normalizeInternalRole(role);
   if (!r) return [];
-  return NAV_CATALOG.filter((item) => item.roles.includes(r)).map(({ labelKey, iconKey, to, match }) => ({
-    labelKey,
-    iconKey,
-    to,
-    match,
-  }));
+  return NAV_CATALOG.filter((item) => item.roles.includes(r)).map(
+    ({ labelKey, iconKey, to, match, group }) => ({
+      labelKey,
+      iconKey,
+      to,
+      match,
+      group: group ?? null,
+    }),
+  );
 }
 
 export function isOperatorRole(role: string | undefined): boolean {

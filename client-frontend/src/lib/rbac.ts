@@ -1,11 +1,14 @@
 import type { ClientPortalRole } from '../types/auth';
 
+export type ClientNavGroup = 'wms' | 'oms' | null;
+
 export type ClientNavItem = {
   label: string;
   labelAr: string;
   iconKey: string;
   to: string;
   exact?: boolean;
+  group?: ClientNavGroup;
 };
 
 const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
@@ -18,10 +21,27 @@ const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
     roles: ['client_admin', 'client_staff'],
   },
   {
-    label: 'Orders',
-    labelAr: 'الطلبات',
+    label: 'Inbound',
+    labelAr: 'الوارد',
     iconKey: 'Orders',
     to: '/inbound-orders',
+    group: 'wms',
+    roles: ['client_admin', 'client_staff'],
+  },
+  {
+    label: 'My orders',
+    labelAr: 'طلباتي',
+    iconKey: 'Orders',
+    to: '/outbound-orders',
+    group: 'wms',
+    roles: ['client_admin', 'client_staff'],
+  },
+  {
+    label: 'Stock',
+    labelAr: 'المخزون',
+    iconKey: 'Stock',
+    to: '/stock',
+    group: 'wms',
     roles: ['client_admin', 'client_staff'],
   },
   {
@@ -29,13 +49,31 @@ const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
     labelAr: 'المنتجات',
     iconKey: 'Products',
     to: '/products',
+    group: 'wms',
     roles: ['client_admin'],
   },
   {
-    label: 'Stock',
-    labelAr: 'المخزون',
-    iconKey: 'Stock',
-    to: '/stock',
+    label: 'OMS Orders',
+    labelAr: 'طلبات OMS',
+    iconKey: 'Orders',
+    to: '/ecommerce-orders',
+    group: 'oms',
+    roles: ['client_admin', 'client_staff'],
+  },
+  {
+    label: 'COD',
+    labelAr: 'COD',
+    iconKey: 'Billing',
+    to: '/cod-reports',
+    group: 'oms',
+    roles: ['client_admin', 'client_staff'],
+  },
+  {
+    label: 'Returns',
+    labelAr: 'المرتجعات',
+    iconKey: 'Orders',
+    to: '/returns',
+    group: 'oms',
     roles: ['client_admin', 'client_staff'],
   },
   {
@@ -108,13 +146,16 @@ export function redirectPathForDeniedRoute(
 
 export function clientNavForRole(role: ClientPortalRole | string | undefined): ClientNavItem[] {
   if (role !== 'client_admin' && role !== 'client_staff') return [];
-  return NAV_CATALOG.filter((item) => item.roles.includes(role)).map(({ label, labelAr, iconKey, to, exact }) => ({
-    label,
-    labelAr,
-    iconKey,
-    to,
-    exact,
-  }));
+  return NAV_CATALOG.filter((item) => item.roles.includes(role)).map(
+    ({ label, labelAr, iconKey, to, exact, group }) => ({
+      label,
+      labelAr,
+      iconKey,
+      to,
+      exact,
+      group: group ?? null,
+    }),
+  );
 }
 
 export function isClientAdmin(role: ClientPortalRole | string | undefined): boolean {

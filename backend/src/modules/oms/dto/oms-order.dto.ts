@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
@@ -16,6 +16,10 @@ import { OmsPaymentMethod } from '@prisma/client';
 
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 
+/** Treat empty string / null as omitted so optional UUID fields do not fail validation. */
+function emptyToUndefined({ value }: { value: unknown }): unknown {
+  return value === '' || value === null ? undefined : value;
+}
 export class CreateOmsOrderLineDto {
   @IsUuidLoose()
   productId!: string;
@@ -124,11 +128,15 @@ export class CreateOmsOrderDto {
   currency?: string;
 
   @IsOptional()
+  @Transform(emptyToUndefined)
   @IsUuidLoose()
   warehouseId?: string;
 
+  /** Optional legacy link; new OMS-first flow leaves this unset. */
+  @IsOptional()
+  @Transform(emptyToUndefined)
   @IsUuidLoose()
-  outboundOrderId!: string;
+  outboundOrderId?: string;
 
   @IsOptional()
   @IsString()
@@ -221,7 +229,9 @@ export class UpdateOmsOrderDto {
   @IsString()
   currency?: string;
 
+  /** Legacy only: set null to unlink. Prefer approve flow to create outbound. */
   @IsOptional()
+  @Transform(({ value }) => (value === '' ? undefined : value))
   @IsUuidLoose()
   outboundOrderId?: string | null;
 
@@ -238,4 +248,17 @@ export class AllocateOmsOrderDto {
   @IsOptional()
   @IsUuidLoose()
   warehouseId?: string;
+}
+
+export class ApproveOmsOrderDto {
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0)
+  shippingFee?: number;
+}
+
+export class RejectOmsOrderDto {
+  @IsOptional()
+  @IsString()
+  reason?: string;
 }

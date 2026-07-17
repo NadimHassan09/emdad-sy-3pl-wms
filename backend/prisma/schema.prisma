@@ -397,13 +397,20 @@ enum OmsAllocationStatus {
 
 enum OmsOrderStatus {
   draft
+  pending_approval
+  rejected
+  approved
   confirmed
   processing
   allocated
+  picking
+  packing
   ready_to_ship
   out_for_delivery
   shipped
   delivered
+  failed_delivery
+  completed
   returned
   cancelled
 
@@ -894,6 +901,8 @@ model User {
   omsOrderEventsCreated      OmsOrderEvent[]          @relation("OmsOrderEventCreatedBy")
   omsOrdersOwned             OmsOrder[]               @relation("OmsOrderCreatedBy")
   omsOrdersCancelled         OmsOrder[]               @relation("OmsOrderCancelledBy")
+  omsOrdersApproved          OmsOrder[]               @relation("OmsOrderApprovedBy")
+  omsOrdersRejected          OmsOrder[]               @relation("OmsOrderRejectedBy")
 
   @@map("users")
 }
@@ -1574,6 +1583,12 @@ model OmsOrder {
   confirmedAt          DateTime?           @map("confirmed_at") @db.Timestamptz(6)
   cancelledAt          DateTime?           @map("cancelled_at") @db.Timestamptz(6)
   cancelledBy          String?             @map("cancelled_by") @db.Uuid
+  submittedAt          DateTime?           @map("submitted_at") @db.Timestamptz(6)
+  approvedAt           DateTime?           @map("approved_at") @db.Timestamptz(6)
+  approvedBy           String?             @map("approved_by") @db.Uuid
+  rejectedAt           DateTime?           @map("rejected_at") @db.Timestamptz(6)
+  rejectedBy           String?             @map("rejected_by") @db.Uuid
+  rejectionReason      String?             @map("rejection_reason")
   createdBy            String              @map("created_by") @db.Uuid
   createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1582,10 +1597,13 @@ model OmsOrder {
   outboundOrder OutboundOrder?   @relation(fields: [outboundOrderId], references: [id], onDelete: SetNull)
   creator       User             @relation("OmsOrderCreatedBy", fields: [createdBy], references: [id])
   canceller     User?            @relation("OmsOrderCancelledBy", fields: [cancelledBy], references: [id])
+  approver      User?            @relation("OmsOrderApprovedBy", fields: [approvedBy], references: [id])
+  rejector      User?            @relation("OmsOrderRejectedBy", fields: [rejectedBy], references: [id])
   lines         OmsOrderLine[]
   omsEvents     OmsOrderEvent[]
 
   @@index([companyId, createdAt(sort: Desc)], map: "idx_oms_orders_created")
+  @@index([companyId, status], map: "idx_oms_orders_status")
   @@map("oms_orders")
 }
 
