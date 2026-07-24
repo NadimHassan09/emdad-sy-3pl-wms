@@ -1,0 +1,125 @@
+# Deploy to STAGING VPS path on every push to the staging branch.
+# Never touches production (/var/www/emdad-sy-3pl-wms or ecosystem.config.js).
+#
+# GitHub Actions secrets (same as production deploy):
+#   VPS_SSH_KEY, VPS_HOST, VPS_USER
+
+name: Deploy Staging to VPS
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - staging
+
+concurrency:
+  group: deploy-vps-staging
+  cancel-in-progress: true
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH — pull staging, build, PM2 restart staging only
+        uses: appleboy/ssh-action@v1.2.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          timeout: 2m
+          command_timeout: 45m
+          script: |
+            set -eo pipefail
+            set +u
+            [ -f "$HOME/.profile" ] && . "$HOME/.profile" || true
+            [ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc" || true
+            set -u
+            PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+            command -v git && command -v npm && command -v pm2
+
+            DEPLOY_PATH=/var/www/emdad-sy-3pl-wms-staging
+            ECOSYSTEM=ecosystem.staging.config.js
+
+            # Hard isolation guards — refuse to touch production
+            if [ "$DEPLOY_PATH" != "/var/www/emdad-sy-3pl-wms-staging" ]; then
+              echo "REFUSING: DEPLOY_PATH must be staging tree, got $DEPLOY_PATH"
+              exit 1
+            fi
+            if [ ! -d "$DEPLOY_PATH" ]; then
+              echo "REFUSING: staging path missing: $DEPLOY_PATH"
+              exit 1
+            fi
+            if [ ! -f "$DEPLOY_PATH/$ECOSYSTEM" ]; then
+              echo "REFUSING: missing $ECOSYSTEM in staging tree"
+              exit 1
+            fi
+
+            cd "$DEPLOY_PATH"
+            git config --global --add safe.directory "$DEPLOY_PATH" 2>/dev/null || true
+
+            echo "=== git pull (staging branch only) ==="
+            git fetch origin
+            git checkout staging
+            git pull --ff-only origin staging
+            CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+            if [ "$CURRENT_BRANCH" != "staging" ]; then
+              echo "REFUSING: expected branch staging, got $CURRENT_BRANCH"
+              exit 1
+            fi
+
+            echo "=== backend: npm ci (include devDependencies for nest CLI) ==="
+            cd "$DEPLOY_PATH/backend"
+            unset NODE_ENV
+            npm ci
+
+            echo "=== backend: prisma migrate deploy (staging DB) ==="
+            if [ -f .env ]; then
+              set -a
+              set +u
+              # shellcheck disable=SC1091
+              . ./.env
+              set +a
+              set -u
+            fi
+            case "${DATABASE_URL:-}" in
+              *wms_db_staging*) echo "DATABASE_URL OK (wms_db_staging)" ;;
+              *)
+                echo "REFUSING: DATABASE_URL must target wms_db_staging"
+                exit 1
+                ;;
+            esac
+            npx prisma migrate deploy
+
+            echo "=== backend: build ==="
+            if [ -f .env ]; then
+              set -a
+              set +u
+              # shellcheck disable=SC1091
+              . ./.env
+              set +a
+              set -u
+            fi
+            unset NODE_ENV
+            export PATH="$DEPLOY_PATH/backend/node_modules/.bin:$PATH"
+            npm run db:generate
+            npm run build
+
+            echo "=== admin frontend: npm ci + build ==="
+            cd "$DEPLOY_PATH/frontend"
+            unset NODE_ENV
+            npm ci
+            npm run build
+
+            echo "=== client frontend: npm ci + build ==="
+            cd "$DEPLOY_PATH/client-frontend"
+            unset NODE_ENV
+            npm ci
+            npm run build
+
+            echo "=== pm2 restart staging only ==="
+            cd "$DEPLOY_PATH"
+            pm2 restart "$ECOSYSTEM"
+            pm2 save
