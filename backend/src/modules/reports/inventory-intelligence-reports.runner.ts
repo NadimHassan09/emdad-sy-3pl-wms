@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { LocationType, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { readCompanyIdFilterRequired } from '../../common/auth/company-read-scope';
@@ -11,7 +11,6 @@ import type { RunReportQueryDto } from './dto/run-report-query.dto';
 import type { ReportRowDto } from './reports.service';
 
 const SAMPLE_CAP = 2000;
-const STORAGE_LOCATION_TYPES: LocationType[] = ['internal', 'fridge', 'quarantine'];
 
 function fmtQty(n: unknown): string {
   const v = Number(n);
@@ -178,86 +177,77 @@ export class InventoryIntelligenceReportsRunner {
   }
 
   private async capacityUtilization(user: AuthPrincipal, query: RunReportQueryDto) {
-    const warehouseId = query.warehouseId?.trim();
-    if (!warehouseId) return { items: [], total: 0 };
-
     const companyId = readCompanyIdFilterRequired(this.companyAccess, user, query.companyId);
+
     const stockWhere: Prisma.CurrentStockWhereInput = {
-      warehouseId,
       quantityOnHand: { gt: 0 },
       ...(companyId ? { companyId } : {}),
+      product: { status: { not: 'archived' } },
     };
 
-    const [totalLocations, occupiedLocations, stockRows] = await Promise.all([
-      this.prisma.location.count({
-        where: {
-          warehouseId,
-          type: { in: STORAGE_LOCATION_TYPES },
-          status: 'active',
-        },
-      }),
-      this.prisma.location.count({
-        where: {
-          warehouseId,
-          type: { in: STORAGE_LOCATION_TYPES },
-          status: 'active',
-          currentStock: { some: { quantityOnHand: { gt: 0 } } },
-        },
-      }),
-      this.prisma.currentStock.findMany({
-        where: stockWhere,
-        select: {
-          locationId: true,
-          productId: true,
-          quantityOnHand: true,
-          location: { select: { fullPath: true, name: true } },
-        },
-        take: SAMPLE_CAP,
-      }),
-    ]);
+    const stockRows = await this.prisma.currentStock.findMany({
+      where: stockWhere,
+      select: {
+        companyId: true,
+        quantityOnHand: true,
+        product: { select: { volumeCbm: true } },
+        company: { select: { id: true, name: true } },
+      },
+      take: SAMPLE_CAP,
+    });
 
-    const consumedPercent =
-      totalLocations > 0 ? Math.round((occupiedLocations / totalLocations) * 100) : 0;
-
-    const summary: ReportRowDto = {
-      id: 'summary',
-      location: '— Warehouse summary —',
-      type: '—',
-      skuCount: '',
-      totalQty: '',
-      utilization: `${consumedPercent}% (${occupiedLocations} / ${totalLocations} locations)`,
+    const planWhere: Prisma.BillingPlanWhereInput = {
+      active: true,
+      ...(companyId ? { companyId } : {}),
     };
+    const plans = await this.prisma.billingPlan.findMany({
+      where: planWhere,
+      select: { companyId: true, reservedVolume: true, company: { select: { name: true } } },
+    });
 
-    const byLocation = new Map<
-      string,
-      { path: string; type: string; skuSet: Set<string>; qty: number }
-    >();
+    const usedByCompany = new Map<string, { name: string; used: number }>();
     for (const row of stockRows) {
-      const cur = byLocation.get(row.locationId) ?? {
-        path: row.location.fullPath,
-        type: row.location.name,
-        skuSet: new Set<string>(),
-        qty: 0,
+      const cbm = Number(row.product.volumeCbm ?? 0);
+      const qty = Math.max(0, Number(row.quantityOnHand));
+      const cur = usedByCompany.get(row.companyId) ?? {
+        name: row.company.name,
+        used: 0,
       };
-      cur.skuSet.add(row.productId);
-      cur.qty += Number(row.quantityOnHand);
-      byLocation.set(row.locationId, cur);
+      cur.used += qty * (Number.isFinite(cbm) ? cbm : 0);
+      usedByCompany.set(row.companyId, cur);
     }
 
-    const locationRows: ReportRowDto[] = [...byLocation.entries()]
-      .map(([id, v]) => ({
-        id,
-        location: v.path,
-        type: v.type,
-        skuCount: String(v.skuSet.size),
-        totalQty: fmtQty(v.qty),
-        utilization: totalLocations
-          ? `${Math.round((byLocation.size / totalLocations) * 100)}% active slots`
-          : '—',
-      }))
+    const reservedByCompany = new Map<string, { name: string; reserved: number }>();
+    for (const plan of plans) {
+      const cur = reservedByCompany.get(plan.companyId) ?? {
+        name: plan.company.name,
+        reserved: 0,
+      };
+      cur.reserved += Number(plan.reservedVolume);
+      reservedByCompany.set(plan.companyId, cur);
+    }
+
+    const companyIds = new Set([...usedByCompany.keys(), ...reservedByCompany.keys()]);
+    const items: ReportRowDto[] = [...companyIds]
+      .map((id) => {
+        const used = usedByCompany.get(id)?.used ?? 0;
+        const reserved = reservedByCompany.get(id)?.reserved ?? 0;
+        const name =
+          usedByCompany.get(id)?.name ?? reservedByCompany.get(id)?.name ?? id;
+        const remaining = Math.max(0, reserved - used);
+        const pct = reserved > 0 ? Math.min(100, Math.round((used / reserved) * 1000) / 10) : 0;
+        return {
+          id,
+          location: name,
+          type: 'inventory_cbm',
+          skuCount: fmtQty(used),
+          totalQty: fmtQty(reserved),
+          utilization: `${pct}% (remaining ${fmtQty(remaining)} CBM)`,
+        } satisfies ReportRowDto;
+      })
       .sort((a, b) => String(a.location).localeCompare(String(b.location)));
 
-    return paginate([summary, ...locationRows], query.limit, query.offset);
+    return paginate(items, query.limit, query.offset);
   }
 
   private async returnRate(user: AuthPrincipal, query: RunReportQueryDto) {

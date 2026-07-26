@@ -25,17 +25,12 @@ export const BILLING_BLOCKED_STATUSES: CompanyStatus[] = [
 export class BillingVolumeCapacityService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Sum of maxCbm across active internal storage locations. */
+  /**
+   * Location maxCbm is layout metadata only — not used for billing capacity.
+   * Kept for API compatibility; returns 0 so callers do not gate on racks/bins.
+   */
   async getTotalWarehouseVolume(): Promise<Prisma.Decimal> {
-    const agg = await this.prisma.location.aggregate({
-      where: {
-        status: 'active',
-        type: { in: ['internal', 'fridge', 'quarantine'] },
-        maxCbm: { not: null },
-      },
-      _sum: { maxCbm: true },
-    });
-    return agg._sum.maxCbm ?? new Prisma.Decimal(0);
+    return new Prisma.Decimal(0);
   }
 
   async getTotalWarehouseWeight(): Promise<Prisma.Decimal> {
@@ -97,29 +92,15 @@ export class BillingVolumeCapacityService {
     return agg._sum.reservedVolume ?? new Prisma.Decimal(0);
   }
 
+  /**
+   * Storage billing is inventory × product CBM — do not gate reserved volume
+   * on warehouse location/rack/bin dimensions.
+   */
   async assertVolumeAllocation(
-    requestedVolume: Prisma.Decimal | number,
-    excludePlanId?: string,
+    _requestedVolume: Prisma.Decimal | number,
+    _excludePlanId?: string,
   ): Promise<void> {
-    const total = await this.getTotalWarehouseVolume();
-    if (total.lte(0)) return;
-
-    const allocatable = total.mul(WAREHOUSE_ALLOCATABLE_CAPACITY_RATIO);
-    const allocated = await this.getAllocatedVolume(excludePlanId);
-    const requested = new Prisma.Decimal(requestedVolume);
-    const nextTotal = allocated.add(requested);
-
-    if (nextTotal.gt(allocatable)) {
-      throw new VolumeAllocationExceededException(
-        `Total reserved volume (${nextTotal.toFixed(4)} CBM) exceeds the 90% allocatable capacity (${allocatable.toFixed(4)} CBM of ${total.toFixed(4)} CBM).`,
-        {
-          totalWarehouseVolume: total.toString(),
-          allocatableCapacity: allocatable.toString(),
-          currentlyAllocated: allocated.toString(),
-          requestedVolume: requested.toString(),
-        },
-      );
-    }
+    // no-op
   }
 }
 

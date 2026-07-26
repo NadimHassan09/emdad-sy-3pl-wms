@@ -315,6 +315,8 @@ export function BillingPlansPage() {
       <VolumeAllocationPanel
         capacity={capacityQuery.data}
         loading={capacityQuery.isLoading}
+        title="System storage"
+        description="Used storage across all clients from inventory quantity × product CBM. Reserved storage is the sum of active billing plan reserved volumes."
       />
 
       <FilterPanel

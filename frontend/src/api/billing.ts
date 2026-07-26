@@ -35,6 +35,11 @@ export type BillingCycleRow = {
 };
 
 export type BillingCapacitySummary = {
+  usedStorageCbm: string;
+  reservedStorageCbm: string;
+  remainingStorageCbm: string;
+  storageUsagePercent: number;
+  /** Legacy aliases mapped to inventory-based storage */
   totalWarehouseVolumeCbm: string;
   allocatableCapacityCbm: string;
   allocatedVolumeCbm: string;
@@ -45,6 +50,16 @@ export type BillingCapacitySummary = {
   remainingAllocatableKg: string;
   allocationRatio: number;
   sparePoolRatio: number;
+  basis?: 'inventory_product_cbm';
+};
+
+export type CompanyStorageSummary = {
+  companyId: string;
+  usedStorageCbm: string;
+  reservedStorageCbm: string;
+  remainingStorageCbm: string;
+  storageUsagePercent: number;
+  basis: 'inventory_product_cbm';
 };
 
 export type BillingDashboardSummary = {
@@ -361,6 +376,13 @@ export const BillingApi = {
 
   async getCapacitySummary(): Promise<BillingCapacitySummary> {
     const { data } = await api.get<BillingCapacitySummary>('/billing/capacity');
+    return data;
+  },
+
+  async getCompanyStorage(companyId: string): Promise<CompanyStorageSummary> {
+    const { data } = await api.get<CompanyStorageSummary>(
+      `/billing/companies/${companyId}/storage`,
+    );
     return data;
   },
 

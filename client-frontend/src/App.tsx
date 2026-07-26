@@ -36,7 +36,6 @@ const ReturnsPage             = lazyPage(() => import('./pages/ReturnsPage'),   
 const ReturnDetailPage        = lazyPage(() => import('./pages/ReturnDetailPage'),        'ReturnDetailPage');
 const ProductsPage          = lazyPage(() => import('./pages/ProductsPage'),          'ProductsPage');
 const ProductDetailPage     = lazyPage(() => import('./pages/ProductDetailPage'),     'ProductDetailPage');
-const StockPage             = lazyPage(() => import('./pages/StockPage'),             'StockPage');
 const DashboardPage         = lazyPage(() => import('./pages/DashboardPage'),         'DashboardPage');
 const BillingPage           = lazyPage(() => import('./pages/BillingPage'),           'BillingPage');
 const BillingInvoiceDetailPage = lazyPage(() => import('./pages/BillingInvoiceDetailPage'), 'BillingInvoiceDetailPage');
@@ -157,14 +156,6 @@ function AppRoutes(): ReactElement {
               element={
                 <RequireRouteAccess>
                   <ReturnDetailPage />
-                </RequireRouteAccess>
-              }
-            />
-            <Route
-              path="stock"
-              element={
-                <RequireRouteAccess>
-                  <StockPage />
                 </RequireRouteAccess>
               }
             />

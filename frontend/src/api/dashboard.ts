@@ -89,6 +89,10 @@ export type DashboardOverview = {
   };
   openTasksByType: OpenTasksByTypeRow[];
   capacity: {
+    usedStorageCbm: string;
+    reservedStorageCbm: string;
+    remainingStorageCbm: string;
+    storageUsagePercent: number;
     occupiedLocations: number;
     totalStorageLocations: number;
     consumedPercent: number;

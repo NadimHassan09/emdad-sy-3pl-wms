@@ -1,11 +1,14 @@
-import type { BillingCapacitySummary } from '../../api/billing';
-import { formatDecimal, warehouseAllocationPercent } from '../../lib/billing-plan-overview';
+import type { BillingCapacitySummary, CompanyStorageSummary } from '../../api/billing';
+import { formatDecimal } from '../../lib/billing-plan-overview';
 
 type Props = {
-  capacity: BillingCapacitySummary | undefined;
+  capacity?: BillingCapacitySummary;
+  storage?: CompanyStorageSummary;
+  /** Fallback reserved volume when company storage not loaded yet */
   reservedVolume?: string;
-  reservedWeight?: string;
   loading?: boolean;
+  title?: string;
+  description?: string;
 };
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -17,39 +20,44 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function VolumeAllocationPanel({ capacity, reservedVolume, reservedWeight, loading }: Props) {
+/**
+ * Inventory-based storage utilization (product CBM × on-hand qty).
+ * Does not use warehouse location/rack/bin dimensions.
+ */
+export function VolumeAllocationPanel({
+  capacity,
+  storage,
+  reservedVolume,
+  loading,
+  title = 'Storage utilization',
+  description = 'Used storage is calculated from current inventory quantity × product volume (CBM). Location dimensions are not used for billing.',
+}: Props) {
   if (loading) {
-    return <p className="text-sm text-slate-500">Loading volume allocation…</p>;
+    return <p className="text-sm text-slate-500">Loading storage utilization…</p>;
   }
 
-  const allocPct = capacity
-    ? warehouseAllocationPercent(capacity.allocatedVolumeCbm, capacity.totalWarehouseVolumeCbm)
-    : '—';
-
-  const overflowRemaining = capacity
-    ? formatDecimal(capacity.remainingAllocatableCbm, 4)
-    : '—';
+  const used = storage?.usedStorageCbm ?? capacity?.usedStorageCbm ?? capacity?.allocatedVolumeCbm ?? '0';
+  const reserved =
+    storage?.reservedStorageCbm ??
+    capacity?.reservedStorageCbm ??
+    reservedVolume ??
+    capacity?.totalWarehouseVolumeCbm ??
+    '0';
+  const remaining =
+    storage?.remainingStorageCbm ?? capacity?.remainingStorageCbm ?? capacity?.remainingAllocatableCbm ?? '0';
+  const utilization =
+    storage?.storageUsagePercent ?? capacity?.storageUsagePercent ?? 0;
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="text-sm font-semibold text-slate-900">Volume allocation</h3>
-      <p className="mt-1 text-xs text-slate-500">
-        Up to {(capacity?.allocationRatio ?? 0.9) * 100}% of warehouse CBM may be reserved for clients; 10% remains
-        as overflow capacity.
-      </p>
+      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <p className="mt-1 text-xs text-slate-500">{description}</p>
       <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Reserved volume (this plan)" value={`${formatDecimal(reservedVolume ?? '0', 4)} CBM`} />
-        <Stat label="Reserved weight (this plan)" value={`${formatDecimal(reservedWeight ?? '0', 4)} kg`} />
-        <Stat label="Warehouse allocation" value={allocPct} />
-        <Stat label="Overflow capacity remaining" value={`${overflowRemaining} CBM`} />
+        <Stat label="Reserved Storage" value={`${formatDecimal(reserved, 4)} CBM`} />
+        <Stat label="Used Storage" value={`${formatDecimal(used, 4)} CBM`} />
+        <Stat label="Remaining Storage" value={`${formatDecimal(remaining, 4)} CBM`} />
+        <Stat label="Storage Utilization" value={`${Number(utilization).toFixed(1)}%`} />
       </dl>
-      {capacity ? (
-        <p className="mt-3 text-xs text-slate-500">
-          Total warehouse: {formatDecimal(capacity.totalWarehouseVolumeCbm, 4)} CBM · Allocated across clients:{' '}
-          {formatDecimal(capacity.allocatedVolumeCbm, 4)} CBM · Allocatable cap:{' '}
-          {formatDecimal(capacity.allocatableCapacityCbm, 4)} CBM
-        </p>
-      ) : null}
     </section>
   );
 }

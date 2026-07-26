@@ -32,8 +32,8 @@ const WMS_ORDERS_SECTION: SectionSubNavConfig = {
       match: (p) => p.startsWith('/inbound-orders'),
     },
     {
-      labelKey: 'My orders',
-      labelAr: 'طلباتي',
+      labelKey: 'Outbound orders',
+      labelAr: 'طلبات الصادر',
       to: '/outbound-orders',
       match: (p) => p.startsWith('/outbound-orders'),
     },

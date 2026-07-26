@@ -22,6 +22,11 @@ import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useAuth } from '../auth/AuthContext';
 import { useFilters } from '../hooks/useFilters';
+import {
+  sanitizeCompanyPayload,
+  validateCompanyForm,
+  type CompanyFormErrors,
+} from '../lib/company-form-validation';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
 
 type ClientSearchCategory = 'name' | 'tradeName' | 'email' | 'phone' | 'city' | 'country';
@@ -35,6 +40,8 @@ type ClientListFilters = {
 
 const TEXTAREA_CLASS =
   'mt-1 block w-full min-h-[72px] rounded-md border border-slate-300 px-3 py-1.5 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200';
+const TEXTAREA_ERROR_CLASS =
+  'mt-1 block w-full min-h-[72px] rounded-md border border-rose-400 px-3 py-1.5 text-sm shadow-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-200';
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
@@ -59,22 +66,31 @@ function FieldTextarea({
   value,
   onChange,
   id,
+  error,
+  required,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   id: string;
+  error?: string;
+  required?: boolean;
 }) {
   return (
     <label htmlFor={id} className="block">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <span className="text-sm font-medium text-slate-700">
+        {label}
+        {required ? <span className="text-rose-600"> *</span> : null}
+      </span>
       <textarea
         id={id}
-        className={TEXTAREA_CLASS}
+        className={error ? TEXTAREA_ERROR_CLASS : TEXTAREA_CLASS}
         value={value}
         spellCheck
+        aria-invalid={error ? true : undefined}
         onChange={(e) => onChange(e.target.value)}
       />
+      {error ? <span className="mt-1 block text-xs text-rose-600">{error}</span> : null}
     </label>
   );
 }
@@ -93,6 +109,8 @@ export function ClientsPage() {
   const [lifecycleRow, setLifecycleRow] = useState<CompanyListRow | null>(null);
   const [openActionId, setOpenActionId] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState<CreateCompanyPayload>(emptyCreate);
+  const [createErrors, setCreateErrors] = useState<CompanyFormErrors>({});
+  const [editErrors, setEditErrors] = useState<CompanyFormErrors>({});
 
   const initialClientFilters = useMemo<ClientListFilters>(
     () => ({ search: '', searchCategory: 'name', status: 'all' }),
@@ -129,23 +147,12 @@ export function ClientsPage() {
   const invalidate = () => qc.invalidateQueries({ queryKey: companiesKey });
 
   const createMut = useMutation({
-    mutationFn: () => {
-      const p: CreateCompanyPayload = {
-        name: createForm.name.trim(),
-        contactEmail: createForm.contactEmail.trim(),
-        country: (createForm.country ?? 'SA').trim() || 'SA',
-      };
-      if (createForm.tradeName?.trim()) p.tradeName = createForm.tradeName.trim();
-      if (createForm.city?.trim()) p.city = createForm.city.trim();
-      if (createForm.contactPhone?.trim()) p.contactPhone = createForm.contactPhone.trim();
-      if (createForm.address?.trim()) p.address = createForm.address.trim();
-      if (createForm.notes?.trim()) p.notes = createForm.notes.trim();
-      return CompaniesApi.create(p);
-    },
+    mutationFn: (payload: CreateCompanyPayload) => CompaniesApi.create(payload),
     onSuccess: () => {
       toast.success('Company created.');
       setCreateOpen(false);
       setCreateForm(emptyCreate);
+      setCreateErrors({});
       setOpenActionId(null);
       invalidate();
     },
@@ -153,14 +160,13 @@ export function ClientsPage() {
   });
 
   const updateMut = useMutation({
-    mutationFn: () => {
-      if (!editRow) throw new Error('No row');
-      return CompaniesApi.update(editRow.id, editForm);
-    },
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateCompanyPayload }) =>
+      CompaniesApi.update(id, payload),
     onSuccess: () => {
       toast.success('Company saved.');
       setEditRow(null);
       setEditForm({});
+      setEditErrors({});
       setOpenActionId(null);
       invalidate();
     },
@@ -169,6 +175,7 @@ export function ClientsPage() {
 
   const openEdit = (r: CompanyListRow) => {
     setEditRow(r);
+    setEditErrors({});
     setEditForm({
       name: r.name,
       tradeName: r.tradeName ?? '',
@@ -185,6 +192,7 @@ export function ClientsPage() {
   const closeCreate = () => {
     if (!createMut.isPending) {
       setCreateForm(emptyCreate);
+      setCreateErrors({});
       setCreateOpen(false);
     }
   };
@@ -193,17 +201,75 @@ export function ClientsPage() {
     if (!updateMut.isPending) {
       setEditRow(null);
       setEditForm({});
+      setEditErrors({});
     }
   };
 
   const submitCreate = (e: FormEvent) => {
     e.preventDefault();
-    createMut.mutate();
+    const fields = {
+      name: createForm.name,
+      tradeName: createForm.tradeName,
+      contactEmail: createForm.contactEmail,
+      country: createForm.country ?? '',
+      city: createForm.city ?? '',
+      contactPhone: createForm.contactPhone,
+      address: createForm.address,
+      notes: createForm.notes,
+    };
+    const errors = validateCompanyForm(fields, { isArabic, requireCity: true });
+    setCreateErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error(t('Please fix the highlighted fields.', 'يرجى تصحيح الحقول المحددة.'));
+      return;
+    }
+    const clean = sanitizeCompanyPayload(fields);
+    createMut.mutate({
+      name: clean.name,
+      contactEmail: clean.contactEmail,
+      country: clean.country,
+      city: clean.city,
+      ...(clean.tradeName ? { tradeName: clean.tradeName } : {}),
+      ...(clean.contactPhone ? { contactPhone: clean.contactPhone } : {}),
+      ...(clean.address ? { address: clean.address } : {}),
+      ...(clean.notes ? { notes: clean.notes } : {}),
+    });
   };
 
   const submitEdit = (e: FormEvent) => {
     e.preventDefault();
-    updateMut.mutate();
+    if (!editRow) return;
+    const fields = {
+      name: editForm.name ?? '',
+      tradeName: editForm.tradeName,
+      contactEmail: editForm.contactEmail ?? '',
+      country: editForm.country ?? '',
+      city: editForm.city ?? '',
+      contactPhone: editForm.contactPhone,
+      address: editForm.address,
+      notes: editForm.notes,
+    };
+    const errors = validateCompanyForm(fields, { isArabic, requireCity: true });
+    setEditErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error(t('Please fix the highlighted fields.', 'يرجى تصحيح الحقول المحددة.'));
+      return;
+    }
+    const clean = sanitizeCompanyPayload(fields);
+    updateMut.mutate({
+      id: editRow.id,
+      payload: {
+        name: clean.name,
+        contactEmail: clean.contactEmail,
+        country: clean.country,
+        city: clean.city,
+        tradeName: clean.tradeName ?? null,
+        contactPhone: clean.contactPhone ?? null,
+        address: clean.address ?? null,
+        notes: clean.notes ?? null,
+        status: editForm.status,
+      },
+    });
   };
 
   const columns: Column<CompanyListRow>[] = useMemo(
@@ -413,19 +479,27 @@ export function ClientsPage() {
           </>
         }
       >
-        <form id="create-company" onSubmit={submitCreate} className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1">
+        <form id="create-company" onSubmit={submitCreate} className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1" noValidate>
           <TextField
             label={t('Name', 'الاسم')}
             required
             name="name"
             value={createForm.name}
-            onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+            error={createErrors.name}
+            onChange={(e) => {
+              setCreateForm((f) => ({ ...f, name: e.target.value }));
+              setCreateErrors((err) => ({ ...err, name: undefined }));
+            }}
           />
           <TextField
             label={t('Trade name (optional)', 'الاسم التجاري (اختياري)')}
             name="tradeName"
             value={createForm.tradeName ?? ''}
-            onChange={(e) => setCreateForm((f) => ({ ...f, tradeName: e.target.value }))}
+            error={createErrors.tradeName}
+            onChange={(e) => {
+              setCreateForm((f) => ({ ...f, tradeName: e.target.value }));
+              setCreateErrors((err) => ({ ...err, tradeName: undefined }));
+            }}
           />
           <TextField
             label={t('Contact email', 'البريد الإلكتروني للتواصل')}
@@ -433,39 +507,67 @@ export function ClientsPage() {
             required
             name="contactEmail"
             value={createForm.contactEmail}
-            onChange={(e) => setCreateForm((f) => ({ ...f, contactEmail: e.target.value }))}
+            error={createErrors.contactEmail}
+            onChange={(e) => {
+              setCreateForm((f) => ({ ...f, contactEmail: e.target.value }));
+              setCreateErrors((err) => ({ ...err, contactEmail: undefined }));
+            }}
           />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <TextField
               label={t('Country', 'الدولة')}
+              required
               name="country"
               value={createForm.country ?? ''}
-              onChange={(e) => setCreateForm((f) => ({ ...f, country: e.target.value }))}
+              error={createErrors.country}
+              hint={t('ISO code or country name', 'رمز ISO أو اسم الدولة')}
+              onChange={(e) => {
+                setCreateForm((f) => ({ ...f, country: e.target.value }));
+                setCreateErrors((err) => ({ ...err, country: undefined }));
+              }}
             />
             <TextField
               label={t('City', 'المدينة')}
+              required
               name="city"
               value={createForm.city ?? ''}
-              onChange={(e) => setCreateForm((f) => ({ ...f, city: e.target.value }))}
+              error={createErrors.city}
+              onChange={(e) => {
+                setCreateForm((f) => ({ ...f, city: e.target.value }));
+                setCreateErrors((err) => ({ ...err, city: undefined }));
+              }}
             />
           </div>
           <TextField
             label={t('Phone (optional)', 'الهاتف (اختياري)')}
             name="contactPhone"
             value={createForm.contactPhone ?? ''}
-            onChange={(e) => setCreateForm((f) => ({ ...f, contactPhone: e.target.value }))}
+            error={createErrors.contactPhone}
+            hint={t('International format, e.g. +9665…', 'بصيغة دولية، مثال +9665…')}
+            onChange={(e) => {
+              setCreateForm((f) => ({ ...f, contactPhone: e.target.value }));
+              setCreateErrors((err) => ({ ...err, contactPhone: undefined }));
+            }}
           />
           <FieldTextarea
             id="create-address"
             label={t('Address (optional)', 'العنوان (اختياري)')}
             value={createForm.address ?? ''}
-            onChange={(v) => setCreateForm((f) => ({ ...f, address: v }))}
+            error={createErrors.address}
+            onChange={(v) => {
+              setCreateForm((f) => ({ ...f, address: v }));
+              setCreateErrors((err) => ({ ...err, address: undefined }));
+            }}
           />
           <FieldTextarea
             id="create-notes"
             label={t('Notes (optional)', 'ملاحظات (اختياري)')}
             value={createForm.notes ?? ''}
-            onChange={(v) => setCreateForm((f) => ({ ...f, notes: v }))}
+            error={createErrors.notes}
+            onChange={(v) => {
+              setCreateForm((f) => ({ ...f, notes: v }));
+              setCreateErrors((err) => ({ ...err, notes: undefined }));
+            }}
           />
         </form>
       </Modal>
@@ -497,7 +599,7 @@ export function ClientsPage() {
           </>
         }
       >
-        <form id="edit-company" onSubmit={submitEdit} className="space-y-3">
+        <form id="edit-company" onSubmit={submitEdit} className="space-y-3" noValidate>
           <SelectField
             label={t('Status', 'الحالة')}
             name="status"
@@ -509,54 +611,90 @@ export function ClientsPage() {
           />
           <TextField
             label={t('Name', 'الاسم')}
+            required
             name="edit-name"
             value={editForm.name ?? ''}
-            onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+            error={editErrors.name}
+            onChange={(e) => {
+              setEditForm((f) => ({ ...f, name: e.target.value }));
+              setEditErrors((err) => ({ ...err, name: undefined }));
+            }}
           />
           <TextField
             label={t('Trade name', 'الاسم التجاري')}
             name="edit-tradeName"
             value={editForm.tradeName ?? ''}
-            onChange={(e) => setEditForm((f) => ({ ...f, tradeName: e.target.value }))}
+            error={editErrors.tradeName}
+            onChange={(e) => {
+              setEditForm((f) => ({ ...f, tradeName: e.target.value }));
+              setEditErrors((err) => ({ ...err, tradeName: undefined }));
+            }}
           />
           <TextField
             label={t('Contact email', 'البريد الإلكتروني للتواصل')}
             type="email"
+            required
             name="edit-contactEmail"
             value={editForm.contactEmail ?? ''}
-            onChange={(e) => setEditForm((f) => ({ ...f, contactEmail: e.target.value }))}
+            error={editErrors.contactEmail}
+            onChange={(e) => {
+              setEditForm((f) => ({ ...f, contactEmail: e.target.value }));
+              setEditErrors((err) => ({ ...err, contactEmail: undefined }));
+            }}
           />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <TextField
               label={t('Country', 'الدولة')}
+              required
               name="edit-country"
               value={editForm.country ?? ''}
-              onChange={(e) => setEditForm((f) => ({ ...f, country: e.target.value }))}
+              error={editErrors.country}
+              onChange={(e) => {
+                setEditForm((f) => ({ ...f, country: e.target.value }));
+                setEditErrors((err) => ({ ...err, country: undefined }));
+              }}
             />
             <TextField
               label={t('City', 'المدينة')}
+              required
               name="edit-city"
               value={editForm.city ?? ''}
-              onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))}
+              error={editErrors.city}
+              onChange={(e) => {
+                setEditForm((f) => ({ ...f, city: e.target.value }));
+                setEditErrors((err) => ({ ...err, city: undefined }));
+              }}
             />
           </div>
           <TextField
             label={t('Phone', 'الهاتف')}
             name="edit-phone"
             value={editForm.contactPhone ?? ''}
-            onChange={(e) => setEditForm((f) => ({ ...f, contactPhone: e.target.value }))}
+            error={editErrors.contactPhone}
+            onChange={(e) => {
+              setEditForm((f) => ({ ...f, contactPhone: e.target.value }));
+              setEditErrors((err) => ({ ...err, contactPhone: undefined }));
+            }}
           />
           <FieldTextarea
             id="edit-address"
             label={t('Address', 'العنوان')}
             value={editForm.address ?? ''}
-            onChange={(v) => setEditForm((f) => ({ ...f, address: v }))}
+            error={editErrors.address}
+            onChange={(v) => {
+              setEditForm((f) => ({ ...f, address: v }));
+              setEditErrors((err) => ({ ...err, address: undefined }));
+            }}
           />
           <FieldTextarea
             id="edit-notes"
             label={t('Notes', 'ملاحظات')}
             value={editForm.notes ?? ''}
-            onChange={(v) => setEditForm((f) => ({ ...f, notes: v }))}
+            error={editErrors.notes}
+            onChange={(v) => {
+              setEditForm((f) => ({ ...f, notes: v }));
+              setEditErrors((err) => ({ ...err, notes: undefined }));
+            }}
           />
         </form>
       </Modal>

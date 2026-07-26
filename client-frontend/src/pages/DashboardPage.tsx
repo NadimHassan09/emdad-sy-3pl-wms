@@ -215,7 +215,7 @@ export function DashboardPage(): ReactElement {
             title={t('Stock Volume')}
             value={overview.isPending ? '…' : `${usedVolume} ${t('CBM')}`}
             hint={`${usedWeight} ${t('kg')}`}
-            to="/stock"
+            to="/products"
             iconClass="fa-solid fa-warehouse"
           />
           <StatWidget
@@ -231,7 +231,7 @@ export function DashboardPage(): ReactElement {
           <StatWidget
             title={t('Products Count')}
             value={overview.isPending ? '…' : (data?.productsCount ?? 0).toLocaleString()}
-            to={showBilling ? '/products' : '/stock'}
+            to="/products"
             iconClass="fa-solid fa-boxes-stacked"
           />
           <StatWidget
@@ -255,7 +255,7 @@ export function DashboardPage(): ReactElement {
           <StatWidget
             title={t('Expiring Products')}
             value={overview.isPending ? '…' : (data?.expiringProductsCount ?? 0).toLocaleString()}
-            to="/stock"
+            to="/products"
             iconClass="fa-solid fa-hourglass-half"
           />
           {showBilling ? (

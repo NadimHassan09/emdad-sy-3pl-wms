@@ -9,6 +9,7 @@ import {
   normalizeInternalRole,
   type InternalRole,
 } from './rbac';
+import { isOmsCodReturnsPath, isOmsCodReturnsUiEnabled } from './oms-cod-returns-ui';
 
 export type SectionSubNavItemConfig = {
   labelKey: string;
@@ -86,8 +87,7 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
     ariaLabelKey: 'OMS navigation',
     matchSection: (p) =>
       p.startsWith('/oms') ||
-      (p.startsWith('/orders/oms') && !/^\/orders\/oms\/[^/]+$/.test(p)) ||
-      p.startsWith('/reports/oms'),
+      (p.startsWith('/orders/oms') && !/^\/orders\/oms\/[^/]+$/.test(p)),
     items: [
       {
         labelKey: 'OMS Dashboard',
@@ -101,13 +101,13 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
       },
       {
         labelKey: 'COD',
-        to: '/reports/oms/cod',
-        match: (p) => p.startsWith('/reports/oms/cod'),
+        to: '/oms/cod',
+        match: (p) => p === '/oms/cod' || p.startsWith('/oms/cod/'),
       },
       {
         labelKey: 'OMS Returns',
-        to: '/reports/oms/returns',
-        match: (p) => p.startsWith('/reports/oms/returns'),
+        to: '/oms/returns',
+        match: (p) => p === '/oms/returns' || p.startsWith('/oms/returns/'),
       },
     ],
   },
@@ -261,6 +261,7 @@ export function filterSectionSubNavItems(
 ): SectionSubNavItemConfig[] {
   const role = user?.role;
   return items.filter((item) => {
+    if (!isOmsCodReturnsUiEnabled() && isOmsCodReturnsPath(item.to)) return false;
     if (item.roles) {
       const normalized = normalizeInternalRole(role);
       if (!normalized || !item.roles.includes(normalized)) return false;

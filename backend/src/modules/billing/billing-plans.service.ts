@@ -11,6 +11,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { BillingVolumeCapacityService } from './billing-access.service';
 import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
+import { BillingUsageService } from './billing-usage.service';
 import { buildRateSnapshotFromPlan } from './billing-rate-snapshot.util';
 import {
   billingPlansOverviewCountSql,
@@ -48,6 +49,7 @@ export class BillingPlansService {
     private readonly prisma: PrismaService,
     private readonly companyAccess: CompanyAccessService,
     private readonly volumeCapacity: BillingVolumeCapacityService,
+    private readonly usage: BillingUsageService,
     private readonly invoiceCalc: BillingInvoiceCalculationService,
     private readonly billingAudit: BillingAuditService,
   ) {}
@@ -213,22 +215,23 @@ export class BillingPlansService {
   }
 
   async getCapacitySummary() {
-    const [totalVol, allocatedVol, totalWt, allocatedWt] = await Promise.all([
-      this.volumeCapacity.getTotalWarehouseVolume(),
-      this.volumeCapacity.getAllocatedVolume(),
+    const [storage, totalWt, allocatedWt] = await Promise.all([
+      this.usage.getSystemStorageSnapshot(),
       this.volumeCapacity.getTotalWarehouseWeight(),
       this.volumeCapacity.getAllocatedWeight(),
     ]);
-    const allocatableVol = totalVol.mul(0.9);
     const allocatableWt = totalWt.mul(0.9);
     return {
-      totalWarehouseVolumeCbm: totalVol.toString(),
-      allocatableCapacityCbm: allocatableVol.toString(),
-      allocatedVolumeCbm: allocatedVol.toString(),
-      remainingAllocatableCbm: Prisma.Decimal.max(
-        allocatableVol.sub(allocatedVol),
-        new Prisma.Decimal(0),
-      ).toString(),
+      // Inventory × product CBM (billing source of truth)
+      usedStorageCbm: storage.usedStorageCbm.toString(),
+      reservedStorageCbm: storage.reservedStorageCbm.toString(),
+      remainingStorageCbm: storage.remainingStorageCbm.toString(),
+      storageUsagePercent: storage.storageUsagePercent,
+      // Legacy field names mapped to inventory-based storage for existing UI
+      totalWarehouseVolumeCbm: storage.reservedStorageCbm.toString(),
+      allocatableCapacityCbm: storage.reservedStorageCbm.toString(),
+      allocatedVolumeCbm: storage.usedStorageCbm.toString(),
+      remainingAllocatableCbm: storage.remainingStorageCbm.toString(),
       totalWarehouseWeightKg: totalWt.toString(),
       allocatableCapacityKg: allocatableWt.toString(),
       allocatedWeightKg: allocatedWt.toString(),
@@ -236,8 +239,22 @@ export class BillingPlansService {
         allocatableWt.sub(allocatedWt),
         new Prisma.Decimal(0),
       ).toString(),
-      allocationRatio: 0.9,
-      sparePoolRatio: 0.1,
+      allocationRatio: 1,
+      sparePoolRatio: 0,
+      basis: 'inventory_product_cbm' as const,
+    };
+  }
+
+  async getCompanyStorageSummary(companyId: string, user: AuthPrincipal) {
+    this.companyAccess.assertCompanyAccess(user, companyId);
+    const storage = await this.usage.getCompanyStorageSnapshot(companyId);
+    return {
+      companyId,
+      usedStorageCbm: storage.usedStorageCbm.toString(),
+      reservedStorageCbm: storage.reservedStorageCbm.toString(),
+      remainingStorageCbm: storage.remainingStorageCbm.toString(),
+      storageUsagePercent: storage.storageUsagePercent,
+      basis: 'inventory_product_cbm' as const,
     };
   }
 }

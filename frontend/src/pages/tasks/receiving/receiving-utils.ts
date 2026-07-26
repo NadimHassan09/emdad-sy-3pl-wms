@@ -16,6 +16,58 @@ export function parseQty(v: string | undefined): number {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
+/**
+ * Strict parse for receive/damage inputs — does not coerce negatives to 0.
+ * Empty string → 0 (optional field left blank).
+ */
+export function parseQtyInput(
+  raw: string | undefined,
+): { ok: true; value: number } | { ok: false; reason: 'invalid' | 'negative' } {
+  const s = String(raw ?? '').trim();
+  if (s === '') return { ok: true, value: 0 };
+  if (/^-/.test(s)) return { ok: false, reason: 'negative' };
+  const n = parseFloat(s.replace(',', '.'));
+  if (!Number.isFinite(n)) return { ok: false, reason: 'invalid' };
+  if (n < 0) return { ok: false, reason: 'negative' };
+  return { ok: true, value: n };
+}
+
+/** Missing units (never negative — overage is reported separately). */
+export function computeMissingQty(expected: number, received: number, damaged: number): number {
+  return Math.max(0, expected - received - damaged);
+}
+
+/**
+ * Validate receive line quantities.
+ * Rule: received + damaged (+ derived missing) must never exceed expected;
+ * i.e. received + damaged <= expected, and neither may be negative.
+ */
+export function validateReceivingLineQuantities(
+  expected: number,
+  receivedRaw: string | undefined,
+  damagedRaw: string | undefined,
+): string | null {
+  const received = parseQtyInput(receivedRaw);
+  if (!received.ok) {
+    return received.reason === 'negative'
+      ? 'Received quantity cannot be negative.'
+      : 'Received quantity must be a valid number.';
+  }
+  const damaged = parseQtyInput(damagedRaw);
+  if (!damaged.ok) {
+    return damaged.reason === 'negative'
+      ? 'Damaged quantity cannot be negative.'
+      : 'Damaged quantity must be a valid number.';
+  }
+  if (!(expected >= 0) || !Number.isFinite(expected)) {
+    return 'Expected quantity is invalid.';
+  }
+  if (received.value + damaged.value > expected) {
+    return `Received + damaged (${received.value + damaged.value}) exceeds expected (${expected}).`;
+  }
+  return null;
+}
+
 export function receivingExpectedLotDisplay(ol: InboundOrderLine | undefined): string {
   if (!ol || ol.product?.trackingType !== 'lot') return '—';
   return ol.expectedLotNumber?.trim() || '—';
@@ -27,9 +79,9 @@ export function computeLineStatus(
   damaged: number,
 ): ReceivingLineStatus {
   const accounted = received + damaged;
+  if (accounted > expected) return 'overage';
   if (damaged > 0 && accounted < expected) return 'damaged';
   if (accounted <= 0) return 'pending';
-  if (received > expected) return 'overage';
   if (accounted < expected) return 'shortage';
   if (accounted >= expected) return 'complete';
   return 'partial';
@@ -199,7 +251,7 @@ export function exportReceivingLinesCsv(
     const expected = parseQty(l.expected_qty);
     const received = parseQty(d.receivedQty);
     const damaged = parseQty(d.damagedQty);
-    const missing = Math.max(0, expected - received - damaged);
+    const missing = computeMissingQty(expected, received, damaged);
     const status = lineStatusLabel(computeLineStatus(expected, received, damaged));
     return [
       ol?.product?.name ?? '',

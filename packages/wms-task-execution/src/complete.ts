@@ -9,6 +9,8 @@ export const completeReceivingSchema = z.object({
     z.object({
       inbound_order_line_id: z.string().uuid(),
       received_qty: decimalish,
+      /** Damaged units accounted against expected (also encoded in discrepancy_notes as damaged:N). */
+      damaged_qty: decimalish.optional(),
       lot_id: z.string().uuid().optional().nullable(),
       capture_lot_number: z.string().optional(),
       discrepancy_notes: z.string().optional(),

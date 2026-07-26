@@ -99,6 +99,8 @@ export function RealtimeProvider({ children }: Props): ReactElement {
     };
     const onInventory = (payload: { stockRow?: ClientStockRow }): void => {
       if (payload.stockRow) patchClientStockRow(qc, payload.stockRow);
+      // Products page now shows live on-hand, so refresh it on any stock movement.
+      void qc.invalidateQueries({ queryKey: ['client', 'products'] });
     };
     const onProductCreated = (payload: { product?: ClientProductRow }): void => {
       if (payload.product) patchClientProductCreated(qc, payload.product);

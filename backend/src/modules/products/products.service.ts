@@ -33,6 +33,7 @@ import {
   outboundLinesBlockingProductDeleteWhere,
   purgeRemovableOrderLinesForProduct,
 } from './product-delete-references.util';
+import { resolveProductVolumeCbmFromDims } from './product-volume.util';
 
 const SKU_RETRY_LIMIT = 5;
 const BARCODE_RETRY_LIMIT = 8;
@@ -111,6 +112,17 @@ export class ProductsService {
           }
           const barcode =
             clientBarcode || (await this.allocateUniqueBarcode(companyId, tx));
+          const lengthCm =
+            dto.lengthCm != null ? new Prisma.Decimal(dto.lengthCm) : undefined;
+          const widthCm =
+            dto.widthCm != null ? new Prisma.Decimal(dto.widthCm) : undefined;
+          const heightCm =
+            dto.heightCm != null ? new Prisma.Decimal(dto.heightCm) : undefined;
+          const volumeCbm = resolveProductVolumeCbmFromDims({
+            lengthCm: lengthCm ?? null,
+            widthCm: widthCm ?? null,
+            heightCm: heightCm ?? null,
+          });
           return tx.product.create({
             data: {
               companyId,
@@ -122,18 +134,10 @@ export class ProductsService {
               uom: dto.uom ?? 'piece',
               expiryTracking: dto.expiryTracking ?? false,
               minStockThreshold: dto.minStockThreshold ?? 0,
-              lengthCm:
-                dto.lengthCm != null
-                  ? new Prisma.Decimal(dto.lengthCm)
-                  : undefined,
-              widthCm:
-                dto.widthCm != null
-                  ? new Prisma.Decimal(dto.widthCm)
-                  : undefined,
-              heightCm:
-                dto.heightCm != null
-                  ? new Prisma.Decimal(dto.heightCm)
-                  : undefined,
+              lengthCm,
+              widthCm,
+              heightCm,
+              volumeCbm,
               weightKg:
                 dto.weightKg != null
                   ? new Prisma.Decimal(dto.weightKg)
@@ -364,6 +368,18 @@ export class ProductsService {
     if (dto.weightKg !== undefined) {
       data.weightKg =
         dto.weightKg === null ? null : new Prisma.Decimal(dto.weightKg);
+    }
+    if (
+      dto.lengthCm !== undefined ||
+      dto.widthCm !== undefined ||
+      dto.heightCm !== undefined
+    ) {
+      data.volumeCbm = resolveProductVolumeCbmFromDims({
+        lengthCm: dto.lengthCm,
+        widthCm: dto.widthCm,
+        heightCm: dto.heightCm,
+        previous: product,
+      });
     }
     if (Object.keys(data).length === 0) {
       return this.findById(id, user);

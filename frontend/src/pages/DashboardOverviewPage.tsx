@@ -264,28 +264,31 @@ export function DashboardOverviewPage() {
                 formatPercent={formatPercent}
               />
               <OrderProgressGaugeCard
-                title={t('Warehouse capacity consumption')}
+                title={t('Storage utilization')}
                 subtitlePlacement="footer"
                 slices={[
                   {
-                    key: 'available',
-                    label: 'Available',
+                    key: 'remaining',
+                    label: 'Remaining',
                     count: Math.max(
                       0,
-                      data.capacity.totalStorageLocations - data.capacity.occupiedLocations,
+                      Math.round(Number(data.capacity.remainingStorageCbm ?? 0) * 1000),
                     ),
                   },
                   {
-                    key: 'occupied',
-                    label: 'Occupied',
-                    count: data.capacity.occupiedLocations,
+                    key: 'used',
+                    label: 'Used',
+                    count: Math.max(
+                      0,
+                      Math.round(Number(data.capacity.usedStorageCbm ?? 0) * 1000),
+                    ),
                   },
                 ]}
-                to="/locations"
-                centerPercent={data.capacity.consumedPercent}
+                to="/billing/plans"
+                centerPercent={data.capacity.storageUsagePercent ?? data.capacity.consumedPercent}
                 translateLabel={t}
                 openOrdersSubtitle={() =>
-                  `${numberFmt(data.capacity.occupiedLocations)} ${t('occupied of')} ${numberFmt(data.capacity.totalStorageLocations)} ${t('storage locations')}`
+                  `${Number(data.capacity.usedStorageCbm ?? 0).toFixed(2)} ${t('CBM used of')} ${Number(data.capacity.reservedStorageCbm ?? 0).toFixed(2)} ${t('CBM reserved')}`
                 }
               />
             </div>

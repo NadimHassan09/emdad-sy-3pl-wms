@@ -67,6 +67,12 @@ export function BillingPlanDetailPage() {
     enabled: canMutate,
   });
 
+  const storageQuery = useQuery({
+    queryKey: [...QK.billing.capacity, 'company', clientId],
+    queryFn: () => BillingApi.getCompanyStorage(clientId),
+    enabled: canMutate && !!clientId,
+  });
+
   const activePlan = useMemo(
     () => (plansQuery.data ?? []).find((p) => p.active) ?? plansQuery.data?.[0] ?? null,
     [plansQuery.data],
@@ -187,9 +193,11 @@ export function BillingPlanDetailPage() {
         <>
           <VolumeAllocationPanel
             capacity={capacityQuery.data}
+            storage={storageQuery.data}
             reservedVolume={activePlan.reservedVolume}
-            reservedWeight={activePlan.reservedWeight}
-            loading={capacityQuery.isLoading}
+            loading={storageQuery.isLoading || capacityQuery.isLoading}
+            title="Client storage"
+            description="Used storage = current inventory quantity × product volume (CBM). Updates automatically when inbound, outbound, adjustments, cycle counts, or returns change stock."
           />
 
           <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">

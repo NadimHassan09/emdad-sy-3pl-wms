@@ -30,14 +30,44 @@ export class ClientProductsService {
     const principal = clientAuthPrincipal(client);
     const product = await this.products.findById(id, principal);
 
-    const agg = await this.prisma.currentStock.aggregate({
-      where: { companyId: client.companyId, productId: id },
-      _sum: { quantityOnHand: true, quantityReserved: true },
-    });
+    const [agg, avail, inboundAgg, outboundAgg, earliestExpiry] = await Promise.all([
+      this.prisma.currentStock.aggregate({
+        where: { companyId: client.companyId, productId: id },
+        _sum: { quantityOnHand: true, quantityReserved: true },
+      }),
+      this.inventory.availability(principal, id, client.companyId),
+      this.prisma.inboundOrderLine.aggregate({
+        where: { productId: id, order: { companyId: client.companyId } },
+        _sum: { receivedQuantity: true },
+      }),
+      this.prisma.outboundOrderLine.aggregate({
+        where: { productId: id, order: { companyId: client.companyId } },
+        _sum: { pickedQuantity: true },
+      }),
+      this.prisma.currentStock.findFirst({
+        where: {
+          companyId: client.companyId,
+          productId: id,
+          quantityOnHand: { gt: 0 },
+          lotId: { not: null },
+          lot: { expiryDate: { not: null } },
+        },
+        orderBy: { lot: { expiryDate: 'asc' } },
+        select: { lot: { select: { expiryDate: true } } },
+      }),
+    ]);
+
     const onHand = agg._sum.quantityOnHand ?? new Prisma.Decimal(0);
     const reserved = agg._sum.quantityReserved ?? new Prisma.Decimal(0);
-
-    const avail = await this.inventory.availability(principal, id, client.companyId);
+    const volumeCbm =
+      product.volumeCbm ??
+      (product.lengthCm != null && product.widthCm != null && product.heightCm != null
+        ? new Prisma.Decimal(product.lengthCm)
+            .mul(product.widthCm)
+            .mul(product.heightCm)
+            .div(1_000_000)
+            .toDecimalPlaces(6)
+        : null);
 
     return {
       id: product.id,
@@ -49,15 +79,26 @@ export class ClientProductsService {
       status: product.status,
       expiryTracking: product.expiryTracking,
       minStockThreshold: product.minStockThreshold?.toString() ?? '0',
+      category: null as string | null,
+      categoryId: product.categoryId ?? null,
       lengthCm: product.lengthCm?.toString() ?? null,
       widthCm: product.widthCm?.toString() ?? null,
       heightCm: product.heightCm?.toString() ?? null,
       weightKg: product.weightKg?.toString() ?? null,
+      volumeCbm: volumeCbm?.toString() ?? null,
+      /** Warehouse issuance method: FEFO when expiry tracking is on, otherwise FIFO. */
+      inventoryMethod: product.expiryTracking ? ('FEFO' as const) : ('FIFO' as const),
+      createdBy: null as string | null,
       createdAt: product.createdAt.toISOString(),
       updatedAt: product.updatedAt.toISOString(),
       totalOnHand: onHand.toString(),
       totalReserved: reserved.toString(),
       totalAvailable: avail.available,
+      totalInboundQuantity: (inboundAgg._sum.receivedQuantity ?? new Prisma.Decimal(0)).toString(),
+      totalOutboundQuantity: (outboundAgg._sum.pickedQuantity ?? new Prisma.Decimal(0)).toString(),
+      earliestExpiryDate: earliestExpiry?.lot?.expiryDate
+        ? earliestExpiry.lot.expiryDate.toISOString().slice(0, 10)
+        : null,
     };
   }
 

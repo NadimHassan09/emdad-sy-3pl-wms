@@ -4,7 +4,7 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
-  IsNumber,
+  IsInt,
   IsOptional,
   IsPositive,
   IsString,
@@ -19,13 +19,15 @@ export class CreateClientOmsOrderLineDto {
   @IsUuidLoose()
   productId!: string;
 
-  @IsNumber({ maxDecimalPlaces: 4 })
-  @IsPositive()
+  @Type(() => Number)
+  @IsInt({ message: 'Requested quantity must be a whole number (no decimals).' })
+  @IsPositive({ message: 'Requested quantity must be a positive whole number greater than zero.' })
   requestedQuantity!: number;
 
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 4 })
-  @Min(0)
+  @Type(() => Number)
+  @IsInt({ message: 'Unit price must be a whole number (no decimals).' })
+  @Min(0, { message: 'Unit price cannot be negative.' })
   unitPrice?: number;
 }
 

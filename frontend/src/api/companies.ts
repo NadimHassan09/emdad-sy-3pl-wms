@@ -85,14 +85,22 @@ export type CreateCompanyPayload = {
   name: string;
   tradeName?: string;
   contactEmail: string;
-  country?: string;
-  city?: string;
+  country: string;
+  city: string;
   contactPhone?: string;
   address?: string;
   notes?: string;
 };
 
-export type UpdateCompanyPayload = Partial<CreateCompanyPayload> & {
+export type UpdateCompanyPayload = {
+  name?: string;
+  tradeName?: string | null;
+  contactEmail?: string;
+  country?: string;
+  city?: string | null;
+  contactPhone?: string | null;
+  address?: string | null;
+  notes?: string | null;
   status?: CompanyStatus;
 };
 

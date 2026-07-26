@@ -49,11 +49,29 @@ describe('tasks sub-nav', () => {
   });
 });
 
+describe('OMS sub-nav', () => {
+  const omsSection = SECTION_SUB_NAV_CONFIGS.find((c) => c.ariaLabelKey === 'OMS navigation')!;
+
+  it('hides COD and OMS Returns tabs while UI flag is disabled (default)', () => {
+    const items = filterSectionSubNavItems(omsSection.items, { role: 'super_admin' });
+    expect(items.some((item) => item.to === '/oms/cod')).toBe(false);
+    expect(items.some((item) => item.to === '/oms/returns')).toBe(false);
+    expect(items.some((item) => item.to === '/oms/dashboard')).toBe(true);
+  });
+});
+
 describe('sidebar nav', () => {
   it('includes Tasks but not Inventory for wh_operator', () => {
     const labels = navItemsForRole('wh_operator').map((item) => item.labelKey);
     expect(labels).toContain('Tasks');
     expect(labels).not.toContain('Inventory');
     expect(labels).not.toContain('Dashboard');
+  });
+
+  it('hides OMS COD and OMS Returns while UI flag is disabled (default)', () => {
+    const labels = navItemsForRole('super_admin').map((item) => item.labelKey);
+    expect(labels).not.toContain('COD');
+    expect(labels).not.toContain('OMS Returns');
+    expect(labels).toContain('OMS Dashboard');
   });
 });

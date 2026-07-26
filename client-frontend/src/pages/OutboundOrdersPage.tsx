@@ -45,8 +45,7 @@ type OutboundListDraft = {
 function outboundLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
-    'Outbound orders': 'طلباتي',
-    'My orders': 'طلباتي',
+    'Outbound orders': 'طلبات الصادر',
     Recipient: 'المستلم',
     Payment: 'الدفع',
     'COD status': 'حالة COD',
@@ -210,7 +209,7 @@ export function OutboundOrdersPage(): ReactElement {
       </FilterPanel>
 
       <DataTable
-        title={t('My orders')}
+        title={t('Outbound orders')}
         titleAs="h1"
         actions={
           <Button

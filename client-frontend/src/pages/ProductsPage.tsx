@@ -1,6 +1,5 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 
 import { Alert, Button } from '@ds';
 import type { Column } from '@wms/components/DataTable';
@@ -14,7 +13,9 @@ import {
 } from '@wms/hooks/useChunkedServerPagination';
 
 import { useAuth } from '../auth/AuthContext';
+import { ClientBarcodeImageModal } from '../components/ClientBarcodeImageModal';
 import { CreateClientProductModal } from '../components/CreateClientProductModal';
+import { ProductDetailsModal } from '../components/ProductDetailsModal';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import { isClientArabic } from '../lib/client-ui-language';
 import { isClientAdmin } from '../lib/rbac';
@@ -52,6 +53,8 @@ function productsLabel(label: string, isArabic: boolean): string {
     Name: 'الاسم',
     SKU: 'رمز SKU',
     Barcode: 'الباركود',
+    'Show barcode': 'عرض الباركود',
+    'On hand': 'المتوفر',
     UoM: 'وحدة القياس',
     Status: 'الحالة',
     'No products found.': 'لا توجد منتجات.',
@@ -74,14 +77,24 @@ function productStatusClass(status: ClientProductRow['status']): string {
   return 'bg-slate-100 text-slate-600';
 }
 
+const fmtQty = (s: string | null | undefined): string => {
+  if (s == null) return '—';
+  const n = Number(s);
+  if (Number.isNaN(n)) return s;
+  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+};
+
 export function ProductsPage(): ReactElement {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const canCreateProducts = isClientAdmin(user?.role);
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const [barcodePreview, setBarcodePreview] = useState<{ value: string; name: string } | null>(
+    null,
+  );
+  const [detailProduct, setDetailProduct] = useState<{ id: string; name: string } | null>(null);
   const isArabic = isClientArabic();
   const t = (label: string) => productsLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
@@ -131,14 +144,32 @@ export function ProductsPage(): ReactElement {
         width: '200px',
       },
       {
+        header: t('On hand'),
+        accessor: (p) => (
+          <span className="block text-right font-mono font-semibold">{fmtQty(p.totalOnHand)}</span>
+        ),
+        width: '120px',
+        className: 'text-right',
+      },
+      {
         header: t('Barcode'),
         accessor: (p) =>
           p.barcode ? (
-            <span className="font-mono text-xs">{p.barcode}</span>
+            <button
+              type="button"
+              className="font-mono text-left text-xs text-primary-700 underline decoration-primary-300 underline-offset-2 hover:text-primary-900"
+              title={t('Show barcode')}
+              onClick={(e) => {
+                e.stopPropagation();
+                setBarcodePreview({ value: p.barcode!, name: p.name });
+              }}
+            >
+              {p.barcode}
+            </button>
           ) : (
-            <span className="text-slate-400">—</span>
+            <span className="font-mono text-xs text-slate-400">—</span>
           ),
-        width: '200px',
+        width: '220px',
       },
       {
         header: t('UoM'),
@@ -252,7 +283,7 @@ export function ProductsPage(): ReactElement {
         rows={pagination.rows}
         rowKey={(p) => p.id}
         loading={pagination.isInitialLoading}
-        onRowClick={(p) => navigate(`/products/${p.id}`)}
+        onRowClick={(p) => setDetailProduct({ id: p.id, name: p.name })}
         empty={t('No products found.')}
         serverPagination={pagination.serverPagination}
         labels={{
@@ -275,6 +306,22 @@ export function ProductsPage(): ReactElement {
           setCreateError(null);
           createMut.mutate(input);
         }}
+      />
+
+      <ClientBarcodeImageModal
+        open={!!barcodePreview}
+        onClose={() => setBarcodePreview(null)}
+        value={barcodePreview?.value ?? ''}
+        productName={barcodePreview?.name ?? ''}
+        isArabic={isArabic}
+      />
+
+      <ProductDetailsModal
+        open={!!detailProduct}
+        productId={detailProduct?.id ?? null}
+        productName={detailProduct?.name}
+        onClose={() => setDetailProduct(null)}
+        isArabic={isArabic}
       />
     </>
   );

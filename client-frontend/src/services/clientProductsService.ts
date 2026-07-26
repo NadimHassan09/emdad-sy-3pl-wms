@@ -24,15 +24,24 @@ export interface ClientProductDetail {
   status: 'active' | 'suspended' | 'archived';
   expiryTracking: boolean;
   minStockThreshold: string;
+  category: string | null;
+  categoryId: string | null;
   lengthCm: string | null;
   widthCm: string | null;
   heightCm: string | null;
   weightKg: string | null;
+  volumeCbm: string | null;
+  /** Read-only warehouse issuance method (FEFO when expiry tracking is on, else FIFO). */
+  inventoryMethod: 'FIFO' | 'FEFO' | 'LIFO';
+  createdBy: string | null;
   createdAt: string;
   updatedAt: string;
   totalOnHand: string;
   totalReserved: string;
   totalAvailable: string;
+  totalInboundQuantity: string;
+  totalOutboundQuantity: string;
+  earliestExpiryDate: string | null;
 }
 
 export interface ClientProductsPage {

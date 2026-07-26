@@ -28,6 +28,9 @@ import {
   assertDiscreteUomPositiveIntegerQuantity,
 } from '../../common/utils/discrete-uom-quantity';
 import { AuditLogService } from '../../common/audit/audit-log.service';
+import {
+  assertReceivingQuantitiesWithinExpected,
+} from '../warehouse-workflow/receiving-qty.validation';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { setTenantRlsContext, withTenantRls } from '../../common/prisma/tenant-rls';
 import { StockHelpers } from '../inventory/stock.helpers';
@@ -527,6 +530,15 @@ export class InboundService {
         'Receive quantity',
       );
 
+      const delta = new Prisma.Decimal(dto.quantity);
+      assertReceivingQuantitiesWithinExpected({
+        expected: line.expectedQuantity,
+        receivedQty: delta,
+        damagedQty: new Prisma.Decimal(0),
+        priorReceived: line.receivedQuantity,
+        lineId: line.id,
+      });
+
       const location = await tx.location.findUnique({
         where: { id: dto.locationId },
         select: { id: true, warehouseId: true, type: true, status: true },
@@ -539,7 +551,6 @@ export class InboundService {
             'Deferred putaway mode: receive only to a receiving dock location (`input`). Inventory posts on putaway task.',
           );
         }
-        const delta = new Prisma.Decimal(dto.quantity);
         await tx.inboundOrderLine.update({
           where: { id: lineId },
           data: { receivedQuantity: { increment: delta } },

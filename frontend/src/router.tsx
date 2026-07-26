@@ -1,9 +1,20 @@
-import { lazy } from 'react';
+import { lazy, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 
 import { RequireAuth } from './auth/RequireAuth';
 import { RoleHomeRedirect } from './auth/RoleHomeRedirect';
 import { Layout } from './components/Layout';
+import { isOmsCodReturnsUiEnabled } from './lib/oms-cod-returns-ui';
+
+const omsCodReturnsElement = (page: ReactNode) =>
+  isOmsCodReturnsUiEnabled() ? page : <Navigate to="/oms/dashboard" replace />;
+
+const omsCodReturnsRedirect = (enabledTarget: string) => (
+  <Navigate
+    to={isOmsCodReturnsUiEnabled() ? enabledTarget : '/oms/dashboard'}
+    replace
+  />
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Lazy page imports — each page becomes a separate JS chunk at build time.
@@ -59,13 +70,13 @@ const CapacityUtilizationReportPage = lazyPage(() => import('./pages/reports/Inv
 const ReturnRateReportPage          = lazyPage(() => import('./pages/reports/InventoryIntelligenceReportPages'), 'ReturnRateReportPage');
 const RevenueByClientReportPage     = lazyPage(() => import('./pages/reports/FinanceReportPages'),           'RevenueByClientReportPage');
 const ReceivablesAgingReportPage    = lazyPage(() => import('./pages/reports/FinanceReportPages'),           'ReceivablesAgingReportPage');
-const CodReportPage                 = lazyPage(() => import('./pages/reports/OmsReportPages'),               'CodReportPage');
 const MerchantOrdersReportPage      = lazyPage(() => import('./pages/reports/OmsReportPages'),               'MerchantOrdersReportPage');
 const SalesReportPage               = lazyPage(() => import('./pages/reports/OmsReportPages'),               'SalesReportPage');
-const ReturnsReportPage             = lazyPage(() => import('./pages/reports/OmsReportPages'),               'ReturnsReportPage');
 const DeliveryReportPage            = lazyPage(() => import('./pages/reports/OmsReportPages'),               'DeliveryReportPage');
 const AllocationReportPage          = lazyPage(() => import('./pages/reports/OmsReportPages'),               'AllocationReportPage');
 const InventoryReservedReportPage   = lazyPage(() => import('./pages/reports/OmsReportPages'),               'InventoryReservedReportPage');
+const OmsCodPage                    = lazyPage(() => import('./pages/OmsCodReturnsPages'),                   'OmsCodPage');
+const OmsReturnsPage                = lazyPage(() => import('./pages/OmsCodReturnsPages'),                   'OmsReturnsPage');
 const ClientsPage             = lazyPage(() => import('./pages/ClientsPage'),             'ClientsPage');
 const CompanyDetailPage       = lazyPage(() => import('./pages/CompanyDetailPage'),       'CompanyDetailPage');
 const WarehouseUsersPage      = lazyPage(() => import('./pages/UsersPage'),               'WarehouseUsersPage');
@@ -140,7 +151,11 @@ export const router = createBrowserRouter([
       { path: 'orders/oms/:id', element: <OmsOrderDetailPage /> },
       { path: 'oms', element: <Navigate to="/oms/dashboard" replace /> },
       { path: 'oms/dashboard', element: <OmsDashboardPage /> },
+      { path: 'oms/cod', element: omsCodReturnsElement(<OmsCodPage />) },
+      { path: 'oms/returns', element: omsCodReturnsElement(<OmsReturnsPage />) },
       { path: 'oms/orders/:id', element: <OmsOrderDetailPage /> },
+      { path: 'reports/oms/cod', element: omsCodReturnsRedirect('/oms/cod') },
+      { path: 'reports/oms/returns', element: omsCodReturnsRedirect('/oms/returns') },
       { path: 'contracts', element: <Navigate to="/contracts/grn" replace /> },
       { path: 'contracts/grn', element: <ContractsPage /> },
       { path: 'contracts/dn', element: <ContractsPage /> },
@@ -176,10 +191,10 @@ export const router = createBrowserRouter([
           { path: 'inbound-accuracy', element: <InboundAccuracyReportPage /> },
           { path: 'outbound-fill-rate', element: <OutboundFillRateReportPage /> },
           { path: 'sla-compliance', element: <SlaComplianceReportPage /> },
-          { path: 'cod-report', element: <CodReportPage /> },
+          { path: 'cod-report', element: omsCodReturnsRedirect('/oms/cod') },
           { path: 'merchant-orders', element: <MerchantOrdersReportPage /> },
           { path: 'sales-report', element: <SalesReportPage /> },
-          { path: 'returns-report', element: <ReturnsReportPage /> },
+          { path: 'returns-report', element: omsCodReturnsRedirect('/oms/returns') },
           { path: 'delivery-report', element: <DeliveryReportPage /> },
           { path: 'allocation-report', element: <AllocationReportPage /> },
           { path: 'inventory-reserved', element: <InventoryReservedReportPage /> },

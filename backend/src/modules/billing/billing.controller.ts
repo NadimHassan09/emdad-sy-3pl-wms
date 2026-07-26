@@ -57,6 +57,15 @@ export class BillingController {
     return this.plans.getCapacitySummary();
   }
 
+  @Get('companies/:companyId/storage')
+  @UseGuards(InternalAdminGuard)
+  companyStorage(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('companyId', ParseUuidLoosePipe) companyId: string,
+  ) {
+    return this.plans.getCompanyStorageSummary(companyId, user);
+  }
+
   @Get('plans')
   listPlans(@CurrentUser() user: AuthPrincipal, @Query() query: ListBillingPlansQueryDto) {
     return this.plans.listPage(user, query);

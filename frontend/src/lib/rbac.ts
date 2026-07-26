@@ -1,3 +1,5 @@
+import { isOmsCodReturnsPath, isOmsCodReturnsUiEnabled } from './oms-cod-returns-ui';
+
 /** Internal WMS roles (matches Prisma `UserRole` for warehouse staff). */
 export type InternalRole = 'super_admin' | 'wh_manager' | 'wh_operator' | 'finance';
 
@@ -117,16 +119,16 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
   {
     labelKey: 'COD',
     iconKey: 'Reports',
-    to: '/reports/oms/cod',
-    match: (p) => p.startsWith('/reports/oms/cod'),
+    to: '/oms/cod',
+    match: (p) => p === '/oms/cod' || p.startsWith('/oms/cod/'),
     group: 'oms',
     roles: ['super_admin', 'wh_manager', 'finance'],
   },
   {
     labelKey: 'OMS Returns',
     iconKey: 'Orders',
-    to: '/reports/oms/returns',
-    match: (p) => p.startsWith('/reports/oms/returns'),
+    to: '/oms/returns',
+    match: (p) => p === '/oms/returns' || p.startsWith('/oms/returns/'),
     group: 'oms',
     roles: ['super_admin', 'wh_manager', 'finance'],
   },
@@ -278,15 +280,16 @@ export function defaultHomePath(role: string | undefined): string {
 export function navItemsForRole(role: string | undefined): NavItemDef[] {
   const r = normalizeInternalRole(role);
   if (!r) return [];
-  return NAV_CATALOG.filter((item) => item.roles.includes(r)).map(
-    ({ labelKey, iconKey, to, match, group }) => ({
+  const showOmsCodReturns = isOmsCodReturnsUiEnabled();
+  return NAV_CATALOG.filter((item) => item.roles.includes(r))
+    .filter((item) => showOmsCodReturns || !isOmsCodReturnsPath(item.to))
+    .map(({ labelKey, iconKey, to, match, group }) => ({
       labelKey,
       iconKey,
       to,
       match,
       group: group ?? null,
-    }),
-  );
+    }));
 }
 
 export function isOperatorRole(role: string | undefined): boolean {
@@ -296,4 +299,10 @@ export function isOperatorRole(role: string | undefined): boolean {
 /** Blind count execution APIs require a linked Worker profile (`/auth/me` → workerId). */
 export function canExecuteCycleCount(user: { workerId?: string | null } | null | undefined): boolean {
   return !!user?.workerId?.trim();
+}
+
+/** Finance / managers may record the final carrier shipping fee after delivery. */
+export function canRecordFinalOmsShippingFee(role: string | undefined): boolean {
+  const r = normalizeInternalRole(role);
+  return r === 'super_admin' || r === 'wh_manager' || r === 'finance';
 }

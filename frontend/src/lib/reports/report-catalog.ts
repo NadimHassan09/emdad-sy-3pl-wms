@@ -127,8 +127,8 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     path: '/reports/capacity-utilization',
     title: 'Capacity Utilization',
     titleAr: 'استخدام السعة',
-    description: 'Warehouse storage occupancy and per-location utilization.',
-    descriptionAr: 'إشغال مواقع التخزين والاستخدام حسب الموقع.',
+    description: 'Client storage used vs reserved CBM from inventory × product volume.',
+    descriptionAr: 'تخزين العميل المستخدم مقابل المحجوز (CBM) من المخزون × حجم المنتج.',
     section: 'inventory',
   },
   {
@@ -160,7 +160,7 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
   },
   {
     id: 'cod-report',
-    path: '/reports/cod-report',
+    path: '/oms/cod',
     title: 'COD Report',
     titleAr: 'تقرير الدفع عند الاستلام',
     description: 'COD orders with collection and settlement status.',
@@ -187,7 +187,7 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
   },
   {
     id: 'returns-report',
-    path: '/reports/returns-report',
+    path: '/oms/returns',
     title: 'Returns Report',
     titleAr: 'تقرير المرتجعات',
     description: 'Returned OMS orders with recipient and COD details.',

@@ -6,15 +6,20 @@ type Props = {
 };
 
 export function ReportsNav({ isArabic = false }: Props) {
+  // Only report-center routes — OMS COD / Returns live under /oms/* and use their own nav.
+  const items = REPORT_CATALOG.filter((entry) => entry.path.startsWith('/reports/')).map(
+    (entry) => ({
+      key: entry.id,
+      label: isArabic ? entry.titleAr : entry.title,
+      to: entry.path,
+    }),
+  );
+
   return (
     <PillSubNav
       ariaLabel={isArabic ? 'تنقل التقارير' : 'Reports navigation'}
       className="mb-0"
-      items={REPORT_CATALOG.map((entry) => ({
-        key: entry.id,
-        label: isArabic ? entry.titleAr : entry.title,
-        to: entry.path,
-      }))}
+      items={items}
     />
   );
 }

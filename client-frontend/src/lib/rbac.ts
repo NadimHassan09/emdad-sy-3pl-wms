@@ -29,18 +29,10 @@ const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
     roles: ['client_admin', 'client_staff'],
   },
   {
-    label: 'My orders',
-    labelAr: 'طلباتي',
+    label: 'Outbound',
+    labelAr: 'الصادر',
     iconKey: 'Orders',
     to: '/outbound-orders',
-    group: 'wms',
-    roles: ['client_admin', 'client_staff'],
-  },
-  {
-    label: 'Stock',
-    labelAr: 'المخزون',
-    iconKey: 'Stock',
-    to: '/stock',
     group: 'wms',
     roles: ['client_admin', 'client_staff'],
   },
@@ -50,7 +42,7 @@ const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
     iconKey: 'Products',
     to: '/products',
     group: 'wms',
-    roles: ['client_admin'],
+    roles: ['client_admin', 'client_staff'],
   },
   {
     label: 'OMS Orders',
@@ -104,7 +96,6 @@ function routeGroup(pathname: string): string {
     return 'orders';
   }
   if (pathname.startsWith('/products')) return 'products';
-  if (pathname.startsWith('/stock')) return 'stock';
   if (pathname.startsWith('/billing')) return 'billing';
   if (pathname.startsWith('/notifications')) return 'notifications';
   return 'other';
@@ -113,8 +104,7 @@ function routeGroup(pathname: string): string {
 const ROUTE_GROUP_ROLES: Record<string, ClientPortalRole[]> = {
   home: ['client_admin', 'client_staff'],
   orders: ['client_admin', 'client_staff'],
-  products: ['client_admin'],
-  stock: ['client_admin', 'client_staff'],
+  products: ['client_admin', 'client_staff'],
   billing: ['client_admin'],
   notifications: ['client_admin', 'client_staff'],
   other: ['client_admin', 'client_staff'],
@@ -138,7 +128,6 @@ export function redirectPathForDeniedRoute(
   if (role !== 'client_admin' && role !== 'client_staff') return defaultClientHomePath();
   const group = routeGroup(pathname);
   if (role === 'client_staff') {
-    if (group === 'products') return '/stock';
     if (group === 'billing') return '/dashboard';
   }
   return defaultClientHomePath();

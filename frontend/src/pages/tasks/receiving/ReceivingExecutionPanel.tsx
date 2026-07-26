@@ -35,6 +35,7 @@ import type { Product, ProductLot } from '../../../api/products';
 import {
   buildDiscrepancyNotes,
   computeLineStatus,
+  computeMissingQty,
   computeReceivingSummary,
   filterReceivingLines,
   isLikelyFirstInbound,
@@ -44,6 +45,7 @@ import {
   productRequiresExpiry,
   receivingExpectedLotDisplay,
   resolveLineExpiryDisplay,
+  validateReceivingLineQuantities,
 } from './receiving-utils';
 import { buildReceivingPrintInput, openReceivingPrintPdf } from './receiving-print';
 
@@ -311,6 +313,11 @@ export function ReceivingExecutionPanel({
       const lid = row.inbound_order_line_id;
       const expected = parseQty(row.expected_qty);
       const d = lineDrafts[lid] ?? emptyLineDraft();
+      const qtyErr = validateReceivingLineQuantities(expected, d.receivedQty, d.damagedQty);
+      if (qtyErr) {
+        issues.push(`${olLabel(lineMap, lid)}: ${qtyErr}`);
+        continue;
+      }
       const received = parseQty(d.receivedQty);
       const damaged = parseQty(d.damagedQty);
       const status = computeLineStatus(expected, received, damaged);
@@ -429,9 +436,11 @@ export function ReceivingExecutionPanel({
               : '';
         const disc = buildDiscrepancyNotes(d);
         const mergedDisc = [disc, attrNote].filter(Boolean).join(' · ');
+        const damagedRaw = (d.damagedQty ?? '').trim();
         return {
           inbound_order_line_id: lid,
           received_qty: (d.receivedQty ?? '0').trim() || '0',
+          ...(damagedRaw !== '' ? { damaged_qty: damagedRaw } : {}),
           ...lotPayload,
           ...(mergedDisc ? { discrepancy_notes: mergedDisc } : {}),
         };
@@ -595,6 +604,10 @@ export function ReceivingExecutionPanel({
           const d = lineDrafts[lid] ?? emptyLineDraft();
           const expected = parseQty(l.expected_qty);
           const status = computeLineStatus(expected, parseQty(d.receivedQty), parseQty(d.damagedQty));
+          const qtyErr = validateReceivingLineQuantities(expected, d.receivedQty, d.damagedQty);
+          const qtyInputClass = qtyErr
+            ? 'mt-0.5 w-full rounded-lg border border-rose-400 px-2 py-2 text-sm font-mono'
+            : 'mt-0.5 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm font-mono';
           return (
             <div
               key={lid}
@@ -643,9 +656,10 @@ export function ReceivingExecutionPanel({
                   <input
                     type="text"
                     inputMode="decimal"
-                    className="mt-0.5 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm font-mono"
+                    className={qtyInputClass}
                     value={d.receivedQty}
                     onChange={(e) => patchLine(lid, { receivedQty: e.target.value })}
+                    aria-invalid={qtyErr ? true : undefined}
                   />
                 </div>
                 <div>
@@ -653,18 +667,22 @@ export function ReceivingExecutionPanel({
                   <input
                     type="text"
                     inputMode="decimal"
-                    className="mt-0.5 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm font-mono"
+                    className={qtyInputClass}
                     value={d.damagedQty}
                     onChange={(e) => patchLine(lid, { damagedQty: e.target.value })}
+                    aria-invalid={qtyErr ? true : undefined}
                   />
                 </div>
                 <div>
                   <span className="text-slate-500">{t(['Missing', 'ناقص'])}</span>
                   <p className="font-mono font-medium text-slate-700">
-                    {Math.max(0, expected - parseQty(d.receivedQty) - parseQty(d.damagedQty))}
+                    {computeMissingQty(expected, parseQty(d.receivedQty), parseQty(d.damagedQty))}
                   </p>
                 </div>
               </div>
+              {!readOnly && qtyErr ? (
+                <p className="mt-2 text-xs text-rose-600">{qtyErr}</p>
+              ) : null}
               {productRequiresExpiry(ol, ol?.productId ? productsById.get(ol.productId) : undefined) ? (
                 <label className="mt-2 block text-xs text-slate-600">
                   {t(['Expiry date', 'تاريخ انتهاء الصلاحية'])} <span className="text-rose-600">*</span>
@@ -950,14 +968,24 @@ function ReceivingLinesTable({
       accessor: (l) => {
         const lid = l.inbound_order_line_id;
         const d = lineDrafts[lid] ?? emptyLineDraft();
+        const qtyErr = validateReceivingLineQuantities(
+          parseQty(l.expected_qty),
+          d.receivedQty,
+          d.damagedQty,
+        );
         return readOnly ? (
           <span className="font-mono tabular-nums">{d.receivedQty || '—'}</span>
         ) : (
           <input
-            className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm"
+            className={
+              qtyErr
+                ? 'w-20 rounded border border-rose-400 px-2 py-1 font-mono text-sm'
+                : 'w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm'
+            }
             value={d.receivedQty}
             onChange={(e) => onPatchLine?.(lid, { receivedQty: e.target.value })}
             onClick={(e) => e.stopPropagation()}
+            aria-invalid={qtyErr ? true : undefined}
           />
         );
       },
@@ -968,14 +996,24 @@ function ReceivingLinesTable({
       accessor: (l) => {
         const lid = l.inbound_order_line_id;
         const d = lineDrafts[lid] ?? emptyLineDraft();
+        const qtyErr = validateReceivingLineQuantities(
+          parseQty(l.expected_qty),
+          d.receivedQty,
+          d.damagedQty,
+        );
         return readOnly ? (
           <span className="font-mono tabular-nums">{d.damagedQty || '—'}</span>
         ) : (
           <input
-            className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm"
+            className={
+              qtyErr
+                ? 'w-20 rounded border border-rose-400 px-2 py-1 font-mono text-sm'
+                : 'w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm'
+            }
             value={d.damagedQty}
             onChange={(e) => onPatchLine?.(lid, { damagedQty: e.target.value })}
             onClick={(e) => e.stopPropagation()}
+            aria-invalid={qtyErr ? true : undefined}
           />
         );
       },
@@ -987,8 +1025,11 @@ function ReceivingLinesTable({
         const lid = l.inbound_order_line_id;
         const d = lineDrafts[lid] ?? emptyLineDraft();
         const expected = parseQty(l.expected_qty);
-        const missing = Math.max(0, expected - parseQty(d.receivedQty) - parseQty(d.damagedQty));
-        return <span className="font-mono tabular-nums">{missing}</span>;
+        const missing = computeMissingQty(expected, parseQty(d.receivedQty), parseQty(d.damagedQty));
+        const qtyErr = validateReceivingLineQuantities(expected, d.receivedQty, d.damagedQty);
+        return (
+          <span className={`font-mono tabular-nums ${qtyErr ? 'text-rose-600' : ''}`}>{missing}</span>
+        );
       },
       className: 'whitespace-nowrap',
     },
