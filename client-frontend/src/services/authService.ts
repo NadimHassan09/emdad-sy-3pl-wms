@@ -15,9 +15,13 @@ function mapUser(row: ClientLoginPayload['user'] | ClientUser): ClientUser {
   };
 }
 
-export async function login(email: string, password: string): Promise<ClientUser> {
+export async function login(
+  email: string,
+  password: string,
+  options?: { persistSession?: boolean },
+): Promise<ClientUser> {
   const { data } = await apiClient.post<ClientLoginPayload>('/auth/login', { email, password });
-  setStoredBearer(data.access_token);
+  setStoredBearer(data.access_token, Boolean(options?.persistSession));
   return mapUser(data.user);
 }
 

@@ -20,7 +20,11 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
+  login: (
+    email: string,
+    password: string,
+    options?: { persistSession?: boolean },
+  ) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -69,10 +73,13 @@ export function AuthProvider({
     };
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const me = await authService.login(email, password);
-    setUser(me);
-  }, []);
+  const login = useCallback(
+    async (email: string, password: string, options?: { persistSession?: boolean }) => {
+      const me = await authService.login(email, password, options);
+      setUser(me);
+    },
+    [],
+  );
 
   const logout = useCallback(async () => {
     await authService.logout();
