@@ -50,7 +50,7 @@ export function clientNotificationHref(notification: ClientNotification): string
     return '/billing';
   }
   if (notification.referenceType === 'billing_invoice' && notification.referenceId) {
-    return `/billing/invoices/${notification.referenceId}`;
+    return `/invoices/${notification.referenceId}`;
   }
   return undefined;
 }

@@ -84,13 +84,13 @@ export function buildBillingRestrictionCopy(
 }
 
 export function roleAccessDeniedCopy(pathname: string, isArabic: boolean): BillingRestrictionCopy {
-  const isBilling = pathname.startsWith('/billing');
+  const isBilling = pathname.startsWith('/billing') || pathname.startsWith('/invoices');
   if (isArabic) {
     return {
       variant: 'info',
       title: 'لا يمكن الوصول إلى هذه الصفحة',
       description: isBilling
-        ? 'صفحة الفوترة متاحة لمسؤولي العميل فقط. يمكنك متابعة الطلبات والمخزون من القائمة.'
+        ? 'صفحات الفوترة والفواتير متاحة لمسؤولي العميل فقط. يمكنك متابعة الطلبات والمخزون من القائمة.'
         : 'كتالوج المنتجات متاح لمسؤولي العميل فقط. تم توجيهك إلى المخزون.',
       actionBlockedReason: '',
       showBanner: true,
@@ -100,7 +100,7 @@ export function roleAccessDeniedCopy(pathname: string, isArabic: boolean): Billi
     variant: 'info',
     title: 'Page not available for your role',
     description: isBilling
-      ? 'Billing is available to client administrators only. You can continue with orders and stock from the menu.'
+      ? 'Billing and invoices are available to client administrators only. You can continue with orders and stock from the menu.'
       : 'The product catalog is available to client administrators only. You were redirected to stock.',
     actionBlockedReason: '',
     showBanner: true,

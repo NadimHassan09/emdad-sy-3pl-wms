@@ -99,7 +99,8 @@ export function invoiceStatusClass(status: string): string {
 }
 
 export function humanizeInvoiceStatus(status: string): string {
-  if (status === 'unpaid' || status === 'open' || status === 'overdue') return 'Unpaid';
+  if (status === 'unpaid' || status === 'open') return 'Pending';
+  if (status === 'overdue') return 'Overdue';
   if (status === 'draft') return 'Draft';
   if (status === 'paid') return 'Paid';
   if (status === 'cancelled') return 'Cancelled';

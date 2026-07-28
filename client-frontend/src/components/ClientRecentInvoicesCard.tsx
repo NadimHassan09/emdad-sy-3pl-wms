@@ -32,7 +32,7 @@ export function ClientRecentInvoicesCard({
       <div className="mb-4 flex items-center justify-between gap-3">
         <h3 className="text-sm font-semibold text-slate-900">{t('Recent invoices')}</h3>
         <Link
-          to="/billing"
+          to="/invoices"
           className="shrink-0 text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline underline-offset-2"
         >
           {t('View all invoices')}
@@ -56,7 +56,7 @@ export function ClientRecentInvoicesCard({
             >
               <div className="min-w-0">
                 <Link
-                  to={`/billing/invoices/${row.id}`}
+                  to={`/invoices/${row.id}`}
                   className="font-mono text-xs font-semibold text-emerald-700 hover:underline"
                 >
                   <span dir="ltr">{row.invoiceNumber}</span>

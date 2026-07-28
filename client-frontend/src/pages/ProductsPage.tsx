@@ -1,80 +1,55 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { Alert, Button } from '@ds';
-import type { Column } from '@wms/components/DataTable';
-import { DataTable } from '@wms/components/DataTable';
-import { FILTER_PRIMARY_BUTTON_CLASS, FilterPanel } from '@wms/components/FilterPanel';
-import { TextField } from '@wms/components/TextField';
-import { useFilters } from '@wms/hooks/useFilters';
+import { Alert } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '@wms/hooks/useChunkedServerPagination';
 
 import { useAuth } from '../auth/AuthContext';
+import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { ClientBarcodeImageModal } from '../components/ClientBarcodeImageModal';
 import { CreateClientProductModal } from '../components/CreateClientProductModal';
 import { ProductDetailsModal } from '../components/ProductDetailsModal';
+import { Badge } from '../design-v2/Badge';
+import { Card } from '../design-v2/Card';
+import { ListPageHeader } from '../design-v2/ListPageHeader';
+import { TableFooterPagination } from '../design-v2/TableFooterPagination';
+import { useDebouncedValue } from '../design-v2/useDebouncedValue';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import { isClientArabic } from '../lib/client-ui-language';
 import { isClientAdmin } from '../lib/rbac';
 import {
   createClientProduct,
   fetchClientProducts,
+  uploadClientProductImage,
   type ClientProductRow,
+  type CreateClientProductInput,
 } from '../services/clientProductsService';
-
-const UOM_LABELS: Record<string, { en: string; ar: string }> = {
-  piece: { en: 'Piece', ar: 'قطعة' },
-  kg: { en: 'Kilogram', ar: 'كيلوغرام' },
-  litre: { en: 'Litre', ar: 'لتر' },
-  carton: { en: 'Carton', ar: 'كرتون' },
-  pallet: { en: 'Pallet', ar: 'باليت' },
-  box: { en: 'Box', ar: 'صندوق' },
-  roll: { en: 'Roll', ar: 'لفة' },
-};
-
-type ProductListDraft = {
-  name: string;
-  sku: string;
-  barcode: string;
-};
+import { clientMediaSrc } from '../lib/client-media';
 
 function productsLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
     Products: 'المنتجات',
-    'Product catalog': 'كتالوج المنتجات',
-    '+ New product': '+ منتج جديد',
-    'Product filters': 'فلاتر المنتجات',
-    'Apply filters': 'تطبيق الفلاتر',
-    'Reset filters': 'إعادة تعيين الفلاتر',
-    Name: 'الاسم',
+    'Manage your product catalog and inventory': 'إدارة كتالوج المنتجات والمخزون',
+    'New product': 'منتج جديد',
+    'Search name, SKU, or barcode...': 'ابحث بالاسم أو رمز SKU أو الباركود...',
+    Product: 'المنتج',
     SKU: 'رمز SKU',
-    Barcode: 'الباركود',
-    'Show barcode': 'عرض الباركود',
-    'On hand': 'المتوفر',
-    UoM: 'وحدة القياس',
+    Stock: 'المخزون',
     Status: 'الحالة',
+    Actions: 'الإجراءات',
+    'View details': 'عرض التفاصيل',
+    'View barcode': 'عرض الباركود',
+    'Open actions': 'فتح الإجراءات',
     'No products found.': 'لا توجد منتجات.',
     'Could not load products': 'تعذر تحميل المنتجات',
     'Product created.': 'تم إنشاء المنتج.',
-    rows: 'صف',
-    results: 'نتيجة',
-    of: 'من',
-    Previous: 'السابق',
-    Next: 'التالي',
-    'Rows per page': 'عدد الصفوف لكل صفحة',
-    'Contains…': 'يحتوي على…',
+    Retry: 'إعادة المحاولة',
   };
   return ar[label] ?? label;
-}
-
-function productStatusClass(status: ClientProductRow['status']): string {
-  if (status === 'active') return 'bg-emerald-50 text-emerald-700';
-  if (status === 'suspended') return 'bg-amber-50 text-amber-800';
-  return 'bg-slate-100 text-slate-600';
 }
 
 const fmtQty = (s: string | null | undefined): string => {
@@ -84,6 +59,9 @@ const fmtQty = (s: string | null | undefined): string => {
   return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 };
 
+const menuItemClass =
+  'flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-slate-700 transition hover:bg-slate-50 hover:text-emerald-700';
+
 export function ProductsPage(): ReactElement {
   const { user } = useAuth();
   const canCreateProducts = isClientAdmin(user?.role);
@@ -91,30 +69,34 @@ export function ProductsPage(): ReactElement {
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSuccess, setCreateSuccess] = useState<string | null>(null);
-  const [barcodePreview, setBarcodePreview] = useState<{ value: string; name: string } | null>(
-    null,
-  );
+  const [search, setSearch] = useState('');
+  const [barcodePreview, setBarcodePreview] = useState<{ value: string; name: string } | null>(null);
   const [detailProduct, setDetailProduct] = useState<{ id: string; name: string } | null>(null);
+  const [openActionId, setOpenActionId] = useState<string | null>(null);
   const isArabic = isClientArabic();
   const t = (label: string) => productsLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
+  const debouncedSearch = useDebouncedValue(search, 300);
 
-  const initialFilters = useMemo<ProductListDraft>(
-    () => ({ name: '', sku: '', barcode: '' }),
-    [],
-  );
+  useEffect(() => {
+    if (!openActionId) return;
+    const onPointerDown = (ev: PointerEvent) => {
+      const target = ev.target as Element | null;
+      if (!target) return;
+      if (
+        target.closest('[data-product-action-trigger="true"]') ||
+        target.closest('[data-product-action-menu="true"]') ||
+        target.closest('[data-product-action-menu-button="true"]')
+      ) {
+        return;
+      }
+      setOpenActionId(null);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => window.removeEventListener('pointerdown', onPointerDown);
+  }, [openActionId]);
 
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(initialFilters);
-
-  const filterKey = useMemo(
-    () => ({
-      productName: appliedFilters.name.trim() || undefined,
-      sku: appliedFilters.sku.trim() || undefined,
-      productBarcode: appliedFilters.barcode.trim() || undefined,
-    }),
-    [appliedFilters],
-  );
+  const filterKey = useMemo(() => ({ search: debouncedSearch.trim() || undefined }), [debouncedSearch]);
 
   const pagination = useChunkedServerPagination<ClientProductRow>({
     chunkSize: CHUNK_SIZE_STANDARD,
@@ -125,7 +107,24 @@ export function ProductsPage(): ReactElement {
   });
 
   const createMut = useMutation({
-    mutationFn: createClientProduct,
+    mutationFn: async ({
+      input,
+      imageFile,
+    }: {
+      input: CreateClientProductInput;
+      imageFile: File | null;
+    }) => {
+      const created = await createClientProduct(input);
+      if (imageFile) {
+        try {
+          await uploadClientProductImage(created.id, imageFile);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Image upload failed.';
+          throw new Error(`${t('Product created.')} ${msg}`);
+        }
+      }
+      return created;
+    },
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ['client', 'products'] });
       setCreateOpen(false);
@@ -135,166 +134,206 @@ export function ProductsPage(): ReactElement {
     onError: (err: Error) => setCreateError(err.message),
   });
 
-  const columns: Column<ClientProductRow>[] = useMemo(
-    () => [
-      { header: t('Name'), accessor: (p) => p.name },
-      {
-        header: t('SKU'),
-        accessor: (p) => <span className="font-mono text-xs">{p.sku}</span>,
-        width: '200px',
-      },
-      {
-        header: t('On hand'),
-        accessor: (p) => (
-          <span className="block text-right font-mono font-semibold">{fmtQty(p.totalOnHand)}</span>
-        ),
-        width: '120px',
-        className: 'text-right',
-      },
-      {
-        header: t('Barcode'),
-        accessor: (p) =>
-          p.barcode ? (
-            <button
-              type="button"
-              className="font-mono text-left text-xs text-primary-700 underline decoration-primary-300 underline-offset-2 hover:text-primary-900"
-              title={t('Show barcode')}
-              onClick={(e) => {
-                e.stopPropagation();
-                setBarcodePreview({ value: p.barcode!, name: p.name });
-              }}
-            >
-              {p.barcode}
-            </button>
-          ) : (
-            <span className="font-mono text-xs text-slate-400">—</span>
-          ),
-        width: '220px',
-      },
-      {
-        header: t('UoM'),
-        accessor: (p) => {
-          const u = UOM_LABELS[p.uom];
-          return u ? (isArabic ? u.ar : u.en) : p.uom;
-        },
-        width: '110px',
-      },
-      {
-        header: t('Status'),
-        accessor: (p) => (
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${productStatusClass(p.status)}`}
-          >
-            {p.status}
-          </span>
-        ),
-        width: '110px',
-      },
-    ],
-    [isArabic],
-  );
-
   return (
-    <>
-      {createSuccess && (
-        <Alert
-          variant="success"
-          compact
-          description={createSuccess}
-          className="mb-4"
-          action={
-            <Alert.Action variant="success" onClick={() => setCreateSuccess(null)}>
-              OK
-            </Alert.Action>
-          }
-        />
-      )}
-
-      {pagination.isError && (
-        <Alert
-          variant="error"
-          title={t('Could not load products')}
-          description="Check your connection and try refreshing the page."
-          action={
-            <Alert.Action variant="error" onClick={() => pagination.refetch()}>
-              Retry
-            </Alert.Action>
-          }
-          className="mb-3"
-        />
-      )}
-
-      <FilterPanel
-        title={t('Product filters')}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-        applyLabel={t('Apply filters')}
-        resetLabel={t('Reset filters')}
-      >
-        <TextField
-          label={t('Name')}
-          value={draftFilters.name}
-          onChange={(e) => setDraft({ name: e.target.value })}
-          placeholder={t('Contains…')}
-        />
-        <TextField
-          label={t('SKU')}
-          value={draftFilters.sku}
-          onChange={(e) => setDraft({ sku: e.target.value })}
-          className="font-mono text-xs"
-          placeholder={t('Contains…')}
-        />
-        <TextField
-          label={t('Barcode')}
-          value={draftFilters.barcode}
-          onChange={(e) => setDraft({ barcode: e.target.value })}
-          className="font-mono text-xs"
-          placeholder={t('Contains…')}
-        />
-      </FilterPanel>
-
-      <DataTable
-        title={t('Product catalog')}
-        titleAs="h1"
+    <div className="space-y-5 animate-enter">
+      <ListPageHeader
+        icon="fa-boxes-stacked"
+        title={t('Products')}
+        subtitle={t('Manage your product catalog and inventory')}
         actions={
           canCreateProducts ? (
-            <Button
-              variant="primary"
-              size="md"
+            <button
+              type="button"
               disabled={!billingAccess.operationalAllowed}
               title={
-                billingAccess.operationalAllowed
-                  ? undefined
-                  : billingAccess.actionBlockedReason
+                !billingAccess.operationalAllowed
+                  ? billingAccess.restriction.actionBlockedReason
+                  : undefined
               }
               onClick={() => {
                 setCreateError(null);
-                setCreateSuccess(null);
                 setCreateOpen(true);
               }}
-              className={FILTER_PRIMARY_BUTTON_CLASS}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {t('+ New product')}
-            </Button>
-          ) : undefined
+              <i className="fa-solid fa-plus text-xs" />
+              {t('New product')}
+            </button>
+          ) : null
         }
-        columns={columns}
-        rows={pagination.rows}
-        rowKey={(p) => p.id}
-        loading={pagination.isInitialLoading}
-        onRowClick={(p) => setDetailProduct({ id: p.id, name: p.name })}
-        empty={t('No products found.')}
-        serverPagination={pagination.serverPagination}
-        labels={{
-          rowsSuffix: t('rows'),
-          resultsSuffix: t('results'),
-          ofWord: t('of'),
-          previous: t('Previous'),
-          next: t('Next'),
-          rowsPerPageAria: t('Rows per page'),
-        }}
       />
+
+      {createSuccess ? (
+        <Alert variant="success" title={createSuccess} onDismiss={() => setCreateSuccess(null)} />
+      ) : null}
+
+      {pagination.isError ? (
+        <Alert
+          variant="error"
+          title={t('Could not load products')}
+          action={
+            <Alert.Action variant="error" onClick={() => pagination.refetch()}>
+              {t('Retry')}
+            </Alert.Action>
+          }
+        />
+      ) : null}
+
+      <Card className="p-4">
+        <div className="relative">
+          <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('Search name, SKU, or barcode...')}
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm input-premium"
+          />
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
+              <tr>
+                <th className="px-5 py-3 text-left">{t('Product')}</th>
+                <th className="px-5 py-3 text-left">{t('SKU')}</th>
+                <th className="px-5 py-3 text-left">{t('Stock')}</th>
+                <th className="px-5 py-3 text-left">{t('Status')}</th>
+                <th className="px-5 py-3 text-right">{t('Actions')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {pagination.isInitialLoading ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-10 text-center text-slate-400 text-sm">…</td>
+                </tr>
+              ) : pagination.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-10 text-center text-slate-400 text-sm">
+                    {t('No products found.')}
+                  </td>
+                </tr>
+              ) : (
+                pagination.rows.map((p) => {
+                  const stock = Number(p.totalOnHand ?? 0);
+                  const stockPercent = Number.isFinite(stock) ? Math.min(100, (stock / 10) * 100) : 0;
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => setDetailProduct({ id: p.id, name: p.name })}
+                      className="hover:bg-slate-50/60 transition-colors group cursor-pointer"
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          {clientMediaSrc(p.imageUrl) ? (
+                            <img
+                              src={clientMediaSrc(p.imageUrl) ?? undefined}
+                              alt=""
+                              className="w-9 h-9 rounded-lg object-cover border border-slate-200 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                              <i className="fa-solid fa-box text-xs" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-semibold text-slate-900 truncate">{p.name}</div>
+                            <div className="text-xs text-slate-500 truncate">{p.description || '—'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-slate-600 font-mono text-xs">
+                        {p.barcode ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setBarcodePreview({ value: p.barcode!, name: p.name });
+                            }}
+                            className="underline decoration-slate-300 underline-offset-2 hover:text-emerald-700"
+                            title={p.barcode}
+                          >
+                            {p.sku}
+                          </button>
+                        ) : (
+                          p.sku
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${stockPercent}%` }} />
+                          </div>
+                          <span className="text-xs font-medium text-slate-700">{fmtQty(p.totalOnHand)}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <Badge status={p.status} />
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
+                          <AnchoredDropdown
+                            open={openActionId === p.id}
+                            align="end"
+                            menuRootProps={{ 'data-product-action-menu': 'true' }}
+                            trigger={
+                              <button
+                                type="button"
+                                data-product-action-trigger="true"
+                                className="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors inline-flex items-center justify-center"
+                                onClick={() =>
+                                  setOpenActionId((cur) => (cur === p.id ? null : p.id))
+                                }
+                                aria-label={t('Open actions')}
+                                aria-expanded={openActionId === p.id}
+                                aria-haspopup="menu"
+                              >
+                                <i className="fa-solid fa-ellipsis" />
+                              </button>
+                            }
+                          >
+                            <button
+                              type="button"
+                              role="menuitem"
+                              data-product-action-menu-button="true"
+                              className={menuItemClass}
+                              onClick={() => {
+                                setOpenActionId(null);
+                                setDetailProduct({ id: p.id, name: p.name });
+                              }}
+                            >
+                              <i className="fa-solid fa-eye text-xs text-slate-400 w-4" />
+                              {t('View details')}
+                            </button>
+                            {p.barcode ? (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                data-product-action-menu-button="true"
+                                className={menuItemClass}
+                                onClick={() => {
+                                  setOpenActionId(null);
+                                  setBarcodePreview({ value: p.barcode!, name: p.name });
+                                }}
+                              >
+                                <i className="fa-solid fa-barcode text-xs text-slate-400 w-4" />
+                                {t('View barcode')}
+                              </button>
+                            ) : null}
+                          </AnchoredDropdown>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        <TableFooterPagination pagination={pagination.serverPagination} isArabic={isArabic} />
+      </Card>
 
       <CreateClientProductModal
         open={createOpen}
@@ -302,9 +341,9 @@ export function ProductsPage(): ReactElement {
         loading={createMut.isPending}
         submitError={createError}
         isArabic={isArabic}
-        onSubmit={(input) => {
+        onSubmit={(input, imageFile) => {
           setCreateError(null);
-          createMut.mutate(input);
+          createMut.mutate({ input, imageFile });
         }}
       />
 
@@ -323,6 +362,6 @@ export function ProductsPage(): ReactElement {
         onClose={() => setDetailProduct(null)}
         isArabic={isArabic}
       />
-    </>
+    </div>
   );
 }

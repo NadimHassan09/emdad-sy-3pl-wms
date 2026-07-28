@@ -1,31 +1,29 @@
-import { useMemo, useState } from 'react';
-import type { ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, Button } from '@ds';
-import type { Column } from '@wms/components/DataTable';
-import { DataTable } from '@wms/components/DataTable';
-import { FILTER_PRIMARY_BUTTON_CLASS, FilterPanel } from '@wms/components/FilterPanel';
-import { SelectField } from '@wms/components/SelectField';
-import { StatusBadge } from '@wms/components/StatusBadge';
-import { TextField } from '@wms/components/TextField';
-import { useFilters } from '@wms/hooks/useFilters';
+import { Alert } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '@wms/hooks/useChunkedServerPagination';
 
 import { CreateClientOmsOrderModal } from '../components/CreateClientOmsOrderModal';
+import { Badge } from '../design-v2/Badge';
+import { Card } from '../design-v2/Card';
+import { ListPageHeader } from '../design-v2/ListPageHeader';
+import { StorePillTabs } from '../design-v2/StorePillTabs';
+import { TableFooterPagination } from '../design-v2/TableFooterPagination';
+import { useDebouncedValue } from '../design-v2/useDebouncedValue';
+import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import { isClientArabic } from '../lib/client-ui-language';
 import {
   createClientOmsOrder,
   fetchClientOmsOrders,
-  type ClientOmsOrderListItem,
   type ClientOmsOrderStatus,
 } from '../services/clientOmsOrdersService';
 
-const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
+const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
   { value: 'pending_approval', label: 'Pending approval' },
   { value: 'approved', label: 'Approved' },
@@ -44,35 +42,26 @@ const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
-type ListDraft = {
-  orderSearch: string;
-  status: string;
-};
-
 function labelText(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
-    'OMS Orders': 'طلبات OMS',
-    'Order filters': 'فلاتر الطلبات',
-    'Apply filters': 'تطبيق الفلاتر',
-    'Reset filters': 'إعادة تعيين الفلاتر',
-    'Order #': 'رقم الطلب',
-    'Search order...': 'ابحث عن الطلب...',
-    Status: 'الحالة',
+    'Online orders': 'الطلبات الإلكترونية',
+    'Online, COD, and returns': 'الإلكتروني، الدفع عند الاستلام، والمرتجعات',
+    'Create order': 'إنشاء طلب',
+    'Search order number...': 'ابحث برقم الطلب...',
     'All statuses': 'كل الحالات',
+    'Order #': 'رقم الطلب',
+    Status: 'الحالة',
     Recipient: 'المستلم',
     Channel: 'القناة',
     Total: 'الإجمالي',
     Created: 'تاريخ الإنشاء',
-    'No OMS orders found.': 'لا توجد طلبات OMS.',
-    'Could not load OMS orders': 'تعذر تحميل طلبات OMS',
-    'Create Order': 'إنشاء طلب',
-    rows: 'صف',
-    results: 'نتيجة',
-    of: 'من',
-    Previous: 'السابق',
-    Next: 'التالي',
-    'Rows per page': 'عدد الصفوف لكل صفحة',
+    'No online orders yet': 'لا توجد طلبات إلكترونية بعد',
+    'Create an order from your store channel to track fulfillment here.':
+      'أنشئ طلباً من قناة متجرك لتتبع التنفيذ هنا.',
+    'Create first order': 'إنشاء أول طلب',
+    'Could not load online orders': 'تعذر تحميل الطلبات الإلكترونية',
+    Retry: 'إعادة المحاولة',
   };
   return ar[label] ?? label;
 }
@@ -82,8 +71,12 @@ export function EcommerceOrdersPage(): ReactElement {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('');
   const isArabic = isClientArabic();
   const t = (label: string) => labelText(label, isArabic);
+  const billingAccess = useClientOperationalAccess(isArabic);
+  const debouncedSearch = useDebouncedValue(search, 300);
 
   const createMut = useMutation({
     mutationFn: createClientOmsOrder,
@@ -93,24 +86,18 @@ export function EcommerceOrdersPage(): ReactElement {
       setCreateOpen(false);
       navigate(`/ecommerce-orders/${order.id}`);
     },
-    onError: (err: Error) => {
-      setCreateError(err.message || 'Could not submit order.');
-    },
+    onError: (err: Error) => setCreateError(err.message || 'Could not submit order.'),
   });
-
-  const initial = useMemo<ListDraft>(() => ({ orderSearch: '', status: '' }), []);
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(initial);
 
   const filterKey = useMemo(
     () => ({
-      orderSearch: appliedFilters.orderSearch.trim() || undefined,
-      status: (appliedFilters.status.trim() || undefined) as ClientOmsOrderStatus | undefined,
+      orderSearch: debouncedSearch.trim() || undefined,
+      status: (status || undefined) as ClientOmsOrderStatus | undefined,
     }),
-    [appliedFilters],
+    [debouncedSearch, status],
   );
 
-  const pagination = useChunkedServerPagination<ClientOmsOrderListItem>({
+  const pagination = useChunkedServerPagination({
     chunkSize: CHUNK_SIZE_STANDARD,
     filterKey,
     fetchChunk: (offset, limit) => fetchClientOmsOrders({ ...filterKey, offset, limit }),
@@ -118,131 +105,145 @@ export function EcommerceOrdersPage(): ReactElement {
     chunkQueryKeyPrefix: 'client-ecommerce-orders-chunk',
   });
 
-  const statusOptions = useMemo(
-    () =>
-      STATUS_OPTIONS.map((o) => ({
-        ...o,
-        label: o.value === '' ? t('All statuses') : o.label,
-      })),
-    [isArabic],
-  );
-
-  const columns: Column<ClientOmsOrderListItem>[] = useMemo(
-    () => [
-      {
-        header: t('Order #'),
-        accessor: (o) => <span className="font-mono">{o.orderNumber || '—'}</span>,
-        width: '170px',
-      },
-      {
-        header: t('Status'),
-        accessor: (o) => <StatusBadge status={o.status} />,
-        className: 'w-1 whitespace-nowrap',
-      },
-      {
-        header: t('Recipient'),
-        accessor: (o) => o.recipientName ?? '—',
-        width: '140px',
-      },
-      {
-        header: t('Channel'),
-        accessor: (o) => o.storeChannel ?? '—',
-        width: '120px',
-      },
-      {
-        header: t('Total'),
-        accessor: (o) =>
-          o.total != null ? `${o.total}${o.currency ? ` ${o.currency}` : ''}` : '—',
-        width: '120px',
-      },
-      {
-        header: t('Created'),
-        accessor: (o) => new Date(o.createdAt).toLocaleString(),
-      },
-    ],
-    [isArabic],
-  );
+  function openCreate() {
+    setCreateError(null);
+    setCreateOpen(true);
+  }
 
   return (
-    <>
-      {pagination.isError && (
-        <Alert
-          variant="error"
-          title={t('Could not load OMS orders')}
-          description="Check your connection and try refreshing the page."
-          action={
-            <Alert.Action variant="error" onClick={() => pagination.refetch()}>
-              Retry
-            </Alert.Action>
-          }
-          className="mb-3"
-        />
-      )}
-
-      <FilterPanel
-        title={t('Order filters')}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-        applyLabel={t('Apply filters')}
-        resetLabel={t('Reset filters')}
-      >
-        <TextField
-          label={t('Order #')}
-          value={draftFilters.orderSearch}
-          onChange={(e) => setDraft({ orderSearch: e.target.value })}
-          placeholder={t('Search order...')}
-          className="font-mono text-xs"
-        />
-        <SelectField
-          label={t('Status')}
-          value={draftFilters.status}
-          onChange={(e) => setDraft({ status: e.target.value })}
-          options={statusOptions}
-        />
-      </FilterPanel>
-
-      <DataTable
-        title={t('OMS Orders')}
-        titleAs="h1"
+    <div className="space-y-5 animate-enter">
+      <ListPageHeader
+        icon="fa-cart-shopping"
+        title={t('Online orders')}
+        subtitle={t('Online, COD, and returns')}
         actions={
-          <Button
-            variant="primary"
-            size="md"
-            className={FILTER_PRIMARY_BUTTON_CLASS}
-            onClick={() => {
-              setCreateError(null);
-              setCreateOpen(true);
-            }}
+          <button
+            type="button"
+            disabled={!billingAccess.operationalAllowed}
+            title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
+            onClick={openCreate}
+            className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {t('Create Order')}
-          </Button>
+            <i className="fa-solid fa-plus text-xs" /> {t('Create order')}
+          </button>
         }
-        columns={columns}
-        rows={pagination.rows}
-        rowKey={(o) => o.id}
-        loading={pagination.isInitialLoading}
-        onRowClick={(o) => navigate(`/ecommerce-orders/${o.id}`)}
-        empty={t('No OMS orders found.')}
-        serverPagination={pagination.serverPagination}
-        labels={{
-          rowsSuffix: t('rows'),
-          resultsSuffix: t('results'),
-          ofWord: t('of'),
-          previous: t('Previous'),
-          next: t('Next'),
-          rowsPerPageAria: t('Rows per page'),
-        }}
       />
+
+      <StorePillTabs isArabic={isArabic} />
+
+      {pagination.isError ? (
+        <Alert variant="error" title={t('Could not load online orders')}>
+          <Alert.Action variant="error" onClick={() => pagination.refetch()}>
+            {t('Retry')}
+          </Alert.Action>
+        </Alert>
+      ) : null}
+
+      <Card className="p-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('Search order number...')}
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm input-premium"
+            />
+          </div>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 input-premium"
+          >
+            {STATUS_OPTIONS.map((o) => (
+              <option key={o.value || 'all'} value={o.value}>
+                {o.value === '' ? t('All statuses') : o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
+        {pagination.isInitialLoading ? (
+          <div className="px-5 py-10 text-center text-slate-400 text-sm">…</div>
+        ) : pagination.rows.length === 0 ? (
+          <div className="py-20 flex flex-col items-center justify-center text-center px-6">
+            <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
+              <i className="fa-solid fa-cart-shopping text-2xl text-slate-300" />
+            </div>
+            <h3 className="text-base font-semibold text-slate-900">{t('No online orders yet')}</h3>
+            <p className="text-sm text-slate-500 mt-1 max-w-xs">
+              {t('Create an order from your store channel to track fulfillment here.')}
+            </p>
+            {billingAccess.operationalAllowed ? (
+              <button
+                type="button"
+                onClick={openCreate}
+                className="mt-5 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+              >
+                {t('Create first order')}
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
+                  <tr>
+                    <th className="px-5 py-3 text-left">{t('Order #')}</th>
+                    <th className="px-5 py-3 text-left">{t('Status')}</th>
+                    <th className="px-5 py-3 text-left">{t('Recipient')}</th>
+                    <th className="px-5 py-3 text-left">{t('Channel')}</th>
+                    <th className="px-5 py-3 text-left">{t('Total')}</th>
+                    <th className="px-5 py-3 text-right">{t('Created')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pagination.rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={() => navigate(`/ecommerce-orders/${row.id}`)}
+                      className="hover:bg-slate-50/60 transition-colors cursor-pointer"
+                    >
+                      <td className="px-5 py-3.5 font-semibold text-slate-900 font-mono">
+                        {row.orderNumber || '—'}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <Badge status={row.status} />
+                      </td>
+                      <td className="px-5 py-3.5 text-slate-600">{row.recipientName || '—'}</td>
+                      <td className="px-5 py-3.5 text-slate-600">{row.storeChannel || '—'}</td>
+                      <td className="px-5 py-3.5 font-medium text-slate-900">
+                        {row.total == null
+                          ? '—'
+                          : `${row.total}${row.currency ? ` ${row.currency}` : ''}`}
+                      </td>
+                      <td className="px-5 py-3.5 text-right text-slate-500 text-xs">
+                        {new Date(row.createdAt).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <TableFooterPagination pagination={pagination.serverPagination} isArabic={isArabic} />
+          </>
+        )}
+      </Card>
 
       <CreateClientOmsOrderModal
         open={createOpen}
-        onClose={() => !createMut.isPending && setCreateOpen(false)}
+        onClose={() => setCreateOpen(false)}
         loading={createMut.isPending}
         submitError={createError}
+        onSubmit={(input) => {
+          setCreateError(null);
+          createMut.mutate(input);
+        }}
         isArabic={isArabic}
-        onSubmit={(input) => createMut.mutate(input)}
       />
-    </>
+    </div>
   );
 }

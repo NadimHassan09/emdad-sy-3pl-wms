@@ -26,14 +26,14 @@ const WMS_ORDERS_SECTION: SectionSubNavConfig = {
     (p.startsWith('/inbound-orders') || p.startsWith('/outbound-orders')) && !isOrdersDetailPath(p),
   items: [
     {
-      labelKey: 'Inbound orders',
-      labelAr: 'طلبات الوارد',
+      labelKey: 'Inbound',
+      labelAr: 'الوارد',
       to: '/inbound-orders',
       match: (p) => p.startsWith('/inbound-orders'),
     },
     {
-      labelKey: 'Outbound orders',
-      labelAr: 'طلبات الصادر',
+      labelKey: 'Outbound',
+      labelAr: 'الصادر',
       to: '/outbound-orders',
       match: (p) => p.startsWith('/outbound-orders'),
     },
@@ -41,8 +41,8 @@ const WMS_ORDERS_SECTION: SectionSubNavConfig = {
 };
 
 const OMS_SECTION: SectionSubNavConfig = {
-  ariaLabel: 'OMS navigation',
-  ariaLabelAr: 'تنقل OMS',
+  ariaLabel: 'Store orders navigation',
+  ariaLabelAr: 'تنقل طلبات المتجر',
   matchSection: (p) =>
     (p.startsWith('/ecommerce-orders') ||
       p.startsWith('/cod-reports') ||
@@ -50,14 +50,14 @@ const OMS_SECTION: SectionSubNavConfig = {
     !isOrdersDetailPath(p),
   items: [
     {
-      labelKey: 'OMS Orders',
-      labelAr: 'طلبات OMS',
+      labelKey: 'Online orders',
+      labelAr: 'الطلبات الإلكترونية',
       to: '/ecommerce-orders',
       match: (p) => p.startsWith('/ecommerce-orders'),
     },
     {
-      labelKey: 'COD',
-      labelAr: 'COD',
+      labelKey: 'Cash on delivery',
+      labelAr: 'الدفع عند الاستلام',
       to: '/cod-reports',
       match: (p) => p.startsWith('/cod-reports'),
     },

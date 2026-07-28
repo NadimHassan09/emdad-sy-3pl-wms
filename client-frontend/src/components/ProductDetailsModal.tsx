@@ -52,7 +52,7 @@ function label(text: string, isArabic: boolean): string {
     Width: 'العرض',
     Height: 'الارتفاع',
     Weight: 'الوزن',
-    'Volume (CBM)': 'الحجم (م³)',
+    'Volume (m³)': 'الحجم (م³)',
     'Loading product…': 'جاري تحميل المنتج…',
     'Could not load product.': 'تعذر تحميل المنتج.',
     Close: 'إغلاق',
@@ -164,8 +164,6 @@ export function ProductDetailsModal({
             <Row label={t('Inventory method')} value={data.inventoryMethod} />
             <Row label={t('Total inbound')} value={fmtQty(data.totalInboundQuantity)} mono />
             <Row label={t('Total outbound')} value={fmtQty(data.totalOutboundQuantity)} mono />
-            <Row label={t('Current inventory')} value={fmtQty(data.totalOnHand)} mono />
-            <Row label={t('Reserved quantity')} value={fmtQty(data.totalReserved)} mono />
           </Section>
 
           <Section title={t('Dimensions')}>
@@ -190,7 +188,7 @@ export function ProductDetailsModal({
               mono
             />
             <Row
-              label={t('Volume (CBM)')}
+              label={t('Volume (m³)')}
               value={data.volumeCbm ? fmtQty(data.volumeCbm) : dims ? '0' : '—'}
               mono
             />

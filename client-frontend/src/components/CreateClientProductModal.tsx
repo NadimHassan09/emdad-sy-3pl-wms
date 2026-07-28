@@ -10,6 +10,7 @@ import {
 import { SelectField } from '@wms/components/SelectField';
 import { TextField } from '@wms/components/TextField';
 
+import { ImageUploadField } from './ImageUploadField';
 import { generateBarcode, generateSku } from '../lib/identifiers';
 import type { CreateClientProductInput } from '../services/clientProductsService';
 
@@ -23,7 +24,6 @@ const UOM_OPTIONS = [
   { value: 'roll', label: 'Roll', labelAr: 'لفة' },
 ];
 
-/** Green generate button joined flush to the right of an input (input-group). */
 const GENERATE_BUTTON_CLASS =
   `${FILTER_PRIMARY_BUTTON_CLASS} !h-11 shrink-0 whitespace-nowrap ` +
   '!rounded-l-none !rounded-r-[10px] !border-l-0 px-3 py-0 text-xs sm:text-sm';
@@ -36,7 +36,7 @@ type Props = {
   onClose: () => void;
   loading: boolean;
   submitError?: string | null;
-  onSubmit: (input: CreateClientProductInput) => void;
+  onSubmit: (input: CreateClientProductInput, imageFile: File | null) => void;
   isArabic: boolean;
 };
 
@@ -54,6 +54,8 @@ function label(text: string, isArabic: boolean): string {
     'Description (optional)': 'الوصف (اختياري)',
     UoM: 'وحدة القياس',
     'Product has an expiry date': 'المنتج له تاريخ انتهاء',
+    'Product photo': 'صورة المنتج',
+    'Optional. Images are compressed before saving.': 'اختياري. يتم ضغط الصور قبل الحفظ.',
     Cancel: 'إلغاء',
     Create: 'إنشاء',
   };
@@ -119,6 +121,7 @@ export function CreateClientProductModal({
   const [description, setDescription] = useState('');
   const [uom, setUom] = useState('piece');
   const [expiryTracking, setExpiryTracking] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -128,6 +131,7 @@ export function CreateClientProductModal({
     setDescription('');
     setUom('piece');
     setExpiryTracking(false);
+    setImageFile(null);
   }, [open]);
 
   const handleClose = () => {
@@ -147,7 +151,7 @@ export function CreateClientProductModal({
     if (barcodeTrim) input.barcode = barcodeTrim;
     const descTrim = description.trim();
     if (descTrim) input.description = descTrim;
-    onSubmit(input);
+    onSubmit(input, imageFile);
   };
 
   const uomOptions = UOM_OPTIONS.map((o) => ({
@@ -183,6 +187,14 @@ export function CreateClientProductModal({
             {submitError}
           </p>
         ) : null}
+        <ImageUploadField
+          label={t('Product photo')}
+          hint={t('Optional. Images are compressed before saving.')}
+          file={imageFile}
+          onFileChange={setImageFile}
+          disabled={loading}
+          isArabic={isArabic}
+        />
         <TextField label={t('Name')} required value={name} onChange={(e) => setName(e.target.value)} />
         <InputWithGenerate
           id="client-product-sku"

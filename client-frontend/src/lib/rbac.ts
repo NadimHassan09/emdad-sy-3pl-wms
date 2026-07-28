@@ -45,18 +45,18 @@ const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
     roles: ['client_admin', 'client_staff'],
   },
   {
-    label: 'OMS Orders',
-    labelAr: 'طلبات OMS',
+    label: 'Online orders',
+    labelAr: 'الطلبات الإلكترونية',
     iconKey: 'Orders',
     to: '/ecommerce-orders',
     group: 'oms',
     roles: ['client_admin', 'client_staff'],
   },
   {
-    label: 'COD',
-    labelAr: 'COD',
+    label: 'My profits',
+    labelAr: 'أرباحي',
     iconKey: 'Billing',
-    to: '/cod-reports',
+    to: '/my-profits',
     group: 'oms',
     roles: ['client_admin', 'client_staff'],
   },
@@ -73,6 +73,14 @@ const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
     labelAr: 'الفوترة',
     iconKey: 'Billing',
     to: '/billing',
+    exact: true,
+    roles: ['client_admin'],
+  },
+  {
+    label: 'Invoices',
+    labelAr: 'الفواتير',
+    iconKey: 'Invoices',
+    to: '/invoices',
     roles: ['client_admin'],
   },
   {
@@ -90,14 +98,16 @@ function routeGroup(pathname: string): string {
     pathname.startsWith('/inbound-orders') ||
     pathname.startsWith('/outbound-orders') ||
     pathname.startsWith('/ecommerce-orders') ||
+    pathname.startsWith('/my-profits') ||
     pathname.startsWith('/cod-reports') ||
     pathname.startsWith('/returns')
   ) {
     return 'orders';
   }
   if (pathname.startsWith('/products')) return 'products';
-  if (pathname.startsWith('/billing')) return 'billing';
+  if (pathname.startsWith('/billing') || pathname.startsWith('/invoices')) return 'billing';
   if (pathname.startsWith('/notifications')) return 'notifications';
+  if (pathname.startsWith('/profile')) return 'profile';
   return 'other';
 }
 
@@ -107,6 +117,7 @@ const ROUTE_GROUP_ROLES: Record<string, ClientPortalRole[]> = {
   products: ['client_admin', 'client_staff'],
   billing: ['client_admin'],
   notifications: ['client_admin', 'client_staff'],
+  profile: ['client_admin', 'client_staff'],
   other: ['client_admin', 'client_staff'],
 };
 

@@ -23,6 +23,14 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    // Let the browser set multipart boundary.
+    if (typeof config.headers.delete === 'function') {
+      config.headers.delete('Content-Type');
+    } else {
+      delete (config.headers as Record<string, unknown>)['Content-Type'];
+    }
+  }
   return config;
 });
 

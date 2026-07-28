@@ -14,6 +14,7 @@ import {
   type ClientProductRow,
 } from '../services/clientProductsService';
 import type { CreateClientOmsOrderInput } from '../services/clientOmsOrdersService';
+import { ClientFormSection } from './ClientWizardSteps';
 
 type DraftLine = { productId: string; requestedQuantity: string; unitPrice: string };
 
@@ -60,6 +61,9 @@ function label(text: string, isArabic: boolean): string {
     'Each product line needs a valid price.': 'كل بند يحتاج سعراً صالحاً.',
     'Order will be submitted for admin approval. Shipping fee is set by the warehouse.':
       'سيُرسل الطلب لموافقة الإدارة. رسوم الشحن يحددها المستودع.',
+    'Shipping information': 'معلومات الشحن',
+    'Order details': 'تفاصيل الطلب',
+    Products: 'المنتجات',
   };
   return ar[text] ?? text;
 }
@@ -242,7 +246,7 @@ export function CreateClientOmsOrderModal({
       }
     >
       <form id="create-client-oms" onSubmit={submit} className="space-y-4">
-        <p className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <p className="rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-raised)] px-3 py-2 text-xs text-[var(--text-muted)]">
           {t(
             'Order will be submitted for admin approval. Shipping fee is set by the warehouse.',
           )}
@@ -257,144 +261,153 @@ export function CreateClientOmsOrderModal({
           </p>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <TextField
-            label={t('Recipient name')}
-            value={recipientName}
-            onChange={(e) => setRecipientName(e.target.value)}
-          />
-          <TextField
-            label={t('Recipient phone')}
-            value={recipientPhone}
-            onChange={(e) => setRecipientPhone(e.target.value)}
-          />
-          <TextField label={t('City')} value={city} onChange={(e) => setCity(e.target.value)} />
-          <TextField
-            label={t('District')}
-            value={district}
-            onChange={(e) => setDistrict(e.target.value)}
-          />
-          <TextField
-            label={t('Address')}
-            value={addressLine1}
-            onChange={(e) => setAddressLine1(e.target.value)}
-          />
-          <TextField
-            label={t('Required ship date')}
-            type="date"
-            required
-            min={localCalendarDateYmd()}
-            value={shipDate}
-            onChange={(e) => setShipDate(e.target.value)}
-          />
-          <TextField
-            label={t('Sales channel')}
-            value={storeChannel}
-            onChange={(e) => setStoreChannel(e.target.value)}
-          />
-          <SelectField
-            label={t('Payment method')}
-            value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
-            options={[
-              { value: '', label: '—' },
-              { value: 'COD', label: 'COD' },
-              { value: 'PREPAID', label: 'Prepaid' },
-              { value: 'CREDIT', label: 'Credit' },
-            ]}
-          />
-        </div>
+        <ClientFormSection title={t('Shipping information')}>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <TextField
+              label={t('Recipient name')}
+              value={recipientName}
+              onChange={(e) => setRecipientName(e.target.value)}
+            />
+            <TextField
+              label={t('Recipient phone')}
+              value={recipientPhone}
+              onChange={(e) => setRecipientPhone(e.target.value)}
+            />
+            <TextField label={t('City')} value={city} onChange={(e) => setCity(e.target.value)} />
+            <TextField
+              label={t('District')}
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+            />
+            <div className="md:col-span-2">
+              <TextField
+                label={t('Address')}
+                value={addressLine1}
+                onChange={(e) => setAddressLine1(e.target.value)}
+              />
+            </div>
+          </div>
+        </ClientFormSection>
 
-        <Textarea
-          label={t('Notes')}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={2}
-        />
+        <ClientFormSection title={t('Order details')}>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <TextField
+              label={t('Required ship date')}
+              type="date"
+              required
+              min={localCalendarDateYmd()}
+              value={shipDate}
+              onChange={(e) => setShipDate(e.target.value)}
+            />
+            <TextField
+              label={t('Sales channel')}
+              value={storeChannel}
+              onChange={(e) => setStoreChannel(e.target.value)}
+            />
+            <SelectField
+              label={t('Payment method')}
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              options={[
+                { value: '', label: '—' },
+                { value: 'COD', label: 'COD' },
+                { value: 'PREPAID', label: 'Prepaid' },
+                { value: 'CREDIT', label: 'Credit' },
+              ]}
+            />
+          </div>
+          <Textarea
+            label={t('Notes')}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+          />
+        </ClientFormSection>
 
-        <div className="space-y-2">
-          <div className="text-sm font-medium text-slate-800">{t('Order lines')}</div>
-          {lines.map((line, idx) => {
-            const avail = line.productId ? availabilityByProduct.get(line.productId) : undefined;
-            const summed = line.productId ? requestedByProduct.get(line.productId) ?? 0 : 0;
-            const isShort = avail !== undefined && summed > avail;
-            return (
-              <div key={idx} className="space-y-1">
-                <div className="grid gap-2 md:grid-cols-[1fr_90px_110px_auto]">
-                  <Combobox
-                    label={idx === 0 ? t('Product') : undefined}
-                    value={line.productId}
-                    onChange={(v) =>
-                      setLines((prev) =>
-                        prev.map((row, i) => (i === idx ? { ...row, productId: v } : row)),
-                      )
-                    }
-                    options={productOptions}
-                    placeholder={t('Pick product…')}
-                    clearable={false}
-                    dropdownInFlow
-                  />
-                  <TextField
-                    label={idx === 0 ? t('Qty') : undefined}
-                    value={line.requestedQuantity}
-                    onChange={(e) =>
-                      setLines((prev) =>
-                        prev.map((row, i) =>
-                          i === idx ? { ...row, requestedQuantity: e.target.value } : row,
-                        ),
-                      )
-                    }
-                  />
-                  <TextField
-                    label={idx === 0 ? t('Price') : undefined}
-                    value={line.unitPrice}
-                    onChange={(e) =>
-                      setLines((prev) =>
-                        prev.map((row, i) =>
-                          i === idx ? { ...row, unitPrice: e.target.value } : row,
-                        ),
-                      )
-                    }
-                    required
-                  />
-                  <div className={idx === 0 ? 'pt-6' : 'pt-1'}>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      disabled={lines.length <= 1 || loading}
-                      onClick={() => setLines((prev) => prev.filter((_, i) => i !== idx))}
-                    >
-                      {t('Remove')}
-                    </Button>
+        <ClientFormSection title={t('Products')}>
+          <div className="space-y-2">
+            {lines.map((line, idx) => {
+              const avail = line.productId ? availabilityByProduct.get(line.productId) : undefined;
+              const summed = line.productId ? requestedByProduct.get(line.productId) ?? 0 : 0;
+              const isShort = avail !== undefined && summed > avail;
+              return (
+                <div key={idx} className="space-y-1">
+                  <div className="grid gap-2 md:grid-cols-[1fr_90px_110px_auto]">
+                    <Combobox
+                      label={idx === 0 ? t('Product') : undefined}
+                      value={line.productId}
+                      onChange={(v) =>
+                        setLines((prev) =>
+                          prev.map((row, i) => (i === idx ? { ...row, productId: v } : row)),
+                        )
+                      }
+                      options={productOptions}
+                      placeholder={t('Pick product…')}
+                      clearable={false}
+                      dropdownInFlow
+                    />
+                    <TextField
+                      label={idx === 0 ? t('Qty') : undefined}
+                      value={line.requestedQuantity}
+                      onChange={(e) =>
+                        setLines((prev) =>
+                          prev.map((row, i) =>
+                            i === idx ? { ...row, requestedQuantity: e.target.value } : row,
+                          ),
+                        )
+                      }
+                    />
+                    <TextField
+                      label={idx === 0 ? t('Price') : undefined}
+                      value={line.unitPrice}
+                      onChange={(e) =>
+                        setLines((prev) =>
+                          prev.map((row, i) =>
+                            i === idx ? { ...row, unitPrice: e.target.value } : row,
+                          ),
+                        )
+                      }
+                      required
+                    />
+                    <div className={idx === 0 ? 'pt-6' : 'pt-1'}>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={lines.length <= 1 || loading}
+                        onClick={() => setLines((prev) => prev.filter((_, i) => i !== idx))}
+                      >
+                        {t('Remove')}
+                      </Button>
+                    </div>
                   </div>
+                  {line.productId && avail !== undefined ? (
+                    <div className={`text-xs ${isShort ? 'text-rose-600' : 'text-emerald-700'}`}>
+                      {t('Available')}: {avail.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                      {summed > 0 ? (
+                        <>
+                          {' '}
+                          • {t('Requested across lines')}:{' '}
+                          {summed.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                          {isShort ? ` — ${t('Exceeds available stock')}` : ''}
+                        </>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
-                {line.productId && avail !== undefined ? (
-                  <div className={`text-xs ${isShort ? 'text-rose-600' : 'text-emerald-700'}`}>
-                    {t('Available')}: {avail.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                    {summed > 0 ? (
-                      <>
-                        {' '}
-                        • {t('Requested across lines')}:{' '}
-                        {summed.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                        {isShort ? ` — ${t('Exceeds available stock')}` : ''}
-                      </>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={loading}
-            onClick={() => setLines((prev) => [...prev, emptyLine()])}
-          >
-            {t('+ Add line')}
-          </Button>
-        </div>
+              );
+            })}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={loading}
+              onClick={() => setLines((prev) => [...prev, emptyLine()])}
+            >
+              {t('+ Add line')}
+            </Button>
+          </div>
+        </ClientFormSection>
 
         {shortages.length > 0 ? (
           <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">

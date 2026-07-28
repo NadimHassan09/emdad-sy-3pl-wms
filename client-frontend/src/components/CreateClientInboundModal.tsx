@@ -12,6 +12,7 @@ import {
 } from '../services/clientProductsService';
 import type { CreateClientInboundOrderInput } from '../services/clientInboundOrdersService';
 import { ClientOrderLinesTable } from './ClientOrderLinesTable';
+import { ClientFormSection, ClientWizardSteps } from './ClientWizardSteps';
 
 type DraftLine = { productId: string; expectedQuantity: string };
 
@@ -44,6 +45,8 @@ function label(text: string, isArabic: boolean): string {
     'Current quantity:': 'الكمية الحالية:',
     'Expected arrival date cannot be before today.': 'لا يمكن أن يكون تاريخ الوصول قبل اليوم.',
     'Add at least one line with quantity.': 'أضف بنداً واحداً على الأقل بكمية.',
+    'General information': 'المعلومات العامة',
+    Products: 'المنتجات',
   };
   return ar[text] ?? text;
 }
@@ -191,13 +194,20 @@ export function CreateClientInboundModal({
       }
     >
       <form id="create-client-inbound" onSubmit={submit} className="space-y-3">
+        <ClientWizardSteps
+          current={step}
+          steps={[
+            { id: 1, label: t('General information') },
+            { id: 2, label: t('Products') },
+          ]}
+        />
         {error || submitError ? (
           <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
             {error ?? submitError}
           </p>
         ) : null}
         {step === 1 ? (
-          <div className="space-y-3">
+          <ClientFormSection title={t('General information')}>
             <TextField
               label={t('Expected arrival date')}
               type="date"
@@ -210,9 +220,9 @@ export function CreateClientInboundModal({
               label={t('Notes')}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={4}
+              rows={3}
             />
-          </div>
+          </ClientFormSection>
         ) : (
           <ClientOrderLinesTable
             title={t('Lines')}

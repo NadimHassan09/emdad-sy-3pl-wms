@@ -7,6 +7,7 @@ export interface ClientUser {
   role: ClientPortalRole;
   companyId: string;
   companyName: string;
+  avatarUrl?: string | null;
 }
 
 export interface ClientLoginPayload {
@@ -20,5 +21,6 @@ export interface ClientLoginPayload {
     role: string;
     companyId: string;
     companyName: string | null;
+    avatarUrl?: string | null;
   };
 }

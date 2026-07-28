@@ -1,28 +1,24 @@
-import { useMemo, useState } from 'react';
-import type { ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, Button } from '@ds';
-import type { Column } from '@wms/components/DataTable';
-import { DataTable } from '@wms/components/DataTable';
-import { FILTER_PRIMARY_BUTTON_CLASS, FilterPanel } from '@wms/components/FilterPanel';
-import { SelectField } from '@wms/components/SelectField';
-import { StatusBadge } from '@wms/components/StatusBadge';
-import { TextField } from '@wms/components/TextField';
-import { useFilters } from '@wms/hooks/useFilters';
+import { Alert } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '@wms/hooks/useChunkedServerPagination';
 
 import { CreateClientOutboundModal } from '../components/CreateClientOutboundModal';
+import { Badge } from '../design-v2/Badge';
+import { Card } from '../design-v2/Card';
+import { ListPageHeader } from '../design-v2/ListPageHeader';
+import { TableFooterPagination } from '../design-v2/TableFooterPagination';
+import { useDebouncedValue } from '../design-v2/useDebouncedValue';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import { isClientArabic } from '../lib/client-ui-language';
 import {
   createClientOutboundOrder,
   fetchClientOutboundOrders,
-  type ClientOutboundOrderRow,
 } from '../services/clientOutboundOrdersService';
 
 const OUTBOUND_STATUS_OPTIONS = [
@@ -37,38 +33,25 @@ const OUTBOUND_STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
-type OutboundListDraft = {
-  orderSearch: string;
-  status: string;
-};
-
 function outboundLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
-    'Outbound orders': 'طلبات الصادر',
-    Recipient: 'المستلم',
-    Payment: 'الدفع',
-    'COD status': 'حالة COD',
-    '+ New outbound': '+ صادر جديد',
-    'Waiting for approval': 'بانتظار الموافقة',
-    'Order filters': 'فلاتر الطلبات',
-    'Apply filters': 'تطبيق الفلاتر',
-    'Reset filters': 'إعادة تعيين الفلاتر',
-    'Order #': 'رقم الطلب',
-    'Search order...': 'ابحث عن الطلب...',
-    Status: 'الحالة',
+    'Outbound Orders': 'طلبات الصادر',
+    'Manage and track your outbound orders': 'إدارة وتتبع طلبات الصادر الخاصة بك',
+    'New outbound': 'صادر جديد',
+    'Search order number...': 'ابحث برقم الطلب...',
+    Filters: 'فلاتر',
     'All statuses': 'كل الحالات',
-    'Required ship': 'الشحن المطلوب',
+    'Order #': 'رقم الطلب',
+    Status: 'الحالة',
+    Recipient: 'المستلم',
+    'Required Ship': 'الشحن المطلوب',
     Lines: 'البنود',
     Created: 'تاريخ الإنشاء',
+    Actions: 'الإجراءات',
     'No outbound orders found.': 'لا توجد طلبات صادر.',
     'Could not load outbound orders': 'تعذر تحميل طلبات الصادر',
-    rows: 'صف',
-    results: 'نتيجة',
-    of: 'من',
-    Previous: 'السابق',
-    Next: 'التالي',
-    'Rows per page': 'عدد الصفوف لكل صفحة',
+    Retry: 'إعادة المحاولة',
   };
   return ar[label] ?? label;
 }
@@ -78,9 +61,12 @@ export function OutboundOrdersPage(): ReactElement {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('');
   const isArabic = isClientArabic();
   const t = (label: string) => outboundLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
+  const debouncedSearch = useDebouncedValue(search, 300);
 
   const createMut = useMutation({
     mutationFn: createClientOutboundOrder,
@@ -90,162 +76,159 @@ export function OutboundOrdersPage(): ReactElement {
       setCreateOpen(false);
       navigate(`/outbound-orders/${order.id}`);
     },
-    onError: (err: Error) => {
-      setCreateError(err.message || 'Could not submit order.');
-    },
+    onError: (err: Error) => setCreateError(err.message || 'Could not submit order.'),
   });
 
-  const initialList = useMemo<OutboundListDraft>(
-    () => ({ orderSearch: '', status: '' }),
-    [],
-  );
-
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(initialList);
-
   const filterKey = useMemo(
-    () => ({
-      orderSearch: appliedFilters.orderSearch.trim() || undefined,
-      status: appliedFilters.status.trim() || undefined,
-    }),
-    [appliedFilters],
+    () => ({ orderSearch: debouncedSearch.trim() || undefined, status: status || undefined }),
+    [debouncedSearch, status],
   );
 
-  const pagination = useChunkedServerPagination<ClientOutboundOrderRow>({
+  const pagination = useChunkedServerPagination({
     chunkSize: CHUNK_SIZE_STANDARD,
     filterKey,
-    fetchChunk: (offset, limit) => fetchClientOutboundOrders({ ...filterKey, offset, limit }),
+    fetchChunk: (offset, limit) =>
+      fetchClientOutboundOrders({ ...filterKey, offset, limit }),
     rtQueryKeyPrefix: ['client', 'outbound-orders'],
     chunkQueryKeyPrefix: 'client-outbound-orders-chunk',
   });
 
-  const statusOptions = useMemo(
-    () =>
-      OUTBOUND_STATUS_OPTIONS.map((o) => ({
-        ...o,
-        label: o.value === '' ? t('All statuses') : o.label,
-      })),
-    [isArabic],
-  );
-
-  const columns: Column<ClientOutboundOrderRow>[] = useMemo(
-    () => [
-      {
-        header: t('Order #'),
-        accessor: (o) => <span className="font-mono">{o.orderNumber || '—'}</span>,
-        width: '170px',
-      },
-      {
-        header: t('Status'),
-        accessor: (o) => <StatusBadge status={o.status} />,
-        className: 'w-1 whitespace-nowrap',
-      },
-      {
-        header: t('Recipient'),
-        accessor: (o) => o.recipientName ?? '—',
-        width: '140px',
-      },
-      {
-        header: t('Payment'),
-        accessor: (o) => o.paymentMethod ?? '—',
-        width: '100px',
-      },
-      {
-        header: t('COD status'),
-        accessor: (o) => o.codStatus ?? '—',
-        width: '110px',
-      },
-      {
-        header: t('Required ship'),
-        accessor: (o) => new Date(o.requiredShipDate).toLocaleDateString(),
-        width: '160px',
-      },
-      { header: t('Lines'), accessor: (o) => o._count?.lines ?? 0, width: '70px' },
-      {
-        header: t('Created'),
-        accessor: (o) => new Date(o.createdAt).toLocaleString(),
-      },
-    ],
-    [isArabic],
-  );
-
   return (
-    <>
-      {pagination.isError && (
-        <Alert
-          variant="error"
-          title={t('Could not load outbound orders')}
-          description="Check your connection and try refreshing the page."
-          action={
-            <Alert.Action variant="error" onClick={() => pagination.refetch()}>
-              Retry
-            </Alert.Action>
-          }
-          className="mb-3"
-        />
-      )}
-
-      <FilterPanel
-        title={t('Order filters')}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-        applyLabel={t('Apply filters')}
-        resetLabel={t('Reset filters')}
-      >
-        <TextField
-          label={t('Order #')}
-          value={draftFilters.orderSearch}
-          onChange={(e) => setDraft({ orderSearch: e.target.value })}
-          placeholder={t('Search order...')}
-          className="font-mono text-xs"
-        />
-        <SelectField
-          label={t('Status')}
-          value={draftFilters.status}
-          onChange={(e) => setDraft({ status: e.target.value })}
-          options={statusOptions}
-        />
-      </FilterPanel>
-
-      <DataTable
-        title={t('Outbound orders')}
-        titleAs="h1"
+    <div className="space-y-5 animate-enter">
+      <ListPageHeader
+        icon="fa-arrow-up"
+        title={t('Outbound Orders')}
+        subtitle={t('Manage and track your outbound orders')}
         actions={
-          <Button
-            variant="primary"
-            size="md"
+          <button
+            type="button"
             disabled={!billingAccess.operationalAllowed}
-            title={
-              billingAccess.operationalAllowed
-                ? undefined
-                : billingAccess.actionBlockedReason
-            }
+            title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
             onClick={() => {
               setCreateError(null);
               setCreateOpen(true);
             }}
-            className={FILTER_PRIMARY_BUTTON_CLASS}
+            className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {t('+ New outbound')}
-          </Button>
+            <i className="fa-solid fa-plus text-xs" /> {t('New outbound')}
+          </button>
         }
-        columns={columns}
-        rows={pagination.rows}
-        rowKey={(o) => o.id}
-        loading={pagination.isInitialLoading}
-        onRowClick={(o) => navigate(`/outbound-orders/${o.id}`)}
-        empty={t('No outbound orders found.')}
-        serverPagination={pagination.serverPagination}
-        labels={{
-          rowsSuffix: t('rows'),
-          resultsSuffix: t('results'),
-          ofWord: t('of'),
-          previous: t('Previous'),
-          next: t('Next'),
-          rowsPerPageAria: t('Rows per page'),
-        }}
       />
+
+      {pagination.isError ? (
+        <Alert variant="error" title={t('Could not load outbound orders')}>
+          <Alert.Action variant="error" onClick={() => pagination.refetch()}>
+            {t('Retry')}
+          </Alert.Action>
+        </Alert>
+      ) : null}
+
+      <Card className="p-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1 max-w-sm">
+            <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('Search order number...')}
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm input-premium"
+            />
+          </div>
+          <div className="flex gap-2">
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 input-premium"
+            >
+              {OUTBOUND_STATUS_OPTIONS.map((o) => (
+                <option key={o.value || 'all'} value={o.value}>
+                  {o.value === '' ? t('All statuses') : o.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2"
+            >
+              <i className="fa-solid fa-filter text-xs" /> {t('Filters')}
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
+              <tr>
+                <th className="px-5 py-3 text-left w-10">
+                  <input type="checkbox" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                </th>
+                <th className="px-5 py-3 text-left">{t('Order #')}</th>
+                <th className="px-5 py-3 text-left">{t('Status')}</th>
+                <th className="px-5 py-3 text-left">{t('Recipient')}</th>
+                <th className="px-5 py-3 text-left">{t('Required Ship')}</th>
+                <th className="px-5 py-3 text-left">{t('Lines')}</th>
+                <th className="px-5 py-3 text-right">{t('Created')}</th>
+                <th className="px-5 py-3 text-right">{t('Actions')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {pagination.isInitialLoading ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-10 text-center text-slate-400 text-sm">
+                    …
+                  </td>
+                </tr>
+              ) : pagination.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-10 text-center text-slate-400 text-sm">
+                    {t('No outbound orders found.')}
+                  </td>
+                </tr>
+              ) : (
+                pagination.rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    onClick={() => navigate(`/outbound-orders/${row.id}`)}
+                    className="hover:bg-slate-50/60 transition-colors group cursor-pointer"
+                  >
+                    <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
+                      <input type="checkbox" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+                    </td>
+                    <td className="px-5 py-3.5 font-semibold text-slate-900 font-mono">
+                      {row.orderNumber || '—'}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <Badge status={row.status} />
+                    </td>
+                    <td className="px-5 py-3.5 text-slate-600">{row.recipientName || '—'}</td>
+                    <td className="px-5 py-3.5 text-slate-600">
+                      {row.requiredShipDate
+                        ? new Date(row.requiredShipDate).toLocaleDateString()
+                        : '—'}
+                    </td>
+                    <td className="px-5 py-3.5 text-slate-600">{row._count?.lines ?? 0}</td>
+                    <td className="px-5 py-3.5 text-right text-slate-500 text-xs">
+                      {new Date(row.createdAt).toLocaleString()}
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        type="button"
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-8 h-8 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors inline-flex items-center justify-center"
+                      >
+                        <i className="fa-solid fa-ellipsis" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <TableFooterPagination pagination={pagination.serverPagination} isArabic={isArabic} />
+      </Card>
 
       <CreateClientOutboundModal
         open={createOpen}
@@ -258,6 +241,6 @@ export function OutboundOrdersPage(): ReactElement {
         }}
         isArabic={isArabic}
       />
-    </>
+    </div>
   );
 }

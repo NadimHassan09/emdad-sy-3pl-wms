@@ -1,23 +1,20 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
-import type { Column } from '@wms/components/DataTable';
-import { DataTable } from '@wms/components/DataTable';
-import { FilterPanel } from '@wms/components/FilterPanel';
-import { SelectField } from '@wms/components/SelectField';
-import { TextField } from '@wms/components/TextField';
-import { useFilters } from '@wms/hooks/useFilters';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '@wms/hooks/useChunkedServerPagination';
 
+import { Badge } from '../design-v2/Badge';
+import { Card } from '../design-v2/Card';
+import { ListPageHeader } from '../design-v2/ListPageHeader';
+import { StorePillTabs } from '../design-v2/StorePillTabs';
+import { TableFooterPagination } from '../design-v2/TableFooterPagination';
 import { isClientArabic } from '../lib/client-ui-language';
-import {
-  fetchClientCodReport,
-  type ClientCodReportRow,
-} from '../services/clientOmsOrdersService';
+import { fetchClientCodReport, type ClientCodReportRow } from '../services/clientOmsOrdersService';
 
 const COD_STATUS_OPTIONS = [
   { value: '', label: 'All COD statuses' },
@@ -27,52 +24,51 @@ const COD_STATUS_OPTIONS = [
   { value: 'settled', label: 'Settled' },
 ];
 
-type CodDraft = {
-  codStatus: string;
-  dateFrom: string;
-  dateTo: string;
-};
-
 function labelText(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
-    'COD reports': 'تقارير COD',
-    'Report filters': 'فلاتر التقرير',
-    'Apply filters': 'تطبيق الفلاتر',
-    'Reset filters': 'إعادة تعيين الفلاتر',
-    'COD status': 'حالة COD',
+    'Cash on delivery': 'الدفع عند الاستلام',
+    'Online, COD, and returns': 'الإلكترونية، الدفع عند الاستلام، والمرتجعات',
+    'COD orders': 'طلبات الدفع عند الاستلام',
+    'Total COD amount': 'إجمالي مبالغ التحصيل',
+    'Matching filters': 'مطابق للفلاتر',
+    'All COD statuses': 'كل حالات التحصيل',
     'From date': 'من تاريخ',
     'To date': 'إلى تاريخ',
     'Order #': 'رقم الطلب',
     Recipient: 'المستلم',
-    'COD amount': 'مبلغ COD',
+    'COD amount': 'المبلغ',
+    'COD status': 'الحالة',
     Created: 'تاريخ الإنشاء',
-    'No COD orders found.': 'لا توجد بيانات COD.',
-    rows: 'صف',
-    results: 'نتيجة',
-    of: 'من',
-    Previous: 'السابق',
-    Next: 'التالي',
-    'Rows per page': 'عدد الصفوف لكل صفحة',
+    'No cash-on-delivery orders': 'لا توجد طلبات دفع عند الاستلام',
+    'COD orders will appear here once they are processed.': 'ستظهر طلبات الدفع عند الاستلام هنا عند معالجتها.',
   };
   return ar[label] ?? label;
 }
 
 export function CodReportsPage(): ReactElement {
+  const navigate = useNavigate();
   const isArabic = isClientArabic();
   const t = (label: string) => labelText(label, isArabic);
-  const initial = useMemo<CodDraft>(() => ({ codStatus: '', dateFrom: '', dateTo: '' }), []);
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(initial);
+
+  const [codStatus, setCodStatus] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const filterKey = useMemo(
     () => ({
-      codStatus: appliedFilters.codStatus.trim() || undefined,
-      dateFrom: appliedFilters.dateFrom.trim() || undefined,
-      dateTo: appliedFilters.dateTo.trim() || undefined,
+      codStatus: codStatus || undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
     }),
-    [appliedFilters],
+    [codStatus, dateFrom, dateTo],
   );
+
+  const summaryQuery = useQuery({
+    queryKey: ['client', 'cod-report', 'summary', filterKey],
+    queryFn: () => fetchClientCodReport({ ...filterKey, offset: 0, limit: 1 }),
+    select: (page) => page.summary,
+  });
 
   const pagination = useChunkedServerPagination<ClientCodReportRow>({
     chunkSize: CHUNK_SIZE_STANDARD,
@@ -82,85 +78,124 @@ export function CodReportsPage(): ReactElement {
     chunkQueryKeyPrefix: 'client-cod-report-chunk',
   });
 
-  const columns: Column<ClientCodReportRow>[] = useMemo(
-    () => [
-      {
-        header: t('Order #'),
-        accessor: (row) => (
-          <Link to={`/outbound-orders/${row.id}`} style={{ textDecoration: 'none' }}>
-            {row.orderNumber}
-          </Link>
-        ),
-      },
-      {
-        header: t('Recipient'),
-        accessor: (row) => row.recipientName ?? '—',
-      },
-      {
-        header: t('COD amount'),
-        accessor: (row) => row.codAmount ?? '—',
-        className: 'num',
-      },
-      {
-        header: t('COD status'),
-        accessor: (row) => row.codStatus ?? '—',
-      },
-      {
-        header: t('Created'),
-        accessor: (row) => new Date(row.createdAt).toLocaleDateString(),
-      },
-    ],
-    [isArabic],
-  );
+  const summary = summaryQuery.data;
+  const currencyHint = pagination.rows.find((r) => r.currency)?.currency;
 
   return (
-    <main className="main">
-      <FilterPanel
-        title={t('Report filters')}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-        applyLabel={t('Apply filters')}
-        resetLabel={t('Reset filters')}
-      >
-        <SelectField
-          label={t('COD status')}
-          value={draftFilters.codStatus}
-          onChange={(e) => setDraft({ codStatus: e.target.value })}
-          options={COD_STATUS_OPTIONS}
-        />
-        <TextField
-          label={t('From date')}
-          type="date"
-          value={draftFilters.dateFrom}
-          onChange={(e) => setDraft({ dateFrom: e.target.value })}
-        />
-        <TextField
-          label={t('To date')}
-          type="date"
-          value={draftFilters.dateTo}
-          onChange={(e) => setDraft({ dateTo: e.target.value })}
-        />
-      </FilterPanel>
-
-      <DataTable
-        title={t('COD reports')}
-        titleAs="h1"
-        columns={columns}
-        rows={pagination.rows}
-        rowKey={(row) => row.id}
-        loading={pagination.isInitialLoading}
-        empty={t('No COD orders found.')}
-        serverPagination={pagination.serverPagination}
-        labels={{
-          rowsSuffix: t('rows'),
-          resultsSuffix: t('results'),
-          ofWord: t('of'),
-          previous: t('Previous'),
-          next: t('Next'),
-          rowsPerPageAria: t('Rows per page'),
-        }}
+    <div className="space-y-5 animate-enter">
+      <ListPageHeader
+        icon="fa-money-bill"
+        title={t('Cash on delivery')}
+        subtitle={t('Online, COD, and returns')}
       />
-    </main>
+
+      <StorePillTabs isArabic={isArabic} />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Card className="p-6" hover>
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-500 mb-4">
+            <div className="w-6 h-6 rounded-md bg-emerald-50 flex items-center justify-center">
+              <i className="fa-solid fa-boxes-packing text-emerald-600 text-xs" />
+            </div>
+            {t('COD orders')}
+          </div>
+          <div className="text-3xl font-bold text-slate-900">{summaryQuery.isPending ? '—' : (summary?.orderCount ?? 0)}</div>
+          <div className="text-xs text-slate-500 mt-1">{t('Matching filters')}</div>
+        </Card>
+        <Card className="p-6" hover>
+          <div className="flex items-center gap-2 text-sm font-medium text-slate-500 mb-4">
+            <div className="w-6 h-6 rounded-md bg-amber-50 flex items-center justify-center">
+              <i className="fa-solid fa-money-bill-wave text-amber-600 text-xs" />
+            </div>
+            {t('Total COD amount')}
+          </div>
+          <div className="text-3xl font-bold text-slate-900">
+            {summaryQuery.isPending
+              ? '—'
+              : summary?.totalCodAmount != null
+                ? `${summary.totalCodAmount}${currencyHint ? ` ${currencyHint}` : ''}`
+                : '—'}
+          </div>
+        </Card>
+      </div>
+
+      <Card className="p-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <select
+            value={codStatus}
+            onChange={(e) => setCodStatus(e.target.value)}
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 input-premium"
+          >
+            {COD_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.value === '' ? t('All COD statuses') : o.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            title={t('From date')}
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 input-premium"
+          />
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            title={t('To date')}
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 input-premium"
+          />
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
+        {pagination.isInitialLoading ? (
+          <div className="px-5 py-10 text-center text-slate-400 text-sm">…</div>
+        ) : pagination.rows.length === 0 ? (
+          <div className="py-20 flex flex-col items-center justify-center text-center px-6">
+            <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
+              <i className="fa-solid fa-money-bill text-2xl text-slate-300" />
+            </div>
+            <h3 className="text-base font-semibold text-slate-900">{t('No cash-on-delivery orders')}</h3>
+            <p className="text-sm text-slate-500 mt-1 max-w-xs">{t('COD orders will appear here once they are processed.')}</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
+                  <tr>
+                    <th className="px-5 py-3 text-left">{t('Order #')}</th>
+                    <th className="px-5 py-3 text-left">{t('Recipient')}</th>
+                    <th className="px-5 py-3 text-left">{t('COD amount')}</th>
+                    <th className="px-5 py-3 text-left">{t('COD status')}</th>
+                    <th className="px-5 py-3 text-right">{t('Created')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pagination.rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={() => navigate(`/ecommerce-orders/${row.id}`)}
+                      className="hover:bg-slate-50/60 transition-colors cursor-pointer"
+                    >
+                      <td className="px-5 py-3.5 font-semibold text-slate-900 font-mono">{row.orderNumber}</td>
+                      <td className="px-5 py-3.5 text-slate-600">{row.recipientName ?? '—'}</td>
+                      <td className="px-5 py-3.5 font-medium text-slate-900">
+                        {row.codAmount != null ? `${row.codAmount}${row.currency ? ` ${row.currency}` : ''}` : '—'}
+                      </td>
+                      <td className="px-5 py-3.5">{row.codStatus ? <Badge status={row.codStatus} /> : '—'}</td>
+                      <td className="px-5 py-3.5 text-right text-slate-500 text-xs">{new Date(row.createdAt).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <TableFooterPagination pagination={pagination.serverPagination} isArabic={isArabic} />
+          </>
+        )}
+      </Card>
+    </div>
   );
 }

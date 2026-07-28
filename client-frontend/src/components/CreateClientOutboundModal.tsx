@@ -13,6 +13,7 @@ import {
 } from '../services/clientProductsService';
 import type { CreateClientOutboundOrderInput } from '../services/clientOutboundOrdersService';
 import { ClientOrderLinesTable } from './ClientOrderLinesTable';
+import { ClientFormSection, ClientWizardSteps } from './ClientWizardSteps';
 
 type DraftLine = { productId: string; requestedQuantity: string };
 
@@ -55,6 +56,8 @@ function label(text: string, isArabic: boolean): string {
     requested: 'مطلوب',
     available: 'متاح',
     'Insufficient stock for one or more products.': 'مخزون غير كافٍ لمنتج واحد أو أكثر.',
+    'Shipping information': 'معلومات الشحن',
+    Products: 'المنتجات',
   };
   return ar[text] ?? text;
 }
@@ -263,14 +266,21 @@ export function CreateClientOutboundModal({
         )
       }
     >
-      <form id="create-client-outbound" onSubmit={submit} className="space-y-4">
+      <form id="create-client-outbound" onSubmit={submit} className="space-y-3">
+        <ClientWizardSteps
+          current={step}
+          steps={[
+            { id: 1, label: t('Shipping information') },
+            { id: 2, label: t('Products') },
+          ]}
+        />
         {error || submitError ? (
           <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
             {error ?? submitError}
           </p>
         ) : null}
         {step === 1 ? (
-          <div className="space-y-4">
+          <ClientFormSection title={t('Shipping information')}>
             <TextField
               label={t('Destination')}
               required
@@ -298,7 +308,7 @@ export function CreateClientOutboundModal({
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
             />
-          </div>
+          </ClientFormSection>
         ) : (
           <ClientOrderLinesTable
             title={t('Lines')}

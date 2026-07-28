@@ -11,7 +11,11 @@ export interface ClientProductRow {
   uom: string;
   status: 'active' | 'suspended' | 'archived';
   expiryTracking?: boolean;
+  minStockThreshold?: string | number | null;
   totalOnHand?: string;
+  totalReserved?: string;
+  imageUrl?: string | null;
+  imagePath?: string | null;
 }
 
 export interface ClientProductDetail {
@@ -31,7 +35,6 @@ export interface ClientProductDetail {
   heightCm: string | null;
   weightKg: string | null;
   volumeCbm: string | null;
-  /** Read-only warehouse issuance method (FEFO when expiry tracking is on, else FIFO). */
   inventoryMethod: 'FIFO' | 'FEFO' | 'LIFO';
   createdBy: string | null;
   createdAt: string;
@@ -42,6 +45,8 @@ export interface ClientProductDetail {
   totalInboundQuantity: string;
   totalOutboundQuantity: string;
   earliestExpiryDate: string | null;
+  imageUrl?: string | null;
+  imagePath?: string | null;
 }
 
 export interface ClientProductsPage {
@@ -81,4 +86,21 @@ export async function fetchClientProduct(id: string): Promise<ClientProductDetai
 export async function createClientProduct(input: CreateClientProductInput): Promise<ClientProductRow> {
   const { data } = await apiClient.post<ClientProductRow>('/products', input);
   return data;
+}
+
+export async function uploadClientProductImage(
+  productId: string,
+  file: File,
+): Promise<{ imageUrl: string; byteSize: number }> {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await apiClient.post<{ imageUrl: string; byteSize: number }>(
+    `/products/${productId}/image`,
+    form,
+  );
+  return data;
+}
+
+export async function deleteClientProductImage(productId: string): Promise<void> {
+  await apiClient.delete(`/products/${productId}/image`);
 }

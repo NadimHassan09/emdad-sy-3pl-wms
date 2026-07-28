@@ -50,7 +50,10 @@ export interface ClientOmsOrderListItem {
   companyId: string;
   company?: { id: string; name: string } | null;
   recipientName?: string | null;
+  city?: string | null;
   storeChannel?: string | null;
+  paymentMethod?: string | null;
+  carrier?: string | null;
   total?: string | null;
   currency?: string | null;
   outboundOrderId?: string | null;

@@ -1,6 +1,6 @@
 import { lazy, type ReactElement } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
 
 import { AuthProvider } from './auth/AuthContext';
 import { RequireAuth } from './auth/RequireAuth';
@@ -35,17 +35,24 @@ const CodReportsPage          = lazyPage(() => import('./pages/CodReportsPage'),
 const ReturnsPage             = lazyPage(() => import('./pages/ReturnsPage'),             'ReturnsPage');
 const ReturnDetailPage        = lazyPage(() => import('./pages/ReturnDetailPage'),        'ReturnDetailPage');
 const ProductsPage          = lazyPage(() => import('./pages/ProductsPage'),          'ProductsPage');
-const ProductDetailPage     = lazyPage(() => import('./pages/ProductDetailPage'),     'ProductDetailPage');
 const DashboardPage         = lazyPage(() => import('./pages/DashboardPage'),         'DashboardPage');
 const BillingPage           = lazyPage(() => import('./pages/BillingPage'),           'BillingPage');
+const InvoicesPage          = lazyPage(() => import('./pages/InvoicesPage'),          'InvoicesPage');
 const BillingInvoiceDetailPage = lazyPage(() => import('./pages/BillingInvoiceDetailPage'), 'BillingInvoiceDetailPage');
 const NotificationsPage       = lazyPage(() => import('./pages/NotificationsPage'),       'NotificationsPage');
+const ProfilePage             = lazyPage(() => import('./pages/ProfilePage'),             'ProfilePage');
+const NotFoundPage            = lazyPage(() => import('./pages/NotFoundPage'),            'NotFoundPage');
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: false, refetchOnWindowFocus: true },
   },
 });
+
+function LegacyBillingInvoiceRedirect(): ReactElement {
+  const { id = '' } = useParams<{ id: string }>();
+  return <Navigate to={`/invoices/${id}`} replace />;
+}
 
 function AppRoutes(): ReactElement {
   const navigate = useNavigate();
@@ -81,11 +88,7 @@ function AppRoutes(): ReactElement {
             />
             <Route
               path="products/:id"
-              element={
-                <RequireRouteAccess>
-                  <ProductDetailPage />
-                </RequireRouteAccess>
-              }
+              element={<Navigate to="/products" replace />}
             />
             <Route
               path="inbound-orders"
@@ -136,13 +139,14 @@ function AppRoutes(): ReactElement {
               }
             />
             <Route
-              path="cod-reports"
+              path="my-profits"
               element={
                 <RequireRouteAccess>
                   <CodReportsPage />
                 </RequireRouteAccess>
               }
             />
+            <Route path="cod-reports" element={<Navigate to="/my-profits" replace />} />
             <Route
               path="returns"
               element={
@@ -168,12 +172,24 @@ function AppRoutes(): ReactElement {
               }
             />
             <Route
-              path="billing/invoices/:id"
+              path="invoices"
+              element={
+                <RequireRouteAccess>
+                  <InvoicesPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="invoices/:id"
               element={
                 <RequireRouteAccess>
                   <BillingInvoiceDetailPage />
                 </RequireRouteAccess>
               }
+            />
+            <Route
+              path="billing/invoices/:id"
+              element={<LegacyBillingInvoiceRedirect />}
             />
             <Route
               path="notifications"
@@ -183,8 +199,17 @@ function AppRoutes(): ReactElement {
                 </RequireRouteAccess>
               }
             />
+            <Route
+              path="profile"
+              element={
+                <RequireRouteAccess>
+                  <ProfilePage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </RealtimeProvider>
     </AuthProvider>
