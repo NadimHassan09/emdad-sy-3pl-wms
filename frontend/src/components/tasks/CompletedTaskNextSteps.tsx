@@ -4,36 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { WorkflowsApi, type WorkflowTimelineTask } from '../../api/workflows';
 import { QK } from '../../constants/query-keys';
 import { useWmsTranslation } from '../../lib/ui-i18n';
+import {
+  findNextTaskAfterCurrent,
+  prettyWorkflowTaskType,
+  taskDetailHref,
+} from '../../lib/workflow-next-task';
 import { Button } from '../Button';
-
-function taskSequence(referenceType: 'inbound_order' | 'outbound_order') {
-  return referenceType === 'inbound_order'
-    ? ['receiving', 'qc', 'putaway', 'putaway_quarantine', 'routing', 'dispatch']
-    : ['pick', 'pack', 'dispatch', 'routing'];
-}
-
-function prettyTaskType(taskType: string, t: (m: [string, string]) => string): string {
-  switch (taskType) {
-    case 'receiving':
-      return t(['Receiving', 'استلام']);
-    case 'qc':
-      return t(['Quality check', 'فحص الجودة']);
-    case 'putaway':
-      return t(['Putaway', 'تخزين']);
-    case 'putaway_quarantine':
-      return t(['Putaway (quarantine)', 'تخزين (حجر صحي)']);
-    case 'pick':
-      return t(['Pick', 'التقاط']);
-    case 'pack':
-      return t(['Pack', 'تغليف']);
-    case 'dispatch':
-      return t(['Delivery', 'تسليم']);
-    case 'routing':
-      return t(['Routing', 'توجيه']);
-    default:
-      return taskType.replace(/_/g, ' ');
-  }
-}
 
 function ArrowRightIcon() {
   return (
@@ -71,31 +47,27 @@ export function CompletedTaskNextSteps({
   });
 
   const tasks = timeline.data?.tasks ?? [];
-  const seq = taskSequence(referenceType);
-  const ordered = [...tasks].sort((a, b) => {
-    const ai = seq.indexOf(a.taskType);
-    const bi = seq.indexOf(b.taskType);
-    const ax = ai >= 0 ? ai : Number.MAX_SAFE_INTEGER;
-    const bx = bi >= 0 ? bi : Number.MAX_SAFE_INTEGER;
-    return ax - bx;
-  });
-
   // Next step belongs to THIS order only: the step that follows the current task in
   // workflow order, regardless of its status. When the current task is the last step in
   // the workflow there is no next task (button hidden).
-  const currentIdx = ordered.findIndex((x) => x.id === currentTaskId);
-  const nextTask: WorkflowTimelineTask | undefined =
-    currentIdx >= 0 ? ordered[currentIdx + 1] : undefined;
-
-  const taskHref = (taskId: string) =>
-    companyIdOverride
-      ? `/tasks/${taskId}?companyId=${encodeURIComponent(companyIdOverride)}`
-      : `/tasks/${taskId}`;
+  const nextTask: WorkflowTimelineTask | undefined = findNextTaskAfterCurrent(
+    tasks,
+    referenceType,
+    currentTaskId,
+  );
 
   const orderHref =
     referenceType === 'inbound_order'
       ? `/orders/inbound/${referenceId}`
       : `/orders/outbound/${referenceId}`;
+
+  const pipelineHint =
+    referenceType === 'inbound_order' && nextTask?.taskType === 'qc'
+      ? t([
+          'Typical inbound path after receive: Quality check → Putaway.',
+          'المسار المعتاد بعد الاستلام: فحص الجودة ← التخزين.',
+        ])
+      : null;
 
   return (
     <section className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-4">
@@ -119,13 +91,18 @@ export function CompletedTaskNextSteps({
               'كانت هذه الخطوة الأخيرة — اكتمل سير عمل الطلب.',
             ])}
       </p>
+      {pipelineHint ? <p className="mt-1 text-xs text-emerald-800/80">{pipelineHint}</p> : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-2.5">
         {nextTask ? (
-          <Button type="button" className={BTN_LG} onClick={() => navigate(taskHref(nextTask.id))}>
+          <Button
+            type="button"
+            className={BTN_LG}
+            onClick={() => navigate(taskDetailHref(nextTask.id, companyIdOverride))}
+          >
             {t([
-              `Next task: ${prettyTaskType(nextTask.taskType, t)}`,
-              `المهمة التالية: ${prettyTaskType(nextTask.taskType, t)}`,
+              `Next task: ${prettyWorkflowTaskType(nextTask.taskType, t)}`,
+              `المهمة التالية: ${prettyWorkflowTaskType(nextTask.taskType, t)}`,
             ])}
             <ArrowRightIcon />
           </Button>

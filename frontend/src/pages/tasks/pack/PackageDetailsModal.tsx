@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { OutboundOrderLine } from '../../../api/outbound';
-import { BarcodeScanIcon } from '../../../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../../../components/BarcodeScanModal';
 import { Button } from '../../../components/Button';
 import { Column, DataTable } from '../../../components/DataTable';
 import { Modal } from '../../../components/Modal';
 import { TextField } from '../../../components/TextField';
+import { WedgeScanField } from '../../../components/WedgeScanField';
 import { useToast } from '../../../components/ToastProvider';
 import { useWmsTranslation } from '../../../lib/ui-i18n';
 import { localizedPackageTypeOptions } from '../../../lib/ui-labels/task-execution';
@@ -57,6 +57,7 @@ export function PackageDetailsModal({
   const toast = useToast();
   const packageTypeOptions = localizedPackageTypeOptions(t);
   const [productFilter, setProductFilter] = useState('');
+  const [wedgeScan, setWedgeScan] = useState('');
   const [scanOpen, setScanOpen] = useState(false);
   const [qtyByLineId, setQtyByLineId] = useState<Record<string, string>>({});
 
@@ -82,6 +83,7 @@ export function PackageDetailsModal({
   useEffect(() => {
     if (!open) {
       setProductFilter('');
+      setWedgeScan('');
       setQtyByLineId({});
     }
   }, [open]);
@@ -101,17 +103,26 @@ export function PackageDetailsModal({
     })
     .filter((r): r is NonNullable<typeof r> => r != null);
 
-  function handleScan(code: string) {
+  function handleGunScan(code: string) {
     const trimmed = code.trim();
-    if (!trimmed) return;
+    if (!trimmed || disabled) return;
     const lineId = findLineByProductScan(trimmed, lineIds, lineMeta);
-    if (lineId) {
-      const ol = lineMeta.get(lineId);
-      setProductFilter(ol?.product?.sku ?? trimmed);
-    } else {
-      setProductFilter(trimmed);
-    }
+    setWedgeScan('');
     setScanOpen(false);
+    if (!lineId) {
+      toast.error(t(['No matching product on this pack task.', 'لا منتج مطابق على مهمة التغليف هذه.']));
+      setProductFilter(trimmed);
+      return;
+    }
+    const line = lineById.get(lineId);
+    if (!line) return;
+    const remaining = remainingPackableQty(line, packages);
+    if (remaining <= 0) {
+      toast.error(t(['No remaining quantity to pack for this product.', 'لا كمية متبقية لتغليف هذا المنتج.']));
+      setProductFilter(lineMeta.get(lineId)?.product?.sku ?? trimmed);
+      return;
+    }
+    onAddLine(currentPkg.id, lineId, remaining);
   }
 
   function handleAddRow(lineId: string) {
@@ -321,34 +332,36 @@ export function PackageDetailsModal({
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               {t(['Add products', 'إضافة منتجات'])}
             </p>
+            {!disabled ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+                <WedgeScanField
+                  label={t(['Scan to pack', 'امسح للتغليف'])}
+                  value={wedgeScan}
+                  onChange={setWedgeScan}
+                  onScan={handleGunScan}
+                  onCameraClick={() => setScanOpen(true)}
+                  placeholder={t(['SKU or barcode + Enter', 'SKU أو باركود ثم Enter'])}
+                  scanTitle={t(['Scan with camera', 'مسح بالكاميرا'])}
+                  scanAriaLabel={t(['Scan product with camera', 'مسح المنتج بالكاميرا'])}
+                  hint={t([
+                    'Gun scan adds the remaining packable quantity for the matched product.',
+                    'مسح الماسح يضيف الكمية المتبقية القابلة للتغليف للمنتج المطابق.',
+                  ])}
+                  disabled={disabled}
+                />
+              </div>
+            ) : null}
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
               <div className="min-w-0 flex-1">
-                <span className="text-sm font-medium text-slate-700">{t(['Product', 'المنتج'])}</span>
-                <div className="mt-1 flex gap-2">
-                  <div className="min-w-0 flex-1">
-                    <TextField
-                      name="packAddProductFilter"
-                      value={productFilter}
-                      onChange={(e) => setProductFilter(e.target.value)}
-                      placeholder={t(['SKU, product name, or Barcode', 'SKU أو اسم المنتج أو Barcode'])}
-                      className="!mt-0 w-full"
-                      aria-label={t(['Filter products', 'تصفية المنتجات'])}
-                      disabled={disabled}
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="md"
-                    className="mt-0 shrink-0 px-2.5"
-                    disabled={disabled}
-                    onClick={() => setScanOpen(true)}
-                    aria-label={t(['Scan product', 'مسح المنتج'])}
-                    title={t(['Scan product Barcode', 'مسح Barcode المنتج'])}
-                  >
-                    <BarcodeScanIcon className="h-5 w-5" />
-                  </Button>
-                </div>
+                <TextField
+                  label={t(['Filter products', 'تصفية المنتجات'])}
+                  name="packAddProductFilter"
+                  value={productFilter}
+                  onChange={(e) => setProductFilter(e.target.value)}
+                  placeholder={t(['SKU, product name, or Barcode', 'SKU أو اسم المنتج أو Barcode'])}
+                  aria-label={t(['Filter products', 'تصفية المنتجات'])}
+                  disabled={disabled}
+                />
               </div>
             </div>
             <DataTable
@@ -361,7 +374,7 @@ export function PackageDetailsModal({
         </div>
       </Modal>
 
-      <BarcodeScanModal open={scanOpen} onClose={() => setScanOpen(false)} onScan={handleScan} />
+      <BarcodeScanModal open={scanOpen} onClose={() => setScanOpen(false)} onScan={handleGunScan} />
     </>
   );
 }

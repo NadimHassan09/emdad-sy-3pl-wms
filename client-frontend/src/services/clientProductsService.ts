@@ -14,6 +14,7 @@ export interface ClientProductRow {
   minStockThreshold?: string | number | null;
   totalOnHand?: string;
   totalReserved?: string;
+  totalAvailable?: string;
   imageUrl?: string | null;
   imagePath?: string | null;
 }

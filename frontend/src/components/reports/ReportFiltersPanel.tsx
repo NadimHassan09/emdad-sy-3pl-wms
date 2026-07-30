@@ -16,7 +16,7 @@ const TASK_TYPE_OPTIONS = [
   { value: 'putaway', label: 'Putaway', labelAr: 'تخزين' },
   { value: 'pick', label: 'Pick', labelAr: 'التقاط' },
   { value: 'pack', label: 'Pack', labelAr: 'تغليف' },
-  { value: 'dispatch', label: 'Delivery', labelAr: 'تسليم' },
+  { value: 'dispatch', label: 'Dispatch', labelAr: 'إرسال' },
   { value: 'routing', label: 'Routing', labelAr: 'توجيه' },
 ];
 

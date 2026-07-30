@@ -45,6 +45,7 @@ const OMS_SECTION: SectionSubNavConfig = {
   ariaLabelAr: 'تنقل طلبات المتجر',
   matchSection: (p) =>
     (p.startsWith('/ecommerce-orders') ||
+      p.startsWith('/my-profits') ||
       p.startsWith('/cod-reports') ||
       p.startsWith('/returns')) &&
     !isOrdersDetailPath(p),
@@ -58,8 +59,8 @@ const OMS_SECTION: SectionSubNavConfig = {
     {
       labelKey: 'Cash on delivery',
       labelAr: 'الدفع عند الاستلام',
-      to: '/cod-reports',
-      match: (p) => p.startsWith('/cod-reports'),
+      to: '/my-profits',
+      match: (p) => p.startsWith('/my-profits') || p.startsWith('/cod-reports'),
     },
     {
       labelKey: 'Returns',

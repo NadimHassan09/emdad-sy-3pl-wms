@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { OutboundApi, OutboundOrderLine, type ConfirmOutboundBody } from '../api/outbound';
 import { OmsApi } from '../api/oms';
+import { WorkflowsApi } from '../api/workflows';
 import { Button } from '@ds';
 
 import { useAuth } from '../auth/AuthContext';
@@ -16,12 +17,14 @@ import { Combobox } from '../components/Combobox';
 import { FILTER_APPLY_BUTTON_CLASS, FILTER_RESET_BUTTON_CLASS, FilterPanel } from '../components/FilterPanel';
 import { StatusBadge } from '../components/StatusBadge';
 import { useToast } from '../components/ToastProvider';
+import { OrderNextTaskHandoff } from '../components/tasks/OrderNextTaskHandoff';
 import { WorkflowOrderTimeline } from '../components/WorkflowOrderTimeline';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useTaskOnlyMode } from '../hooks/useTaskOnlyMode';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
 import { canAccessInternalTransfer } from '../lib/rbac';
+import { findNextRunnableTask, taskDetailHref } from '../lib/workflow-next-task';
 
 const fmtQty = (s: string) => Number(s).toLocaleString(undefined, { maximumFractionDigits: 4 });
 function outboundDetailLabel(label: string, isArabic: boolean): string {
@@ -100,7 +103,7 @@ export function OutboundDetailPage() {
 
   const confirmMut = useMutation({
     mutationFn: (body: ConfirmOutboundBody) => OutboundApi.confirm(id, body, order.data?.companyId),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success(
         taskOnlyMode
           ? 'Order confirmed — picking workflow started.'
@@ -115,6 +118,18 @@ export function OutboundDetailPage() {
         qc.invalidateQueries({ queryKey: QK.ledger });
       }
       qc.invalidateQueries({ queryKey: QK.workflows.timeline('outbound_order', id) });
+      if (!taskOnlyMode) return;
+      try {
+        const companyId = order.data?.companyId;
+        const timeline = await WorkflowsApi.getTimeline('outbound_order', id, companyId);
+        await qc.invalidateQueries({ queryKey: QK.workflows.workflowTimelineByRef(id) });
+        const next = findNextRunnableTask(timeline.tasks ?? [], 'outbound_order');
+        if (next) {
+          navigate(taskDetailHref(next.id, companyId));
+        }
+      } catch {
+        /* CTA on page covers handoff if auto-nav fails */
+      }
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -291,6 +306,13 @@ export function OutboundDetailPage() {
           ) : null}
         </div>
       ) : null}
+
+      <OrderNextTaskHandoff
+        referenceType="outbound_order"
+        referenceId={id}
+        companyIdOverride={o.companyId}
+        enabled={!!id && o.status !== 'draft' && o.status !== 'pending_approval' && o.status !== 'cancelled'}
+      />
 
       <WorkflowOrderTimeline
         referenceType="outbound_order"

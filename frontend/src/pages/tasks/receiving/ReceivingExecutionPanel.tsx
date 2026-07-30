@@ -15,8 +15,10 @@ import {
 } from '../../../lib/ui-labels/task-execution';
 import { ProductsApi } from '../../../api/products';
 import { AnchoredDropdown } from '../../../components/AnchoredDropdown';
+import { BarcodeScanModal } from '../../../components/BarcodeScanModal';
 import { Button } from '../../../components/Button';
 import { TaskLinesFilterCard } from '../../../components/tasks/TaskLinesFilterCard';
+import { WedgeScanField } from '../../../components/WedgeScanField';
 import { useToast } from '../../../components/ToastProvider';
 import { QK } from '../../../constants/query-keys';
 import { useResolvedLocations } from '../../../hooks/useResolvedLocations';
@@ -360,11 +362,64 @@ export function ReceivingExecutionPanel({
     companyIdOverride,
   });
 
+  const [wedgeScan, setWedgeScan] = useState('');
+  const [cameraOpen, setCameraOpen] = useState(false);
+
   function patchLine(lid: string, patch: Partial<LineReceiveDraft>) {
     setLineDrafts((prev) => ({
       ...prev,
       [lid]: { ...(prev[lid] ?? emptyLineDraft()), ...patch },
     }));
+  }
+
+  function receiveExpectedForLine(lid: string) {
+    const line = lines.find((l) => l.inbound_order_line_id === lid);
+    if (!line) return;
+    patchLine(lid, { receivedQty: String(line.expected_qty), damagedQty: '' });
+  }
+
+  function matchLineByScan(code: string): ReceivingLineRow | undefined {
+    const norm = code.trim().toLowerCase();
+    if (!norm) return undefined;
+    return lines.find((l) => {
+      const ol = lineMap.get(l.inbound_order_line_id);
+      const sku = (ol?.product?.sku ?? '').trim().toLowerCase();
+      const barcode = (ol?.product?.barcode ?? '').trim().toLowerCase();
+      return sku === norm || barcode === norm || sku.includes(norm) || barcode.includes(norm);
+    });
+  }
+
+  function handleWedgeScan(code: string) {
+    const hit = matchLineByScan(code);
+    if (!hit) {
+      toast.error(t(['No line matches this barcode/SKU.', 'لا يوجد سطر يطابق هذا الباركود/SKU.']));
+      setWedgeScan('');
+      return;
+    }
+    const lid = hit.inbound_order_line_id;
+    receiveExpectedForLine(lid);
+    toast.success(
+      t([
+        `Received expected for ${lineMap.get(lid)?.product?.sku ?? lid.slice(0, 8)}`,
+        `تم استلام المتوقع لـ ${lineMap.get(lid)?.product?.sku ?? lid.slice(0, 8)}`,
+      ]),
+    );
+    setWedgeScan('');
+    const nextIncomplete = lines.find((l) => {
+      if (l.inbound_order_line_id === lid) return false;
+      const d = lineDrafts[l.inbound_order_line_id] ?? emptyLineDraft();
+      const expected = parseQty(l.expected_qty);
+      return parseQty(d.receivedQty) + parseQty(d.damagedQty) < expected;
+    });
+    if (nextIncomplete) {
+      const ol = lineMap.get(nextIncomplete.inbound_order_line_id);
+      toast.success(
+        t([
+          `Next: ${ol?.product?.sku ?? nextIncomplete.inbound_order_line_id.slice(0, 8)}`,
+          `التالي: ${ol?.product?.sku ?? nextIncomplete.inbound_order_line_id.slice(0, 8)}`,
+        ]),
+      );
+    }
   }
 
   useEffect(() => {
@@ -574,6 +629,31 @@ export function ReceivingExecutionPanel({
       ) : null}
 
       <SummaryCards summary={summary} />
+
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+        <WedgeScanField
+          label={t(['Scan to receive expected', 'امسح لاستلام المتوقع'])}
+          value={wedgeScan}
+          onChange={setWedgeScan}
+          onScan={handleWedgeScan}
+          onCameraClick={() => setCameraOpen(true)}
+          placeholder={t(['SKU or barcode + Enter', 'SKU أو باركود ثم Enter'])}
+          hint={t([
+            'Gun / keyboard wedge: scan a line barcode to fill expected qty, then advance.',
+            'الماسح: امسح باركود السطر لملء الكمية المتوقعة ثم الانتقال للتالي.',
+          ])}
+        />
+      </div>
+      <BarcodeScanModal
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onDetected={(code) => {
+          setCameraOpen(false);
+          handleWedgeScan(code);
+        }}
+        title={t(['Scan product', 'مسح منتج'])}
+      />
+
       {showExportPdf && !isMdUp ? (
         <div className="flex justify-end">
           <Button
@@ -976,17 +1056,30 @@ function ReceivingLinesTable({
         return readOnly ? (
           <span className="font-mono tabular-nums">{d.receivedQty || '—'}</span>
         ) : (
-          <input
-            className={
-              qtyErr
-                ? 'w-20 rounded border border-rose-400 px-2 py-1 font-mono text-sm'
-                : 'w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm'
-            }
-            value={d.receivedQty}
-            onChange={(e) => onPatchLine?.(lid, { receivedQty: e.target.value })}
-            onClick={(e) => e.stopPropagation()}
-            aria-invalid={qtyErr ? true : undefined}
-          />
+          <div className="inline-flex items-center gap-1">
+            <input
+              className={
+                qtyErr
+                  ? 'w-20 rounded border border-rose-400 px-2 py-1 font-mono text-sm'
+                  : 'w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm'
+              }
+              value={d.receivedQty}
+              onChange={(e) => onPatchLine?.(lid, { receivedQty: e.target.value })}
+              onClick={(e) => e.stopPropagation()}
+              aria-invalid={qtyErr ? true : undefined}
+            />
+            <button
+              type="button"
+              className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-1 text-[10px] font-semibold text-emerald-800 hover:bg-emerald-100"
+              title={t(['Receive expected qty', 'استلام الكمية المتوقعة'])}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPatchLine?.(lid, { receivedQty: String(l.expected_qty), damagedQty: '' });
+              }}
+            >
+              {t(['Fill', 'تعبئة'])}
+            </button>
+          </div>
         );
       },
       className: 'whitespace-nowrap',

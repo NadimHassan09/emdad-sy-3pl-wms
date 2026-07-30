@@ -1,4 +1,4 @@
-import { TableCardHeader } from '@ds';
+import { EmptyState, Skeleton, TableCardHeader } from '@ds';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -91,7 +91,7 @@ export function DataTable<T>({
                 <th
                   key={colIdx}
                   scope="col"
-                  className={`whitespace-nowrap bg-emerald-50/80 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-emerald-800 ${isRtl ? 'text-right' : 'text-left'} ${c.className ?? ''}`}
+                  className={`whitespace-nowrap bg-slate-50/80 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 ${isRtl ? 'text-right' : 'text-left'} ${c.className ?? ''}`}
                   style={c.width ? { width: c.width } : undefined}
                 >
                   {c.header}
@@ -101,15 +101,23 @@ export function DataTable<T>({
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-sm text-slate-500">
-                  Loading…
-                </td>
-              </tr>
+              Array.from({ length: 6 }).map((_, rowIdx) => (
+                <tr key={`skeleton-${rowIdx}`} className="border-t border-slate-100">
+                  {columns.map((c, colIdx) => (
+                    <td key={colIdx} className={`px-4 py-3 align-middle ${c.className ?? ''}`}>
+                      <Skeleton height={14} width={colIdx === 0 ? '70%' : '55%'} />
+                    </td>
+                  ))}
+                </tr>
+              ))
             ) : pagedRows.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-sm text-slate-500">
-                  {empty ?? 'No data.'}
+                <td colSpan={columns.length} className="px-4 py-6">
+                  {typeof empty === 'string' || empty == null ? (
+                    <EmptyState size="sm" title={empty ?? 'No data.'} />
+                  ) : (
+                    empty
+                  )}
                 </td>
               </tr>
             ) : (
@@ -119,8 +127,8 @@ export function DataTable<T>({
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={[
                     onRowClick
-                      ? 'cursor-pointer border-t border-slate-100 transition hover:bg-emerald-50/40'
-                      : 'border-t border-slate-100 transition hover:bg-emerald-50/40',
+                      ? 'cursor-pointer border-t border-slate-100 transition hover:bg-slate-50/60'
+                      : 'border-t border-slate-100 transition hover:bg-slate-50/60',
                     getRowClassName?.(row),
                   ]
                     .filter(Boolean)

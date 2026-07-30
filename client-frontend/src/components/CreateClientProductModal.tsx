@@ -1,14 +1,14 @@
 import { useEffect, useState, type FormEvent, type ReactElement } from 'react';
 
 import { Button, Modal } from '@ds';
-import { FILTER_PRIMARY_BUTTON_CLASS } from '@wms/components/FilterPanel';
+import { FILTER_PRIMARY_BUTTON_CLASS } from '@ds';
 import {
   FILTER_FIELD_CONTROL_CLASS,
   FILTER_FIELD_LABEL_CLASS,
   FILTER_FIELD_LABEL_GAP_CLASS,
-} from '@wms/components/filter-panel-styles';
-import { SelectField } from '@wms/components/SelectField';
-import { TextField } from '@wms/components/TextField';
+} from '@ds';
+import { SelectField } from '@ds';
+import { TextField } from '@ds';
 
 import { ImageUploadField } from './ImageUploadField';
 import { generateBarcode, generateSku } from '../lib/identifiers';

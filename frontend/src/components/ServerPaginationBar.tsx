@@ -27,7 +27,7 @@ export function ServerPaginationBar({ pagination, loading, labels, className = '
       <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
         <select
           aria-label={labels?.rowsPerPageAria ?? 'Rows per page'}
-          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 outline-none transition focus:border-[#1a7a44] focus:ring-2 focus:ring-[#1a7a44]/20"
+          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 outline-none transition focus:border-[var(--color-brand-600,#059669)] focus:ring-2 focus:ring-[var(--color-brand-600,#059669)]/20"
           value={pageSize}
           onChange={(e) => onPageSizeChange(Number(e.target.value))}
         >
@@ -45,7 +45,7 @@ export function ServerPaginationBar({ pagination, loading, labels, className = '
       <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
         <button
           type="button"
-          className="flex-1 rounded-md border border-[#1a7a44] bg-white px-3 py-1.5 text-sm font-medium text-[#1a7a44] transition hover:bg-[#e9f5ee] disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400 disabled:hover:bg-white sm:flex-none"
+          className="flex-1 rounded-md border border-[var(--color-brand-600,#059669)] bg-white px-3 py-1.5 text-sm font-medium text-[var(--color-brand-600,#059669)] transition hover:bg-[#ecfdf5] disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400 disabled:hover:bg-white sm:flex-none"
           onClick={() => onPageChange(Math.max(1, page - 1))}
           disabled={page <= 1 || loading || total === 0}
         >
@@ -53,7 +53,7 @@ export function ServerPaginationBar({ pagination, loading, labels, className = '
         </button>
         <button
           type="button"
-          className="flex-1 rounded-md border border-[#1a7a44] bg-[#1a7a44] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#156635] disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-400 sm:flex-none"
+          className="flex-1 rounded-md border border-[var(--color-brand-600,#059669)] bg-[var(--color-brand-600,#059669)] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#047857] disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-200 disabled:text-slate-400 sm:flex-none"
           onClick={() => onPageChange(Math.min(totalPages, page + 1))}
           disabled={page >= totalPages || loading || total === 0}
         >

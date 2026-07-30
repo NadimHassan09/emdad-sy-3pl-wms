@@ -3,7 +3,7 @@ import { isAxiosError } from 'axios';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
-import { StatusBadge } from '@wms/components/StatusBadge';
+import { StatusBadge } from '@ds';
 
 import { ClientOrderTrackingPanel } from '../components/ClientOrderTrackingPanel';
 import {
@@ -51,13 +51,13 @@ export function EcommerceOrderDetailPage(): ReactElement {
       <div className="card">
         <p style={{ marginBottom: '1rem' }}>
           <Link className="muted" to="/ecommerce-orders" style={{ textDecoration: 'none' }}>
-            ← Back to OMS orders
+            ← Back to online orders
           </Link>
         </p>
 
         {notFound ? (
           <p className="banner banner--error" role="alert">
-            OMS order not found.
+            Online order not found.
           </p>
         ) : orderQuery.error ? (
           <p className="banner banner--error" role="alert">
@@ -79,7 +79,7 @@ export function EcommerceOrderDetailPage(): ReactElement {
               }}
             >
               <h1 className="card__title" style={{ margin: 0 }}>
-                OMS order {data.orderNumber || data.id.slice(0, 8)}
+                Online order {data.orderNumber || data.id.slice(0, 8)}
               </h1>
               <StatusBadge status={data.status} />
             </div>
@@ -148,7 +148,7 @@ export function EcommerceOrderDetailPage(): ReactElement {
               </div>
               {data.warehouseStatus ? (
                 <div className="details__row">
-                  <dt>Fulfillment status</dt>
+                  <dt>Warehouse status</dt>
                   <dd>{data.warehouseStatus}</dd>
                 </div>
               ) : null}

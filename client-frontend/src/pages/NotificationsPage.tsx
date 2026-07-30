@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactElement } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert, Button, EmptyState } from '@ds';
@@ -16,6 +16,7 @@ import {
 } from '../services/clientNotificationsService';
 
 const PAGE_SIZE = 20;
+const UNREAD_FILTER_STORAGE_KEY = 'client-notifications-filter';
 
 function notificationsLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
@@ -67,14 +68,58 @@ function dayBucket(iso: string, t: (s: string) => string): string {
 
 type FilterMode = 'all' | 'unread' | 'read';
 
+function parseFilterMode(raw: string | null): FilterMode {
+  if (raw === 'unread' || raw === 'read' || raw === 'all') return raw;
+  return 'all';
+}
+
+function readStoredFilter(): FilterMode {
+  try {
+    return parseFilterMode(window.localStorage.getItem(UNREAD_FILTER_STORAGE_KEY));
+  } catch {
+    return 'all';
+  }
+}
+
 export function NotificationsPage(): ReactElement {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const isArabic = isClientArabic();
   const t = (label: string) => notificationsLabel(label, isArabic);
 
   const [page, setPage] = useState(0);
-  const [filter, setFilter] = useState<FilterMode>('all');
+  const filterFromUrl = parseFilterMode(searchParams.get('filter'));
+  const [filter, setFilter] = useState<FilterMode>(() => {
+    const fromUrl = parseFilterMode(
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('filter')
+        : null,
+    );
+    return fromUrl !== 'all' ? fromUrl : readStoredFilter();
+  });
+
+  useEffect(() => {
+    if (filterFromUrl !== filter && searchParams.has('filter')) {
+      setFilter(filterFromUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync URL → state only when URL filter changes
+  }, [filterFromUrl]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(UNREAD_FILTER_STORAGE_KEY, filter);
+    } catch {
+      /* ignore */
+    }
+    const next = new URLSearchParams(searchParams);
+    if (filter === 'all') next.delete('filter');
+    else next.set('filter', filter);
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- persist filter; avoid looping on searchParams identity
+  }, [filter, setSearchParams]);
 
   const listQuery = useQuery({
     queryKey: ['client', 'notifications', 'page', page, PAGE_SIZE],

@@ -103,6 +103,7 @@ export function TaskExecutionView() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const isWorkerAccount = isOperatorRole(user?.role);
+  const selfWorkerId = (MOCK_WORKER_ID || user?.workerId || '').trim();
   const { effective } = useWorkflowUx();
   const { warehouseId: defaultWid } = useDefaultWarehouseId();
   const [workerId, setWorkerId] = useState('');
@@ -112,6 +113,12 @@ export function TaskExecutionView() {
   const [retryReason, setRetryReason] = useState('');
   const [operatorNotes, setOperatorNotes] = useState('');
   const [syncedOperatorNotes, setSyncedOperatorNotes] = useState('');
+  const [assignExpanded, setAssignExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!selfWorkerId) return;
+    setWorkerId((cur) => cur || selfWorkerId);
+  }, [selfWorkerId]);
 
   const task = useQuery({
     queryKey: id ? QK.tasks.detail(id) : [],
@@ -190,7 +197,10 @@ export function TaskExecutionView() {
   });
 
   const mutateStart = useMutation({
-    mutationFn: () => TasksApi.start(id, workerId.trim() || undefined, companyIdOverride),
+    mutationFn: () => {
+      const wid = (workerId.trim() || selfWorkerId || undefined) as string | undefined;
+      return TasksApi.start(id, wid, companyIdOverride);
+    },
     onSuccess: (env) => {
       toast.success(t(['Started', 'تم البدء']));
       envelopeTouch(qc, id, env, warehouseId);
@@ -395,6 +405,12 @@ export function TaskExecutionView() {
 
   const showAssignBar = sts !== 'completed' && sts !== 'cancelled';
 
+  const assignedToSelf = !!selfWorkerId && assignedWorkerId === selfWorkerId;
+  const unassigned = !assignedWorkerId;
+  /** One-click Start when self is assignee or unassigned with a known self worker id. */
+  const selfStartMode = assignedToSelf || (unassigned && !!selfWorkerId);
+  const canAssignOthers = !isWorkerAccount;
+
   const structuredPanelTypes = new Set([
     'receiving',
     'qc',
@@ -432,10 +448,13 @@ export function TaskExecutionView() {
       ) : null}
 
       {!runnable && canOperate ? (
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          {runnabilityBlockedHint(blockedCode, t)}{' '}
-          {t(['Use the order timeline to find the active step.', 'استخدم خط زمن الطلب لإيجاد الخطوة النشطة.'])}
-        </p>
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          <p>
+            {runnabilityBlockedHint(blockedCode, t)}{' '}
+            {t(['Open the order to see the active workflow step.', 'افتح الطلب لرؤية خطوة سير العمل النشطة.'])}
+          </p>
+          {orderLink ? <div className="mt-2">{orderLink}</div> : null}
+        </div>
       ) : null}
 
       {sts === 'retry_pending' ? (
@@ -543,42 +562,71 @@ export function TaskExecutionView() {
             <span className="text-slate-500">{t(['Assigned worker:', 'العامل المعيّن:'])}</span>{' '}
             <span className="font-medium text-slate-900">{taskAssignedWorkerLabel(taskRow.assignments)}</span>
           </div>
-          <div className="min-w-[260px] flex-[2]">
-            <Combobox
-              label={t(['Assign worker', 'تعيين عامل'])}
-              value={workerId}
-              onChange={setWorkerId}
-              options={workerOptions}
-              placeholder={
-                workers.isLoading
-                  ? t(['Loading workers…', 'جاري تحميل العمال…'])
-                  : t(['Select worker…', 'اختر عاملاً…'])
-              }
-              disabled={workers.isLoading || !!workers.isError}
-              emptyMessage={
-                workers.isError
-                  ? t(['Could not load workers', 'تعذّر تحميل العمال'])
-                  : warehouseId
-                    ? t(['No workers for this warehouse', 'لا يوجد عمال لهذا المستودع'])
-                    : t(['No workers', 'لا يوجد عمال'])
-              }
-            />
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => mutateAssign.mutate()}
-            disabled={!workerId.trim() || mutateAssign.isPending || !!workers.isError}
-          >
-            {t(['Assign', 'تعيين'])}
-          </Button>
-          <Button
-            type="button"
-            onClick={() => mutateStart.mutate()}
-            disabled={!runnable || !executionAllowed}
-          >
-            {t(['Start', 'بدء'])}
-          </Button>
+
+          {selfStartMode && !assignExpanded ? (
+            <>
+              <Button
+                type="button"
+                onClick={() => mutateStart.mutate()}
+                disabled={!runnable || !executionAllowed || mutateStart.isPending}
+              >
+                {t(['Start', 'بدء'])}
+              </Button>
+              {canAssignOthers ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setAssignExpanded(true)}
+                >
+                  {t(['Assign someone else', 'تعيين شخص آخر'])}
+                </Button>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <div className="min-w-[260px] flex-[2]">
+                <Combobox
+                  label={t(['Assign worker', 'تعيين عامل'])}
+                  value={workerId}
+                  onChange={setWorkerId}
+                  options={workerOptions}
+                  placeholder={
+                    workers.isLoading
+                      ? t(['Loading workers…', 'جاري تحميل العمال…'])
+                      : t(['Select worker…', 'اختر عاملاً…'])
+                  }
+                  disabled={workers.isLoading || !!workers.isError}
+                  emptyMessage={
+                    workers.isError
+                      ? t(['Could not load workers', 'تعذّر تحميل العمال'])
+                      : warehouseId
+                        ? t(['No workers for this warehouse', 'لا يوجد عمال لهذا المستودع'])
+                        : t(['No workers', 'لا يوجد عمال'])
+                  }
+                />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => mutateAssign.mutate()}
+                disabled={!workerId.trim() || mutateAssign.isPending || !!workers.isError}
+              >
+                {t(['Assign', 'تعيين'])}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => mutateStart.mutate()}
+                disabled={!runnable || !executionAllowed || mutateStart.isPending}
+              >
+                {t(['Start', 'بدء'])}
+              </Button>
+              {selfStartMode && assignExpanded ? (
+                <Button type="button" variant="secondary" onClick={() => setAssignExpanded(false)}>
+                  {t(['Hide assign', 'إخفاء التعيين'])}
+                </Button>
+              ) : null}
+            </>
+          )}
           {workers.isLoading || workers.isError ? (
           <p className="w-full text-xs text-slate-500">
             {workers.isLoading

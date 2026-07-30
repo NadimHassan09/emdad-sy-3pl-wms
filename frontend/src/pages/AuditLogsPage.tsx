@@ -233,7 +233,7 @@ export function AuditLogsPage() {
         accessor: (r) => (
           <button
             type="button"
-            className="whitespace-nowrap text-xs font-medium text-[#1a7a44] hover:underline"
+            className="whitespace-nowrap text-xs font-medium text-[var(--color-brand-600,#059669)] hover:underline"
             onClick={(e) => {
               e.stopPropagation();
               setDetailSeed(r);

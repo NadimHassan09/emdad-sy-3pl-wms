@@ -83,7 +83,7 @@ function blockedTitle(code: string | null | undefined): string {
 function prettyTaskType(taskType: string): string {
   switch (taskType) {
     case 'receiving':
-      return 'Receive';
+      return 'Receiving';
     case 'putaway':
       return 'Putaway';
     case 'putaway_quarantine':
@@ -93,7 +93,7 @@ function prettyTaskType(taskType: string): string {
     case 'pack':
       return 'Pack';
     case 'dispatch':
-      return 'Delivery';
+      return 'Dispatch';
     case 'qc':
       return 'QC';
     case 'routing':

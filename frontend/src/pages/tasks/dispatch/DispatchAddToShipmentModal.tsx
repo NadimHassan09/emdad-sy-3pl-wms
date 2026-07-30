@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import type { OutboundOrderLine } from '../../../api/outbound';
-import { BarcodeScanIcon } from '../../../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../../../components/BarcodeScanModal';
 import { Button } from '../../../components/Button';
 import { Modal } from '../../../components/Modal';
 import { TextField } from '../../../components/TextField';
+import { WedgeScanField } from '../../../components/WedgeScanField';
 import { useToast } from '../../../components/ToastProvider';
 import { useWmsTranslation } from '../../../lib/ui-i18n';
 import type { DispatchLineDraft, DispatchPackageDraft } from './dispatch-types';
@@ -37,18 +37,62 @@ export function DispatchAddToShipmentModal({
   const [productInput, setProductInput] = useState('');
   const [productQty, setProductQty] = useState('1');
   const [packageInput, setPackageInput] = useState('');
+  const [wedgeScan, setWedgeScan] = useState('');
   const [scanOpen, setScanOpen] = useState(false);
 
   function resetFields() {
     setProductInput('');
     setProductQty('1');
     setPackageInput('');
+    setWedgeScan('');
     setMode('product');
   }
 
   function handleClose() {
     resetFields();
     onClose();
+  }
+
+  /** Try package label first, then product — add remaining shippable qty for products. */
+  function commitGunScan(code: string): boolean {
+    const trimmed = code.trim();
+    if (!trimmed) return false;
+
+    const pkg = findPackageByLabel(trimmed, packages);
+    if (pkg) {
+      if (onAddPackage(pkg.id)) {
+        setWedgeScan('');
+        return true;
+      }
+      return false;
+    }
+
+    const lineId = findDispatchLineByProductScan(trimmed, lineIds, lineMeta);
+    if (lineId) {
+      const line = lines.find((l) => l.outboundOrderLineId === lineId);
+      const remaining = line
+        ? Math.max(0, parseQty(line.pickedQty) - parseQty(line.shipQty))
+        : 0;
+      const qty = remaining > 0 ? remaining : 1;
+      if (onAddProduct(lineId, qty)) {
+        setWedgeScan('');
+        return true;
+      }
+      return false;
+    }
+
+    toast.error(
+      t([
+        'No matching package or product on this shipment.',
+        'لا طرد أو منتج مطابق على هذه الشحنة.',
+      ]),
+    );
+    return false;
+  }
+
+  function handleGunScan(code: string) {
+    setScanOpen(false);
+    commitGunScan(code);
   }
 
   function handleAddProduct() {
@@ -84,7 +128,7 @@ export function DispatchAddToShipmentModal({
   function handleAddPackage() {
     const trimmed = packageInput.trim();
     if (!trimmed) {
-      toast.error('Enter or scan a package label.');
+      toast.error(t(['Enter or scan a package label.', 'أدخل أو امسح ملصق طرد.']));
       return;
     }
     const pkg = findPackageByLabel(trimmed, packages);
@@ -96,24 +140,6 @@ export function DispatchAddToShipmentModal({
       resetFields();
       onClose();
     }
-  }
-
-  function handleScan(code: string) {
-    const trimmed = code.trim();
-    if (!trimmed) return;
-    if (mode === 'product') {
-      const lineId = findDispatchLineByProductScan(trimmed, lineIds, lineMeta);
-      if (lineId) {
-        const ol = lineMeta.get(lineId);
-        setProductInput(ol?.product?.sku ?? trimmed);
-      } else {
-        setProductInput(trimmed);
-      }
-    } else {
-      const pkg = findPackageByLabel(trimmed, packages);
-      setPackageInput(pkg?.label ?? trimmed);
-    }
-    setScanOpen(false);
   }
 
   const unscannedPackages = packages.filter((p) => !p.scanned);
@@ -141,6 +167,23 @@ export function DispatchAddToShipmentModal({
         }
       >
         <div className="space-y-4 text-sm">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+            <WedgeScanField
+              label={t(['Scan package or product', 'امسح طرداً أو منتجاً'])}
+              value={wedgeScan}
+              onChange={setWedgeScan}
+              onScan={handleGunScan}
+              onCameraClick={() => setScanOpen(true)}
+              placeholder={t(['Label, SKU, or barcode + Enter', 'ملصق أو SKU أو باركود ثم Enter'])}
+              scanTitle={t(['Scan with camera', 'مسح بالكاميرا'])}
+              scanAriaLabel={t(['Scan with camera', 'مسح بالكاميرا'])}
+              hint={t([
+                'Tries package label first, then product. Camera is secondary.',
+                'يجرّب ملصق الطرد أولاً ثم المنتج. الكاميرا مسار ثانوي.',
+              ])}
+            />
+          </div>
+
           <div className="flex gap-2 rounded-lg bg-slate-100 p-1">
             <button
               type="button"
@@ -164,32 +207,14 @@ export function DispatchAddToShipmentModal({
 
           {mode === 'product' ? (
             <div className="space-y-3">
-              <div>
-                <span className="text-sm font-medium text-slate-700">{t(['Product', 'المنتج'])}</span>
-                <div className="mt-1 flex gap-2">
-                  <div className="min-w-0 flex-1">
-                    <TextField
-                      name="dispatchAddProduct"
-                      value={productInput}
-                      onChange={(e) => setProductInput(e.target.value)}
-                      placeholder={t(['SKU, name, or Barcode', 'SKU أو الاسم أو Barcode'])}
-                      className="!mt-0 w-full"
-                      aria-label={t(['Product', 'المنتج'])}
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="md"
-                    className="mt-0 shrink-0 px-2.5"
-                    onClick={() => setScanOpen(true)}
-                    aria-label="Scan product"
-                    title="Scan product barcode"
-                  >
-                    <BarcodeScanIcon className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
+              <TextField
+                label={t(['Product', 'المنتج'])}
+                name="dispatchAddProduct"
+                value={productInput}
+                onChange={(e) => setProductInput(e.target.value)}
+                placeholder={t(['SKU, name, or Barcode', 'SKU أو الاسم أو Barcode'])}
+                aria-label={t(['Product', 'المنتج'])}
+              />
               <TextField
                 label={t(['Quantity to ship', 'الكمية للشحن'])}
                 name="dispatchAddProductQty"
@@ -206,32 +231,14 @@ export function DispatchAddToShipmentModal({
             </div>
           ) : (
             <div className="space-y-3">
-              <div>
-                <span className="text-sm font-medium text-slate-700">{t(['Package label', 'ملصق الطرد'])}</span>
-                <div className="mt-1 flex gap-2">
-                  <div className="min-w-0 flex-1">
-                    <TextField
-                      name="dispatchAddPackage"
-                      value={packageInput}
-                      onChange={(e) => setPackageInput(e.target.value)}
-                      placeholder="PKG-001"
-                      className="!mt-0 w-full"
-                      aria-label="Package label"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="md"
-                    className="mt-0 shrink-0 px-2.5"
-                    onClick={() => setScanOpen(true)}
-                    aria-label="Scan package"
-                    title="Scan package label"
-                  >
-                    <BarcodeScanIcon className="h-5 w-5" />
-                  </Button>
-                </div>
-              </div>
+              <TextField
+                label={t(['Package label', 'ملصق الطرد'])}
+                name="dispatchAddPackage"
+                value={packageInput}
+                onChange={(e) => setPackageInput(e.target.value)}
+                placeholder="PKG-001"
+                aria-label={t(['Package label', 'ملصق الطرد'])}
+              />
               {unscannedPackages.length > 0 ? (
                 <div>
                   <p className="text-xs font-medium text-slate-600">{t(['Pending packages', 'طرود معلّقة'])}</p>
@@ -259,7 +266,7 @@ export function DispatchAddToShipmentModal({
         </div>
       </Modal>
 
-      <BarcodeScanModal open={scanOpen} onClose={() => setScanOpen(false)} onScan={handleScan} />
+      <BarcodeScanModal open={scanOpen} onClose={() => setScanOpen(false)} onScan={handleGunScan} />
     </>
   );
 }

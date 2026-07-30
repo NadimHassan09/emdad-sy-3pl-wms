@@ -35,6 +35,7 @@ const CodReportsPage          = lazyPage(() => import('./pages/CodReportsPage'),
 const ReturnsPage             = lazyPage(() => import('./pages/ReturnsPage'),             'ReturnsPage');
 const ReturnDetailPage        = lazyPage(() => import('./pages/ReturnDetailPage'),        'ReturnDetailPage');
 const ProductsPage          = lazyPage(() => import('./pages/ProductsPage'),          'ProductsPage');
+const ProductDetailPage     = lazyPage(() => import('./pages/ProductDetailPage'),     'ProductDetailPage');
 const DashboardPage         = lazyPage(() => import('./pages/DashboardPage'),         'DashboardPage');
 const BillingPage           = lazyPage(() => import('./pages/BillingPage'),           'BillingPage');
 const InvoicesPage          = lazyPage(() => import('./pages/InvoicesPage'),          'InvoicesPage');
@@ -88,7 +89,11 @@ function AppRoutes(): ReactElement {
             />
             <Route
               path="products/:id"
-              element={<Navigate to="/products" replace />}
+              element={
+                <RequireRouteAccess>
+                  <ProductDetailPage />
+                </RequireRouteAccess>
+              }
             />
             <Route
               path="inbound-orders"

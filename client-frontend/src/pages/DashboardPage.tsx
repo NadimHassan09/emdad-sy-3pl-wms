@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
-import { Alert } from '@ds';
+import { Alert, Button, ListPageHeader, Skeleton } from '@ds';
 
 import { useAuth } from '../auth/AuthContext';
 import { Badge } from '../design-v2/Badge';
@@ -30,7 +30,14 @@ const UNPROCESSED = new Set<ClientOmsOrderStatus>(['draft', 'pending_approval', 
 const PROCESSING = new Set<ClientOmsOrderStatus>(['processing', 'allocated', 'picking', 'packing', 'ready_to_ship']);
 const OUT_FOR_DELIVERY = new Set<ClientOmsOrderStatus>(['out_for_delivery', 'shipped']);
 const DELIVERED = new Set<ClientOmsOrderStatus>(['delivered', 'completed']);
-const RETURNED = new Set<ClientOmsOrderStatus>(['returned', 'cancelled', 'rejected', 'failed_delivery']);
+/** True returns only — do not mix cancelled / rejected / failed_delivery into “Returned”. */
+const RETURNED = new Set<ClientOmsOrderStatus>(['returned']);
+const CANCELLED_OR_FAILED = new Set<ClientOmsOrderStatus>(['cancelled', 'rejected', 'failed_delivery']);
+/** Orders that need merchant/ops attention (not a vanity “latest 8”). */
+const NEEDS_ATTENTION = new Set<ClientOmsOrderStatus>([
+  ...UNPROCESSED,
+  'failed_delivery',
+]);
 
 function toYmd(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -73,12 +80,15 @@ function tr(label: string, isArabic: boolean): string {
     'Welcome back': 'مرحبًا بعودتك',
     'New order': 'طلب جديد',
     'View COD': 'عرض التحصيل',
-    'Total products': 'إجمالي المنتجات',
-    'Total orders': 'إجمالي الطلبات',
-    'Completed orders': 'إجمالي الطلبات المنجزة',
-    'In your catalog': 'في كتالوجك',
-    'Selected period': 'الفترة المحددة',
-    'Delivered & completed': 'مُسلَّمة ومكتملة',
+    'Needs attention': 'تحتاج متابعة',
+    'Stuck or awaiting action': 'عالق أو بانتظار إجراء',
+    'Sellable stock': 'المخزون القابل للبيع',
+    'Units available to sell': 'وحدات متاحة للبيع',
+    'Low-stock SKUs': 'أصناف منخفضة المخزون',
+    'Cash on delivery': 'الدفع عند الاستلام',
+    'Ready vs pending': 'جاهز مقابل معلّق',
+    'Pending collection': 'بانتظار التحصيل',
+    'View cash on delivery': 'عرض الدفع عند الاستلام',
     'Order movement': 'حركة الطلبات',
     'Last 7 days': 'آخر 7 أيام',
     'Order summary': 'ملخص الطلبات',
@@ -87,7 +97,8 @@ function tr(label: string, isArabic: boolean): string {
     Processing: 'قيد المعالجة',
     'Out for delivery': 'خارج للتسليم',
     Delivered: 'تم التسليم',
-    Returned: 'مرتجع / ملغي',
+    Returned: 'مرتجع',
+    'Cancelled / failed': 'ملغي / فشل',
     'This month': 'هذا الشهر',
     'Last month': 'الشهر الماضي',
     All: 'الكل',
@@ -103,19 +114,20 @@ function tr(label: string, isArabic: boolean): string {
     'Low stock': 'مخزون منخفض',
     'Out of stock': 'نفد المخزون',
     'View all': 'عرض الكل',
-    'Latest orders': 'أحدث الطلبات',
     'Orders needing attention': 'طلبات تحتاج متابعة',
+    'Unprocessed, failed delivery, and similar exceptions':
+      'غير معالج، فشل التسليم، واستثناءات مشابهة',
     Recipient: 'المستلم',
     Channel: 'القناة',
     Total: 'الإجمالي',
     'No orders yet': 'لا توجد طلبات بعد',
+    'No orders need attention': 'لا توجد طلبات تحتاج متابعة',
     'No inventory rows': 'لا توجد صفوف مخزون',
     'Ready for payout': 'جاهز للتحويل',
     'Available to withdraw': 'متاح للسحب',
     'Request payout': 'طلب تحويل',
-    'Pending collection': 'بانتظار التحصيل',
     'Still with carriers': 'ما زال لدى شركات الشحن',
-    'Total COD': 'إجمالي COD',
+    'Total COD': 'إجمالي الدفع عند الاستلام',
     'COD collected this period': 'المحصّل في هذه الفترة',
     Remitted: 'تم التحويل',
     'Already paid out': 'تم تحويله إليك',
@@ -128,6 +140,7 @@ function tr(label: string, isArabic: boolean): string {
     Return: 'مرتجع',
     Payment: 'دفعة',
     'No data': 'لا توجد بيانات',
+    'Total orders': 'إجمالي الطلبات',
   };
   return ar[label] ?? label;
 }
@@ -145,26 +158,28 @@ function TopKpi({
   value: string;
   hint: string;
   icon: string;
-  tone: 'blue' | 'amber' | 'violet';
+  tone: 'emerald' | 'amber' | 'slate';
   loading: boolean;
   to: string;
 }): ReactElement {
   const tones = {
-    blue: { bg: 'bg-sky-50', text: 'text-sky-600', value: 'text-sky-700' },
+    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', value: 'text-emerald-700' },
     amber: { bg: 'bg-amber-50', text: 'text-amber-600', value: 'text-amber-700' },
-    violet: { bg: 'bg-violet-50', text: 'text-violet-600', value: 'text-violet-700' },
+    slate: { bg: 'bg-slate-100', text: 'text-slate-600', value: 'text-slate-800' },
   }[tone];
 
   return (
     <Link to={to} className="no-underline block h-full">
       <Card className="p-5 h-full" hover>
         <div className="flex items-center gap-4">
-          <div className={`w-12 h-12 rounded-full ${tones.bg} flex items-center justify-center shrink-0`}>
+          <div className={`w-12 h-12 rounded-xl ${tones.bg} flex items-center justify-center shrink-0`}>
             <i className={`fa-solid ${icon} ${tones.text} text-lg`} />
           </div>
           <div className="min-w-0">
             <div className="text-xs font-semibold text-slate-500">{label}</div>
-            <div className={`text-3xl font-bold tabular-nums mt-1 ${tones.value}`}>{loading ? '—' : value}</div>
+            <div className={`text-3xl font-bold tabular-nums mt-1 ${tones.value}`}>
+              {loading ? <Skeleton height={32} width={56} className="mt-1" /> : value}
+            </div>
             <div className="text-[11px] text-slate-400 mt-1">{hint}</div>
           </div>
         </div>
@@ -203,6 +218,7 @@ function FinanceCard({
   emphasize,
   action,
   loading,
+  to,
 }: {
   label: string;
   value: string;
@@ -213,14 +229,12 @@ function FinanceCard({
   emphasize?: boolean;
   action?: ReactElement;
   loading: boolean;
+  to?: string;
 }): ReactElement {
-  return (
-    <Card
-      className={`p-4 ${emphasize ? 'border-2 border-emerald-500 bg-gradient-to-br from-emerald-50/90 to-white shadow-lg shadow-emerald-600/10' : ''}`}
-      hover
-    >
+  const inner = (
+    <>
       <div className="flex items-center gap-3">
-        <div className={`w-11 h-11 rounded-full ${emphasize ? 'bg-emerald-600 shadow-md shadow-emerald-600/30' : iconBg} flex items-center justify-center shrink-0`}>
+        <div className={`w-11 h-11 rounded-xl ${emphasize ? 'bg-emerald-600 shadow-md shadow-emerald-600/30' : iconBg} flex items-center justify-center shrink-0`}>
           <i className={`fa-solid ${icon} ${emphasize ? 'text-white' : iconText}`} />
         </div>
         <div className="min-w-0 flex-1">
@@ -228,11 +242,26 @@ function FinanceCard({
             {label}
           </div>
           <div className={`text-xl font-bold tabular-nums mt-0.5 ${emphasize ? 'text-emerald-900' : 'text-slate-900'}`}>
-            {loading ? '—' : value}
+            {loading ? <Skeleton height={24} width={72} className="mt-0.5" /> : value}
           </div>
           <div className={`text-[10px] mt-0.5 ${emphasize ? 'text-emerald-700/80' : 'text-slate-400'}`}>{hint}</div>
         </div>
       </div>
+    </>
+  );
+
+  return (
+    <Card
+      className={`p-4 ${emphasize ? 'border-2 border-emerald-500 bg-gradient-to-br from-emerald-50/90 to-white shadow-lg shadow-emerald-600/10' : ''}`}
+      hover
+    >
+      {to ? (
+        <Link to={to} className="no-underline block">
+          {inner}
+        </Link>
+      ) : (
+        inner
+      )}
       {action}
     </Card>
   );
@@ -331,30 +360,55 @@ export function DashboardPage(): ReactElement {
   });
 
   const orders = ordersQuery.data?.items ?? [];
-  const totalOrders = orders.length;
-  const completedOrders = orders.filter((o) => DELIVERED.has(o.status)).length;
-  const productsTotal = productsQuery.data?.total ?? 0;
+  const attentionOrders = useMemo(
+    () =>
+      orders
+        .filter((o) => NEEDS_ATTENTION.has(o.status))
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        .slice(0, 8),
+    [orders],
+  );
+  const attentionCount = useMemo(
+    () => orders.filter((o) => NEEDS_ATTENTION.has(o.status)).length,
+    [orders],
+  );
 
   const statusCounts = useMemo(() => {
-    const counts = { unprocessed: 0, processing: 0, out: 0, delivered: 0, returned: 0 };
+    const counts = {
+      unprocessed: 0,
+      processing: 0,
+      out: 0,
+      delivered: 0,
+      returned: 0,
+      cancelled: 0,
+    };
     for (const o of orders) {
       if (UNPROCESSED.has(o.status)) counts.unprocessed += 1;
       else if (PROCESSING.has(o.status)) counts.processing += 1;
       else if (OUT_FOR_DELIVERY.has(o.status)) counts.out += 1;
       else if (DELIVERED.has(o.status)) counts.delivered += 1;
       else if (RETURNED.has(o.status)) counts.returned += 1;
+      else if (CANCELLED_OR_FAILED.has(o.status)) counts.cancelled += 1;
     }
     return counts;
   }, [orders]);
 
   const pieData = useMemo(() => {
-    const counts = { unprocessed: 0, processing: 0, out: 0, delivered: 0, returned: 0 };
+    const counts = {
+      unprocessed: 0,
+      processing: 0,
+      out: 0,
+      delivered: 0,
+      returned: 0,
+      cancelled: 0,
+    };
     for (const o of movementQuery.data?.items ?? []) {
       if (UNPROCESSED.has(o.status)) counts.unprocessed += 1;
       else if (PROCESSING.has(o.status)) counts.processing += 1;
       else if (OUT_FOR_DELIVERY.has(o.status)) counts.out += 1;
       else if (DELIVERED.has(o.status)) counts.delivered += 1;
       else if (RETURNED.has(o.status)) counts.returned += 1;
+      else if (CANCELLED_OR_FAILED.has(o.status)) counts.cancelled += 1;
     }
     return [
       { name: t('Unprocessed'), value: counts.unprocessed, fill: '#F59E0B' },
@@ -362,6 +416,7 @@ export function DashboardPage(): ReactElement {
       { name: t('Out for delivery'), value: counts.out, fill: '#8B5CF6' },
       { name: t('Delivered'), value: counts.delivered, fill: '#059669' },
       { name: t('Returned'), value: counts.returned, fill: '#EF4444' },
+      { name: t('Cancelled / failed'), value: counts.cancelled, fill: '#94A3B8' },
     ].filter((d) => d.value > 0);
   }, [movementQuery.data, isArabic]);
 
@@ -391,7 +446,24 @@ export function DashboardPage(): ReactElement {
     return rows.slice(0, 8);
   }, [stockQuery.data, productsQuery.data]);
 
-  const latestOrders = useMemo(() => orders.slice(0, 8), [orders]);
+  const sellableTotal = useMemo(
+    () => (stockQuery.data?.items ?? []).reduce((acc, s) => acc + (Number(s.available) || 0), 0),
+    [stockQuery.data],
+  );
+  const lowStockCount = useMemo(() => {
+    const thresholdBySku = new Map<string, number>();
+    for (const p of productsQuery.data?.items ?? []) {
+      thresholdBySku.set(p.sku, Number(p.minStockThreshold) || 0);
+    }
+    let n = 0;
+    for (const s of stockQuery.data?.items ?? []) {
+      const st = inventoryStatus(Number(s.available) || 0, thresholdBySku.get(s.sku) ?? 0);
+      if (st === 'low' || st === 'out') n += 1;
+    }
+    return n;
+  }, [stockQuery.data, productsQuery.data]);
+
+  const totalOrders = orders.length;
 
   const codCurrency =
     codCollectedQuery.data?.items.find((i) => i.currency)?.currency ||
@@ -464,32 +536,38 @@ export function DashboardPage(): ReactElement {
 
   return (
     <div className="space-y-5 animate-enter">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{t('Dashboard')}</h1>
-          <p className="text-slate-500 mt-1 text-sm">
+      <ListPageHeader
+        icon="fa-chart-line"
+        title={t('Dashboard')}
+        subtitle={
+          <>
             {t('Welcome back')}, <span className="font-medium text-slate-700">{displayName}</span>
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link
-            to="/ecommerce-orders"
-            className={`px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 flex items-center gap-2 no-underline ${
-              !billingAccess.operationalAllowed ? 'opacity-50 pointer-events-none' : ''
-            }`}
-          >
-            <i className="fa-solid fa-plus text-xs" />
-            {t('New order')}
-          </Link>
-          <Link
-            to="/cod-reports"
-            className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2 no-underline"
-          >
-            <i className="fa-solid fa-money-bill-wave text-emerald-600 text-xs" />
-            {t('View COD')}
-          </Link>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="primary"
+              size="md"
+              disabled={!billingAccess.operationalAllowed}
+              onClick={() => navigate('/ecommerce-orders')}
+              startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
+            >
+              {t('New order')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => navigate('/my-profits')}
+              startIcon={
+                <i className="fa-solid fa-money-bill-wave text-emerald-600 text-xs" aria-hidden="true" />
+              }
+            >
+              {t('View cash on delivery')}
+            </Button>
+          </div>
+        }
+      />
 
       {ordersQuery.isError ? (
         <Alert
@@ -503,34 +581,38 @@ export function DashboardPage(): ReactElement {
         />
       ) : null}
 
-      {/* ✓ KEEP — Top KPIs (3 cards; leftmost customers card removed) */}
+      {/* Exception-first KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <TopKpi
-          label={t('Total products')}
-          value={productsTotal.toLocaleString(locale)}
-          hint={t('In your catalog')}
-          icon="fa-boxes-stacked"
-          tone="blue"
-          loading={loading}
-          to="/products"
-        />
-        <TopKpi
-          label={t('Total orders')}
-          value={totalOrders.toLocaleString(locale)}
-          hint={t('Selected period')}
-          icon="fa-clipboard-list"
+          label={t('Needs attention')}
+          value={attentionCount.toLocaleString(locale)}
+          hint={t('Stuck or awaiting action')}
+          icon="fa-triangle-exclamation"
           tone="amber"
           loading={loading}
           to="/ecommerce-orders"
         />
         <TopKpi
-          label={t('Completed orders')}
-          value={completedOrders.toLocaleString(locale)}
-          hint={t('Delivered & completed')}
-          icon="fa-box-open"
-          tone="violet"
-          loading={loading}
-          to="/ecommerce-orders"
+          label={t('Sellable stock')}
+          value={sellableTotal.toLocaleString(locale)}
+          hint={
+            lowStockCount > 0
+              ? `${lowStockCount.toLocaleString(locale)} ${t('Low-stock SKUs')}`
+              : t('Units available to sell')
+          }
+          icon="fa-boxes-stacked"
+          tone="emerald"
+          loading={loading || stockQuery.isPending}
+          to="/products"
+        />
+        <TopKpi
+          label={t('Cash on delivery')}
+          value={formatMoney(collectedCod, codCurrency, locale)}
+          hint={`${t('Pending collection')}: ${formatMoney(pendingCod, codCurrency, locale)}`}
+          icon="fa-money-bill-wave"
+          tone="slate"
+          loading={loadingCod}
+          to="/my-profits"
         />
       </div>
 
@@ -628,6 +710,7 @@ export function DashboardPage(): ReactElement {
             <StatusCell label={t('Out for delivery')} count={statusCounts.out} total={totalOrders || 1} colorClass="text-violet-600" />
             <StatusCell label={t('Delivered')} count={statusCounts.delivered} total={totalOrders || 1} colorClass="text-emerald-600" />
             <StatusCell label={t('Returned')} count={statusCounts.returned} total={totalOrders || 1} colorClass="text-rose-600" />
+            <StatusCell label={t('Cancelled / failed')} count={statusCounts.cancelled} total={totalOrders || 1} colorClass="text-slate-500" />
           </div>
         </Card>
       </div>
@@ -656,11 +739,13 @@ export function DashboardPage(): ReactElement {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {stockQuery.isPending ? (
-                <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-slate-400">
-                    —
-                  </td>
-                </tr>
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={`inv-sk-${i}`} className="animate-pulse">
+                    <td className="px-5 py-3" colSpan={5}>
+                      <Skeleton height={16} width="100%" />
+                    </td>
+                  </tr>
+                ))
               ) : inventoryRows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-5 py-10 text-center text-slate-400">
@@ -716,8 +801,10 @@ export function DashboardPage(): ReactElement {
         <Card className="xl:col-span-8 overflow-hidden">
           <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
             <div>
-              <h2 className="font-bold text-slate-900">{t('Latest orders')}</h2>
-              <p className="text-xs text-slate-500 mt-0.5">{t('Orders needing attention')}</p>
+              <h2 className="font-bold text-slate-900">{t('Orders needing attention')}</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {t('Unprocessed, failed delivery, and similar exceptions')}
+              </p>
             </div>
             <Link to="/ecommerce-orders" className="text-xs font-semibold text-emerald-600 no-underline">
               {t('View all')}
@@ -735,14 +822,14 @@ export function DashboardPage(): ReactElement {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {latestOrders.length === 0 ? (
+                {attentionOrders.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-5 py-10 text-center text-slate-400">
-                      {t('No orders yet')}
+                      {t('No orders need attention')}
                     </td>
                   </tr>
                 ) : (
-                  latestOrders.map((o) => (
+                  attentionOrders.map((o) => (
                     <tr
                       key={o.id}
                       className="hover:bg-emerald-50/30 cursor-pointer transition-colors"
@@ -776,6 +863,7 @@ export function DashboardPage(): ReactElement {
             iconText="text-emerald-700"
             emphasize
             loading={loadingCod}
+            to="/my-profits"
             action={
               <a
                 href={payoutMailto}
@@ -793,24 +881,27 @@ export function DashboardPage(): ReactElement {
             iconBg="bg-emerald-50"
             iconText="text-emerald-700"
             loading={loadingCod}
+            to="/my-profits"
           />
           <FinanceCard
             label={t('Pending collection')}
             value={formatMoney(pendingCod, codCurrency, locale)}
             hint={t('Still with carriers')}
             icon="fa-truck"
-            iconBg="bg-sky-50"
-            iconText="text-sky-600"
+            iconBg="bg-slate-100"
+            iconText="text-slate-600"
             loading={loadingCod}
+            to="/my-profits"
           />
           <FinanceCard
             label={t('Remitted')}
             value={formatMoney(remittedCod, codCurrency, locale)}
             hint={t('Already paid out')}
             icon="fa-building-columns"
-            iconBg="bg-amber-50"
-            iconText="text-amber-600"
+            iconBg="bg-slate-100"
+            iconText="text-slate-600"
             loading={loadingCod}
+            to="/my-profits"
           />
         </div>
       </div>

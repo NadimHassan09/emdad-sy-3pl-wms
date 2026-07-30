@@ -11,9 +11,15 @@ export type UseUiLanguageOptions = {
   minLoadingMs?: number;
 };
 
-function readStored(storageKey: string): UiLanguage {
+function readStored(storageKey: string, fallbackKeys: string[] = []): UiLanguage {
   if (typeof window === 'undefined') return 'EN';
-  return window.localStorage.getItem(storageKey) === 'AR' ? 'AR' : 'EN';
+  if (window.localStorage.getItem(storageKey) === 'AR') return 'AR';
+  if (window.localStorage.getItem(storageKey) === 'EN') return 'EN';
+  for (const key of fallbackKeys) {
+    if (window.localStorage.getItem(key) === 'AR') return 'AR';
+    if (window.localStorage.getItem(key) === 'EN') return 'EN';
+  }
+  return 'EN';
 }
 
 export function applyUiLanguage(
@@ -36,8 +42,11 @@ export function useUiLanguage({
   storageKey,
   eventName,
   minLoadingMs = 420,
-}: UseUiLanguageOptions) {
-  const [language, setLanguageState] = useState<UiLanguage>(() => readStored(storageKey));
+  fallbackStorageKeys = storageKey === 'wms-ui-language' ? ['client-ui-language'] : [],
+}: UseUiLanguageOptions & { fallbackStorageKeys?: string[] }) {
+  const [language, setLanguageState] = useState<UiLanguage>(() =>
+    readStored(storageKey, fallbackStorageKeys),
+  );
   const [isSwitching, setIsSwitching] = useState(false);
 
   const isArabic = language === 'AR';

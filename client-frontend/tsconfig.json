@@ -23,8 +23,8 @@
     "paths": {
       "@ds": ["../shared/design-system/ui/index.ts"],
       "@ds/*": ["../shared/design-system/ui/*"],
-      "@wms/components/*": ["../frontend/src/components/*"],
-      "@wms/hooks/*": ["../frontend/src/hooks/*"],
+      "@ds/hooks/*": ["../shared/design-system/hooks/*"],
+      "@tanstack/react-query": ["./node_modules/@tanstack/react-query"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
       "react-dom": ["./node_modules/@types/react-dom"],
@@ -35,6 +35,7 @@
     "src",
     "../shared/design-system/ui/**/*.ts",
     "../shared/design-system/ui/**/*.tsx",
-    "../shared/design-system/lib/**/*.ts"
+    "../shared/design-system/lib/**/*.ts",
+    "../shared/design-system/hooks/**/*.ts"
   ]
 }

@@ -10,10 +10,6 @@ export default defineConfig({
       '@ds': fileURLToPath(
         new NodeURL('../shared/design-system/ui/index.ts', import.meta.url),
       ),
-      '@wms/components': fileURLToPath(
-        new NodeURL('../frontend/src/components', import.meta.url),
-      ),
-      '@wms/hooks': fileURLToPath(new NodeURL('../frontend/src/hooks', import.meta.url)),
       'react': pathResolve('./node_modules/react'),
       'react-dom': pathResolve('./node_modules/react-dom'),
       'react/jsx-runtime': pathResolve('./node_modules/react/jsx-runtime.js'),

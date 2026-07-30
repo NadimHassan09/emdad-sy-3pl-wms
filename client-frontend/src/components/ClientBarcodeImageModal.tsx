@@ -2,7 +2,7 @@ import JsBarcode from 'jsbarcode';
 import { useCallback, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 
 import { Button, Modal } from '@ds';
-import { FILTER_PRIMARY_BUTTON_CLASS } from '@wms/components/FilterPanel';
+import { FILTER_PRIMARY_BUTTON_CLASS } from '@ds';
 
 type Props = {
   open: boolean;

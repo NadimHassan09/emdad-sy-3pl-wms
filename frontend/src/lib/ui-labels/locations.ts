@@ -27,7 +27,7 @@ const LOCATION_TYPE_HINTS: Record<string, LocalizedMessage> = {
     'Used in inbound receiving tasks (deferred-putaway dock).',
     'يُستخدم في مهام استلام الوارد (رصيف استلام).',
   ],
-  output: ['Used in delivery tasks.', 'يُستخدم في مهام التسليم.'],
+  output: ['Used in dispatch tasks.', 'يُستخدم في مهام الإرسال.'],
   quarantine: ['Used in putaway tasks (hold / quality issues).', 'يُستخدم في مهام التخزين (حجز / جودة).'],
   scrap: ['Used in putaway tasks.', 'يُستخدم في مهام التخزين.'],
 };

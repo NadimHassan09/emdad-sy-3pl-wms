@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
-} from '@wms/hooks/useChunkedServerPagination';
+} from '../hooks/useChunkedServerPagination';
 
 import { Badge } from '../design-v2/Badge';
 import { Card } from '../design-v2/Card';
@@ -28,7 +28,7 @@ function labelText(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
     'Cash on delivery': 'الدفع عند الاستلام',
-    'Online, COD, and returns': 'الإلكترونية، الدفع عند الاستلام، والمرتجعات',
+    'Collected and pending remittance': 'المحصّل وبانتظار التحويل',
     'COD orders': 'طلبات الدفع عند الاستلام',
     'Total COD amount': 'إجمالي مبالغ التحصيل',
     'Matching filters': 'مطابق للفلاتر',
@@ -86,7 +86,7 @@ export function CodReportsPage(): ReactElement {
       <ListPageHeader
         icon="fa-money-bill"
         title={t('Cash on delivery')}
-        subtitle={t('Online, COD, and returns')}
+        subtitle={t('Collected and pending remittance')}
       />
 
       <StorePillTabs isArabic={isArabic} />

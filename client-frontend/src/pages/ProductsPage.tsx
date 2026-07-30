@@ -1,18 +1,17 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { Alert } from '@ds';
+import { Alert, Badge, Button, EmptyState, Skeleton } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
-} from '@wms/hooks/useChunkedServerPagination';
+} from '../hooks/useChunkedServerPagination';
 
 import { useAuth } from '../auth/AuthContext';
 import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { ClientBarcodeImageModal } from '../components/ClientBarcodeImageModal';
 import { CreateClientProductModal } from '../components/CreateClientProductModal';
 import { ProductDetailsModal } from '../components/ProductDetailsModal';
-import { Badge } from '../design-v2/Badge';
 import { Card } from '../design-v2/Card';
 import { ListPageHeader } from '../design-v2/ListPageHeader';
 import { TableFooterPagination } from '../design-v2/TableFooterPagination';
@@ -32,24 +31,43 @@ import { clientMediaSrc } from '../lib/client-media';
 function productsLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
-    Products: 'المنتجات',
-    'Manage your product catalog and inventory': 'إدارة كتالوج المنتجات والمخزون',
+    Inventory: 'المخزون',
+    'Sellable stock and catalog': 'المخزون القابل للبيع والكتالوج',
     'New product': 'منتج جديد',
     'Search name, SKU, or barcode...': 'ابحث بالاسم أو رمز SKU أو الباركود...',
     Product: 'المنتج',
     SKU: 'رمز SKU',
-    Stock: 'المخزون',
+    Available: 'المتاح',
+    Reserved: 'المحجوز',
+    'On hand': 'المتواجد',
     Status: 'الحالة',
     Actions: 'الإجراءات',
     'View details': 'عرض التفاصيل',
     'View barcode': 'عرض الباركود',
     'Open actions': 'فتح الإجراءات',
     'No products found.': 'لا توجد منتجات.',
+    'No products match your search.': 'لا توجد منتجات مطابقة لبحثك.',
+    'Add your first catalog product to track sellable stock.':
+      'أضف أول منتج في الكتالوج لتتبع المخزون القابل للبيع.',
+    'Create first product': 'إنشاء أول منتج',
     'Could not load products': 'تعذر تحميل المنتجات',
     'Product created.': 'تم إنشاء المنتج.',
     Retry: 'إعادة المحاولة',
+    'In stock': 'متوفر',
+    'Low stock': 'مخزون منخفض',
+    'Out of stock': 'نفد المخزون',
   };
   return ar[label] ?? label;
+}
+
+function stockHealth(
+  available: number,
+  threshold: number,
+): 'available' | 'low' | 'out' {
+  if (available <= 0) return 'out';
+  const lowAt = threshold > 0 ? threshold : 5;
+  if (available <= lowAt) return 'low';
+  return 'available';
 }
 
 const fmtQty = (s: string | null | undefined): string => {
@@ -138,12 +156,13 @@ export function ProductsPage(): ReactElement {
     <div className="space-y-5 animate-enter">
       <ListPageHeader
         icon="fa-boxes-stacked"
-        title={t('Products')}
-        subtitle={t('Manage your product catalog and inventory')}
+        title={t('Inventory')}
+        subtitle={t('Sellable stock and catalog')}
         actions={
           canCreateProducts ? (
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="md"
               disabled={!billingAccess.operationalAllowed}
               title={
                 !billingAccess.operationalAllowed
@@ -154,11 +173,10 @@ export function ProductsPage(): ReactElement {
                 setCreateError(null);
                 setCreateOpen(true);
               }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
             >
-              <i className="fa-solid fa-plus text-xs" />
               {t('New product')}
-            </button>
+            </Button>
           ) : null
         }
       />
@@ -199,26 +217,77 @@ export function ProductsPage(): ReactElement {
               <tr>
                 <th className="px-5 py-3 text-left">{t('Product')}</th>
                 <th className="px-5 py-3 text-left">{t('SKU')}</th>
-                <th className="px-5 py-3 text-left">{t('Stock')}</th>
+                <th className="px-5 py-3 text-right">{t('Available')}</th>
+                <th className="px-5 py-3 text-right">{t('Reserved')}</th>
+                <th className="px-5 py-3 text-right">{t('On hand')}</th>
                 <th className="px-5 py-3 text-left">{t('Status')}</th>
                 <th className="px-5 py-3 text-right">{t('Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {pagination.isInitialLoading ? (
-                <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-slate-400 text-sm">…</td>
-                </tr>
+                Array.from({ length: 6 }).map((_, rowIdx) => (
+                  <tr key={`sk-${rowIdx}`}>
+                    {Array.from({ length: 7 }).map((__, colIdx) => (
+                      <td key={colIdx} className="px-5 py-3.5">
+                        <Skeleton height={14} width={colIdx === 0 ? '70%' : '50%'} />
+                      </td>
+                    ))}
+                  </tr>
+                ))
               ) : pagination.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-slate-400 text-sm">
-                    {t('No products found.')}
+                  <td colSpan={7} className="px-5 py-6">
+                    <EmptyState
+                      size="sm"
+                      icon={<i className="fa-solid fa-boxes-stacked text-2xl" aria-hidden="true" />}
+                      title={
+                        debouncedSearch.trim()
+                          ? t('No products match your search.')
+                          : t('No products found.')
+                      }
+                      description={
+                        debouncedSearch.trim()
+                          ? undefined
+                          : t('Add your first catalog product to track sellable stock.')
+                      }
+                      action={
+                        canCreateProducts &&
+                        billingAccess.operationalAllowed &&
+                        !debouncedSearch.trim() ? (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => {
+                              setCreateError(null);
+                              setCreateOpen(true);
+                            }}
+                            startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
+                          >
+                            {t('Create first product')}
+                          </Button>
+                        ) : undefined
+                      }
+                    />
                   </td>
                 </tr>
               ) : (
                 pagination.rows.map((p) => {
-                  const stock = Number(p.totalOnHand ?? 0);
-                  const stockPercent = Number.isFinite(stock) ? Math.min(100, (stock / 10) * 100) : 0;
+                  const reserved = Number(p.totalReserved ?? 0);
+                  const onHand = Number(p.totalOnHand ?? 0);
+                  const available =
+                    p.totalAvailable != null
+                      ? Number(p.totalAvailable)
+                      : Math.max(0, onHand - reserved);
+                  const health = stockHealth(available, Number(p.minStockThreshold) || 0);
+                  const healthTone =
+                    health === 'out' ? 'danger' : health === 'low' ? 'warning' : 'success';
+                  const healthLabel =
+                    health === 'out'
+                      ? t('Out of stock')
+                      : health === 'low'
+                        ? t('Low stock')
+                        : t('In stock');
                   return (
                     <tr
                       key={p.id}
@@ -261,16 +330,19 @@ export function ProductsPage(): ReactElement {
                           p.sku
                         )}
                       </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${stockPercent}%` }} />
-                          </div>
-                          <span className="text-xs font-medium text-slate-700">{fmtQty(p.totalOnHand)}</span>
-                        </div>
+                      <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-slate-900">
+                        {fmtQty(p.totalAvailable ?? String(available))}
+                      </td>
+                      <td className="px-5 py-3.5 text-right tabular-nums text-slate-500">
+                        {fmtQty(p.totalReserved)}
+                      </td>
+                      <td className="px-5 py-3.5 text-right tabular-nums text-slate-600">
+                        {fmtQty(p.totalOnHand ?? String(onHand))}
                       </td>
                       <td className="px-5 py-3.5">
-                        <Badge status={p.status} />
+                        <Badge tone={healthTone} dot>
+                          {healthLabel}
+                        </Badge>
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <div className="inline-flex" onClick={(e) => e.stopPropagation()}>

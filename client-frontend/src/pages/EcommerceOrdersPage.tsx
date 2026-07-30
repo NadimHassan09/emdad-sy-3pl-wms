@@ -2,16 +2,15 @@ import { useMemo, useState, type ReactElement } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert } from '@ds';
+import { Alert, Button, EmptyState, ListPageHeader, Skeleton } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
-} from '@wms/hooks/useChunkedServerPagination';
+} from '../hooks/useChunkedServerPagination';
 
 import { CreateClientOmsOrderModal } from '../components/CreateClientOmsOrderModal';
 import { Badge } from '../design-v2/Badge';
 import { Card } from '../design-v2/Card';
-import { ListPageHeader } from '../design-v2/ListPageHeader';
 import { StorePillTabs } from '../design-v2/StorePillTabs';
 import { TableFooterPagination } from '../design-v2/TableFooterPagination';
 import { useDebouncedValue } from '../design-v2/useDebouncedValue';
@@ -20,6 +19,7 @@ import { isClientArabic } from '../lib/client-ui-language';
 import {
   createClientOmsOrder,
   fetchClientOmsOrders,
+  type ClientOmsOrderListItem,
   type ClientOmsOrderStatus,
 } from '../services/clientOmsOrdersService';
 
@@ -46,7 +46,7 @@ function labelText(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
     'Online orders': 'الطلبات الإلكترونية',
-    'Online, COD, and returns': 'الإلكتروني، الدفع عند الاستلام، والمرتجعات',
+    'Orders from your store channels': 'طلبات من قنوات متجرك',
     'Create order': 'إنشاء طلب',
     'Search order number...': 'ابحث برقم الطلب...',
     'All statuses': 'كل الحالات',
@@ -57,8 +57,9 @@ function labelText(label: string, isArabic: boolean): string {
     Total: 'الإجمالي',
     Created: 'تاريخ الإنشاء',
     'No online orders yet': 'لا توجد طلبات إلكترونية بعد',
-    'Create an order from your store channel to track fulfillment here.':
-      'أنشئ طلباً من قناة متجرك لتتبع التنفيذ هنا.',
+    'Create an order from your store channel to track it here.':
+      'أنشئ طلباً من قناة متجرك لتتبعه هنا.',
+    'No online orders match the filters.': 'لا توجد طلبات إلكترونية مطابقة للفلاتر.',
     'Create first order': 'إنشاء أول طلب',
     'Could not load online orders': 'تعذر تحميل الطلبات الإلكترونية',
     Retry: 'إعادة المحاولة',
@@ -97,7 +98,7 @@ export function EcommerceOrdersPage(): ReactElement {
     [debouncedSearch, status],
   );
 
-  const pagination = useChunkedServerPagination({
+  const pagination = useChunkedServerPagination<ClientOmsOrderListItem>({
     chunkSize: CHUNK_SIZE_STANDARD,
     filterKey,
     fetchChunk: (offset, limit) => fetchClientOmsOrders({ ...filterKey, offset, limit }),
@@ -105,28 +106,33 @@ export function EcommerceOrdersPage(): ReactElement {
     chunkQueryKeyPrefix: 'client-ecommerce-orders-chunk',
   });
 
+  const hasActiveFilters = Boolean(debouncedSearch.trim() || status);
+
   function openCreate() {
     setCreateError(null);
     setCreateOpen(true);
   }
+
+  const createButton = (
+    <Button
+      variant="primary"
+      size="md"
+      disabled={!billingAccess.operationalAllowed}
+      title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
+      onClick={openCreate}
+      startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
+    >
+      {t('Create order')}
+    </Button>
+  );
 
   return (
     <div className="space-y-5 animate-enter">
       <ListPageHeader
         icon="fa-cart-shopping"
         title={t('Online orders')}
-        subtitle={t('Online, COD, and returns')}
-        actions={
-          <button
-            type="button"
-            disabled={!billingAccess.operationalAllowed}
-            title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
-            onClick={openCreate}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <i className="fa-solid fa-plus text-xs" /> {t('Create order')}
-          </button>
-        }
+        subtitle={t('Orders from your store channels')}
+        actions={createButton}
       />
 
       <StorePillTabs isArabic={isArabic} />
@@ -139,53 +145,80 @@ export function EcommerceOrdersPage(): ReactElement {
         </Alert>
       ) : null}
 
-      <Card className="p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('Search order number...')}
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm input-premium"
-            />
-          </div>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 input-premium"
-          >
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value || 'all'} value={o.value}>
-                {o.value === '' ? t('All statuses') : o.label}
-              </option>
-            ))}
-          </select>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1 max-w-sm">
+          <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('Search order number...')}
+            className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm input-premium focus-visible:outline-none focus-visible:shadow-focus"
+          />
         </div>
-      </Card>
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 input-premium focus-visible:outline-none focus-visible:shadow-focus"
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value || 'all'} value={o.value}>
+              {o.value === '' ? t('All statuses') : o.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <Card className="overflow-hidden">
         {pagination.isInitialLoading ? (
-          <div className="px-5 py-10 text-center text-slate-400 text-sm">…</div>
-        ) : pagination.rows.length === 0 ? (
-          <div className="py-20 flex flex-col items-center justify-center text-center px-6">
-            <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
-              <i className="fa-solid fa-cart-shopping text-2xl text-slate-300" />
-            </div>
-            <h3 className="text-base font-semibold text-slate-900">{t('No online orders yet')}</h3>
-            <p className="text-sm text-slate-500 mt-1 max-w-xs">
-              {t('Create an order from your store channel to track fulfillment here.')}
-            </p>
-            {billingAccess.operationalAllowed ? (
-              <button
-                type="button"
-                onClick={openCreate}
-                className="mt-5 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
-              >
-                {t('Create first order')}
-              </button>
-            ) : null}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
+                <tr>
+                  <th className="px-5 py-3 text-left">{t('Order #')}</th>
+                  <th className="px-5 py-3 text-left">{t('Status')}</th>
+                  <th className="px-5 py-3 text-left">{t('Recipient')}</th>
+                  <th className="px-5 py-3 text-left">{t('Channel')}</th>
+                  <th className="px-5 py-3 text-left">{t('Total')}</th>
+                  <th className="px-5 py-3 text-right">{t('Created')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {Array.from({ length: 6 }).map((_, rowIdx) => (
+                  <tr key={`sk-${rowIdx}`}>
+                    {Array.from({ length: 6 }).map((__, colIdx) => (
+                      <td key={colIdx} className="px-5 py-3.5">
+                        <Skeleton height={14} width={colIdx === 0 ? '70%' : '55%'} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        ) : pagination.rows.length === 0 ? (
+          <EmptyState
+            icon={<i className="fa-solid fa-cart-shopping text-2xl" aria-hidden="true" />}
+            title={
+              hasActiveFilters ? t('No online orders match the filters.') : t('No online orders yet')
+            }
+            description={
+              hasActiveFilters
+                ? undefined
+                : t('Create an order from your store channel to track it here.')
+            }
+            action={
+              !hasActiveFilters && billingAccess.operationalAllowed ? (
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={openCreate}
+                  startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
+                >
+                  {t('Create first order')}
+                </Button>
+              ) : undefined
+            }
+          />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -201,7 +234,7 @@ export function EcommerceOrdersPage(): ReactElement {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {pagination.rows.map((row) => (
+                  {(pagination.rows as ClientOmsOrderListItem[]).map((row) => (
                     <tr
                       key={row.id}
                       onClick={() => navigate(`/ecommerce-orders/${row.id}`)}

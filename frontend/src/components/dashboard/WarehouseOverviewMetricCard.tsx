@@ -121,7 +121,7 @@ export function WarehouseOverviewMetricCardSkeleton({ primary }: { primary?: boo
       }
       style={
         primary
-          ? { background: 'linear-gradient(135deg, #0a3d28 0%, #146135 45%, #1a7a44 100%)' }
+          ? { background: 'linear-gradient(135deg, #064e3b 0%, #047857 45%, #059669 100%)' }
           : undefined
       }
     >

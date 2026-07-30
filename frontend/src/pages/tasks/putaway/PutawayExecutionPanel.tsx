@@ -10,6 +10,7 @@ import { BarcodeScanIcon } from '../../../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../../../components/BarcodeScanModal';
 import { Button } from '../../../components/Button';
 import { PutawayDestinationPicker } from './PutawayDestinationPicker';
+import { WedgeScanField } from '../../../components/WedgeScanField';
 import { useResolvedLocations } from '../../../hooks/useResolvedLocations';
 import { TaskLinesFilterCard } from '../../../components/tasks/TaskLinesFilterCard';
 import {
@@ -575,6 +576,20 @@ function PutawayLinesTable({
   const { t } = useWmsTranslation();
   const toast = useToast();
   const [scanRowKey, setScanRowKey] = useState<string | null>(null);
+  const [wedgeDest, setWedgeDest] = useState('');
+
+  const activeRowKey = useMemo(() => {
+    const incomplete = drafts.find((d) => !d.destination_location_id.trim() || !d.destVerified);
+    return incomplete?.rowKey ?? drafts[0]?.rowKey ?? null;
+  }, [drafts]);
+
+  const lastDestId = useMemo(() => {
+    for (let i = drafts.length - 1; i >= 0; i -= 1) {
+      const id = drafts[i]?.destination_location_id?.trim();
+      if (id) return id;
+    }
+    return '';
+  }, [drafts]);
 
   const applyDestinationScan = useCallback(
     async (rowKey: string, code: string) => {
@@ -600,6 +615,7 @@ function PutawayLinesTable({
         t([`Destination: ${hit.fullPath}`, `الوجهة: ${hit.fullPath}`]),
       );
       setScanRowKey(null);
+      setWedgeDest('');
     },
     [onPatch, taskType, toast, t, warehouseId],
   );
@@ -640,13 +656,29 @@ function PutawayLinesTable({
         return readOnly ? (
           <span className="font-mono text-xs">{locationDisplay(dest).fullPath}</span>
         ) : (
-          <PutawayDestinationPicker
-            warehouseId={warehouseId}
-            taskType={taskType}
-            value={d.destination_location_id}
-            dropdownInFlow
-            onChange={(v) => onPatch?.(d.rowKey, { destination_location_id: v, destVerified: !!v })}
-          />
+          <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
+            <PutawayDestinationPicker
+              warehouseId={warehouseId}
+              taskType={taskType}
+              value={d.destination_location_id}
+              dropdownInFlow
+              onChange={(v) => onPatch?.(d.rowKey, { destination_location_id: v, destVerified: !!v })}
+            />
+            {lastDestId && !d.destination_location_id.trim() ? (
+              <button
+                type="button"
+                className="text-[10px] font-semibold text-emerald-700 underline-offset-2 hover:underline"
+                onClick={() =>
+                  onPatch?.(d.rowKey, {
+                    destination_location_id: lastDestId,
+                    destVerified: true,
+                  })
+                }
+              >
+                {t(['Use last destination', 'استخدم آخر وجهة'])}
+              </button>
+            ) : null}
+          </div>
         );
       },
       width: '200px',
@@ -720,6 +752,21 @@ function PutawayLinesTable({
 
   return (
     <>
+      {!readOnly && activeRowKey ? (
+        <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+          <WedgeScanField
+            label={t(['Scan destination bin', 'امسح صندوق الوجهة'])}
+            value={wedgeDest}
+            onChange={setWedgeDest}
+            onScan={(code) => void applyDestinationScan(activeRowKey, code)}
+            placeholder={t(['Location barcode + Enter', 'باركود الموقع ثم Enter'])}
+            hint={t([
+              'Applies to the first line still missing a destination.',
+              'يُطبَّق على أول سطر بلا وجهة.',
+            ])}
+          />
+        </div>
+      ) : null}
       <DataTable
         title={t(['Movement lines', 'أسطر الحركة'])}
         actions={

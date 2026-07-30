@@ -2,7 +2,11 @@ import type { ReactElement } from 'react';
 import { isAxiosError } from 'axios';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { Alert, Skeleton } from '@ds';
 
+import { Badge } from '../design-v2/Badge';
+import { Card } from '../design-v2/Card';
+import { ListPageHeader } from '../design-v2/ListPageHeader';
 import { isClientArabic } from '../lib/client-ui-language';
 import { fetchClientProduct } from '../services/clientProductsService';
 
@@ -19,10 +23,11 @@ const UOM_LABELS: Record<string, { en: string; ar: string }> = {
 function detailLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
-    '← Back to products': '← العودة إلى المنتجات',
+    'Back to products': 'العودة إلى المنتجات',
     'Product not found.': 'المنتج غير موجود.',
     'Could not load product.': 'تعذر تحميل المنتج.',
-    'Loading product…': 'جاري تحميل المنتج…',
+    'Product details': 'تفاصيل المنتج',
+    'Stock and catalog fields for this SKU': 'مخزون وحقول الكتالوج لهذا الصنف',
     Name: 'الاسم',
     SKU: 'رمز SKU',
     Barcode: 'الباركود',
@@ -44,12 +49,6 @@ function detailLabel(label: string, isArabic: boolean): string {
   return ar[label] ?? label;
 }
 
-function productStatusClass(status: string): string {
-  if (status === 'active') return 'bg-emerald-50 text-emerald-700';
-  if (status === 'suspended') return 'bg-amber-50 text-amber-800';
-  return 'bg-slate-100 text-slate-600';
-}
-
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -60,6 +59,15 @@ function fmtQty(s: string): string {
   const n = Number(s);
   if (Number.isNaN(n)) return s;
   return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+function DetailRow({ label, children }: { label: string; children: React.ReactNode }): ReactElement {
+  return (
+    <div className="grid grid-cols-1 gap-1 border-b border-slate-100 py-3 last:border-0 sm:grid-cols-[12rem_1fr] sm:gap-4">
+      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
+      <dd className="text-sm text-slate-800">{children}</dd>
+    </div>
+  );
 }
 
 export function ProductDetailPage(): ReactElement {
@@ -88,110 +96,110 @@ export function ProductDetailPage(): ReactElement {
       : null;
 
   return (
-    <main className="main">
-      <div className="card">
-        <p style={{ marginBottom: '1rem' }}>
-          <Link className="muted" to="/products" style={{ textDecoration: 'none' }}>
-            {t('← Back to products')}
-          </Link>
-        </p>
+    <div className="animate-enter space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ListPageHeader
+          icon="fa-box"
+          title={data?.name ?? t('Product details')}
+          subtitle={t('Stock and catalog fields for this SKU')}
+        />
+        <Link
+          to="/products"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        >
+          <i className={`fa-solid ${isArabic ? 'fa-arrow-right' : 'fa-arrow-left'} text-xs text-slate-400`} />
+          {t('Back to products')}
+        </Link>
+      </div>
 
-        {notFound ? (
-          <p className="banner banner--error" role="alert">
-            {t('Product not found.')}
-          </p>
-        ) : error ? (
-          <p className="banner banner--error" role="alert">
-            {t('Could not load product.')}
-          </p>
-        ) : null}
+      {notFound ? (
+        <Alert variant="error" title={t('Product not found.')} />
+      ) : error ? (
+        <Alert variant="error" title={t('Could not load product.')} />
+      ) : null}
 
+      <Card className="p-5 sm:p-6">
         {isLoading ? (
-          <p className="muted">{t('Loading product…')}</p>
+          <div className="space-y-4" aria-busy="true">
+            <Skeleton height={28} width="40%" />
+            <Skeleton height={14} width="70%" />
+            <Skeleton height={14} width="55%" />
+            <Skeleton height={14} width="60%" />
+            <div className="grid gap-3 sm:grid-cols-3 pt-2">
+              <Skeleton height={64} />
+              <Skeleton height={64} />
+              <Skeleton height={64} />
+            </div>
+          </div>
         ) : data ? (
           <>
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                alignItems: 'baseline',
-                gap: '0.75rem',
-                marginBottom: '1rem',
-              }}
-            >
-              <h1 className="card__title" style={{ margin: 0 }}>
-                {data.name}
-              </h1>
-              <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${productStatusClass(data.status)}`}
-              >
-                {data.status}
-              </span>
+            <div className="mb-5 flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-bold text-slate-900">{data.name}</h2>
+              <Badge status={data.status} />
             </div>
 
-            <dl className="details">
-              <div className="details__row">
-                <dt>{t('SKU')}</dt>
-                <dd className="font-mono text-sm">{data.sku}</dd>
+            <div className="mb-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  {t('On hand')}
+                </div>
+                <div className="mt-1 font-mono text-xl font-bold tabular-nums text-slate-900">
+                  {fmtQty(data.totalOnHand)}
+                </div>
               </div>
-              <div className="details__row">
-                <dt>{t('Barcode')}</dt>
-                <dd className="font-mono text-sm">{data.barcode ?? '—'}</dd>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  {t('Reserved')}
+                </div>
+                <div className="mt-1 font-mono text-xl font-bold tabular-nums text-slate-900">
+                  {fmtQty(data.totalReserved)}
+                </div>
               </div>
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-4 py-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+                  {t('Available')}
+                </div>
+                <div className="mt-1 font-mono text-xl font-bold tabular-nums text-emerald-800">
+                  {fmtQty(data.totalAvailable)}
+                </div>
+              </div>
+            </div>
+
+            <dl>
+              <DetailRow label={t('SKU')}>
+                <span className="font-mono text-sm">{data.sku}</span>
+              </DetailRow>
+              <DetailRow label={t('Barcode')}>
+                <span className="font-mono text-sm">{data.barcode ?? '—'}</span>
+              </DetailRow>
               {data.description ? (
-                <div className="details__row">
-                  <dt>{t('Description')}</dt>
-                  <dd style={{ whiteSpace: 'pre-wrap' }}>{data.description}</dd>
-                </div>
+                <DetailRow label={t('Description')}>
+                  <span className="whitespace-pre-wrap">{data.description}</span>
+                </DetailRow>
               ) : null}
-              <div className="details__row">
-                <dt>{t('UoM')}</dt>
-                <dd>{uomLabel}</dd>
-              </div>
-              <div className="details__row">
-                <dt>{t('Expiry tracking')}</dt>
-                <dd>{data.expiryTracking ? t('Yes') : t('No')}</dd>
-              </div>
-              <div className="details__row">
-                <dt>{t('Min stock threshold')}</dt>
-                <dd className="font-mono">{fmtQty(data.minStockThreshold)}</dd>
-              </div>
-              <div className="details__row">
-                <dt>{t('On hand')}</dt>
-                <dd className="font-mono font-semibold">{fmtQty(data.totalOnHand)}</dd>
-              </div>
-              <div className="details__row">
-                <dt>{t('Reserved')}</dt>
-                <dd className="font-mono">{fmtQty(data.totalReserved)}</dd>
-              </div>
-              <div className="details__row">
-                <dt>{t('Available')}</dt>
-                <dd className="font-mono font-semibold">{fmtQty(data.totalAvailable)}</dd>
-              </div>
+              <DetailRow label={t('UoM')}>{uomLabel}</DetailRow>
+              <DetailRow label={t('Expiry tracking')}>
+                {data.expiryTracking ? t('Yes') : t('No')}
+              </DetailRow>
+              <DetailRow label={t('Min stock threshold')}>
+                <span className="font-mono">{fmtQty(data.minStockThreshold)}</span>
+              </DetailRow>
               {dimensions ? (
-                <div className="details__row">
-                  <dt>{t('Dimensions')}</dt>
-                  <dd className="font-mono">{dimensions}</dd>
-                </div>
+                <DetailRow label={t('Dimensions')}>
+                  <span className="font-mono">{dimensions}</span>
+                </DetailRow>
               ) : null}
               {data.weightKg ? (
-                <div className="details__row">
-                  <dt>{t('Weight')}</dt>
-                  <dd className="font-mono">{data.weightKg}</dd>
-                </div>
+                <DetailRow label={t('Weight')}>
+                  <span className="font-mono">{data.weightKg}</span>
+                </DetailRow>
               ) : null}
-              <div className="details__row">
-                <dt>{t('Created')}</dt>
-                <dd>{formatDateTime(data.createdAt)}</dd>
-              </div>
-              <div className="details__row">
-                <dt>{t('Updated')}</dt>
-                <dd>{formatDateTime(data.updatedAt)}</dd>
-              </div>
+              <DetailRow label={t('Created')}>{formatDateTime(data.createdAt)}</DetailRow>
+              <DetailRow label={t('Updated')}>{formatDateTime(data.updatedAt)}</DetailRow>
             </dl>
           </>
         ) : null}
-      </div>
-    </main>
+      </Card>
+    </div>
   );
 }

@@ -6,7 +6,7 @@ import { Alert } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
-} from '@wms/hooks/useChunkedServerPagination';
+} from '../hooks/useChunkedServerPagination';
 
 import { CreateClientOutboundModal } from '../components/CreateClientOutboundModal';
 import { Badge } from '../design-v2/Badge';
@@ -38,6 +38,7 @@ function outboundLabel(label: string, isArabic: boolean): string {
   const ar: Record<string, string> = {
     'Outbound Orders': 'طلبات الصادر',
     'Manage and track your outbound orders': 'إدارة وتتبع طلبات الصادر الخاصة بك',
+    'Warehouse shipments': 'شحنات المستودع',
     'New outbound': 'صادر جديد',
     'Search order number...': 'ابحث برقم الطلب...',
     Filters: 'فلاتر',
@@ -98,7 +99,7 @@ export function OutboundOrdersPage(): ReactElement {
       <ListPageHeader
         icon="fa-arrow-up"
         title={t('Outbound Orders')}
-        subtitle={t('Manage and track your outbound orders')}
+        subtitle={t('Warehouse shipments')}
         actions={
           <button
             type="button"
@@ -138,6 +139,7 @@ export function OutboundOrdersPage(): ReactElement {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
+              aria-label={t('All statuses')}
               className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 input-premium"
             >
               {OUTBOUND_STATUS_OPTIONS.map((o) => (
@@ -146,12 +148,6 @@ export function OutboundOrdersPage(): ReactElement {
                 </option>
               ))}
             </select>
-            <button
-              type="button"
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors flex items-center gap-2"
-            >
-              <i className="fa-solid fa-filter text-xs" /> {t('Filters')}
-            </button>
           </div>
         </div>
       </Card>
@@ -161,28 +157,26 @@ export function OutboundOrdersPage(): ReactElement {
           <table className="w-full text-sm">
             <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
               <tr>
-                <th className="px-5 py-3 text-left w-10">
-                  <input type="checkbox" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
-                </th>
                 <th className="px-5 py-3 text-left">{t('Order #')}</th>
                 <th className="px-5 py-3 text-left">{t('Status')}</th>
                 <th className="px-5 py-3 text-left">{t('Recipient')}</th>
                 <th className="px-5 py-3 text-left">{t('Required Ship')}</th>
                 <th className="px-5 py-3 text-left">{t('Lines')}</th>
                 <th className="px-5 py-3 text-right">{t('Created')}</th>
-                <th className="px-5 py-3 text-right">{t('Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {pagination.isInitialLoading ? (
-                <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-slate-400 text-sm">
-                    …
-                  </td>
-                </tr>
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={`sk-${i}`} className="animate-pulse">
+                    <td className="px-5 py-3.5" colSpan={6}>
+                      <div className="h-4 w-full max-w-xl rounded bg-slate-100" />
+                    </td>
+                  </tr>
+                ))
               ) : pagination.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-slate-400 text-sm">
+                  <td colSpan={6} className="px-5 py-10 text-center text-slate-400 text-sm">
                     {t('No outbound orders found.')}
                   </td>
                 </tr>
@@ -193,9 +187,6 @@ export function OutboundOrdersPage(): ReactElement {
                     onClick={() => navigate(`/outbound-orders/${row.id}`)}
                     className="hover:bg-slate-50/60 transition-colors group cursor-pointer"
                   >
-                    <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
-                    </td>
                     <td className="px-5 py-3.5 font-semibold text-slate-900 font-mono">
                       {row.orderNumber || '—'}
                     </td>
@@ -211,15 +202,6 @@ export function OutboundOrdersPage(): ReactElement {
                     <td className="px-5 py-3.5 text-slate-600">{row._count?.lines ?? 0}</td>
                     <td className="px-5 py-3.5 text-right text-slate-500 text-xs">
                       {new Date(row.createdAt).toLocaleString()}
-                    </td>
-                    <td className="px-5 py-3.5 text-right">
-                      <button
-                        type="button"
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-8 h-8 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors inline-flex items-center justify-center"
-                      >
-                        <i className="fa-solid fa-ellipsis" />
-                      </button>
                     </td>
                   </tr>
                 ))

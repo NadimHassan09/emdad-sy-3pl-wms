@@ -64,7 +64,7 @@ const TASK_TYPE_FILTER = [
   { value: 'putaway', label: 'Putaway', labelAr: 'تخزين' },
   { value: 'pick', label: 'Pick', labelAr: 'التقاط' },
   { value: 'pack', label: 'Pack', labelAr: 'تغليف' },
-  { value: 'dispatch', label: 'Dispatch', labelAr: 'تسليم' },
+  { value: 'dispatch', label: 'Dispatch', labelAr: 'إرسال' },
 ];
 
 

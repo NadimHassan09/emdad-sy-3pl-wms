@@ -123,31 +123,63 @@ export function PackExecutionPanel({
     companyIdOverride,
   });
 
-  function handleComplete(e: FormEvent) {
-    e.preventDefault();
-    const openPkgs = packages.filter((p) => p.status === 'open' && p.items.length > 0);
+  const packagesWithItems = useMemo(
+    () => packages.filter((p) => p.items.length > 0),
+    [packages],
+  );
+  const openPackages = useMemo(
+    () => packages.filter((p) => p.status === 'open'),
+    [packages],
+  );
+  /** Single open package, or at most one package that has items. */
+  const isSinglePackagePath =
+    packagesWithItems.length <= 1 || openPackages.length <= 1;
+
+  function submitComplete(e: FormEvent, pkgs: PackPackageDraft[]) {
+    const openPkgs = pkgs.filter((p) => p.status === 'open' && p.items.length > 0);
     if (openPkgs.length > 0) {
       toast.error(t(['Finalize open packages before completing.', 'أنهِ الطرود المفتوحة قبل الإكمال.']));
       return;
     }
-    const synced = syncLinePackedQty(lines, packages);
+    const synced = syncLinePackedQty(lines, pkgs);
     const stationId = packingStationId.trim();
     if (stationId) {
       void saveProgress
         .mutateAsync({
           pack_draft: {
             lines: synced,
-            packages,
+            packages: pkgs,
             activePackageId,
             verificationComplete: true,
             packingStationId: stationId,
           } satisfies PackExecutionDraft,
         })
-        .then(() => submit(buildPackCompletePayload(lineIds, synced, packages), e))
+        .then(() => submit(buildPackCompletePayload(lineIds, synced, pkgs), e))
         .catch((err: Error) => toast.error(err.message));
       return;
     }
-    submit(buildPackCompletePayload(lineIds, synced, packages), e);
+    submit(buildPackCompletePayload(lineIds, synced, pkgs), e);
+  }
+
+  function handleComplete(e: FormEvent) {
+    e.preventDefault();
+    submitComplete(e, packages);
+  }
+
+  function handleFinalizeAndComplete(e: FormEvent) {
+    e.preventDefault();
+    const target =
+      openPackages.find((p) => p.items.length > 0) ?? openPackages[0];
+    if (!target || target.items.length === 0) {
+      toast.error(t(['Add items before finalizing.', 'أضف عناصر قبل الإنهاء.']));
+      return;
+    }
+    const finalizedPackages = packages.map((p) =>
+      p.id === target.id ? { ...p, status: 'finalized' as const } : p,
+    );
+    setPackages(finalizedPackages);
+    toast.success(t([`Package ${target.label} finalized`, `تم إنهاء الطرد ${target.label}`]));
+    submitComplete(e, finalizedPackages);
   }
 
   function addPackage() {
@@ -349,9 +381,30 @@ export function PackExecutionPanel({
           >
             {t(['Save progress', 'حفظ التقدم'])}
           </Button>
-          <Button type="submit" className="min-h-[52px] flex-1 text-base" loading={busy}>
-            {t(['Complete packing', 'إكمال التغليف'])}
-          </Button>
+          {isSinglePackagePath ? (
+            <>
+              <Button
+                type="submit"
+                variant="secondary"
+                className="min-h-[48px] w-full sm:w-auto"
+                loading={busy}
+              >
+                {t(['Complete packing', 'إكمال التغليف'])}
+              </Button>
+              <Button
+                type="button"
+                className="min-h-[52px] flex-1 text-base"
+                loading={busy}
+                onClick={handleFinalizeAndComplete}
+              >
+                {t(['Finalize & complete', 'إنهاء وإكمال'])}
+              </Button>
+            </>
+          ) : (
+            <Button type="submit" className="min-h-[52px] flex-1 text-base" loading={busy}>
+              {t(['Complete packing', 'إكمال التغليف'])}
+            </Button>
+          )}
         </div>
       </div>
     </form>

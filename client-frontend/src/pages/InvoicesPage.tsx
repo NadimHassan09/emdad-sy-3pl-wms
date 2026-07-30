@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
-} from '@wms/hooks/useChunkedServerPagination';
+} from '../hooks/useChunkedServerPagination';
 
 import { Badge } from '../design-v2/Badge';
 import { Card } from '../design-v2/Card';

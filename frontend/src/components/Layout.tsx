@@ -109,6 +109,7 @@ function sidebarLabel(label: string, isArabic: boolean): string {
     Warehouses: 'المستودعات',
 
     Customers: 'العملاء',
+    Clients: 'العملاء',
 
     Forms: 'النماذج',
 
@@ -119,6 +120,10 @@ function sidebarLabel(label: string, isArabic: boolean): string {
     Notifications: 'الإشعارات',
 
     Settings: 'الإعدادات',
+
+    Contracts: 'العقود',
+
+    Billing: 'الفوترة',
 
     'Sign out': 'تسجيل الخروج',
 

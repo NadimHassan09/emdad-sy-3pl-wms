@@ -35,14 +35,14 @@ export { FILTER_APPLY_BUTTON_CLASS, FILTER_RESET_BUTTON_CLASS };
 
 /** Shared white panel shell (filters, order details, workflow timeline, etc.). */
 export const PANEL_CARD_CLASS =
-  'mb-4 rounded-xl border border-slate-200/60 bg-white p-5 shadow-soft';
+  'mb-4 rounded-xl border border-slate-200/60 bg-white p-4 shadow-soft';
 
 export const PANEL_TITLE_CLASS = 'text-base font-semibold text-slate-900';
 
 function FilterPanelIcon() {
   return (
     <span
-      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"
+      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"
       aria-hidden
     >
       <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.75">
@@ -148,6 +148,9 @@ export function FilterPanel({
   showLessLabel = 'Show less',
   className,
   variant,
+  chips,
+  onClearAllChips,
+  clearAllChipsLabel = 'Clear all',
 }: {
   children: ReactNode;
   title?: ReactNode;
@@ -166,6 +169,10 @@ export function FilterPanel({
   className?: string;
   /** `filters` = standardized filter card; `content` = generic titled panel. */
   variant?: 'filters' | 'content';
+  /** Applied filter chips shown under the field grid. */
+  chips?: Array<{ key: string; label: string; onClear: () => void }>;
+  onClearAllChips?: () => void;
+  clearAllChipsLabel?: string;
 }) {
   const isFilterMode = variant === 'filters' || (variant !== 'content' && onApply != null && onReset != null);
   const showActions = isFilterMode && onApply != null && onReset != null;
@@ -192,48 +199,80 @@ export function FilterPanel({
 
   return (
     <div className={[PANEL_CARD_CLASS, className].filter(Boolean).join(' ')}>
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <FilterPanelIcon />
-          <div className="min-w-0">
-            <h2 className={PANEL_TITLE_CLASS}>{title}</h2>
-            {resolvedDescription ? (
-              <p className="mt-1 text-sm text-slate-500">{resolvedDescription}</p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onApply?.();
+        }}
+      >
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <FilterPanelIcon />
+            <div className="min-w-0">
+              <h2 className={PANEL_TITLE_CLASS}>{title}</h2>
+              {resolvedDescription ? (
+                <p className="mt-1 text-sm text-slate-500">{resolvedDescription}</p>
+              ) : null}
+            </div>
+          </div>
+          {showActions ? (
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
+              {headerActions}
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                onClick={onReset}
+                disabled={loading}
+                className={`${FILTER_ACTION_BUTTON_SIZE_CLASS} !rounded-[10px] border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50`}
+              >
+                {resetLabel}
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                disabled={applyDisabled || loading}
+                loading={loading}
+                className={`${FILTER_APPLY_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
+              >
+                {applyLabel}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+        <div className="mt-5">
+          <FilterPanelGrid showMoreLabel={showMoreLabel} showLessLabel={showLessLabel}>
+            {children}
+          </FilterPanelGrid>
+        </div>
+        {chips && chips.length > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+            {chips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={chip.onClear}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white"
+              >
+                <span>{chip.label}</span>
+                <span className="text-slate-400" aria-hidden>
+                  ×
+                </span>
+              </button>
+            ))}
+            {onClearAllChips ? (
+              <button
+                type="button"
+                onClick={onClearAllChips}
+                className="text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+              >
+                {clearAllChipsLabel}
+              </button>
             ) : null}
           </div>
-        </div>
-        {showActions ? (
-          <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
-            {headerActions}
-            <Button
-              type="button"
-              variant="danger"
-              size="md"
-              onClick={onReset}
-              disabled={loading}
-              className={`${FILTER_RESET_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
-            >
-              {resetLabel}
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={onApply}
-              disabled={applyDisabled || loading}
-              loading={loading}
-              className={`${FILTER_APPLY_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
-            >
-              {applyLabel}
-            </Button>
-          </div>
         ) : null}
-      </div>
-      <div className="mt-5">
-        <FilterPanelGrid showMoreLabel={showMoreLabel} showLessLabel={showLessLabel}>
-          {children}
-        </FilterPanelGrid>
-      </div>
+      </form>
     </div>
   );
 }

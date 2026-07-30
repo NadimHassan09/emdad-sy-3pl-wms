@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 
 import { Button } from '@ds';
-import type { ComboboxOption } from '@wms/components/Combobox';
-import { Combobox } from '@wms/components/Combobox';
-import { TextField } from '@wms/components/TextField';
+import type { ComboboxOption } from '@ds';
+import { Combobox } from '@ds';
+import { TextField } from '@ds';
 
 import type { ClientProductRow } from '../services/clientProductsService';
 

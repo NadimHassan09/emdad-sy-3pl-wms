@@ -39,18 +39,64 @@ export async function markAllClientNotificationsRead(): Promise<{ updated: numbe
   return data;
 }
 
+/** Deep-link from notification entity fields already returned by the API (no new endpoints). */
 export function clientNotificationHref(notification: ClientNotification): string | undefined {
-  if (notification.referenceType === 'inbound_order' && notification.referenceId) {
-    return `/inbound-orders/${notification.referenceId}`;
+  const type = (notification.referenceType || '').toLowerCase();
+  const notifType = (notification.type || '').toLowerCase();
+  const id = notification.referenceId;
+
+  if ((type === 'inbound_order' || type === 'inbound') && id) {
+    return `/inbound-orders/${id}`;
   }
-  if (notification.referenceType === 'outbound_order' && notification.referenceId) {
-    return `/outbound-orders/${notification.referenceId}`;
+  if ((type === 'outbound_order' || type === 'outbound') && id) {
+    return `/outbound-orders/${id}`;
   }
-  if (notification.referenceType === 'billing_cycle') {
+  if (
+    (type === 'oms_order' ||
+      type === 'ecommerce_order' ||
+      type === 'online_order' ||
+      type === 'store_order') &&
+    id
+  ) {
+    return `/ecommerce-orders/${id}`;
+  }
+  if ((type === 'return_order' || type === 'return' || type === 'oms_return') && id) {
+    return `/returns/${id}`;
+  }
+  if (type === 'product' && id) {
+    return `/products/${id}`;
+  }
+  if (type === 'billing_cycle') {
     return '/billing';
   }
-  if (notification.referenceType === 'billing_invoice' && notification.referenceId) {
-    return `/invoices/${notification.referenceId}`;
+  if ((type === 'billing_invoice' || type === 'invoice') && id) {
+    return `/invoices/${id}`;
   }
+  if (type === 'cod' || type === 'cod_report' || type === 'payment') {
+    return id ? `/my-profits` : '/my-profits';
+  }
+
+  // Type-string fallbacks when referenceType is sparse
+  if (notifType.includes('cod') || notifType.includes('profit') || notifType.includes('payment')) {
+    return '/my-profits';
+  }
+  if (notifType.includes('return')) {
+    return id ? `/returns/${id}` : '/returns';
+  }
+  if (
+    notifType.includes('oms') ||
+    notifType.includes('ecommerce') ||
+    notifType.includes('online_order') ||
+    notifType.includes('store_order')
+  ) {
+    return id ? `/ecommerce-orders/${id}` : '/ecommerce-orders';
+  }
+  if (notifType.includes('inbound')) {
+    return id ? `/inbound-orders/${id}` : '/inbound-orders';
+  }
+  if (notifType.includes('outbound')) {
+    return id ? `/outbound-orders/${id}` : '/outbound-orders';
+  }
+
   return undefined;
 }

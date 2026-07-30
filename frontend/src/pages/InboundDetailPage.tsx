@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { ConfirmInboundBody, InboundApi, InboundOrderLine, ReceiveLineInput } from '../api/inbound';
-import { Button } from '@ds';
+import { Button, FILTER_APPLY_BUTTON_CLASS } from '@ds';
 import { ReceivingDockPicker } from '../components/locations/ReceivingDockPicker';
 import { StorageLocationPicker } from '../components/locations/StorageLocationPicker';
 
@@ -20,7 +20,9 @@ import { Modal } from '../components/Modal';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
+import { OrderNextTaskHandoff } from '../components/tasks/OrderNextTaskHandoff';
 import { WorkflowOrderTimeline } from '../components/WorkflowOrderTimeline';
+import { WorkflowsApi } from '../api/workflows';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useTaskOnlyMode } from '../hooks/useTaskOnlyMode';
@@ -28,6 +30,7 @@ import { generateLotNumber } from '../lib/identifiers';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
 import { inboundHasQuantityShortfall } from '../lib/inbound-shortfall';
 import { canAccessInternalTransfer } from '../lib/rbac';
+import { findNextRunnableTask, taskDetailHref } from '../lib/workflow-next-task';
 
 const fmtQty = (s: string) => Number(s).toLocaleString(undefined, { maximumFractionDigits: 4 });
 function inboundDetailLabel(label: string, isArabic: boolean): string {
@@ -110,11 +113,23 @@ export function InboundDetailPage() {
   const confirmMut = useMutation({
     mutationFn: (body?: ConfirmInboundBody | null) =>
       InboundApi.confirm(id, body === null ? {} : body ?? {}, order.data?.companyId),
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success(taskOnlyMode ? 'Order confirmed / workflow started.' : 'Order confirmed.');
       qc.invalidateQueries({ queryKey: [...QK.inboundOrders, id] });
       qc.invalidateQueries({ queryKey: QK.inboundOrders });
       invalidateWorkflowTasksInventory(qc, { referenceId: id, referenceType: 'inbound_order' });
+      if (!taskOnlyMode) return;
+      try {
+        const companyId = order.data?.companyId;
+        const timeline = await WorkflowsApi.getTimeline('inbound_order', id, companyId);
+        await qc.invalidateQueries({ queryKey: QK.workflows.workflowTimelineByRef(id) });
+        const next = findNextRunnableTask(timeline.tasks ?? [], 'inbound_order');
+        if (next) {
+          navigate(taskDetailHref(next.id, companyId));
+        }
+      } catch {
+        /* CTA on page covers handoff if auto-nav fails */
+      }
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -216,7 +231,7 @@ export function InboundDetailPage() {
         title={t('Order details')}
         variant="content"
         headerActions={
-          canCancel || canDelete ? (
+          canCancel || canDelete || canConfirm ? (
             <>
               {canDelete ? (
                 <Button
@@ -240,6 +255,31 @@ export function InboundDetailPage() {
                   className={`${FILTER_RESET_BUTTON_CLASS} h-[34px] !py-0`}
                 >
                   {t('Cancel order')}
+                </Button>
+              ) : null}
+              {canConfirm ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={() => {
+                    if (taskOnlyMode) {
+                      const stagingByLineId = Object.fromEntries(
+                        o.lines.map((l) => [l.id, receivingDockId.trim()]),
+                      );
+                      confirmMut.mutate({
+                        warehouseId: effectiveWarehouseId,
+                        stagingByLineId,
+                      });
+                    } else {
+                      confirmMut.mutate(null);
+                    }
+                  }}
+                  loading={confirmMut.isPending}
+                  disabled={confirmDisabledTaskOnly}
+                  className={`${FILTER_APPLY_BUTTON_CLASS} h-[34px] !py-0`}
+                >
+                  {o.status === 'pending_approval' ? t('Approve order') : t('Confirm order')}
                 </Button>
               ) : null}
             </>
@@ -303,6 +343,13 @@ export function InboundDetailPage() {
         </FilterPanel>
       ) : null}
 
+      <OrderNextTaskHandoff
+        referenceType="inbound_order"
+        referenceId={id}
+        companyIdOverride={o.companyId}
+        enabled={!!id && o.status !== 'draft' && o.status !== 'pending_approval' && o.status !== 'cancelled'}
+      />
+
       <WorkflowOrderTimeline
         referenceType="inbound_order"
         referenceId={id}
@@ -324,32 +371,6 @@ export function InboundDetailPage() {
 
       <DataTable
         title={o.orderNumber || t('Inbound order')}
-        actions={
-          <>
-            {canConfirm && (
-              <LegacyButton
-                className="border border-[#1a7a44] bg-[#1a7a44] text-white hover:bg-[#146135]"
-                onClick={() => {
-                  if (taskOnlyMode) {
-                    const stagingByLineId = Object.fromEntries(
-                      o.lines.map((l) => [l.id, receivingDockId.trim()]),
-                    );
-                    confirmMut.mutate({
-                      warehouseId: effectiveWarehouseId,
-                      stagingByLineId,
-                    });
-                  } else {
-                    confirmMut.mutate(null);
-                  }
-                }}
-                loading={confirmMut.isPending}
-                disabled={confirmDisabledTaskOnly}
-              >
-                {o.status === 'pending_approval' ? t('Approve order') : t('Confirm order')}
-              </LegacyButton>
-            )}
-          </>
-        }
         columns={lineColumns}
         rows={o.lines}
         rowKey={(l) => l.id}

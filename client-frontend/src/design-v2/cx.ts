@@ -1,4 +1,2 @@
-/** Tiny classname joiner — mirrors the HTML reference's `cx` helper. */
-export function cx(...classes: Array<string | false | null | undefined>): string {
-  return classes.filter(Boolean).join(' ');
-}
+/** @deprecated Prefer `@ds` `cn`. */
+export { cn as cx } from '@ds';

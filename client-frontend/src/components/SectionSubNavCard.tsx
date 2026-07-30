@@ -27,6 +27,7 @@ export function SectionSubNavCard({ isArabic = false }: SectionSubNavCardProps) 
                 aria-current={active ? 'page' : undefined}
                 className={[
                   'inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-medium transition sm:px-4 sm:py-2',
+                  'focus-visible:outline-none focus-visible:shadow-focus',
                   active
                     ? 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-600'
                     : 'text-slate-600 hover:bg-slate-50',

@@ -5,12 +5,11 @@ import { PillTabs } from './PillTabs';
 
 const TABS = [
   { id: '/ecommerce-orders', label: { en: 'Online orders', ar: 'الطلبات الإلكترونية' } },
-  { id: '/my-profits', label: { en: 'My profits', ar: 'أرباحي' } },
+  { id: '/my-profits', label: { en: 'Cash on delivery', ar: 'الدفع عند الاستلام' } },
   { id: '/returns', label: { en: 'Returns', ar: 'المرتجعات' } },
 ];
 
-/** Store-section pill tabs (Online orders / COD / Returns) — matches the HTML
- * reference's `StorePage` subtab bar while keeping real routes per section. */
+/** Store-section pill tabs (Online orders / Cash on delivery / Returns). */
 export function StorePillTabs({ isArabic }: { isArabic: boolean }): ReactElement {
   const navigate = useNavigate();
   const { pathname } = useLocation();

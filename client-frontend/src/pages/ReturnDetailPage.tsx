@@ -3,7 +3,7 @@ import { isAxiosError } from 'axios';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
-import { StatusBadge } from '@wms/components/StatusBadge';
+import { StatusBadge } from '@ds';
 
 import { fetchClientReturn } from '../services/clientReturnsService';
 

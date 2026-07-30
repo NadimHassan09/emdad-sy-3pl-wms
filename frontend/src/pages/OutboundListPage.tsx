@@ -764,7 +764,14 @@ function CreateOutboundModal({ open, onClose, loading, isArabic, onSubmit }: Cre
                 onChange={(e) => setRequiresPacking(e.target.checked)}
                 className="mt-1 rounded border-slate-300"
               />
-              <span className="text-sm font-medium text-slate-900">{t('Packing')}</span>
+              <span>
+                <span className="block text-sm font-medium text-slate-900">{t('Packing')}</span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  {isArabic
+                    ? 'عند التفعيل يُنشأ مسار التقاط ← تغليف ← إرسال. عند الإلغاء يذهب الالتقاط مباشرة إلى منطقة التسليم.'
+                    : 'When on, the workflow is pick → pack → dispatch. When off, pick goes straight to the delivery area.'}
+                </span>
+              </span>
             </label>
           </div>
         ) : (

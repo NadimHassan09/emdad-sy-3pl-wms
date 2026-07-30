@@ -7,9 +7,11 @@ import { TaskDetailsCard } from '../../../components/tasks/TaskDetailsCard';
 import type { OutboundOrder, OutboundOrderLine } from '../../../api/outbound';
 import { TasksApi } from '../../../api/tasks';
 import { WorkflowsApi } from '../../../api/workflows';
+import { BarcodeScanModal } from '../../../components/BarcodeScanModal';
 import { Button } from '../../../components/Button';
 import { Combobox } from '../../../components/Combobox';
 import { TextField } from '../../../components/TextField';
+import { WedgeScanField } from '../../../components/WedgeScanField';
 import { QK } from '../../../constants/query-keys';
 import { TaskLinesFilterCard } from '../../../components/tasks/TaskLinesFilterCard';
 import {
@@ -41,7 +43,9 @@ import {
   defaultPackages,
   filterDispatchLines,
   resolveDispatchDestinationFromQueue,
+  findDispatchLineByProductScan,
   findLocationById,
+  findPackageByLabel,
   findWorkflowTimelineTask,
   initialDispatchLines,
   readTaskExecutionState,
@@ -208,6 +212,8 @@ export function DispatchExecutionPanel({
     DEFAULT_TASK_LINE_FILTERS,
   );
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [wedgeScan, setWedgeScan] = useState('');
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   const patchDraft = useCallback((patch: Partial<DispatchExecutionDraft>) => {
     setDraft((prev) => ({ ...prev, ...patch }));
@@ -350,6 +356,48 @@ export function DispatchExecutionPanel({
     [draft.packages, patchPackage, toast],
   );
 
+  const handleWedgeScan = useCallback(
+    (code: string) => {
+      const trimmed = code.trim();
+      if (!trimmed) return;
+      setCameraOpen(false);
+
+      const pkg = findPackageByLabel(trimmed, draft.packages);
+      if (pkg) {
+        if (addPackageToShipment(pkg.id)) setWedgeScan('');
+        return;
+      }
+
+      const lineId = findDispatchLineByProductScan(trimmed, lineIds, lineMeta);
+      if (lineId) {
+        const line = draft.lines.find((l) => l.outboundOrderLineId === lineId);
+        const remaining = line
+          ? Math.max(0, parseQty(line.pickedQty) - parseQty(line.shipQty))
+          : 0;
+        const qty = remaining > 0 ? remaining : 1;
+        if (addProductToShipment(lineId, qty)) setWedgeScan('');
+        return;
+      }
+
+      toast.error(
+        t([
+          'No matching package or product on this shipment.',
+          'لا طرد أو منتج مطابق على هذه الشحنة.',
+        ]),
+      );
+    },
+    [
+      addPackageToShipment,
+      addProductToShipment,
+      draft.lines,
+      draft.packages,
+      lineIds,
+      lineMeta,
+      t,
+      toast,
+    ],
+  );
+
   function completeBlockers(): string[] {
     const issues: string[] = [];
     const sourceId = effectiveSourceId ?? draft.sourceLocationId;
@@ -362,8 +410,8 @@ export function DispatchExecutionPanel({
               'موقع التغليف المصدر غير متاح من مهام التغليف/التقاط بعد.',
             ])
           : t([
-              'Source delivery location is not available from the pick task yet.',
-              'موقع التسليم المصدر غير متاح من مهمة التقاط بعد.',
+              'Dispatch source is not available from the pick task yet.',
+              'مصدر الإرسال غير متاح من مهمة التقاط بعد.',
             ]),
       );
     }
@@ -531,7 +579,7 @@ export function DispatchExecutionPanel({
           <p className="text-sm font-semibold text-amber-950">
             {requiresPacking
               ? t(['Select packing source', 'اختر موقع التغليف المصدر'])
-              : t(['Select delivery source', 'اختر موقع التسليم المصدر'])}
+              : t(['Select dispatch source', 'اختر مصدر الإرسال'])}
           </p>
           <div className="mt-2">
             <Combobox
@@ -547,7 +595,7 @@ export function DispatchExecutionPanel({
               placeholder={
                 requiresPacking
                   ? t(['Packing location…', 'موقع التغليف…'])
-                  : t(['Delivery area…', 'منطقة التسليم…'])
+                  : t(['Staging area…', 'منطقة التجهيز…'])
               }
               emptyMessage={t(['No locations match.', 'لا مواقع مطابقة.'])}
             />
@@ -577,6 +625,28 @@ export function DispatchExecutionPanel({
       ) : null}
 
       {lineFiltersCard}
+
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+        <WedgeScanField
+          label={t(['Scan to add to shipment', 'امسح للإضافة إلى الشحنة'])}
+          value={wedgeScan}
+          onChange={setWedgeScan}
+          onScan={handleWedgeScan}
+          onCameraClick={() => setCameraOpen(true)}
+          placeholder={t(['Package label, SKU, or barcode + Enter', 'ملصق طرد أو SKU أو باركود ثم Enter'])}
+          scanTitle={t(['Scan with camera', 'مسح بالكاميرا'])}
+          scanAriaLabel={t(['Scan with camera', 'مسح بالكاميرا'])}
+          hint={t([
+            'Gun scan tries package label first, then product. Camera is secondary.',
+            'مسح الماسح يجرّب ملصق الطرد أولاً ثم المنتج. الكاميرا مسار ثانوي.',
+          ])}
+        />
+      </div>
+      <BarcodeScanModal
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onScan={handleWedgeScan}
+      />
 
       <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -755,7 +825,7 @@ function MovementHero({
   const dst = destLoc ? locationDisplay(destLoc) : null;
   const sourceTitle = requiresPacking
     ? t(['Source · Packing', 'المصدر · تغليف'])
-    : t(['Source · Delivery area', 'المصدر · منطقة التسليم']);
+    : t(['Source · Staging', 'المصدر · تجهيز']);
 
   return (
     <section className="rounded-2xl border border-slate-200 bg-gradient-to-r from-violet-50 via-white to-emerald-50 p-4 shadow-sm">

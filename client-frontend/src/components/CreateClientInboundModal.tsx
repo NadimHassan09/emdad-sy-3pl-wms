@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 
 import { useQuery } from '@tanstack/react-query';
 
 import { Button, Modal, Textarea } from '@ds';
-import { FILTER_PRIMARY_BUTTON_CLASS } from '@wms/components/FilterPanel';
-import { TextField } from '@wms/components/TextField';
+import { FILTER_PRIMARY_BUTTON_CLASS } from '@ds';
+import { TextField } from '@ds';
 
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../lib/order-planning-dates';
 import {

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, Button, Textarea } from '@ds';
+import { Alert, Button, EmptyState, Textarea } from '@ds';
 
 import { CompaniesApi } from '../api/companies';
 import {
@@ -25,6 +25,7 @@ import {
   FilterPanel,
 } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
+import { PageHeader } from '../components/PageHeader';
 import { RowActionsMenu, type RowAction } from '../components/RowActionsMenu';
 import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
@@ -65,6 +66,12 @@ function inboundLabel(label: string, isArabic: boolean): string {
     'Order filters': 'فلاتر الطلبات',
     'Apply filters': 'تطبيق الفلاتر',
     'Reset filters': 'إعادة تعيين الفلاتر',
+    'No inbound orders match the filters.': 'لا توجد طلبات وارد مطابقة للفلاتر.',
+    'No inbound orders yet': 'لا توجد طلبات وارد بعد',
+    'No inbound orders yet.': 'لا توجد طلبات وارد بعد.',
+    'Create your first inbound order to start receiving stock.':
+      'أنشئ أول طلب وارد لبدء استلام المخزون.',
+    'Warehouse not resolved yet.': 'لم يتم تحديد المستودع بعد.',
     'Order #': 'رقم الطلب #',
     Status: 'الحالة',
     'Expected arrival': 'تاريخ الوصول المتوقع',
@@ -146,7 +153,7 @@ export function InboundListPage() {
     [],
   );
 
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters, applyPatch } =
     useFilters(initialList);
 
   const listParams = useMemo(
@@ -286,15 +293,43 @@ export function InboundListPage() {
     [isArabic, isAdmin],
   );
 
+  const hasActiveFilters = Boolean(
+    appliedFilters.orderSearch.trim() ||
+      appliedFilters.companyId ||
+      appliedFilters.status.trim() ||
+      appliedFilters.createdFrom.trim() ||
+      appliedFilters.createdTo.trim(),
+  );
+
+  const emptyContent = !wid ? (
+    t('Warehouse not resolved yet.')
+  ) : hasActiveFilters ? (
+    t('No inbound orders match the filters.')
+  ) : (
+    <EmptyState
+      title={t('No inbound orders yet')}
+      description={t('Create your first inbound order to start receiving stock.')}
+      action={
+        <Button
+          variant="primary"
+          size="md"
+          onClick={() => setOpen(true)}
+          className={FILTER_PRIMARY_BUTTON_CLASS}
+        >
+          {t('+ New inbound')}
+        </Button>
+      }
+    />
+  );
+
   return (
-    <>
+    <div className="space-y-5 animate-enter">
       {!wid && (
         <Alert
           variant="warning"
           title="Warehouse not configured"
           description="The active warehouse could not be resolved. Contact your administrator."
           compact
-          className="mb-4"
         />
       )}
 
@@ -308,54 +343,11 @@ export function InboundListPage() {
               Retry
             </Alert.Action>
           }
-          className="mb-4"
         />
       )}
 
-      <FilterPanel
-        title={t('Order filters')}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-        applyLabel={t('Apply filters')}
-        resetLabel={t('Reset filters')}
-      >
-          <TextField
-            label={t('Order #')}
-            value={draftFilters.orderSearch}
-            onChange={(e) => setDraft({ orderSearch: e.target.value })}
-            placeholder={t('Search order...')}
-            className="font-mono"
-          />
-          <Combobox
-            label={t('Client')}
-            value={draftFilters.companyId}
-            onChange={(v) => setDraft({ companyId: v })}
-            options={clientFilterOptions}
-            placeholder={t('All clients')}
-          />
-          <SelectField
-            label={t('Status')}
-            name="inboundStatusFilter"
-            value={draftFilters.status}
-            onChange={(e) => setDraft({ status: e.target.value })}
-            options={statusFilterOptions}
-          />
-          <TextField
-            label={t('Created from')}
-            type="date"
-            value={draftFilters.createdFrom}
-            onChange={(e) => setDraft({ createdFrom: e.target.value })}
-          />
-          <TextField
-            label={t('Created to')}
-            type="date"
-            value={draftFilters.createdTo}
-            onChange={(e) => setDraft({ createdTo: e.target.value })}
-          />
-      </FilterPanel>
-
-      <DataTable
+      <PageHeader
+        icon="fa-arrow-down"
         title={t('Inbound orders')}
         actions={
           <Button
@@ -367,12 +359,99 @@ export function InboundListPage() {
             {t('+ New inbound')}
           </Button>
         }
+      />
+
+      <FilterPanel
+        title={t('Order filters')}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={pagination.isFetching}
+        applyLabel={t('Apply filters')}
+        resetLabel={t('Reset filters')}
+        chips={[
+          appliedFilters.orderSearch.trim()
+            ? {
+                key: 'orderSearch',
+                label: `${t('Order #')}: ${appliedFilters.orderSearch.trim()}`,
+                onClear: () => applyPatch({ orderSearch: '' }),
+              }
+            : null,
+          appliedFilters.companyId
+            ? {
+                key: 'companyId',
+                label: `${t('Client')}: ${
+                  companies.data?.find((c) => c.id === appliedFilters.companyId)?.name ??
+                  appliedFilters.companyId.slice(0, 8)
+                }`,
+                onClear: () => applyPatch({ companyId: '' }),
+              }
+            : null,
+          appliedFilters.status.trim()
+            ? {
+                key: 'status',
+                label: `${t('Status')}: ${appliedFilters.status}`,
+                onClear: () => applyPatch({ status: '' }),
+              }
+            : null,
+          appliedFilters.createdFrom.trim()
+            ? {
+                key: 'createdFrom',
+                label: `${t('Created from')}: ${appliedFilters.createdFrom}`,
+                onClear: () => applyPatch({ createdFrom: '' }),
+              }
+            : null,
+          appliedFilters.createdTo.trim()
+            ? {
+                key: 'createdTo',
+                label: `${t('Created to')}: ${appliedFilters.createdTo}`,
+                onClear: () => applyPatch({ createdTo: '' }),
+              }
+            : null,
+        ].filter(Boolean) as Array<{ key: string; label: string; onClear: () => void }>}
+        onClearAllChips={hasActiveFilters ? resetFilters : undefined}
+      >
+        <TextField
+          label={t('Order #')}
+          value={draftFilters.orderSearch}
+          onChange={(e) => setDraft({ orderSearch: e.target.value })}
+          placeholder={t('Search order...')}
+          className="font-mono"
+        />
+        <Combobox
+          label={t('Client')}
+          value={draftFilters.companyId}
+          onChange={(v) => setDraft({ companyId: v })}
+          options={clientFilterOptions}
+          placeholder={t('All clients')}
+        />
+        <SelectField
+          label={t('Status')}
+          name="inboundStatusFilter"
+          value={draftFilters.status}
+          onChange={(e) => setDraft({ status: e.target.value })}
+          options={statusFilterOptions}
+        />
+        <TextField
+          label={t('Created from')}
+          type="date"
+          value={draftFilters.createdFrom}
+          onChange={(e) => setDraft({ createdFrom: e.target.value })}
+        />
+        <TextField
+          label={t('Created to')}
+          type="date"
+          value={draftFilters.createdTo}
+          onChange={(e) => setDraft({ createdTo: e.target.value })}
+        />
+      </FilterPanel>
+
+      <DataTable
         columns={columns}
         rows={pagination.rows}
         rowKey={(o) => o.id}
         loading={pagination.isInitialLoading || !wid}
         onRowClick={(o) => navigate(`/orders/inbound/${o.id}`)}
-        empty={wid ? 'No inbound orders match the filters.' : 'Warehouse not resolved yet.'}
+        empty={emptyContent}
         serverPagination={pagination.serverPagination}
         labels={{
           rowsSuffix: t('rows'),
@@ -423,7 +502,7 @@ export function InboundListPage() {
           {t('This permanently removes the order and its lines. This action cannot be undone.')}
         </p>
       </ConfirmModal>
-    </>
+    </div>
   );
 }
 
@@ -456,6 +535,7 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
   const [lines, setLines] = useState<DraftLine[]>([{ productId: '', expectedQuantity: '' }]);
   const [scanOpen, setScanOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
+  const [stepHint, setStepHint] = useState<string | null>(null);
 
   const companies = useQuery({
     queryKey: QK.companies,
@@ -522,6 +602,7 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
     setLines([{ productId: '', expectedQuantity: '' }]);
     setScanOpen(false);
     setStep(1);
+    setStepHint(null);
   };
 
   const handleClose = () => {
@@ -583,13 +664,18 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
 
   const goToLinesStep = () => {
     if (!companyId.trim()) {
+      const msg = isArabic ? 'اختر عميلاً للمتابعة.' : 'Select a client to continue.';
+      setStepHint(msg);
       toast.error(isArabic ? 'اختر عميلاً.' : 'Pick a client.');
       return;
     }
     if (!isYmdOnOrAfterLocalToday(arrival)) {
-      toast.error(t('Expected arrival date cannot be before today.'));
+      const msg = t('Expected arrival date cannot be before today.');
+      setStepHint(msg);
+      toast.error(msg);
       return;
     }
+    setStepHint(null);
     setStep(2);
   };
 
@@ -636,9 +722,16 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
               type="button"
               variant="primary"
               size="md"
-              disabled={loading}
+              disabled={loading || !companyId.trim()}
               className={FILTER_PRIMARY_BUTTON_CLASS}
               onClick={goToLinesStep}
+              title={
+                !companyId.trim()
+                  ? isArabic
+                    ? 'اختر عميلاً للمتابعة'
+                    : 'Select a client to continue'
+                  : undefined
+              }
             >
               {t('Next')}
             </Button>
@@ -681,12 +774,26 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
       <form id="create-inbound" onSubmit={submit} className="space-y-4">
         {step === 1 ? (
           <div className="space-y-4">
+            {stepHint ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
+                {stepHint}
+              </p>
+            ) : !companyId.trim() ? (
+              <p className="text-xs text-slate-500" role="note">
+                {isArabic
+                  ? 'يلزم اختيار عميل قبل الانتقال إلى بنود الطلب.'
+                  : 'Select a client before continuing to order lines.'}
+              </p>
+            ) : null}
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <Combobox
                 label={t('Client')}
                 required
                 value={companyId}
-                onChange={setCompanyId}
+                onChange={(v) => {
+                  setCompanyId(v);
+                  setStepHint(null);
+                }}
                 clearable={false}
                 dropdownInFlow
                 options={(companies.data ?? []).map((c) => ({ value: c.id, label: c.name }))}

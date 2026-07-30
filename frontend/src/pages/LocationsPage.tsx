@@ -244,7 +244,7 @@ export function LocationsPage() {
             {idx < trail.length - 1 ? (
               <button
                 type="button"
-                className="font-medium text-[#1a7a44] hover:underline"
+                className="font-medium text-[var(--color-brand-600,#059669)] hover:underline"
                 onClick={() => navigateToCrumb(idx)}
               >
                 {displayName}

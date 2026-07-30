@@ -1,6 +1,6 @@
+/** @deprecated Import Card from `@ds`. Thin bridge for leftover design-v2 imports. */
 import type { HTMLAttributes, ReactElement } from 'react';
-
-import { cx } from './cx';
+import { Card as DsCard, cn } from '@ds';
 
 export interface CardV2Props extends HTMLAttributes<HTMLDivElement> {
   hover?: boolean;
@@ -8,15 +8,14 @@ export interface CardV2Props extends HTMLAttributes<HTMLDivElement> {
 
 export function Card({ className = '', hover = false, children, ...rest }: CardV2Props): ReactElement {
   return (
-    <div
-      className={cx(
-        'bg-white rounded-xl border border-slate-200/60 shadow-soft',
-        hover && 'hover-lift',
-        className,
-      )}
+    <DsCard
+      padding="none"
+      elevation="raised"
+      interactive={hover}
+      className={cn('rounded-xl', className)}
       {...rest}
     >
       {children}
-    </div>
+    </DsCard>
   );
 }

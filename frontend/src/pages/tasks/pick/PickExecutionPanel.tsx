@@ -13,6 +13,7 @@ import { TasksApi } from '../../../api/tasks';
 import { BarcodeScanModal } from '../../../components/BarcodeScanModal';
 import { Button } from '../../../components/Button';
 import { Combobox } from '../../../components/Combobox';
+import { WedgeScanField } from '../../../components/WedgeScanField';
 import { PickLinesFilterCard } from './PickLinesFilterCard';
 import { useToast } from '../../../components/ToastProvider';
 import { locationTypeLabel } from '../../../lib/location-types';
@@ -112,6 +113,7 @@ export function PickExecutionPanel({
   );
   const [packingDestinationId, setPackingDestinationId] = useState(savedDraft?.packingDestinationId ?? '');
   const [packingBarcodeDraft, setPackingBarcodeDraft] = useState('');
+  const [nextBinScan, setNextBinScan] = useState('');
 
   const reservationLocationIds = useMemo(
     () => [...new Set(reservations.map((r) => r.locationId))],
@@ -543,12 +545,58 @@ export function PickExecutionPanel({
       {pickDetailsCard}
 
       {nextLoc && computePickLineStatus(drafts[nextIncompleteIndex]!) !== 'complete' ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
-            {t(['Next bin', 'Bin التالي'])}
-          </p>
-          <p className="font-mono text-2xl font-bold text-slate-900">{locationDisplay(nextLoc).shortLabel}</p>
-          <p className="text-xs text-slate-600">{locationDisplay(nextLoc).fullPath}</p>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 space-y-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+              {t(['Next bin', 'Bin التالي'])}
+            </p>
+            <p className="font-mono text-2xl font-bold text-slate-900">{locationDisplay(nextLoc).shortLabel}</p>
+            <p className="text-xs text-slate-600">{locationDisplay(nextLoc).fullPath}</p>
+          </div>
+          <WedgeScanField
+            label={t(['Scan to confirm bin', 'امسح لتأكيد الصندوق'])}
+            value={nextBinScan}
+            onChange={setNextBinScan}
+            onScan={(code) => {
+              const norm = code.trim().toLowerCase();
+              const loc = nextLoc;
+              const match =
+                (loc.barcode ?? '').trim().toLowerCase() === norm ||
+                locationDisplay(loc).shortLabel.toLowerCase() === norm ||
+                (loc.fullPath ?? '').toLowerCase().includes(norm) ||
+                (loc.name ?? '').toLowerCase() === norm;
+              if (!match) {
+                toast.error(t(['Scanned bin does not match Next bin.', 'الصندوق الممسوح لا يطابق التالي.']));
+                setNextBinScan('');
+                return;
+              }
+              const draft = drafts[nextIncompleteIndex];
+              if (draft) {
+                patchDraft(draft.rowKey, {
+                  pickedQty: draft.requiredQty,
+                  exceptionType: 'none',
+                });
+                toast.success(t(['Bin confirmed — qty filled.', 'تم تأكيد الصندوق — تم تعبئة الكمية.']));
+              }
+              setNextBinScan('');
+            }}
+            placeholder={t(['Bin barcode + Enter', 'باركود الصندوق ثم Enter'])}
+          />
+          {nextLocDraft ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                patchDraft(nextLocDraft.rowKey, {
+                  pickedQty: nextLocDraft.requiredQty,
+                  exceptionType: 'none',
+                })
+              }
+            >
+              {t(['Pick required qty', 'التقاط الكمية المطلوبة'])}
+            </Button>
+          ) : null}
         </div>
       ) : null}
 

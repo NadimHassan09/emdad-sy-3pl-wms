@@ -102,7 +102,7 @@ export function LocationsDrillDownTable({
           (r.childCount ?? 0) > 0 ? (
             <button
               type="button"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-[#1a7a44] transition hover:bg-emerald-50"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-brand-600,#059669)] transition hover:bg-emerald-50"
               aria-label={`${t(['Open children of', 'فتح أبناء'])} ${r.name}`}
               title={t(['View children', 'عرض الأبناء'])}
               onClick={(e) => {
@@ -123,7 +123,7 @@ export function LocationsDrillDownTable({
         accessor: (r) => (
           <button
             type="button"
-            className="text-left font-medium text-slate-900 hover:text-[#1a7a44] hover:underline"
+            className="text-left font-medium text-slate-900 hover:text-[var(--color-brand-600,#059669)] hover:underline"
             onClick={() => (r.childCount ?? 0) > 0 && onNavigateInto(r)}
           >
             {formatChildLabel(r.name, r.childCount ?? 0)}

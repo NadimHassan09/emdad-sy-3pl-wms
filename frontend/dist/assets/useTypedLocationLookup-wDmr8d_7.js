@@ -1,0 +1,1 @@
+import{a as i}from"./vendor-query-Cc15oKZm.js";import{L as r}from"./location-types-S2l0cxAL.js";import{E as u}from"./location-resolve-DArHK6kh.js";function n(o,t,e=!0){return i({queryKey:["locations","lookup","typed",o,t],queryFn:()=>r.lookup({warehouseId:o,type:t,limit:u,offset:0}),enabled:!!o&&e,staleTime:5*6e4})}export{n as u};
