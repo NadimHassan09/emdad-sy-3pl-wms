@@ -20,7 +20,7 @@ function CardIconBadge({
         'flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ' +
         (isPrimary
           ? 'bg-white/15 text-white ring-1 ring-white/25'
-          : 'border border-slate-200 bg-slate-50 text-brand-700 group-hover:border-brand-200 group-hover:bg-brand-50')
+          : 'border border-slate-200 bg-slate-50 text-emerald-700 group-hover:border-emerald-200 group-hover:bg-emerald-50')
       }
       aria-hidden="true"
     >
@@ -80,16 +80,16 @@ export function WarehouseOverviewMetricCard({
     <Link
       to={to}
       className={
-        'group flex min-h-[120px] flex-col rounded-2xl p-5 shadow-sm transition-[box-shadow,transform] duration-fast ease-standard ' +
-        'hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ' +
+        'group flex min-h-[120px] flex-col rounded-xl p-5 shadow-soft transition-[box-shadow,transform] duration-fast ease-standard ' +
+        'hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ' +
         (isPrimary
           ? 'text-white hover:-translate-y-0.5'
-          : 'border border-slate-100 bg-white hover:-translate-y-0.5 hover:border-slate-200')
+          : 'border border-slate-200/60 bg-white hover:-translate-y-0.5 hover:border-emerald-200')
       }
       style={
         isPrimary
           ? {
-              background: 'linear-gradient(135deg, #0a3d28 0%, #146135 45%, #1a7a44 100%)',
+              background: 'linear-gradient(135deg, #059669 0%, #10b981 55%, #34d399 100%)',
             }
           : undefined
       }

@@ -24,9 +24,9 @@ export function SectionSubNavCard({ isArabic = false }: SectionSubNavCardProps) 
   return (
     <nav
       aria-label={t(section.ariaLabelKey)}
-      className="mb-4 rounded-xl border border-slate-100 bg-white p-3 shadow-sm"
+      className="mb-4 rounded-xl border border-slate-200/60 bg-white p-2 shadow-soft"
     >
-      <div className="flex flex-wrap gap-2" role="list">
+      <div className="flex flex-wrap gap-1.5" role="list">
         {items.map((item) => {
           const active = item.match(pathname, search);
           return (
@@ -36,10 +36,10 @@ export function SectionSubNavCard({ isArabic = false }: SectionSubNavCardProps) 
               role="listitem"
               aria-current={active ? 'page' : undefined}
               className={[
-                'inline-flex items-center rounded-xl px-4 py-2 text-sm font-medium transition',
+                'inline-flex items-center rounded-lg px-3.5 py-2 text-sm font-medium transition',
                 active
-                  ? 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-600'
-                  : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
+                  : 'text-slate-600 hover:bg-slate-50',
               ].join(' ')}
             >
               {t(item.labelKey)}

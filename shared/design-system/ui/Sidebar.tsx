@@ -1,17 +1,14 @@
 /**
- * Sidebar — premium dark enterprise nav sidebar.
+ * Sidebar — Client Portal–aligned dark nav (slate-950).
  *
- * Visual direction (Phase 5 premium pass):
- *   - Dark forest green vertical gradient (--sidebar-bg-gradient)
- *   - Brand area is transparent over the gradient
- *   - Active items: bright emerald-500 pill with white text + shadow
- *   - Hover items: white/8% tint (subtle depth on dark)
- *   - Section labels: emerald-100/60 small caps
- *   - Dividers: white/8% border
- *   - Footer: deeper tone band with white/8% separator
+ * Visual direction:
+ *   - Solid slate-950 background (--sidebar-bg)
+ *   - Active items: emerald-500/10 tint + emerald-400 text + left accent bar
+ *   - Hover: white/5% tint
+ *   - Section labels: muted slate uppercase
  *
  * RTL: uses logical CSS properties throughout.
- * Compact mode: icon-only at 56px width.
+ * Compact mode: icon-only rail.
  */
 
 import {
@@ -37,7 +34,7 @@ export function Sidebar({ collapsed, children, className, ...rest }: SidebarProp
       data-sidebar
       className={cn(
         'relative z-[var(--z-sidebar)] hidden min-h-0 shrink-0 flex-col self-stretch md:flex',
-        'h-full overflow-hidden rounded-xl md:rounded-[var(--radius-card)]',
+        'h-full overflow-hidden border-e',
         'transition-[width] duration-300 ease-emphasis',
         collapsed
           ? 'w-[var(--sidebar-compact-w)] md:w-[var(--sidebar-compact-w)]'
@@ -47,6 +44,7 @@ export function Sidebar({ collapsed, children, className, ...rest }: SidebarProp
       style={{
         backgroundColor: 'var(--sidebar-bg)',
         backgroundImage: 'var(--sidebar-bg-gradient)',
+        borderColor: 'var(--sidebar-border)',
       }}
       {...rest}
     >
@@ -70,10 +68,10 @@ export function SidebarBrand({ collapsed, logo, children, className }: SidebarBr
   return (
     <div
       className={cn(
-        'flex items-center justify-center gap-2.5',
+        'flex items-center gap-2.5',
         'overflow-hidden whitespace-nowrap',
-        'h-11',
-        collapsed ? 'px-0' : 'px-3',
+        'h-16',
+        collapsed ? 'justify-center px-0' : 'justify-start px-5',
         className,
       )}
       style={{ backgroundColor: 'var(--sidebar-brand-bg)' }}
@@ -86,7 +84,7 @@ export function SidebarBrand({ collapsed, logo, children, className }: SidebarBr
       {!collapsed && children && (
         <span
           className="min-w-0 truncate text-sm font-bold tracking-tight"
-          style={{ color: 'var(--sidebar-text)' }}
+          style={{ color: '#f1f5f9' }}
         >
           {children}
         </span>
@@ -105,7 +103,7 @@ export function SidebarNav({ children, className }: { children: ReactNode; class
       aria-label="Main navigation"
       className={cn(
         'flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden',
-        'p-2',
+        'px-3 py-2',
         className,
       )}
     >
@@ -243,14 +241,14 @@ export function SidebarLink({
   ...rest
 }: SidebarLinkProps) {
   const base = cn(
-    'flex items-center gap-2 rounded-lg text-[13px] font-medium leading-tight',
-    'transition-[background-color,color,box-shadow] duration-fast ease-standard',
-    'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30',
+    'relative flex items-center gap-3 rounded-lg text-sm font-medium leading-tight',
+    'transition-[background-color,color] duration-fast ease-standard',
+    'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-500/40',
     collapsed
-      ? 'h-7 w-7 justify-center p-0 rounded-md'
+      ? 'h-9 w-9 justify-center p-0 rounded-lg'
       : nested
-      ? 'px-2 py-0.5'
-      : 'px-2 py-1',
+      ? 'px-3 py-1.5'
+      : 'px-3 py-2',
     className,
   );
 
@@ -259,7 +257,6 @@ export function SidebarLink({
         backgroundColor: 'var(--sidebar-active-bg)',
         color: 'var(--sidebar-active-text)',
         fontWeight: '600',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
       }
     : {};
 
@@ -277,22 +274,31 @@ export function SidebarLink({
       onMouseEnter={(e) => {
         if (!isActive) {
           (e.currentTarget as HTMLAnchorElement).style.backgroundColor = 'var(--sidebar-hover-bg)';
+          (e.currentTarget as HTMLAnchorElement).style.color = '#f1f5f9';
         }
       }}
       onMouseLeave={(e) => {
         if (!isActive) {
           (e.currentTarget as HTMLAnchorElement).style.backgroundColor = '';
+          (e.currentTarget as HTMLAnchorElement).style.color = 'var(--sidebar-text)';
         }
       }}
       onClick={onClick}
       {...rest}
     >
+      {isActive && !collapsed ? (
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-1 start-0 w-0.5 rounded-full"
+          style={{ backgroundColor: 'var(--sidebar-active-accent)' }}
+        />
+      ) : null}
       {icon && (
         <span
-          className="flex h-4 w-4 shrink-0 items-center justify-center"
+          className="flex h-5 w-5 shrink-0 items-center justify-center"
           aria-hidden="true"
           style={{
-            color: isActive ? 'rgba(255,255,255,0.95)' : 'var(--sidebar-icon-muted)',
+            color: isActive ? 'var(--sidebar-active-text)' : 'var(--sidebar-icon-muted)',
           }}
         >
           {icon}
@@ -301,6 +307,13 @@ export function SidebarLink({
       {!collapsed && (
         <span className="flex-1 truncate">{children}</span>
       )}
+      {isActive && !collapsed ? (
+        <span
+          aria-hidden="true"
+          className="h-1 w-1 shrink-0 rounded-full"
+          style={{ backgroundColor: 'var(--sidebar-active-accent)' }}
+        />
+      ) : null}
     </a>
   );
 }

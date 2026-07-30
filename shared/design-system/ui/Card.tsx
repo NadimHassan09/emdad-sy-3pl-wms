@@ -63,8 +63,8 @@ const CardComponent = forwardRef<HTMLDivElement, CardProps>(function Card(
       ref={ref}
       className={cn(
         'bg-white text-neutral-900',
-        !borderless && 'border border-neutral-200',
-        ELEVATION[elevation],
+        !borderless && 'border border-slate-200/60',
+        elevation === 'raised' ? 'shadow-soft' : ELEVATION[elevation],
         PADDING[padding],
         interactive && [
           'transition-[border-color,box-shadow,transform] duration-fast ease-standard',

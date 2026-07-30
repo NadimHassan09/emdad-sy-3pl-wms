@@ -2,6 +2,13 @@ import type { ReactNode } from 'react';
 
 import type { Product } from '../../api/products';
 import { productUomLabel } from '../../lib/ui-labels/products';
+import {
+  stockHealthBadgeClass,
+  stockHealthBarClass,
+  stockHealthLabel,
+  stockHealthProgress,
+  stockHealthStatus,
+} from '../../lib/stock-health';
 import { useWmsTranslation } from '../../lib/ui-i18n';
 import { StatusBadge } from '../StatusBadge';
 
@@ -63,6 +70,9 @@ export function ProductDetailsCard({ product }: { product: Product }) {
   const summaryText = product.description?.trim() ?? '';
   const onHand = display(product.totalOnHand);
   const reserved = display(product.totalReserved);
+  const stockNum = Number(product.totalOnHand ?? 0);
+  const health = stockHealthStatus(stockNum, product.minStockThreshold);
+  const percent = stockHealthProgress(stockNum, product.minStockThreshold);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
@@ -81,6 +91,16 @@ export function ProductDetailsCard({ product }: { product: Product }) {
             <span className="inline-flex">
               <StatusBadge status={product.status} />
             </span>
+            {health ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span
+                  className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${stockHealthBadgeClass(health)}`}
+                >
+                  {stockHealthLabel(health)}
+                </span>
+              </>
+            ) : null}
             {product.company?.name ? (
               <>
                 <span aria-hidden="true">·</span>
@@ -122,15 +142,44 @@ export function ProductDetailsCard({ product }: { product: Product }) {
           iconClass="fa-solid fa-boxes-stacked"
           label={t(['On hand / Reserved', 'المتوفر / المحجوز'])}
           value={
-            <span className="font-mono tabular-nums">
-              {onHand} / {reserved}
-            </span>
+            <div className="flex flex-col gap-1.5">
+              <span className="font-mono tabular-nums">
+                {onHand} / {reserved}
+              </span>
+              {percent != null ? (
+                <div className="h-1.5 w-28 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className={`h-full rounded-full ${stockHealthBarClass(health)}`}
+                    style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
+                  />
+                </div>
+              ) : null}
+            </div>
           }
         />
         <ProductDetailField
           iconClass="fa-solid fa-chart-line"
           label={t(['Min stock threshold', 'حد المخزون الأدنى'])}
-          value={display(product.minStockThreshold)}
+          value={
+            Number(product.minStockThreshold) > 0
+              ? display(product.minStockThreshold)
+              : t(['Not configured', 'غير مُعد'])
+          }
+        />
+        <ProductDetailField
+          iconClass="fa-solid fa-heart-pulse"
+          label={t(['Stock health', 'حالة المخزون'])}
+          value={
+            health ? (
+              <span
+                className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${stockHealthBadgeClass(health)}`}
+              >
+                {stockHealthLabel(health)}
+              </span>
+            ) : (
+              '—'
+            )
+          }
         />
         <ProductDetailField
           iconClass="fa-solid fa-ruler-combined"

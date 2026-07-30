@@ -69,6 +69,8 @@ export function BillingPlanFormModal({
     setForm({
       companyId: plan.companyId,
       active: plan.active,
+      planType: plan.planType ?? 'custom',
+      templateId: plan.templateId ?? undefined,
       cycleLengthDays: plan.cycleLengthDays,
       fixedSubscriptionFee: Number(plan.fixedSubscriptionFee),
       inboundOrderFee: Number(plan.inboundOrderFee),

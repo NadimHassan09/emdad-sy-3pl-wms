@@ -30,6 +30,13 @@ import {
 } from '../hooks/useChunkedServerPagination';
 import { generateSku } from '../lib/identifiers';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
+import {
+  stockHealthBadgeClass,
+  stockHealthBarClass,
+  stockHealthLabel,
+  stockHealthProgress,
+  stockHealthStatus,
+} from '../lib/stock-health';
 import { productStatusLabel, productUomLabel, PRODUCT_UOM_MESSAGES } from '../lib/ui-labels/products';
 import { useWmsTranslation } from '../lib/ui-i18n';
 
@@ -269,6 +276,45 @@ export function ProductsPage() {
       header: 'UOM',
       accessor: (p) => <span className="text-slate-800">{productUomLabel(p.uom, t)}</span>,
       width: '110px',
+    },
+    {
+      header: t(['Stock', 'المخزون']),
+      accessor: (p) => {
+        const stock = Number(p.totalOnHand ?? 0);
+        const status = stockHealthStatus(stock, p.minStockThreshold);
+        const percent = stockHealthProgress(stock, p.minStockThreshold);
+        return (
+          <div className="flex items-center gap-2 min-w-0">
+            {percent != null ? (
+              <div className="h-1.5 w-14 overflow-hidden rounded-full bg-slate-100 shrink-0">
+                <div
+                  className={`h-full rounded-full ${stockHealthBarClass(status)}`}
+                  style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
+                />
+              </div>
+            ) : null}
+            <span className="font-mono text-xs tabular-nums text-slate-800">
+              {Number.isFinite(stock) ? stock.toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—'}
+            </span>
+          </div>
+        );
+      },
+      width: '140px',
+    },
+    {
+      header: t(['Stock health', 'حالة المخزون']),
+      accessor: (p) => {
+        const status = stockHealthStatus(Number(p.totalOnHand ?? 0), p.minStockThreshold);
+        if (!status) return <span className="text-xs text-slate-400">—</span>;
+        return (
+          <span
+            className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${stockHealthBadgeClass(status)}`}
+          >
+            {stockHealthLabel(status)}
+          </span>
+        );
+      },
+      width: '120px',
     },
     {
       header: t(['Status', 'الحالة']),
@@ -564,7 +610,7 @@ function CreateProductModal({
   const [barcode, setBarcode] = useState('');
   const [description, setDescription] = useState('');
   const [uom, setUom] = useState('piece');
-  const [minStock, setMinStock] = useState('0');
+  const [minStock, setMinStock] = useState('');
   const [lengthCm, setLengthCm] = useState('');
   const [widthCm, setWidthCm] = useState('');
   const [heightCm, setHeightCm] = useState('');
@@ -594,7 +640,7 @@ function CreateProductModal({
     setBarcode('');
     setDescription('');
     setUom('piece');
-    setMinStock('0');
+    setMinStock('');
     setLengthCm('');
     setWidthCm('');
     setHeightCm('');
@@ -727,6 +773,10 @@ function CreateProductModal({
           min={0}
           value={minStock}
           onChange={(e) => setMinStock(e.target.value)}
+          hint={t([
+            'Optional. Leave blank or 0 to skip low-stock monitoring.',
+            'اختياري. اتركه فارغًا أو 0 لتعطيل مراقبة المخزون المنخفض.',
+          ])}
         />
         <div>
           <span className="text-sm font-medium text-slate-700">
@@ -919,6 +969,10 @@ function EditProductModal({ open, product, loading, onClose, onSubmit }: EditPro
           min={0}
           value={minStock}
           onChange={(e) => setMinStock(e.target.value)}
+          hint={t([
+            'Set to 0 to disable low-stock monitoring for this product.',
+            'اضبطه على 0 لتعطيل مراقبة المخزون المنخفض لهذا المنتج.',
+          ])}
         />
         <div>
           <span className="text-sm font-medium text-slate-700">

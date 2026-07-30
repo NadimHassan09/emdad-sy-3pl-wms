@@ -33,6 +33,7 @@ export function OmsDashboardPage() {
   return (
     <div className="space-y-4">
       <PageHeader
+        icon="fa-store"
         title="OMS Dashboard"
         description="E-commerce order pipeline and COD snapshot"
         actions={

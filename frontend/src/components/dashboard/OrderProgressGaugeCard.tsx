@@ -159,10 +159,10 @@ function LegendDot({ variant }: { variant: GaugeSegment['variant'] }) {
 }
 
 const cardClass =
-  'rounded-xl border border-slate-100 bg-white p-3 shadow-sm transition-[box-shadow,border-color] duration-fast ease-standard sm:p-4';
+  'rounded-xl border border-slate-200/60 bg-white p-3 shadow-soft transition-[box-shadow,border-color] duration-fast ease-standard sm:p-4';
 
 const cardInteractiveClass =
-  'hover:border-slate-200 hover:shadow-md focus-visible:outline-none focus-visible:shadow-focus';
+  'hover:border-emerald-200 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30';
 
 export function OrderProgressGaugeCard({
   title,

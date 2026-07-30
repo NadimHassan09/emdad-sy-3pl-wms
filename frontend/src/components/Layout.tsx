@@ -428,18 +428,18 @@ export function Layout() {
           </MobileSidebarOverlay>
 
           <AppShell.Column>
-            <Topbar>
+            <Topbar className="glass sticky top-0">
               <Topbar.Start>
                 <TopbarMobileMenuButton onClick={() => setMobileNavOpen(true)} />
                 <Link
                   to={homePath}
-                  className="flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30 md:hidden"
+                  className="flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30 md:hidden"
                   aria-label="EMDAD WMS — Home"
                 >
                   <img
                     src="/emdad-logo.png"
                     alt="EMDAD WMS"
-                    className="h-8 w-auto object-contain brightness-0 invert"
+                    className="h-8 w-auto object-contain"
                   />
                 </Link>
               </Topbar.Start>

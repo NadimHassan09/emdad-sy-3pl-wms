@@ -107,10 +107,10 @@ export function OpenTasksByTypeChartCard({
     <Link
       to={to}
       className={cn(
-        'block rounded-2xl border border-slate-100 bg-white p-5 shadow-sm',
+        'block rounded-xl border border-slate-200/60 bg-white p-5 shadow-soft',
         'transition-[box-shadow,border-color,transform] duration-fast ease-standard',
-        'hover:-translate-y-0.5 hover:border-slate-200 hover:shadow-md',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40',
+        'hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-elevated',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40',
       )}
     >
       <h3 className="text-sm font-bold text-slate-900">{title}</h3>
@@ -145,7 +145,7 @@ export function OpenTasksByTypeChartCard({
 
 export function OpenTasksByTypeChartCardSkeleton({ title }: { title: string }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-200/60 bg-white p-5 shadow-soft">
       <h3 className="text-sm font-bold text-slate-900">{title}</h3>
       <div className="mt-5 space-y-3">
         {Array.from({ length: 6 }).map((_, i) => (

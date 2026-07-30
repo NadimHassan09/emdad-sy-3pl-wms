@@ -1,28 +1,25 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
-import { useMemo, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
-import {
-  BillingApi,
-  type CreateBillingPlanPayload,
-  type UpdateBillingPlanPayload,
-} from '../../api/billing';
-import { CompaniesApi } from '../../api/companies';
-import { BillingInvoicePreviewCard } from '../../components/billing/BillingInvoicePreviewCard';
-import { BillingPlanFormModal } from '../../components/billing/BillingPlanFormModal';
+import { BillingApi } from '../../api/billing';
 import { VolumeAllocationPanel } from '../../components/billing/VolumeAllocationPanel';
 import { Button } from '../../components/Button';
+import { DataTable, type Column } from '../../components/DataTable';
 import { PageHeader } from '../../components/PageHeader';
 import { StatusBadge } from '../../components/StatusBadge';
-import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
+import {
+  humanizeInvoiceStatus,
+  invoiceStatusClass,
+} from '../../lib/billing-invoice-display';
 import {
   daysRemainingFromEnd,
   formatDate,
   formatDecimal,
-  pickCurrentCycle,
 } from '../../lib/billing-plan-overview';
+
+const CURRENCY = 'SYP';
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -33,31 +30,33 @@ function DetailField({ label, value }: { label: string; value: string }) {
   );
 }
 
+function pendingSummary(pending: Record<string, unknown> | null | undefined): string[] {
+  if (!pending || typeof pending !== 'object') return [];
+  const lines: string[] = [];
+  if (pending.reservedVolume != null) {
+    lines.push(`Reserved volume → ${formatDecimal(String(pending.reservedVolume), 2)} m³`);
+  }
+  if (pending.fixedSubscriptionFee != null) {
+    lines.push(`Price → ${formatDecimal(String(pending.fixedSubscriptionFee))} ${CURRENCY}`);
+  }
+  if (pending.cycleLengthDays != null) {
+    lines.push(`Billing cycle → ${pending.cycleLengthDays} days`);
+  }
+  if (pending.planType != null) {
+    lines.push(`Plan type → ${String(pending.planType)}`);
+  }
+  return lines;
+}
+
 export function BillingPlanDetailPage() {
   const { clientId = '' } = useParams<{ clientId: string }>();
+  const navigate = useNavigate();
   const { user } = useAuth();
-  const toast = useToast();
-  const qc = useQueryClient();
   const canMutate = user?.role === 'super_admin' || user?.role === 'wh_manager';
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-
-  const companyQuery = useQuery({
-    queryKey: [...QK.companies, clientId],
-    queryFn: () => CompaniesApi.get(clientId),
-    enabled: !!clientId,
-  });
-
-  const plansQuery = useQuery({
-    queryKey: [...QK.billing.plans, clientId],
-    queryFn: () => BillingApi.listPlans(clientId),
-    enabled: !!clientId,
-  });
-
-  const cyclesQuery = useQuery({
-    queryKey: [...QK.billing.cycles, clientId],
-    queryFn: () => BillingApi.listCycles(clientId),
+  const detailQuery = useQuery({
+    queryKey: QK.billing.planDetail(clientId),
+    queryFn: () => BillingApi.getPlanDetailByClient(clientId),
     enabled: !!clientId,
   });
 
@@ -73,61 +72,44 @@ export function BillingPlanDetailPage() {
     enabled: canMutate && !!clientId,
   });
 
-  const activePlan = useMemo(
-    () => (plansQuery.data ?? []).find((p) => p.active) ?? plansQuery.data?.[0] ?? null,
-    [plansQuery.data],
-  );
-
-  const currentCycle = useMemo(
-    () => pickCurrentCycle(cyclesQuery.data ?? []),
-    [cyclesQuery.data],
-  );
-
-  const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: QK.billing.plans });
-    void qc.invalidateQueries({ queryKey: [...QK.billing.plans, clientId] });
-    void qc.invalidateQueries({ queryKey: QK.billing.cycles });
-    void qc.invalidateQueries({ queryKey: [...QK.billing.cycles, clientId] });
-    void qc.invalidateQueries({ queryKey: QK.billing.capacity });
-  };
-
-  const createMut = useMutation({
-    mutationFn: (payload: CreateBillingPlanPayload) => BillingApi.createPlan(payload),
-    onSuccess: () => {
-      toast.success('Billing plan created.');
-      setCreateOpen(false);
-      invalidate();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const updateMut = useMutation({
-    mutationFn: (payload: UpdateBillingPlanPayload) => {
-      if (!activePlan) throw new Error('No plan');
-      return BillingApi.updatePlan(activePlan.id, payload);
-    },
-    onSuccess: () => {
-      toast.success('Billing plan updated.');
-      setEditOpen(false);
-      invalidate();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const renewMut = useMutation({
-    mutationFn: () => {
-      if (!currentCycle) throw new Error('No active cycle');
-      return BillingApi.renewCycle(currentCycle.id);
-    },
-    onSuccess: () => {
-      toast.success('Billing cycle marked for renewal.');
-      invalidate();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const company = companyQuery.data;
+  const company = detailQuery.data?.company;
+  const plan = detailQuery.data?.plan ?? null;
+  const currentCycle = detailQuery.data?.currentCycle ?? null;
+  const cycles = detailQuery.data?.cycles ?? [];
+  const invoices = detailQuery.data?.invoices ?? [];
   const daysLeft = currentCycle ? daysRemainingFromEnd(currentCycle.endsAt) : null;
+  const pendingLines = pendingSummary(plan?.pendingChanges as Record<string, unknown> | null);
+
+  const cycleColumns: Column<(typeof cycles)[number]>[] = [
+    { header: 'Start', accessor: (r) => formatDate(r.startsAt) },
+    { header: 'End', accessor: (r) => formatDate(r.endsAt) },
+    { header: 'Status', accessor: (r) => <StatusBadge status={r.status} /> },
+  ];
+
+  const invoiceColumns: Column<(typeof invoices)[number]>[] = [
+    {
+      header: 'Invoice #',
+      accessor: (r) => (
+        <span className="font-mono text-sm font-semibold text-brand-700">{r.invoiceNumber}</span>
+      ),
+    },
+    {
+      header: 'Amount',
+      accessor: (r) => `${formatDecimal(r.grandTotal ?? r.totalAmount)} ${CURRENCY}`,
+    },
+    {
+      header: 'Issued',
+      accessor: (r) => formatDate(r.issuedAt ?? r.createdAt),
+    },
+    {
+      header: 'Status',
+      accessor: (r) => (
+        <span className={`w-fit ${invoiceStatusClass(r.status)}`}>
+          {humanizeInvoiceStatus(r.status)}
+        </span>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-4">
@@ -139,112 +121,109 @@ export function BillingPlanDetailPage() {
 
       <PageHeader
         title={company ? `${company.name} — billing plan` : 'Client billing plan'}
+        description="Subscription storage plan, current cycle, history, and invoices."
         actions={
           canMutate ? (
             <div className="flex flex-wrap gap-2">
-              {!activePlan ? (
-                <Button variant="brand" onClick={() => setCreateOpen(true)}>
+              {!plan ? (
+                <Button variant="brand" onClick={() => navigate('/billing/plans/new')}>
                   Create plan
                 </Button>
               ) : (
-                <>
-                  <Button variant="secondary" onClick={() => setEditOpen(true)}>
-                    Edit plan
-                  </Button>
-                  {currentCycle?.status === 'active' ? (
-                    <Button
-                      variant="secondary"
-                      disabled={renewMut.isPending}
-                      onClick={() => {
-                        if (!window.confirm('Mark this billing cycle for renewal when it expires?')) return;
-                        renewMut.mutate();
-                      }}
-                    >
-                      Renew plan
-                    </Button>
-                  ) : null}
-                </>
+                <Button variant="secondary" onClick={() => navigate(`/billing/plans/${clientId}/edit`)}>
+                  Edit plan
+                </Button>
               )}
             </div>
           ) : undefined
         }
       />
 
-      {companyQuery.isPending || plansQuery.isPending ? (
-        <p className="text-sm text-slate-500">Loading billing details…</p>
+      {detailQuery.isPending ? <p className="text-sm text-slate-500">Loading billing details…</p> : null}
+      {detailQuery.isError ? (
+        <p className="text-sm text-rose-600">Could not load client billing details.</p>
       ) : null}
 
-      {companyQuery.isError ? (
-        <p className="text-sm text-rose-600">Could not load client details.</p>
-      ) : null}
-
-      {!activePlan && !plansQuery.isPending ? (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+      {!plan && !detailQuery.isPending ? (
+        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
           <p className="text-sm text-slate-600">This client has no billing plan yet.</p>
           {canMutate ? (
-            <Button className="mt-3" variant="brand" onClick={() => setCreateOpen(true)}>
+            <Button className="mt-3" variant="brand" onClick={() => navigate('/billing/plans/new')}>
               Create billing plan
             </Button>
           ) : null}
         </div>
       ) : null}
 
-      {activePlan ? (
+      {plan ? (
         <>
+          {pendingLines.length > 0 ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <p className="font-semibold">Pending changes (apply on next billing cycle)</p>
+              <ul className="mt-1 list-disc pl-5">
+                {pendingLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           <VolumeAllocationPanel
             capacity={capacityQuery.data}
             storage={storageQuery.data}
-            reservedVolume={activePlan.reservedVolume}
+            reservedVolume={plan.reservedVolume}
             loading={storageQuery.isLoading || capacityQuery.isLoading}
             title="Client storage"
-            description="Used storage = current inventory quantity × product volume (CBM). Updates automatically when inbound, outbound, adjustments, cycle counts, or returns change stock."
+            description="Used storage = current inventory quantity × product volume (CBM)."
           />
 
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-semibold text-slate-900">Billing plan</h3>
-              <StatusBadge status={activePlan.active ? 'active' : 'paused'} />
+              <h3 className="text-sm font-semibold text-slate-900">Current plan</h3>
+              <StatusBadge status={plan.active ? 'active' : 'paused'} />
               {company?.status === 'restricted' ? (
                 <span className="badge badge-cancelled w-fit">restricted</span>
               ) : null}
             </div>
             <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <DetailField label="Cycle length" value={`${activePlan.cycleLengthDays} days`} />
-              <DetailField label="Fixed subscription fee" value={formatDecimal(activePlan.fixedSubscriptionFee)} />
-              <DetailField label="Inbound order fee" value={formatDecimal(activePlan.inboundOrderFee, 4)} />
-              <DetailField label="Outbound base fee" value={formatDecimal(activePlan.outboundBaseFee ?? activePlan.outboundOrderFee)} />
-              <DetailField label="Outbound included items" value={String(activePlan.outboundIncludedItems ?? 0)} />
-              <DetailField label="Outbound additional item fee" value={formatDecimal(activePlan.outboundAdditionalItemFee ?? '0')} />
-              <DetailField label="Packaging fee" value={formatDecimal(activePlan.packagingFee, 4)} />
-              <DetailField label="Quality check fee" value={formatDecimal(activePlan.qualityCheckFee, 4)} />
+              <DetailField label="Client" value={company?.name ?? '—'} />
               <DetailField
-                label="Excess volume fee / day"
-                value={formatDecimal(activePlan.excessVolumeFeePerDay, 4)}
-              />
-              <DetailField
-                label="Excess weight fee / day"
-                value={formatDecimal(activePlan.excessWeightFeePerDay, 4)}
+                label="Plan type"
+                value={
+                  plan.planType === 'template'
+                    ? `Template${plan.templateName ? ` · ${plan.templateName}` : ''}`
+                    : 'Custom'
+                }
               />
               <DetailField
                 label="Reserved volume"
-                value={`${formatDecimal(activePlan.reservedVolume, 4)} CBM`}
+                value={`${formatDecimal(plan.reservedVolume, 2)} m³`}
               />
               <DetailField
-                label="Reserved weight"
-                value={`${formatDecimal(activePlan.reservedWeight, 4)} kg`}
+                label="Subscription price"
+                value={`${formatDecimal(plan.fixedSubscriptionFee)} ${CURRENCY}`}
               />
+              <DetailField label="Billing cycle" value={`${plan.cycleLengthDays} days`} />
+              <DetailField label="Created date" value={formatDate(plan.createdAt)} />
             </dl>
           </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h3 className="text-sm font-semibold text-slate-900">Current billing cycle</h3>
             {currentCycle ? (
               <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <DetailField label="Start" value={formatDate(currentCycle.startsAt)} />
                 <DetailField label="End" value={formatDate(currentCycle.endsAt)} />
+                <DetailField label="Next renewal" value={formatDate(currentCycle.endsAt)} />
                 <DetailField
                   label="Days remaining"
-                  value={daysLeft != null && daysLeft > 0 ? `${daysLeft} days` : daysLeft === 0 ? 'Last day' : 'Expired'}
+                  value={
+                    daysLeft != null && daysLeft > 0
+                      ? `${daysLeft} days`
+                      : daysLeft === 0
+                        ? 'Last day'
+                        : 'Expired'
+                  }
                 />
                 <DetailField label="Cycle status" value={currentCycle.status} />
               </dl>
@@ -253,31 +232,26 @@ export function BillingPlanDetailPage() {
             )}
           </section>
 
-          {activePlan ? (
-            <BillingInvoicePreviewCard companyId={clientId} companyName={companyQuery.data?.name} />
-          ) : null}
+          <DataTable
+            title="Cycle history"
+            description="Recent billing cycles for this client."
+            columns={cycleColumns}
+            rows={cycles}
+            rowKey={(r) => r.id}
+            empty="No billing cycles yet."
+          />
+
+          <DataTable
+            title="Recent invoices"
+            description="Subscription invoices for this client."
+            columns={invoiceColumns}
+            rows={invoices}
+            rowKey={(r) => r.id}
+            onRowClick={(r) => navigate(`/billing/invoices/${r.id}`)}
+            empty="No invoices yet."
+          />
         </>
       ) : null}
-
-      <BillingPlanFormModal
-        open={createOpen}
-        mode="create"
-        companies={company ? [{ id: company.id, name: company.name }] : []}
-        initialCompanyId={clientId}
-        saving={createMut.isPending}
-        onClose={() => !createMut.isPending && setCreateOpen(false)}
-        onSubmit={(payload) => createMut.mutate({ ...(payload as CreateBillingPlanPayload), companyId: clientId })}
-      />
-
-      <BillingPlanFormModal
-        open={editOpen}
-        mode="edit"
-        companies={company ? [{ id: company.id, name: company.name }] : []}
-        plan={activePlan}
-        saving={updateMut.isPending}
-        onClose={() => !updateMut.isPending && setEditOpen(false)}
-        onSubmit={(payload) => updateMut.mutate(payload as UpdateBillingPlanPayload)}
-      />
     </div>
   );
 }

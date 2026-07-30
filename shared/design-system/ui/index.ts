@@ -20,6 +20,13 @@ export {
 
 export { renderSidebarNavIcon } from '../lib/sidebar-nav-icons';
 
+export {
+  statusMeta,
+  normalizeStatusKey,
+  statusLabel,
+} from '../lib/statusMeta';
+export type { StatusMeta } from '../lib/statusMeta';
+
 export { useUiLanguage, applyUiLanguage } from '../lib/use-ui-language';
 export type { UiLanguage, UseUiLanguageOptions } from '../lib/use-ui-language';
 export { LanguageSwitchOverlay } from './LanguageSwitchOverlay';

@@ -221,7 +221,9 @@ export function LocationsPage() {
   return (
     <>
       <PageHeader
+        icon="fa-map-location-dot"
         title={t(['Locations', 'المواقع التخزينية'])}
+        description={t(['Manage warehouse storage locations.', 'إدارة مواقع التخزين في المستودع.'])}
         actions={
           <Button variant="brand" disabled={!warehouseId} onClick={() => setOpen(true)}>
             {t(['+ New location', '+ موقع جديد'])}

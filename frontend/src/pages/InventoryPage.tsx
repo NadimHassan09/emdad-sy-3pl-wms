@@ -21,6 +21,13 @@ import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
+import {
+  stockHealthBadgeClass,
+  stockHealthBarClass,
+  stockHealthLabel,
+  stockHealthProgress,
+  stockHealthStatus,
+} from '../lib/stock-health';
 
 const fmtQty = (s: string): string => {
   const n = Number(s);
@@ -46,17 +53,17 @@ const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
   {
     header: 'Product',
     accessor: (r) => <span className="font-medium text-slate-900">{r.product.name}</span>,
-    width: '320px',
+    width: '280px',
   },
   {
     header: 'Client',
     accessor: (r) => r.client.name,
-    width: '220px',
+    width: '180px',
   },
   {
     header: 'SKU',
     accessor: (r) => <span className="font-mono text-xs">{r.product.sku}</span>,
-    width: '200px',
+    width: '160px',
   },
   {
     header: 'Barcode',
@@ -66,16 +73,32 @@ const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
       ) : (
         <span className="text-slate-400">—</span>
       ),
-    width: '200px',
+    width: '160px',
   },
   {
     header: 'On hand',
-    accessor: (r) => (
-      <span className="font-mono text-right block font-semibold text-slate-900">
-        {fmtQty(r.onHand ?? r.totalQuantity)}
-      </span>
-    ),
-    width: '120px',
+    accessor: (r) => {
+      const stock = Number(r.onHand ?? r.totalQuantity ?? 0);
+      const threshold = r.minStockThreshold ?? 0;
+      const status = stockHealthStatus(stock, threshold);
+      const percent = stockHealthProgress(stock, threshold);
+      return (
+        <div className="flex items-center justify-end gap-2">
+          {percent != null ? (
+            <div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100 shrink-0">
+              <div
+                className={`h-full rounded-full ${stockHealthBarClass(status)}`}
+                style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
+              />
+            </div>
+          ) : null}
+          <span className="font-mono font-semibold text-slate-900 tabular-nums">
+            {fmtQty(r.onHand ?? r.totalQuantity)}
+          </span>
+        </div>
+      );
+    },
+    width: '140px',
     className: 'text-right',
   },
   {
@@ -83,7 +106,7 @@ const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
     accessor: (r) => (
       <span className="font-mono text-right block text-slate-700">{fmtQty(r.reserved ?? '0')}</span>
     ),
-    width: '110px',
+    width: '100px',
     className: 'text-right',
   },
   {
@@ -91,21 +114,31 @@ const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
     accessor: (r) => (
       <span className="font-mono text-right block text-slate-700">{fmtQty(r.available ?? '0')}</span>
     ),
-    width: '110px',
+    width: '100px',
     className: 'text-right',
   },
   {
-    header: 'Total quantity',
-    accessor: (r) => (
-      <span className="font-mono text-right block font-semibold">{fmtQty(r.totalQuantity)}</span>
-    ),
-    width: '140px',
-    className: 'text-right',
+    header: 'Stock health',
+    accessor: (r) => {
+      const status = stockHealthStatus(
+        Number(r.available ?? r.onHand ?? r.totalQuantity ?? 0),
+        r.minStockThreshold ?? 0,
+      );
+      if (!status) return <span className="text-slate-400">—</span>;
+      return (
+        <span
+          className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${stockHealthBadgeClass(status)}`}
+        >
+          {stockHealthLabel(status)}
+        </span>
+      );
+    },
+    width: '120px',
   },
   {
     header: 'UOM',
     accessor: (r) => <span className="text-slate-800">{uomLabel(r.product.uom)}</span>,
-    width: '110px',
+    width: '100px',
   },
 ];
 

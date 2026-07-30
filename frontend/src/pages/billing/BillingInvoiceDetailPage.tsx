@@ -1,29 +1,29 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 
 import { BillingApi, type CreateManualInvoiceLinePayload } from '../../api/billing';
 import { Button } from '../../components/Button';
+import { PageHeader } from '../../components/PageHeader';
 import { SelectField } from '../../components/SelectField';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { useAuth } from '../../auth/AuthContext';
-import { CompaniesApi } from '../../api/companies';
-import { PageHeader } from '../../components/PageHeader';
-import { StatusBadge } from '../../components/StatusBadge';
 import { QK } from '../../constants/query-keys';
 import {
   formatCycleLabel,
   formatDate,
   formatDecimal,
+  humanizeInvoiceStatus,
+  invoiceStatusClass,
   lineLabel,
   manualLines,
   orderChargeLines,
   parseRateSnapshot,
-  renewalStatusLabel,
   systemLines,
 } from '../../lib/billing-invoice-display';
-import { daysRemainingFromEnd } from '../../lib/billing-plan-overview';
+
+const CURRENCY = 'SYP';
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -102,18 +102,15 @@ export function BillingInvoiceDetailPage() {
   });
 
   const invoice = invoiceQuery.data;
-
-  const companyQuery = useQuery({
-    queryKey: [...QK.companies, invoice?.companyId],
-    queryFn: () => CompaniesApi.get(invoice!.companyId),
-    enabled: !!invoice?.companyId,
-  });
-
   const snapshot = parseRateSnapshot(invoice?.billingCycle?.rateSnapshot);
   const lines = invoice?.lines ?? [];
   const cycle = invoice?.billingCycle;
-  const daysLeft = cycle ? daysRemainingFromEnd(cycle.endsAt) : null;
   const isDraft = invoice?.status === 'draft';
+  const isEditable =
+    invoice?.status === 'draft' ||
+    invoice?.status === 'unpaid' ||
+    invoice?.status === 'open' ||
+    invoice?.status === 'overdue';
   const isUnpaid =
     invoice?.status === 'unpaid' || invoice?.status === 'open' || invoice?.status === 'overdue';
 
@@ -123,14 +120,25 @@ export function BillingInvoiceDetailPage() {
   const [discountType, setDiscountType] = useState<'fixed' | 'percentage' | ''>('');
   const [discountValue, setDiscountValue] = useState('');
   const [vatPercentage, setVatPercentage] = useState('');
+  const [notes, setNotes] = useState('');
 
-  const invalidate = () => void qc.invalidateQueries({ queryKey: [...QK.billing.invoices, id] });
+  useEffect(() => {
+    if (!invoice) return;
+    setDiscountType(invoice.discountType ?? '');
+    setDiscountValue(invoice.discountValue ?? '');
+    setVatPercentage(invoice.vatPercentage ?? '');
+    setNotes(invoice.notes ?? '');
+  }, [invoice]);
+
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: [...QK.billing.invoices, id] });
+    void qc.invalidateQueries({ queryKey: QK.billing.invoices });
+  };
 
   const statusMut = useMutation({
     mutationFn: (status: 'paid' | 'cancelled' | 'unpaid') => BillingApi.updateInvoiceStatus(id, status),
     onSuccess: () => {
       invalidate();
-      void qc.invalidateQueries({ queryKey: QK.billing.invoices });
       toast.success('Invoice status updated.');
     },
     onError: () => toast.error('Could not update invoice status.'),
@@ -145,6 +153,16 @@ export function BillingInvoiceDetailPage() {
     onError: () => toast.error('Could not issue invoice.'),
   });
 
+  const deleteMut = useMutation({
+    mutationFn: () => BillingApi.deleteInvoice(id),
+    onSuccess: () => {
+      toast.success('Invoice deleted.');
+      void qc.invalidateQueries({ queryKey: QK.billing.invoices });
+      window.history.back();
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const addLineMut = useMutation({
     mutationFn: (payload: CreateManualInvoiceLinePayload) => BillingApi.addManualLine(id, payload),
     onSuccess: () => {
@@ -152,18 +170,18 @@ export function BillingInvoiceDetailPage() {
       setManualDesc('');
       setManualQty('1');
       setManualUnit('0');
-      toast.success('Line added.');
+      toast.success('Charge added.');
     },
-    onError: () => toast.error('Could not add line.'),
+    onError: () => toast.error('Could not add charge.'),
   });
 
   const removeLineMut = useMutation({
     mutationFn: (lineId: string) => BillingApi.removeManualLine(id, lineId),
     onSuccess: () => {
       invalidate();
-      toast.success('Line removed.');
+      toast.success('Charge removed.');
     },
-    onError: () => toast.error('Could not remove line.'),
+    onError: () => toast.error('Could not remove charge.'),
   });
 
   const updateInvoiceMut = useMutation({
@@ -172,6 +190,7 @@ export function BillingInvoiceDetailPage() {
         discountType: discountType || null,
         discountValue: discountValue ? Number(discountValue) : null,
         vatPercentage: vatPercentage ? Number(vatPercentage) : undefined,
+        notes: notes.trim() || null,
       }),
     onSuccess: () => {
       invalidate();
@@ -208,6 +227,9 @@ export function BillingInvoiceDetailPage() {
     });
   };
 
+  const subscriptionLines = systemLines(lines).filter((l) => l.type === 'subscription');
+  const otherSystemLines = systemLines(lines).filter((l) => l.type !== 'subscription');
+
   return (
     <div className="space-y-4">
       <div className="text-sm text-slate-500">
@@ -218,10 +240,53 @@ export function BillingInvoiceDetailPage() {
 
       <PageHeader
         title={invoice ? `Invoice ${invoice.invoiceNumber}` : 'Invoice details'}
-        description={
-          invoice?.invoiceSource === 'ad_hoc'
-            ? `${companyQuery.data?.name ?? ''} · Ad-hoc invoice`
-            : companyQuery.data?.name
+        description={invoice?.company?.name ?? undefined}
+        actions={
+          invoice ? (
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" onClick={() => void handleDownloadPdf()}>
+                Download PDF
+              </Button>
+              {canMutate && isDraft ? (
+                <Button size="sm" variant="primary" loading={issueMut.isPending} onClick={() => issueMut.mutate()}>
+                  Issue invoice
+                </Button>
+              ) : null}
+              {canMutate && isUnpaid ? (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  loading={statusMut.isPending}
+                  onClick={() => statusMut.mutate('paid')}
+                >
+                  Mark as paid
+                </Button>
+              ) : null}
+              {canMutate && invoice.status !== 'cancelled' && invoice.status !== 'paid' ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={statusMut.isPending}
+                  onClick={() => statusMut.mutate('cancelled')}
+                >
+                  Cancel invoice
+                </Button>
+              ) : null}
+              {canMutate && (isDraft || invoice.status === 'cancelled') ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={deleteMut.isPending}
+                  onClick={() => {
+                    if (!window.confirm(`Delete invoice ${invoice.invoiceNumber}?`)) return;
+                    deleteMut.mutate();
+                  }}
+                >
+                  Delete
+                </Button>
+              ) : null}
+            </div>
+          ) : undefined
         }
       />
 
@@ -232,53 +297,16 @@ export function BillingInvoiceDetailPage() {
 
       {invoice ? (
         <>
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-semibold text-slate-900">Summary</h3>
-                <StatusBadge status={invoice.status} />
-                {invoice.invoiceSource === 'ad_hoc' ? (
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">Ad-hoc</span>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="secondary" onClick={() => void handleDownloadPdf()}>
-                  Download PDF
-                </Button>
-                {canMutate && isDraft ? (
-                  <Button size="sm" variant="primary" loading={issueMut.isPending} onClick={() => issueMut.mutate()}>
-                    Issue invoice
-                  </Button>
-                ) : null}
-                {canMutate && isUnpaid ? (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    loading={statusMut.isPending}
-                    onClick={() => statusMut.mutate('paid')}
-                  >
-                    Mark paid
-                  </Button>
-                ) : null}
-                {canMutate && invoice.status !== 'cancelled' && invoice.status !== 'paid' ? (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    loading={statusMut.isPending}
-                    onClick={() => statusMut.mutate('cancelled')}
-                  >
-                    Cancel invoice
-                  </Button>
-                ) : null}
-              </div>
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-semibold text-slate-900">Invoice info</h3>
+              <span className={`w-fit ${invoiceStatusClass(invoice.status)}`}>
+                {humanizeInvoiceStatus(invoice.status)}
+              </span>
             </div>
             <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <DetailField label="Client" value={companyQuery.data?.name ?? invoice.companyId} />
-              <DetailField
-                label="Billing cycle"
-                value={invoice.invoiceSource === 'ad_hoc' ? '—' : formatCycleLabel(cycle)}
-              />
-              <DetailField label="Created" value={formatDate(invoice.createdAt)} />
+              <DetailField label="Client" value={invoice.company?.name ?? invoice.companyId} />
+              <DetailField label="Billing period" value={formatCycleLabel(cycle)} />
               <DetailField
                 label="Issue date"
                 value={invoice.issuedAt ? formatDate(invoice.issuedAt) : '—'}
@@ -287,54 +315,46 @@ export function BillingInvoiceDetailPage() {
                 label="Due date"
                 value={invoice.dueDate ? formatDate(invoice.dueDate) : '—'}
               />
+              <DetailField label="Payment status" value={humanizeInvoiceStatus(invoice.status)} />
+              {snapshot ? (
+                <>
+                  <DetailField
+                    label="Reserved volume"
+                    value={`${formatDecimal(snapshot.reservedVolume, 2)} m³`}
+                  />
+                  <DetailField
+                    label="Plan price"
+                    value={`${formatDecimal(snapshot.fixedSubscriptionFee)} ${CURRENCY}`}
+                  />
+                </>
+              ) : null}
             </dl>
           </section>
 
-          {snapshot && invoice.invoiceSource !== 'ad_hoc' ? (
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-900">Billing plan snapshot</h3>
-              <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <DetailField
-                  label="Fixed subscription fee"
-                  value={formatDecimal(snapshot.fixedSubscriptionFee)}
-                />
-                <DetailField
-                  label="Inbound order fee"
-                  value={formatDecimal(snapshot.inboundOrderFee, 4)}
-                />
-                <DetailField
-                  label="Outbound base fee"
-                  value={formatDecimal(snapshot.outboundBaseFee)}
-                />
-                <DetailField
-                  label="Outbound included items"
-                  value={String(snapshot.outboundIncludedItems)}
-                />
-                <DetailField
-                  label="Outbound additional item fee"
-                  value={formatDecimal(snapshot.outboundAdditionalItemFee)}
-                />
-                <DetailField label="Packaging fee" value={formatDecimal(snapshot.packagingFee, 4)} />
-              </dl>
-            </section>
-          ) : null}
+          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="text-sm font-semibold text-slate-900">Charges</h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Client, billing period, reserved volume, and base subscription lines are locked.
+            </p>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-semibold text-slate-900">Invoice lines</h3>
-            <LineTable title="System charges" lines={systemLines(lines)} />
+            <LineTable title="Subscription (locked)" lines={subscriptionLines} />
+            <LineTable title="System charges" lines={otherSystemLines} />
             <LineTable title="Order charges (VAS)" lines={orderChargeLines(lines)} />
             <LineTable
-              title="Manual charges"
+              title="Additional charges"
               lines={manualLines(lines)}
-              showActions={canMutate && isDraft}
+              showActions={canMutate && isEditable}
               onRemove={(lineId) => removeLineMut.mutate(lineId)}
               removingId={removeLineMut.isPending ? removeLineMut.variables : undefined}
             />
 
-            {canMutate && isDraft ? (
-              <form className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-4" onSubmit={handleAddManualLine}>
+            {canMutate && isEditable ? (
+              <form
+                className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-4"
+                onSubmit={handleAddManualLine}
+              >
                 <TextField
-                  label="Manual line description"
+                  label="Additional charge description"
                   value={manualDesc}
                   onChange={(e) => setManualDesc(e.target.value)}
                   className="sm:col-span-2"
@@ -357,7 +377,7 @@ export function BillingInvoiceDetailPage() {
                 />
                 <div className="sm:col-span-4">
                   <Button type="submit" size="sm" variant="brand" loading={addLineMut.isPending}>
-                    Add manual line
+                    Add charge
                   </Button>
                 </div>
               </form>
@@ -366,25 +386,35 @@ export function BillingInvoiceDetailPage() {
             <div className="mt-6 space-y-2 border-t border-slate-200 pt-4 text-sm">
               <div className="flex justify-between">
                 <span className="text-slate-600">Subtotal</span>
-                <span className="font-mono tabular-nums">{formatDecimal(invoice.subtotalAmount)}</span>
+                <span className="font-mono tabular-nums">
+                  {formatDecimal(invoice.subtotalAmount)} {CURRENCY}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-600">Discount</span>
-                <span className="font-mono tabular-nums">-{formatDecimal(invoice.discountAmount)}</span>
+                <span className="font-mono tabular-nums">
+                  -{formatDecimal(invoice.discountAmount)} {CURRENCY}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-600">VAT ({formatDecimal(invoice.vatPercentage, 2)}%)</span>
-                <span className="font-mono tabular-nums">{formatDecimal(invoice.vatAmount)}</span>
+                <span className="text-slate-600">
+                  VAT ({formatDecimal(invoice.vatPercentage, 2)}%)
+                </span>
+                <span className="font-mono tabular-nums">
+                  {formatDecimal(invoice.vatAmount)} {CURRENCY}
+                </span>
               </div>
               <div className="flex justify-between border-t border-slate-200 pt-2 font-semibold">
                 <span>Grand total</span>
-                <span className="font-mono tabular-nums text-lg">{formatDecimal(invoice.grandTotal)}</span>
+                <span className="font-mono tabular-nums text-lg">
+                  {formatDecimal(invoice.grandTotal)} {CURRENCY}
+                </span>
               </div>
             </div>
 
-            {canMutate && isDraft ? (
+            {canMutate && isEditable ? (
               <form
-                className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-3"
+                className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2"
                 onSubmit={(e) => {
                   e.preventDefault();
                   updateInvoiceMut.mutate();
@@ -392,7 +422,7 @@ export function BillingInvoiceDetailPage() {
               >
                 <SelectField
                   label="Discount type"
-                  value={discountType || invoice.discountType || ''}
+                  value={discountType}
                   onChange={(e) => setDiscountType(e.target.value as 'fixed' | 'percentage' | '')}
                   options={[
                     { value: '', label: 'None' },
@@ -405,7 +435,7 @@ export function BillingInvoiceDetailPage() {
                   type="number"
                   min={0}
                   step="0.01"
-                  value={discountValue || invoice.discountValue || ''}
+                  value={discountValue}
                   onChange={(e) => setDiscountValue(e.target.value)}
                 />
                 <TextField
@@ -413,33 +443,31 @@ export function BillingInvoiceDetailPage() {
                   type="number"
                   min={0}
                   step="0.01"
-                  value={vatPercentage || invoice.vatPercentage || ''}
+                  value={vatPercentage}
                   onChange={(e) => setVatPercentage(e.target.value)}
                 />
-                <div className="sm:col-span-3">
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-xs font-medium text-slate-600">Notes</label>
+                  <textarea
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    rows={3}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Internal or client-facing notes"
+                  />
+                </div>
+                <div className="sm:col-span-2">
                   <Button type="submit" size="sm" variant="secondary" loading={updateInvoiceMut.isPending}>
-                    Apply discount & VAT
+                    Save discounts, taxes & notes
                   </Button>
                 </div>
               </form>
+            ) : invoice.notes ? (
+              <div className="mt-4 border-t border-slate-200 pt-4">
+                <DetailField label="Notes" value={invoice.notes} />
+              </div>
             ) : null}
           </section>
-
-          {cycle ? (
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-900">Renewal status</h3>
-              <dl className="mt-4 grid gap-4 sm:grid-cols-3">
-                <DetailField label="Cycle status" value={renewalStatusLabel(cycle?.status)} />
-                <DetailField label="Cycle ends" value={formatDate(cycle.endsAt)} />
-                <DetailField
-                  label="Days remaining"
-                  value={
-                    daysLeft != null ? (daysLeft > 0 ? `${daysLeft} days` : 'Expired') : '—'
-                  }
-                />
-              </dl>
-            </section>
-          ) : null}
         </>
       ) : null}
     </div>

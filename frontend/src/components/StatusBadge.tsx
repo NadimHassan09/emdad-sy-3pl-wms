@@ -1,111 +1,23 @@
+import { normalizeStatusKey, statusLabel, statusMeta } from '@ds';
+
 interface StatusBadgeProps {
   status: string;
 }
 
-const STATUS_CLASS: Record<string, string> = {
-  draft: 'badge-draft',
-  pending_approval: 'badge-progress',
-  approved: 'badge-complete',
-  confirmed: 'badge-confirmed',
-  in_progress: 'badge-progress',
-  partially_received: 'badge-progress',
-  allocated: 'badge-progress',
-  out_for_delivery: 'badge-progress',
-  delivered: 'badge-complete',
-  returned: 'badge-cancelled',
-  picking: 'badge-progress',
-  packing: 'badge-progress',
-  ready_to_ship: 'badge-progress',
-  pending_stock: 'badge-progress',
-  completed: 'badge-complete',
-  shipped: 'badge-shipped',
-  cancelled: 'badge-cancelled',
-  done: 'badge-complete',
-  pending: 'badge-draft',
-  assigned: 'badge-progress',
-  failed: 'badge-cancelled',
-  degraded: 'badge-cancelled',
-  retry_pending: 'badge-progress',
-  short: 'badge-cancelled',
-  pending_review: 'badge-progress',
-  scheduled: 'badge-draft',
-  skipped: 'badge-cancelled',
-  counted: 'badge-complete',
-  posted: 'badge-complete',
-  receiving: 'badge-progress',
-  inspecting: 'badge-progress',
-  received: 'badge-progress',
-  rejected: 'badge-cancelled',
-  failed_delivery: 'badge-cancelled',
-  processing: 'badge-progress',
-  active: 'badge-complete',
-  paused: 'badge-progress',
-  offboarding: 'badge-progress',
-  closed: 'badge-cancelled',
-  restricted: 'badge-cancelled',
-  suspended: 'badge-cancelled',
-  archived: 'badge-draft',
-  purged: 'badge-cancelled',
-  open: 'badge-progress',
-  unpaid: 'badge-progress',
-  paid: 'badge-complete',
-  overdue: 'badge-cancelled',
-};
-
 export function StatusBadge({ status }: StatusBadgeProps) {
-  const cls = STATUS_CLASS[status] ?? 'badge-draft';
   const isArabic =
     typeof document !== 'undefined' &&
     (document.documentElement.dir === 'rtl' || window.localStorage.getItem('wms-ui-language') === 'AR');
-  const key = status.replace(/_/g, ' ');
-  const ar: Record<string, string> = {
-    draft: 'مسودة',
-    'pending approval': 'بانتظار الموافقة',
-    approved: 'معتمد',
-    confirmed: 'مؤكد',
-    'in progress': 'قيد التنفيذ',
-    'partially received': 'مستلم جزئيا',
-    picking: 'التقاط',
-    packing: 'تغليف',
-    'ready to ship': 'جاهز للشحن',
-    'pending stock': 'بانتظار المخزون',
-    completed: 'مكتمل',
-    shipped: 'تم الشحن',
-    cancelled: 'ملغي',
-    done: 'منجز',
-    pending: 'قيد الانتظار',
-    'pending review': 'بانتظار المراجعة',
-    scheduled: 'مجدول',
-    skipped: 'متخطى',
-    counted: 'معد',
-    posted: 'مرحّل',
-    receiving: 'استلام',
-    inspecting: 'فحص',
-    received: 'مستلم',
-    rejected: 'مرفوض',
-    'failed delivery': 'فشل التسليم',
-    processing: 'قيد المعالجة',
-    allocated: 'مخصص',
-    'out for delivery': 'خارج للتسليم',
-    delivered: 'تم التسليم',
-    returned: 'مرتجع',
-    assigned: 'معين',
-    failed: 'فشل',
-    degraded: 'متدهور',
-    'retry pending': 'بانتظار إعادة المحاولة',
-    short: 'نقص',
-    active: 'نشط',
-    paused: 'متوقف مؤقتا',
-    offboarding: 'إنهاء الخدمة',
-    closed: 'مغلق',
-    restricted: 'مقيّد',
-    suspended: 'موقوف',
-    archived: 'مؤرشف',
-    purged: 'محذوف نهائيا',
-    open: 'مفتوحة',
-    unpaid: 'غير مدفوعة',
-    paid: 'مدفوعة',
-    overdue: 'متأخرة',
-  };
-  return <span className={`badge w-fit ${cls}`}>{isArabic ? ar[key] ?? key : key}</span>;
+  const key = normalizeStatusKey(status);
+  const meta = statusMeta[key] ?? statusMeta.draft;
+  const label = statusLabel(status, isArabic);
+
+  return (
+    <span
+      className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${meta.bg} ${meta.text} ${meta.border}`}
+    >
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} aria-hidden="true" />
+      {label}
+    </span>
+  );
 }

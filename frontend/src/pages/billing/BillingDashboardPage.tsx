@@ -1,40 +1,66 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { BillingApi } from '../../api/billing';
-import { BillingExpiringClientsCard } from '../../components/dashboard/BillingExpiringClientsCard';
-import { BillingOverdueClientsCard } from '../../components/dashboard/BillingOverdueClientsCard';
-import { BillingRecentInvoicesCard } from '../../components/dashboard/BillingRecentInvoicesCard';
-import { BillingSuspendedAccountsCard } from '../../components/dashboard/BillingSuspendedAccountsCard';
 import { PageHeader } from '../../components/PageHeader';
+import { PieChart, type PieSlice } from '../../components/PieChart';
 import { QK } from '../../constants/query-keys';
-import { formatDecimal } from '../../lib/billing-invoice-display';
+import { formatDate, formatDecimal } from '../../lib/billing-invoice-display';
 
-function BucketList({
+const CURRENCY = 'SYP';
+
+const CHART_COLORS = ['#0f766e', '#1d4ed8', '#b45309', '#be123c', '#475569', '#047857', '#0369a1'];
+
+function KpiCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function ListCard({
   title,
-  rows,
+  children,
+  empty,
 }: {
   title: string;
-  rows: Array<{ companyId: string; companyName: string; daysRemaining: number }>;
+  children: React.ReactNode;
+  empty?: boolean;
 }) {
   return (
     <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
       <h3 className="mb-3 text-sm font-semibold text-slate-900">{title}</h3>
-      {rows.length === 0 ? (
-        <p className="text-sm text-slate-500">None</p>
-      ) : (
-        <ul className="divide-y divide-slate-100">
-          {rows.map((row) => (
-            <li key={row.companyId} className="flex items-center justify-between py-2 text-sm">
-              <Link to={`/billing/plans/${row.companyId}`} className="font-medium text-brand-700 hover:underline">
-                {row.companyName}
-              </Link>
-              <span className="tabular-nums text-slate-500">{row.daysRemaining}d</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      {empty ? <p className="text-sm text-slate-500">No data yet.</p> : children}
     </div>
+  );
+}
+
+function SimpleBarList({
+  rows,
+}: {
+  rows: Array<{ label: string; value: number; display: string }>;
+}) {
+  const max = Math.max(...rows.map((r) => r.value), 1);
+  return (
+    <ul className="space-y-3">
+      {rows.map((row) => (
+        <li key={row.label}>
+          <div className="mb-1 flex items-center justify-between gap-2 text-sm">
+            <span className="truncate text-slate-700">{row.label}</span>
+            <span className="shrink-0 tabular-nums text-slate-900">{row.display}</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-teal-700"
+              style={{ width: `${Math.max(4, (row.value / max) * 100)}%` }}
+            />
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -44,60 +70,132 @@ export function BillingDashboardPage() {
     queryFn: () => BillingApi.getDashboardSummary(),
   });
 
-  const bucketsQuery = useQuery({
-    queryKey: QK.billing.expiringBuckets,
-    queryFn: () => BillingApi.getExpiringBuckets(),
+  const analyticsQuery = useQuery({
+    queryKey: QK.billing.dashboardAnalytics,
+    queryFn: () => BillingApi.getDashboardAnalytics(),
   });
 
   const summary = summaryQuery.data;
-  const buckets = bucketsQuery.data;
+  const analytics = analyticsQuery.data;
+
+  const monthlyRows = useMemo(() => {
+    const src = analytics?.monthlyRevenue ?? analytics?.revenueTrend ?? [];
+    return src.map((r) => ({
+      label: r.month,
+      value: Number(r.revenue) || 0,
+      display: `${formatDecimal(r.revenue)} ${CURRENCY}`,
+    }));
+  }, [analytics]);
+
+  const clientRows = useMemo(
+    () =>
+      (analytics?.revenueByClient ?? []).map((r) => ({
+        label: r.companyName,
+        value: Number(r.revenue) || 0,
+        display: `${formatDecimal(r.revenue)} ${CURRENCY}`,
+      })),
+    [analytics],
+  );
+
+  const templateSlices: PieSlice[] = useMemo(
+    () =>
+      (analytics?.plansByTemplate ?? []).map((r, i) => ({
+        label: r.label,
+        count: r.count,
+        color: CHART_COLORS[i % CHART_COLORS.length]!,
+      })),
+    [analytics],
+  );
 
   return (
     <div className="space-y-6">
       <PageHeader
+        icon="fa-chart-pie"
         title="Billing dashboard"
-        description="Revenue, expirations, outstanding invoices, and suspended accounts."
+        description="Subscription revenue, plan activity, and upcoming renewals."
       />
 
-      {summary ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Outstanding AR</p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums">{formatDecimal(summary.outstandingAmount)}</p>
-          </div>
-          <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Month revenue</p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums">{formatDecimal(summary.currentMonthRevenue)}</p>
-          </div>
-          <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Open invoices</p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums">{summary.openInvoiceCount}</p>
-          </div>
-          <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Overdue invoices</p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums">{summary.overdueInvoiceCount}</p>
-          </div>
-          <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Suspended</p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums">{summary.suspendedAccountCount}</p>
-          </div>
-        </div>
+      {summaryQuery.isPending ? <p className="text-sm text-slate-500">Loading summary…</p> : null}
+      {summaryQuery.isError ? (
+        <p className="text-sm text-rose-600">Could not load dashboard summary.</p>
       ) : null}
 
-      {buckets ? (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <BucketList title="Expiring in 30 days" rows={buckets.expiring30} />
-          <BucketList title="Expiring in 14 days" rows={buckets.expiring14} />
-          <BucketList title="Expiring in 7 days" rows={buckets.expiring7} />
-          <BucketList title="Expiring in 3 days" rows={buckets.expiring3} />
+      {summary ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard
+            label="Total monthly revenue"
+            value={`${formatDecimal(summary.currentMonthRevenue)} ${CURRENCY}`}
+          />
+          <KpiCard
+            label="Total annual revenue"
+            value={`${formatDecimal(summary.annualRevenue ?? '0')} ${CURRENCY}`}
+          />
+          <KpiCard
+            label="Outstanding revenue"
+            value={`${formatDecimal(summary.outstandingAmount)} ${CURRENCY}`}
+          />
+          <KpiCard
+            label="Active billing plans"
+            value={String(summary.activeBillingPlanCount ?? 0)}
+          />
+          <KpiCard
+            label="Generated invoices"
+            value={String(summary.generatedInvoiceCount ?? 0)}
+          />
+          <KpiCard label="Paid invoices" value={String(summary.paidInvoiceCount ?? 0)} />
+          <KpiCard
+            label="Outstanding invoices"
+            value={String(summary.outstandingInvoiceCount ?? summary.openInvoiceCount ?? 0)}
+          />
         </div>
       ) : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <BillingExpiringClientsCard />
-        <BillingOverdueClientsCard />
-        <BillingRecentInvoicesCard />
-        <BillingSuspendedAccountsCard />
+        <ListCard title="Monthly revenue" empty={monthlyRows.length === 0}>
+          <SimpleBarList rows={monthlyRows} />
+        </ListCard>
+
+        <ListCard title="Revenue trend" empty={monthlyRows.length === 0}>
+          <SimpleBarList rows={[...monthlyRows].reverse()} />
+        </ListCard>
+
+        <PieChart title="Plans by template" slices={templateSlices} />
+
+        <ListCard title="Revenue by client" empty={clientRows.length === 0}>
+          <SimpleBarList rows={clientRows} />
+        </ListCard>
+
+        <div className="lg:col-span-2">
+          <ListCard
+            title="Upcoming renewals"
+            empty={!analytics?.upcomingRenewals?.length}
+          >
+            <ul className="divide-y divide-slate-100">
+              {(analytics?.upcomingRenewals ?? []).map((row) => (
+                <li
+                  key={row.cycleId}
+                  className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm"
+                >
+                  <div>
+                    <Link
+                      to={`/billing/plans/${row.companyId}`}
+                      className="font-medium text-brand-700 hover:underline"
+                    >
+                      {row.companyName}
+                    </Link>
+                    <p className="text-xs text-slate-500">
+                      Renews {formatDate(row.renewalDate)} · {row.daysRemaining}d left ·{' '}
+                      {row.cycleLengthDays}d cycle
+                    </p>
+                  </div>
+                  <span className="tabular-nums font-medium text-slate-900">
+                    {formatDecimal(row.amount)} {CURRENCY}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </ListCard>
+        </div>
       </div>
     </div>
   );

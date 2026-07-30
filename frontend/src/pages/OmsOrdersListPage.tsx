@@ -172,7 +172,11 @@ export function OmsOrdersListPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="OMS Orders" />
+      <PageHeader
+        icon="fa-cart-shopping"
+        title="OMS Orders"
+        description="Manage ecommerce and OMS fulfillment orders."
+      />
 
       <FilterPanel title="Order filters" onApply={applyFilters} onReset={resetFilters}>
         <TextField

@@ -35,7 +35,7 @@ export { FILTER_APPLY_BUTTON_CLASS, FILTER_RESET_BUTTON_CLASS };
 
 /** Shared white panel shell (filters, order details, workflow timeline, etc.). */
 export const PANEL_CARD_CLASS =
-  'mb-4 rounded-xl border border-slate-100 bg-white p-6 shadow-sm';
+  'mb-4 rounded-xl border border-slate-200/60 bg-white p-5 shadow-soft';
 
 export const PANEL_TITLE_CLASS = 'text-base font-semibold text-slate-900';
 

@@ -106,7 +106,10 @@ const ReturnsListPage         = lazyPage(() => import('./pages/returns/ReturnsLi
 const ReturnDetailPage        = lazyPage(() => import('./pages/returns/ReturnDetailPage'), 'ReturnDetailPage');
 const ReturnProcessPage       = lazyPage(() => import('./pages/returns/ReturnProcessPage'), 'ReturnProcessPage');
 const BillingPlansPage          = lazyPage(() => import('./pages/billing/BillingPlansPage'), 'BillingPlansPage');
+const BillingPlanCreatePage     = lazyPage(() => import('./pages/billing/BillingPlanCreatePage'), 'BillingPlanCreatePage');
 const BillingPlanDetailPage     = lazyPage(() => import('./pages/billing/BillingPlanDetailPage'), 'BillingPlanDetailPage');
+const BillingPlanEditPage       = lazyPage(() => import('./pages/billing/BillingPlanEditPage'), 'BillingPlanEditPage');
+const BillingPlanTemplatesPage  = lazyPage(() => import('./pages/billing/BillingPlanTemplatesPage'), 'BillingPlanTemplatesPage');
 const BillingInvoicesPage       = lazyPage(() => import('./pages/billing/BillingInvoicesPage'), 'BillingInvoicesPage');
 const BillingInvoiceDetailPage  = lazyPage(() => import('./pages/billing/BillingInvoiceDetailPage'), 'BillingInvoiceDetailPage');
 const BillingDashboardPage      = lazyPage(() => import('./pages/billing/BillingDashboardPage'), 'BillingDashboardPage');
@@ -206,7 +209,10 @@ export const router = createBrowserRouter([
       { path: 'billing', element: <Navigate to="/billing/dashboard" replace /> },
       { path: 'billing/dashboard', element: <BillingDashboardPage /> },
       { path: 'billing/plans', element: <BillingPlansPage /> },
+      { path: 'billing/plans/new', element: <BillingPlanCreatePage /> },
+      { path: 'billing/plans/:clientId/edit', element: <BillingPlanEditPage /> },
       { path: 'billing/plans/:clientId', element: <BillingPlanDetailPage /> },
+      { path: 'billing/templates', element: <BillingPlanTemplatesPage /> },
       { path: 'billing/invoices', element: <BillingInvoicesPage /> },
       { path: 'billing/invoices/:id', element: <BillingInvoiceDetailPage /> },
       { path: 'users', element: <Navigate to="/users/warehouse_users" replace /> },

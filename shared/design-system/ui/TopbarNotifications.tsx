@@ -273,10 +273,10 @@ export function TopbarNotifications({
         ref={triggerRef}
         type="button"
         className={cn(
-          'relative inline-flex h-9 w-9 items-center justify-center',
+          'relative inline-flex h-9 w-9 items-center justify-center rounded-lg',
           'border-0 bg-transparent shadow-none',
-          'transition-opacity duration-fast hover:opacity-80',
-          'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30',
+          'transition-colors duration-fast hover:bg-slate-100',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30',
         )}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -287,7 +287,11 @@ export function TopbarNotifications({
           setOpen(!open);
         }}
       >
-        <i className="fa-solid fa-bell text-lg text-white" aria-hidden="true" />
+        <i
+          className="fa-solid fa-bell text-lg"
+          style={{ color: 'var(--topbar-icon)' }}
+          aria-hidden="true"
+        />
         {unreadCount > 0 && (
           <span
             className="absolute -top-1 -end-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white"

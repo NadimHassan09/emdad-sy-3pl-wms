@@ -40,7 +40,7 @@ export function AppShell({ children, className, ...rest }: AppShellProps) {
       data-app-shell
       className={cn(
         'flex h-dvh max-h-dvh w-full flex-col overflow-hidden',
-        'bg-[var(--surface-page)] p-2 sm:p-2.5',
+        'bg-[var(--surface-page)]',
         className,
       )}
       {...rest}
@@ -86,7 +86,7 @@ AppShell.Body = function AppShellBody({
   return (
     <div
       className={cn(
-        'flex min-h-0 flex-1 flex-col gap-3 overflow-hidden md:flex-row md:gap-4',
+        'flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row',
         className,
       )}
       {...rest}
@@ -106,7 +106,7 @@ AppShell.Column = function AppShellColumn({
 }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn('flex min-h-0 min-w-0 flex-1 flex-col gap-2 md:gap-2.5', className)}
+      className={cn('flex min-h-0 min-w-0 flex-1 flex-col', className)}
       {...rest}
     >
       {children}
@@ -144,7 +144,7 @@ AppShell.Main = function AppShellMain({
         'bg-[var(--surface-page)]',
         // Improve focus outline on programmatic focus (skip nav target)
         'focus-visible:outline-none',
-        !noPad && 'px-3 py-3 sm:px-4 sm:py-4',
+        !noPad && 'px-4 py-4 sm:px-6 sm:py-5',
         className,
       )}
       {...rest}
