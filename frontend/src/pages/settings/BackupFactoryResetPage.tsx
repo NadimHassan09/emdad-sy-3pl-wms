@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { Alert, SectionContainer } from '@ds';
 
 import { BackupsApi } from '../../api/backups';
 import { useAuth } from '../../auth/AuthContext';
@@ -53,55 +54,47 @@ export function BackupFactoryResetPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border-2 border-rose-300 bg-rose-50/40 p-4 shadow-sm sm:p-6">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-700">
-            <i className="fa-solid fa-triangle-exclamation" aria-hidden />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold text-rose-950">
-              {t(['Danger zone — Factory reset', 'منطقة خطرة — إعادة ضبط المصنع'])}
-            </h2>
-            <p className="mt-2 text-sm text-rose-900/90">
-              {t([
-                'Truncates all business data and re-seeds defaults. Super admin account is preserved. This action is irreversible without a pre-reset snapshot.',
-                'يحذف جميع بيانات الأعمال ويعيد البذر الافتراضي. يُحفظ حساب المشرف الأعلى. لا رجعة إلا عبر لقطة ما قبل إعادة الضبط.',
-              ])}
-            </p>
-
-            <label className="mt-4 flex items-center gap-2 text-sm text-rose-950">
-              <input
-                type="checkbox"
-                checked={createPreSnapshot}
-                onChange={(e) => setCreatePreSnapshot(e.target.checked)}
-                className="rounded border-rose-300"
-              />
-              {t(['Create pre-reset snapshot', 'إنشاء لقطة قبل إعادة الضبط'])}
-            </label>
-
-            <TextField
-              className="mt-4"
-              label={t([
-                `Type ${FACTORY_RESET_PHRASE} to confirm`,
-                `اكتب ${FACTORY_RESET_PHRASE} للتأكيد`,
-              ])}
-              value={confirmPhrase}
-              onChange={(e) => setConfirmPhrase(e.target.value)}
-              placeholder={FACTORY_RESET_PHRASE}
-              autoComplete="off"
+      <SectionContainer>
+        <Alert
+          variant="error"
+          title={t(['Danger zone — Factory reset', 'منطقة خطرة — إعادة ضبط المصنع'])}
+          description={t([
+            'Truncates all business data and re-seeds defaults. Super admin account is preserved. This action is irreversible without a pre-reset snapshot.',
+            'يحذف جميع بيانات الأعمال ويعيد البذر الافتراضي. يُحفظ حساب المشرف الأعلى. لا رجعة إلا عبر لقطة ما قبل إعادة الضبط.',
+          ])}
+        >
+          <label className="mt-4 flex items-center gap-2 text-sm text-text-body">
+            <input
+              type="checkbox"
+              checked={createPreSnapshot}
+              onChange={(e) => setCreatePreSnapshot(e.target.checked)}
+              className="rounded border-border"
             />
+            {t(['Create pre-reset snapshot', 'إنشاء لقطة قبل إعادة الضبط'])}
+          </label>
 
-            <Button
-              className="mt-4"
-              variant="danger"
-              disabled={!phraseOk || resetMutation.isPending}
-              onClick={() => setConfirmOpen(true)}
-            >
-              {t(['Factory reset database', 'إعادة ضبط المصنع لقاعدة البيانات'])}
-            </Button>
-          </div>
-        </div>
-      </section>
+          <TextField
+            className="mt-4"
+            label={t([
+              `Type ${FACTORY_RESET_PHRASE} to confirm`,
+              `اكتب ${FACTORY_RESET_PHRASE} للتأكيد`,
+            ])}
+            value={confirmPhrase}
+            onChange={(e) => setConfirmPhrase(e.target.value)}
+            placeholder={FACTORY_RESET_PHRASE}
+            autoComplete="off"
+          />
+
+          <Button
+            className="mt-4"
+            variant="danger"
+            disabled={!phraseOk || resetMutation.isPending}
+            onClick={() => setConfirmOpen(true)}
+          >
+            {t(['Factory reset database', 'إعادة ضبط المصنع لقاعدة البيانات'])}
+          </Button>
+        </Alert>
+      </SectionContainer>
 
       <BackupAuditPanel />
 
@@ -115,7 +108,7 @@ export function BackupFactoryResetPage() {
         onClose={() => setConfirmOpen(false)}
         onConfirm={() => resetMutation.mutate()}
       >
-        <p className="font-medium text-rose-800">
+        <p className="font-medium text-status-danger-fg">
           {t([
             'This will permanently delete business data on this environment.',
             'سيحذف هذا بيانات الأعمال على هذه البيئة بشكل دائم.',

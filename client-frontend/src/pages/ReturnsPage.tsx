@@ -52,14 +52,14 @@ export function ReturnsPage(): ReactElement {
 
       <Card className="overflow-hidden">
         {pagination.isInitialLoading ? (
-          <div className="px-5 py-10 text-center text-slate-400 text-sm">…</div>
+          <div className="px-5 py-10 text-center text-text-faint text-sm">…</div>
         ) : pagination.rows.length === 0 ? (
           <div className="py-20 flex flex-col items-center justify-center text-center px-6">
-            <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
-              <i className="fa-solid fa-rotate-left text-2xl text-slate-300" />
+            <div className="w-16 h-16 rounded-2xl bg-surface-sunken flex items-center justify-center mb-4">
+              <i className="fa-solid fa-rotate-left text-2xl text-text-faint" />
             </div>
-            <h3 className="text-base font-semibold text-slate-900">{t('No returns yet')}</h3>
-            <p className="text-sm text-slate-500 mt-1 max-w-xs">
+            <h3 className="text-base font-semibold text-text-strong">{t('No returns yet')}</h3>
+            <p className="text-sm text-text-muted mt-1 max-w-xs">
               {t('Returns appear here when delivered orders come back to the warehouse.')}
             </p>
           </div>
@@ -67,7 +67,7 @@ export function ReturnsPage(): ReactElement {
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
+                <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
                   <tr>
                     <th className="px-5 py-3 text-left">{t('Return #')}</th>
                     <th className="px-5 py-3 text-left">{t('Status')}</th>
@@ -76,22 +76,22 @@ export function ReturnsPage(): ReactElement {
                     <th className="px-5 py-3 text-right">{t('Created')}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-border-subtle">
                   {pagination.rows.map((row) => (
                     <tr
                       key={row.id}
                       onClick={() => navigate(`/returns/${row.id}`)}
-                      className="hover:bg-slate-50/60 transition-colors cursor-pointer"
+                      className="hover:bg-surface-hover transition-colors cursor-pointer"
                     >
-                      <td className="px-5 py-3.5 font-semibold text-slate-900 font-mono">
+                      <td className="px-5 py-3.5 font-semibold text-text-strong font-mono">
                         {row.orderNumber || row.id.slice(0, 8)}
                       </td>
                       <td className="px-5 py-3.5">
                         <Badge status={row.status} />
                       </td>
-                      <td className="px-5 py-3.5 text-slate-600">{row.originalOutbound?.orderNumber ?? '—'}</td>
-                      <td className="px-5 py-3.5 text-slate-600">{row._count?.lines ?? 0}</td>
-                      <td className="px-5 py-3.5 text-right text-slate-500 text-xs">{new Date(row.createdAt).toLocaleDateString()}</td>
+                      <td className="px-5 py-3.5 text-text-body">{row.originalOutbound?.orderNumber ?? '—'}</td>
+                      <td className="px-5 py-3.5 text-text-body">{row._count?.lines ?? 0}</td>
+                      <td className="px-5 py-3.5 text-right text-text-muted text-xs">{new Date(row.createdAt).toLocaleDateString()}</td>
                     </tr>
                   ))}
                 </tbody>

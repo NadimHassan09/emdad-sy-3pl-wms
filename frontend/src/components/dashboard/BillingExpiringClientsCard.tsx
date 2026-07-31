@@ -7,13 +7,11 @@ import { useToast } from '../ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
 import { formatDate } from '../../lib/billing-invoice-display';
+import { Badge, Card, Skeleton } from '@ds';
 
 type Props = {
   translateLabel?: (label: string) => string;
 };
-
-const statCardClass =
-  'rounded-xl border border-slate-100 bg-white p-3 shadow-sm sm:p-4';
 
 export function BillingExpiringClientsCard({ translateLabel = (l) => l }: Props) {
   const { user } = useAuth();
@@ -45,27 +43,27 @@ export function BillingExpiringClientsCard({ translateLabel = (l) => l }: Props)
   const rows = query.data ?? [];
 
   return (
-    <div className={statCardClass}>
+    <Card padding="md">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-slate-900">
+        <h3 className="text-sm font-semibold text-text-strong">
           {translateLabel('Billing cycles expiring soon')}
         </h3>
         <Link
           to="/billing/plans"
-          className="shrink-0 text-xs font-semibold text-brand-600 hover:text-brand-700 hover:underline underline-offset-2"
+          className="shrink-0 text-xs font-semibold text-brand-600 hover:text-brand-700 hover:underline underline-offset-2 dark:text-brand-400 dark:hover:text-brand-300"
         >
           {translateLabel('View billing plans')}
         </Link>
       </div>
 
       {query.isPending ? (
-        <p className="text-sm text-slate-500">{translateLabel('Loading…')}</p>
+        <Skeleton height={80} />
       ) : rows.length === 0 ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-text-muted">
           {translateLabel('No active billing cycles expiring soon.')}
         </p>
       ) : (
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-border-subtle">
           {rows.map((row) => (
             <li
               key={row.id}
@@ -74,21 +72,25 @@ export function BillingExpiringClientsCard({ translateLabel = (l) => l }: Props)
               <div className="min-w-0">
                 <Link
                   to={`/billing/plans/${row.companyId}`}
-                  className="font-medium text-brand-700 hover:underline"
+                  className="font-medium text-brand-700 hover:underline dark:text-brand-400"
                 >
                   {row.company.name}
                 </Link>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="mt-0.5 text-xs text-text-muted">
                   {translateLabel('Ends')} {formatDate(row.endsAt)} ·{' '}
                   <span
                     className={
-                      row.daysRemaining <= 7 ? 'font-semibold text-amber-700' : 'text-slate-600'
+                      row.daysRemaining <= 7
+                        ? 'font-semibold text-status-warning-fg'
+                        : 'text-text-body'
                     }
                   >
                     {row.daysRemaining} {translateLabel('days remaining')}
                   </span>
                   {row.status === 'renewed' ? (
-                    <span className="ms-2 badge badge-complete">{translateLabel('renewed')}</span>
+                    <Badge tone="success" size="xs" className="ms-2">
+                      {translateLabel('renewed')}
+                    </Badge>
                   ) : null}
                 </p>
               </div>
@@ -112,6 +114,6 @@ export function BillingExpiringClientsCard({ translateLabel = (l) => l }: Props)
           ))}
         </ul>
       )}
-    </div>
+    </Card>
   );
 }

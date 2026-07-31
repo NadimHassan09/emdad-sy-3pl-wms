@@ -9,16 +9,16 @@ export type ReportChartData = {
 };
 
 const CHART_COLORS = [
-  '#059669',
-  '#0d9488',
-  '#0891b2',
-  '#2563eb',
-  '#7c3aed',
-  '#c026d3',
-  '#e11d48',
-  '#ea580c',
-  '#ca8a04',
-  '#65a30d',
+  'var(--color-brand-600)',
+  'var(--color-info-500)',
+  'var(--color-warning-600)',
+  'var(--color-danger-600)',
+  'var(--text-muted)',
+  'var(--color-brand-500)',
+  'var(--color-info-700)',
+  'var(--color-brand-700)',
+  'var(--color-warning-500)',
+  'var(--color-danger-500)',
 ];
 
 export function chartColor(i: number): string {

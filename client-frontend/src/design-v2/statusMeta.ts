@@ -7,4 +7,4 @@ export {
   normalizeStatusKey,
   statusLabel,
   type StatusMeta,
-} from '../../../shared/design-system/lib/statusMeta';
+} from '../../../shared/design-system-next/lib/statusMeta';

@@ -37,21 +37,21 @@ export function ProductAttributeValidationCard({
   ];
 
   return (
-    <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
+    <div className="rounded-2xl border border-status-warning-border bg-status-warning-bg/60 p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+          <p className="text-xs font-semibold uppercase tracking-wide text-status-warning-fg">
             {t(['First inbound — validate physical attributes', 'أول استلام — التحقق من الخصائص الفيزيائية'])}
           </p>
-          <p className="mt-1 text-sm font-medium text-slate-900">{product.name}</p>
-          <p className="font-mono text-xs text-slate-600">{product.sku}</p>
+          <p className="mt-1 text-sm font-medium text-text-strong">{product.name}</p>
+          <p className="font-mono text-xs text-text-body">{product.sku}</p>
         </div>
         {draft.completed ? (
-          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+          <span className="rounded-full bg-status-success-bg px-2.5 py-1 text-xs font-semibold text-brand-700">
             {t(['Validated', 'تم التحقق'])}
           </span>
         ) : (
-          <span className="rounded-full bg-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-950">
+          <span className="rounded-full bg-status-warning-bg px-2.5 py-1 text-xs font-semibold text-status-warning-fg">
             {t(['Required', 'مطلوب'])}
           </span>
         )}
@@ -59,17 +59,17 @@ export function ProductAttributeValidationCard({
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {dimensionFields.map(({ label, key, reg }) => (
-          <div key={key} className="rounded-xl border border-white/80 bg-white p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-            <p className="mt-1 text-xs text-slate-500">
+          <div key={key} className="rounded-xl border border-border-subtle bg-surface-card p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{label}</p>
+            <p className="mt-1 text-xs text-text-muted">
               {t(['System:', 'النظام:'])}{' '}
-              <span className="font-mono text-slate-800">{reg}</span>
+              <span className="font-mono text-text-strong">{reg}</span>
             </p>
             {!readOnly && (
               <input
                 type="text"
                 inputMode="decimal"
-                className="mt-2 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
+                className="mt-2 w-full rounded-lg border border-border px-2 py-2 text-sm"
                 placeholder={t(['Measured', 'المقاس'])}
                 value={draft[key]}
                 onChange={(e) => onChange({ [key]: e.target.value })}
@@ -77,7 +77,7 @@ export function ProductAttributeValidationCard({
               />
             )}
             {readOnly && draft[key] ? (
-              <p className="mt-2 font-mono text-sm text-slate-800">{draft[key]}</p>
+              <p className="mt-2 font-mono text-sm text-text-strong">{draft[key]}</p>
             ) : null}
           </div>
         ))}
@@ -85,10 +85,10 @@ export function ProductAttributeValidationCard({
 
       {!readOnly ? (
         <>
-          <label className="mt-4 flex items-center gap-2 text-sm text-slate-700">
+          <label className="mt-4 flex items-center gap-2 text-sm text-text-body">
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+              className="h-4 w-4 rounded border-border text-status-success-fg"
               checked={draft.confirmedMatch}
               onChange={(e) => onChange({ confirmedMatch: e.target.checked })}
             />

@@ -1,15 +1,9 @@
 /**
- * DashboardOverviewPage — Phase 4.5 premiumization.
+ * DashboardOverviewPage — DS2 semantic token reskin.
  *
- * Changes from Phase 3:
- *   - Alert component replaces raw error <p> tags
- *   - StatCard: shadow-sm (more elevation), richer icon containers
- *   - StatCard: consistent rounded-card radius via tailwind utility + inline style
- *   - Section headers: text-sm → text-xs font-bold uppercase tracking for premium hierarchy
- *   - Capacity bar: stronger green fill, better percentage label
- *   - Recent orders: uses Card-like containers with hover lift
- *   - Loading skeleton: uses Skeleton component from @ds
- *   - All animations use design system motion tokens
+ * Local sections (expiry lots, recent orders) use @ds Card and semantic tokens
+ * (text-text-*, bg-surface-*, border-border-*, status-*). Child dashboard
+ * cards remain in their own components. Business logic unchanged.
  */
 
 import { useQuery } from '@tanstack/react-query';
@@ -37,7 +31,7 @@ import { BillingExpiringClientsCard } from '../components/dashboard/BillingExpir
 import { BillingOverdueClientsCard } from '../components/dashboard/BillingOverdueClientsCard';
 import { BillingRecentInvoicesCard } from '../components/dashboard/BillingRecentInvoicesCard';
 import { BillingSuspendedAccountsCard } from '../components/dashboard/BillingSuspendedAccountsCard';
-import { Alert, AppPageHeader } from '@ds';
+import { Alert, AppPageHeader, Card } from '@ds';
 import { QK } from '../constants/query-keys';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -128,16 +122,9 @@ function dateFmt(value: string): string {
 // Section header — premium operational hierarchy
 // ─────────────────────────────────────────────────────────────────────────────
 
-const statCardClass =
-  'rounded-xl border border-slate-100 bg-white p-3 shadow-sm sm:p-4 ' +
-  'transition-[box-shadow,border-color] duration-fast ease-standard';
-
-const statCardInteractiveClass =
-  'hover:border-slate-200 hover:shadow-md focus-visible:outline-none focus-visible:shadow-focus';
-
 function SectionHeading({ children }: { children: ReactNode }) {
   return (
-    <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+    <h2 className="mb-2 text-[10px] font-bold uppercase tracking-widest text-text-faint">
       {children}
     </h2>
   );
@@ -299,56 +286,55 @@ export function DashboardOverviewPage() {
           {/* ── Expiry lots table ──────────────────────────────────── */}
           <section>
             <SectionHeading>Expiry alerts</SectionHeading>
-            <Link
-              to="/inventory/ledger"
-              className={`block ${statCardClass} ${statCardInteractiveClass}`}
-            >
-              <h3 className="mb-4 text-sm font-semibold text-slate-900">
-                {t('Soon expiry lots (next 6 months)')}
-              </h3>
-              <div>
-                {data.soonExpiryLots.length === 0 ? (
-                  <p className="text-sm text-slate-500">{t('No lots expiring soon.')}</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full border-collapse text-sm">
-                      <thead>
-                        <tr>
-                          {['Product', 'Lot', 'Expiry', 'Location', 'Qty'].map((h) => (
-                            <th
-                              key={h}
-                              className={`bg-slate-100 px-6 py-4 text-sm font-medium uppercase tracking-wide text-slate-500 text-start ${h === 'Qty' ? 'text-end' : ''}`}
-                            >
-                              {h}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.soonExpiryLots.map((row) => (
-                          <tr key={row.lotId} className="border-t border-slate-100 transition-colors hover:bg-emerald-50/50">
-                            <td className="px-6 py-5 font-semibold text-slate-900">{row.productName}</td>
-                            <td className="px-6 py-5 font-mono text-slate-600">
-                              <span dir="ltr">{row.lotNumber}</span>
-                            </td>
-                            <td className="px-6 py-5 tabular-nums text-slate-600">
-                              {row.expiryDate ? (
-                                dateFmt(row.expiryDate)
-                              ) : (
-                                <span className="font-medium text-amber-700">{t('Not set')}</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-5 text-slate-600">{row.locationName}</td>
-                            <td className="px-6 py-5 text-end font-mono tabular-nums text-slate-800">
-                              {numberFmt(row.lotQuantity)} / {numberFmt(row.productTotalQuantity)}
-                            </td>
+            <Link to="/inventory/ledger" className="block no-underline">
+              <Card interactive padding="md" className="sm:p-4">
+                <h3 className="mb-4 text-sm font-semibold text-text-strong">
+                  {t('Soon expiry lots (next 6 months)')}
+                </h3>
+                <div>
+                  {data.soonExpiryLots.length === 0 ? (
+                    <p className="text-sm text-text-muted">{t('No lots expiring soon.')}</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full border-collapse text-sm">
+                        <thead>
+                          <tr>
+                            {['Product', 'Lot', 'Expiry', 'Location', 'Qty'].map((h) => (
+                              <th
+                                key={h}
+                                className={`bg-surface-card-muted px-6 py-4 text-sm font-medium uppercase tracking-wide text-text-muted text-start ${h === 'Qty' ? 'text-end' : ''}`}
+                              >
+                                {h}
+                              </th>
+                            ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+                        </thead>
+                        <tbody className="divide-y divide-border-subtle">
+                          {data.soonExpiryLots.map((row) => (
+                            <tr key={row.lotId} className="transition-colors hover:bg-surface-hover">
+                              <td className="px-6 py-5 font-semibold text-text-strong">{row.productName}</td>
+                              <td className="px-6 py-5 font-mono text-text-body">
+                                <span dir="ltr">{row.lotNumber}</span>
+                              </td>
+                              <td className="px-6 py-5 tabular-nums text-text-body">
+                                {row.expiryDate ? (
+                                  dateFmt(row.expiryDate)
+                                ) : (
+                                  <span className="font-medium text-status-warning-fg">{t('Not set')}</span>
+                                )}
+                              </td>
+                              <td className="px-6 py-5 text-text-body">{row.locationName}</td>
+                              <td className="px-6 py-5 text-end font-mono tabular-nums text-text-strong">
+                                {numberFmt(row.lotQuantity)} / {numberFmt(row.productTotalQuantity)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </Card>
             </Link>
           </section>
 
@@ -357,78 +343,78 @@ export function DashboardOverviewPage() {
             <SectionHeading>Recent activity</SectionHeading>
             <div className="grid gap-3 lg:grid-cols-2">
               {/* Inbound */}
-              <div className={statCardClass}>
+              <Card padding="md" className="sm:p-4">
                 <div className="mb-4 flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold text-slate-900">
+                  <h3 className="text-sm font-semibold text-text-strong">
                     {t('Recent 5 open inbound orders')}
                   </h3>
                   <Link
                     to="/orders/inbound"
-                    className="shrink-0 text-xs font-semibold text-brand-600 hover:text-brand-700 hover:underline underline-offset-2"
+                    className="shrink-0 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 hover:underline underline-offset-2"
                   >
                     {t('Go to inbound orders')}
                   </Link>
                 </div>
-                <ul className="divide-y divide-slate-100">
+                <ul className="divide-y divide-border-subtle">
                   {data.recentOrders.inbound.map((order) => (
                     <li key={order.id}>
                       <Link
                         to={`/orders/inbound/${order.id}`}
-                        className="flex items-center justify-between gap-3 rounded-xl px-1 py-2.5 transition-colors hover:bg-slate-50"
+                        className="flex items-center justify-between gap-3 rounded-xl px-1 py-2.5 transition-colors hover:bg-surface-hover"
                       >
                         <div className="min-w-0">
-                          <span className="block font-mono text-xs font-semibold text-brand-700">
+                          <span className="block font-mono text-xs font-semibold text-brand-600 dark:text-brand-400">
                             <span dir="ltr">{order.orderNumber}</span>
                           </span>
-                          <span className="mt-0.5 block truncate text-xs text-slate-500">
+                          <span className="mt-0.5 block truncate text-xs text-text-muted">
                             {order.companyName} · {order.status.replace(/_/g, ' ')}
                           </span>
                         </div>
-                        <span className="shrink-0 text-xs tabular-nums text-slate-400">
+                        <span className="shrink-0 text-xs tabular-nums text-text-faint">
                           {dateFmt(order.createdAt)}
                         </span>
                       </Link>
                     </li>
                   ))}
                 </ul>
-              </div>
+              </Card>
 
               {/* Outbound */}
-              <div className={statCardClass}>
+              <Card padding="md" className="sm:p-4">
                 <div className="mb-4 flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold text-slate-900">
+                  <h3 className="text-sm font-semibold text-text-strong">
                     {t('Recent 5 open outbound orders')}
                   </h3>
                   <Link
                     to="/orders/outbound"
-                    className="shrink-0 text-xs font-semibold text-brand-600 hover:text-brand-700 hover:underline underline-offset-2"
+                    className="shrink-0 text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 hover:underline underline-offset-2"
                   >
                     {t('Go to outbound orders')}
                   </Link>
                 </div>
-                <ul className="divide-y divide-slate-100">
+                <ul className="divide-y divide-border-subtle">
                   {data.recentOrders.outbound.map((order) => (
                     <li key={order.id}>
                       <Link
                         to={`/orders/outbound/${order.id}`}
-                        className="flex items-center justify-between gap-3 rounded-xl px-1 py-2.5 transition-colors hover:bg-slate-50"
+                        className="flex items-center justify-between gap-3 rounded-xl px-1 py-2.5 transition-colors hover:bg-surface-hover"
                       >
                         <div className="min-w-0">
-                          <span className="block font-mono text-xs font-semibold text-brand-700">
+                          <span className="block font-mono text-xs font-semibold text-brand-600 dark:text-brand-400">
                             <span dir="ltr">{order.orderNumber}</span>
                           </span>
-                          <span className="mt-0.5 block truncate text-xs text-slate-500">
+                          <span className="mt-0.5 block truncate text-xs text-text-muted">
                             {order.companyName} · {order.status.replace(/_/g, ' ')}
                           </span>
                         </div>
-                        <span className="shrink-0 text-xs tabular-nums text-slate-400">
+                        <span className="shrink-0 text-xs tabular-nums text-text-faint">
                           {dateFmt(order.createdAt)}
                         </span>
                       </Link>
                     </li>
                   ))}
                 </ul>
-              </div>
+              </Card>
             </div>
           </section>
         </>

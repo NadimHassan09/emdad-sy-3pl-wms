@@ -25,9 +25,9 @@ export default defineConfig(({ mode }) => {
       '@emdad/wms-task-execution': fileURLToPath(
         new NodeURL('./src/vendor/wms-task-execution/index.ts', import.meta.url),
       ),
-      /** Shared WMS design-system primitive barrel — see shared/design-system/ui. */
+      /** Shared WMS design-system primitive barrel — see shared/design-system-next/ui. */
       '@ds': fileURLToPath(
-        new NodeURL('../shared/design-system/ui/index.ts', import.meta.url),
+        new NodeURL('../shared/design-system-next/ui/index.ts', import.meta.url),
       ),
       // Resolve react from local node_modules for shared cross-package files.
       'react': pathResolve('./node_modules/react'),

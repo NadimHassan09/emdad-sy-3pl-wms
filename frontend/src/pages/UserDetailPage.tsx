@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 
+import { Alert, Card, ListPageHeader, Skeleton } from '@ds';
+
 import { UsersApi } from '../api/users';
-import { PageHeader } from '../components/PageHeader';
 import { UserDetailsCard } from '../components/users/UserDetailsCard';
 import { WorkerProfilePanel } from '../components/users/WorkerProfilePanel';
 import { QK } from '../constants/query-keys';
@@ -15,7 +16,10 @@ function UserDetailPage({ variant }: { variant: UsersPageVariant }) {
   const t = (en: string, ar: string) => (isArabic ? ar : en);
   const { id = '' } = useParams<{ id: string }>();
   const listPath = variant === 'warehouse' ? '/users/warehouse_users' : '/users/client_users';
-  const title = variant === 'warehouse' ? 'Warehouse user details' : 'Client user details';
+  const title =
+    variant === 'warehouse'
+      ? t('Warehouse user details', 'تفاصيل مستخدم المستودع')
+      : t('Client user details', 'تفاصيل مستخدم العميل');
 
   const userQuery = useQuery({
     queryKey: QK.users.detail(id ?? ''),
@@ -30,22 +34,46 @@ function UserDetailPage({ variant }: { variant: UsersPageVariant }) {
       (variant === 'client' && user.kind !== 'client'));
 
   return (
-    <div className="space-y-4">
-      <div className="text-sm text-slate-500">
-        <Link to={listPath} className="hover:underline">
-          ← Back to users
-        </Link>
-      </div>
+    <div className="space-y-5 animate-enter">
+      <Link
+        to={listPath}
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+      >
+        <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+        {t('Back to users', 'العودة إلى المستخدمين')}
+      </Link>
 
-      <PageHeader title={title} />
+      <ListPageHeader
+        icon={variant === 'warehouse' ? 'fa-user-gear' : 'fa-user-tie'}
+        title={user?.fullName ?? title}
+        subtitle={user?.email ?? title}
+      />
 
-      {userQuery.isPending ? <p className="text-sm text-slate-500">Loading user details…</p> : null}
-      {userQuery.isError ? <p className="text-sm text-rose-600">Could not load user details.</p> : null}
+      {userQuery.isError ? (
+        <Alert variant="error" title={t('Could not load user details.', 'تعذّر تحميل تفاصيل المستخدم.')} />
+      ) : null}
       {wrongKind ? (
-        <p className="text-sm text-rose-600">This user does not belong on this list.</p>
+        <Alert
+          variant="error"
+          title={t('This user does not belong on this list.', 'هذا المستخدم لا ينتمي إلى هذه القائمة.')}
+        />
       ) : null}
       {!userQuery.isPending && !userQuery.isError && !user ? (
-        <p className="text-sm text-rose-600">User not found.</p>
+        <Alert variant="error" title={t('User not found.', 'المستخدم غير موجود.')} />
+      ) : null}
+
+      {userQuery.isPending ? (
+        <Card className="p-5 sm:p-6">
+          <div className="space-y-4" aria-busy="true">
+            <Skeleton height={28} width="40%" />
+            <div className="grid gap-3 pt-2 sm:grid-cols-3">
+              <Skeleton height={64} />
+              <Skeleton height={64} />
+              <Skeleton height={64} />
+            </div>
+            <Skeleton height={120} />
+          </div>
+        </Card>
       ) : null}
 
       {user && !wrongKind ? (

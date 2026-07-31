@@ -46,11 +46,11 @@ export function ClientStoragePanel({
         }
       >
         {loading ? (
-          <div className="h-full w-full animate-pulse rounded-full bg-neutral-100" />
+          <div className="h-full w-full animate-pulse rounded-full bg-skeleton-base" />
         ) : (
           <>
             <svg viewBox="0 0 140 140" className="h-full w-full -rotate-90" aria-hidden="true">
-              <circle cx="70" cy="70" r={r} fill="none" stroke="var(--color-neutral-100)" strokeWidth="12" />
+              <circle cx="70" cy="70" r={r} fill="none" stroke="var(--surface-sunken)" strokeWidth="12" />
               <circle
                 cx="70"
                 cy="70"
@@ -126,7 +126,7 @@ export function ClientOrderMixBars({
               {loading ? '…' : row.value.toLocaleString()}
             </span>
           </div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-neutral-100" role="presentation">
+          <div className="h-2.5 overflow-hidden rounded-full bg-surface-sunken" role="presentation">
             <div
               className={`h-full rounded-full ${row.tone} transition-all duration-500`}
               style={{ width: loading ? '0%' : `${row.pct}%` }}

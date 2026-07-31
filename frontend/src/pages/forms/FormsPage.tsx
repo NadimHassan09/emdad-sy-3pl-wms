@@ -94,7 +94,7 @@ export function FormsPage() {
   const columns: Column<LeadFormSubmission>[] = [
     {
       header: t(['Full name', 'الاسم الكامل']),
-      accessor: (r) => <span className="font-medium text-slate-900">{r.fullName}</span>,
+      accessor: (r) => <span className="font-medium text-text-strong">{r.fullName}</span>,
       width: '170px',
     },
     {
@@ -110,7 +110,7 @@ export function FormsPage() {
     {
       header: t(['Activity type', 'نوع النشاط']),
       accessor: (r) => (
-        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+        <span className="rounded bg-surface-card-muted px-2 py-0.5 text-xs text-text-body">
           {r.activityType}
         </span>
       ),
@@ -119,14 +119,14 @@ export function FormsPage() {
     {
       header: t(['Message', 'الرسالة']),
       accessor: (r) => (
-        <span className="block max-w-[260px] truncate text-xs text-slate-600" title={r.message ?? ''}>
+        <span className="block max-w-[260px] truncate text-xs text-text-body" title={r.message ?? ''}>
           {r.message?.trim() || '—'}
         </span>
       ),
     },
     {
       header: t(['Submitted at', 'تاريخ الإرسال']),
-      accessor: (r) => <span className="text-xs text-slate-600">{formatDateTime(r.createdAt)}</span>,
+      accessor: (r) => <span className="text-xs text-text-body">{formatDateTime(r.createdAt)}</span>,
       width: '170px',
     },
     {
@@ -262,9 +262,9 @@ export function FormsPage() {
 
 function DetailRow({ label, value, ltr }: { label: string; value: string; ltr?: boolean }) {
   return (
-    <div className="flex flex-col gap-0.5 border-b border-slate-100 pb-2">
-      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="whitespace-pre-wrap text-slate-800" dir={ltr ? 'ltr' : undefined}>
+    <div className="flex flex-col gap-0.5 border-b border-border-subtle pb-2">
+      <dt className="text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</dt>
+      <dd className="whitespace-pre-wrap text-text-body" dir={ltr ? 'ltr' : undefined}>
         {value}
       </dd>
     </div>

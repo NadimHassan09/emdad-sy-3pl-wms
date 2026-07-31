@@ -142,7 +142,7 @@ export function PackageDetailsModal({
     },
     {
       header: t(['Product', 'المنتج']),
-      accessor: (r) => <span className="font-medium text-slate-800">{r.ol?.product?.name ?? '—'}</span>,
+      accessor: (r) => <span className="font-medium text-text-strong">{r.ol?.product?.name ?? '—'}</span>,
       width: '140px',
     },
     {
@@ -154,7 +154,7 @@ export function PackageDetailsModal({
     {
       header: t(['In pkg', 'في الطرد']),
       accessor: (r) => (
-        <span className="font-mono text-xs text-emerald-800">
+        <span className="font-mono text-xs text-brand-700">
           {qtyInPackage(currentPkg, r.lineId)}
         </span>
       ),
@@ -178,7 +178,7 @@ export function PackageDetailsModal({
           <input
             type="text"
             inputMode="decimal"
-            className="w-16 rounded border border-slate-300 px-2 py-1 font-mono text-xs"
+            className="w-16 rounded border border-border px-2 py-1 font-mono text-xs"
             value={qtyByLineId[r.lineId] ?? '1'}
             onClick={(e) => e.stopPropagation()}
             onChange={(e) =>
@@ -240,14 +240,14 @@ export function PackageDetailsModal({
         }
       >
         <div className="max-h-[min(70vh,640px)] space-y-5 overflow-y-auto pr-1 text-sm">
-          <section className="space-y-3 rounded-lg border border-slate-100 bg-slate-50/50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <section className="space-y-3 rounded-lg border border-border-subtle bg-surface-card-muted/50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
               {t(['Package details', 'تفاصيل الطرد'])}
             </p>
-            <label className="block text-xs font-medium text-slate-700">
+            <label className="block text-xs font-medium text-text-body">
               {t(['Type', 'النوع'])}
               <select
-                className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm disabled:bg-slate-50"
+                className="mt-1 w-full rounded-md border border-border px-3 py-1.5 text-sm disabled:bg-surface-card-muted"
                 value={pkg.packageType}
                 onChange={(e) =>
                   onPatchPackage(pkg.id, {
@@ -272,10 +272,10 @@ export function PackageDetailsModal({
                   ['heightCm', t(['H (cm)', 'ار (سم)'])],
                 ] as const
               ).map(([key, label]) => (
-                <label key={key} className="block text-xs font-medium text-slate-700">
+                <label key={key} className="block text-xs font-medium text-text-body">
                   {label}
                   <input
-                    className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 font-mono text-sm disabled:bg-slate-50"
+                    className="mt-1 w-full rounded-md border border-border px-2 py-1.5 font-mono text-sm disabled:bg-surface-card-muted"
                     value={pkg[key]}
                     onChange={(e) => onPatchPackage(pkg.id, { [key]: e.target.value })}
                     disabled={disabled}
@@ -286,26 +286,26 @@ export function PackageDetailsModal({
           </section>
 
           <section>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
               {t([
                 `Contents (${itemRows.length} lines)`,
                 `المحتويات (${itemRows.length} أسطر)`,
               ])}
             </p>
             {itemRows.length === 0 ? (
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-text-muted">
                 {t(['No products in this package yet.', 'لا منتجات في هذا الطرد بعد.'])}
               </p>
             ) : (
-              <ul className="divide-y divide-slate-100 rounded-lg border border-slate-100">
+              <ul className="divide-y divide-border-subtle rounded-lg border border-border-subtle">
                 {itemRows.map(({ item, ol }) => (
                   <li
                     key={item.outboundOrderLineId}
                     className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
                   >
                     <div>
-                      <p className="font-mono text-xs text-slate-600">{ol?.product?.sku}</p>
-                      <p className="font-medium text-slate-900">{ol?.product?.name}</p>
+                      <p className="font-mono text-xs text-text-body">{ol?.product?.sku}</p>
+                      <p className="font-medium text-text-strong">{ol?.product?.name}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-sm font-semibold">{item.quantity}</span>
@@ -329,11 +329,11 @@ export function PackageDetailsModal({
           </section>
 
           <section className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
               {t(['Add products', 'إضافة منتجات'])}
             </p>
             {!disabled ? (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+              <div className="rounded-xl border border-border bg-surface-card p-3">
                 <WedgeScanField
                   label={t(['Scan to pack', 'امسح للتغليف'])}
                   value={wedgeScan}

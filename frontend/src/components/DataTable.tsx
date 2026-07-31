@@ -81,7 +81,7 @@ export function DataTable<T>({
   const endDisplay = totalRows === 0 ? 0 : Math.min(effectivePage * effectivePageSize, totalRows);
 
   return (
-    <div className="overflow-visible rounded-xl border border-slate-200/60 bg-white shadow-soft">
+    <div className="overflow-visible rounded-xl border border-border bg-surface-panel shadow-soft">
       <TableCardHeader title={title} description={description} actions={actions} titleAs={titleAs} />
       <div className="w-full overflow-x-auto overflow-y-visible">
         <table className="min-w-full border-collapse text-sm">
@@ -91,7 +91,7 @@ export function DataTable<T>({
                 <th
                   key={colIdx}
                   scope="col"
-                  className={`whitespace-nowrap bg-slate-50/80 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 ${isRtl ? 'text-right' : 'text-left'} ${c.className ?? ''}`}
+                  className={`whitespace-nowrap bg-surface-card-muted px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-text-muted ${isRtl ? 'text-right' : 'text-left'} ${c.className ?? ''}`}
                   style={c.width ? { width: c.width } : undefined}
                 >
                   {c.header}
@@ -102,7 +102,7 @@ export function DataTable<T>({
           <tbody>
             {loading ? (
               Array.from({ length: 6 }).map((_, rowIdx) => (
-                <tr key={`skeleton-${rowIdx}`} className="border-t border-slate-100">
+                <tr key={`skeleton-${rowIdx}`} className="border-t border-border-subtle">
                   {columns.map((c, colIdx) => (
                     <td key={colIdx} className={`px-4 py-3 align-middle ${c.className ?? ''}`}>
                       <Skeleton height={14} width={colIdx === 0 ? '70%' : '55%'} />
@@ -127,15 +127,15 @@ export function DataTable<T>({
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={[
                     onRowClick
-                      ? 'cursor-pointer border-t border-slate-100 transition hover:bg-slate-50/60'
-                      : 'border-t border-slate-100 transition hover:bg-slate-50/60',
+                      ? 'cursor-pointer border-t border-border-subtle transition hover:bg-surface-hover'
+                      : 'border-t border-border-subtle transition hover:bg-surface-hover',
                     getRowClassName?.(row),
                   ]
                     .filter(Boolean)
                     .join(' ')}
                 >
                   {columns.map((c, colIdx) => (
-                    <td key={colIdx} className={`px-4 py-3 align-middle text-sm text-slate-600 ${c.className ?? ''}`}>
+                    <td key={colIdx} className={`px-4 py-3 align-middle text-sm text-text-body ${c.className ?? ''}`}>
                       {c.accessor(row)}
                     </td>
                   ))}
@@ -145,11 +145,11 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
-      <div className="relative z-0 flex flex-col gap-2 border-t border-slate-100 bg-white px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2">
-        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+      <div className="relative z-0 flex flex-col gap-2 border-t border-border-subtle bg-surface-panel px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-2">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-text-body">
           <select
             aria-label={labels?.rowsPerPageAria ?? 'Rows per page'}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-700 outline-none transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+            className="rounded-lg border border-border bg-surface-panel px-2.5 py-1.5 text-sm text-text-body outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
             value={effectivePageSize}
             onChange={(e) => {
               const n = Number(e.target.value);
@@ -167,7 +167,7 @@ export function DataTable<T>({
               </option>
             ))}
           </select>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-text-muted">
             {startDisplay}-{endDisplay} {labels?.ofWord ?? 'of'} {totalRows} {labels?.resultsSuffix ?? 'results'}
           </span>
         </div>
@@ -175,7 +175,7 @@ export function DataTable<T>({
         <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
           <button
             type="button"
-            className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
+            className="flex-1 rounded-lg border border-border bg-surface-panel px-3 py-1.5 text-sm font-medium text-text-body transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
             onClick={() => {
               if (isServer) serverPagination!.onPageChange(Math.max(1, effectivePage - 1));
               else setPage((p) => Math.max(1, p - 1));
@@ -186,7 +186,7 @@ export function DataTable<T>({
           </button>
           <button
             type="button"
-            className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
+            className="flex-1 rounded-lg border border-border bg-surface-panel px-3 py-1.5 text-sm font-medium text-text-body transition hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
             onClick={() => {
               if (isServer) serverPagination!.onPageChange(Math.min(totalPages, effectivePage + 1));
               else setPage((p) => Math.min(totalPages, p + 1));

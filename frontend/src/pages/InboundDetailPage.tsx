@@ -4,12 +4,11 @@ import type { ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { ConfirmInboundBody, InboundApi, InboundOrderLine, ReceiveLineInput } from '../api/inbound';
-import { Button, FILTER_APPLY_BUTTON_CLASS } from '@ds';
+import { Alert, Button, FILTER_APPLY_BUTTON_CLASS, Skeleton } from '@ds';
 import { ReceivingDockPicker } from '../components/locations/ReceivingDockPicker';
 import { StorageLocationPicker } from '../components/locations/StorageLocationPicker';
 
 import { useAuth } from '../auth/AuthContext';
-import { Button as LegacyButton } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
@@ -168,9 +167,22 @@ export function InboundDetailPage() {
   });
 
   if (!id) return null;
-  if (order.isLoading) return <p className="text-sm text-slate-500">Loading…</p>;
-  if (order.isError || !order.data)
-    return <p className="text-sm text-rose-600">Failed to load inbound order.</p>;
+  if (order.isLoading) {
+    return (
+      <div className="space-y-4 animate-enter">
+        <Skeleton height={20} width="30%" />
+        <Skeleton height={180} />
+        <Skeleton height={220} />
+      </div>
+    );
+  }
+  if (order.isError || !order.data) {
+    return (
+      <div className="animate-enter">
+        <Alert variant="error" title="Failed to load inbound order." />
+      </div>
+    );
+  }
 
   const o = order.data;
   const canConfirm = o.status === 'draft' || o.status === 'pending_approval';
@@ -209,11 +221,11 @@ export function InboundDetailPage() {
       header: t('Action'),
       accessor: (l) => {
         const rem = Number(l.expectedQuantity) - Number(l.receivedQuantity);
-        if (rem <= 0) return <span className="text-xs text-emerald-700">complete</span>;
+        if (rem <= 0) return <span className="text-xs text-status-success-fg">complete</span>;
         return (
-          <LegacyButton size="sm" disabled={!canReceive} onClick={() => setReceivingLine(l)}>
+          <Button size="sm" disabled={!canReceive} onClick={() => setReceivingLine(l)}>
             {t('Receive')}
-          </LegacyButton>
+          </Button>
         );
       },
       width: '120px',
@@ -221,12 +233,14 @@ export function InboundDetailPage() {
   }
 
   return (
-    <>
-      <div className="mb-2 text-sm text-slate-500">
-        <Link to="/orders/inbound" className="hover:underline">
-          ← {t('All inbound orders')}
-        </Link>
-      </div>
+    <div className="space-y-5 animate-enter">
+      <Link
+        to="/orders/inbound"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+      >
+        <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+        {t('All inbound orders')}
+      </Link>
       <FilterPanel
         title={t('Order details')}
         variant="content"
@@ -294,10 +308,10 @@ export function InboundDetailPage() {
             <div className="space-y-1">
               <StatusBadge status={o.status} />
               {inboundHasQuantityShortfall(o) && o.status === 'partially_received' ? (
-                <div className="text-xs text-amber-800">Some lines received below expected quantity.</div>
+                <div className="text-xs text-status-warning-fg">Some lines received below expected quantity.</div>
               ) : null}
               {inboundHasQuantityShortfall(o) && o.status === 'completed' ? (
-                <div className="text-xs text-amber-800">Completed with missing quantities on one or more lines.</div>
+                <div className="text-xs text-status-warning-fg">Completed with missing quantities on one or more lines.</div>
               ) : null}
             </div>
           }
@@ -331,7 +345,7 @@ export function InboundDetailPage() {
               />
             ) : null}
             {!effectiveWarehouseId ? (
-              <p className="text-xs text-rose-700">Set default warehouse or VITE_DEFAULT_WAREHOUSE_ID.</p>
+              <p className="text-xs text-status-danger-fg">Set default warehouse or VITE_DEFAULT_WAREHOUSE_ID.</p>
             ) : (
               <ReceivingDockPicker
                 warehouseId={effectiveWarehouseId}
@@ -402,15 +416,15 @@ export function InboundDetailPage() {
           {t('This permanently removes the order and its lines. This action cannot be undone.')}
         </p>
       </ConfirmModal>
-    </>
+    </div>
   );
 }
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-0.5 text-sm text-slate-800">{value}</div>
+      <dt className="text-xs font-medium text-text-muted">{label}</dt>
+      <dd className="mt-0.5 text-sm text-text-strong">{value}</dd>
     </div>
   );
 }
@@ -520,7 +534,7 @@ function ReceiveModal({ line, warehouseId, loading, onClose, onSubmit }: Receive
       }
     >
       <form id="receive" onSubmit={submit} className="space-y-3">
-        <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-600">
+        <div className="rounded-md bg-surface-sunken p-3 text-xs text-text-body">
           <div>Expected: {fmtQty(line.expectedQuantity)}</div>
           <div>Received so far: {fmtQty(line.receivedQuantity)}</div>
           <div>Remaining: {remaining.toLocaleString(undefined, { maximumFractionDigits: 4 })}</div>
@@ -545,19 +559,19 @@ function ReceiveModal({ line, warehouseId, loading, onClose, onSubmit }: Receive
             required
           />
         ) : (
-          <p className="text-xs text-rose-700">Set default warehouse to choose a receive location.</p>
+          <p className="text-xs text-status-danger-fg">Set default warehouse to choose a receive location.</p>
         )}
 
         {isLot && (
           <div className="space-y-2">
             {expectedLot && (
-              <div className="rounded border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700">
-                <span className="font-medium text-slate-500">Expected lot:</span>{' '}
+              <div className="rounded border border-border bg-surface-card px-3 py-2 text-xs text-text-body">
+                <span className="font-medium text-text-muted">Expected lot:</span>{' '}
                 <span className="font-mono">{expectedLot}</span>
               </div>
             )}
             {showExpiry && expectedExpiry && !advancedEdit && !overrideLot && (
-              <div className="rounded border border-emerald-100 bg-emerald-50/80 px-3 py-2 text-xs text-emerald-900">
+              <div className="rounded border border-status-success-border bg-status-success-bg px-3 py-2 text-xs text-status-success-fg">
                 <span className="font-medium">Expected expiry:</span>{' '}
                 <span>{new Date(expectedExpiry).toLocaleDateString()}</span>
                 {' — '}used automatically unless you unlock editing.
@@ -565,7 +579,7 @@ function ReceiveModal({ line, warehouseId, loading, onClose, onSubmit }: Receive
             )}
 
             {(expectedLot || (showExpiry && !!expectedExpiry)) && (
-              <label className="flex items-center gap-2 text-sm text-slate-700">
+              <label className="flex items-center gap-2 text-sm text-text-body">
                 <input
                   type="checkbox"
                   checked={advancedEdit}

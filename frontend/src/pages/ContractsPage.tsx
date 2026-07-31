@@ -74,9 +74,9 @@ function generationStatusLabel(
 }
 
 function generationStatusClass(status: ContractGenerationStatus): string {
-  if (status === 'complete') return 'bg-emerald-50 text-emerald-800';
-  if (status === 'partial') return 'bg-amber-50 text-amber-800';
-  return 'bg-slate-100 text-slate-600';
+  if (status === 'complete') return 'bg-status-success-bg text-status-success-fg';
+  if (status === 'partial') return 'bg-status-warning-bg text-status-warning-fg';
+  return 'bg-surface-card-muted text-text-body';
 }
 
 export function ContractsPage() {
@@ -199,9 +199,9 @@ export function ContractsPage() {
         accessor: (row) => {
           const number = primaryDocumentNumber(row);
           return number ? (
-            <span className="font-mono font-medium text-slate-900">{number}</span>
+            <span className="font-mono font-medium text-text-strong">{number}</span>
           ) : (
-            <span className="font-mono text-xs text-slate-400">{t(['Pending', 'معلق'])}</span>
+            <span className="font-mono text-xs text-text-faint">{t(['Pending', 'معلق'])}</span>
           );
         },
         width: '160px',
@@ -228,13 +228,13 @@ export function ContractsPage() {
           row.orderNumber ? (
             <Link
               to={orderPath(row)}
-              className="font-mono text-sm text-emerald-700 hover:underline"
+              className="font-mono text-sm text-status-success-fg hover:underline"
               onClick={(event) => event.stopPropagation()}
             >
               {row.orderNumber}
             </Link>
           ) : (
-            <span className="font-mono text-xs text-slate-400">—</span>
+            <span className="font-mono text-xs text-text-faint">—</span>
           ),
         width: '150px',
       },

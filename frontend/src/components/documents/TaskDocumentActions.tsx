@@ -89,7 +89,7 @@ export function TaskDocumentActions({ taskId, taskType, referenceType, reference
 
   return (
     <FilterPanel title={t('Document', 'المستند')} variant="content">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-card px-4 py-3">
         <div className="flex items-center gap-3">
           <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[#EAF6F0] text-[#0B5E3C]">
             <svg
@@ -107,8 +107,8 @@ export function TaskDocumentActions({ taskId, taskType, referenceType, reference
             </svg>
           </span>
           <div>
-            <div className="text-sm font-semibold text-slate-800">{title}</div>
-            <div className="font-mono text-xs text-slate-500">
+            <div className="text-sm font-semibold text-text-strong">{title}</div>
+            <div className="font-mono text-xs text-text-muted">
               {documentNumber
                 ? documentNumber
                 : docsQuery.isLoading
@@ -136,7 +136,7 @@ export function TaskDocumentActions({ taskId, taskType, referenceType, reference
           })}
         </div>
       </div>
-      <p className="mt-2 text-xs text-slate-500">
+      <p className="mt-2 text-xs text-text-muted">
         {docType === 'grn'
           ? t(
               'The GRN is an immutable copy of this receiving task. Once created it never changes.',

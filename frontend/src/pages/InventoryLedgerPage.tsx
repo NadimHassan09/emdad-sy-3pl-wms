@@ -129,7 +129,7 @@ export function InventoryLedgerPage() {
     () => [
       {
         header: t('Product', 'المنتج'),
-        accessor: (r) => <span className="font-medium text-slate-900">{r.product.name}</span>,
+        accessor: (r) => <span className="font-medium text-text-strong">{r.product.name}</span>,
       },
       {
         header: t('Client', 'العميل'),
@@ -139,7 +139,7 @@ export function InventoryLedgerPage() {
       {
         header: t('Movement type', 'نوع الحركة'),
         accessor: (r) => (
-          <span className="text-sm font-medium text-slate-800">
+          <span className="text-sm font-medium text-text-strong">
             {ledgerMovementLabel(ledgerMovementCategory(r.movementType))}
           </span>
         ),
@@ -154,7 +154,7 @@ export function InventoryLedgerPage() {
         header: t('Before quantity', 'الكمية قبل'),
         accessor: (r) => {
           const { before } = ledgerQuantityDisplay(r);
-          return <span className="font-mono text-slate-700">{fmtLedgerQty(before)}</span>;
+          return <span className="font-mono text-text-body">{fmtLedgerQty(before)}</span>;
         },
         width: '110px',
         className: 'text-right',
@@ -167,7 +167,7 @@ export function InventoryLedgerPage() {
           const neg = delta < 0;
           return (
             <span
-              className={`font-mono font-semibold ${pos ? 'text-emerald-600' : neg ? 'text-rose-600' : 'text-slate-600'}`}
+              className={`font-mono font-semibold ${pos ? 'text-status-success-fg' : neg ? 'text-status-danger-fg' : 'text-text-body'}`}
             >
               {fmtSignedDelta(delta)}
             </span>
@@ -180,7 +180,7 @@ export function InventoryLedgerPage() {
         header: t('After quantity', 'الكمية بعد'),
         accessor: (r) => {
           const { after } = ledgerQuantityDisplay(r);
-          return <span className="font-mono text-slate-700">{fmtLedgerQty(after)}</span>;
+          return <span className="font-mono text-text-body">{fmtLedgerQty(after)}</span>;
         },
         width: '110px',
         className: 'text-right',
@@ -192,7 +192,7 @@ export function InventoryLedgerPage() {
   return (
     <>
       {!wid ? (
-        <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>
+        <p className="text-sm text-text-body">Resolve warehouse configuration…</p>
       ) : null}
 
       <FilterPanel
@@ -278,7 +278,7 @@ export function InventoryLedgerPage() {
           rowsPerPageAria: t('Rows per page', 'عدد الصفوف لكل صفحة'),
         }}
       />
-      <p className="mt-2 text-xs text-slate-500">
+      <p className="mt-2 text-xs text-text-muted">
         {pagination.total > 0
           ? t(
               `${pagination.total} movement(s) · page ${pagination.page} of ${totalPages}`,

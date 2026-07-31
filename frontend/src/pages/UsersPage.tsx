@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Alert } from '@ds';
+
 import { CompaniesApi } from '../api/companies';
 import {
   UsersApi,
@@ -78,14 +80,14 @@ function formatLastLogin(iso: string | null | undefined): string {
 function activityPill(u: UserListRow, onlineUserIds?: Set<string>) {
   if (u.status !== 'active') {
     return (
-      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-slate-100 text-slate-600">
+      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-surface-card-muted text-text-body">
         Offline
       </span>
     );
   }
   if (onlineUserIds?.has(u.id)) {
     return (
-      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-emerald-50 text-emerald-700">
+      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-status-success-bg text-status-success-fg">
         Online
       </span>
     );
@@ -93,7 +95,7 @@ function activityPill(u: UserListRow, onlineUserIds?: Set<string>) {
   const iso = u.lastActivityAt;
   if (iso == null || iso === '') {
     return (
-      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-slate-100 text-slate-600">
+      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-surface-card-muted text-text-body">
         Offline
       </span>
     );
@@ -101,7 +103,7 @@ function activityPill(u: UserListRow, onlineUserIds?: Set<string>) {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) {
     return (
-      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-slate-100 text-slate-600">
+      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-surface-card-muted text-text-body">
         Offline
       </span>
     );
@@ -110,7 +112,7 @@ function activityPill(u: UserListRow, onlineUserIds?: Set<string>) {
   return (
     <span
       className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
-        online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+        online ? 'bg-status-success-bg text-status-success-fg' : 'bg-surface-card-muted text-text-body'
       }`}
     >
       {online ? 'Online' : 'Offline'}
@@ -135,7 +137,7 @@ function statusPill(status: string) {
   return (
     <span
       className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
-        active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+        active ? 'bg-status-success-bg text-status-success-fg' : 'bg-surface-card-muted text-text-body'
       }`}
     >
       {status}
@@ -306,12 +308,12 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
 
   const { systemColumns, clientColumns } = useMemo(() => {
     const lead: Column<UserListRow>[] = [
-      { header: t('Email', 'البريد الإلكتروني'), accessor: (u) => <span className="text-slate-800">{u.email}</span> },
-      { header: t('Name', 'الاسم'), accessor: (u) => <span className="text-slate-700">{u.fullName}</span> },
-      { header: t('Phone', 'الهاتف'), accessor: (u) => <span className="text-slate-600">{u.phone ?? '—'}</span> },
+      { header: t('Email', 'البريد الإلكتروني'), accessor: (u) => <span className="text-text-strong">{u.email}</span> },
+      { header: t('Name', 'الاسم'), accessor: (u) => <span className="text-text-body">{u.fullName}</span> },
+      { header: t('Phone', 'الهاتف'), accessor: (u) => <span className="text-text-body">{u.phone ?? '—'}</span> },
       {
         header: t('Role', 'الدور'),
-        accessor: (u) => <span className="text-slate-700">{roleLabel(u.role)}</span>,
+        accessor: (u) => <span className="text-text-body">{roleLabel(u.role)}</span>,
       },
       {
         header: t('Status', 'الحالة'),
@@ -320,14 +322,14 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       {
         header: t('Worker profile', 'ملف العامل'),
         accessor: (u) => {
-          if (u.role !== 'wh_operator') return <span className="text-slate-400">—</span>;
+          if (u.role !== 'wh_operator') return <span className="text-text-faint">—</span>;
           const label = workerProfileStatusText(u.workerProfile, u.status, t);
           const cls =
             label === t('Linked', 'مرتبط')
-              ? 'bg-emerald-50 text-emerald-700'
+              ? 'bg-status-success-bg text-status-success-fg'
               : label === t('Not linked', 'غير مرتبط')
-                ? 'bg-amber-50 text-amber-800'
-                : 'bg-slate-100 text-slate-600';
+                ? 'bg-status-warning-bg text-status-warning-fg'
+                : 'bg-surface-card-muted text-text-body';
           return (
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${cls}`}>
               {label}
@@ -339,12 +341,12 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     ];
     const companyCol: Column<UserListRow> = {
       header: t('Company', 'الشركة'),
-      accessor: (u) => <span className="text-slate-600">{u.companyName ?? '—'}</span>,
+      accessor: (u) => <span className="text-text-body">{u.companyName ?? '—'}</span>,
     };
     const tail: Column<UserListRow>[] = [
       {
         header: t('Last login', 'آخر تسجيل دخول'),
-        accessor: (u) => <span className="text-slate-500">{formatLastLogin(u.lastLoginAt)}</span>,
+        accessor: (u) => <span className="text-text-muted">{formatLastLogin(u.lastLoginAt)}</span>,
       },
       {
         header: t('Activity', 'النشاط'),
@@ -363,7 +365,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
                 trigger={
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-card-muted"
                     disabled={busy}
                     data-user-action-trigger="true"
                     onClick={() => setOpenActionId((cur) => (cur === u.id ? null : u.id))}
@@ -379,7 +381,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
               >
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                  className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-card-muted"
                   data-user-action-menu-button="true"
                   onClick={() => {
                     setOpenActionId(null);
@@ -391,7 +393,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
                 {u.status === 'active' ? (
                   <button
                     type="button"
-                    className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                    className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-card-muted"
                     data-user-action-menu-button="true"
                     onClick={() => {
                       if (
@@ -408,7 +410,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
                 ) : null}
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
+                  className="block w-full px-3 py-2 text-left text-sm text-status-error-fg transition hover:bg-status-error-bg"
                   data-user-action-menu-button="true"
                   onClick={() => {
                     if (
@@ -512,7 +514,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
 
   return (
     <>
-      {errMsg ? <p className="mb-4 text-sm text-rose-600">{errMsg}</p> : null}
+      {errMsg ? <Alert variant="error" title={errMsg} className="mb-4" /> : null}
 
       <FilterPanel
         title={filterTitle}
@@ -768,7 +770,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
               hint={t('Leave blank to keep the current password.', 'اتركه فارغا للاحتفاظ بكلمة المرور الحالية.')}
             />
             {editUser.kind === 'system' && editRole === 'wh_operator' ? (
-              <div className="border-t border-slate-100 pt-2">
+              <div className="border-t border-border-subtle pt-2">
                 <WorkerProfilePanel
                   user={{ ...editUser, role: editRole, status: editStatus }}
                   t={t}

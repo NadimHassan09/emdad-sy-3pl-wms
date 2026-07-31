@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import type { ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
@@ -7,20 +8,49 @@ import {
   type BillingPlanType,
   type CreateBillingPlanPayload,
 } from '../../api/billing';
+import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/Button';
 import { Combobox } from '../../components/Combobox';
-import { PageHeader } from '../../components/PageHeader';
 import { SelectField } from '../../components/SelectField';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
-import { useAuth } from '../../auth/AuthContext';
+import { Alert, AppPageHeader, Breadcrumb, Card } from '@ds';
 
 const CURRENCY = 'SYP';
+const FORM_ID = 'billing-plan-create-form';
 
 function numField(v: string): number {
   const n = Number(v.trim());
   return Number.isFinite(n) ? n : 0;
+}
+
+function FormSection({
+  title,
+  description,
+  children,
+  bordered = true,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+  bordered?: boolean;
+}) {
+  return (
+    <div
+      className={
+        bordered
+          ? 'grid gap-6 border-b border-border-subtle pb-6 last:border-b-0 last:pb-0 lg:grid-cols-[minmax(200px,240px)_1fr]'
+          : 'grid gap-6 lg:grid-cols-[minmax(200px,240px)_1fr]'
+      }
+    >
+      <div>
+        <h2 className="text-sm font-semibold text-text-strong">{title}</h2>
+        {description ? <p className="mt-1 text-xs text-text-muted">{description}</p> : null}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">{children}</div>
+    </div>
+  );
 }
 
 export function BillingPlanCreatePage() {
@@ -103,132 +133,152 @@ export function BillingPlanCreatePage() {
   if (!canMutate) {
     return (
       <div className="space-y-4">
-        <Link to="/billing/plans" className="text-sm text-slate-500 hover:underline">
-          ← Back to billing plans
-        </Link>
-        <p className="text-sm text-rose-600">You do not have permission to create billing plans.</p>
+        <Breadcrumb
+          items={[
+            { label: 'Billing plans', href: '/billing/plans' },
+            { label: 'Create plan' },
+          ]}
+        />
+        <Alert variant="error" title="You do not have permission to create billing plans." />
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="text-sm text-slate-500">
-        <Link to="/billing/plans" className="hover:underline">
-          ← Back to billing plans
-        </Link>
+      <div className="sticky top-0 z-sticky -mx-3 border-b border-border bg-[var(--surface-page)]/95 px-3 py-3 backdrop-blur-sm sm:-mx-4 sm:px-4">
+        <Breadcrumb
+          className="mb-3"
+          items={[
+            { label: 'Billing plans', href: '/billing/plans' },
+            { label: 'Create plan' },
+          ]}
+        />
+        <AppPageHeader
+          title="Create billing plan"
+          description="Assign a custom or template-based subscription plan to a client without an active plan."
+          actions={
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => navigate('/billing/plans')}
+                disabled={createMut.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form={FORM_ID}
+                variant="brand"
+                loading={createMut.isPending}
+              >
+                Create plan
+              </Button>
+            </>
+          }
+        />
       </div>
 
-      <PageHeader
-        title="Create billing plan"
-        description="Assign a custom or template-based subscription plan to a client without an active plan."
-      />
+      <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-4">
+        <Card padding="none" elevation="flat">
+          <Card.Body className="space-y-6">
+            <FormSection
+              title="Client & plan mode"
+              description="Choose the client and whether this plan follows a template or custom terms."
+            >
+              <div className="sm:col-span-2">
+                <Combobox
+                  label="Client"
+                  value={companyId}
+                  onChange={setCompanyId}
+                  onSearchQueryChange={setClientSearch}
+                  options={(companiesQuery.data ?? []).map((c) => ({
+                    value: c.id,
+                    label: c.name,
+                    hint: c.status,
+                  }))}
+                  placeholder="Search clients without a plan…"
+                  emptyMessage="No clients without an active plan"
+                  required
+                />
+              </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <Combobox
-              label="Client"
-              value={companyId}
-              onChange={setCompanyId}
-              onSearchQueryChange={setClientSearch}
-              options={(companiesQuery.data ?? []).map((c) => ({
-                value: c.id,
-                label: c.name,
-                hint: c.status,
-              }))}
-              placeholder="Search clients without a plan…"
-              emptyMessage="No clients without an active plan"
-              required
-            />
-          </div>
+              <SelectField
+                label="Plan mode"
+                value={planType}
+                onChange={(e) => {
+                  const next = e.target.value as BillingPlanType;
+                  setPlanType(next);
+                  if (next === 'custom') setTemplateId('');
+                }}
+                options={[
+                  { value: 'custom', label: 'Custom' },
+                  { value: 'template', label: 'Template' },
+                ]}
+              />
 
-          <SelectField
-            label="Plan mode"
-            value={planType}
-            onChange={(e) => {
-              const next = e.target.value as BillingPlanType;
-              setPlanType(next);
-              if (next === 'custom') setTemplateId('');
-            }}
-            options={[
-              { value: 'custom', label: 'Custom' },
-              { value: 'template', label: 'Template' },
-            ]}
-          />
+              {planType === 'template' ? (
+                <Combobox
+                  label="Template"
+                  value={templateId}
+                  onChange={setTemplateId}
+                  options={(templatesQuery.data ?? []).map((t) => ({
+                    value: t.id,
+                    label: t.name,
+                    hint: `${t.reservedVolume} m³ · ${t.fixedSubscriptionFee} ${CURRENCY} · ${t.cycleLengthDays}d`,
+                  }))}
+                  placeholder="Select template…"
+                  emptyMessage="No active templates"
+                  required
+                />
+              ) : (
+                <div />
+              )}
+            </FormSection>
 
-          {planType === 'template' ? (
-            <Combobox
-              label="Template"
-              value={templateId}
-              onChange={setTemplateId}
-              options={(templatesQuery.data ?? []).map((t) => ({
-                value: t.id,
-                label: t.name,
-                hint: `${t.reservedVolume} m³ · ${t.fixedSubscriptionFee} ${CURRENCY} · ${t.cycleLengthDays}d`,
-              }))}
-              placeholder="Select template…"
-              emptyMessage="No active templates"
-              required
-            />
-          ) : (
-            <div />
-          )}
-
-          <TextField
-            label="Reserved volume (m³)"
-            type="number"
-            min={0}
-            step="0.01"
-            value={reservedVolume}
-            onChange={(e) => setReservedVolume(e.target.value)}
-            disabled={fieldsReadOnly}
-            required
-          />
-          <TextField
-            label={`Subscription price (${CURRENCY})`}
-            type="number"
-            min={0}
-            step="0.01"
-            value={fixedSubscriptionFee}
-            onChange={(e) => setFixedSubscriptionFee(e.target.value)}
-            disabled={fieldsReadOnly}
-            required
-          />
-          <TextField
-            label="Billing cycle (days)"
-            type="number"
-            min={1}
-            step="1"
-            value={cycleLengthDays}
-            onChange={(e) => setCycleLengthDays(e.target.value)}
-            disabled={fieldsReadOnly}
-            required
-          />
-        </div>
-
-        {planType === 'template' ? (
-          <p className="text-xs text-slate-500">
-            Template fields are read-only. Switch to Custom to edit volume, price, or cycle length.
-          </p>
-        ) : null}
-
-        <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => navigate('/billing/plans')}
-            disabled={createMut.isPending}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" variant="brand" loading={createMut.isPending}>
-            Create plan
-          </Button>
-        </div>
+            <FormSection
+              title="Billing terms"
+              description={
+                planType === 'template'
+                  ? 'Template fields are read-only. Switch to Custom to edit volume, price, or cycle length.'
+                  : 'Set reserved storage volume, subscription price, and billing cycle length.'
+              }
+              bordered={false}
+            >
+              <TextField
+                label="Reserved volume (m³)"
+                type="number"
+                min={0}
+                step="0.01"
+                value={reservedVolume}
+                onChange={(e) => setReservedVolume(e.target.value)}
+                disabled={fieldsReadOnly}
+                required
+              />
+              <TextField
+                label={`Subscription price (${CURRENCY})`}
+                type="number"
+                min={0}
+                step="0.01"
+                value={fixedSubscriptionFee}
+                onChange={(e) => setFixedSubscriptionFee(e.target.value)}
+                disabled={fieldsReadOnly}
+                required
+              />
+              <TextField
+                label="Billing cycle (days)"
+                type="number"
+                min={1}
+                step="1"
+                value={cycleLengthDays}
+                onChange={(e) => setCycleLengthDays(e.target.value)}
+                disabled={fieldsReadOnly}
+                required
+              />
+            </FormSection>
+          </Card.Body>
+        </Card>
       </form>
     </div>
   );

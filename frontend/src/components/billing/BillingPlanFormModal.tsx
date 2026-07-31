@@ -245,12 +245,12 @@ export function BillingPlanFormModal({
               checked={form.active ?? true}
               onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
             />
-            <span className="text-sm text-slate-700">Plan active</span>
+            <span className="text-sm text-text-body">Plan active</span>
           </label>
         ) : null}
 
         {mode === 'edit' ? (
-          <p className="sm:col-span-2 text-xs text-slate-500">
+          <p className="sm:col-span-2 text-xs text-text-muted">
             Rate changes apply to future billing cycles only. The current cycle invoice uses snapshotted rates.
           </p>
         ) : null}

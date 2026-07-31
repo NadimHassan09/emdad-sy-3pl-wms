@@ -38,11 +38,11 @@ function UserDetailField({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-        <i className={`${iconClass} text-[11px] text-emerald-600/90`} aria-hidden="true" />
+      <div className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
+        <i className={`${iconClass} text-[11px] text-status-success-fg/90`} aria-hidden="true" />
         <span>{label}</span>
       </div>
-      <div className="mt-1.5 text-sm font-semibold text-slate-900">{value}</div>
+      <div className="mt-1.5 text-sm font-semibold text-text-strong">{value}</div>
     </div>
   );
 }
@@ -53,8 +53,8 @@ function activityPill(u: UserListRow) {
     u.lastActivityAt != null &&
     Date.now() - new Date(u.lastActivityAt).getTime() < 5 * 60 * 1000;
   const cls = online
-    ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
-    : 'bg-slate-100 text-slate-600 ring-slate-200';
+    ? 'bg-status-success-bg text-status-success-fg ring-status-success-border'
+    : 'bg-surface-card-muted text-text-body ring-border';
   const label = u.status !== 'active' ? 'Offline' : online ? 'Online' : 'Offline';
   return (
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${cls}`}>
@@ -68,7 +68,7 @@ function statusPill(status: string) {
   return (
     <span
       className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ring-inset ${
-        active ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-slate-200'
+        active ? 'bg-status-success-bg text-status-success-fg ring-status-success-border' : 'bg-surface-card-muted text-text-body ring-border'
       }`}
     >
       {status}
@@ -84,23 +84,23 @@ export function UserDetailsCard({
   variant: 'warehouse' | 'client';
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-card p-6 shadow-sm">
       <div className="flex items-start gap-4">
         <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-50 to-slate-50 ring-4 ring-slate-50"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-50 to-surface-sunken ring-4 ring-surface-sunken dark:from-white/10"
           aria-hidden="true"
         >
           <i
-            className={`fa-solid ${variant === 'warehouse' ? 'fa-user-gear' : 'fa-user'} text-xl text-emerald-600/80`}
+            className={`fa-solid ${variant === 'warehouse' ? 'fa-user-gear' : 'fa-user'} text-xl text-status-success-fg/80`}
           />
         </div>
         <div className="min-w-0 flex-1 pt-0.5">
-          <h2 className="text-lg font-semibold leading-tight text-slate-900">{user.fullName}</h2>
-          <p className="mt-1 text-sm text-slate-500">{user.email}</p>
+          <h2 className="text-lg font-semibold leading-tight text-text-strong">{user.fullName}</h2>
+          <p className="mt-1 text-sm text-text-muted">{user.email}</p>
         </div>
       </div>
 
-      <h3 className="mt-6 text-sm font-semibold text-slate-800">User information</h3>
+      <h3 className="mt-6 text-sm font-semibold text-text-strong">User information</h3>
       <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <UserDetailField iconClass="fa-solid fa-id-badge" label="Role" value={roleLabel(user.role)} />
         <UserDetailField iconClass="fa-solid fa-circle-check" label="Status" value={statusPill(user.status)} />
@@ -127,7 +127,7 @@ export function UserDetailsCard({
         )}
       </div>
 
-      <p className="mt-4 text-xs text-slate-500">
+      <p className="mt-4 text-xs text-text-muted">
         Created {prettyDate(user.createdAt)} · Updated {prettyDate(user.updatedAt)}
       </p>
     </section>

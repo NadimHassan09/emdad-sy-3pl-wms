@@ -44,7 +44,7 @@ export function ClientMetricCard({
     'rounded-[var(--radius-card)] border shadow-[var(--shadow-xs)] transition duration-[var(--duration-fast)]',
     padding,
     emphasize
-      ? 'border-brand-200 bg-brand-50/40 hover:border-brand-300 hover:shadow-[var(--shadow-sm)]'
+      ? 'border-brand-200 dark:border-white/10 bg-brand-50/40 dark:bg-white/[0.04] hover:border-brand-300 dark:hover:border-white/20 hover:shadow-[var(--shadow-sm)]'
       : 'border-[var(--border-subtle)] bg-[var(--surface-card)] hover:border-[var(--border-default)] hover:shadow-[var(--shadow-sm)]',
   ].join(' ');
 
@@ -55,7 +55,7 @@ export function ClientMetricCard({
           className={[
             'font-bold uppercase tracking-[0.08em]',
             size === 'sm' ? 'text-[9px]' : 'text-[10px]',
-            emphasize ? 'text-brand-700' : 'text-[var(--text-muted)]',
+            emphasize ? 'text-brand-700 dark:text-brand-400' : 'text-[var(--text-muted)]',
           ].join(' ')}
         >
           {title}
@@ -64,7 +64,9 @@ export function ClientMetricCard({
           className={[
             'flex shrink-0 items-center justify-center',
             iconBox,
-            emphasize ? 'bg-brand-100 text-brand-800' : 'bg-brand-50 text-brand-700',
+            emphasize
+              ? 'bg-brand-100 dark:bg-white/10 text-brand-800 dark:text-brand-300'
+              : 'bg-brand-50 dark:bg-white/5 text-brand-700 dark:text-brand-400',
           ].join(' ')}
           aria-hidden="true"
         >
@@ -79,7 +81,7 @@ export function ClientMetricCard({
       >
         {loading ? (
           <span
-            className="inline-block h-7 w-16 animate-pulse rounded-md bg-neutral-100"
+            className="inline-block h-7 w-16 animate-pulse rounded-md bg-skeleton-base"
             aria-hidden="true"
           />
         ) : (

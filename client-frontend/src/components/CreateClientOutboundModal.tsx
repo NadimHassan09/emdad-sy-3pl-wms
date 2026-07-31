@@ -275,7 +275,10 @@ export function CreateClientOutboundModal({
           ]}
         />
         {error || submitError ? (
-          <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
+          <p
+            className="rounded-lg border border-status-danger-border bg-status-danger-bg px-3 py-2 text-sm text-status-danger-fg"
+            role="alert"
+          >
             {error ?? submitError}
           </p>
         ) : null}
@@ -329,7 +332,13 @@ export function CreateClientOutboundModal({
               if (avail === undefined) return null;
               const isShort = summed > avail;
               return (
-                <div className={`mt-1 text-xs ${isShort ? 'text-rose-600' : 'text-emerald-700'}`}>
+                <div
+                  className={`mt-1 text-xs ${
+                    isShort
+                      ? 'text-danger-600 dark:text-status-danger-fg'
+                      : 'text-brand-700 dark:text-brand-400'
+                  }`}
+                >
                   {t('Available')}: {avail.toLocaleString(undefined, { maximumFractionDigits: 4 })}
                   {summed > 0 && (
                     <>
@@ -372,7 +381,7 @@ export function CreateClientOutboundModal({
           />
         )}
         {step === 2 && shortages.length > 0 ? (
-          <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+          <div className="rounded-md border border-status-danger-border bg-status-danger-bg p-3 text-xs text-status-danger-fg">
             <strong className="block">{t('Order cannot be created — insufficient stock:')}</strong>
             <ul className="mt-1 list-disc pl-4">
               {shortages.map((s) => {

@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
+import { ListPageHeader } from '@ds';
 import { BillingApi, type BillingInvoiceRow } from '../../api/billing';
 import { CompaniesApi } from '../../api/companies';
 import { AnchoredDropdown } from '../../components/AnchoredDropdown';
 import { Combobox } from '../../components/Combobox';
 import { DataTable, type Column } from '../../components/DataTable';
 import { FilterPanel } from '../../components/FilterPanel';
-import { PageHeader } from '../../components/PageHeader';
 import { SelectField } from '../../components/SelectField';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
@@ -180,7 +180,7 @@ export function BillingInvoicesPage() {
             trigger={
               <button
                 type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-card-muted"
                 data-billing-action-menu-button="true"
                 onClick={() => setOpenActionId((cur) => (cur === r.id ? null : r.id))}
                 aria-label="Open actions"
@@ -193,7 +193,7 @@ export function BillingInvoicesPage() {
           >
             <button
               type="button"
-              className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+              className="block w-full px-3 py-2 text-left text-sm hover:bg-surface-sunken"
               onClick={() => {
                 setOpenActionId(null);
                 navigate(`/billing/invoices/${r.id}`);
@@ -204,7 +204,7 @@ export function BillingInvoicesPage() {
             {canMutate ? (
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-surface-sunken"
                 onClick={() => {
                   setOpenActionId(null);
                   navigate(`/billing/invoices/${r.id}`);
@@ -217,7 +217,7 @@ export function BillingInvoicesPage() {
             (r.status === 'unpaid' || r.status === 'open' || r.status === 'overdue') ? (
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-surface-sunken"
                 onClick={() => statusMut.mutate({ id: r.id, status: 'paid' })}
               >
                 Mark as paid
@@ -226,7 +226,7 @@ export function BillingInvoicesPage() {
             {canMutate && (r.status === 'draft' || r.status === 'cancelled') ? (
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
+                className="block w-full px-3 py-2 text-left text-sm text-status-error-fg hover:bg-status-error-bg"
                 onClick={() => {
                   if (!window.confirm(`Delete invoice ${r.invoiceNumber}?`)) return;
                   deleteMut.mutate(r.id);
@@ -243,10 +243,10 @@ export function BillingInvoicesPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
+      <ListPageHeader
         icon="fa-file-invoice"
         title="Subscription invoices"
-        description="Cycle invoices for client storage subscriptions."
+        subtitle="Cycle invoices for client storage subscriptions."
       />
 
       <FilterPanel
@@ -332,7 +332,7 @@ export function BillingInvoicesPage() {
       />
 
       {pagination.isError ? (
-        <p className="text-sm text-rose-600">{(pagination.error as Error).message}</p>
+        <p className="text-sm text-status-error-fg">{(pagination.error as Error).message}</p>
       ) : null}
     </div>
   );

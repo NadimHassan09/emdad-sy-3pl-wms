@@ -260,9 +260,9 @@ export function AddAdjustmentLineForm({
   };
 
   return (
-    <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+    <div className="space-y-3 rounded-md border border-border bg-surface-card p-3 shadow-sm">
       <form onSubmit={submit} className="space-y-3">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">
           {t('Add line', 'إضافة بند')}
         </div>
         <div className="grid w-full grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(8.75rem,11rem)_auto]">
@@ -362,12 +362,12 @@ export function AddAdjustmentLineForm({
         )}
 
         {showOnHandPanel ? (
-          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-            <span className="font-medium text-slate-600">{t('Quantity:', 'الكمية:')}</span>{' '}
+          <div className="rounded border border-border bg-surface-card-muted px-3 py-2 text-xs text-text-body">
+            <span className="font-medium text-text-body">{t('Quantity:', 'الكمية:')}</span>{' '}
             {stockQtyPending ? (
-              <span className="text-slate-400">…</span>
+              <span className="text-text-muted">…</span>
             ) : stockRow ? (
-              <span className="font-mono font-semibold text-slate-900">
+              <span className="font-mono font-semibold text-text-strong">
                 {(() => {
                   const n = Number(stockRow.quantityOnHand);
                   return Number.isFinite(n)
@@ -376,11 +376,11 @@ export function AddAdjustmentLineForm({
                 })()}
               </span>
             ) : (
-              <span className="font-mono text-slate-500">—</span>
+              <span className="font-mono text-text-muted">—</span>
             )}
-            <span className="text-slate-500"> · </span>
-            <span className="font-medium text-slate-600">{t('UOM:', 'وحدة القياس:')}</span>{' '}
-            <span className="uppercase text-slate-800">{quantityUom}</span>
+            <span className="text-text-muted"> · </span>
+            <span className="font-medium text-text-body">{t('UOM:', 'وحدة القياس:')}</span>{' '}
+            <span className="uppercase text-text-strong">{quantityUom}</span>
           </div>
         ) : null}
 

@@ -2,9 +2,9 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 
+import { Alert, Card, ListPageHeader, Skeleton } from '@ds';
 import { BillingApi, type CreateManualInvoiceLinePayload } from '../../api/billing';
 import { Button } from '../../components/Button';
-import { PageHeader } from '../../components/PageHeader';
 import { SelectField } from '../../components/SelectField';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
@@ -28,8 +28,8 @@ const CURRENCY = 'SYP';
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="mt-1 text-sm text-slate-900">{value}</dd>
+      <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">{label}</dt>
+      <dd className="mt-1 text-sm text-text-strong">{value}</dd>
     </div>
   );
 }
@@ -50,10 +50,10 @@ function LineTable({
   if (!lines.length) return null;
   return (
     <div className="mt-4">
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h4>
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{title}</h4>
       <table className="mt-2 min-w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
+          <tr className="border-b border-border text-left text-xs uppercase text-text-muted">
             <th className="py-2 pr-4">Description</th>
             <th className="py-2 pr-4">Qty</th>
             <th className="py-2 pr-4">Unit</th>
@@ -63,7 +63,7 @@ function LineTable({
         </thead>
         <tbody>
           {lines.map((line) => (
-            <tr key={line.id} className="border-b border-slate-100">
+            <tr key={line.id} className="border-b border-border-subtle">
               <td className="py-2 pr-4">{lineLabel(line)}</td>
               <td className="py-2 pr-4 font-mono tabular-nums">{formatDecimal(line.quantity, 2)}</td>
               <td className="py-2 pr-4 font-mono tabular-nums">{formatDecimal(line.unitPrice, 2)}</td>
@@ -231,16 +231,19 @@ export function BillingInvoiceDetailPage() {
   const otherSystemLines = systemLines(lines).filter((l) => l.type !== 'subscription');
 
   return (
-    <div className="space-y-4">
-      <div className="text-sm text-slate-500">
-        <Link to="/billing/invoices" className="hover:underline">
-          ← Back to invoices
-        </Link>
-      </div>
+    <div className="space-y-5 animate-enter">
+      <Link
+        to="/billing/invoices"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+      >
+        <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+        Back to invoices
+      </Link>
 
-      <PageHeader
+      <ListPageHeader
+        icon="fa-file-invoice"
         title={invoice ? `Invoice ${invoice.invoiceNumber}` : 'Invoice details'}
-        description={invoice?.company?.name ?? undefined}
+        subtitle={invoice?.company?.name ?? 'Subscription invoice'}
         actions={
           invoice ? (
             <div className="flex flex-wrap gap-2">
@@ -290,16 +293,23 @@ export function BillingInvoiceDetailPage() {
         }
       />
 
-      {invoiceQuery.isPending ? <p className="text-sm text-slate-500">Loading invoice…</p> : null}
+      {invoiceQuery.isPending ? (
+        <Card className="p-5 sm:p-6">
+          <div className="space-y-4" aria-busy="true">
+            <Skeleton height={28} width="40%" />
+            <Skeleton height={180} />
+          </div>
+        </Card>
+      ) : null}
       {invoiceQuery.isError ? (
-        <p className="text-sm text-rose-600">Could not load invoice.</p>
+        <Alert variant="error" title="Could not load invoice." />
       ) : null}
 
       {invoice ? (
         <>
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="rounded-xl border border-border bg-surface-card p-4 shadow-sm">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-semibold text-slate-900">Invoice info</h3>
+              <h3 className="text-sm font-semibold text-text-strong">Invoice info</h3>
               <span className={`w-fit ${invoiceStatusClass(invoice.status)}`}>
                 {humanizeInvoiceStatus(invoice.status)}
               </span>
@@ -331,9 +341,9 @@ export function BillingInvoiceDetailPage() {
             </dl>
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-semibold text-slate-900">Charges</h3>
-            <p className="mt-1 text-xs text-slate-500">
+          <section className="rounded-xl border border-border bg-surface-card p-4 shadow-sm">
+            <h3 className="text-sm font-semibold text-text-strong">Charges</h3>
+            <p className="mt-1 text-xs text-text-muted">
               Client, billing period, reserved volume, and base subscription lines are locked.
             </p>
 
@@ -350,7 +360,7 @@ export function BillingInvoiceDetailPage() {
 
             {canMutate && isEditable ? (
               <form
-                className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-4"
+                className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-4"
                 onSubmit={handleAddManualLine}
               >
                 <TextField
@@ -383,28 +393,28 @@ export function BillingInvoiceDetailPage() {
               </form>
             ) : null}
 
-            <div className="mt-6 space-y-2 border-t border-slate-200 pt-4 text-sm">
+            <div className="mt-6 space-y-2 border-t border-border pt-4 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-600">Subtotal</span>
+                <span className="text-text-body">Subtotal</span>
                 <span className="font-mono tabular-nums">
                   {formatDecimal(invoice.subtotalAmount)} {CURRENCY}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-600">Discount</span>
+                <span className="text-text-body">Discount</span>
                 <span className="font-mono tabular-nums">
                   -{formatDecimal(invoice.discountAmount)} {CURRENCY}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-600">
+                <span className="text-text-body">
                   VAT ({formatDecimal(invoice.vatPercentage, 2)}%)
                 </span>
                 <span className="font-mono tabular-nums">
                   {formatDecimal(invoice.vatAmount)} {CURRENCY}
                 </span>
               </div>
-              <div className="flex justify-between border-t border-slate-200 pt-2 font-semibold">
+              <div className="flex justify-between border-t border-border pt-2 font-semibold">
                 <span>Grand total</span>
                 <span className="font-mono tabular-nums text-lg">
                   {formatDecimal(invoice.grandTotal)} {CURRENCY}
@@ -414,7 +424,7 @@ export function BillingInvoiceDetailPage() {
 
             {canMutate && isEditable ? (
               <form
-                className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2"
+                className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2"
                 onSubmit={(e) => {
                   e.preventDefault();
                   updateInvoiceMut.mutate();
@@ -447,9 +457,9 @@ export function BillingInvoiceDetailPage() {
                   onChange={(e) => setVatPercentage(e.target.value)}
                 />
                 <div className="sm:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Notes</label>
+                  <label className="mb-1 block text-xs font-medium text-text-body">Notes</label>
                   <textarea
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                    className="w-full rounded-lg border border-border px-3 py-2 text-sm text-text-strong shadow-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
                     rows={3}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
@@ -463,7 +473,7 @@ export function BillingInvoiceDetailPage() {
                 </div>
               </form>
             ) : invoice.notes ? (
-              <div className="mt-4 border-t border-slate-200 pt-4">
+              <div className="mt-4 border-t border-border pt-4">
                 <DetailField label="Notes" value={invoice.notes} />
               </div>
             ) : null}

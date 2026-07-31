@@ -78,7 +78,7 @@ const fmtQty = (s: string | null | undefined): string => {
 };
 
 const menuItemClass =
-  'flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-slate-700 transition hover:bg-slate-50 hover:text-emerald-700';
+  'flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-text-body transition hover:bg-surface-hover hover:text-brand-700 dark:hover:text-brand-400';
 
 export function ProductsPage(): ReactElement {
   const { user } = useAuth();
@@ -199,13 +199,13 @@ export function ProductsPage(): ReactElement {
 
       <Card className="p-4">
         <div className="relative">
-          <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+          <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-text-faint text-xs" />
           <input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('Search name, SKU, or barcode...')}
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm input-premium"
+            className="w-full pl-9 pr-4 py-2 bg-surface-sunken border border-border-strong text-text-strong placeholder:text-text-faint rounded-lg text-sm input-premium"
           />
         </div>
       </Card>
@@ -213,7 +213,7 @@ export function ProductsPage(): ReactElement {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
+            <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
               <tr>
                 <th className="px-5 py-3 text-left">{t('Product')}</th>
                 <th className="px-5 py-3 text-left">{t('SKU')}</th>
@@ -224,7 +224,7 @@ export function ProductsPage(): ReactElement {
                 <th className="px-5 py-3 text-right">{t('Actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border-subtle">
               {pagination.isInitialLoading ? (
                 Array.from({ length: 6 }).map((_, rowIdx) => (
                   <tr key={`sk-${rowIdx}`}>
@@ -292,7 +292,7 @@ export function ProductsPage(): ReactElement {
                     <tr
                       key={p.id}
                       onClick={() => setDetailProduct({ id: p.id, name: p.name })}
-                      className="hover:bg-slate-50/60 transition-colors group cursor-pointer"
+                      className="hover:bg-surface-hover transition-colors group cursor-pointer"
                     >
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
@@ -300,20 +300,20 @@ export function ProductsPage(): ReactElement {
                             <img
                               src={clientMediaSrc(p.imageUrl) ?? undefined}
                               alt=""
-                              className="w-9 h-9 rounded-lg object-cover border border-slate-200 shrink-0"
+                              className="w-9 h-9 rounded-lg object-cover border border-border shrink-0"
                             />
                           ) : (
-                            <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                            <div className="w-9 h-9 rounded-lg bg-surface-sunken flex items-center justify-center text-text-faint shrink-0">
                               <i className="fa-solid fa-box text-xs" />
                             </div>
                           )}
                           <div className="min-w-0">
-                            <div className="font-semibold text-slate-900 truncate">{p.name}</div>
-                            <div className="text-xs text-slate-500 truncate">{p.description || '—'}</div>
+                            <div className="font-semibold text-text-strong truncate">{p.name}</div>
+                            <div className="text-xs text-text-muted truncate">{p.description || '—'}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-slate-600 font-mono text-xs">
+                      <td className="px-5 py-3.5 text-text-body font-mono text-xs">
                         {p.barcode ? (
                           <button
                             type="button"
@@ -321,7 +321,7 @@ export function ProductsPage(): ReactElement {
                               e.stopPropagation();
                               setBarcodePreview({ value: p.barcode!, name: p.name });
                             }}
-                            className="underline decoration-slate-300 underline-offset-2 hover:text-emerald-700"
+                            className="underline decoration-border-strong underline-offset-2 hover:text-brand-700 dark:hover:text-brand-400"
                             title={p.barcode}
                           >
                             {p.sku}
@@ -330,13 +330,13 @@ export function ProductsPage(): ReactElement {
                           p.sku
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-slate-900">
+                      <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-text-strong">
                         {fmtQty(p.totalAvailable ?? String(available))}
                       </td>
-                      <td className="px-5 py-3.5 text-right tabular-nums text-slate-500">
+                      <td className="px-5 py-3.5 text-right tabular-nums text-text-muted">
                         {fmtQty(p.totalReserved)}
                       </td>
-                      <td className="px-5 py-3.5 text-right tabular-nums text-slate-600">
+                      <td className="px-5 py-3.5 text-right tabular-nums text-text-body">
                         {fmtQty(p.totalOnHand ?? String(onHand))}
                       </td>
                       <td className="px-5 py-3.5">
@@ -354,7 +354,7 @@ export function ProductsPage(): ReactElement {
                               <button
                                 type="button"
                                 data-product-action-trigger="true"
-                                className="w-8 h-8 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors inline-flex items-center justify-center"
+                                className="w-8 h-8 rounded-lg border border-border text-text-muted hover:bg-surface-hover hover:text-text-strong transition-colors inline-flex items-center justify-center"
                                 onClick={() =>
                                   setOpenActionId((cur) => (cur === p.id ? null : p.id))
                                 }
@@ -376,7 +376,7 @@ export function ProductsPage(): ReactElement {
                                 setDetailProduct({ id: p.id, name: p.name });
                               }}
                             >
-                              <i className="fa-solid fa-eye text-xs text-slate-400 w-4" />
+                              <i className="fa-solid fa-eye text-xs text-text-faint w-4" />
                               {t('View details')}
                             </button>
                             {p.barcode ? (
@@ -390,7 +390,7 @@ export function ProductsPage(): ReactElement {
                                   setBarcodePreview({ value: p.barcode!, name: p.name });
                                 }}
                               >
-                                <i className="fa-solid fa-barcode text-xs text-slate-400 w-4" />
+                                <i className="fa-solid fa-barcode text-xs text-text-faint w-4" />
                                 {t('View barcode')}
                               </button>
                             ) : null}

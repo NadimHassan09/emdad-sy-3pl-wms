@@ -21,14 +21,14 @@ export function WorkerProfileOnboardingBanner({ t, operatorUserId }: Props) {
     : '/users/warehouse_users';
 
   return (
-    <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+    <div className="space-y-3 rounded-lg border border-status-warning-border bg-status-warning-bg px-4 py-3 text-sm text-status-warning-fg">
       <p>
         {t(
           'Blind cycle count execution requires a warehouse operator account with an active linked worker profile.',
           'يتطلب تنفيذ الجرد الأعمى حساب مشغل مستودع مرتبط بملف عامل نشط.',
         )}
       </p>
-      <ol className="list-decimal space-y-1 pl-5 text-amber-900">
+      <ol className="list-decimal space-y-1 pl-5 text-status-warning-fg">
         <li>
           {t(
             'Sign in as a warehouse user with the Worker role, or ask an admin to create one.',

@@ -78,8 +78,8 @@ function fmtDateTime(iso: string | null | undefined): string {
 
 function Section({ title, children }: { title: string; children: ReactNode }): ReactElement {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="mb-3 text-sm font-semibold text-slate-900">{title}</h3>
+    <section className="rounded-lg border border-border bg-surface-card p-4 shadow-sm">
+      <h3 className="mb-3 text-sm font-semibold text-text-strong">{title}</h3>
       <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">{children}</dl>
     </section>
   );
@@ -98,8 +98,8 @@ function Row({
 }): ReactElement {
   return (
     <div className={wide ? 'sm:col-span-2' : undefined}>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{rowLabel}</dt>
-      <dd className={`mt-0.5 text-sm text-slate-900 ${mono ? 'font-mono' : ''}`}>{value}</dd>
+      <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">{rowLabel}</dt>
+      <dd className={`mt-0.5 text-sm text-text-strong ${mono ? 'font-mono' : ''}`}>{value}</dd>
     </div>
   );
 }
@@ -141,9 +141,11 @@ export function ProductDetailsModal({
       }
     >
       {isLoading ? (
-        <p className="py-6 text-center text-sm text-slate-500">{t('Loading product…')}</p>
+        <p className="py-6 text-center text-sm text-text-muted">{t('Loading product…')}</p>
       ) : isError || !data ? (
-        <p className="py-6 text-center text-sm text-rose-600">{t('Could not load product.')}</p>
+        <p className="py-6 text-center text-sm text-danger-600 dark:text-status-danger-fg">
+          {t('Could not load product.')}
+        </p>
       ) : (
         <div className="space-y-4">
           <Section title={t('General')}>

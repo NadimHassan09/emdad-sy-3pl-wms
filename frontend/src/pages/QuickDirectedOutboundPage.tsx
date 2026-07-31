@@ -159,8 +159,8 @@ export function QuickDirectedOutboundPage() {
           if (!line?.product) return '—';
           return (
             <div>
-              <div className="font-medium text-slate-900">{line.product.name}</div>
-              <div className="font-mono text-xs text-slate-500">{line.product.sku}</div>
+              <div className="font-medium text-text-strong">{line.product.name}</div>
+              <div className="font-mono text-xs text-text-muted">{line.product.sku}</div>
             </div>
           );
         },
@@ -168,7 +168,7 @@ export function QuickDirectedOutboundPage() {
       {
         header: t(['Qty', 'الكمية']),
         accessor: (order) => (
-          <span className="font-mono text-slate-800">
+          <span className="font-mono text-text-strong">
             {fmtQty(order.lines?.[0]?.requestedQuantity)}
           </span>
         ),
@@ -326,7 +326,7 @@ export function QuickDirectedOutboundPage() {
             {successResult ? (
               <Link
                 to={`/orders/outbound/${successResult.orderId}`}
-                className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="inline-flex h-9 items-center rounded-lg border border-border bg-surface-card px-3 text-sm font-medium text-text-body hover:bg-surface-hover"
                 onClick={() => setSuccessResult(null)}
               >
                 {t(['View order', 'عرض الطلب'])}
@@ -339,14 +339,14 @@ export function QuickDirectedOutboundPage() {
         }
       >
         {successResult ? (
-          <div className="space-y-4 text-sm text-slate-700">
-            <p className="text-base font-medium text-emerald-800">
+          <div className="space-y-4 text-sm text-text-body">
+            <p className="text-base font-medium text-brand-700">
               {isArabic ? successResult.messageAr : successResult.messageEn}
             </p>
-            <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
-              <p className="font-medium text-slate-900">{successResult.product.name}</p>
-              <p className="font-mono text-xs text-slate-500">{successResult.product.sku}</p>
-              <p className="mt-2 text-slate-600">
+            <div className="rounded-lg border border-border-subtle bg-surface-card-muted p-4">
+              <p className="font-medium text-text-strong">{successResult.product.name}</p>
+              <p className="font-mono text-xs text-text-muted">{successResult.product.sku}</p>
+              <p className="mt-2 text-text-body">
                 {t(['Order', 'الطلب'])}:{' '}
                 <span className="font-mono">{successResult.orderNumber}</span>
               </p>
@@ -355,10 +355,10 @@ export function QuickDirectedOutboundPage() {
               {successResult.directedPick.map((slice) => (
                 <li
                   key={`${slice.locationId}-${slice.quantity}`}
-                  className="flex items-start justify-between gap-3 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2"
+                  className="flex items-start justify-between gap-3 rounded-lg border border-border-subtle bg-surface-card-muted px-3 py-2"
                 >
-                  <span className="font-medium text-slate-900">{slice.locationLabel}</span>
-                  <span className="shrink-0 font-mono text-emerald-800">{slice.quantity}</span>
+                  <span className="font-medium text-text-strong">{slice.locationLabel}</span>
+                  <span className="shrink-0 font-mono text-brand-700">{slice.quantity}</span>
                 </li>
               ))}
             </ul>

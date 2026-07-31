@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { Alert, Badge } from '@ds';
 
 import {
   BackupsApi,
@@ -26,12 +27,10 @@ import { useBackupRunningStatusPoll } from '../../hooks/useBackupRunningStatusPo
 import { useFilters } from '../../hooks/useFilters';
 import {
   backupCreatedByLabel,
-  backupStatusBadgeClass,
   formatBackupBytes,
   formatBackupStorage,
   formatBackupTimestamp,
   formatGdriveSyncStatus,
-  gdriveSyncBadgeClass,
   isBackupDownloadable,
   shouldShowBackupProgress,
 } from '../../lib/backup-display';
@@ -45,6 +44,36 @@ import {
   localizedBackupTypeLabel,
 } from '../../lib/ui-labels/settings-backup';
 import { useWmsTranslation } from '../../lib/ui-i18n';
+import type { GdriveSyncStatus } from '../../lib/backup-display';
+import type { Tone } from '@ds';
+
+function backupStatusTone(status: BackupJobStatus): Tone {
+  switch (status) {
+    case 'completed':
+      return 'success';
+    case 'running':
+      return 'info';
+    case 'pending':
+      return 'warning';
+    case 'failed':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
+}
+
+function gdriveSyncTone(status: GdriveSyncStatus): Tone {
+  switch (status) {
+    case 'synced':
+      return 'success';
+    case 'pending':
+      return 'warning';
+    case 'failed':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
+}
 
 type BackupHistoryFilters = {
   search: string;
@@ -206,7 +235,7 @@ export function BackupHistoryPage() {
       {
         header: t(['Created At', 'تاريخ الإنشاء']),
         accessor: (row) => (
-          <span className="whitespace-nowrap text-sm text-slate-800">
+          <span className="whitespace-nowrap text-sm text-text-body">
             {formatBackupTimestamp(row.createdAt)}
           </span>
         ),
@@ -214,20 +243,18 @@ export function BackupHistoryPage() {
       {
         header: t(['Type', 'النوع']),
         accessor: (row) => (
-          <span className="text-sm text-slate-700">{localizedBackupTypeLabel(row.type, t)}</span>
+          <span className="text-sm text-text-body">{localizedBackupTypeLabel(row.type, t)}</span>
         ),
       },
       {
         header: t(['Status', 'الحالة']),
         accessor: (row) => (
           <span className="inline-flex flex-col gap-1">
-            <span
-              className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${backupStatusBadgeClass(row.status)}`}
-            >
+            <Badge tone={backupStatusTone(row.status)} size="xs">
               {localizedBackupStatusLabel(row.status, t)}
-            </span>
+            </Badge>
             {shouldShowBackupProgress(row) ? (
-              <span className="text-xs text-slate-500">{row.progressPercent}%</span>
+              <span className="text-xs text-text-muted">{row.progressPercent}%</span>
             ) : null}
           </span>
         ),
@@ -235,7 +262,7 @@ export function BackupHistoryPage() {
       {
         header: t(['Size', 'الحجم']),
         accessor: (row) => (
-          <span className="text-sm tabular-nums text-slate-700">
+          <span className="text-sm tabular-nums text-text-body">
             {formatBackupBytes(row.bytesWritten)}
           </span>
         ),
@@ -243,13 +270,13 @@ export function BackupHistoryPage() {
       {
         header: t(['Created By', 'أنشأه']),
         accessor: (row) => (
-          <span className="text-sm text-slate-700">{backupCreatedByLabel(row)}</span>
+          <span className="text-sm text-text-body">{backupCreatedByLabel(row)}</span>
         ),
       },
       {
         header: t(['Storage', 'التخزين']),
         accessor: (row) => (
-          <span className="text-sm text-slate-600">
+          <span className="text-sm text-text-muted">
             {row.storagePolicy
               ? localizedBackupStoragePolicyLabel(row.storagePolicy, t)
               : formatBackupStorage(row.manifest)}
@@ -263,14 +290,12 @@ export function BackupHistoryPage() {
               accessor: (row: BackupSummary) => {
                 const label = formatGdriveSyncStatus(row.gdriveSyncStatus, row.storagePolicy);
                 if (label === 'N/A' || label === '—') {
-                  return <span className="text-sm text-slate-400">{label}</span>;
+                  return <span className="text-sm text-text-muted">{label}</span>;
                 }
                 return (
-                  <span
-                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${gdriveSyncBadgeClass(row.gdriveSyncStatus)}`}
-                  >
+                  <Badge tone={gdriveSyncTone(row.gdriveSyncStatus)} size="xs">
                     {label}
-                  </span>
+                  </Badge>
                 );
               },
             } satisfies Column<BackupSummary>,
@@ -359,61 +384,52 @@ export function BackupHistoryPage() {
       </FilterPanel>
 
       {showCreateProgress ? (
-        <div
-          className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900"
+        <Alert
+          variant="info"
           data-testid="create-backup-progress"
-          role="status"
-        >
-          <p className="font-medium">
-            {t(['Creating backup…', 'جارٍ إنشاء النسخة الاحتياطية…'])}{' '}
-            {createStatus.progressPercent}%
-          </p>
-          <p className="mt-1 text-xs text-sky-800">
-            {t(['Job ID:', 'معرّف المهمة:'])}{' '}
-            <code className="rounded bg-white/80 px-1 py-0.5">{activeCreateJobId}</code>
-          </p>
-        </div>
+          title={`${t(['Creating backup…', 'جارٍ إنشاء النسخة الاحتياطية…'])} ${createStatus.progressPercent}%`}
+          description={
+            <>
+              {t(['Job ID:', 'معرّف المهمة:'])}{' '}
+              <code className="rounded bg-surface-card px-1 py-0.5">{activeCreateJobId}</code>
+            </>
+          }
+        />
       ) : null}
 
       {showCreateSuccess ? (
-        <div
-          className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+        <Alert
+          variant="success"
           data-testid="create-backup-success"
-          role="status"
-        >
-          <p className="font-medium">
-            {t(['Backup completed successfully.', 'اكتمل النسخ الاحتياطي بنجاح.'])}
-          </p>
-          <p className="mt-1 text-xs">
-            {t(['History refreshed automatically.', 'تم تحديث السجل تلقائياً.'])}
-          </p>
-        </div>
+          title={t(['Backup completed successfully.', 'اكتمل النسخ الاحتياطي بنجاح.'])}
+          description={t(['History refreshed automatically.', 'تم تحديث السجل تلقائياً.'])}
+        />
       ) : null}
 
       {showCreateFailure ? (
-        <div
-          className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900"
+        <Alert
+          variant="error"
           data-testid="create-backup-failure"
-          role="alert"
-        >
-          <p className="font-medium">{t(['Backup failed.', 'فشل النسخ الاحتياطي.'])}</p>
-          {createStatus?.errorMessage ? (
-            <p className="mt-1 text-xs">{createStatus.errorMessage}</p>
-          ) : null}
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="mt-2"
-            onClick={() => setActiveCreateJobId(null)}
-          >
-            {t(['Dismiss', 'إغلاق'])}
-          </Button>
-        </div>
+          title={t(['Backup failed.', 'فشل النسخ الاحتياطي.'])}
+          description={
+            <>
+              {createStatus?.errorMessage ? <p className="mt-1 text-xs">{createStatus.errorMessage}</p> : null}
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="mt-2"
+                onClick={() => setActiveCreateJobId(null)}
+              >
+                {t(['Dismiss', 'إغلاق'])}
+              </Button>
+            </>
+          }
+        />
       ) : null}
 
       {isPolling ? (
-        <p className="text-xs text-emerald-700">
+        <p className="text-xs text-text-link">
           {t(['Live status polling active for running jobs.', 'تحديث مباشر لحالة المهام الجارية.'])}
         </p>
       ) : null}
@@ -428,6 +444,7 @@ export function BackupHistoryPage() {
           canMutate ? (
             <Button
               type="button"
+              variant="brand"
               onClick={() => setCreateModalOpen(true)}
               disabled={!!activeCreateJobId && showCreateProgress}
               data-testid="create-backup-btn"

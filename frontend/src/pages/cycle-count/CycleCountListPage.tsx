@@ -176,11 +176,11 @@ export function CycleCountListPage() {
       header: t('Discrepancy', 'فرق'),
       accessor: (r) =>
         hasDiscrepancy(r) ? (
-          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+          <span className="rounded bg-status-warning-bg px-1.5 py-0.5 text-[11px] font-semibold text-status-warning-fg">
             {t('Review', 'مراجعة')}
           </span>
         ) : (
-          <span className="text-slate-400">—</span>
+          <span className="text-text-faint">—</span>
         ),
       width: '88px',
     },
@@ -214,8 +214,8 @@ export function CycleCountListPage() {
       header: t('Product', 'المنتج'),
       accessor: (r) => (
         <div>
-          <div className="font-medium text-slate-900">{r.product.name}</div>
-          <div className="font-mono text-[11px] text-slate-500">{r.product.sku}</div>
+          <div className="font-medium text-text-strong">{r.product.name}</div>
+          <div className="font-mono text-[11px] text-text-muted">{r.product.sku}</div>
         </div>
       ),
       width: '200px',
@@ -231,7 +231,7 @@ export function CycleCountListPage() {
         if (!r.nextDueAt) return '—';
         const overdue = isOverdue(r.nextDueAt);
         return (
-          <span className={overdue ? 'font-semibold text-red-700' : ''}>
+          <span className={overdue ? 'font-semibold text-status-error-fg' : ''}>
             {new Date(r.nextDueAt).toLocaleDateString()}
             {overdue ? ` (${t('overdue', 'متأخر')})` : ''}
           </span>

@@ -349,7 +349,7 @@ export function PackExecutionPanel({
 
   if (!lineIds.length) {
     return (
-      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+      <div className="rounded-md border border-status-warning-border bg-status-warning-bg px-3 py-2 text-sm text-status-warning-fg">
         {t(['No outbound lines on this pack task.', 'لا أسطر صادرة على مهمة التغليف هذه.'])}
       </div>
     );
@@ -360,7 +360,7 @@ export function PackExecutionPanel({
       {packDetailsCard}
       {packagesPanel}
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface-card/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
         <div className="mx-auto flex max-w-4xl flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button
             type="button"
@@ -476,13 +476,13 @@ function PackagesPanel({
   const columns: Column<PackPackageDraft>[] = [
     {
       header: t(['Label', 'الملصق']),
-      accessor: (pkg) => <span className="font-mono text-xs font-semibold text-slate-900">{pkg.label}</span>,
+      accessor: (pkg) => <span className="font-mono text-xs font-semibold text-text-strong">{pkg.label}</span>,
       width: '120px',
     },
     {
       header: t(['Type', 'النوع']),
       accessor: (pkg) => (
-        <span className="text-slate-700">
+        <span className="text-text-body">
           {packageTypeOptions.find((opt) => opt.value === pkg.packageType)?.label ?? pkg.packageType}
         </span>
       ),
@@ -497,7 +497,7 @@ function PackagesPanel({
     {
       header: t(['Weight (kg)', 'الوزن (كغ)']),
       accessor: (pkg) => (
-        <span className="font-mono text-xs text-slate-600">{pkg.weightKg.trim() || '—'}</span>
+        <span className="font-mono text-xs text-text-body">{pkg.weightKg.trim() || '—'}</span>
       ),
       width: '100px',
       className: 'text-right',
@@ -508,8 +508,8 @@ function PackagesPanel({
         <span
           className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold capitalize ${
             pkg.status === 'finalized'
-              ? 'bg-slate-200 text-slate-700'
-              : 'bg-emerald-100 text-emerald-800'
+              ? 'bg-surface-card-muted text-text-body'
+              : 'bg-status-success-bg text-brand-700'
           }`}
         >
           {pkg.status === 'finalized'
@@ -529,7 +529,7 @@ function PackagesPanel({
             trigger={
               <button
                 type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-hover"
                 data-pack-action-trigger="true"
                 onClick={() => setOpenActionId((cur) => (cur === pkg.id ? null : pkg.id))}
                 aria-label={t(['Package actions', 'إجراءات الطرد'])}
@@ -544,7 +544,7 @@ function PackagesPanel({
           >
             <button
               type="button"
-              className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+              className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-hover"
               data-pack-action-menu-button="true"
               onClick={() => {
                 setOpenActionId(null);
@@ -556,7 +556,7 @@ function PackagesPanel({
             {onDeletePackage ? (
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
+                className="block w-full px-3 py-2 text-left text-sm text-status-danger-fg transition hover:bg-status-danger-bg"
                 data-pack-action-menu-button="true"
                 onClick={() => {
                   setOpenActionId(null);
@@ -588,7 +588,7 @@ function PackagesPanel({
         rowKey={(pkg) => pkg.id}
         empty={t(['No packages yet.', 'لا طرود بعد.'])}
         onRowClick={openPackage}
-        getRowClassName={() => 'cursor-pointer hover:bg-emerald-50/50'}
+        getRowClassName={() => 'cursor-pointer hover:bg-surface-hover'}
         actions={
           onAddPackage ? (
             <Button type="button" size="sm" variant="secondary" onClick={onAddPackage}>

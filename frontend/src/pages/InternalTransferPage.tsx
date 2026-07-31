@@ -118,21 +118,21 @@ export function InternalTransferPage() {
         header: 'Product',
         accessor: (r) => (
           <div>
-            <div className="font-medium text-slate-900">{r.product.name}</div>
-            <div className="font-mono text-xs text-slate-500">{r.product.sku}</div>
+            <div className="font-medium text-text-strong">{r.product.name}</div>
+            <div className="font-mono text-xs text-text-muted">{r.product.sku}</div>
           </div>
         ),
       },
       {
         header: 'Lot',
         accessor: (r) => (
-          <span className="font-mono text-xs text-slate-600">{r.lot?.lotNumber ?? '—'}</span>
+          <span className="font-mono text-xs text-text-body">{r.lot?.lotNumber ?? '—'}</span>
         ),
         width: '120px',
       },
       {
         header: 'Qty',
-        accessor: (r) => <span className="font-mono text-slate-700">{fmtLedgerQty(r.quantity)}</span>,
+        accessor: (r) => <span className="font-mono text-text-body">{fmtLedgerQty(r.quantity)}</span>,
         width: '100px',
         className: 'text-right',
       },
@@ -144,12 +144,12 @@ export function InternalTransferPage() {
           const fromLabel = formatTransferLocationLabel(fromLoc, r.fromLocationId);
           const toLabel = formatTransferLocationLabel(toLoc, r.toLocationId);
           return (
-            <div className="text-xs text-slate-700">
-              <div className="font-medium text-slate-800" title={fromLoc?.fullPath ?? r.fromLocationId ?? undefined}>
+            <div className="text-xs text-text-body">
+              <div className="font-medium text-text-strong" title={fromLoc?.fullPath ?? r.fromLocationId ?? undefined}>
                 {fromLabel}
               </div>
-              <div className="mt-0.5 text-slate-400">→</div>
-              <div className="font-medium text-slate-800" title={toLoc?.fullPath ?? r.toLocationId ?? undefined}>
+              <div className="mt-0.5 text-text-muted">→</div>
+              <div className="font-medium text-text-strong" title={toLoc?.fullPath ?? r.toLocationId ?? undefined}>
                 {toLabel}
               </div>
             </div>
@@ -160,7 +160,7 @@ export function InternalTransferPage() {
       {
         header: 'Ref',
         accessor: (r) => (
-          <Link to={`/inventory/ledger/transfer/${r.referenceId}`} className="text-primary-700 underline">
+          <Link to={`/inventory/ledger/transfer/${r.referenceId}`} className="text-brand-700 underline">
             {r.referenceId.slice(0, 8)}...
           </Link>
         ),
@@ -173,7 +173,7 @@ export function InternalTransferPage() {
   return (
     <div className="space-y-4">
       {!warehouseId ? (
-        <p className="text-sm text-slate-600">{t('Resolve warehouse configuration first.', 'قم بحل إعدادات المستودع أولاً.')}</p>
+        <p className="text-sm text-text-body">{t('Resolve warehouse configuration first.', 'قم بحل إعدادات المستودع أولاً.')}</p>
       ) : (
         <DataTable
           title={t('Internal transfer', 'نقل داخلي')}
@@ -552,8 +552,8 @@ function CreateInternalTransferModal({
             clearable
           />
 
-          <div className="space-y-2 border-t border-slate-100 pt-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="space-y-2 border-t border-border-subtle pt-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">
               Find product
             </div>
             <div className="grid w-full grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(8.75rem,11rem)_auto]">
@@ -715,14 +715,14 @@ function CreateInternalTransferModal({
           </div>
 
           {fromLocationId && productId && (!lotTracked || !!lotId) ? (
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-              <span className="font-medium text-slate-600">Available at source:</span>{' '}
+            <div className="rounded-md border border-border bg-surface-card-muted px-3 py-2 text-xs text-text-body">
+              <span className="font-medium text-text-body">Available at source:</span>{' '}
               {stockByProduct.isPending ? (
-                <span className="text-slate-400">...</span>
+                <span className="text-text-muted">...</span>
               ) : availableQty != null ? (
                 <span className="font-mono font-semibold">{availableQty.toLocaleString()}</span>
               ) : (
-                <span className="text-slate-500">-</span>
+                <span className="text-text-muted">-</span>
               )}
             </div>
           ) : null}

@@ -97,10 +97,10 @@ export function EditDocumentSlotModal({ open, row, onClose, onSaved }: Props) {
       }
     >
       {slotQuery.isLoading ? (
-        <p className="text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+        <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
       ) : (
         <form id="edit-document-slot-form" onSubmit={handleSubmit} className="space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-text-body">
             {t([
               'Changes apply to the next PDF generation. Re-create PDFs to refresh existing files.',
               'تُطبَّق التغييرات عند إنشاء PDF التالي. أعد إنشاء PDF لتحديث الملفات الحالية.',

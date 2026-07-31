@@ -108,16 +108,16 @@ export function WorkerProfilePanel({ user, t, compact = false }: Props) {
 
   return (
     <section
-      className={`overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm ${
+      className={`overflow-hidden rounded-2xl border border-border-subtle bg-surface-card shadow-sm ${
         compact ? 'p-4' : 'p-6'
       }`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-slate-800">
+          <h3 className="text-sm font-semibold text-text-strong">
             {t('Worker profile', 'ملف العامل')}
           </h3>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-text-muted">
             {t(
               'Required for task assignment and blind cycle count execution.',
               'مطلوب لتكليف المهام وتنفيذ الجرد الأعمى.',
@@ -127,10 +127,10 @@ export function WorkerProfilePanel({ user, t, compact = false }: Props) {
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${
             statusText === t('Linked', 'مرتبط')
-              ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
+              ? 'bg-status-success-bg text-status-success-fg ring-status-success-border'
               : statusText === t('Not linked', 'غير مرتبط')
-                ? 'bg-amber-50 text-amber-900 ring-amber-200'
-                : 'bg-slate-100 text-slate-600 ring-slate-200'
+                ? 'bg-status-warning-bg text-status-warning-fg ring-status-warning-border'
+                : 'bg-surface-card-muted text-text-body ring-border'
           }`}
         >
           {statusText}
@@ -140,24 +140,24 @@ export function WorkerProfilePanel({ user, t, compact = false }: Props) {
       {profile ? (
         <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-xs text-slate-500">{t('Profile ID', 'معرف الملف')}</dt>
-            <dd className="font-mono text-xs text-slate-800">{profile.id}</dd>
+            <dt className="text-xs text-text-muted">{t('Profile ID', 'معرف الملف')}</dt>
+            <dd className="font-mono text-xs text-text-strong">{profile.id}</dd>
           </div>
           <div>
-            <dt className="text-xs text-slate-500">{t('Warehouse', 'المستودع')}</dt>
-            <dd className="text-slate-800">
+            <dt className="text-xs text-text-muted">{t('Warehouse', 'المستودع')}</dt>
+            <dd className="text-text-strong">
               {profile.warehouseCode
                 ? `${profile.warehouseCode} — ${profile.warehouseName ?? ''}`
                 : t('Tenant-wide', 'على مستوى العميل')}
             </dd>
           </div>
           <div className="sm:col-span-2">
-            <dt className="text-xs text-slate-500">{t('Roles', 'الأدوار')}</dt>
-            <dd className="text-slate-800">{profile.roles.join(', ') || '—'}</dd>
+            <dt className="text-xs text-text-muted">{t('Roles', 'الأدوار')}</dt>
+            <dd className="text-text-strong">{profile.roles.join(', ') || '—'}</dd>
           </div>
         </dl>
       ) : (
-        <p className="mt-3 text-sm text-amber-900">
+        <p className="mt-3 text-sm text-status-warning-fg">
           {t(
             'No worker profile is linked yet. Provision one below so this operator can execute counts and receive tasks.',
             'لا يوجد ملف عامل مرتبط بعد. أنشئ ملفاً أدناه ليتمكن هذا المشغل من تنفيذ الجرد واستلام المهام.',
@@ -165,7 +165,7 @@ export function WorkerProfilePanel({ user, t, compact = false }: Props) {
         </p>
       )}
 
-      <form onSubmit={onSubmit} className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+      <form onSubmit={onSubmit} className="mt-4 space-y-3 border-t border-border-subtle pt-4">
         {!profile ? (
           <SelectField
             label={t('Setup mode', 'وضع الإعداد')}
@@ -209,7 +209,7 @@ export function WorkerProfilePanel({ user, t, compact = false }: Props) {
         />
 
         <fieldset>
-          <legend className="mb-2 text-xs font-medium text-slate-600">
+          <legend className="mb-2 text-xs font-medium text-text-body">
             {t('Operational roles', 'الأدوار التشغيلية')}
           </legend>
           <div className="flex flex-wrap gap-2">
@@ -220,8 +220,8 @@ export function WorkerProfilePanel({ user, t, compact = false }: Props) {
                   key={opt.value}
                   className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
                     checked
-                      ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-                      : 'border-slate-200 bg-white text-slate-600'
+                      ? 'border-status-success-border bg-status-success-bg text-status-success-fg'
+                      : 'border-border bg-white text-text-body'
                   }`}
                 >
                   <input

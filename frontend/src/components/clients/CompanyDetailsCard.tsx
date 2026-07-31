@@ -26,11 +26,11 @@ function CompanyDetailField({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-        <i className={`${iconClass} text-[11px] text-emerald-600/90`} aria-hidden="true" />
+      <div className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
+        <i className={`${iconClass} text-[11px] text-status-success-fg/90`} aria-hidden="true" />
         <span>{label}</span>
       </div>
-      <div className="mt-1.5 text-sm font-semibold text-slate-900">{value}</div>
+      <div className="mt-1.5 text-sm font-semibold text-text-strong">{value}</div>
     </div>
   );
 }
@@ -39,17 +39,17 @@ export function CompanyDetailsCard({ company }: { company: CompanyListRow }) {
   const summaryText = company.notes?.trim() ?? '';
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-card p-6 shadow-sm">
       <div className="flex items-start gap-4">
         <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-50 to-slate-50 ring-4 ring-slate-50"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-50 to-surface-sunken ring-4 ring-surface-sunken dark:from-white/10"
           aria-hidden="true"
         >
-          <i className="fa-solid fa-building text-xl text-emerald-600/80" />
+          <i className="fa-solid fa-building text-xl text-status-success-fg/80" />
         </div>
         <div className="min-w-0 flex-1 pt-0.5">
-          <h2 className="text-lg font-semibold leading-tight text-slate-900">{company.name}</h2>
-          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-slate-500">
+          <h2 className="text-lg font-semibold leading-tight text-text-strong">{company.name}</h2>
+          <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-text-muted">
             {company.tradeName ? <span>{company.tradeName}</span> : null}
             {company.tradeName ? <span aria-hidden="true">·</span> : null}
             <span className="inline-flex">
@@ -59,7 +59,7 @@ export function CompanyDetailsCard({ company }: { company: CompanyListRow }) {
         </div>
       </div>
 
-      <h3 className="mt-6 text-sm font-semibold text-slate-800">Company information</h3>
+      <h3 className="mt-6 text-sm font-semibold text-text-strong">Company information</h3>
       <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <CompanyDetailField iconClass="fa-solid fa-envelope" label="Contact email" value={company.contactEmail} />
         <CompanyDetailField iconClass="fa-solid fa-phone" label="Phone" value={display(company.contactPhone)} />
@@ -74,14 +74,14 @@ export function CompanyDetailsCard({ company }: { company: CompanyListRow }) {
       </div>
 
       <div className="mt-6 flex items-center gap-2">
-        <i className="fa-regular fa-file-lines text-sm text-emerald-600/90" aria-hidden="true" />
-        <h3 className="text-sm font-semibold text-slate-800">Summary</h3>
+        <i className="fa-regular fa-file-lines text-sm text-status-success-fg/90" aria-hidden="true" />
+        <h3 className="text-sm font-semibold text-text-strong">Summary</h3>
       </div>
-      <div className="mt-3 rounded-xl bg-slate-50 px-4 py-3.5 text-sm leading-relaxed text-slate-700">
-        {summaryText || <span className="text-slate-400">No notes for this company.</span>}
+      <div className="mt-3 rounded-xl bg-surface-sunken px-4 py-3.5 text-sm leading-relaxed text-text-body">
+        {summaryText || <span className="text-text-faint">No notes for this company.</span>}
       </div>
 
-      <p className="mt-4 text-xs text-slate-500">
+      <p className="mt-4 text-xs text-text-muted">
         Created {prettyDate(company.createdAt)} · Updated {prettyDate(company.updatedAt)}
       </p>
     </section>

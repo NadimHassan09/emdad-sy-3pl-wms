@@ -4,9 +4,9 @@ export {
   CHUNK_SIZE_STANDARD,
   CHUNK_SIZE_TASKS,
   UI_PAGE_SIZE,
-} from '../../../shared/design-system/hooks/useChunkedServerPagination';
+} from '../../../shared/design-system-next/hooks/useChunkedServerPagination';
 export type {
   ChunkedFetchFn,
   UseChunkedServerPaginationOptions,
   PageResult,
-} from '../../../shared/design-system/hooks/useChunkedServerPagination';
+} from '../../../shared/design-system-next/hooks/useChunkedServerPagination';

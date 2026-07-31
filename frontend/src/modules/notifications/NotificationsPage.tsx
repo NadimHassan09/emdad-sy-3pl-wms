@@ -100,9 +100,9 @@ export function NotificationsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 sm:text-xl">{t('Notifications')}</h1>
+          <h1 className="text-lg font-semibold text-text-strong sm:text-xl">{t('Notifications')}</h1>
           {unreadCount > 0 ? (
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-text-muted">
               {unreadCount} {t('Unread').toLowerCase()}
             </p>
           ) : null}
@@ -126,8 +126,8 @@ export function NotificationsPage() {
             type="button"
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
               filter === mode
-                ? 'bg-emerald-600 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'bg-brand-600 text-text-on-brand'
+                : 'bg-surface-card-muted text-text-body hover:bg-surface-hover'
             }`}
             onClick={() => onFilterChange(mode)}
           >
@@ -137,7 +137,7 @@ export function NotificationsPage() {
       </div>
 
       {listQuery.isError ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <div className="rounded-lg border border-status-danger-border bg-status-danger-bg px-4 py-3 text-sm text-status-danger-fg">
           <p className="font-medium">{t('Could not load notifications')}</p>
           <Button variant="secondary" size="sm" className="mt-2" onClick={() => listQuery.refetch()}>
             {t('Retry')}
@@ -150,36 +150,36 @@ export function NotificationsPage() {
           <p className="muted">{t('Loading notifications…')}</p>
         ) : items.length === 0 ? (
           <div className="py-8 text-center">
-            <i className="fa-regular fa-bell mb-3 text-3xl text-slate-300" aria-hidden="true" />
-            <p className="font-medium text-slate-800">{t('No notifications yet')}</p>
-            <p className="mt-1 text-sm text-slate-500">
+            <i className="fa-regular fa-bell mb-3 text-3xl text-text-faint" aria-hidden="true" />
+            <p className="font-medium text-text-body">{t('No notifications yet')}</p>
+            <p className="mt-1 text-sm text-text-muted">
               {t('Alerts from orders, billing, and warehouse workflows appear here.')}
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-border-subtle">
             {items.map((item) => (
               <li key={item.id}>
                 <button
                   type="button"
-                  className={`flex w-full flex-col gap-1 px-1 py-4 text-start transition hover:bg-slate-50 ${
-                    !item.isRead ? 'bg-emerald-50/40' : ''
+                  className={`flex w-full flex-col gap-1 px-1 py-4 text-start transition hover:bg-surface-hover ${
+                    !item.isRead ? 'bg-status-success-bg/40' : ''
                   }`}
                   onClick={() => void onItemClick(item)}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <span
                       className={`text-sm leading-snug ${
-                        item.isRead ? 'font-medium text-slate-800' : 'font-semibold text-slate-900'
+                        item.isRead ? 'font-medium text-text-body' : 'font-semibold text-text-strong'
                       }`}
                     >
                       {item.title}
                     </span>
-                    <span className="shrink-0 text-[10px] text-slate-400 tabular-nums">
+                    <span className="shrink-0 text-[10px] text-text-faint tabular-nums">
                       {formatAdminNotificationTime(item.createdAt, isArabic)}
                     </span>
                   </div>
-                  <p className="text-xs leading-relaxed text-slate-600">{item.body}</p>
+                  <p className="text-xs leading-relaxed text-text-body">{item.body}</p>
                 </button>
               </li>
             ))}
@@ -187,8 +187,8 @@ export function NotificationsPage() {
         )}
 
         {total > PAGE_SIZE ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
-            <p className="text-xs text-slate-500">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border-subtle pt-4">
+            <p className="text-xs text-text-muted">
               {t('Page')} {page + 1} {t('of')} {totalPages}
             </p>
             <div className="flex gap-2">

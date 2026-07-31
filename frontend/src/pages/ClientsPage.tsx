@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Alert } from '@ds';
+
 import {
   CompaniesApi,
   type CompanyListRow,
@@ -39,9 +41,9 @@ type ClientListFilters = {
 };
 
 const TEXTAREA_CLASS =
-  'mt-1 block w-full min-h-[72px] rounded-md border border-slate-300 px-3 py-1.5 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200';
+  'mt-1 block w-full min-h-[72px] rounded-md border border-border-strong px-3 py-1.5 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200';
 const TEXTAREA_ERROR_CLASS =
-  'mt-1 block w-full min-h-[72px] rounded-md border border-rose-400 px-3 py-1.5 text-sm shadow-sm focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-200';
+  'mt-1 block w-full min-h-[72px] rounded-md border border-status-danger-border px-3 py-1.5 text-sm shadow-sm focus:border-status-danger-border focus:outline-none focus:ring-2 focus:ring-status-danger-border/40';
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
@@ -78,9 +80,9 @@ function FieldTextarea({
 }) {
   return (
     <label htmlFor={id} className="block">
-      <span className="text-sm font-medium text-slate-700">
+      <span className="text-sm font-medium text-text-body">
         {label}
-        {required ? <span className="text-rose-600"> *</span> : null}
+        {required ? <span className="text-status-error-fg"> *</span> : null}
       </span>
       <textarea
         id={id}
@@ -90,7 +92,7 @@ function FieldTextarea({
         aria-invalid={error ? true : undefined}
         onChange={(e) => onChange(e.target.value)}
       />
-      {error ? <span className="mt-1 block text-xs text-rose-600">{error}</span> : null}
+      {error ? <span className="mt-1 block text-xs text-status-error-fg">{error}</span> : null}
     </label>
   );
 }
@@ -274,16 +276,16 @@ export function ClientsPage() {
 
   const columns: Column<CompanyListRow>[] = useMemo(
     () => [
-      { header: t('Name', 'الاسم'), accessor: (r) => <span className="text-slate-800">{r.name}</span> },
-      { header: t('Trade name', 'الاسم التجاري'), accessor: (r) => <span className="text-slate-600">{r.tradeName ?? '—'}</span> },
-      { header: t('Email', 'البريد الإلكتروني'), accessor: (r) => <span className="text-slate-700">{r.contactEmail}</span> },
-      { header: t('Phone', 'الهاتف'), accessor: (r) => <span className="text-slate-600">{r.contactPhone ?? '—'}</span> },
-      { header: t('City', 'المدينة'), accessor: (r) => <span className="text-slate-600">{r.city ?? '—'}</span> },
-      { header: t('Country', 'الدولة'), accessor: (r) => <span className="text-slate-600">{r.country ?? '—'}</span> },
+      { header: t('Name', 'الاسم'), accessor: (r) => <span className="text-text-strong">{r.name}</span> },
+      { header: t('Trade name', 'الاسم التجاري'), accessor: (r) => <span className="text-text-body">{r.tradeName ?? '—'}</span> },
+      { header: t('Email', 'البريد الإلكتروني'), accessor: (r) => <span className="text-text-body">{r.contactEmail}</span> },
+      { header: t('Phone', 'الهاتف'), accessor: (r) => <span className="text-text-body">{r.contactPhone ?? '—'}</span> },
+      { header: t('City', 'المدينة'), accessor: (r) => <span className="text-text-body">{r.city ?? '—'}</span> },
+      { header: t('Country', 'الدولة'), accessor: (r) => <span className="text-text-body">{r.country ?? '—'}</span> },
       {
         header: t('Billing', 'الفوترة'),
         accessor: (r) => (
-          <span className="text-slate-600">
+          <span className="text-text-body">
             {r.billingCycle} · {r.paymentTermsDays}d
           </span>
         ),
@@ -306,7 +308,7 @@ export function ClientsPage() {
                 trigger={
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-card-muted"
                     disabled={busy}
                     data-client-action-trigger="true"
                     onClick={() => setOpenActionId((cur) => (cur === r.id ? null : r.id))}
@@ -322,7 +324,7 @@ export function ClientsPage() {
               >
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                  className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-card-muted"
                   data-client-action-menu-button="true"
                   onClick={() => {
                     setOpenActionId(null);
@@ -334,7 +336,7 @@ export function ClientsPage() {
                 {r.status !== 'purged' ? (
                   <button
                     type="button"
-                    className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                    className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-card-muted"
                     data-client-action-menu-button="true"
                     onClick={() => {
                       setOpenActionId(null);
@@ -383,7 +385,7 @@ export function ClientsPage() {
 
   return (
     <>
-      {errMsg ? <p className="mb-4 text-sm text-rose-600">{errMsg}</p> : null}
+      {errMsg ? <Alert variant="error" title={errMsg} className="mb-4" /> : null}
 
       <FilterPanel
         title={t('Client filters', 'فلاتر العملاء')}

@@ -8,7 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@ds': fileURLToPath(
-        new NodeURL('../shared/design-system/ui/index.ts', import.meta.url),
+        new NodeURL('../shared/design-system-next/ui/index.ts', import.meta.url),
       ),
       'react': pathResolve('./node_modules/react'),
       'react-dom': pathResolve('./node_modules/react-dom'),

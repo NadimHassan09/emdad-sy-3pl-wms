@@ -254,7 +254,7 @@ export function CreateClientOmsOrderModal({
 
         {error || submitError ? (
           <p
-            className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
+            className="rounded-lg border border-status-danger-border bg-status-danger-bg px-3 py-2 text-sm text-status-danger-fg"
             role="alert"
           >
             {error ?? submitError}
@@ -382,7 +382,13 @@ export function CreateClientOmsOrderModal({
                     </div>
                   </div>
                   {line.productId && avail !== undefined ? (
-                    <div className={`text-xs ${isShort ? 'text-rose-600' : 'text-emerald-700'}`}>
+                    <div
+                      className={`text-xs ${
+                        isShort
+                          ? 'text-danger-600 dark:text-status-danger-fg'
+                          : 'text-brand-700 dark:text-brand-400'
+                      }`}
+                    >
                       {t('Available')}: {avail.toLocaleString(undefined, { maximumFractionDigits: 4 })}
                       {summed > 0 ? (
                         <>
@@ -410,7 +416,7 @@ export function CreateClientOmsOrderModal({
         </ClientFormSection>
 
         {shortages.length > 0 ? (
-          <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+          <div className="rounded-md border border-status-danger-border bg-status-danger-bg p-3 text-xs text-status-danger-fg">
             <strong className="block">{t('Order cannot be created — insufficient stock:')}</strong>
             <ul className="mt-1 list-disc pl-4">
               {shortages.map((s) => {

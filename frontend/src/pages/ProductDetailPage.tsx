@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 
+import { Alert, Card, ListPageHeader, Skeleton } from '@ds';
+
 import { ProductsApi } from '../api/products';
-import { PageHeader } from '../components/PageHeader';
 import { ProductDetailsCard } from '../components/products/ProductDetailsCard';
 import { QK } from '../constants/query-keys';
 import { useWmsTranslation } from '../lib/ui-i18n';
@@ -38,29 +39,51 @@ export function ProductDetailPage() {
   const product = productQuery.data;
 
   return (
-    <div className="space-y-4">
-      <div className="text-sm text-slate-500">
-        <Link to="/products" className="hover:underline">
-          {t(['← Back to products', '← العودة إلى المنتجات'])}
-        </Link>
-      </div>
+    <div className="space-y-5 animate-enter">
+      <Link
+        to="/products"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+      >
+        <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+        {t(['Back to products', 'العودة إلى المنتجات'])}
+      </Link>
 
-      <PageHeader title={t(['Product details', 'تفاصيل المنتج'])} />
+      <ListPageHeader
+        icon="fa-box"
+        title={product?.name ?? t(['Product details', 'تفاصيل المنتج'])}
+        subtitle={
+          product?.sku
+            ? `${product.sku}${product.company?.name ? ` · ${product.company.name}` : ''}`
+            : t(['Warehouse product catalog', 'كتالوج منتجات المستودع'])
+        }
+      />
+
+      {productQuery.isError ? (
+        <Alert
+          variant="error"
+          title={t(['Could not load product details.', 'تعذّر تحميل تفاصيل المنتج.'])}
+        />
+      ) : null}
 
       {productQuery.isPending ? (
-        <p className="text-sm text-slate-500">
-          {t(['Loading product details...', 'جاري تحميل تفاصيل المنتج...'])}
-        </p>
+        <Card className="p-5 sm:p-6">
+          <div className="space-y-4" aria-busy="true">
+            <Skeleton height={28} width="40%" />
+            <div className="grid gap-3 pt-2 sm:grid-cols-3">
+              <Skeleton height={64} />
+              <Skeleton height={64} />
+              <Skeleton height={64} />
+            </div>
+            <Skeleton height={140} />
+          </div>
+        </Card>
       ) : null}
-      {productQuery.isError ? (
-        <p className="text-sm text-rose-600">
-          {t(['Could not load product details.', 'تعذّر تحميل تفاصيل المنتج.'])}
-        </p>
-      ) : null}
+
       {!productQuery.isPending && !productQuery.isError && !product ? (
-        <p className="text-sm text-rose-600">
-          {t(['Product not found for this SKU.', 'لم يُعثر على منتج بهذا SKU.'])}
-        </p>
+        <Alert
+          variant="error"
+          title={t(['Product not found for this SKU.', 'لم يُعثر على منتج بهذا SKU.'])}
+        />
       ) : null}
 
       {product ? <ProductDetailsCard product={product} /> : null}

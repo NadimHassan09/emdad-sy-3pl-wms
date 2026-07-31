@@ -45,7 +45,7 @@ export function ClientDetailShell({
           to={backTo}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 no-underline hover:text-brand-800 hover:underline"
         >
-          <i className="fa-solid fa-arrow-left text-xs" aria-hidden="true" />
+          <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
           {backLabel}
         </Link>
       </nav>
@@ -67,18 +67,18 @@ export function ClientDetailShell({
         ) : errorTitle ? (
           <div className="p-4 sm:p-5">
             <div
-              className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-900"
+              className="rounded-xl border border-status-danger-border bg-status-danger-bg px-4 py-3 text-sm text-status-danger-fg"
               role="alert"
             >
               <p className="font-semibold">{errorTitle}</p>
-              {errorDescription ? <p className="mt-1 text-danger-800">{errorDescription}</p> : null}
+              {errorDescription ? <p className="mt-1">{errorDescription}</p> : null}
             </div>
           </div>
         ) : loading ? (
           <div className="space-y-3 p-4 sm:p-5" aria-busy="true" aria-live="polite">
-            <div className="h-7 w-56 animate-pulse rounded-lg bg-neutral-100" />
-            <div className="h-20 animate-pulse rounded-xl bg-neutral-50" />
-            <div className="h-36 animate-pulse rounded-xl bg-neutral-50" />
+            <div className="h-7 w-56 animate-pulse rounded-lg bg-skeleton-base" />
+            <div className="h-20 animate-pulse rounded-xl bg-skeleton-base" />
+            <div className="h-36 animate-pulse rounded-xl bg-skeleton-base" />
             <span className="sr-only">{loadingLabel}</span>
           </div>
         ) : (
@@ -128,7 +128,7 @@ export function DetailField({
     <div
       className={`rounded-lg border px-3 py-2.5 ${
         emphasize
-          ? 'border-brand-200 bg-brand-50/40'
+          ? 'border-brand-200 bg-brand-50/40 dark:border-white/10 dark:bg-white/[0.04]'
           : 'border-[var(--border-subtle)] bg-[var(--surface-raised)]'
       } ${className}`}
     >

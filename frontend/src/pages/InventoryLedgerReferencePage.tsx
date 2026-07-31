@@ -73,8 +73,8 @@ export function InventoryLedgerReferencePage() {
         header: 'Product',
         accessor: (r) => (
           <div>
-            <div className="font-medium text-slate-900">{r.product.name}</div>
-            <div className="font-mono text-xs text-slate-500">{r.product.sku}</div>
+            <div className="font-medium text-text-strong">{r.product.name}</div>
+            <div className="font-mono text-xs text-text-muted">{r.product.sku}</div>
           </div>
         ),
       },
@@ -89,10 +89,10 @@ export function InventoryLedgerReferencePage() {
           const cat = ledgerMovementCategory(r.movementType);
           const tone =
             cat === 'inbound'
-              ? 'bg-emerald-50 text-emerald-900 ring-emerald-200'
+              ? 'bg-surface-card-muted text-text-strong ring-status-success-border'
               : cat === 'outbound'
-                ? 'bg-rose-50 text-rose-900 ring-rose-200'
-                : 'bg-slate-100 text-slate-800 ring-slate-200';
+                ? 'bg-status-danger-bg text-status-danger-fg ring-status-danger-border'
+                : 'bg-surface-card-muted text-text-strong ring-border';
           return (
             <span
               className={`inline-block rounded px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tone}`}
@@ -105,13 +105,13 @@ export function InventoryLedgerReferencePage() {
       },
       {
         header: 'Location',
-        accessor: (r) => <span className="text-xs text-slate-800">{locationCell(r)}</span>,
+        accessor: (r) => <span className="text-xs text-text-strong">{locationCell(r)}</span>,
         width: '220px',
       },
       {
         header: 'Lot',
         accessor: (r) => (
-          <span className="font-mono text-xs text-slate-700">{r.lot?.lotNumber ?? '—'}</span>
+          <span className="font-mono text-xs text-text-body">{r.lot?.lotNumber ?? '—'}</span>
         ),
         width: '120px',
       },
@@ -123,7 +123,7 @@ export function InventoryLedgerReferencePage() {
           const neg = delta < 0;
           return (
             <span
-              className={`font-mono font-semibold ${pos ? 'text-emerald-600' : neg ? 'text-rose-600' : 'text-slate-600'}`}
+              className={`font-mono font-semibold ${pos ? 'text-status-success-fg' : neg ? 'text-status-danger-fg' : 'text-text-body'}`}
             >
               {fmtSignedDelta(delta)}
             </span>
@@ -136,7 +136,7 @@ export function InventoryLedgerReferencePage() {
         header: 'Before',
         accessor: (r) => {
           const { before } = ledgerQuantityDisplay(r);
-          return <span className="font-mono text-slate-700">{fmtLedgerQty(before)}</span>;
+          return <span className="font-mono text-text-body">{fmtLedgerQty(before)}</span>;
         },
         width: '90px',
         className: 'text-right',
@@ -145,7 +145,7 @@ export function InventoryLedgerReferencePage() {
         header: 'After',
         accessor: (r) => {
           const { after } = ledgerQuantityDisplay(r);
-          return <span className="font-mono text-slate-700">{fmtLedgerQty(after)}</span>;
+          return <span className="font-mono text-text-body">{fmtLedgerQty(after)}</span>;
         },
         width: '90px',
         className: 'text-right',
@@ -168,17 +168,17 @@ export function InventoryLedgerReferencePage() {
 
   return (
     <>
-      <div className="mb-2 text-sm text-slate-500">
+      <div className="mb-2 text-sm text-text-muted">
         <Link to="/inventory/ledger" className="hover:underline">
           ← Back to ledger
         </Link>
       </div>
       {!wid ? (
-        <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>
+        <p className="text-sm text-text-body">Resolve warehouse configuration…</p>
       ) : null}
 
       {ledger.isError ? (
-        <p className="text-sm text-rose-600">Could not load ledger lines for this reference.</p>
+        <p className="text-sm text-status-danger-fg">Could not load ledger lines for this reference.</p>
       ) : null}
 
       <DataTable
@@ -192,7 +192,7 @@ export function InventoryLedgerReferencePage() {
       />
 
       {rows.length > 0 && ledger.data && rows.length < ledger.data.total ? (
-        <p className="mt-2 text-xs text-amber-700">
+        <p className="mt-2 text-xs text-status-warning-fg">
           Showing first {rows.length} of {ledger.data.total} line(s). Increase limit if the API allows.
         </p>
       ) : null}

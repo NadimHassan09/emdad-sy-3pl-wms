@@ -452,7 +452,7 @@ export function PickExecutionPanel({
       return (
         <div className="space-y-4">
           {pickDetailsCard}
-          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          <div className="rounded-md border border-border bg-surface-card-muted px-3 py-2 text-sm text-text-body">
             {t([
               'Per-bin pick reservation details are not retained for this completed task. Showing the order line summary instead.',
               'لم يتم الاحتفاظ بتفاصيل حجز الالتقاط لكل موقع لهذه المهمة المكتملة. يتم عرض ملخص أسطر الطلب بدلاً من ذلك.',
@@ -471,7 +471,7 @@ export function PickExecutionPanel({
                   {
                     header: t(['Product', 'المنتج']),
                     accessor: (l) => (
-                      <span className="font-medium text-slate-800">{l.product?.name ?? '—'}</span>
+                      <span className="font-medium text-text-strong">{l.product?.name ?? '—'}</span>
                     ),
                   },
                   {
@@ -531,7 +531,7 @@ export function PickExecutionPanel({
 
   if (!reservations.length) {
     return (
-      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+      <div className="rounded-md border border-status-warning-border bg-status-warning-bg px-3 py-2 text-sm text-status-warning-fg">
         {t([
           'No pick reservations yet. Start the task to allocate inventory (FEFO/FIFO).',
           'لا توجد حجوزات تقاط بعد. ابدأ المهمة لتخصيص المخزون (FEFO/FIFO).',
@@ -545,13 +545,13 @@ export function PickExecutionPanel({
       {pickDetailsCard}
 
       {nextLoc && computePickLineStatus(drafts[nextIncompleteIndex]!) !== 'complete' ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3 space-y-3">
+        <div className="rounded-xl border border-border bg-surface-card px-4 py-3 space-y-3 text-text-strong">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-700">
               {t(['Next bin', 'Bin التالي'])}
             </p>
-            <p className="font-mono text-2xl font-bold text-slate-900">{locationDisplay(nextLoc).shortLabel}</p>
-            <p className="text-xs text-slate-600">{locationDisplay(nextLoc).fullPath}</p>
+            <p className="font-mono text-2xl font-bold text-text-strong">{locationDisplay(nextLoc).shortLabel}</p>
+            <p className="text-xs text-text-body">{locationDisplay(nextLoc).fullPath}</p>
           </div>
           <WedgeScanField
             label={t(['Scan to confirm bin', 'امسح لتأكيد الصندوق'])}
@@ -602,13 +602,13 @@ export function PickExecutionPanel({
 
       <SummaryCards summary={summary} />
 
-      <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className="rounded-xl border border-border-subtle bg-surface-card p-4 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
           {requiresPacking
             ? t(['Drop-off (packing)', 'تسليم (تغليف)'])
             : t(['Drop-off (delivery area)', 'تسليم (منطقة التسليم)'])}
         </p>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-text-muted">
           {requiresPacking
             ? t([
                 'Where picked units are consolidated before the pack task.',
@@ -620,7 +620,7 @@ export function PickExecutionPanel({
               ])}
         </p>
         {dropOffLocations.length === 0 ? (
-          <p className="mt-2 text-xs text-amber-800">
+          <p className="mt-2 text-xs text-status-warning-fg">
             {requiresPacking
               ? t(['No packing locations in this warehouse.', 'لا توجد مواقع تغليف في هذا المستودع.'])
               : t([
@@ -648,7 +648,7 @@ export function PickExecutionPanel({
             <div className="flex flex-wrap gap-2">
               <input
                 type="text"
-                className="min-h-[44px] flex-1 rounded-lg border border-slate-300 px-3 text-sm"
+                className="min-h-[44px] flex-1 rounded-lg border border-border px-3 text-sm"
                 placeholder={
                   requiresPacking
                     ? t(['Packing location Barcode', 'Barcode موقع التغليف'])
@@ -700,7 +700,7 @@ export function PickExecutionPanel({
         onPatch={patchDraft}
       />
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface-card/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
         <div className="mx-auto flex max-w-4xl flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button
             type="button"
@@ -751,10 +751,10 @@ function SummaryCards({ summary }: { summary: ReturnType<typeof computePickSumma
       {cards.map((c) => (
         <div
           key={c.label}
-          className={`rounded-xl border p-3 ${c.accent ? 'border-emerald-200 bg-emerald-50' : 'border-slate-100 bg-white'}`}
+          className={`rounded-xl border p-3 ${c.accent ? 'border-border bg-surface-active' : 'border-border-subtle bg-surface-card'}`}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{c.label}</p>
-          <p className={`mt-1 text-lg font-semibold ${c.accent ? 'text-emerald-800' : 'text-slate-900'}`}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{c.label}</p>
+          <p className={`mt-1 text-lg font-semibold ${c.accent ? 'text-brand-700' : 'text-text-strong'}`}>
             {c.value}
           </p>
         </div>
@@ -796,7 +796,7 @@ function PickLinesTable({
       header: t(['Product', 'المنتج']),
       accessor: (d) => {
         const ol = lineMeta.get(d.outboundOrderLineId);
-        return <span className="font-medium text-slate-800">{ol?.product?.name ?? '—'}</span>;
+        return <span className="font-medium text-text-strong">{ol?.product?.name ?? '—'}</span>;
       },
       width: '160px',
     },
@@ -814,10 +814,10 @@ function PickLinesTable({
         const loc = locationById.get(d.locationId);
         return (
           <div>
-            <span className="font-mono text-sm font-bold text-slate-900">
+            <span className="font-mono text-sm font-bold text-text-strong">
               {locationDisplay(loc).shortLabel}
             </span>
-            <p className="text-[10px] text-slate-500">{locationDisplay(loc).fullPath}</p>
+            <p className="text-[10px] text-text-muted">{locationDisplay(loc).fullPath}</p>
           </div>
         );
       },
@@ -843,7 +843,7 @@ function PickLinesTable({
           <span className="font-mono tabular-nums">{d.pickedQty}</span>
         ) : (
           <input
-            className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm"
+            className="w-20 rounded border border-border px-2 py-1 font-mono text-sm"
             value={d.pickedQty}
             onChange={(e) => {
               const n = parseQty(e.target.value);

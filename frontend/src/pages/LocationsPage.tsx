@@ -11,6 +11,7 @@ import { FilterScanButton } from '../components/FilterScanButton';
 import { LocationParentPicker } from '../components/locations/LocationParentPicker';
 import { LocationsDrillDownTable } from '../components/locations/LocationsDrillDownTable';
 import { Modal } from '../components/Modal';
+import { Card } from '@ds';
 import { PageHeader } from '../components/PageHeader';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
@@ -240,17 +241,17 @@ export function LocationsPage() {
             crumb.id === null ? t(['Locations', 'المواقع التخزينية']) : crumb.name;
           return (
           <span key={crumb.id ?? 'root'} className="inline-flex items-center gap-1">
-            {idx > 0 ? <span className="text-slate-400">/</span> : null}
+            {idx > 0 ? <span className="text-text-faint">/</span> : null}
             {idx < trail.length - 1 ? (
               <button
                 type="button"
-                className="font-medium text-[var(--color-brand-600,#059669)] hover:underline"
+                className="font-medium text-brand-600 hover:underline dark:text-brand-400"
                 onClick={() => navigateToCrumb(idx)}
               >
                 {displayName}
               </button>
             ) : (
-              <span className="font-semibold text-slate-800">{displayName}</span>
+              <span className="font-semibold text-text-strong">{displayName}</span>
             )}
           </span>
           );
@@ -300,9 +301,11 @@ export function LocationsPage() {
       </FilterPanel>
 
       {!warehouseId ? (
-        <p className="rounded-xl border border-slate-100 bg-white p-4 text-sm text-slate-500 shadow-sm">
-          {t(['Default warehouse required to load locations.', 'يلزم مستودع افتراضي لتحميل المواقع.'])}
-        </p>
+        <Card padding="md">
+          <p className="text-sm text-text-muted">
+            {t(['Default warehouse required to load locations.', 'يلزم مستودع افتراضي لتحميل المواقع.'])}
+          </p>
+        </Card>
       ) : (
         <LocationsDrillDownTable
           rows={pagination.rows}
@@ -469,46 +472,46 @@ function LocationStockModal({
       }
     >
       {!location || !warehouseId ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-text-muted">
           {t(['Missing warehouse or location.', 'المستودع أو الموقع غير متوفر.'])}
         </p>
       ) : stock.isLoading ? (
-        <p className="text-sm text-slate-500">{t(['Loading stock…', 'جاري تحميل المخزون…'])}</p>
+        <p className="text-sm text-text-muted">{t(['Loading stock…', 'جاري تحميل المخزون…'])}</p>
       ) : stock.isError ? (
-        <p className="text-sm text-rose-600">
+        <p className="text-sm text-status-danger-fg">
           {(stock.error as Error)?.message ?? t(['Could not load stock.', 'تعذّر تحميل المخزون.'])}
         </p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-text-body">
           {t(['No stock rows at this location.', 'لا توجد صفوف مخزون في هذا الموقع.'])}
         </p>
       ) : (
-        <div className="max-h-[min(60vh,28rem)] overflow-auto rounded border border-slate-200">
+        <div className="max-h-[min(60vh,28rem)] overflow-auto rounded border border-border">
           <table className="w-full min-w-[28rem] border-collapse text-left text-sm">
-            <thead className="sticky top-0 bg-slate-100 text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <thead className="sticky top-0 bg-surface-card-muted text-xs font-semibold uppercase tracking-wide text-text-muted">
               <tr>
-                <th className="border-b border-slate-200 px-3 py-2">{t(['Product', 'المنتج'])}</th>
-                <th className="border-b border-slate-200 px-3 py-2">SKU</th>
-                <th className="border-b border-slate-200 px-3 py-2">Lot</th>
-                <th className="border-b border-slate-200 px-3 py-2 text-right">
+                <th className="border-b border-border px-3 py-2">{t(['Product', 'المنتج'])}</th>
+                <th className="border-b border-border px-3 py-2">SKU</th>
+                <th className="border-b border-border px-3 py-2">Lot</th>
+                <th className="border-b border-border px-3 py-2 text-right">
                   {t(['Available', 'المتوفر'])}
                 </th>
-                <th className="border-b border-slate-200 px-3 py-2 text-right">
+                <th className="border-b border-border px-3 py-2 text-right">
                   {t(['On hand', 'في المخزون'])}
                 </th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r: StockRow) => (
-                <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/80">
-                  <td className="px-3 py-2 text-slate-900">{r.product.name}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-slate-700">{r.product.sku}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-slate-600">{r.lot?.lotNumber ?? '—'}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-800">
-                    {fmtQty(r.quantityAvailable)} <span className="text-slate-500">{r.product.uom}</span>
+                <tr key={r.id} className="border-b border-border-subtle last:border-0 hover:bg-surface-hover">
+                  <td className="px-3 py-2 text-text-strong">{r.product.name}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-text-body">{r.product.sku}</td>
+                  <td className="px-3 py-2 font-mono text-xs text-text-muted">{r.lot?.lotNumber ?? '—'}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-text-body">
+                    {fmtQty(r.quantityAvailable)} <span className="text-text-muted">{r.product.uom}</span>
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-800">
-                    {fmtQty(r.quantityOnHand)} <span className="text-slate-500">{r.product.uom}</span>
+                  <td className="px-3 py-2 text-right tabular-nums text-text-body">
+                    {fmtQty(r.quantityOnHand)} <span className="text-text-muted">{r.product.uom}</span>
                   </td>
                 </tr>
               ))}
@@ -619,7 +622,7 @@ function CreateLocationModal({
           onChange={(e) => setType(e.target.value as LocationType)}
           options={typeOptions.map((o) => ({ value: o.value, label: o.label }))}
         />
-        {typeHint ? <p className="text-xs text-slate-600">{typeHint}</p> : null}
+        {typeHint ? <p className="text-xs text-text-muted">{typeHint}</p> : null}
         <TextField
           label="Barcode"
           value={barcode}
@@ -738,7 +741,7 @@ function EditLocationModal({
           onChange={(e) => setType(e.target.value as LocationType)}
           options={typeOptions.map((o) => ({ value: o.value, label: o.label }))}
         />
-        {typeHint ? <p className="text-xs text-slate-600">{typeHint}</p> : null}
+        {typeHint ? <p className="text-xs text-text-muted">{typeHint}</p> : null}
         <TextField label="Barcode" required value={barcode} onChange={(e) => setBarcode(e.target.value)} />
         {locationTypeSupportsCapacityFields(type) ? (
           <>

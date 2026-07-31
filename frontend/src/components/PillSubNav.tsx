@@ -24,8 +24,8 @@ const pillClass = (active: boolean) =>
   [
     'inline-flex items-center rounded-xl px-4 py-2 text-sm font-medium transition',
     active
-      ? 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-600'
-      : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+      ? 'bg-cta text-on-brand shadow-sm hover:bg-cta-hover'
+      : 'border border-border text-text-muted hover:bg-surface-hover',
   ].join(' ');
 
 /**
@@ -37,7 +37,7 @@ export function PillSubNav({ items, ariaLabel, className = 'mb-4' }: PillSubNavP
   return (
     <nav
       aria-label={ariaLabel}
-      className={`rounded-xl border border-slate-100 bg-white p-3 shadow-sm ${className}`}
+      className={`rounded-xl border border-border-subtle bg-surface-panel p-3 shadow-sm ${className}`}
     >
       <div className="flex flex-wrap gap-2" role="list">
         {items.map((item) => {

@@ -20,7 +20,7 @@ function CardIconBadge({
         'flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ' +
         (isPrimary
           ? 'bg-white/15 text-white ring-1 ring-white/25'
-          : 'border border-slate-200 bg-slate-50 text-emerald-700 group-hover:border-emerald-200 group-hover:bg-emerald-50')
+          : 'border border-border bg-surface-card-muted text-brand-700 group-hover:border-brand-200 group-hover:bg-surface-active dark:text-brand-400')
       }
       aria-hidden="true"
     >
@@ -37,10 +37,10 @@ function CardFooter({
   variant: 'primary' | 'default';
 }) {
   const isPrimary = variant === 'primary';
-  const accent = isPrimary ? 'text-lime-200' : 'text-brand-600';
-  const badgeBorder = isPrimary ? 'border-white/35' : 'border-slate-200';
-  const badgeText = isPrimary ? 'text-white' : 'text-slate-800';
-  const badgeIcon = isPrimary ? 'text-lime-200' : 'text-brand-600';
+  const accent = isPrimary ? 'text-brand-200' : 'text-brand-600 dark:text-brand-400';
+  const badgeBorder = isPrimary ? 'border-white/35' : 'border-border';
+  const badgeText = isPrimary ? 'text-white' : 'text-text-strong';
+  const badgeIcon = isPrimary ? 'text-brand-200' : 'text-brand-600 dark:text-brand-400';
 
   if (footer.kind === 'status') {
     return <p className={`mt-4 text-xs font-medium ${accent}`}>{footer.text}</p>;
@@ -81,27 +81,28 @@ export function WarehouseOverviewMetricCard({
       to={to}
       className={
         'group flex min-h-[120px] flex-col rounded-xl p-5 shadow-soft transition-[box-shadow,transform] duration-fast ease-standard ' +
-        'hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ' +
+        'hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ' +
         (isPrimary
           ? 'text-white hover:-translate-y-0.5'
-          : 'border border-slate-200/60 bg-white hover:-translate-y-0.5 hover:border-emerald-200')
+          : 'border border-border/60 bg-surface-panel hover:-translate-y-0.5 hover:border-brand-200')
       }
       style={
         isPrimary
           ? {
-              background: 'linear-gradient(135deg, #059669 0%, #10b981 55%, #34d399 100%)',
+              background:
+                'linear-gradient(135deg, var(--color-brand-700) 0%, var(--color-brand-500) 55%, var(--color-brand-400) 100%)',
             }
           : undefined
       }
     >
       <div className="flex items-start justify-between gap-3">
-        <p className={`text-sm font-medium ${isPrimary ? 'text-white/90' : 'text-slate-600'}`}>{title}</p>
+        <p className={`text-sm font-medium ${isPrimary ? 'text-white/90' : 'text-text-muted'}`}>{title}</p>
         <CardIconBadge iconClass={icon} variant={variant} />
       </div>
       <p
         className={
           'mt-3 text-3xl font-bold tabular-nums tracking-tight sm:text-4xl ' +
-          (isPrimary ? 'text-white' : 'text-slate-900')
+          (isPrimary ? 'text-white' : 'text-text-strong')
         }
       >
         {value}
@@ -117,11 +118,14 @@ export function WarehouseOverviewMetricCardSkeleton({ primary }: { primary?: boo
     <div
       className={
         'flex min-h-[120px] flex-col rounded-2xl p-5 ' +
-        (primary ? '' : 'border border-slate-100 bg-white shadow-sm')
+        (primary ? '' : 'border border-border-subtle bg-surface-panel shadow-soft')
       }
       style={
         primary
-          ? { background: 'linear-gradient(135deg, #064e3b 0%, #047857 45%, #059669 100%)' }
+          ? {
+              background:
+                'linear-gradient(135deg, var(--color-brand-900) 0%, var(--color-brand-700) 45%, var(--color-brand-600) 100%)',
+            }
           : undefined
       }
     >

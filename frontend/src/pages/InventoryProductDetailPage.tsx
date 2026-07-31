@@ -6,13 +6,13 @@ import { Link, useParams } from 'react-router-dom';
 import { InventoryApi, StockRow } from '../api/inventory';
 import { ProductsApi, type Product, type ProductUom } from '../api/products';
 import { Column, DataTable } from '../components/DataTable';
-import { PageHeader } from '../components/PageHeader';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
+import { Alert, Badge, Card, ListPageHeader, Skeleton } from '@ds';
 
 const fmtQty = (s: string) => Number(s).toLocaleString(undefined, { maximumFractionDigits: 4 });
 
@@ -31,22 +31,23 @@ function uomLabel(uom: ProductUom) {
 }
 
 function StockStatusBadge({ status, isArabic }: { status: StockRow['status']; isArabic: boolean }) {
-  const map: Record<StockRow['status'], { en: string; ar: string; cls: string }> = {
-    available: { en: 'Available', ar: 'متاح', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-    quarantined: { en: 'Quarantined', ar: 'حجر', cls: 'bg-amber-50 text-amber-700 ring-amber-200' },
+  const map: Record<
+    StockRow['status'],
+    { en: string; ar: string; tone: 'success' | 'warning' | 'info' }
+  > = {
+    available: { en: 'Available', ar: 'متاح', tone: 'success' },
+    quarantined: { en: 'Quarantined', ar: 'حجر', tone: 'warning' },
     awaiting_putaway: {
       en: 'Awaiting putaway',
       ar: 'بانتظار التخزين',
-      cls: 'bg-sky-50 text-sky-700 ring-sky-200',
+      tone: 'info',
     },
   };
   const cfg = map[status] ?? map.available;
   return (
-    <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${cfg.cls}`}
-    >
+    <Badge tone={cfg.tone} size="xs">
       {isArabic ? cfg.ar : cfg.en}
-    </span>
+    </Badge>
   );
 }
 
@@ -61,11 +62,11 @@ function ProductDetailField({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-        <i className={`${iconClass} text-[11px] text-brand-600/80`} aria-hidden="true" />
+      <div className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
+        <i className={`${iconClass} text-[11px] text-brand-600 dark:text-brand-400`} aria-hidden="true" />
         <span>{label}</span>
       </div>
-      <div className="mt-1.5 text-sm font-semibold text-slate-900">{value}</div>
+      <div className="mt-1.5 text-sm font-semibold text-text-strong">{value}</div>
     </div>
   );
 }
@@ -84,70 +85,72 @@ function ProductDetailsSummaryCard({
   t: (en: string, ar: string) => string;
 }) {
   return (
-    <section className="mb-6 overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-      <div className="flex items-start gap-4">
-        <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-100 to-slate-50 ring-4 ring-slate-50"
-          aria-hidden="true"
-        >
-          <i className="fa-solid fa-box text-xl text-slate-500" />
+    <Card padding="none" className="mb-6 overflow-hidden">
+      <Card.Body className="p-6">
+        <div className="flex items-start gap-4">
+          <div
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-surface-card-muted text-text-muted"
+            aria-hidden="true"
+          >
+            <i className="fa-solid fa-box text-xl" />
+          </div>
+          <div className="min-w-0 flex-1 pt-0.5">
+            <h2 className="text-lg font-semibold leading-tight text-text-strong">
+              {t('Product information', 'معلومات المنتج')}
+            </h2>
+          </div>
         </div>
-        <div className="min-w-0 flex-1 pt-0.5">
-          <h2 className="text-lg font-semibold leading-tight text-slate-900">
-            {t('Product information', 'معلومات المنتج')}
-          </h2>
-        </div>
-      </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        <ProductDetailField
-          iconClass="fa-solid fa-tag"
-          label={t('Product', 'المنتج')}
-          value={product.name}
-        />
-        <ProductDetailField
-          iconClass="fa-solid fa-hashtag"
-          label={t('SKU', 'رمز الصنف')}
-          value={<span className="font-mono font-semibold">{product.sku}</span>}
-        />
-        <ProductDetailField
-          iconClass="fa-solid fa-building"
-          label={t('Client', 'العميل')}
-          value={product.company?.name ?? '—'}
-        />
-        <ProductDetailField
-          iconClass="fa-solid fa-barcode"
-          label={t('Barcode', 'الباركود')}
-          value={
-            product.barcode ? (
-              <span className="font-mono font-semibold">{product.barcode}</span>
-            ) : (
-              '—'
-            )
-          }
-        />
-        <ProductDetailField
-          iconClass="fa-solid fa-scale-balanced"
-          label={t('Unit of measure', 'وحدة القياس')}
-          value={uomLabel(product.uom)}
-        />
-        <ProductDetailField
-          iconClass="fa-solid fa-boxes-stacked"
-          label={t('Total on hand', 'إجمالي المتوفر')}
-          value={<span className="font-mono tabular-nums">{totalOnHand}</span>}
-        />
-        <ProductDetailField
-          iconClass="fa-solid fa-lock"
-          label={t('Reserved', 'محجوز')}
-          value={<span className="font-mono tabular-nums">{totalReserved}</span>}
-        />
-        <ProductDetailField
-          iconClass="fa-solid fa-circle-check"
-          label={t('Available', 'متاح')}
-          value={<span className="font-mono tabular-nums">{totalAvailable}</span>}
-        />
-      </div>
-    </section>
+        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <ProductDetailField
+            iconClass="fa-solid fa-tag"
+            label={t('Product', 'المنتج')}
+            value={product.name}
+          />
+          <ProductDetailField
+            iconClass="fa-solid fa-hashtag"
+            label={t('SKU', 'رمز الصنف')}
+            value={<span className="font-mono font-semibold">{product.sku}</span>}
+          />
+          <ProductDetailField
+            iconClass="fa-solid fa-building"
+            label={t('Client', 'العميل')}
+            value={product.company?.name ?? '—'}
+          />
+          <ProductDetailField
+            iconClass="fa-solid fa-barcode"
+            label={t('Barcode', 'الباركود')}
+            value={
+              product.barcode ? (
+                <span className="font-mono font-semibold">{product.barcode}</span>
+              ) : (
+                '—'
+              )
+            }
+          />
+          <ProductDetailField
+            iconClass="fa-solid fa-scale-balanced"
+            label={t('Unit of measure', 'وحدة القياس')}
+            value={uomLabel(product.uom)}
+          />
+          <ProductDetailField
+            iconClass="fa-solid fa-boxes-stacked"
+            label={t('Total on hand', 'إجمالي المتوفر')}
+            value={<span className="font-mono tabular-nums">{totalOnHand}</span>}
+          />
+          <ProductDetailField
+            iconClass="fa-solid fa-lock"
+            label={t('Reserved', 'محجوز')}
+            value={<span className="font-mono tabular-nums">{totalReserved}</span>}
+          />
+          <ProductDetailField
+            iconClass="fa-solid fa-circle-check"
+            label={t('Available', 'متاح')}
+            value={<span className="font-mono tabular-nums">{totalAvailable}</span>}
+          />
+        </div>
+      </Card.Body>
+    </Card>
   );
 }
 
@@ -181,8 +184,6 @@ export function InventoryProductDetailPage() {
     [productId, wid],
   );
 
-  // Server-computed totals over the FULL matching set — never truncated by
-  // pagination — so the on-hand here matches the products catalog and grid.
   const stockTotals = useQuery({
     queryKey: [...QK.inventoryStock, 'totals', productId, wid || ''],
     queryFn: () =>
@@ -214,14 +215,14 @@ export function InventoryProductDetailPage() {
       {
         header: t('Lot number', 'رقم الدفعة'),
         accessor: (r) => (
-          <span className="font-mono text-slate-800">{r.lot?.lotNumber ?? '—'}</span>
+          <span className="font-mono text-text-body">{r.lot?.lotNumber ?? '—'}</span>
         ),
         width: '180px',
       },
       {
         header: t('On hand', 'المتوفر'),
         accessor: (r) => (
-          <span className="font-mono font-semibold text-slate-900">{fmtQty(r.quantityOnHand)}</span>
+          <span className="font-mono font-semibold text-text-strong">{fmtQty(r.quantityOnHand)}</span>
         ),
         width: '120px',
         className: 'text-right',
@@ -229,7 +230,7 @@ export function InventoryProductDetailPage() {
       {
         header: t('Reserved', 'محجوز'),
         accessor: (r) => (
-          <span className="font-mono text-slate-700">{fmtQty(r.quantityReserved)}</span>
+          <span className="font-mono text-text-body">{fmtQty(r.quantityReserved)}</span>
         ),
         width: '110px',
         className: 'text-right',
@@ -237,7 +238,7 @@ export function InventoryProductDetailPage() {
       {
         header: t('Available', 'متاح'),
         accessor: (r) => (
-          <span className="font-mono text-slate-700">
+          <span className="font-mono text-text-body">
             {fmtQty(r.status === 'available' ? r.quantityAvailable : '0')}
           </span>
         ),
@@ -255,7 +256,7 @@ export function InventoryProductDetailPage() {
       },
       {
         header: t('Location code', 'رمز الموقع'),
-        accessor: (r) => <span className="font-mono text-xs text-slate-800">{r.location.barcode}</span>,
+        accessor: (r) => <span className="font-mono text-xs text-text-body">{r.location.barcode}</span>,
         width: '200px',
       },
     ],
@@ -267,23 +268,50 @@ export function InventoryProductDetailPage() {
   const totalAvailable = fmtQty(stockTotals.data?.quantityAvailable ?? '0');
 
   if (!productId) return null;
-  if (!wid) return <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>;
-  if (product.isLoading || stockPagination.isInitialLoading) {
-    return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!wid) {
+    return (
+      <Alert
+        variant="warning"
+        title={t('Warehouse not configured', 'المستودع غير محدد')}
+        description={t('Resolve warehouse configuration…', 'يلزم تهيئة المستودع…')}
+      />
+    );
   }
-  if (product.isError || !product.data)
-    return <p className="text-sm text-rose-600">Product not found.</p>;
+  if (product.isLoading || stockPagination.isInitialLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton height={28} width="40%" />
+        <Card padding="md">
+          <Skeleton height={120} />
+        </Card>
+        <Skeleton height={240} />
+      </div>
+    );
+  }
+  if (product.isError || !product.data) {
+    return (
+      <Alert
+        variant="error"
+        title={t('Product not found', 'المنتج غير موجود')}
+        description={t('The requested product could not be loaded.', 'تعذّر تحميل المنتج المطلوب.')}
+      />
+    );
+  }
 
   const p = product.data;
 
   return (
     <>
-      <div className="mb-2 text-sm text-slate-500">
-        <Link to="/inventory/stock" className="hover:underline">
+      <div className="mb-2 text-sm text-text-muted">
+        <Link to="/inventory/stock" className="text-text-link hover:underline">
           ← {t('Back to inventory', 'العودة إلى المخزون')}
         </Link>
       </div>
-      <PageHeader title={t('Product details', 'تفاصيل المنتج')} />
+      <ListPageHeader
+        icon="fa-box"
+        title={t('Product details', 'تفاصيل المنتج')}
+        subtitle={p.sku}
+      />
 
       <ProductDetailsSummaryCard
         product={p}

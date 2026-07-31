@@ -54,24 +54,24 @@ export function ClientOrderLinesTable({
   renderProductFooter,
 }: ClientOrderLinesTableProps) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200/60 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2.5">
-        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+    <div className="overflow-hidden rounded-xl border border-border bg-surface-card">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle px-3 py-2.5">
+        <h3 className="text-sm font-semibold text-text-strong">{title}</h3>
         {toolbar}
       </div>
       {lines.length === 0 ? (
-        <p className="px-3 py-6 text-center text-sm text-slate-500">{emptyMessage}</p>
+        <p className="px-3 py-6 text-center text-sm text-text-muted">{emptyMessage}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50/80 text-[10px] font-bold uppercase tracking-[0.06em] text-slate-500">
+            <thead className="bg-surface-card-muted text-[10px] font-bold uppercase tracking-[0.06em] text-text-muted">
               <tr>
                 <th className="px-3 py-2 text-start">{productHeader}</th>
                 <th className="px-3 py-2 text-start w-[160px]">{quantityHeader}</th>
                 <th className="px-3 py-2 text-start w-[100px]" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border-subtle">
               {lines.map((row) => {
                 const product = row.productId ? productsById.get(row.productId) : undefined;
                 return (
@@ -88,12 +88,12 @@ export function ClientOrderLinesTable({
                           dropdownInFlow
                         />
                         {product ? (
-                          <p className="mt-1 text-[11px] text-slate-600">
+                          <p className="mt-1 text-[11px] text-text-muted">
                             {onHandLabel}{' '}
-                            <span className="font-mono font-semibold text-slate-900">
+                            <span className="font-mono font-semibold text-text-strong">
                               {formatOnHand(product)}
                             </span>{' '}
-                            <span className="uppercase text-slate-700">{product.uom}</span>
+                            <span className="uppercase text-text-body">{product.uom}</span>
                           </p>
                         ) : null}
                         {row.productId ? renderProductFooter?.(row.productId) : null}
@@ -124,7 +124,7 @@ export function ClientOrderLinesTable({
                           {removeLabel}
                         </Button>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-text-faint">—</span>
                       )}
                     </td>
                   </tr>

@@ -3,21 +3,29 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { BillingApi } from '../../api/billing';
-import { PageHeader } from '../../components/PageHeader';
 import { PieChart, type PieSlice } from '../../components/PieChart';
 import { QK } from '../../constants/query-keys';
 import { formatDate, formatDecimal } from '../../lib/billing-invoice-display';
+import { Alert, AppPageHeader, Card, Skeleton } from '@ds';
 
 const CURRENCY = 'SYP';
 
-const CHART_COLORS = ['#0f766e', '#1d4ed8', '#b45309', '#be123c', '#475569', '#047857', '#0369a1'];
+const CHART_COLORS = [
+  'var(--color-brand-600)',
+  'var(--color-info-500)',
+  'var(--color-warning-600)',
+  'var(--color-danger-600)',
+  'var(--text-muted)',
+  'var(--color-brand-500)',
+  'var(--color-info-700)',
+];
 
 function KpiCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-    </div>
+    <Card padding="md">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-text-faint">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tabular-nums text-text-strong">{value}</p>
+    </Card>
   );
 }
 
@@ -31,10 +39,10 @@ function ListCard({
   empty?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-      <h3 className="mb-3 text-sm font-semibold text-slate-900">{title}</h3>
-      {empty ? <p className="text-sm text-slate-500">No data yet.</p> : children}
-    </div>
+    <Card padding="md">
+      <h3 className="mb-3 text-sm font-semibold text-text-strong">{title}</h3>
+      {empty ? <p className="text-sm text-text-muted">No data yet.</p> : children}
+    </Card>
   );
 }
 
@@ -49,13 +57,16 @@ function SimpleBarList({
       {rows.map((row) => (
         <li key={row.label}>
           <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-            <span className="truncate text-slate-700">{row.label}</span>
-            <span className="shrink-0 tabular-nums text-slate-900">{row.display}</span>
+            <span className="truncate text-text-body">{row.label}</span>
+            <span className="shrink-0 tabular-nums text-text-strong">{row.display}</span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+          <div className="h-2 overflow-hidden rounded-full bg-surface-sunken">
             <div
-              className="h-full rounded-full bg-teal-700"
-              style={{ width: `${Math.max(4, (row.value / max) * 100)}%` }}
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.max(4, (row.value / max) * 100)}%`,
+                backgroundColor: 'var(--color-brand-500)',
+              }}
             />
           </div>
         </li>
@@ -109,15 +120,23 @@ export function BillingDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        icon="fa-chart-pie"
+      <AppPageHeader
         title="Billing dashboard"
         description="Subscription revenue, plan activity, and upcoming renewals."
       />
 
-      {summaryQuery.isPending ? <p className="text-sm text-slate-500">Loading summary…</p> : null}
+      {summaryQuery.isPending ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} padding="md">
+              <Skeleton height={14} width="70%" />
+              <Skeleton height={32} width="50%" className="mt-3" />
+            </Card>
+          ))}
+        </div>
+      ) : null}
       {summaryQuery.isError ? (
-        <p className="text-sm text-rose-600">Could not load dashboard summary.</p>
+        <Alert variant="error" title="Could not load dashboard summary" />
       ) : null}
 
       {summary ? (
@@ -170,7 +189,7 @@ export function BillingDashboardPage() {
             title="Upcoming renewals"
             empty={!analytics?.upcomingRenewals?.length}
           >
-            <ul className="divide-y divide-slate-100">
+            <ul className="divide-y divide-border-subtle">
               {(analytics?.upcomingRenewals ?? []).map((row) => (
                 <li
                   key={row.cycleId}
@@ -179,16 +198,16 @@ export function BillingDashboardPage() {
                   <div>
                     <Link
                       to={`/billing/plans/${row.companyId}`}
-                      className="font-medium text-brand-700 hover:underline"
+                      className="font-medium text-brand-700 hover:underline dark:text-brand-400"
                     >
                       {row.companyName}
                     </Link>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-text-muted">
                       Renews {formatDate(row.renewalDate)} · {row.daysRemaining}d left ·{' '}
                       {row.cycleLengthDays}d cycle
                     </p>
                   </div>
-                  <span className="tabular-nums font-medium text-slate-900">
+                  <span className="tabular-nums font-medium text-text-strong">
                     {formatDecimal(row.amount)} {CURRENCY}
                   </span>
                 </li>

@@ -21,7 +21,7 @@ import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useFilters } from '../hooks/useFilters';
 import { COUNTRIES, OTHER_COUNTRY } from '../lib/geography';
-import { AppPageHeader } from '@ds';
+import { AppPageHeader, Badge } from '@ds';
 
 type StatusFilter = '' | WarehouseStatus;
 
@@ -128,13 +128,9 @@ export function WarehousesPage() {
     {
       header: 'Status',
       accessor: (w) => (
-        <span
-          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            w.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
-          }`}
-        >
+        <Badge tone={w.status === 'active' ? 'success' : 'neutral'} size="xs">
           {w.status}
-        </span>
+        </Badge>
       ),
       width: '110px',
     },
@@ -162,7 +158,7 @@ export function WarehousesPage() {
             )}
           </div>
         ) : (
-          <span className="text-xs text-slate-400">—</span>
+          <span className="text-xs text-text-faint">—</span>
         ),
       width: '260px',
     },
@@ -245,7 +241,7 @@ export function WarehousesPage() {
         onConfirm={() => deactivateWh && deactivateMut.mutate(deactivateWh.id)}
       >
         {deactivateWh ? (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-text-body">
             Deactivate <span className="font-mono font-semibold">{deactivateWh.code}</span> —{' '}
             {deactivateWh.name}? This warehouse will no longer appear in default operational lists.
           </p>

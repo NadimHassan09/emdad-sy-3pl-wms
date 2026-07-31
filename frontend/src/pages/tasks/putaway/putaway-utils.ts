@@ -90,13 +90,13 @@ export function lineStatusLabel(status: PutawayLineStatus): string {
 export function lineStatusClass(status: PutawayLineStatus): string {
   switch (status) {
     case 'complete':
-      return 'bg-emerald-100 text-emerald-800';
+      return 'bg-status-success-bg text-brand-700';
     case 'ready':
-      return 'bg-sky-100 text-sky-800';
+      return 'bg-surface-card-muted text-brand-700';
     case 'scanning':
-      return 'bg-amber-100 text-amber-900';
+      return 'bg-status-warning-bg text-status-warning-fg';
     default:
-      return 'bg-slate-100 text-slate-600';
+      return 'bg-surface-card-muted text-text-body';
   }
 }
 

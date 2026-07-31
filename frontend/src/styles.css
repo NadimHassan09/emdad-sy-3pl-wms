@@ -1,4 +1,4 @@
-@import '../../shared/design-system/globals.css';
+@import '../../shared/design-system-next/globals.css';
 
 /* Admin chrome. hover-lift + animate-enter live in @ds globals. */
 .glass {

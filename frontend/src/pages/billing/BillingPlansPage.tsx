@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { Alert, ListPageHeader } from '@ds';
 import { BillingApi, type BillingPlanOverviewItem } from '../../api/billing';
 import { CompaniesApi } from '../../api/companies';
 import { VolumeAllocationPanel } from '../../components/billing/VolumeAllocationPanel';
@@ -10,7 +11,6 @@ import { Button } from '../../components/Button';
 import { Combobox } from '../../components/Combobox';
 import { DataTable, type Column } from '../../components/DataTable';
 import { FilterPanel } from '../../components/FilterPanel';
-import { PageHeader } from '../../components/PageHeader';
 import { SelectField } from '../../components/SelectField';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
@@ -189,20 +189,20 @@ export function BillingPlansPage() {
   const columns: Column<BillingPlanOverviewItem>[] = [
     {
       header: 'Client',
-      accessor: (r) => <span className="font-medium text-slate-900">{r.companyName}</span>,
+      accessor: (r) => <span className="font-medium text-text-strong">{r.companyName}</span>,
     },
     {
       header: 'Plan type',
       accessor: (r) =>
         r.plan.planType === 'template' ? (
-          <span className="text-sm text-slate-700">
+          <span className="text-sm text-text-body">
             Template
             {r.plan.templateName ? (
-              <span className="block text-xs text-slate-500">{r.plan.templateName}</span>
+              <span className="block text-xs text-text-muted">{r.plan.templateName}</span>
             ) : null}
           </span>
         ) : (
-          <span className="text-sm text-slate-700">Custom</span>
+          <span className="text-sm text-text-body">Custom</span>
         ),
     },
     {
@@ -252,7 +252,7 @@ export function BillingPlansPage() {
             trigger={
               <button
                 type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-card-muted"
                 data-billing-action-menu-button="true"
                 onClick={() => setOpenActionId((cur) => (cur === r.plan.id ? null : r.plan.id))}
                 aria-label="Open actions"
@@ -267,7 +267,7 @@ export function BillingPlansPage() {
           >
             <button
               type="button"
-              className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+              className="block w-full px-3 py-2 text-left text-sm hover:bg-surface-sunken"
               onClick={() => {
                 setOpenActionId(null);
                 navigate(`/billing/plans/${r.companyId}`);
@@ -278,7 +278,7 @@ export function BillingPlansPage() {
             {canMutate ? (
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-surface-sunken"
                 onClick={() => {
                   setOpenActionId(null);
                   navigate(`/billing/plans/${r.companyId}/edit`);
@@ -290,7 +290,7 @@ export function BillingPlansPage() {
             {canMutate && r.plan.active ? (
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
+                className="block w-full px-3 py-2 text-left text-sm text-status-error-fg hover:bg-status-error-bg"
                 disabled={suspendMut.isPending}
                 onClick={() => {
                   if (
@@ -310,7 +310,7 @@ export function BillingPlansPage() {
             {canMutate && !r.plan.active ? (
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm text-emerald-700 hover:bg-emerald-50"
+                className="block w-full px-3 py-2 text-left text-sm text-status-success-fg hover:bg-status-success-bg"
                 disabled={resumeMut.isPending}
                 onClick={() => {
                   if (
@@ -335,10 +335,10 @@ export function BillingPlansPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
+      <ListPageHeader
         icon="fa-file-invoice-dollar"
         title="Billing plans"
-        description="Subscription storage billing by client — reserved volume, price, and cycle."
+        subtitle="Subscription storage billing by client — reserved volume, price, and cycle."
         actions={
           canMutate ? (
             <div className="flex flex-wrap gap-2">
@@ -474,7 +474,7 @@ export function BillingPlansPage() {
       />
 
       {pagination.isError ? (
-        <p className="text-sm text-rose-600">{(pagination.error as Error).message}</p>
+        <Alert variant="error" title={(pagination.error as Error).message} className="mb-4" />
       ) : null}
     </div>
   );

@@ -630,7 +630,7 @@ export function ReceivingExecutionPanel({
 
       <SummaryCards summary={summary} />
 
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+      <div className="rounded-xl border border-border bg-surface-card p-4 text-text-strong">
         <WedgeScanField
           label={t(['Scan to receive expected', 'امسح لاستلام المتوقع'])}
           value={wedgeScan}
@@ -647,11 +647,10 @@ export function ReceivingExecutionPanel({
       <BarcodeScanModal
         open={cameraOpen}
         onClose={() => setCameraOpen(false)}
-        onDetected={(code) => {
+        onScan={(code) => {
           setCameraOpen(false);
           handleWedgeScan(code);
         }}
-        title={t(['Scan product', 'مسح منتج'])}
       />
 
       {showExportPdf && !isMdUp ? (
@@ -672,9 +671,9 @@ export function ReceivingExecutionPanel({
 
       {!isMdUp ? (
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-800">{t(['Receive Lines', 'أسطر الاستلام'])}</h2>
+        <h2 className="text-sm font-semibold text-text-strong">{t(['Receive Lines', 'أسطر الاستلام'])}</h2>
         {filteredLines.length === 0 ? (
-          <p className="rounded-xl border border-slate-100 bg-white px-4 py-6 text-center text-sm text-slate-500 shadow-sm">
+          <p className="rounded-xl border border-border-subtle bg-surface-card px-4 py-6 text-center text-sm text-text-muted shadow-sm">
             {t(['No lines match the current filters.', 'لا أسطر تطابق الفلاتر الحالية.'])}
           </p>
         ) : null}
@@ -686,17 +685,17 @@ export function ReceivingExecutionPanel({
           const status = computeLineStatus(expected, parseQty(d.receivedQty), parseQty(d.damagedQty));
           const qtyErr = validateReceivingLineQuantities(expected, d.receivedQty, d.damagedQty);
           const qtyInputClass = qtyErr
-            ? 'mt-0.5 w-full rounded-lg border border-rose-400 px-2 py-2 text-sm font-mono'
-            : 'mt-0.5 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm font-mono';
+            ? 'mt-0.5 w-full rounded-lg border border-status-danger-border px-2 py-2 text-sm font-mono'
+            : 'mt-0.5 w-full rounded-lg border border-border px-2 py-2 text-sm font-mono';
           return (
             <div
               key={lid}
-              className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+              className="rounded-2xl border border-border-subtle bg-surface-card p-4 shadow-sm"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="font-medium text-slate-900">{ol?.product?.name ?? '—'}</p>
-                  <p className="font-mono text-xs text-slate-500">{ol?.product?.sku}</p>
+                  <p className="font-medium text-text-strong">{ol?.product?.name ?? '—'}</p>
+                  <p className="font-mono text-xs text-text-muted">{ol?.product?.sku}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <span
@@ -728,11 +727,11 @@ export function ReceivingExecutionPanel({
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <span className="text-slate-500">{t(['Expected', 'المتوقع'])}</span>
+                  <span className="text-text-muted">{t(['Expected', 'المتوقع'])}</span>
                   <p className="font-mono font-medium">{l.expected_qty}</p>
                 </div>
                 <div>
-                  <span className="text-slate-500">{t(['Received', 'مستلم'])}</span>
+                  <span className="text-text-muted">{t(['Received', 'مستلم'])}</span>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -743,7 +742,7 @@ export function ReceivingExecutionPanel({
                   />
                 </div>
                 <div>
-                  <span className="text-slate-500">{t(['Damaged', 'تالف'])}</span>
+                  <span className="text-text-muted">{t(['Damaged', 'تالف'])}</span>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -754,22 +753,22 @@ export function ReceivingExecutionPanel({
                   />
                 </div>
                 <div>
-                  <span className="text-slate-500">{t(['Missing', 'ناقص'])}</span>
-                  <p className="font-mono font-medium text-slate-700">
+                  <span className="text-text-muted">{t(['Missing', 'ناقص'])}</span>
+                  <p className="font-mono font-medium text-text-body">
                     {computeMissingQty(expected, parseQty(d.receivedQty), parseQty(d.damagedQty))}
                   </p>
                 </div>
               </div>
               {!readOnly && qtyErr ? (
-                <p className="mt-2 text-xs text-rose-600">{qtyErr}</p>
+                <p className="mt-2 text-xs text-status-danger-fg">{qtyErr}</p>
               ) : null}
               {productRequiresExpiry(ol, ol?.productId ? productsById.get(ol.productId) : undefined) ? (
-                <label className="mt-2 block text-xs text-slate-600">
-                  {t(['Expiry date', 'تاريخ انتهاء الصلاحية'])} <span className="text-rose-600">*</span>
+                <label className="mt-2 block text-xs text-text-body">
+                  {t(['Expiry date', 'تاريخ انتهاء الصلاحية'])} <span className="text-status-danger-fg">*</span>
                   <input
                     type="date"
                     required
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
+                    className="mt-1 w-full rounded-lg border border-border px-2 py-2 text-sm"
                     value={d.expiry || lineExpiryByLineId[lid] || ''}
                     onChange={(e) => patchLine(lid, { expiry: e.target.value })}
                   />
@@ -838,7 +837,7 @@ export function ReceivingExecutionPanel({
         onClose={() => setSpecsModalProductId(null)}
       />
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface-card/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button
             type="button"
@@ -880,10 +879,10 @@ function SummaryCards({ summary }: { summary: ReturnType<typeof computeReceiving
       {cards.map((c) => (
         <div
           key={c.label}
-          className={`rounded-xl border p-3 ${c.accent ? 'border-emerald-200 bg-emerald-50' : 'border-slate-100 bg-white'}`}
+          className={`rounded-xl border p-3 ${c.accent ? 'border-border bg-surface-active' : 'border-border-subtle bg-surface-card'}`}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{c.label}</p>
-          <p className={`mt-1 text-lg font-semibold ${c.accent ? 'text-emerald-800' : 'text-slate-900'}`}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{c.label}</p>
+          <p className={`mt-1 text-lg font-semibold ${c.accent ? 'text-brand-700' : 'text-text-strong'}`}>
             {c.value}
           </p>
         </div>
@@ -917,7 +916,7 @@ function ReceivingLineActionsMenu({
   const menuBtn = (label: string, onClick: () => void, className = '') => (
     <button
       type="button"
-      className={`block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 ${className}`}
+      className={`block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-hover ${className}`}
       data-receiving-line-action-menu-button="true"
       onClick={onClick}
     >
@@ -933,7 +932,7 @@ function ReceivingLineActionsMenu({
       trigger={
         <button
           type="button"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-hover"
           data-receiving-line-action-trigger="true"
           onClick={(e) => {
             e.stopPropagation();
@@ -973,7 +972,7 @@ function ReceivingLineActionsMenu({
           onPatch({ receivedQty: '', damagedQty: '', notes: '' });
           onClose();
         },
-        'text-rose-700 hover:bg-rose-50',
+        'text-status-danger-fg hover:bg-status-danger-bg',
       )}
     </AnchoredDropdown>
   );
@@ -1014,7 +1013,7 @@ function ReceivingLinesTable({
       header: t(['Product', 'المنتج']),
       accessor: (l) => {
         const ol = lineMap.get(l.inbound_order_line_id);
-        return <span className="font-medium text-slate-800">{ol?.product?.name ?? '—'}</span>;
+        return <span className="font-medium text-text-strong">{ol?.product?.name ?? '—'}</span>;
       },
     },
     {
@@ -1060,8 +1059,8 @@ function ReceivingLinesTable({
             <input
               className={
                 qtyErr
-                  ? 'w-20 rounded border border-rose-400 px-2 py-1 font-mono text-sm'
-                  : 'w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm'
+                  ? 'w-20 rounded border border-status-danger-border px-2 py-1 font-mono text-sm'
+                  : 'w-20 rounded border border-border px-2 py-1 font-mono text-sm'
               }
               value={d.receivedQty}
               onChange={(e) => onPatchLine?.(lid, { receivedQty: e.target.value })}
@@ -1070,7 +1069,7 @@ function ReceivingLinesTable({
             />
             <button
               type="button"
-              className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-1 text-[10px] font-semibold text-emerald-800 hover:bg-emerald-100"
+              className="rounded border border-border bg-surface-card-muted px-1.5 py-1 text-[10px] font-semibold text-brand-700 hover:bg-status-success-bg"
               title={t(['Receive expected qty', 'استلام الكمية المتوقعة'])}
               onClick={(e) => {
                 e.stopPropagation();
@@ -1100,8 +1099,8 @@ function ReceivingLinesTable({
           <input
             className={
               qtyErr
-                ? 'w-20 rounded border border-rose-400 px-2 py-1 font-mono text-sm'
-                : 'w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm'
+                ? 'w-20 rounded border border-status-danger-border px-2 py-1 font-mono text-sm'
+                : 'w-20 rounded border border-border px-2 py-1 font-mono text-sm'
             }
             value={d.damagedQty}
             onChange={(e) => onPatchLine?.(lid, { damagedQty: e.target.value })}
@@ -1121,7 +1120,7 @@ function ReceivingLinesTable({
         const missing = computeMissingQty(expected, parseQty(d.receivedQty), parseQty(d.damagedQty));
         const qtyErr = validateReceivingLineQuantities(expected, d.receivedQty, d.damagedQty);
         return (
-          <span className={`font-mono tabular-nums ${qtyErr ? 'text-rose-600' : ''}`}>{missing}</span>
+          <span className={`font-mono tabular-nums ${qtyErr ? 'text-status-danger-fg' : ''}`}>{missing}</span>
         );
       },
       className: 'whitespace-nowrap',
@@ -1152,7 +1151,7 @@ function ReceivingLinesTable({
         const d = lineDrafts[lid] ?? emptyLineDraft();
         const displayExpiry = lineExpiryByLineId[lid] ?? d.expiry;
         if (!productRequiresExpiry(ol, ol?.productId ? productsById.get(ol.productId) : undefined)) {
-          return <span className="text-slate-400">—</span>;
+          return <span className="text-text-muted">—</span>;
         }
         return readOnly ? (
           <span className="font-mono text-xs tabular-nums">{displayExpiry || '—'}</span>
@@ -1160,7 +1159,7 @@ function ReceivingLinesTable({
           <input
             type="date"
             required
-            className="w-[9.5rem] rounded border border-slate-300 px-2 py-1 text-sm"
+            className="w-[9.5rem] rounded border border-border px-2 py-1 text-sm"
             value={d.expiry || displayExpiry}
             onChange={(e) => onPatchLine?.(lid, { expiry: e.target.value })}
             onClick={(e) => e.stopPropagation()}

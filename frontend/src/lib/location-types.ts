@@ -117,23 +117,23 @@ export function locationTypeLabel(type: string | null | undefined): string {
 export function locationTypePillClass(type: string | null | undefined): string {
   switch (type) {
     case 'iss':
-      return 'bg-slate-100 text-slate-800 ring-1 ring-inset ring-slate-200';
+      return 'bg-status-neutral-bg text-status-neutral-fg ring-1 ring-inset ring-status-neutral-border';
     case 'internal':
-      return 'bg-emerald-50 text-emerald-900 ring-1 ring-inset ring-emerald-200';
+      return 'bg-status-success-bg text-status-success-fg ring-1 ring-inset ring-status-success-border';
     case 'fridge':
-      return 'bg-sky-50 text-sky-900 ring-1 ring-inset ring-sky-200';
+      return 'bg-status-info-bg text-status-info-fg ring-1 ring-inset ring-status-info-border';
     case 'packing':
-      return 'bg-violet-50 text-violet-900 ring-1 ring-inset ring-violet-200';
+      return 'bg-status-violet-bg text-status-violet-fg ring-1 ring-inset ring-status-violet-border';
     case 'input':
-      return 'bg-indigo-50 text-indigo-900 ring-1 ring-inset ring-indigo-200';
+      return 'bg-brand-50 text-brand-800 ring-1 ring-inset ring-brand-200';
     case 'output':
-      return 'bg-blue-50 text-blue-900 ring-1 ring-inset ring-blue-200';
+      return 'bg-status-info-bg text-status-info-fg ring-1 ring-inset ring-status-info-border';
     case 'quarantine':
-      return 'bg-amber-50 text-amber-950 ring-1 ring-inset ring-amber-200';
+      return 'bg-status-warning-bg text-status-warning-fg ring-1 ring-inset ring-status-warning-border';
     case 'scrap':
-      return 'bg-rose-50 text-rose-900 ring-1 ring-inset ring-rose-200';
+      return 'bg-status-danger-bg text-status-danger-fg ring-1 ring-inset ring-status-danger-border';
     default:
-      return 'bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-200';
+      return 'bg-status-neutral-bg text-status-neutral-fg ring-1 ring-inset ring-status-neutral-border';
   }
 }
 

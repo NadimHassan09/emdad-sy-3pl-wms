@@ -124,15 +124,15 @@ export function ClientBarcodeImageModal({
     >
       <div className="flex flex-col items-center gap-4 py-2">
         {error ? (
-          <p className="text-center text-sm text-rose-600">{error}</p>
+          <p className="text-center text-sm text-danger-600 dark:text-status-danger-fg">{error}</p>
         ) : (
           <canvas
             ref={onCanvasRef}
-            className="max-w-full rounded border border-slate-200 bg-white"
+            className="max-w-full rounded border border-border bg-white"
           />
         )}
         {!error ? (
-          <p className="text-center font-mono text-xs text-slate-600">{value.trim()}</p>
+          <p className="text-center font-mono text-xs text-text-body">{value.trim()}</p>
         ) : null}
       </div>
     </Modal>

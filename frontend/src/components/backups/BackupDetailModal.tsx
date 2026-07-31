@@ -14,6 +14,7 @@ import {
 import { isBackupGdriveUiEnabled } from '../../lib/backup-gdrive-ui';
 import { localizedBackupDetailFieldLabels, localizedBackupStoragePolicyLabel } from '../../lib/ui-labels/settings-backup';
 import { useWmsTranslation } from '../../lib/ui-i18n';
+import { Button } from '../Button';
 import { Modal } from '../Modal';
 
 type Props = {
@@ -33,9 +34,9 @@ type Props = {
 
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-2 border-b border-slate-100 py-2 text-sm last:border-0">
-      <dt className="font-medium text-slate-500">{label}</dt>
-      <dd className="min-w-0 break-words font-mono text-xs text-slate-800 sm:text-sm">{value}</dd>
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-2 border-b border-border-subtle py-2 text-sm last:border-0">
+      <dt className="font-medium text-text-muted">{label}</dt>
+      <dd className="min-w-0 break-words font-mono text-xs text-text-strong sm:text-sm">{value}</dd>
     </div>
   );
 }
@@ -52,26 +53,22 @@ export function BackupDetailModal({ open, onClose, row, loading, labels }: Props
       title={labels.title}
       widthClass="max-w-3xl"
       footer={
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
+        <Button type="button" variant="secondary" onClick={onClose}>
           {labels.close}
-        </button>
+        </Button>
       }
     >
       {loading ? (
-        <p className="text-sm text-slate-500">{labels.loading}</p>
+        <p className="text-sm text-text-muted">{labels.loading}</p>
       ) : !row ? (
-        <p className="text-sm text-slate-500">—</p>
+        <p className="text-sm text-text-muted">—</p>
       ) : (
         <div className="space-y-5">
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
               {labels.overview}
             </h3>
-            <dl className="rounded-lg border border-slate-100 bg-slate-50/50 px-3">
+            <dl className="rounded-lg border border-border-subtle bg-surface-card-muted px-3">
               <MetaRow label={fields.id} value={row.id} />
               <MetaRow label={fields.shortId} value={truncateBackupId(row.id)} />
               <MetaRow label={fields.type} value={formatBackupType(row.type)} />
@@ -107,10 +104,10 @@ export function BackupDetailModal({ open, onClose, row, loading, labels }: Props
           </section>
 
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
               {labels.technical}
             </h3>
-            <dl className="rounded-lg border border-slate-100 bg-slate-50/50 px-3">
+            <dl className="rounded-lg border border-border-subtle bg-surface-card-muted px-3">
               <MetaRow label={fields.dumpFile} value={row.dumpFilename ?? '—'} />
               <MetaRow label={fields.started} value={formatBackupTimestamp(row.startedAt)} />
               <MetaRow
@@ -136,10 +133,10 @@ export function BackupDetailModal({ open, onClose, row, loading, labels }: Props
 
           {gdriveUiEnabled && row.gdriveSyncError ? (
             <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-rose-600">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-status-danger-fg">
                 {fields.driveSyncError}
               </h3>
-              <pre className="max-h-48 overflow-auto rounded-lg border border-rose-100 bg-rose-50/60 p-3 text-xs text-rose-900">
+              <pre className="max-h-48 overflow-auto rounded-lg border border-status-danger-border bg-status-danger-bg/60 p-3 text-xs text-status-danger-fg">
                 {row.gdriveSyncError}
               </pre>
             </section>
@@ -147,10 +144,10 @@ export function BackupDetailModal({ open, onClose, row, loading, labels }: Props
 
           {row.errorMessage ? (
             <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-rose-600">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-status-danger-fg">
                 {labels.error}
               </h3>
-              <pre className="max-h-48 overflow-auto rounded-lg border border-rose-100 bg-rose-50/60 p-3 text-xs text-rose-900">
+              <pre className="max-h-48 overflow-auto rounded-lg border border-status-danger-border bg-status-danger-bg/60 p-3 text-xs text-status-danger-fg">
                 {row.errorMessage}
               </pre>
             </section>

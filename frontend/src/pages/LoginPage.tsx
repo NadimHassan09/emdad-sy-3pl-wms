@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
-import { LoginScreen } from '@ds';
+import { LoginScreen, useUiTheme } from '@ds';
 import { useAuth } from '../auth/AuthContext';
 import { canAccessPath, defaultHomePath } from '../lib/rbac';
 import { getLoginErrorMessage } from '../lib/loginError';
@@ -21,21 +21,30 @@ export function LoginPage() {
     typeof window !== 'undefined' &&
     (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
 
+  useUiTheme({ storageKey: 'admin-ui-theme' });
+
   if (booting) {
     return (
-      <LoginScreen
-        brandName="EMDAD WMS"
-        title=""
-        subtitle=""
-        heroTitle=""
-        heroDescription=""
-        email=""
-        password=""
-        onEmailChange={() => {}}
-        onPasswordChange={() => {}}
-        onSubmit={() => {}}
-        bootSlot={isArabic ? 'جاري التحميل…' : 'Loading…'}
-      />
+      <div id="admin-root" dir={isArabic ? 'rtl' : 'ltr'}>
+        <LoginScreen
+          brandName="EMDAD WMS"
+          title=""
+          subtitle=""
+          heroTitle=""
+          heroDescription=""
+          email=""
+          password=""
+          onEmailChange={() => {}}
+          onPasswordChange={() => {}}
+          onSubmit={() => {}}
+          bootSlot={
+            <div className="flex flex-col items-center gap-3">
+              <img src="/emdad-logo.png" alt="EMDAD" className="h-10 w-auto object-contain" />
+              {isArabic ? 'جاري التحميل…' : 'Loading…'}
+            </div>
+          }
+        />
+      </div>
     );
   }
 
@@ -62,31 +71,36 @@ export function LoginPage() {
   }
 
   return (
-    <LoginScreen
-      brandName="EMDAD WMS"
-      title={isArabic ? 'تسجيل الدخول إلى حسابك' : 'Log in to your account'}
-      subtitle={
-        isArabic
-          ? 'مرحباً بعودتك! سجّل الدخول لإدارة عمليات المستودع.'
-          : 'Welcome back! Sign in to manage warehouse operations.'
-      }
-      heroTitle={
-        isArabic ? 'حوّل المخزون إلى حركة' : 'Turn your inventory into motion'
-      }
-      heroDescription={
-        isArabic
-          ? 'جودة وتجربة متسقة عبر المنصات والأجهزة. نفّذ عمليات المستودع بسرعة وموثوقية.'
-          : 'Consistent quality and experience across platforms and devices. Run warehouse operations faster than ever.'
-      }
-      submitLabel={isArabic ? 'تسجيل الدخول' : 'Sign in'}
-      submittingLabel={isArabic ? 'جاري تسجيل الدخول…' : 'Signing in…'}
-      email={email}
-      password={password}
-      onEmailChange={setEmail}
-      onPasswordChange={setPassword}
-      onSubmit={onSubmit}
-      loading={submitting}
-      error={error}
-    />
+    <div id="admin-root" dir={isArabic ? 'rtl' : 'ltr'}>
+      <LoginScreen
+        brandName="EMDAD WMS"
+        title={isArabic ? 'تسجيل الدخول إلى حسابك' : 'Log in to your account'}
+        subtitle={
+          isArabic
+            ? 'مرحباً بعودتك! سجّل الدخول لإدارة عمليات المستودع.'
+            : 'Welcome back! Sign in to manage warehouse operations.'
+        }
+        heroTitle={
+          isArabic ? 'حوّل المخزون إلى حركة' : 'Turn your inventory into motion'
+        }
+        heroDescription={
+          isArabic
+            ? 'جودة وتجربة متسقة عبر المنصات والأجهزة. نفّذ عمليات المستودع بسرعة وموثوقية.'
+            : 'Consistent quality and experience across platforms and devices. Run warehouse operations faster than ever.'
+        }
+        emailLabel={isArabic ? 'البريد الإلكتروني' : 'Email'}
+        passwordLabel={isArabic ? 'كلمة المرور' : 'Password'}
+        submitLabel={isArabic ? 'تسجيل الدخول' : 'Sign in'}
+        submittingLabel={isArabic ? 'جاري تسجيل الدخول…' : 'Signing in…'}
+        showRemember={false}
+        email={email}
+        password={password}
+        onEmailChange={setEmail}
+        onPasswordChange={setPassword}
+        onSubmit={onSubmit}
+        loading={submitting}
+        error={error}
+      />
+    </div>
   );
 }

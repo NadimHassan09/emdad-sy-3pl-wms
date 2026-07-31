@@ -98,7 +98,7 @@ export function ReturnsListPage() {
       {
         header: t('Return #', 'رقم الإرجاع'),
         accessor: (r) => (
-          <Link to={`/returns/${r.id}`} className="font-mono text-xs font-semibold text-sky-800 hover:underline">
+          <Link to={`/returns/${r.id}`} className="font-mono text-xs font-semibold text-text-link hover:underline">
             {r.orderNumber}
           </Link>
         ),
@@ -112,7 +112,7 @@ export function ReturnsListPage() {
       {
         header: t('Products', 'المنتجات'),
         accessor: (r) => (
-          <span className="text-xs text-slate-700" title={r.summary?.productSummary}>
+          <span className="text-xs text-text-body" title={r.summary?.productSummary}>
             {r.summary?.productSummary ?? '—'}
           </span>
         ),
@@ -121,7 +121,7 @@ export function ReturnsListPage() {
       {
         header: t('Qty', 'الكمية'),
         accessor: (r) => (
-          <span className="font-mono text-xs text-slate-700">
+          <span className="font-mono text-xs text-text-body">
             {formatReturnListQuantities(r.summary)}
           </span>
         ),
@@ -134,7 +134,7 @@ export function ReturnsListPage() {
           r.originalOutbound ? (
             <Link
               to={`/orders/outbound/${r.originalOutbound.id}`}
-              className="font-mono text-[11px] text-sky-800 hover:underline"
+              className="font-mono text-[11px] text-text-link hover:underline"
             >
               {r.originalOutbound.orderNumber}
             </Link>
@@ -146,7 +146,7 @@ export function ReturnsListPage() {
       {
         header: t('Disposition', 'التصرف'),
         accessor: (r) => (
-          <span className="text-xs text-slate-600">
+          <span className="text-xs text-text-body">
             {formatReturnListDisposition(r.summary, isArabic)}
           </span>
         ),
@@ -155,14 +155,14 @@ export function ReturnsListPage() {
       {
         header: t('Created', 'أُنشئ'),
         accessor: (r) => (
-          <span className="whitespace-nowrap text-[11px] text-slate-600">{formatDt(r.createdAt, locale)}</span>
+          <span className="whitespace-nowrap text-[11px] text-text-body">{formatDt(r.createdAt, locale)}</span>
         ),
         width: '120px',
       },
       {
         header: t('Processed', 'معالج'),
         accessor: (r) => (
-          <span className="whitespace-nowrap text-[11px] text-slate-600">{formatDt(r.completedAt, locale)}</span>
+          <span className="whitespace-nowrap text-[11px] text-text-body">{formatDt(r.completedAt, locale)}</span>
         ),
         width: '120px',
       },
@@ -308,37 +308,37 @@ export function ReturnsListPage() {
         {pagination.rows.map((r) => (
           <article
             key={r.id}
-            className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm"
+            className="rounded-lg border border-border bg-surface-card p-3 shadow-sm"
           >
             <div className="flex items-start justify-between gap-2">
-              <Link to={`/returns/${r.id}`} className="font-mono text-sm font-semibold text-sky-800">
+              <Link to={`/returns/${r.id}`} className="font-mono text-sm font-semibold text-text-link">
                 {r.orderNumber}
               </Link>
               <StatusBadge status={r.status} />
             </div>
-            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-slate-600">
+            <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-text-body">
               <div className="col-span-2">
-                <dt className="text-slate-400">{t('Products', 'المنتجات')}</dt>
+                <dt className="text-text-faint">{t('Products', 'المنتجات')}</dt>
                 <dd>{r.summary?.productSummary ?? '—'}</dd>
               </div>
               <div>
-                <dt className="text-slate-400">{t('Qty', 'الكمية')}</dt>
+                <dt className="text-text-faint">{t('Qty', 'الكمية')}</dt>
                 <dd className="font-mono">{formatReturnListQuantities(r.summary)}</dd>
               </div>
               <div>
-                <dt className="text-slate-400">{t('Disposition', 'التصرف')}</dt>
+                <dt className="text-text-faint">{t('Disposition', 'التصرف')}</dt>
                 <dd>{formatReturnListDisposition(r.summary, isArabic)}</dd>
               </div>
               <div>
-                <dt className="text-slate-400">{t('Outbound', 'الصادر')}</dt>
+                <dt className="text-text-faint">{t('Outbound', 'الصادر')}</dt>
                 <dd>{r.originalOutbound?.orderNumber ?? '—'}</dd>
               </div>
               <div>
-                <dt className="text-slate-400">{t('Created', 'أُنشئ')}</dt>
+                <dt className="text-text-faint">{t('Created', 'أُنشئ')}</dt>
                 <dd>{formatDt(r.createdAt, locale)}</dd>
               </div>
               <div>
-                <dt className="text-slate-400">{t('Processed', 'معالج')}</dt>
+                <dt className="text-text-faint">{t('Processed', 'معالج')}</dt>
                 <dd>{formatDt(r.completedAt, locale)}</dd>
               </div>
             </dl>
@@ -361,7 +361,7 @@ export function ReturnsListPage() {
           </article>
         ))}
         {pagination.rows.length === 0 && !pagination.isInitialLoading ? (
-          <p className="text-center text-sm text-slate-500">{t('No returns found.', 'لا إرجاعات.')}</p>
+          <p className="text-center text-sm text-text-muted">{t('No returns found.', 'لا إرجاعات.')}</p>
         ) : null}
         {pagination.total > 0 ? (
           <ServerPaginationBar

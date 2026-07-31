@@ -166,18 +166,18 @@ function ProgressBar({
   const p = percent == null ? 0 : Math.max(0, Math.min(100, percent));
   const bar =
     tone === 'amber'
-      ? 'bg-amber-500'
+      ? 'bg-status-warning-fg'
       : tone === 'rose'
-        ? 'bg-rose-500'
+        ? 'bg-status-danger-fg'
         : tone === 'sky'
-          ? 'bg-sky-500'
-          : 'bg-emerald-500';
+          ? 'bg-status-info-fg'
+          : 'bg-brand-500';
   const level = percent == null ? 'emerald' : percent >= 90 ? 'rose' : percent >= 70 ? 'amber' : tone;
   const fill =
-    level === 'rose' ? 'bg-rose-500' : level === 'amber' ? 'bg-amber-500' : bar;
+    level === 'rose' ? 'bg-status-danger-fg' : level === 'amber' ? 'bg-status-warning-fg' : bar;
 
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuenow={p} aria-valuemin={0} aria-valuemax={100}>
+    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-sunken" role="progressbar" aria-valuenow={p} aria-valuemin={0} aria-valuemax={100}>
       <div className={`h-full rounded-full transition-all duration-500 ${fill}`} style={{ width: `${p}%` }} />
     </div>
   );
@@ -186,8 +186,8 @@ function ProgressBar({
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }): ReactElement {
   return (
     <div className="mb-4">
-      <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-      {subtitle ? <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p> : null}
+      <h2 className="text-base font-semibold text-text-strong">{title}</h2>
+      {subtitle ? <p className="text-xs text-text-muted mt-0.5">{subtitle}</p> : null}
     </div>
   );
 }
@@ -205,7 +205,7 @@ function StatCard({
 }): ReactElement {
   return (
     <Card className="p-5" hover>
-      <div className="flex items-center gap-2 text-sm font-medium text-slate-500 mb-3">
+      <div className="flex items-center gap-2 text-sm font-medium text-text-muted mb-3">
         <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${iconTone}`}>
           <i className={`fa-solid ${icon} text-xs`} />
         </div>
@@ -300,16 +300,16 @@ export function BillingPage(): ReactElement {
   const ordersTotal = inboundCycle + outboundCycle;
 
   const orderChartData = [
-    { name: t('Inbound'), count: inboundCycle, fill: '#10B981' },
-    { name: t('Outbound'), count: outboundCycle, fill: '#0EA5E9' },
+    { name: t('Inbound'), count: inboundCycle, fill: 'var(--color-brand-500)' },
+    { name: t('Outbound'), count: outboundCycle, fill: 'var(--color-info-500)' },
   ];
 
   const capacityDonut = [
-    { name: t('Used'), value: Math.max(0, usedVolume), fill: '#10B981' },
+    { name: t('Used'), value: Math.max(0, usedVolume), fill: 'var(--color-brand-500)' },
     {
       name: t('Remaining'),
       value: Math.max(0, remainingVolume ?? Math.max(0, totalVolume - usedVolume)),
-      fill: '#E2E8F0',
+      fill: 'var(--border-strong)',
     },
   ];
 
@@ -363,16 +363,16 @@ export function BillingPage(): ReactElement {
   return (
     <div className="space-y-5 animate-enter">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-          <i className="fa-solid fa-file-invoice-dollar text-emerald-600" />
+        <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-white/5 flex items-center justify-center">
+          <i className="fa-solid fa-file-invoice-dollar text-brand-600 dark:text-brand-400" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-slate-900">{t('Billing')}</h1>
-          <p className="text-xs text-slate-500">{t('Manage your subscription and resource usage')}</p>
+          <h1 className="text-xl font-bold text-text-strong">{t('Billing')}</h1>
+          <p className="text-xs text-text-muted">{t('Manage your subscription and resource usage')}</p>
         </div>
       </div>
 
-      {summaryQuery.isError ? (
+        {summaryQuery.isError ? (
         <Alert
           variant="error"
           title={t('Could not load billing')}
@@ -382,39 +382,39 @@ export function BillingPage(): ReactElement {
             </Alert.Action>
           }
         />
-      ) : null}
+        ) : null}
 
       {notice?.showBanner ? (
         <Card
           className={[
             'p-4 border-l-[3px]',
             notice.variant === 'error'
-              ? 'border-l-rose-500 bg-rose-50/40'
+              ? 'border-l-status-danger-fg bg-status-danger-bg'
               : notice.variant === 'warning'
-                ? 'border-l-amber-500 bg-amber-50/40'
-                : 'border-l-sky-500 bg-sky-50/40',
+                ? 'border-l-status-warning-fg bg-status-warning-bg'
+                : 'border-l-status-info-fg bg-status-info-bg',
           ].join(' ')}
         >
-          <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">
+          <div className="text-xs font-medium text-text-muted uppercase tracking-wide mb-1">
             {t('Important notices')}
-          </div>
-          <h3 className="text-sm font-semibold text-slate-900">{notice.title}</h3>
-          <p className="text-sm text-slate-600 mt-1">{notice.description}</p>
+            </div>
+          <h3 className="text-sm font-semibold text-text-strong">{notice.title}</h3>
+          <p className="text-sm text-text-body mt-1">{notice.description}</p>
         </Card>
-      ) : null}
+            ) : null}
 
       {!summaryQuery.isPending && !plan ? (
         <Card className="p-8 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
-            <i className="fa-solid fa-file-invoice-dollar text-2xl text-slate-300" />
+          <div className="w-14 h-14 rounded-2xl bg-surface-sunken flex items-center justify-center mx-auto mb-4">
+            <i className="fa-solid fa-file-invoice-dollar text-2xl text-text-faint" />
           </div>
-          <h3 className="text-base font-semibold text-slate-900">{t('No active billing plan on file.')}</h3>
-          <p className="text-sm text-slate-500 mt-1">
+          <h3 className="text-base font-semibold text-text-strong">{t('No active billing plan on file.')}</h3>
+          <p className="text-sm text-text-muted mt-1">
             {t('Contact your account manager to set up a subscription.')}
           </p>
           <a
             href={salesHref}
-            className="inline-flex mt-4 items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
+            className="inline-flex mt-4 items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-on-brand bg-cta hover:bg-cta-hover transition-colors"
           >
             {t('Contact sales')}
           </a>
@@ -422,23 +422,23 @@ export function BillingPage(): ReactElement {
       ) : (
         <>
           {/* Section 1 — Current Subscription */}
-          <Card className="p-6 border-l-[3px] border-l-emerald-500" hover>
+          <Card className="p-6 border-l-[3px] border-l-brand-500" hover>
             <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                <div className="text-xs font-medium text-text-muted uppercase tracking-wide mb-2">
                   {t('Current subscription')}
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-2xl font-bold text-slate-900">
+                  <h2 className="text-2xl font-bold text-text-strong">
                     {plan ? planDisplayName(plan.cycleLengthDays, t) : '…'}
                   </h2>
                   {summary ? (
                     <Badge status={accountBadgeStatus(summary.accountStatus)}>
                       {subscriptionStatusLabel(summary.accountStatus, t)}
                     </Badge>
-                  ) : null}
+            ) : null}
                 </div>
-                <p className="text-sm text-slate-500 mt-2 max-w-xl">
+                <p className="text-sm text-text-muted mt-2 max-w-xl">
                   {t('Includes reserved warehouse capacity and fulfillment services.')}
                   {totalVolume > 0
                     ? ` ${formatDecimal(totalVolume, 2)} ${t('m³')}.`
@@ -447,27 +447,27 @@ export function BillingPage(): ReactElement {
 
                 <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div>
-                    <div className="text-xs text-slate-500">{t('Price')}</div>
-                    <div className="text-lg font-bold text-slate-900 mt-0.5">
+                    <div className="text-xs text-text-muted">{t('Price')}</div>
+                    <div className="text-lg font-bold text-text-strong mt-0.5">
                       {plan ? formatDecimal(plan.fixedSubscriptionFee) : '—'}{' '}
-                      <span className="text-sm font-normal text-slate-400">{CURRENCY}</span>
+                      <span className="text-sm font-normal text-text-faint">{CURRENCY}</span>
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-slate-500">{t('Billing cycle')}</div>
-                    <div className="text-sm font-semibold text-slate-900 mt-1">
+                    <div className="text-xs text-text-muted">{t('Billing cycle')}</div>
+                    <div className="text-sm font-semibold text-text-strong mt-1">
                       {cycleCadence(plan?.cycleLengthDays, t)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-slate-500">{t('Next billing')}</div>
-                    <div className="text-sm font-semibold text-slate-900 mt-1">
+                    <div className="text-xs text-text-muted">{t('Next billing')}</div>
+                    <div className="text-sm font-semibold text-text-strong mt-1">
                       {formatDate(estimatedDate)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-slate-500">{t('Auto-renewal')}</div>
-                    <div className="text-sm font-semibold text-slate-900 mt-1">
+                    <div className="text-xs text-text-muted">{t('Auto-renewal')}</div>
+                    <div className="text-sm font-semibold text-text-strong mt-1">
                       {cycle ? (autoRenewOn ? t('On') : t('Off')) : '—'}
                     </div>
                   </div>
@@ -477,14 +477,14 @@ export function BillingPage(): ReactElement {
               <div className="flex flex-wrap lg:flex-col gap-2 shrink-0">
                 <a
                   href={upgradeHref}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-on-brand bg-cta hover:bg-cta-hover transition-colors"
                 >
                   <i className="fa-solid fa-arrow-up-right-dots text-xs" />
                   {t('Upgrade plan')}
                 </a>
                 <a
                   href={salesHref}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-text-body bg-surface-sunken hover:bg-surface-hover border border-border-strong transition-colors"
                 >
                   <i className="fa-solid fa-headset text-xs" />
                   {t('Contact sales')}
@@ -502,32 +502,32 @@ export function BillingPage(): ReactElement {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <StatCard
                 icon="fa-boxes-stacked"
-                iconTone="bg-sky-50 text-sky-600"
+                iconTone="bg-status-info-bg text-status-info-fg"
                 label={t('Inventory')}
               >
-                <div className="text-2xl font-bold text-slate-900">{formatDecimal(totalItems, 0)}</div>
-                <div className="text-xs text-slate-500 mt-1">{t('Total items')}</div>
-                <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between text-sm">
-                  <span className="text-slate-500">{t('Total SKUs')}</span>
-                  <span className="font-semibold text-slate-900">{skuCount}</span>
+                <div className="text-2xl font-bold text-text-strong">{formatDecimal(totalItems, 0)}</div>
+                <div className="text-xs text-text-muted mt-1">{t('Total items')}</div>
+                <div className="mt-3 pt-3 border-t border-border-subtle flex justify-between text-sm">
+                  <span className="text-text-muted">{t('Total SKUs')}</span>
+                  <span className="font-semibold text-text-strong">{skuCount}</span>
                 </div>
               </StatCard>
 
               <StatCard
                 icon="fa-truck-fast"
-                iconTone="bg-amber-50 text-amber-600"
+                iconTone="bg-status-warning-bg text-status-warning-fg"
                 label={t('Orders this billing cycle')}
               >
-                <div className="text-2xl font-bold text-slate-900">{ordersTotal}</div>
-                <div className="text-xs text-slate-500 mt-1">{t('Total orders')}</div>
-                <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5 text-sm">
+                <div className="text-2xl font-bold text-text-strong">{ordersTotal}</div>
+                <div className="text-xs text-text-muted mt-1">{t('Total orders')}</div>
+                <div className="mt-3 pt-3 border-t border-border-subtle space-y-1.5 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-slate-500">{t('Inbound')}</span>
-                    <span className="font-semibold text-slate-900">{inboundCycle}</span>
+                    <span className="text-text-muted">{t('Inbound')}</span>
+                    <span className="font-semibold text-text-strong">{inboundCycle}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">{t('Outbound')}</span>
-                    <span className="font-semibold text-slate-900">{outboundCycle}</span>
+                    <span className="text-text-muted">{t('Outbound')}</span>
+                    <span className="font-semibold text-text-strong">{outboundCycle}</span>
                   </div>
                 </div>
               </StatCard>
@@ -535,7 +535,7 @@ export function BillingPage(): ReactElement {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
               <Card className="p-5">
-                <h3 className="text-sm font-semibold text-slate-900 mb-4">{t('Warehouse capacity')}</h3>
+                <h3 className="text-sm font-semibold text-text-strong mb-4">{t('Warehouse capacity')}</h3>
                 <div className="h-44">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -555,20 +555,22 @@ export function BillingPage(): ReactElement {
                         formatter={(value) => `${formatDecimal(Number(value), 2)} ${t('m³')}`}
                         contentStyle={{
                           borderRadius: 10,
-                          border: '1px solid #E2E8F0',
-                          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.05)',
+                          border: '1px solid var(--border-default)',
+                          background: 'var(--surface-panel)',
+                          color: 'var(--text-strong)',
+                          boxShadow: 'var(--shadow-md)',
                         }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="flex justify-center gap-4 text-xs text-slate-500 -mt-2">
+                <div className="flex justify-center gap-4 text-xs text-text-muted -mt-2">
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="w-2 h-2 rounded-full bg-brand-500" />
                     {t('Used')}: {formatDecimal(usedVolume, 2)} {t('m³')}
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-slate-200" />
+                    <span className="w-2 h-2 rounded-full bg-border-strong" />
                     {t('Remaining')}:{' '}
                     {remainingVolume != null ? formatDecimal(remainingVolume, 2) : '—'} {t('m³')}
                   </span>
@@ -576,19 +578,21 @@ export function BillingPage(): ReactElement {
               </Card>
 
               <Card className="p-5">
-                <h3 className="text-sm font-semibold text-slate-900 mb-4">
+                <h3 className="text-sm font-semibold text-text-strong mb-4">
                   {t('Orders this billing cycle')}
                 </h3>
                 <div className="h-44">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={orderChartData} barSize={36}>
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} />
-                      <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: '#64748B', fontSize: 12 }} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
+                      <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
                       <Tooltip
                         contentStyle={{
                           borderRadius: 10,
-                          border: '1px solid #E2E8F0',
-                          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.05)',
+                          border: '1px solid var(--border-default)',
+                          background: 'var(--surface-panel)',
+                          color: 'var(--text-strong)',
+                          boxShadow: 'var(--shadow-md)',
                         }}
                       />
                       <Bar dataKey="count" radius={[8, 8, 0, 0]}>
@@ -612,7 +616,7 @@ export function BillingPage(): ReactElement {
             <Card className="overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
+                  <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
                     <tr>
                       <th className="px-5 py-3 text-left">{t('Limit')}</th>
                       <th className="px-5 py-3 text-left">{t('Current usage')}</th>
@@ -621,16 +625,16 @@ export function BillingPage(): ReactElement {
                       <th className="px-5 py-3 text-right">%</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-border-subtle">
                     {limits.map((row) => (
                       <tr key={row.key}>
-                        <td className="px-5 py-3.5 font-medium text-slate-900">{row.label}</td>
-                        <td className="px-5 py-3.5 text-slate-700 tabular-nums">{row.usage}</td>
-                        <td className="px-5 py-3.5 text-slate-600">{row.max}</td>
+                        <td className="px-5 py-3.5 font-medium text-text-strong">{row.label}</td>
+                        <td className="px-5 py-3.5 text-text-body tabular-nums">{row.usage}</td>
+                        <td className="px-5 py-3.5 text-text-body">{row.max}</td>
                         <td className="px-5 py-3.5">
                           <ProgressBar percent={row.percent} />
                         </td>
-                        <td className="px-5 py-3.5 text-right text-slate-500 tabular-nums">
+                        <td className="px-5 py-3.5 text-right text-text-muted tabular-nums">
                           {row.percent != null ? `${row.percent}%` : '—'}
                         </td>
                       </tr>
@@ -648,28 +652,28 @@ export function BillingPage(): ReactElement {
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 flex-1">
                   <div>
-                    <div className="text-xs text-slate-500">{t('Estimated amount')}</div>
-                    <div className="text-2xl font-bold text-slate-900 mt-1">
+                    <div className="text-xs text-text-muted">{t('Estimated amount')}</div>
+                    <div className="text-2xl font-bold text-text-strong mt-1">
                       {estimatedAmount != null ? formatDecimal(estimatedAmount) : '—'}{' '}
-                      <span className="text-sm font-normal text-slate-400">{CURRENCY}</span>
+                      <span className="text-sm font-normal text-text-faint">{CURRENCY}</span>
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-slate-500">{t('Estimated billing date')}</div>
-                    <div className="text-sm font-semibold text-slate-900 mt-2">
+                    <div className="text-xs text-text-muted">{t('Estimated billing date')}</div>
+                    <div className="text-sm font-semibold text-text-strong mt-2">
                       {formatDate(estimatedDate)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-slate-500">{t('Payment method')}</div>
-                    <div className="text-sm font-semibold text-slate-900 mt-2">
+                    <div className="text-xs text-text-muted">{t('Payment method')}</div>
+                    <div className="text-sm font-semibold text-text-strong mt-2">
                       {t('Manual settlement')}
                     </div>
                   </div>
                 </div>
                 <Link
                   to="/invoices"
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors shrink-0"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-white/5 hover:bg-brand-100 dark:hover:bg-white/10 transition-colors shrink-0"
                 >
                   <i className="fa-solid fa-file-invoice text-xs" />
                   {t('View all invoices')}
@@ -689,7 +693,7 @@ export function BillingPage(): ReactElement {
                 {INCLUDED_FEATURES.map((feature) => (
                   <span
                     key={feature}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-100"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-brand-50 dark:bg-white/5 text-brand-800 dark:text-brand-400 border border-brand-100 dark:border-white/10"
                   >
                     <i className="fa-solid fa-check text-[10px]" />
                     {t(feature)}

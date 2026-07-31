@@ -185,11 +185,11 @@ export function ReturnProcessPage() {
   }, [lines]);
 
   if (detail.isLoading || startReceivingMut.isPending) {
-    return <p className="text-sm text-slate-500">{t('Loading…', 'جاري التحميل…')}</p>;
+    return <p className="text-sm text-text-muted">{t('Loading…', 'جاري التحميل…')}</p>;
   }
 
   if (!order) {
-    return <p className="text-sm text-red-600">{t('Return not found.', 'الإرجاع غير موجود.')}</p>;
+    return <p className="text-sm text-status-danger-fg">{t('Return not found.', 'الإرجاع غير موجود.')}</p>;
   }
 
   if (order.status === 'draft' || order.status === 'completed' || order.status === 'cancelled') {
@@ -204,7 +204,7 @@ export function ReturnProcessPage() {
             </Link>
           }
         />
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <p className="rounded-lg border border-status-warning-border bg-status-warning-bg px-4 py-3 text-sm text-status-warning-fg">
           {t(
             'Confirm the return before processing, or view a completed return on the detail page.',
             'أكد الإرجاع قبل المعالجة، أو اعرض الإرجاع المكتمل من صفحة التفاصيل.',
@@ -255,9 +255,9 @@ export function ReturnProcessPage() {
         }
       />
 
-      <div className="mb-4 h-2 overflow-hidden rounded-full bg-slate-200">
+      <div className="mb-4 h-2 overflow-hidden rounded-full bg-surface-card-muted">
         <div
-          className="h-full bg-sky-600 transition-all"
+          className="h-full bg-brand-600 transition-all"
           style={{ width: `${progressPct}%` }}
         />
       </div>
@@ -270,8 +270,8 @@ export function ReturnProcessPage() {
             onClick={() => setActiveLineId(l.id)}
             className={`shrink-0 rounded-lg border px-3 py-2 text-left text-xs ${
               activeLine?.id === l.id
-                ? 'border-sky-600 bg-sky-50'
-                : 'border-slate-200 bg-white'
+                ? 'border-brand-600 bg-surface-card-muted'
+                : 'border-border bg-surface-card'
             }`}
           >
             <span className="font-mono font-semibold">{l.product.sku}</span>
@@ -283,17 +283,17 @@ export function ReturnProcessPage() {
       </div>
 
       {activeLine ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-900">{activeLine.product.name}</h2>
-          <p className="font-mono text-xs text-slate-500">
+        <section className="rounded-xl border border-border bg-surface-card p-4 shadow-sm">
+          <h2 className="text-base font-semibold text-text-strong">{activeLine.product.name}</h2>
+          <p className="font-mono text-xs text-text-muted">
             {activeLine.product.sku} · {t('Expected', 'متوقع')}{' '}
             {Number(activeLine.expectedQuantity)} · {t('Received', 'مستلم')}{' '}
             {Number(activeLine.receivedQuantity)}
           </p>
 
           {stepReceive ? (
-            <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <div className="mt-4 space-y-3 border-t border-border-subtle pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 {t('1 · Receive', '1 · استلام')}
               </p>
               <TextField
@@ -316,8 +316,8 @@ export function ReturnProcessPage() {
           ) : null}
 
           {stepInspect ? (
-            <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <div className="mt-4 space-y-3 border-t border-border-subtle pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 {t('2 · Inspect', '2 · فحص')}
               </p>
               <SelectField
@@ -365,11 +365,11 @@ export function ReturnProcessPage() {
           ) : null}
 
           {stepPost ? (
-            <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <div className="mt-4 space-y-3 border-t border-border-subtle pt-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 {t('3 · Post inventory', '3 · ترحيل المخزون')}
               </p>
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-text-body">
                 {dispositionLabel(activeLine.disposition, isArabic)} →{' '}
                 {activeLine.targetLocation?.fullPath ?? t('pick location', 'اختر موقع')}
               </p>
@@ -397,12 +397,12 @@ export function ReturnProcessPage() {
           ) : null}
 
           {activeLine.lineStatus === 'posted' ? (
-            <p className="mt-4 text-sm text-emerald-800">{t('Line complete.', 'اكتمل البند.')}</p>
+            <p className="mt-4 text-sm text-brand-700">{t('Line complete.', 'اكتمل البند.')}</p>
           ) : null}
         </section>
       ) : null}
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 p-3 backdrop-blur sm:static sm:mt-6 sm:border-0 sm:bg-transparent sm:p-0">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-surface-card/95 p-3 backdrop-blur sm:static sm:mt-6 sm:border-0 sm:bg-transparent sm:p-0">
         <div className="mx-auto flex max-w-lg flex-col gap-2 sm:max-w-none sm:flex-row sm:justify-end">
           {!isOperator ? (
             <Button variant="ghost" disabled={busy} onClick={() => postAllMut.mutate()}>

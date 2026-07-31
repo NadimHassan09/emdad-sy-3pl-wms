@@ -1,12 +1,15 @@
+import dsPreset from '../shared/design-system-next/tailwind.preset.cjs';
+
 /** @type {import('tailwindcss').Config} */
 export default {
-  presets: ['../shared/design-system/tailwind.preset.cjs'],
+  darkMode: 'class',
+  presets: [dsPreset],
   content: [
     './index.html',
     './src/**/*.{ts,tsx}',
-    '../shared/design-system/**/*.css',
-    '../shared/design-system/ui/**/*.{ts,tsx}',
-    '../frontend/src/components/**/*.{ts,tsx}',
+    '../shared/design-system-next/**/*.css',
+    '../shared/design-system-next/ui/**/*.{ts,tsx}',
+    '../shared/design-system-next/lib/**/*.{ts,tsx}',
   ],
   safelist: [
     'grid-cols-[1fr_auto]',

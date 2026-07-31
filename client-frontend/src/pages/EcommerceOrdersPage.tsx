@@ -147,18 +147,18 @@ export function EcommerceOrdersPage(): ReactElement {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1 max-w-sm">
-          <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+          <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-text-faint text-xs" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('Search order number...')}
-            className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm input-premium focus-visible:outline-none focus-visible:shadow-focus"
+            className="w-full pl-9 pr-4 py-2 bg-surface-panel border border-border-strong text-text-strong placeholder:text-text-faint rounded-lg text-sm input-premium focus-visible:outline-none focus-visible:shadow-focus"
           />
         </div>
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value)}
-          className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 input-premium focus-visible:outline-none focus-visible:shadow-focus"
+          className="px-3 py-2 bg-surface-panel border border-border-strong rounded-lg text-sm text-text-body input-premium focus-visible:outline-none focus-visible:shadow-focus"
         >
           {STATUS_OPTIONS.map((o) => (
             <option key={o.value || 'all'} value={o.value}>
@@ -172,7 +172,7 @@ export function EcommerceOrdersPage(): ReactElement {
         {pagination.isInitialLoading ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
+              <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
                 <tr>
                   <th className="px-5 py-3 text-left">{t('Order #')}</th>
                   <th className="px-5 py-3 text-left">{t('Status')}</th>
@@ -182,7 +182,7 @@ export function EcommerceOrdersPage(): ReactElement {
                   <th className="px-5 py-3 text-right">{t('Created')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border-subtle">
                 {Array.from({ length: 6 }).map((_, rowIdx) => (
                   <tr key={`sk-${rowIdx}`}>
                     {Array.from({ length: 6 }).map((__, colIdx) => (
@@ -223,7 +223,7 @@ export function EcommerceOrdersPage(): ReactElement {
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
+                <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
                   <tr>
                     <th className="px-5 py-3 text-left">{t('Order #')}</th>
                     <th className="px-5 py-3 text-left">{t('Status')}</th>
@@ -233,27 +233,27 @@ export function EcommerceOrdersPage(): ReactElement {
                     <th className="px-5 py-3 text-right">{t('Created')}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-border-subtle">
                   {(pagination.rows as ClientOmsOrderListItem[]).map((row) => (
                     <tr
                       key={row.id}
                       onClick={() => navigate(`/ecommerce-orders/${row.id}`)}
-                      className="hover:bg-slate-50/60 transition-colors cursor-pointer"
+                      className="hover:bg-surface-hover transition-colors cursor-pointer"
                     >
-                      <td className="px-5 py-3.5 font-semibold text-slate-900 font-mono">
+                      <td className="px-5 py-3.5 font-semibold text-text-strong font-mono">
                         {row.orderNumber || '—'}
                       </td>
                       <td className="px-5 py-3.5">
                         <Badge status={row.status} />
                       </td>
-                      <td className="px-5 py-3.5 text-slate-600">{row.recipientName || '—'}</td>
-                      <td className="px-5 py-3.5 text-slate-600">{row.storeChannel || '—'}</td>
-                      <td className="px-5 py-3.5 font-medium text-slate-900">
+                      <td className="px-5 py-3.5 text-text-body">{row.recipientName || '—'}</td>
+                      <td className="px-5 py-3.5 text-text-body">{row.storeChannel || '—'}</td>
+                      <td className="px-5 py-3.5 font-medium text-text-strong">
                         {row.total == null
                           ? '—'
                           : `${row.total}${row.currency ? ` ${row.currency}` : ''}`}
                       </td>
-                      <td className="px-5 py-3.5 text-right text-slate-500 text-xs">
+                      <td className="px-5 py-3.5 text-right text-text-muted text-xs">
                         {new Date(row.createdAt).toLocaleString()}
                       </td>
                     </tr>

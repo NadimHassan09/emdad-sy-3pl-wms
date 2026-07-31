@@ -15,7 +15,7 @@ export function SectionSubNavCard({ isArabic = false }: SectionSubNavCardProps) 
   return (
     <nav
       aria-label={isArabic ? section.ariaLabelAr : section.ariaLabel}
-      className="mb-3 rounded-xl border border-slate-100 bg-white p-1.5 shadow-sm sm:p-2"
+      className="mb-3 rounded-xl border border-border-subtle bg-surface-card p-1.5 shadow-sm sm:p-2"
     >
       <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
         {section.items.map((item) => {
@@ -29,8 +29,8 @@ export function SectionSubNavCard({ isArabic = false }: SectionSubNavCardProps) 
                   'inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-medium transition sm:px-4 sm:py-2',
                   'focus-visible:outline-none focus-visible:shadow-focus',
                   active
-                    ? 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-600'
-                    : 'text-slate-600 hover:bg-slate-50',
+                    ? 'bg-cta text-on-brand shadow-sm hover:bg-cta-hover'
+                    : 'text-text-body hover:bg-surface-hover',
                 ].join(' ')}
               >
                 {isArabic ? item.labelAr : item.labelKey}

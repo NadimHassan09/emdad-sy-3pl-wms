@@ -757,16 +757,16 @@ function CreateOutboundModal({ open, onClose, loading, isArabic, onSubmit }: Cre
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
             />
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface-sunken/80 px-4 py-3">
               <input
                 type="checkbox"
                 checked={requiresPacking}
                 onChange={(e) => setRequiresPacking(e.target.checked)}
-                className="mt-1 rounded border-slate-300"
+                className="mt-1 rounded border-border-strong"
               />
               <span>
-                <span className="block text-sm font-medium text-slate-900">{t('Packing')}</span>
-                <span className="mt-0.5 block text-xs text-slate-500">
+                <span className="block text-sm font-medium text-text-strong">{t('Packing')}</span>
+                <span className="mt-0.5 block text-xs text-text-muted">
                   {isArabic
                     ? 'عند التفعيل يُنشأ مسار التقاط ← تغليف ← إرسال. عند الإلغاء يذهب الالتقاط مباشرة إلى منطقة التسليم.'
                     : 'When on, the workflow is pick → pack → dispatch. When off, pick goes straight to the delivery area.'}
@@ -798,7 +798,7 @@ function CreateOutboundModal({ open, onClose, loading, isArabic, onSubmit }: Cre
                 if (avail === undefined) return null;
                 const isShort = summed > avail;
                 return (
-                  <div className={`mt-1 text-xs ${isShort ? 'text-rose-600' : 'text-emerald-700'}`}>
+                  <div className={`mt-1 text-xs ${isShort ? 'text-status-error-fg' : 'text-status-success-fg'}`}>
                     Available: {avail.toLocaleString(undefined, { maximumFractionDigits: 4 })}
                     {summed > 0 && (
                       <>
@@ -856,7 +856,7 @@ function CreateOutboundModal({ open, onClose, loading, isArabic, onSubmit }: Cre
               }
             />
             {shortages.length > 0 && (
-              <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+              <div className="mt-3 rounded-md border border-status-error-border bg-status-error-bg p-3 text-xs text-status-error-fg">
                 <strong className="block">Order cannot be created — insufficient stock:</strong>
                 <ul className="mt-1 list-disc pl-4">
                   {shortages.map((s) => {

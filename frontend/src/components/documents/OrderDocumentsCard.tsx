@@ -153,15 +153,15 @@ export function OrderDocumentsCard({ referenceType, referenceId, companyIdOverri
   return (
     <FilterPanel title={t('Documents', 'المستندات')} variant="content">
       {isLoading ? (
-        <p className="text-sm text-slate-500">{t('Loading…', 'جارٍ التحميل…')}</p>
+        <p className="text-sm text-text-muted">{t('Loading…', 'جارٍ التحميل…')}</p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-slate-500">{pendingHint}</p>
+        <p className="text-sm text-text-muted">{pendingHint}</p>
       ) : (
         <div className="space-y-2">
           {rows.map((row) => (
             <div
               key={`${row.type}:${row.taskId}`}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-card px-4 py-3"
             >
               <div className="flex items-center gap-3">
                 <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[#EAF6F0] text-[#0B5E3C]">
@@ -180,8 +180,8 @@ export function OrderDocumentsCard({ referenceType, referenceId, companyIdOverri
                   </svg>
                 </span>
                 <div>
-                  <div className="text-sm font-semibold text-slate-800">{typeLabel(row.type)}</div>
-                  <div className="font-mono text-xs text-slate-500">
+                  <div className="text-sm font-semibold text-text-strong">{typeLabel(row.type)}</div>
+                  <div className="font-mono text-xs text-text-muted">
                     {row.number || t('Not generated yet', 'لم يُنشأ بعد')}
                   </div>
                 </div>

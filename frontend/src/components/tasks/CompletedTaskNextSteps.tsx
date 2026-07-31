@@ -10,6 +10,7 @@ import {
   taskDetailHref,
 } from '../../lib/workflow-next-task';
 import { Button } from '../Button';
+import { Card } from '@ds';
 
 function ArrowRightIcon() {
   return (
@@ -70,9 +71,9 @@ export function CompletedTaskNextSteps({
       : null;
 
   return (
-    <section className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-4">
-      <div className="flex items-center gap-2 text-sm font-semibold text-emerald-900">
-        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white">
+    <Card className="border-border bg-surface-card-muted p-4">
+      <div className="flex items-center gap-2 text-sm font-semibold text-text-strong">
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-cta text-on-brand">
           <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="m4.5 10.5 3.2 3.2L15.5 6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -80,7 +81,7 @@ export function CompletedTaskNextSteps({
         {t(['Task completed — what’s next?', 'اكتملت المهمة — ما التالي؟'])}
       </div>
 
-      <p className="mt-1 text-xs text-emerald-800/90">
+      <p className="mt-1 text-xs text-text-body">
         {nextTask
           ? t([
               'Continue to the next step of this same order.',
@@ -91,7 +92,7 @@ export function CompletedTaskNextSteps({
               'كانت هذه الخطوة الأخيرة — اكتمل سير عمل الطلب.',
             ])}
       </p>
-      {pipelineHint ? <p className="mt-1 text-xs text-emerald-800/80">{pipelineHint}</p> : null}
+      {pipelineHint ? <p className="mt-1 text-xs text-text-muted">{pipelineHint}</p> : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-2.5">
         {nextTask ? (
@@ -125,6 +126,6 @@ export function CompletedTaskNextSteps({
           {t(['All tasks', 'كل المهام'])}
         </Button>
       </div>
-    </section>
+    </Card>
   );
 }

@@ -163,24 +163,39 @@ function TopKpi({
   to: string;
 }): ReactElement {
   const tones = {
-    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', value: 'text-emerald-700' },
-    amber: { bg: 'bg-amber-50', text: 'text-amber-600', value: 'text-amber-700' },
-    slate: { bg: 'bg-slate-100', text: 'text-slate-600', value: 'text-slate-800' },
+    emerald: {
+      card: 'border-border',
+      bg: 'bg-brand-50 dark:bg-white/5',
+      text: 'text-brand-600 dark:text-brand-400',
+      value: 'text-brand-700 dark:text-brand-400',
+    },
+    amber: {
+      card: 'border-status-danger-border bg-status-danger-bg/40',
+      bg: 'bg-status-danger-bg',
+      text: 'text-status-danger-fg',
+      value: 'text-status-danger-fg',
+    },
+    slate: {
+      card: 'border-border',
+      bg: 'bg-surface-sunken',
+      text: 'text-text-muted',
+      value: 'text-text-strong',
+    },
   }[tone];
 
   return (
     <Link to={to} className="no-underline block h-full">
-      <Card className="p-5 h-full" hover>
+      <Card className={`p-5 h-full border ${tones.card}`} hover>
         <div className="flex items-center gap-4">
           <div className={`w-12 h-12 rounded-xl ${tones.bg} flex items-center justify-center shrink-0`}>
             <i className={`fa-solid ${icon} ${tones.text} text-lg`} />
           </div>
           <div className="min-w-0">
-            <div className="text-xs font-semibold text-slate-500">{label}</div>
+            <div className="text-xs font-semibold text-text-muted">{label}</div>
             <div className={`text-3xl font-bold tabular-nums mt-1 ${tones.value}`}>
               {loading ? <Skeleton height={32} width={56} className="mt-1" /> : value}
             </div>
-            <div className="text-[11px] text-slate-400 mt-1">{hint}</div>
+            <div className="text-[11px] text-text-faint mt-1">{hint}</div>
           </div>
         </div>
       </Card>
@@ -202,8 +217,8 @@ function StatusCell({
   return (
     <div className="flex-1 min-w-[6.5rem] text-center px-2 py-3">
       <div className={`text-2xl font-bold tabular-nums ${colorClass}`}>{count.toLocaleString()}</div>
-      <div className="text-[11px] font-semibold text-slate-500 mt-1">{label}</div>
-      <div className="text-[10px] text-slate-400 mt-0.5">{pct(count, total)}</div>
+      <div className="text-[11px] font-semibold text-text-muted mt-1">{label}</div>
+      <div className="text-[10px] text-text-faint mt-0.5">{pct(count, total)}</div>
     </div>
   );
 }
@@ -234,17 +249,17 @@ function FinanceCard({
   const inner = (
     <>
       <div className="flex items-center gap-3">
-        <div className={`w-11 h-11 rounded-xl ${emphasize ? 'bg-emerald-600 shadow-md shadow-emerald-600/30' : iconBg} flex items-center justify-center shrink-0`}>
-          <i className={`fa-solid ${icon} ${emphasize ? 'text-white' : iconText}`} />
+        <div className={`w-11 h-11 rounded-xl ${emphasize ? 'bg-cta shadow-md shadow-brand-600/30' : iconBg} flex items-center justify-center shrink-0`}>
+          <i className={`fa-solid ${icon} ${emphasize ? 'text-on-brand' : iconText}`} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className={`text-[11px] font-semibold uppercase tracking-wide ${emphasize ? 'text-emerald-800' : 'text-slate-500'}`}>
+          <div className={`text-[11px] font-semibold uppercase tracking-wide ${emphasize ? 'text-brand-800 dark:text-brand-300' : 'text-text-muted'}`}>
             {label}
           </div>
-          <div className={`text-xl font-bold tabular-nums mt-0.5 ${emphasize ? 'text-emerald-900' : 'text-slate-900'}`}>
+          <div className={`text-xl font-bold tabular-nums mt-0.5 ${emphasize ? 'text-brand-900 dark:text-brand-100' : 'text-text-strong'}`}>
             {loading ? <Skeleton height={24} width={72} className="mt-0.5" /> : value}
           </div>
-          <div className={`text-[10px] mt-0.5 ${emphasize ? 'text-emerald-700/80' : 'text-slate-400'}`}>{hint}</div>
+          <div className={`text-[10px] mt-0.5 ${emphasize ? 'text-brand-700/80 dark:text-brand-300/80' : 'text-text-faint'}`}>{hint}</div>
         </div>
       </div>
     </>
@@ -252,7 +267,7 @@ function FinanceCard({
 
   return (
     <Card
-      className={`p-4 ${emphasize ? 'border-2 border-emerald-500 bg-gradient-to-br from-emerald-50/90 to-white shadow-lg shadow-emerald-600/10' : ''}`}
+      className={`p-4 ${emphasize ? 'border-2 border-brand-500 bg-gradient-to-br from-brand-50/90 to-transparent dark:from-white/[0.04] shadow-lg shadow-brand-600/10' : ''}`}
       hover
     >
       {to ? (
@@ -541,7 +556,7 @@ export function DashboardPage(): ReactElement {
         title={t('Dashboard')}
         subtitle={
           <>
-            {t('Welcome back')}, <span className="font-medium text-slate-700">{displayName}</span>
+            {t('Welcome back')}, <span className="font-medium text-text-body">{displayName}</span>
           </>
         }
         actions={
@@ -560,7 +575,7 @@ export function DashboardPage(): ReactElement {
               size="md"
               onClick={() => navigate('/my-profits')}
               startIcon={
-                <i className="fa-solid fa-money-bill-wave text-emerald-600 text-xs" aria-hidden="true" />
+                <i className="fa-solid fa-money-bill-wave text-brand-600 dark:text-brand-400 text-xs" aria-hidden="true" />
               }
             >
               {t('View cash on delivery')}
@@ -620,12 +635,12 @@ export function DashboardPage(): ReactElement {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         <Card className="xl:col-span-4 p-5">
           <div className="mb-3">
-            <h2 className="text-base font-bold text-slate-900">{t('Order movement')}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">{t('Last 7 days')}</p>
+            <h2 className="text-base font-bold text-text-strong">{t('Order movement')}</h2>
+            <p className="text-xs text-text-muted mt-0.5">{t('Last 7 days')}</p>
           </div>
           <div className="h-52">
             {pieData.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-sm text-slate-400">{t('No data')}</div>
+              <div className="h-full flex items-center justify-center text-sm text-text-faint">{t('No data')}</div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -644,14 +659,22 @@ export function DashboardPage(): ReactElement {
                       <Cell key={entry.name} fill={entry.fill} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 12 }} />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: 10,
+                      border: '1px solid var(--border-default)',
+                      background: 'var(--surface-panel)',
+                      color: 'var(--text-strong)',
+                      fontSize: 12,
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             )}
           </div>
           <ul className="mt-2 space-y-1.5">
             {pieData.map((row) => (
-              <li key={row.name} className="flex justify-between text-xs text-slate-600">
+              <li key={row.name} className="flex justify-between text-xs text-text-body">
                 <span className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full" style={{ background: row.fill }} />
                   {row.name}
@@ -665,14 +688,14 @@ export function DashboardPage(): ReactElement {
         <Card className="xl:col-span-8 p-5">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
             <div>
-              <h2 className="text-base font-bold text-slate-900">{t('Order summary')}</h2>
-              <p className="text-xs text-slate-500 mt-0.5">{t('Where are my orders?')}</p>
+              <h2 className="text-base font-bold text-text-strong">{t('Order summary')}</h2>
+              <p className="text-xs text-text-muted mt-0.5">{t('Where are my orders?')}</p>
             </div>
             <div className="flex flex-wrap items-end gap-2">
               <select
                 value={monthPreset}
                 onChange={(e) => applyMonth(e.target.value as 'this' | 'last')}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                className="h-9 rounded-lg border border-border-strong bg-surface-panel px-3 text-sm text-text-body"
               >
                 <option value="this">{t('This month')}</option>
                 <option value="last">{t('Last month')}</option>
@@ -681,18 +704,18 @@ export function DashboardPage(): ReactElement {
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm"
+                className="h-9 rounded-lg border border-border-strong bg-surface-panel px-2 text-sm text-text-body"
               />
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm"
+                className="h-9 rounded-lg border border-border-strong bg-surface-panel px-2 text-sm text-text-body"
               />
               <select
                 value={storeChannel}
                 onChange={(e) => setStoreChannel(e.target.value)}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 min-w-[9rem]"
+                className="h-9 rounded-lg border border-border-strong bg-surface-panel px-3 text-sm text-text-body min-w-[9rem]"
                 aria-label={t('Sales channel')}
               >
                 {channelOptions.map((o) => (
@@ -703,32 +726,32 @@ export function DashboardPage(): ReactElement {
               </select>
             </div>
           </div>
-          <div className="flex flex-wrap divide-x divide-slate-100 rtl:divide-x-reverse rounded-xl border border-slate-100 bg-slate-50/40">
-            <StatusCell label={t('Total orders')} count={totalOrders} total={totalOrders || 1} colorClass="text-slate-900" />
-            <StatusCell label={t('Unprocessed')} count={statusCounts.unprocessed} total={totalOrders || 1} colorClass="text-amber-600" />
-            <StatusCell label={t('Processing')} count={statusCounts.processing} total={totalOrders || 1} colorClass="text-blue-600" />
-            <StatusCell label={t('Out for delivery')} count={statusCounts.out} total={totalOrders || 1} colorClass="text-violet-600" />
-            <StatusCell label={t('Delivered')} count={statusCounts.delivered} total={totalOrders || 1} colorClass="text-emerald-600" />
-            <StatusCell label={t('Returned')} count={statusCounts.returned} total={totalOrders || 1} colorClass="text-rose-600" />
-            <StatusCell label={t('Cancelled / failed')} count={statusCounts.cancelled} total={totalOrders || 1} colorClass="text-slate-500" />
+          <div className="flex flex-wrap divide-x divide-border-subtle rtl:divide-x-reverse rounded-xl border border-border-subtle bg-surface-card-muted">
+            <StatusCell label={t('Total orders')} count={totalOrders} total={totalOrders || 1} colorClass="text-text-strong" />
+            <StatusCell label={t('Unprocessed')} count={statusCounts.unprocessed} total={totalOrders || 1} colorClass="text-amber-600 dark:text-amber-400" />
+            <StatusCell label={t('Processing')} count={statusCounts.processing} total={totalOrders || 1} colorClass="text-blue-600 dark:text-blue-400" />
+            <StatusCell label={t('Out for delivery')} count={statusCounts.out} total={totalOrders || 1} colorClass="text-violet-600 dark:text-violet-400" />
+            <StatusCell label={t('Delivered')} count={statusCounts.delivered} total={totalOrders || 1} colorClass="text-brand-600 dark:text-brand-400" />
+            <StatusCell label={t('Returned')} count={statusCounts.returned} total={totalOrders || 1} colorClass="text-rose-600 dark:text-rose-400" />
+            <StatusCell label={t('Cancelled / failed')} count={statusCounts.cancelled} total={totalOrders || 1} colorClass="text-text-muted" />
           </div>
         </Card>
       </div>
 
       {/* ✕ REPLACE — was Client Order Performance table → Live inventory (OMS / merchant) */}
       <Card className="overflow-hidden">
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
+        <div className="p-5 border-b border-border-subtle flex items-center justify-between gap-3">
           <div>
-            <h2 className="font-bold text-slate-900">{t('Live inventory')}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">{t('What inventory do I have?')}</p>
+            <h2 className="font-bold text-text-strong">{t('Live inventory')}</h2>
+            <p className="text-xs text-text-muted mt-0.5">{t('What inventory do I have?')}</p>
           </div>
-          <Link to="/products" className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 no-underline">
+          <Link to="/products" className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 no-underline">
             {t('View all')}
           </Link>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-emerald-50/40 text-[11px] uppercase text-slate-500 font-semibold">
+            <thead className="bg-surface-card-muted text-[11px] uppercase text-text-muted font-semibold">
               <tr>
                 <th className="px-5 py-3 text-start">{t('Product')}</th>
                 <th className="px-5 py-3 text-start">{t('SKU')}</th>
@@ -737,7 +760,7 @@ export function DashboardPage(): ReactElement {
                 <th className="px-5 py-3 text-end">{t('Status')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border-subtle">
               {stockQuery.isPending ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <tr key={`inv-sk-${i}`} className="animate-pulse">
@@ -748,7 +771,7 @@ export function DashboardPage(): ReactElement {
                 ))
               ) : inventoryRows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-slate-400">
+                  <td colSpan={5} className="px-5 py-10 text-center text-text-faint">
                     {t('No inventory rows')}
                   </td>
                 </tr>
@@ -756,30 +779,30 @@ export function DashboardPage(): ReactElement {
                 inventoryRows.map((row) => {
                   const badge =
                     row.status === 'out'
-                      ? { label: t('Out of stock'), cls: 'bg-rose-50 text-rose-700 border-rose-200' }
+                      ? { label: t('Out of stock'), cls: 'bg-status-danger-bg text-status-danger-fg border-status-danger-border' }
                       : row.status === 'low'
-                        ? { label: t('Low stock'), cls: 'bg-amber-50 text-amber-800 border-amber-200' }
-                        : { label: t('In stock'), cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+                        ? { label: t('Low stock'), cls: 'bg-status-warning-bg text-status-warning-fg border-status-warning-border' }
+                        : { label: t('In stock'), cls: 'bg-status-success-bg text-status-success-fg border-status-success-border' };
                   const initial = row.name.trim().charAt(0).toUpperCase() || '?';
                   return (
                     <tr
                       key={row.productId}
-                      className="hover:bg-slate-50/70 cursor-pointer transition-colors"
+                      className="hover:bg-surface-hover cursor-pointer transition-colors"
                       onClick={() => navigate(`/products/${row.productId}`)}
                     >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center text-sm font-bold shrink-0">
+                          <div className="w-9 h-9 rounded-lg bg-brand-100 dark:bg-white/10 text-brand-800 dark:text-brand-300 flex items-center justify-center text-sm font-bold shrink-0">
                             {initial}
                           </div>
-                          <span className="font-medium text-slate-900 truncate">{row.name}</span>
+                          <span className="font-medium text-text-strong truncate">{row.name}</span>
                         </div>
                       </td>
-                      <td className="px-5 py-3 text-slate-500 font-mono text-xs">{row.sku}</td>
-                      <td className="px-5 py-3 text-end font-semibold tabular-nums">
+                      <td className="px-5 py-3 text-text-muted font-mono text-xs">{row.sku}</td>
+                      <td className="px-5 py-3 text-end font-semibold tabular-nums text-text-strong">
                         {row.available.toLocaleString(locale)}
                       </td>
-                      <td className="px-5 py-3 text-end tabular-nums text-slate-500">
+                      <td className="px-5 py-3 text-end tabular-nums text-text-muted">
                         {row.reserved.toLocaleString(locale)}
                       </td>
                       <td className="px-5 py-3 text-end">
@@ -799,20 +822,20 @@ export function DashboardPage(): ReactElement {
       {/* ✕ REPLACE bottom chart | ✓ KEEP financial cards — OMS latest orders + finance stack */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         <Card className="xl:col-span-8 overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between gap-3">
+          <div className="p-5 border-b border-border-subtle flex items-center justify-between gap-3">
             <div>
-              <h2 className="font-bold text-slate-900">{t('Orders needing attention')}</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <h2 className="font-bold text-text-strong">{t('Orders needing attention')}</h2>
+              <p className="text-xs text-text-muted mt-0.5">
                 {t('Unprocessed, failed delivery, and similar exceptions')}
               </p>
             </div>
-            <Link to="/ecommerce-orders" className="text-xs font-semibold text-emerald-600 no-underline">
+            <Link to="/ecommerce-orders" className="text-xs font-semibold text-brand-600 dark:text-brand-400 no-underline">
               {t('View all')}
             </Link>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50/80 text-[11px] uppercase text-slate-500 font-semibold">
+              <thead className="bg-surface-card-muted text-[11px] uppercase text-text-muted font-semibold">
                 <tr>
                   <th className="px-5 py-3 text-start">{t('Order')}</th>
                   <th className="px-5 py-3 text-start">{t('Recipient')}</th>
@@ -821,10 +844,10 @@ export function DashboardPage(): ReactElement {
                   <th className="px-5 py-3 text-end">{t('Total')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border-subtle">
                 {attentionOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-5 py-10 text-center text-slate-400">
+                    <td colSpan={5} className="px-5 py-10 text-center text-text-faint">
                       {t('No orders need attention')}
                     </td>
                   </tr>
@@ -832,16 +855,16 @@ export function DashboardPage(): ReactElement {
                   attentionOrders.map((o) => (
                     <tr
                       key={o.id}
-                      className="hover:bg-emerald-50/30 cursor-pointer transition-colors"
+                      className="hover:bg-surface-hover cursor-pointer transition-colors"
                       onClick={() => navigate(`/ecommerce-orders/${o.id}`)}
                     >
-                      <td className="px-5 py-3 font-semibold text-slate-900">{o.orderNumber}</td>
-                      <td className="px-5 py-3 text-slate-600">{o.recipientName || '—'}</td>
-                      <td className="px-5 py-3 text-slate-500 text-xs">{o.storeChannel || '—'}</td>
+                      <td className="px-5 py-3 font-semibold text-text-strong">{o.orderNumber}</td>
+                      <td className="px-5 py-3 text-text-body">{o.recipientName || '—'}</td>
+                      <td className="px-5 py-3 text-text-muted text-xs">{o.storeChannel || '—'}</td>
                       <td className="px-5 py-3">
                         <Badge status={o.status} />
                       </td>
-                      <td className="px-5 py-3 text-end font-semibold tabular-nums text-slate-900">
+                      <td className="px-5 py-3 text-end font-semibold tabular-nums text-text-strong">
                         {o.total != null ? `${o.total} ${o.currency || ''}`.trim() : '—'}
                       </td>
                     </tr>
@@ -859,15 +882,15 @@ export function DashboardPage(): ReactElement {
             value={formatMoney(collectedCod, codCurrency, locale)}
             hint={t('Available to withdraw')}
             icon="fa-sack-dollar"
-            iconBg="bg-emerald-50"
-            iconText="text-emerald-700"
+            iconBg="bg-brand-50 dark:bg-white/5"
+            iconText="text-brand-700 dark:text-brand-400"
             emphasize
             loading={loadingCod}
             to="/my-profits"
             action={
               <a
                 href={payoutMailto}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-700 no-underline"
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cta px-3 py-2 text-xs font-bold text-on-brand hover:bg-cta-hover no-underline"
               >
                 {t('Request payout')}
               </a>
@@ -878,8 +901,8 @@ export function DashboardPage(): ReactElement {
             value={formatMoney(totalCod, codCurrency, locale)}
             hint={t('COD collected this period')}
             icon="fa-money-bill-wave"
-            iconBg="bg-emerald-50"
-            iconText="text-emerald-700"
+            iconBg="bg-brand-50 dark:bg-white/5"
+            iconText="text-brand-700 dark:text-brand-400"
             loading={loadingCod}
             to="/my-profits"
           />
@@ -888,8 +911,8 @@ export function DashboardPage(): ReactElement {
             value={formatMoney(pendingCod, codCurrency, locale)}
             hint={t('Still with carriers')}
             icon="fa-truck"
-            iconBg="bg-slate-100"
-            iconText="text-slate-600"
+            iconBg="bg-surface-sunken"
+            iconText="text-text-muted"
             loading={loadingCod}
             to="/my-profits"
           />
@@ -898,8 +921,8 @@ export function DashboardPage(): ReactElement {
             value={formatMoney(remittedCod, codCurrency, locale)}
             hint={t('Already paid out')}
             icon="fa-building-columns"
-            iconBg="bg-slate-100"
-            iconText="text-slate-600"
+            iconBg="bg-surface-sunken"
+            iconText="text-text-muted"
             loading={loadingCod}
             to="/my-profits"
           />
@@ -908,33 +931,33 @@ export function DashboardPage(): ReactElement {
 
       {/* OMS merchant activity feed */}
       <Card className="overflow-hidden">
-        <div className="p-5 border-b border-slate-100">
-          <h2 className="font-bold text-slate-900">{t('Recent activity')}</h2>
-          <p className="text-xs text-slate-500 mt-0.5">{t('What changed today?')}</p>
+        <div className="p-5 border-b border-border-subtle">
+          <h2 className="font-bold text-text-strong">{t('Recent activity')}</h2>
+          <p className="text-xs text-text-muted mt-0.5">{t('What changed today?')}</p>
         </div>
-        <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+        <div className="divide-y divide-border-subtle max-h-80 overflow-y-auto">
           {activityItems.length === 0 ? (
-            <div className="p-8 text-center text-sm text-slate-400">{t('No recent activity')}</div>
+            <div className="p-8 text-center text-sm text-text-faint">{t('No recent activity')}</div>
           ) : (
             activityItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => item.href && navigate(item.href)}
-                className={`w-full text-start p-4 hover:bg-emerald-50/30 transition-colors ${item.href ? 'cursor-pointer' : ''}`}
+                className={`w-full text-start p-4 hover:bg-surface-hover transition-colors ${item.href ? 'cursor-pointer' : ''}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] font-bold uppercase text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] font-bold uppercase text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-white/5 px-1.5 py-0.5 rounded">
                         {item.kind}
                       </span>
                       {item.status ? <Badge status={item.status} /> : null}
                     </div>
-                    <div className="text-sm font-semibold text-slate-900 truncate">{item.title}</div>
-                    <div className="text-xs text-slate-500 mt-0.5 line-clamp-2">{item.subtitle}</div>
+                    <div className="text-sm font-semibold text-text-strong truncate">{item.title}</div>
+                    <div className="text-xs text-text-muted mt-0.5 line-clamp-2">{item.subtitle}</div>
                   </div>
-                  <div className="text-[10px] text-slate-400 shrink-0 whitespace-nowrap">
+                  <div className="text-[10px] text-text-faint shrink-0 whitespace-nowrap">
                     {new Date(item.at).toLocaleDateString(locale)}
                   </div>
                 </div>

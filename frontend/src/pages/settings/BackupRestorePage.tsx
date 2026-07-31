@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { Alert, SectionContainer } from '@ds';
 
 import { BackupsApi } from '../../api/backups';
 import { useAuth } from '../../auth/AuthContext';
 import { BackupAuditPanel } from '../../components/backups/BackupAuditPanel';
 import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/ConfirmModal';
-import { PANEL_CARD_CLASS, PANEL_TITLE_CLASS } from '../../components/FilterPanel';
 import { SelectField } from '../../components/SelectField';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
@@ -79,38 +79,39 @@ export function BackupRestorePage() {
 
   return (
     <div className="space-y-4">
-      <section className={PANEL_CARD_CLASS}>
-        <h2 className={PANEL_TITLE_CLASS}>{t(['Restore Backup', 'استعادة نسخة احتياطية'])}</h2>
-
-        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-950">
-          <p className="font-semibold">{t(['Warnings', 'تحذيرات'])}</p>
-          <ul className="mt-2 list-disc space-y-1 ps-5">
-            <li>
-              {t([
-                'This replaces the entire database with the selected backup.',
-                'يستبدل هذا قاعدة البيانات بالكامل بالنسخة المختارة.',
-              ])}
-            </li>
-            <li>
-              {t([
-                'All users will be signed out when restore completes.',
-                'سيتم تسجيل خروج جميع المستخدمين عند اكتمال الاستعادة.',
-              ])}
-            </li>
-            <li>
-              {t([
-                'A pre-snapshot rollback backup is created automatically unless disabled.',
-                'تُنشأ نسخة ما قبل الاستعادة تلقائياً ما لم يتم تعطيلها.',
-              ])}
-            </li>
-            <li>
-              {t([
-                'The system enters maintenance mode during restore — only status endpoints respond.',
-                'يدخل النظام وضع الصيانة أثناء الاستعادة — تستجيب نقاط الحالة فقط.',
-              ])}
-            </li>
-          </ul>
-        </div>
+      <SectionContainer title={t(['Restore Backup', 'استعادة نسخة احتياطية'])}>
+        <Alert
+          variant="warning"
+          title={t(['Warnings', 'تحذيرات'])}
+          description={
+            <ul className="mt-2 list-disc space-y-1 ps-5">
+              <li>
+                {t([
+                  'This replaces the entire database with the selected backup.',
+                  'يستبدل هذا قاعدة البيانات بالكامل بالنسخة المختارة.',
+                ])}
+              </li>
+              <li>
+                {t([
+                  'All users will be signed out when restore completes.',
+                  'سيتم تسجيل خروج جميع المستخدمين عند اكتمال الاستعادة.',
+                ])}
+              </li>
+              <li>
+                {t([
+                  'A pre-snapshot rollback backup is created automatically unless disabled.',
+                  'تُنشأ نسخة ما قبل الاستعادة تلقائياً ما لم يتم تعطيلها.',
+                ])}
+              </li>
+              <li>
+                {t([
+                  'The system enters maintenance mode during restore — only status endpoints respond.',
+                  'يدخل النظام وضع الصيانة أثناء الاستعادة — تستجيب نقاط الحالة فقط.',
+                ])}
+              </li>
+            </ul>
+          }
+        />
 
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <SelectField
@@ -120,25 +121,25 @@ export function BackupRestorePage() {
             options={[{ value: '', label: t(['Choose a backup…', 'اختر نسخة…']) }, ...options]}
             disabled={restorableQuery.isLoading}
           />
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-text-body">
             <input
               type="checkbox"
               checked={createPreSnapshot}
               onChange={(e) => setCreatePreSnapshot(e.target.checked)}
-              className="rounded border-slate-300"
+              className="rounded border-border"
             />
             {t(['Create pre-restore snapshot', 'إنشاء لقطة قبل الاستعادة'])}
           </label>
         </div>
 
         {selected ? (
-          <dl className="mt-4 grid gap-2 rounded-lg border border-slate-100 bg-slate-50/60 p-3 text-xs sm:grid-cols-2">
+          <dl className="mt-4 grid gap-2 rounded-lg border border-border-subtle bg-surface-card-muted p-3 text-xs sm:grid-cols-2">
             <div>
-              <dt className="text-slate-500">{t(['Label', 'التسمية'])}</dt>
+              <dt className="text-text-muted">{t(['Label', 'التسمية'])}</dt>
               <dd className="font-mono">{selected.label ?? '—'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">SHA-256</dt>
+              <dt className="text-text-muted">SHA-256</dt>
               <dd className="break-all font-mono">{selected.manifest?.checksumSha256 ?? '—'}</dd>
             </div>
           </dl>
@@ -162,7 +163,7 @@ export function BackupRestorePage() {
             {t(['Restore database', 'استعادة قاعدة البيانات'])}
           </Button>
         </div>
-      </section>
+      </SectionContainer>
 
       <BackupAuditPanel />
 

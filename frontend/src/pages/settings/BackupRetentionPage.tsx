@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
+import { Alert, SectionContainer } from '@ds';
 
 import {
   BackupsApi,
@@ -10,7 +11,6 @@ import {
 import { BackupDriveRetentionAuditPanel } from '../../components/backups/BackupDriveRetentionAuditPanel';
 import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/ConfirmModal';
-import { PANEL_CARD_CLASS, PANEL_TITLE_CLASS } from '../../components/FilterPanel';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
@@ -45,6 +45,11 @@ function summarizeDrivePreview(preview: DriveRetentionCleanupResult | undefined)
     jobCandidates: preview.deletedJobCount,
   };
 }
+
+const STAT_CARD = 'rounded-lg border border-border p-4';
+const STAT_CARD_MUTED = 'rounded-lg border border-border bg-surface-card-muted p-4';
+const STAT_CARD_SUCCESS = 'rounded-lg border border-status-success-border bg-status-success-bg/40 p-4';
+const STAT_CARD_WARNING = 'rounded-lg border border-status-warning-border bg-status-warning-bg/40 p-4';
 
 export function BackupRetentionPage() {
   const gdriveUiEnabled = isBackupGdriveUiEnabled();
@@ -143,267 +148,253 @@ export function BackupRetentionPage() {
 
   return (
     <div className="space-y-4">
-      <section className={PANEL_CARD_CLASS}>
-        <h2 className={PANEL_TITLE_CLASS}>
-          {t(['Local retention policies', 'سياسات الاحتفاظ المحلية'])}
-        </h2>
+      <SectionContainer title={t(['Local retention policies', 'سياسات الاحتفاظ المحلية'])}>
         {policiesQuery.isLoading ? (
-          <p className="text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+          <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
         ) : policies ? (
-          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className={STAT_CARD_MUTED}>
+              <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
                 {t(['Daily', 'يومي'])}
               </dt>
-              <dd className="mt-1 text-2xl font-semibold text-slate-900">
+              <dd className="mt-1 text-2xl font-semibold text-text-strong">
                 {policies.keepLastDaily}
               </dd>
-              <p className="text-xs text-slate-500">{t(['keep last', 'الاحتفاظ بآخر'])}</p>
+              <p className="text-xs text-text-muted">{t(['keep last', 'الاحتفاظ بآخر'])}</p>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <div className={STAT_CARD_MUTED}>
+              <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
                 {t(['Weekly', 'أسبوعي'])}
               </dt>
-              <dd className="mt-1 text-2xl font-semibold text-slate-900">
+              <dd className="mt-1 text-2xl font-semibold text-text-strong">
                 {policies.keepLastWeekly}
               </dd>
-              <p className="text-xs text-slate-500">{t(['keep last', 'الاحتفاظ بآخر'])}</p>
+              <p className="text-xs text-text-muted">{t(['keep last', 'الاحتفاظ بآخر'])}</p>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <div className={STAT_CARD_MUTED}>
+              <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
                 {t(['Monthly', 'شهري'])}
               </dt>
-              <dd className="mt-1 text-2xl font-semibold text-slate-900">
+              <dd className="mt-1 text-2xl font-semibold text-text-strong">
                 {policies.keepLastMonthly}
               </dd>
-              <p className="text-xs text-slate-500">{t(['keep last', 'الاحتفاظ بآخر'])}</p>
+              <p className="text-xs text-text-muted">{t(['keep last', 'الاحتفاظ بآخر'])}</p>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <div className={STAT_CARD_MUTED}>
+              <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
                 {t(['Pre-snapshot protection', 'حماية ما قبل اللقطة'])}
               </dt>
-              <dd className="mt-1 text-2xl font-semibold text-slate-900">
+              <dd className="mt-1 text-2xl font-semibold text-text-strong">
                 {policies.preSnapshotProtectDays}
               </dd>
-              <p className="text-xs text-slate-500">{t(['days', 'أيام'])}</p>
+              <p className="text-xs text-text-muted">{t(['days', 'أيام'])}</p>
             </div>
           </dl>
         ) : null}
         {policies ? (
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="text-xs text-text-muted">
             {t(['Automatic cleanup:', 'التنظيف التلقائي:'])}{' '}
             {policies.retentionCleanupEnabled
               ? t(['enabled', 'مفعّل'])
               : t(['disabled', 'معطّل'])}
           </p>
         ) : null}
-      </section>
+      </SectionContainer>
 
-      <section className={PANEL_CARD_CLASS}>
-        <h2 className={PANEL_TITLE_CLASS}>{t(['Local cleanup preview', 'معاينة التنظيف المحلي'])}</h2>
+      <SectionContainer title={t(['Local cleanup preview', 'معاينة التنظيف المحلي'])}>
         {previewQuery.isLoading ? (
-          <p className="text-sm text-slate-500">{t(['Loading preview…', 'جارٍ تحميل المعاينة…'])}</p>
+          <p className="text-sm text-text-muted">{t(['Loading preview…', 'جارٍ تحميل المعاينة…'])}</p>
         ) : (
-          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-lg border border-slate-200 p-4">
-              <dt className="text-xs text-slate-500">{t(['Eligible backups', 'نسخ مؤهلة'])}</dt>
-              <dd className="mt-1 text-xl font-semibold">{localPreviewSummary.eligible}</dd>
+          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className={STAT_CARD}>
+              <dt className="text-xs text-text-muted">{t(['Eligible backups', 'نسخ مؤهلة'])}</dt>
+              <dd className="mt-1 text-xl font-semibold text-text-strong">{localPreviewSummary.eligible}</dd>
             </div>
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4">
-              <dt className="text-xs text-emerald-800">{t(['Protected backups', 'نسخ محمية'])}</dt>
-              <dd className="mt-1 text-xl font-semibold text-emerald-900">
+            <div className={STAT_CARD_SUCCESS}>
+              <dt className="text-xs text-status-success-fg">{t(['Protected backups', 'نسخ محمية'])}</dt>
+              <dd className="mt-1 text-xl font-semibold text-status-success-fg">
                 {localPreviewSummary.protected}
               </dd>
             </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-4">
-              <dt className="text-xs text-amber-800">
+            <div className={STAT_CARD_WARNING}>
+              <dt className="text-xs text-status-warning-fg">
                 {t(['Deletion candidates', 'مرشّحات للحذف'])}
               </dt>
-              <dd className="mt-1 text-xl font-semibold text-amber-900">
+              <dd className="mt-1 text-xl font-semibold text-status-warning-fg">
                 {localPreviewSummary.candidates}
               </dd>
             </div>
-            <div className="rounded-lg border border-slate-200 p-4">
-              <dt className="text-xs text-slate-500">
+            <div className={STAT_CARD}>
+              <dt className="text-xs text-text-muted">
                 {t(['Estimated reclaimed', 'المساحة المقدّرة'])}
               </dt>
-              <dd className="mt-1 text-xl font-semibold">
+              <dd className="mt-1 text-xl font-semibold text-text-strong">
                 {formatBackupBytes(localPreviewSummary.reclaimedBytes)}
               </dd>
             </div>
           </dl>
         )}
-      </section>
+      </SectionContainer>
 
       {canMutate ? (
-        <section className="rounded-xl border-2 border-rose-300 bg-rose-50/40 p-4 shadow-sm sm:p-6">
-          <h2 className="text-lg font-semibold text-rose-900">
-            {t(['Local manual cleanup', 'تنظيف محلي يدوي'])}
-          </h2>
-          <p className="mt-2 text-sm text-rose-800">
-            {t([
+        <SectionContainer title={t(['Local manual cleanup', 'تنظيف محلي يدوي'])}>
+          <Alert
+            variant="error"
+            description={t([
               'Permanently deletes expired local backups that are not protected. This cannot be undone.',
               'يحذف نهائياً النسخ المحلية المنتهية غير المحمية. لا يمكن التراجع.',
             ])}
-          </p>
-          <Button
-            type="button"
-            variant="danger"
-            className="mt-4"
-            onClick={() => setLocalConfirmOpen(true)}
-          >
-            {t(['Run local retention cleanup', 'تشغيل تنظيف الاحتفاظ المحلي'])}
-          </Button>
-        </section>
+            action={
+              <Button
+                type="button"
+                variant="danger"
+                onClick={() => setLocalConfirmOpen(true)}
+              >
+                {t(['Run local retention cleanup', 'تشغيل تنظيف الاحتفاظ المحلي'])}
+              </Button>
+            }
+          />
+        </SectionContainer>
       ) : null}
 
       {localCleanupResult ? (
-        <section className={PANEL_CARD_CLASS}>
-          <h2 className={PANEL_TITLE_CLASS}>{t(['Local cleanup result', 'نتيجة التنظيف المحلي'])}</h2>
-          <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+        <SectionContainer title={t(['Local cleanup result', 'نتيجة التنظيف المحلي'])}>
+          <dl className="grid gap-3 sm:grid-cols-2">
             <div>
-              <dt className="text-xs text-slate-500">{t(['Deleted count', 'عدد المحذوف'])}</dt>
-              <dd className="text-lg font-semibold">{localCleanupResult.deletedCount}</dd>
+              <dt className="text-xs text-text-muted">{t(['Deleted count', 'عدد المحذوف'])}</dt>
+              <dd className="text-lg font-semibold text-text-strong">{localCleanupResult.deletedCount}</dd>
             </div>
             <div>
-              <dt className="text-xs text-slate-500">{t(['Reclaimed bytes', 'البايتات المستردة'])}</dt>
-              <dd className="text-lg font-semibold">
+              <dt className="text-xs text-text-muted">{t(['Reclaimed bytes', 'البايتات المستردة'])}</dt>
+              <dd className="text-lg font-semibold text-text-strong">
                 {formatBackupBytes(localCleanupResult.bytesReclaimed)}
               </dd>
             </div>
           </dl>
-        </section>
+        </SectionContainer>
       ) : null}
 
       {gdriveUiEnabled ? (
       <>
-      <section className={PANEL_CARD_CLASS}>
-        <h2 className={PANEL_TITLE_CLASS}>
-          {t(['Google Drive retention policies', 'سياسات احتفاظ Google Drive'])}
-        </h2>
+      <SectionContainer title={t(['Google Drive retention policies', 'سياسات احتفاظ Google Drive'])}>
         {drivePoliciesQuery.isLoading ? (
-          <p className="text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+          <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
         ) : drivePolicies ? (
-          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className={STAT_CARD_MUTED}>
+              <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
                 {t(['Daily', 'يومي'])}
               </dt>
-              <dd className="mt-1 text-2xl font-semibold text-slate-900">
+              <dd className="mt-1 text-2xl font-semibold text-text-strong">
                 {drivePolicies.keepLastDaily}
               </dd>
-              <p className="text-xs text-slate-500">{t(['keep last', 'الاحتفاظ بآخر'])}</p>
+              <p className="text-xs text-text-muted">{t(['keep last', 'الاحتفاظ بآخر'])}</p>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <div className={STAT_CARD_MUTED}>
+              <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
                 {t(['Weekly', 'أسبوعي'])}
               </dt>
-              <dd className="mt-1 text-2xl font-semibold text-slate-900">
+              <dd className="mt-1 text-2xl font-semibold text-text-strong">
                 {drivePolicies.keepLastWeekly}
               </dd>
-              <p className="text-xs text-slate-500">{t(['keep last', 'الاحتفاظ بآخر'])}</p>
+              <p className="text-xs text-text-muted">{t(['keep last', 'الاحتفاظ بآخر'])}</p>
             </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-              <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <div className={STAT_CARD_MUTED}>
+              <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">
                 {t(['Monthly', 'شهري'])}
               </dt>
-              <dd className="mt-1 text-2xl font-semibold text-slate-900">
+              <dd className="mt-1 text-2xl font-semibold text-text-strong">
                 {drivePolicies.keepLastMonthly}
               </dd>
-              <p className="text-xs text-slate-500">{t(['keep last', 'الاحتفاظ بآخر'])}</p>
+              <p className="text-xs text-text-muted">{t(['keep last', 'الاحتفاظ بآخر'])}</p>
             </div>
           </dl>
         ) : null}
         {drivePolicies ? (
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="text-xs text-text-muted">
             {t(['Automatic Drive cleanup:', 'تنظيف Drive التلقائي:'])}{' '}
             {drivePolicies.driveRetentionCleanupEnabled
               ? t(['enabled', 'مفعّل'])
               : t(['disabled', 'معطّل'])}
           </p>
         ) : null}
-      </section>
+      </SectionContainer>
 
-      <section className={PANEL_CARD_CLASS}>
-        <h2 className={PANEL_TITLE_CLASS}>
-          {t(['Drive cleanup preview', 'معاينة تنظيف Drive'])}
-        </h2>
+      <SectionContainer title={t(['Drive cleanup preview', 'معاينة تنظيف Drive'])}>
         {drivePreviewQuery.isLoading ? (
-          <p className="text-sm text-slate-500">{t(['Loading preview…', 'جارٍ تحميل المعاينة…'])}</p>
+          <p className="text-sm text-text-muted">{t(['Loading preview…', 'جارٍ تحميل المعاينة…'])}</p>
         ) : (
-          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-lg border border-slate-200 p-4">
-              <dt className="text-xs text-slate-500">
+          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className={STAT_CARD}>
+              <dt className="text-xs text-text-muted">
                 {t(['Eligible synced backups', 'نسخ متزامنة مؤهلة'])}
               </dt>
-              <dd className="mt-1 text-xl font-semibold">{drivePreviewSummary.eligible}</dd>
+              <dd className="mt-1 text-xl font-semibold text-text-strong">{drivePreviewSummary.eligible}</dd>
             </div>
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4">
-              <dt className="text-xs text-emerald-800">{t(['Protected backups', 'نسخ محمية'])}</dt>
-              <dd className="mt-1 text-xl font-semibold text-emerald-900">
+            <div className={STAT_CARD_SUCCESS}>
+              <dt className="text-xs text-status-success-fg">{t(['Protected backups', 'نسخ محمية'])}</dt>
+              <dd className="mt-1 text-xl font-semibold text-status-success-fg">
                 {drivePreviewSummary.protected}
               </dd>
             </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-4">
-              <dt className="text-xs text-amber-800">
+            <div className={STAT_CARD_WARNING}>
+              <dt className="text-xs text-status-warning-fg">
                 {t(['Drive file deletions', 'حذف ملفات Drive'])}
               </dt>
-              <dd className="mt-1 text-xl font-semibold text-amber-900">
+              <dd className="mt-1 text-xl font-semibold text-status-warning-fg">
                 {drivePreviewSummary.driveCandidates}
               </dd>
             </div>
-            <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-4">
-              <dt className="text-xs text-amber-800">
+            <div className={STAT_CARD_WARNING}>
+              <dt className="text-xs text-status-warning-fg">
                 {t(['Drive-only job deletions', 'حذف مهام drive-only'])}
               </dt>
-              <dd className="mt-1 text-xl font-semibold text-amber-900">
+              <dd className="mt-1 text-xl font-semibold text-status-warning-fg">
                 {drivePreviewSummary.jobCandidates}
               </dd>
             </div>
           </dl>
         )}
-      </section>
+      </SectionContainer>
 
       {canMutate ? (
-        <section className="rounded-xl border-2 border-rose-300 bg-rose-50/40 p-4 shadow-sm sm:p-6">
-          <h2 className="text-lg font-semibold text-rose-900">
-            {t(['Drive manual cleanup', 'تنظيف Drive يدوي'])}
-          </h2>
-          <p className="mt-2 text-sm text-rose-800">
-            {t([
+        <SectionContainer title={t(['Drive manual cleanup', 'تنظيف Drive يدوي'])}>
+          <Alert
+            variant="error"
+            description={t([
               'Removes expired Google Drive backup files and drive-only job records. Local copies are not affected.',
               'يزيل ملفات النسخ المنتهية على Google Drive وسجلات مهام drive-only. لا يؤثر على النسخ المحلية.',
             ])}
-          </p>
-          <Button
-            type="button"
-            variant="danger"
-            className="mt-4"
-            onClick={() => setDriveConfirmOpen(true)}
-          >
-            {t(['Run Drive retention cleanup', 'تشغيل تنظيف احتفاظ Drive'])}
-          </Button>
-        </section>
+            action={
+              <Button
+                type="button"
+                variant="danger"
+                onClick={() => setDriveConfirmOpen(true)}
+              >
+                {t(['Run Drive retention cleanup', 'تشغيل تنظيف احتفاظ Drive'])}
+              </Button>
+            }
+          />
+        </SectionContainer>
       ) : null}
 
       {driveCleanupResult ? (
-        <section className={PANEL_CARD_CLASS}>
-          <h2 className={PANEL_TITLE_CLASS}>{t(['Drive cleanup result', 'نتيجة تنظيف Drive'])}</h2>
-          <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+        <SectionContainer title={t(['Drive cleanup result', 'نتيجة تنظيف Drive'])}>
+          <dl className="grid gap-3 sm:grid-cols-2">
             <div>
-              <dt className="text-xs text-slate-500">
+              <dt className="text-xs text-text-muted">
                 {t(['Drive files deleted', 'ملفات Drive المحذوفة'])}
               </dt>
-              <dd className="text-lg font-semibold">{driveCleanupResult.deletedDriveCount}</dd>
+              <dd className="text-lg font-semibold text-text-strong">{driveCleanupResult.deletedDriveCount}</dd>
             </div>
             <div>
-              <dt className="text-xs text-slate-500">
+              <dt className="text-xs text-text-muted">
                 {t(['Drive-only jobs deleted', 'مهام drive-only المحذوفة'])}
               </dt>
-              <dd className="text-lg font-semibold">{driveCleanupResult.deletedJobCount}</dd>
+              <dd className="text-lg font-semibold text-text-strong">{driveCleanupResult.deletedJobCount}</dd>
             </div>
           </dl>
-        </section>
+        </SectionContainer>
       ) : null}
 
       <BackupDriveRetentionAuditPanel />

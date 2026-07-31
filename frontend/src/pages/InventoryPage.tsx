@@ -6,7 +6,7 @@ import { CompaniesApi } from '../api/companies';
 import { InventoryApi, ProductStockSummaryRow } from '../api/inventory';
 import { BarcodeImageModal } from '../components/BarcodeImageModal';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
-import { Alert } from '@ds';
+import { Alert, Badge } from '@ds';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
@@ -22,12 +22,26 @@ import {
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
 import {
-  stockHealthBadgeClass,
   stockHealthBarClass,
   stockHealthLabel,
   stockHealthProgress,
   stockHealthStatus,
+  type StockHealthStatus,
 } from '../lib/stock-health';
+
+function stockHealthTone(status: StockHealthStatus): 'success' | 'warning' | 'danger' | 'neutral' {
+  switch (status) {
+    case 'healthy':
+      return 'success';
+    case 'low_stock':
+      return 'warning';
+    case 'critical':
+    case 'out_of_stock':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
+}
 
 const fmtQty = (s: string): string => {
   const n = Number(s);
@@ -52,7 +66,7 @@ function uomLabel(uom: string) {
 const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
   {
     header: 'Product',
-    accessor: (r) => <span className="font-medium text-slate-900">{r.product.name}</span>,
+    accessor: (r) => <span className="font-medium text-text-strong">{r.product.name}</span>,
     width: '280px',
   },
   {
@@ -69,9 +83,9 @@ const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
     header: 'Barcode',
     accessor: (r) =>
       r.product.barcode ? (
-        <span className="font-mono text-xs text-slate-800">{r.product.barcode}</span>
+        <span className="font-mono text-xs text-text-body">{r.product.barcode}</span>
       ) : (
-        <span className="text-slate-400">—</span>
+        <span className="text-text-faint">—</span>
       ),
     width: '160px',
   },
@@ -85,14 +99,14 @@ const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
       return (
         <div className="flex items-center justify-end gap-2">
           {percent != null ? (
-            <div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100 shrink-0">
+            <div className="h-1.5 w-12 overflow-hidden rounded-full bg-surface-sunken shrink-0">
               <div
                 className={`h-full rounded-full ${stockHealthBarClass(status)}`}
                 style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
               />
             </div>
           ) : null}
-          <span className="font-mono font-semibold text-slate-900 tabular-nums">
+          <span className="font-mono font-semibold text-text-strong tabular-nums">
             {fmtQty(r.onHand ?? r.totalQuantity)}
           </span>
         </div>
@@ -104,7 +118,7 @@ const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
   {
     header: 'Reserved',
     accessor: (r) => (
-      <span className="font-mono text-right block text-slate-700">{fmtQty(r.reserved ?? '0')}</span>
+      <span className="font-mono text-right block text-text-body">{fmtQty(r.reserved ?? '0')}</span>
     ),
     width: '100px',
     className: 'text-right',
@@ -112,7 +126,7 @@ const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
   {
     header: 'Available',
     accessor: (r) => (
-      <span className="font-mono text-right block text-slate-700">{fmtQty(r.available ?? '0')}</span>
+      <span className="font-mono text-right block text-text-body">{fmtQty(r.available ?? '0')}</span>
     ),
     width: '100px',
     className: 'text-right',
@@ -124,20 +138,18 @@ const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
         Number(r.available ?? r.onHand ?? r.totalQuantity ?? 0),
         r.minStockThreshold ?? 0,
       );
-      if (!status) return <span className="text-slate-400">—</span>;
+      if (!status) return <span className="text-text-faint">—</span>;
       return (
-        <span
-          className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold ${stockHealthBadgeClass(status)}`}
-        >
+        <Badge tone={stockHealthTone(status)} size="xs" dot>
           {stockHealthLabel(status)}
-        </span>
+        </Badge>
       );
     },
     width: '120px',
   },
   {
     header: 'UOM',
-    accessor: (r) => <span className="text-slate-800">{uomLabel(r.product.uom)}</span>,
+    accessor: (r) => <span className="text-text-body">{uomLabel(r.product.uom)}</span>,
     width: '100px',
   },
 ];
@@ -253,7 +265,7 @@ export function InventoryPage() {
           r.product.barcode ? (
             <button
               type="button"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100 hover:text-brand-700"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-muted transition hover:bg-surface-hover hover:text-brand-700 dark:hover:text-brand-400"
               title={t('Show barcode', 'عرض الباركود')}
               aria-label={t('Show barcode', 'عرض الباركود')}
               onClick={(e) => {
@@ -264,7 +276,7 @@ export function InventoryPage() {
               <i className="fa-solid fa-barcode text-base" aria-hidden="true" />
             </button>
           ) : (
-            <span className="text-slate-400">—</span>
+            <span className="text-text-faint">—</span>
           ),
       },
       { ...SUMMARY_COLUMNS[4], header: t('On hand', 'المتوفر') },
@@ -373,7 +385,7 @@ export function InventoryPage() {
         }}
       />
 
-      <p className="mt-3 text-xs text-slate-500">
+      <p className="mt-3 text-xs text-text-muted">
         {pagination.total > 0
           ? `${pagination.total} product${pagination.total === 1 ? '' : 's'} with stock`
           : ''}

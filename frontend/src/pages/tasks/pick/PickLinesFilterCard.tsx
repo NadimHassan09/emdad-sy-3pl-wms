@@ -70,7 +70,7 @@ export function PickLinesFilterCard({
         />
       </FilterPanel>
       {showingFiltered ? (
-        <p className="mb-4 text-xs text-slate-500">
+        <p className="mb-4 text-xs text-text-muted">
           {t([
             `Showing ${resultCount} of ${totalCount} lines`,
             `عرض ${resultCount} من ${totalCount} سطر`,

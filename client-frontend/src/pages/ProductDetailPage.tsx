@@ -1,14 +1,14 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { isAxiosError } from 'axios';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Skeleton } from '@ds';
+import { Alert, Card, Skeleton } from '@ds';
 
 import { Badge } from '../design-v2/Badge';
-import { Card } from '../design-v2/Card';
 import { ListPageHeader } from '../design-v2/ListPageHeader';
 import { isClientArabic } from '../lib/client-ui-language';
 import { fetchClientProduct } from '../services/clientProductsService';
+import { clientMediaSrc } from '../lib/client-media';
 
 const UOM_LABELS: Record<string, { en: string; ar: string }> = {
   piece: { en: 'Piece', ar: 'قطعة' },
@@ -37,14 +37,21 @@ function detailLabel(label: string, isArabic: boolean): string {
     'Expiry tracking': 'تتبع انتهاء الصلاحية',
     'Min stock threshold': 'حد المخزون الأدنى',
     'On hand': 'المتوفر',
+    'Total on hand': 'إجمالي المتوفر',
     Reserved: 'محجوز',
     Available: 'متاح',
-    Dimensions: 'الأبعاد (سم)',
-    Weight: 'الوزن (كغ)',
+    'Available for sale': 'متاح للبيع',
+    Dimensions: 'الأبعاد',
+    'Dimensions & weight': 'الأبعاد والوزن',
+    'Identity & classification': 'الهوية والتصنيف',
+    Weight: 'الوزن',
     Created: 'تاريخ الإنشاء',
     Updated: 'تاريخ التحديث',
     Yes: 'نعم',
     No: 'لا',
+    units: 'وحدة',
+    cm: 'سم',
+    kg: 'كغ',
   };
   return ar[label] ?? label;
 }
@@ -61,11 +68,46 @@ function fmtQty(s: string): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
-function DetailRow({ label, children }: { label: string; children: React.ReactNode }): ReactElement {
+function MetricCard({
+  label,
+  value,
+  emphasis,
+}: {
+  label: string;
+  value: string;
+  emphasis?: boolean;
+}): ReactElement {
   return (
-    <div className="grid grid-cols-1 gap-1 border-b border-slate-100 py-3 last:border-0 sm:grid-cols-[12rem_1fr] sm:gap-4">
-      <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="text-sm text-slate-800">{children}</dd>
+    <div
+      className={`rounded-xl border px-4 py-3.5 ${
+        emphasis
+          ? 'border-brand-200 bg-brand-50 dark:border-white/10 dark:bg-white/5'
+          : 'border-border-subtle bg-surface-card-muted'
+      }`}
+    >
+      <div
+        className={`text-[11px] font-semibold uppercase tracking-wide ${
+          emphasis ? 'text-brand-700 dark:text-brand-400' : 'text-text-muted'
+        }`}
+      >
+        {label}
+      </div>
+      <div
+        className={`mt-1 font-mono text-xl font-bold tabular-nums ${
+          emphasis ? 'text-brand-800 dark:text-brand-300' : 'text-text-strong'
+        }`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, children }: { label: string; children: ReactNode }): ReactElement {
+  return (
+    <div className="grid grid-cols-1 gap-1 border-b border-border-subtle py-2.5 last:border-0 sm:grid-cols-[9rem_1fr] sm:gap-4">
+      <dt className="text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</dt>
+      <dd className="text-sm text-text-body">{children}</dd>
     </div>
   );
 }
@@ -105,9 +147,9 @@ export function ProductDetailPage(): ReactElement {
         />
         <Link
           to="/products"
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface-panel px-3 py-2 text-sm font-medium text-text-body transition hover:bg-surface-hover"
         >
-          <i className={`fa-solid ${isArabic ? 'fa-arrow-right' : 'fa-arrow-left'} text-xs text-slate-400`} />
+          <i className={`fa-solid ${isArabic ? 'fa-arrow-right' : 'fa-arrow-left'} text-xs text-text-faint`} />
           {t('Back to products')}
         </Link>
       </div>
@@ -118,88 +160,103 @@ export function ProductDetailPage(): ReactElement {
         <Alert variant="error" title={t('Could not load product.')} />
       ) : null}
 
-      <Card className="p-5 sm:p-6">
-        {isLoading ? (
+      {isLoading ? (
+        <Card className="p-5 sm:p-6">
           <div className="space-y-4" aria-busy="true">
             <Skeleton height={28} width="40%" />
-            <Skeleton height={14} width="70%" />
-            <Skeleton height={14} width="55%" />
-            <Skeleton height={14} width="60%" />
             <div className="grid gap-3 sm:grid-cols-3 pt-2">
               <Skeleton height={64} />
               <Skeleton height={64} />
               <Skeleton height={64} />
             </div>
+            <Skeleton height={140} />
           </div>
-        ) : data ? (
-          <>
-            <div className="mb-5 flex flex-wrap items-center gap-3">
-              <h2 className="text-lg font-bold text-slate-900">{data.name}</h2>
+        </Card>
+      ) : data ? (
+        <>
+          <div className="flex flex-wrap items-center gap-4">
+            {clientMediaSrc(data.imageUrl) ? (
+              <img
+                src={clientMediaSrc(data.imageUrl) ?? undefined}
+                alt=""
+                className="h-14 w-14 shrink-0 rounded-xl border border-border object-cover"
+              />
+            ) : (
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-surface-card-muted text-text-faint">
+                <i className="fa-solid fa-box text-lg" aria-hidden="true" />
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-bold text-text-strong">{data.name}</h2>
               <Badge status={data.status} />
             </div>
+          </div>
 
-            <div className="mb-6 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  {t('On hand')}
-                </div>
-                <div className="mt-1 font-mono text-xl font-bold tabular-nums text-slate-900">
-                  {fmtQty(data.totalOnHand)}
-                </div>
-              </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-4 py-3">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                  {t('Reserved')}
-                </div>
-                <div className="mt-1 font-mono text-xl font-bold tabular-nums text-slate-900">
-                  {fmtQty(data.totalReserved)}
-                </div>
-              </div>
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-4 py-3">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
-                  {t('Available')}
-                </div>
-                <div className="mt-1 font-mono text-xl font-bold tabular-nums text-emerald-800">
-                  {fmtQty(data.totalAvailable)}
-                </div>
-              </div>
-            </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <MetricCard label={t('Available for sale')} value={fmtQty(data.totalAvailable)} emphasis />
+            <MetricCard label={t('Reserved')} value={fmtQty(data.totalReserved)} />
+            <MetricCard label={t('Total on hand')} value={fmtQty(data.totalOnHand)} />
+          </div>
 
-            <dl>
-              <DetailRow label={t('SKU')}>
-                <span className="font-mono text-sm">{data.sku}</span>
-              </DetailRow>
-              <DetailRow label={t('Barcode')}>
-                <span className="font-mono text-sm">{data.barcode ?? '—'}</span>
-              </DetailRow>
-              {data.description ? (
-                <DetailRow label={t('Description')}>
-                  <span className="whitespace-pre-wrap">{data.description}</span>
-                </DetailRow>
-              ) : null}
-              <DetailRow label={t('UoM')}>{uomLabel}</DetailRow>
-              <DetailRow label={t('Expiry tracking')}>
-                {data.expiryTracking ? t('Yes') : t('No')}
-              </DetailRow>
-              <DetailRow label={t('Min stock threshold')}>
-                <span className="font-mono">{fmtQty(data.minStockThreshold)}</span>
-              </DetailRow>
-              {dimensions ? (
-                <DetailRow label={t('Dimensions')}>
-                  <span className="font-mono">{dimensions}</span>
-                </DetailRow>
-              ) : null}
-              {data.weightKg ? (
-                <DetailRow label={t('Weight')}>
-                  <span className="font-mono">{data.weightKg}</span>
-                </DetailRow>
-              ) : null}
-              <DetailRow label={t('Created')}>{formatDateTime(data.createdAt)}</DetailRow>
-              <DetailRow label={t('Updated')}>{formatDateTime(data.updatedAt)}</DetailRow>
-            </dl>
-          </>
-        ) : null}
-      </Card>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Card padding="none">
+              <Card.Header>
+                <Card.Title>{t('Identity & classification')}</Card.Title>
+              </Card.Header>
+              <Card.Body>
+                <dl>
+                  <DetailRow label={t('SKU')}>
+                    <span className="font-mono">{data.sku}</span>
+                  </DetailRow>
+                  <DetailRow label={t('Barcode')}>
+                    <span className="font-mono">{data.barcode ?? '—'}</span>
+                  </DetailRow>
+                  {data.description ? (
+                    <DetailRow label={t('Description')}>
+                      <span className="whitespace-pre-wrap">{data.description}</span>
+                    </DetailRow>
+                  ) : null}
+                  <DetailRow label={t('UoM')}>{uomLabel}</DetailRow>
+                  <DetailRow label={t('Expiry tracking')}>
+                    {data.expiryTracking ? t('Yes') : t('No')}
+                  </DetailRow>
+                </dl>
+              </Card.Body>
+            </Card>
+
+            <Card padding="none">
+              <Card.Header>
+                <Card.Title>{t('Dimensions & weight')}</Card.Title>
+              </Card.Header>
+              <Card.Body>
+                <dl>
+                  <DetailRow label={t('Min stock threshold')}>
+                    <span className="font-mono">
+                      {fmtQty(data.minStockThreshold)} {t('units')}
+                    </span>
+                  </DetailRow>
+                  {dimensions ? (
+                    <DetailRow label={t('Dimensions')}>
+                      <span className="font-mono">
+                        {dimensions} {t('cm')}
+                      </span>
+                    </DetailRow>
+                  ) : null}
+                  {data.weightKg ? (
+                    <DetailRow label={t('Weight')}>
+                      <span className="font-mono">
+                        {data.weightKg} {t('kg')}
+                      </span>
+                    </DetailRow>
+                  ) : null}
+                  <DetailRow label={t('Created')}>{formatDateTime(data.createdAt)}</DetailRow>
+                  <DetailRow label={t('Updated')}>{formatDateTime(data.updatedAt)}</DetailRow>
+                </dl>
+              </Card.Body>
+            </Card>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

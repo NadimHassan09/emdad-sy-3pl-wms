@@ -85,10 +85,10 @@ export function OrderDraftLinesTable({
                 dropdownInFlow
               />
               {showProductOnHand && product ? (
-                <p className="mt-1 text-[11px] text-slate-600">
+                <p className="mt-1 text-[11px] text-text-muted">
                   {onHandLabel}{' '}
-                  <span className="font-mono font-semibold text-slate-900">{formatOnHand(product)}</span>{' '}
-                  <span className="uppercase text-slate-700">{product.uom}</span>
+                  <span className="font-mono font-semibold text-text-strong">{formatOnHand(product)}</span>{' '}
+                  <span className="uppercase text-text-body">{product.uom}</span>
                 </p>
               ) : null}
               {row.productId && renderProductFooter?.(row.productId)}
@@ -126,7 +126,7 @@ export function OrderDraftLinesTable({
               {removeLabel}
             </Button>
           ) : (
-            <span className="text-slate-400">—</span>
+            <span className="text-text-faint">—</span>
           ),
         width: '100px',
       },

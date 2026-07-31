@@ -1,11 +1,11 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
+import { Alert, Card, ListPageHeader, Skeleton } from '@ds';
 import { BillingApi } from '../../api/billing';
 import { VolumeAllocationPanel } from '../../components/billing/VolumeAllocationPanel';
 import { Button } from '../../components/Button';
 import { DataTable, type Column } from '../../components/DataTable';
-import { PageHeader } from '../../components/PageHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
@@ -24,8 +24,8 @@ const CURRENCY = 'SYP';
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="mt-1 text-sm text-slate-900">{value}</dd>
+      <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">{label}</dt>
+      <dd className="mt-1 text-sm text-text-strong">{value}</dd>
     </div>
   );
 }
@@ -112,16 +112,19 @@ export function BillingPlanDetailPage() {
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="text-sm text-slate-500">
-        <Link to="/billing/plans" className="hover:underline">
-          ← Back to billing plans
-        </Link>
-      </div>
+    <div className="space-y-5 animate-enter">
+      <Link
+        to="/billing/plans"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+      >
+        <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+        Back to billing plans
+      </Link>
 
-      <PageHeader
+      <ListPageHeader
+        icon="fa-file-invoice-dollar"
         title={company ? `${company.name} — billing plan` : 'Client billing plan'}
-        description="Subscription storage plan, current cycle, history, and invoices."
+        subtitle="Subscription storage plan, current cycle, history, and invoices."
         actions={
           canMutate ? (
             <div className="flex flex-wrap gap-2">
@@ -139,14 +142,21 @@ export function BillingPlanDetailPage() {
         }
       />
 
-      {detailQuery.isPending ? <p className="text-sm text-slate-500">Loading billing details…</p> : null}
+      {detailQuery.isPending ? (
+        <Card className="p-5 sm:p-6">
+          <div className="space-y-4" aria-busy="true">
+            <Skeleton height={28} width="40%" />
+            <Skeleton height={180} />
+          </div>
+        </Card>
+      ) : null}
       {detailQuery.isError ? (
-        <p className="text-sm text-rose-600">Could not load client billing details.</p>
+        <Alert variant="error" title="Could not load client billing details." />
       ) : null}
 
       {!plan && !detailQuery.isPending ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
-          <p className="text-sm text-slate-600">This client has no billing plan yet.</p>
+        <div className="rounded-xl border border-dashed border-border-strong bg-surface-sunken p-6 text-center">
+          <p className="text-sm text-text-body">This client has no billing plan yet.</p>
           {canMutate ? (
             <Button className="mt-3" variant="brand" onClick={() => navigate('/billing/plans/new')}>
               Create billing plan
@@ -158,7 +168,7 @@ export function BillingPlanDetailPage() {
       {plan ? (
         <>
           {pendingLines.length > 0 ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="rounded-xl border border-status-warning-border bg-status-warning-bg px-4 py-3 text-sm text-status-warning-fg">
               <p className="font-semibold">Pending changes (apply on next billing cycle)</p>
               <ul className="mt-1 list-disc pl-5">
                 {pendingLines.map((line) => (
@@ -177,9 +187,9 @@ export function BillingPlanDetailPage() {
             description="Used storage = current inventory quantity × product volume (CBM)."
           />
 
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <section className="rounded-xl border border-border bg-surface-card p-4 shadow-sm">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-semibold text-slate-900">Current plan</h3>
+              <h3 className="text-sm font-semibold text-text-strong">Current plan</h3>
               <StatusBadge status={plan.active ? 'active' : 'paused'} />
               {company?.status === 'restricted' ? (
                 <span className="badge badge-cancelled w-fit">restricted</span>
@@ -208,8 +218,8 @@ export function BillingPlanDetailPage() {
             </dl>
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-semibold text-slate-900">Current billing cycle</h3>
+          <section className="rounded-xl border border-border bg-surface-card p-4 shadow-sm">
+            <h3 className="text-sm font-semibold text-text-strong">Current billing cycle</h3>
             {currentCycle ? (
               <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <DetailField label="Start" value={formatDate(currentCycle.startsAt)} />
@@ -228,7 +238,7 @@ export function BillingPlanDetailPage() {
                 <DetailField label="Cycle status" value={currentCycle.status} />
               </dl>
             ) : (
-              <p className="mt-2 text-sm text-slate-500">No active billing cycle for this client.</p>
+              <p className="mt-2 text-sm text-text-muted">No active billing cycle for this client.</p>
             )}
           </section>
 

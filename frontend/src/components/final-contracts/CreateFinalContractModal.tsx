@@ -196,10 +196,10 @@ export function CreateFinalContractModal({ open, onClose, onSaved, contract }: P
         <form id="create-final-contract-form" onSubmit={handleSubmit} className="space-y-4">
           {isEdit && contract ? (
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
+              <label className="mb-1 block text-sm font-medium text-text-body">
                 {t(['Contract #', 'رقم العقد'])}
               </label>
-              <div className="font-mono rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              <div className="font-mono rounded-lg border border-border bg-surface-sunken px-3 py-2 text-sm text-text-body">
                 {contract.contractNumber}
               </div>
             </div>
@@ -221,8 +221,8 @@ export function CreateFinalContractModal({ open, onClose, onSaved, contract }: P
           />
         </div>
 
-        <div className="rounded-lg border border-slate-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-slate-800">
+        <div className="rounded-lg border border-border p-4">
+          <h3 className="mb-3 text-sm font-semibold text-text-strong">
             {t(['Client details', 'بيانات العميل'])}
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -263,8 +263,8 @@ export function CreateFinalContractModal({ open, onClose, onSaved, contract }: P
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-slate-800">
+        <div className="rounded-lg border border-border p-4">
+          <h3 className="mb-3 text-sm font-semibold text-text-strong">
             {t(['Pricing & fees (USD)', 'التسعير والرسوم (USD)'])}
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -280,8 +280,8 @@ export function CreateFinalContractModal({ open, onClose, onSaved, contract }: P
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 p-4">
-          <h3 className="mb-3 text-sm font-semibold text-slate-800">
+        <div className="rounded-lg border border-border p-4">
+          <h3 className="mb-3 text-sm font-semibold text-text-strong">
             {t(['Client signatory', 'موقع العميل'])}
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">

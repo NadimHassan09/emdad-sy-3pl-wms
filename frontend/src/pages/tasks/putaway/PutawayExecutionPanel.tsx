@@ -495,7 +495,7 @@ export function PutawayExecutionPanel({
         onSplit={splitRow}
       />
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface-card/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
         <div className="mx-auto flex max-w-4xl flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button
             type="button"
@@ -534,10 +534,10 @@ function SummaryCards({ summary }: { summary: ReturnType<typeof computePutawaySu
       {cards.map((c) => (
         <div
           key={c.label}
-          className={`rounded-xl border p-3 ${c.accent ? 'border-emerald-200 bg-emerald-50' : 'border-slate-100 bg-white'}`}
+          className={`rounded-xl border p-3 ${c.accent ? 'border-border bg-surface-active' : 'border-border-subtle bg-surface-card'}`}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{c.label}</p>
-          <p className={`mt-1 text-lg font-semibold ${c.accent ? 'text-emerald-800' : 'text-slate-900'}`}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{c.label}</p>
+          <p className={`mt-1 text-lg font-semibold ${c.accent ? 'text-brand-700' : 'text-text-strong'}`}>
             {c.value}
           </p>
         </div>
@@ -625,7 +625,7 @@ function PutawayLinesTable({
       header: t(['Product', 'المنتج']),
       accessor: (d) => {
         const ol = lineById.get(d.inbound_order_line_id);
-        return <span className="font-medium text-slate-800">{ol?.product?.name ?? '—'}</span>;
+        return <span className="font-medium text-text-strong">{ol?.product?.name ?? '—'}</span>;
       },
       width: '160px',
     },
@@ -642,7 +642,7 @@ function PutawayLinesTable({
       accessor: (d) => {
         const src = locationById.get(stagingByLineId.get(d.inbound_order_line_id) ?? '');
         return (
-          <span className="font-mono text-xs font-semibold text-slate-800">
+          <span className="font-mono text-xs font-semibold text-text-strong">
             {locationDisplay(src).shortLabel}
           </span>
         );
@@ -667,7 +667,7 @@ function PutawayLinesTable({
             {lastDestId && !d.destination_location_id.trim() ? (
               <button
                 type="button"
-                className="text-[10px] font-semibold text-emerald-700 underline-offset-2 hover:underline"
+                className="text-[10px] font-semibold text-brand-700 underline-offset-2 hover:underline"
                 onClick={() =>
                   onPatch?.(d.rowKey, {
                     destination_location_id: lastDestId,
@@ -697,7 +697,7 @@ function PutawayLinesTable({
           <span className="font-mono tabular-nums">{d.putaway_quantity}</span>
         ) : (
           <input
-            className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm"
+            className="w-20 rounded border border-border px-2 py-1 font-mono text-sm"
             value={d.putaway_quantity}
             onChange={(e) => onPatch?.(d.rowKey, { putaway_quantity: e.target.value })}
             onClick={(e) => e.stopPropagation()}
@@ -724,7 +724,7 @@ function PutawayLinesTable({
             accessor: (d: PutawayLineDraft) => (
               <button
                 type="button"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-hover"
                 aria-label={t(['Scan destination barcode', 'مسح barcode الوجهة'])}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -753,7 +753,7 @@ function PutawayLinesTable({
   return (
     <>
       {!readOnly && activeRowKey ? (
-        <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+        <div className="mb-3 rounded-xl border border-border bg-surface-card p-3 text-text-strong">
           <WedgeScanField
             label={t(['Scan destination bin', 'امسح صندوق الوجهة'])}
             value={wedgeDest}

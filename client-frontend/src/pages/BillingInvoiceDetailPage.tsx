@@ -101,9 +101,9 @@ function ChargeRow({ label, amount, emphasize }: { label: string; amount: string
 function TimelineItem({ label, value }: { label: string; value: string }): ReactElement {
   return (
     <li className="relative pl-5 pb-4 last:pb-0">
-      <span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-50" />
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="text-sm font-medium text-slate-900 mt-0.5">{value}</div>
+      <span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-brand-50 dark:ring-white/5" />
+      <div className="text-xs text-text-muted">{label}</div>
+      <div className="text-sm font-medium text-text-strong mt-0.5">{value}</div>
     </li>
   );
 }
@@ -169,7 +169,7 @@ export function BillingInvoiceDetailPage(): ReactElement {
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-text-body bg-surface-sunken hover:bg-surface-hover border border-border-strong transition-colors"
             >
               <i className="fa-solid fa-print" />
               {t('Print')}
@@ -298,7 +298,7 @@ export function BillingInvoiceDetailPage(): ReactElement {
           </DetailSection>
 
           <DetailSection title={t('Invoice timeline')}>
-            <ul className="border-l border-slate-200 ml-1.5 space-y-0">
+            <ul className="border-l border-border ml-1.5 space-y-0">
               <TimelineItem label={t('Invoice created')} value={formatDate(data.createdAt)} />
               {data.issuedAt ? (
                 <TimelineItem label={t('Invoice issued')} value={formatDate(data.issuedAt)} />

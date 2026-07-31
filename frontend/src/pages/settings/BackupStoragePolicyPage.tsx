@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
+import { SectionContainer } from '@ds';
 
 import {
   BackupsApi,
@@ -8,7 +9,6 @@ import {
   type GoogleDriveAdminStatus,
 } from '../../api/backups';
 import { Button } from '../../components/Button';
-import { PANEL_CARD_CLASS, PANEL_TITLE_CLASS } from '../../components/FilterPanel';
 import { SelectField } from '../../components/SelectField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
@@ -36,18 +36,18 @@ function deriveSyncStatus(status: GoogleDriveAdminStatus | undefined): DriveSync
   return 'idle';
 }
 
-function syncStatusBadgeClass(key: DriveSyncStatusKey): string {
+function syncStatusCardClass(key: DriveSyncStatusKey): string {
   switch (key) {
     case 'healthy':
-      return 'border-emerald-300 bg-emerald-50 text-emerald-900';
+      return 'border-status-success-border bg-status-success-bg text-status-success-fg';
     case 'pending':
-      return 'border-amber-300 bg-amber-50 text-amber-900';
+      return 'border-status-warning-border bg-status-warning-bg text-status-warning-fg';
     case 'failed':
-      return 'border-rose-300 bg-rose-50 text-rose-900';
+      return 'border-status-danger-border bg-status-danger-bg text-status-danger-fg';
     case 'disabled':
-      return 'border-slate-300 bg-slate-100 text-slate-600';
+      return 'border-border bg-surface-sunken text-text-muted';
     default:
-      return 'border-slate-300 bg-white text-slate-800';
+      return 'border-border bg-surface-card text-text-body';
   }
 }
 
@@ -110,18 +110,17 @@ export function BackupStoragePolicyPage() {
 
   return (
     <div className="space-y-4">
-      <section className={PANEL_CARD_CLASS}>
-        <h2 className={PANEL_TITLE_CLASS}>{t(['Global storage policy', 'سياسة التخزين العامة'])}</h2>
-        <p className="text-sm text-slate-600">
-          {t([
-            'Default routing for new manual and scheduled backups when no per-schedule override is set.',
-            'التوجيه الافتراضي للنسخ اليدوية والمجدولة عند عدم وجود تجاوز لكل جدول.',
-          ])}
-        </p>
+      <SectionContainer
+        title={t(['Global storage policy', 'سياسة التخزين العامة'])}
+        description={t([
+          'Default routing for new manual and scheduled backups when no per-schedule override is set.',
+          'التوجيه الافتراضي للنسخ اليدوية والمجدولة عند عدم وجود تجاوز لكل جدول.',
+        ])}
+      >
         {policyQuery.isLoading ? (
-          <p className="mt-4 text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+          <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
         ) : policyQuery.data ? (
-          <div className="mt-4 flex flex-wrap items-end gap-3">
+          <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[16rem]">
               <SelectField
                 label={t(['Default policy', 'السياسة الافتراضية'])}
@@ -143,7 +142,7 @@ export function BackupStoragePolicyPage() {
                 {t(['Save policy', 'حفظ السياسة'])}
               </Button>
             ) : null}
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-text-muted">
               {t(['Effective', 'الفعّالة'])}:{' '}
               {localizedBackupStoragePolicyLabel(policyQuery.data.effectiveDefaultPolicy, t)}
               {gdriveUiEnabled &&
@@ -154,75 +153,69 @@ export function BackupStoragePolicyPage() {
             </p>
           </div>
         ) : null}
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="text-xs text-text-muted">
           {t([
             'Per-schedule overrides are configured on the Scheduled Backups page.',
             'تُعدّ تجاوزات كل جدول في صفحة النسخ المجدول.',
           ])}{' '}
-          <Link to="/settings/backups/schedules" className="font-medium text-emerald-700 hover:underline">
+          <Link to="/settings/backups/schedules" className="font-medium text-text-link hover:underline">
             {t(['Open schedules', 'فتح الجداول'])}
           </Link>
         </p>
-      </section>
+      </SectionContainer>
 
-      <section className={PANEL_CARD_CLASS}>
-        <h2 className={PANEL_TITLE_CLASS}>{t(['Storage usage', 'استخدام التخزين'])}</h2>
+      <SectionContainer title={t(['Storage usage', 'استخدام التخزين'])}>
         {healthQuery.isLoading ? (
-          <p className="text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+          <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
         ) : healthQuery.data ? (
-          <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-lg border border-slate-200 p-4">
-              <dt className="text-xs text-slate-500">{t(['Local storage used', 'التخزين المحلي المستخدم'])}</dt>
-              <dd className="mt-1 text-xl font-semibold">
+          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="rounded-lg border border-border p-4">
+              <dt className="text-xs text-text-muted">{t(['Local storage used', 'التخزين المحلي المستخدم'])}</dt>
+              <dd className="mt-1 text-xl font-semibold text-text-strong">
                 {formatBackupBytes(healthQuery.data.storageUsedBytes)}
               </dd>
             </div>
-            <div className="rounded-lg border border-slate-200 p-4">
-              <dt className="text-xs text-slate-500">{t(['Completed backups', 'النسخ المكتملة'])}</dt>
-              <dd className="mt-1 text-xl font-semibold">{healthQuery.data.backupCount}</dd>
+            <div className="rounded-lg border border-border p-4">
+              <dt className="text-xs text-text-muted">{t(['Completed backups', 'النسخ المكتملة'])}</dt>
+              <dd className="mt-1 text-xl font-semibold text-text-strong">{healthQuery.data.backupCount}</dd>
             </div>
-            <div className="rounded-lg border border-slate-200 p-4">
-              <dt className="text-xs text-slate-500">
+            <div className="rounded-lg border border-border p-4">
+              <dt className="text-xs text-text-muted">
                 {t(['Pending local deletions', 'حذف محلي معلّق'])}
               </dt>
-              <dd className="mt-1 text-xl font-semibold">
+              <dd className="mt-1 text-xl font-semibold text-text-strong">
                 {healthQuery.data.retentionStatus.pendingDeletionCount}
               </dd>
             </div>
           </dl>
         ) : null}
-      </section>
+      </SectionContainer>
 
       {gdriveUiEnabled ? (
-        <section className={PANEL_CARD_CLASS}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className={PANEL_TITLE_CLASS}>
-                {t(['Google Drive sync status', 'حالة مزامنة Google Drive'])}
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                {t([
-                  'Off-site sync health for backups routed to Google Drive.',
-                  'صحة المزامنة خارج الموقع للنسخ الموجّهة إلى Google Drive.',
-                ])}
-              </p>
-            </div>
+        <SectionContainer
+          title={t(['Google Drive sync status', 'حالة مزامنة Google Drive'])}
+          description={t([
+            'Off-site sync health for backups routed to Google Drive.',
+            'صحة المزامنة خارج الموقع للنسخ الموجّهة إلى Google Drive.',
+          ])}
+          actions={
             <Link
               to="/settings/backups/google-drive"
-              className="text-sm font-medium text-emerald-700 hover:underline"
+              className="text-sm font-medium text-text-link hover:underline"
             >
               {t(['Manage connection', 'إدارة الاتصال'])}
             </Link>
-          </div>
+          }
+        >
           {driveQuery.isLoading ? (
-            <p className="mt-4 text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+            <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
           ) : drive ? (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div
                 className={`rounded-xl border-2 p-4 ${
                   drive.connected
-                    ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-                    : 'border-slate-300 bg-slate-50 text-slate-700'
+                    ? 'border-status-success-border bg-status-success-bg text-status-success-fg'
+                    : 'border-border bg-surface-card-muted text-text-body'
                 }`}
               >
                 <p className="text-xs font-medium uppercase tracking-wide opacity-80">
@@ -232,7 +225,7 @@ export function BackupStoragePolicyPage() {
                   {drive.connected ? t(['Connected', 'متصل']) : t(['Not connected', 'غير متصل'])}
                 </p>
               </div>
-              <div className={`rounded-xl border-2 p-4 ${syncStatusBadgeClass(syncStatusKey)}`}>
+              <div className={`rounded-xl border-2 p-4 ${syncStatusCardClass(syncStatusKey)}`}>
                 <p className="text-xs font-medium uppercase tracking-wide opacity-80">
                   {t(['Sync status', 'حالة المزامنة'])}
                 </p>
@@ -240,31 +233,31 @@ export function BackupStoragePolicyPage() {
                   {localizedGoogleDriveSyncStatus(syncStatusKey, t)}
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              <div className="rounded-xl border border-border bg-surface-card p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
                   {t(['Pending syncs', 'مزامنات معلّقة'])}
                 </p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">{drive.pendingSyncCount}</p>
+                <p className="mt-1 text-lg font-semibold text-text-strong">{drive.pendingSyncCount}</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              <div className="rounded-xl border border-border bg-surface-card p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
                   {t(['Failed syncs', 'مزامنات فاشلة'])}
                 </p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">{drive.failedSyncCount}</p>
+                <p className="mt-1 text-lg font-semibold text-text-strong">{drive.failedSyncCount}</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4 sm:col-span-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+              <div className="rounded-xl border border-border bg-surface-card p-4 sm:col-span-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
                   {t(['Last sync', 'آخر مزامنة'])}
                 </p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">
+                <p className="mt-1 text-lg font-semibold text-text-strong">
                   {formatBackupTimestamp(drive.lastSyncedAt)}
                 </p>
               </div>
             </div>
           ) : driveQuery.isError ? (
-            <p className="mt-4 text-sm text-rose-600">{driveQuery.error.message}</p>
+            <p className="text-sm text-status-danger-fg">{driveQuery.error.message}</p>
           ) : null}
-        </section>
+        </SectionContainer>
       ) : null}
     </div>
   );

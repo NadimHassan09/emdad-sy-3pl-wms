@@ -1,11 +1,12 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
-
-import { AuditLogsApi } from '../../api/audit-logs';
+import { Badge, SectionContainer } from '@ds';
+import type { Tone } from '@ds';
 import { QK } from '../../constants/query-keys';
 import { formatAuditTimestamp } from '../../lib/audit-log-display';
 import { isBackupHealthAuditAction } from '../../lib/backup-audit-actions';
 import { useWmsTranslation } from '../../lib/ui-i18n';
-import { PANEL_CARD_CLASS, PANEL_TITLE_CLASS } from '../FilterPanel';
+
+import { AuditLogsApi } from '../../api/audit-logs';
 
 type HealthAuditState = {
   code?: string;
@@ -17,10 +18,10 @@ type Props = {
   limit?: number;
 };
 
-function severityBadgeClass(severity: string | undefined): string {
-  if (severity === 'critical') return 'bg-rose-50 text-rose-800 ring-rose-600/20';
-  if (severity === 'warning') return 'bg-amber-50 text-amber-800 ring-amber-600/20';
-  return 'bg-slate-50 text-slate-700 ring-slate-600/20';
+function severityTone(severity: string | undefined): Tone {
+  if (severity === 'critical') return 'danger';
+  if (severity === 'warning') return 'warning';
+  return 'neutral';
 }
 
 export function BackupHealthAuditPanel({ limit = 10 }: Props) {
@@ -66,48 +67,43 @@ export function BackupHealthAuditPanel({ limit = 10 }: Props) {
   });
 
   return (
-    <section className={PANEL_CARD_CLASS}>
-      <h2 className={PANEL_TITLE_CLASS}>
-        {t(['Recent health monitoring events', 'أحداث مراقبة الصحة الأخيرة'])}
-      </h2>
+    <SectionContainer title={t(['Recent health monitoring events', 'أحداث مراقبة الصحة الأخيرة'])}>
       {listQuery.isLoading ? (
-        <p className="text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+        <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
       ) : rows.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-start text-xs uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-border text-start text-xs uppercase tracking-wide text-text-muted">
                 <th className="px-2 py-2 font-medium">{t(['Timestamp', 'الوقت'])}</th>
                 <th className="px-2 py-2 font-medium">{t(['Code', 'الرمز'])}</th>
                 <th className="px-2 py-2 font-medium">{t(['Severity', 'الخطورة'])}</th>
                 <th className="px-2 py-2 font-medium">{t(['Message', 'الرسالة'])}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border-subtle">
               {rows.map((row) => (
                 <tr key={row.id}>
-                  <td className="whitespace-nowrap px-2 py-3 text-slate-600">
+                  <td className="whitespace-nowrap px-2 py-3 text-text-body">
                     <time dateTime={row.createdAt}>{formatAuditTimestamp(row.createdAt)}</time>
                   </td>
-                  <td className="px-2 py-3 font-mono text-xs text-slate-700">{row.code}</td>
+                  <td className="px-2 py-3 font-mono text-xs text-text-body">{row.code}</td>
                   <td className="px-2 py-3">
-                    <span
-                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${severityBadgeClass(row.severity)}`}
-                    >
+                    <Badge tone={severityTone(row.severity)} size="xs">
                       {row.severity}
-                    </span>
+                    </Badge>
                   </td>
-                  <td className="max-w-md px-2 py-3 text-slate-700">{row.message}</td>
+                  <td className="max-w-md px-2 py-3 text-text-body">{row.message}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-text-muted">
           {t(['No health monitoring events yet.', 'لا توجد أحداث مراقبة صحة بعد.'])}
         </p>
       )}
-    </section>
+    </SectionContainer>
   );
 }

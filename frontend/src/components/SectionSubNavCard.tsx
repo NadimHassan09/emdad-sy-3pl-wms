@@ -24,7 +24,7 @@ export function SectionSubNavCard({ isArabic = false }: SectionSubNavCardProps) 
   return (
     <nav
       aria-label={t(section.ariaLabelKey)}
-      className="mb-4 rounded-xl border border-slate-200/60 bg-white p-2 shadow-soft"
+      className="mb-4 rounded-xl border border-border bg-surface-panel p-2 shadow-soft"
     >
       <div className="flex flex-wrap gap-1.5" role="list">
         {items.map((item) => {
@@ -39,8 +39,8 @@ export function SectionSubNavCard({ isArabic = false }: SectionSubNavCardProps) 
                 'inline-flex items-center rounded-lg px-3.5 py-2 text-sm font-medium transition',
                 'focus-visible:outline-none focus-visible:shadow-focus',
                 active
-                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
-                  : 'text-slate-600 hover:bg-slate-50',
+                  ? 'bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200 dark:bg-brand-950/40 dark:text-brand-400 dark:ring-brand-800'
+                  : 'text-text-muted hover:bg-surface-hover',
               ].join(' ')}
             >
               {t(item.labelKey)}

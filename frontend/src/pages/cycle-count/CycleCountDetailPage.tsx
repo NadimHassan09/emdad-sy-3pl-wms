@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
+import { Alert, ListPageHeader } from '@ds';
 import {
   CycleCountApi,
   type CycleCountLine,
@@ -11,7 +12,6 @@ import {
 import { Button } from '../../components/Button';
 import { Column, DataTable } from '../../components/DataTable';
 import { ConfirmModal } from '../../components/ConfirmModal';
-import { PageHeader } from '../../components/PageHeader';
 import { SelectField } from '../../components/SelectField';
 import { StatusBadge } from '../../components/StatusBadge';
 import { TextField } from '../../components/TextField';
@@ -166,7 +166,7 @@ export function CycleCountDetailPage() {
           if (l.discrepancyQuantity == null) return '—';
           const n = Number(l.discrepancyQuantity);
           return (
-            <span className={`font-mono text-xs ${n !== 0 ? 'font-semibold text-amber-800' : ''}`}>
+            <span className={`font-mono text-xs ${n !== 0 ? 'font-semibold text-status-warning-fg' : ''}`}>
               {n > 0 ? '+' : ''}
               {n.toLocaleString()}
             </span>
@@ -199,7 +199,7 @@ export function CycleCountDetailPage() {
       {
         header: t('Variance', 'الفرق'),
         accessor: (v) => (
-          <span className="font-mono text-xs font-semibold text-amber-800">
+          <span className="font-mono text-xs font-semibold text-status-warning-fg">
             {Number(v.discrepancyQuantity).toLocaleString()}
           </span>
         ),
@@ -258,23 +258,51 @@ export function CycleCountDetailPage() {
   );
 
   if (detail.isLoading) {
-    return <p className="text-sm text-slate-500">{t('Loading…', 'جاري التحميل…')}</p>;
+    return (
+      <div className="space-y-5 animate-enter">
+        <Link
+          to="/cycle-count"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+        >
+          <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+          {t('Back to cycle counts', 'العودة إلى الجرد')}
+        </Link>
+        <p className="text-sm text-text-muted">{t('Loading…', 'جاري التحميل…')}</p>
+      </div>
+    );
   }
 
   if (!count) {
-    return <p className="text-sm text-red-600">{t('Cycle count not found.', 'الجرد غير موجود.')}</p>;
+    return (
+      <div className="space-y-5 animate-enter">
+        <Link
+          to="/cycle-count"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+        >
+          <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+          {t('Back to cycle counts', 'العودة إلى الجرد')}
+        </Link>
+        <Alert variant="error" title={t('Cycle count not found.', 'الجرد غير موجود.')} />
+      </div>
+    );
   }
 
   return (
-    <div>
-      <PageHeader
+    <div className="space-y-5 animate-enter">
+      <Link
+        to="/cycle-count"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+      >
+        <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+        {t('Back to cycle counts', 'العودة إلى الجرد')}
+      </Link>
+
+      <ListPageHeader
+        icon="fa-clipboard-list"
         title={t('Cycle count', 'الجرد')}
-        description={`${count.warehouse.code} · ${count.company.name}`}
+        subtitle={`${count.warehouse.code} · ${count.company.name}`}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Link to="/cycle-count">
-              <Button variant="ghost">{t('Back', 'رجوع')}</Button>
-            </Link>
             {canExecute ? (
               <Link to={`/cycle-count/${id}/execute`}>
                 <Button variant="primary">{t('Execute count', 'تنفيذ الجرد')}</Button>
@@ -300,41 +328,41 @@ export function CycleCountDetailPage() {
       />
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-        <div className="rounded-lg border border-slate-200 bg-white p-3">
-          <div className="text-[11px] uppercase text-slate-500">{t('Status', 'الحالة')}</div>
+        <div className="rounded-lg border border-border bg-surface-card p-3">
+          <div className="text-[11px] uppercase text-text-muted">{t('Status', 'الحالة')}</div>
           <div className="mt-1">
             <StatusBadge status={count.status} />
           </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-3">
-          <div className="text-[11px] uppercase text-slate-500">{t('Lines', 'البنود')}</div>
+        <div className="rounded-lg border border-border bg-surface-card p-3">
+          <div className="text-[11px] uppercase text-text-muted">{t('Lines', 'البنود')}</div>
           <div className="mt-1 font-mono text-lg">{count.lines.length}</div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-3">
-          <div className="text-[11px] uppercase text-slate-500">{t('Assigned', 'المكلف')}</div>
+        <div className="rounded-lg border border-border bg-surface-card p-3">
+          <div className="text-[11px] uppercase text-text-muted">{t('Assigned', 'المكلف')}</div>
           <div className="mt-1 text-sm">{count.assignedWorker?.displayName ?? '—'}</div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-3">
-          <div className="text-[11px] uppercase text-slate-500">{t('Snapshot', 'اللقطة')}</div>
+        <div className="rounded-lg border border-border bg-surface-card p-3">
+          <div className="text-[11px] uppercase text-text-muted">{t('Snapshot', 'اللقطة')}</div>
           <div className="mt-1 text-sm">
             {count.snapshotAt ? new Date(count.snapshotAt).toLocaleString() : '—'}
           </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-3">
-          <div className="text-[11px] uppercase text-slate-500">{t('Interval', 'الفترة')}</div>
+        <div className="rounded-lg border border-border bg-surface-card p-3">
+          <div className="text-[11px] uppercase text-text-muted">{t('Interval', 'الفترة')}</div>
           <div className="mt-1 text-sm">
             {count.schedule?.intervalDays ? `${count.schedule.intervalDays}d` : '—'}
           </div>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-3">
-          <div className="text-[11px] uppercase text-slate-500">{t('Blind count', 'جرد أعمى')}</div>
+        <div className="rounded-lg border border-border bg-surface-card p-3">
+          <div className="text-[11px] uppercase text-text-muted">{t('Blind count', 'جرد أعمى')}</div>
           <div className="mt-1 text-sm">{count.blindCount ? t('Yes', 'نعم') : t('No', 'لا')}</div>
         </div>
       </div>
 
       {(variances.data?.length ?? 0) > 0 ? (
         <section className="mb-6">
-          <h2 className="mb-2 text-sm font-semibold text-slate-800">
+          <h2 className="mb-2 text-sm font-semibold text-text-strong">
             {t('Variances', 'الفروقات')} ({variances.data?.length})
           </h2>
           <DataTable<CycleCountVariance>
@@ -347,7 +375,7 @@ export function CycleCountDetailPage() {
       ) : null}
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-slate-800">{t('Count lines', 'بنود الجرد')}</h2>
+        <h2 className="mb-2 text-sm font-semibold text-text-strong">{t('Count lines', 'بنود الجرد')}</h2>
         <DataTable<CycleCountLine> columns={lineCols} rows={count.lines} rowKey={(l) => l.id} />
       </section>
 

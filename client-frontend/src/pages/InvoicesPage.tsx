@@ -93,18 +93,18 @@ export function InvoicesPage(): ReactElement {
     <div className="space-y-5 animate-enter">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-            <i className="fa-solid fa-file-invoice text-emerald-600" />
+          <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-white/5 flex items-center justify-center">
+            <i className="fa-solid fa-file-invoice text-brand-600 dark:text-brand-400" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{t('Invoices')}</h1>
-            <p className="text-xs text-slate-500">{t('Invoice history and payment status')}</p>
+            <h1 className="text-xl font-bold text-text-strong">{t('Invoices')}</h1>
+            <p className="text-xs text-text-muted">{t('Invoice history and payment status')}</p>
           </div>
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 input-premium"
+          className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
         >
           {INVOICE_STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
@@ -117,7 +117,7 @@ export function InvoicesPage(): ReactElement {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
+            <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
               <tr>
                 <th className="px-5 py-3 text-left">{t('Invoice #')}</th>
                 <th className="px-5 py-3 text-left">{t('Invoice date')}</th>
@@ -130,16 +130,16 @@ export function InvoicesPage(): ReactElement {
                 <th className="px-5 py-3 text-right">{t('Actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border-subtle">
               {invoicePagination.isInitialLoading ? (
                 <tr>
-                  <td colSpan={9} className="px-5 py-10 text-center text-slate-400 text-sm">
+                  <td colSpan={9} className="px-5 py-10 text-center text-text-faint text-sm">
                     …
                   </td>
                 </tr>
               ) : invoicePagination.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-5 py-10 text-center text-slate-400 text-sm">
+                  <td colSpan={9} className="px-5 py-10 text-center text-text-faint text-sm">
                     {statusFilter ? t('No invoices match this filter.') : t('No invoices yet.')}
                   </td>
                 </tr>
@@ -148,26 +148,26 @@ export function InvoicesPage(): ReactElement {
                   <tr
                     key={inv.id}
                     onClick={() => openInvoice(inv.id)}
-                    className="hover:bg-slate-50/60 transition-colors cursor-pointer"
+                    className="hover:bg-surface-hover transition-colors cursor-pointer"
                   >
-                    <td className="px-5 py-3.5 font-semibold text-slate-900" dir="ltr">
+                    <td className="px-5 py-3.5 font-semibold text-text-strong" dir="ltr">
                       {inv.invoiceNumber}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-500 text-xs">
+                    <td className="px-5 py-3.5 text-text-muted text-xs">
                       {formatDate(inv.issuedAt ?? inv.createdAt)}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-600 text-xs">
+                    <td className="px-5 py-3.5 text-text-body text-xs">
                       {formatCycleLabel(inv.billingCycle)}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-500 text-xs">{formatDate(inv.dueDate)}</td>
-                    <td className="px-5 py-3.5 text-right font-semibold text-slate-900">
+                    <td className="px-5 py-3.5 text-text-muted text-xs">{formatDate(inv.dueDate)}</td>
+                    <td className="px-5 py-3.5 text-right font-semibold text-text-strong">
                       {formatDecimal(inv.grandTotal ?? inv.totalAmount)}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-600">{CURRENCY}</td>
+                    <td className="px-5 py-3.5 text-text-body">{CURRENCY}</td>
                     <td className="px-5 py-3.5">
                       <Badge status={inv.status}>{humanizeInvoiceStatus(inv.status)}</Badge>
                     </td>
-                    <td className="px-5 py-3.5 text-slate-500 text-xs">{paymentDateFor(inv)}</td>
+                    <td className="px-5 py-3.5 text-text-muted text-xs">{paymentDateFor(inv)}</td>
                     <td className="px-5 py-3.5 text-right">
                       <div className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <button
@@ -175,7 +175,7 @@ export function InvoicesPage(): ReactElement {
                           title={t('View')}
                           aria-label={t('View')}
                           onClick={() => openInvoice(inv.id)}
-                          className="w-8 h-8 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-emerald-700 transition-colors"
+                          className="w-8 h-8 rounded-lg text-text-muted hover:bg-surface-hover hover:text-brand-700 dark:hover:text-brand-400 transition-colors"
                         >
                           <i className="fa-solid fa-eye text-xs" />
                         </button>
@@ -184,7 +184,7 @@ export function InvoicesPage(): ReactElement {
                           title={t('Print')}
                           aria-label={t('Print')}
                           onClick={() => printInvoice(inv.id)}
-                          className="w-8 h-8 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-emerald-700 transition-colors"
+                          className="w-8 h-8 rounded-lg text-text-muted hover:bg-surface-hover hover:text-brand-700 dark:hover:text-brand-400 transition-colors"
                         >
                           <i className="fa-solid fa-print text-xs" />
                         </button>

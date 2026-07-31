@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, Button, EmptyState, Textarea } from '@ds';
+import { Alert, Button, EmptyState, ListPageHeader, Textarea } from '@ds';
 
 import { CompaniesApi } from '../api/companies';
 import {
@@ -25,7 +25,6 @@ import {
   FilterPanel,
 } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
-import { PageHeader } from '../components/PageHeader';
 import { RowActionsMenu, type RowAction } from '../components/RowActionsMenu';
 import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
@@ -266,7 +265,7 @@ export function InboundListPage() {
           <div className="flex w-fit flex-col gap-0.5">
             <StatusBadge status={o.status} />
             {inboundHasQuantityShortfall(o) && (o.status === 'completed' || o.status === 'partially_received') ? (
-              <span className="text-[10px] leading-tight text-amber-800">Missing quantities</span>
+              <span className="text-[10px] leading-tight text-status-warning-fg">Missing quantities</span>
             ) : null}
           </div>
         ),
@@ -346,7 +345,7 @@ export function InboundListPage() {
         />
       )}
 
-      <PageHeader
+      <ListPageHeader
         icon="fa-arrow-down"
         title={t('Inbound orders')}
         actions={
@@ -775,11 +774,14 @@ function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: Crea
         {step === 1 ? (
           <div className="space-y-4">
             {stepHint ? (
-              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
+              <p
+                className="rounded-lg border border-status-warning-border bg-status-warning-bg px-3 py-2 text-sm text-status-warning-fg"
+                role="status"
+              >
                 {stepHint}
               </p>
             ) : !companyId.trim() ? (
-              <p className="text-xs text-slate-500" role="note">
+              <p className="text-xs text-text-muted" role="note">
                 {isArabic
                   ? 'يلزم اختيار عميل قبل الانتقال إلى بنود الطلب.'
                   : 'Select a client before continuing to order lines.'}

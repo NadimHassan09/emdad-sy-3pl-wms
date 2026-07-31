@@ -108,20 +108,20 @@ export function CustomerLifecycleModal({
       }
     >
       {isLoading || !ctx ? (
-        <p className="py-6 text-center text-sm text-slate-500">
+        <p className="py-6 text-center text-sm text-text-muted">
           {t(isArabic, 'Loading…', 'جارٍ التحميل…')}
         </p>
       ) : (
         <div className="space-y-5">
-          <div className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3">
-            <span className="text-sm font-medium text-slate-700">
+          <div className="flex items-center justify-between rounded-lg bg-surface-sunken px-4 py-3">
+            <span className="text-sm font-medium text-text-body">
               {t(isArabic, 'Current status', 'الحالة الحالية')}
             </span>
             <StatusBadge status={ctx.status} />
           </div>
 
           <div>
-            <h4 className="mb-2 text-sm font-semibold text-slate-800">
+            <h4 className="mb-2 text-sm font-semibold text-text-strong">
               {t(isArabic, 'Account data', 'بيانات الحساب')}
             </h4>
             <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
@@ -141,18 +141,18 @@ export function CustomerLifecycleModal({
           </div>
 
           {ctx.status === 'archived' ? (
-            <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <p className="rounded-md bg-status-warning-bg px-3 py-2 text-xs text-status-warning-fg">
               {t(isArabic, 'Archived', 'مؤرشف')}{' '}
               {ctx.retentionElapsedDays ?? 0}/{ctx.retentionDays} {t(isArabic, 'retention days elapsed', 'يوم من فترة الاحتفاظ')}
             </p>
           ) : null}
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
+            <label className="mb-1 block text-sm font-medium text-text-body">
               {t(isArabic, 'Reason (optional)', 'السبب (اختياري)')}
             </label>
             <textarea
-              className="block w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
+              className="block w-full rounded-md border border-border-strong px-3 py-1.5 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
               rows={2}
               value={reason}
               disabled={busy}
@@ -161,7 +161,7 @@ export function CustomerLifecycleModal({
             />
           </div>
 
-          <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+          <div className="flex flex-wrap gap-2 border-t border-border-subtle pt-4">
             {a?.canSuspend ? (
               <Button type="button" variant="secondary" disabled={busy} onClick={() => runMut.mutate('suspend')}>
                 {t(isArabic, 'Suspend', 'إيقاف مؤقت')}
@@ -226,9 +226,9 @@ function ArchiveButton({
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-md border border-slate-100 bg-white px-3 py-2">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="font-mono text-sm font-semibold text-slate-800">{value}</p>
+    <div className="rounded-md border border-border-subtle bg-white px-3 py-2">
+      <p className="text-xs text-text-muted">{label}</p>
+      <p className="font-mono text-sm font-semibold text-text-strong">{value}</p>
     </div>
   );
 }

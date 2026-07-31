@@ -11,7 +11,6 @@ import { BackupScheduleModal } from '../../components/backups/BackupScheduleModa
 import { Button } from '../../components/Button';
 import { Column, DataTable } from '../../components/DataTable';
 import { ConfirmModal } from '../../components/ConfirmModal';
-import { PANEL_CARD_CLASS, PANEL_TITLE_CLASS } from '../../components/FilterPanel';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
@@ -25,6 +24,7 @@ import {
 import { localizedScheduleStoragePolicyLabel } from '../../lib/ui-labels/settings-backup';
 import { defaultHomePath } from '../../lib/rbac';
 import { useWmsTranslation } from '../../lib/ui-i18n';
+import { Badge, SectionContainer } from '@ds';
 
 export function BackupSchedulesPage() {
   const { user } = useAuth();
@@ -114,9 +114,9 @@ export function BackupSchedulesPage() {
       {
         header: t(['Enabled', 'مفعّل']),
         accessor: (row) => (
-          <span className={row.enabled ? 'text-emerald-700' : 'text-slate-500'}>
+          <Badge tone={row.enabled ? 'success' : 'neutral'} dot>
             {row.enabled ? t(['Yes', 'نعم']) : t(['No', 'لا'])}
-          </span>
+          </Badge>
         ),
       },
       {
@@ -184,14 +184,17 @@ export function BackupSchedulesPage() {
 
   return (
     <div className="space-y-4">
-      <section className={PANEL_CARD_CLASS}>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className={PANEL_TITLE_CLASS}>
-            {t(['Scheduled backups', 'النسخ الاحتياطي المجدول'])}
-          </h2>
-          {canMutate ? (
+      <SectionContainer
+        title={t(['Scheduled backups', 'النسخ الاحتياطي المجدول'])}
+        description={t([
+          'Configure automated backup schedules, retention, and storage policies.',
+          'اضبط جداول النسخ الاحتياطي التلقائي والاحتفاظ وسياسات التخزين.',
+        ])}
+        actions={
+          canMutate ? (
             <Button
               type="button"
+              variant="brand"
               onClick={() => {
                 setEditing(null);
                 setModalOpen(true);
@@ -199,9 +202,9 @@ export function BackupSchedulesPage() {
             >
               {t(['Create schedule', 'إنشاء جدولة'])}
             </Button>
-          ) : null}
-        </div>
-
+          ) : undefined
+        }
+      >
         <DataTable
           columns={columns}
           rows={rows}
@@ -209,7 +212,7 @@ export function BackupSchedulesPage() {
           loading={schedulesQuery.isLoading}
           empty={t(['No schedules configured yet.', 'لا توجد جداول بعد.'])}
         />
-      </section>
+      </SectionContainer>
 
       {canMutate ? (
         <>
@@ -263,12 +266,17 @@ export function BackupSchedulesPage() {
               setRunNowJobId(null);
             }}
           >
-            <p>
+            <p className="text-text-body">
               {t(['Job ID:', 'معرّف المهمة:'])}{' '}
-              <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">{runNowJobId}</code>
+              <code className="rounded bg-surface-sunken px-1 py-0.5 text-xs text-text-strong">
+                {runNowJobId}
+              </code>
             </p>
             <p className="mt-2">
-              <Link to="/settings/backups" className="font-medium text-emerald-700 hover:underline">
+              <Link
+                to="/settings/backups"
+                className="font-medium text-text-link hover:underline"
+              >
                 {t(['View in backup history', 'عرض في سجل النسخ الاحتياطي'])}
               </Link>
             </p>

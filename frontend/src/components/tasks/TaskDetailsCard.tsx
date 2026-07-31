@@ -12,11 +12,11 @@ export type TaskDetailField = {
 function TaskDetailFieldRow({ iconClass, label, value }: TaskDetailField) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-        <i className={`${iconClass} text-[11px] text-emerald-600/90`} aria-hidden="true" />
+      <div className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
+        <i className={`${iconClass} text-[11px] text-status-success-fg/90`} aria-hidden="true" />
         <span>{label}</span>
       </div>
-      <div className="mt-1.5 text-sm font-semibold text-slate-900">{value}</div>
+      <div className="mt-1.5 text-sm font-semibold text-text-strong">{value}</div>
     </div>
   );
 }
@@ -49,21 +49,21 @@ export function TaskDetailsCard({
     typeof summary === 'string' ? summary.trim() : summary == null ? '' : null;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-card p-6 shadow-sm">
       <div className="flex items-start gap-4">
         <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-50 to-slate-50 ring-4 ring-slate-50"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-50 to-surface-sunken ring-4 ring-surface-sunken dark:from-white/10"
           aria-hidden="true"
         >
-          <i className={`${iconClass} text-xl text-emerald-600/80`} />
+          <i className={`${iconClass} text-xl text-status-success-fg/80`} />
         </div>
         <div className="min-w-0 flex-1 pt-0.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+          <p className="text-xs font-semibold uppercase tracking-wide text-status-success-fg">
             {taskTypeLabel}
           </p>
-          <h2 className="mt-1 text-lg font-semibold leading-tight text-slate-900">{primaryTitle}</h2>
+          <h2 className="mt-1 text-lg font-semibold leading-tight text-text-strong">{primaryTitle}</h2>
           {(subtitle || status || statusNode) && (
-            <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-slate-500">
+            <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-text-muted">
               {subtitle ? <span>{subtitle}</span> : null}
               {subtitle && (status || statusNode) ? <span aria-hidden="true">·</span> : null}
               {statusNode ?? (status ? <StatusBadge status={status} /> : null)}
@@ -74,7 +74,7 @@ export function TaskDetailsCard({
 
       {fields.length > 0 ? (
         <>
-          <h3 className="mt-6 text-sm font-semibold text-slate-800">
+          <h3 className="mt-6 text-sm font-semibold text-text-strong">
             {t(['Task information', 'معلومات المهمة'])}
           </h3>
           <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -88,13 +88,13 @@ export function TaskDetailsCard({
       {summary != null ? (
         <>
           <div className="mt-6 flex items-center gap-2">
-            <i className="fa-regular fa-file-lines text-sm text-emerald-600/90" aria-hidden="true" />
-            <h3 className="text-sm font-semibold text-slate-800">{summaryTitle}</h3>
+            <i className="fa-regular fa-file-lines text-sm text-status-success-fg/90" aria-hidden="true" />
+            <h3 className="text-sm font-semibold text-text-strong">{summaryTitle}</h3>
           </div>
-          <div className="mt-3 rounded-xl bg-slate-50 px-4 py-3.5 text-sm leading-relaxed text-slate-700">
+          <div className="mt-3 rounded-xl bg-surface-sunken px-4 py-3.5 text-sm leading-relaxed text-text-body">
             {summaryText !== null ? (
               summaryText || (
-                <span className="text-slate-400">
+                <span className="text-text-faint">
                   {t(['No notes for this task.', 'لا توجد ملاحظات لهذه المهمة.'])}
                 </span>
               )

@@ -2,12 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
+import { Alert, Card, ListPageHeader, Skeleton } from '@ds';
 import { OmsApi } from '../api/oms';
 import { OmsOrderFormModal } from '../components/oms/OmsOrderFormModal';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Modal } from '../components/Modal';
-import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
@@ -15,8 +15,8 @@ import { QK } from '../constants/query-keys';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
+    <section className="rounded-xl border border-border-subtle bg-surface-card p-5 shadow-sm">
+      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-muted">{title}</h2>
       {children}
     </section>
   );
@@ -25,8 +25,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-0.5 text-sm text-slate-800">{value}</div>
+      <div className="text-xs uppercase tracking-wide text-text-muted">{label}</div>
+      <div className="mt-0.5 text-sm text-text-strong">{value}</div>
     </div>
   );
 }
@@ -108,10 +108,37 @@ export function OmsOrderDetailPage() {
   const order = orderQuery.data;
 
   if (orderQuery.isLoading) {
-    return <p className="text-sm text-slate-500">Loading…</p>;
+    return (
+      <div className="space-y-5 animate-enter">
+        <Link
+          to="/orders/oms"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+        >
+          <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+          Back to OMS orders
+        </Link>
+        <Card className="p-5 sm:p-6">
+          <div className="space-y-4" aria-busy="true">
+            <Skeleton height={28} width="40%" />
+            <Skeleton height={140} />
+          </div>
+        </Card>
+      </div>
+    );
   }
   if (orderQuery.isError || !order) {
-    return <p className="text-sm text-rose-600">Could not load OMS order.</p>;
+    return (
+      <div className="space-y-5 animate-enter">
+        <Link
+          to="/orders/oms"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+        >
+          <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+          Back to OMS orders
+        </Link>
+        <Alert variant="error" title="Could not load OMS order." />
+      </div>
+    );
   }
 
   const total = order.total ?? order.subtotal ?? null;
@@ -133,10 +160,19 @@ export function OmsOrderDetailPage() {
   const canComplete = order.status === 'delivered';
 
   return (
-    <div className="space-y-4">
-      <PageHeader
+    <div className="space-y-5 animate-enter">
+      <Link
+        to="/orders/oms"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+      >
+        <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+        Back to OMS orders
+      </Link>
+
+      <ListPageHeader
+        icon="fa-cart-shopping"
         title={`OMS ${order.orderNumber}`}
-        description={order.company?.name ?? undefined}
+        subtitle={order.company?.name ?? undefined}
         actions={
           <div className="flex flex-wrap gap-2">
             {canApprove ? (
@@ -214,12 +250,12 @@ export function OmsOrderDetailPage() {
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge status={order.status} />
         {order.storeChannel ? (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+          <span className="rounded-full bg-surface-card-muted px-2 py-0.5 text-xs font-medium text-text-body">
             {order.storeChannel}
           </span>
         ) : null}
         {order.rejectionReason ? (
-          <span className="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-700">
+          <span className="rounded-full bg-status-error-bg px-2 py-0.5 text-xs font-medium text-status-error-fg">
             Rejected: {order.rejectionReason}
           </span>
         ) : null}
@@ -284,7 +320,7 @@ export function OmsOrderDetailPage() {
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-left text-xs uppercase text-slate-500">
+              <tr className="border-b border-border-subtle text-left text-xs uppercase text-text-muted">
                 <th className="px-2 py-2">#</th>
                 <th className="px-2 py-2">Product</th>
                 <th className="px-2 py-2">Qty</th>
@@ -294,7 +330,7 @@ export function OmsOrderDetailPage() {
             </thead>
             <tbody>
               {order.lines.map((line) => (
-                <tr key={line.id} className="border-b border-slate-50">
+                <tr key={line.id} className="border-b border-border-subtle">
                   <td className="px-2 py-2">{line.lineNumber}</td>
                   <td className="px-2 py-2">
                     {line.product ? `${line.product.sku} — ${line.product.name}` : line.productId}
@@ -313,9 +349,9 @@ export function OmsOrderDetailPage() {
         {order.timeline && order.timeline.length > 0 ? (
           <ol className="space-y-3">
             {order.timeline.map((ev) => (
-              <li key={ev.id} className="border-l-2 border-emerald-200 pl-3">
-                <div className="text-sm font-medium text-slate-800">{ev.eventType}</div>
-                <div className="text-xs text-slate-500">
+              <li key={ev.id} className="border-l-2 border-brand-200 dark:border-brand-500/40 pl-3">
+                <div className="text-sm font-medium text-text-strong">{ev.eventType}</div>
+                <div className="text-xs text-text-muted">
                   {new Date(ev.createdAt).toLocaleString()}
                   {ev.creator?.fullName ? ` · ${ev.creator.fullName}` : ''}
                 </div>
@@ -323,7 +359,7 @@ export function OmsOrderDetailPage() {
             ))}
           </ol>
         ) : (
-          <p className="text-sm text-slate-500">No timeline events yet.</p>
+          <p className="text-sm text-text-muted">No timeline events yet.</p>
         )}
       </Section>
 
@@ -335,7 +371,7 @@ export function OmsOrderDetailPage() {
               value={
                 <Link
                   to={`/orders/outbound/${order.linkedOutboundOrder.id}`}
-                  className="font-medium text-emerald-700 hover:underline"
+                  className="font-medium text-status-success-fg hover:underline"
                 >
                   {order.linkedOutboundOrder.orderNumber}
                 </Link>
@@ -348,7 +384,7 @@ export function OmsOrderDetailPage() {
             <Field label="Allocation" value={order.allocationStatus ?? 'none'} />
           </div>
         ) : (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-text-body">
             No outbound yet. Approve this order to generate a draft warehouse order.
           </p>
         )}
@@ -379,7 +415,7 @@ export function OmsOrderDetailPage() {
 
       <Modal open={approveOpen} onClose={() => setApproveOpen(false)} title="Approve OMS order">
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-text-body">
             Approving validates stock and creates a draft outbound order for the warehouse.
           </p>
           <TextField

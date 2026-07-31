@@ -5,9 +5,9 @@ import type { DashboardChartSlice } from '../../api/dashboard';
 import { Skeleton } from '@ds';
 
 const GAUGE_COLORS = {
-  completed: '#4ade80',
-  inProgress: '#166534',
-  pendingStroke: '#e2e8f0',
+  completed: 'var(--color-brand-400)',
+  inProgress: 'var(--color-brand-700)',
+  pendingStroke: 'var(--border-default)',
 } as const;
 
 type GaugeSegmentVariant = 'completed' | 'inProgress' | 'pending';
@@ -90,7 +90,7 @@ function SemiCircleGauge({
       <svg viewBox="0 0 200 118" className="mx-auto h-[118px] w-full max-w-[220px]" aria-hidden="true">
         <defs>
           <pattern id={patternId} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-            <line x1="0" y1="0" x2="0" y2="6" stroke="#cbd5e1" strokeWidth="3" />
+            <line x1="0" y1="0" x2="0" y2="6" stroke="var(--border-default)" strokeWidth="3" />
           </pattern>
         </defs>
         <path
@@ -110,7 +110,7 @@ function SemiCircleGauge({
     <svg viewBox="0 0 200 118" className="mx-auto h-[118px] w-full max-w-[220px]" aria-hidden="true">
       <defs>
         <pattern id={patternId} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <line x1="0" y1="0" x2="0" y2="6" stroke="#cbd5e1" strokeWidth="3" />
+          <line x1="0" y1="0" x2="0" y2="6" stroke="var(--border-default)" strokeWidth="3" />
         </pattern>
       </defs>
       {segments.map((seg) => {
@@ -140,10 +140,10 @@ function LegendDot({ variant }: { variant: GaugeSegment['variant'] }) {
   if (variant === 'pending') {
     return (
       <span
-        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-slate-200"
+        className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
         style={{
           background:
-            'repeating-linear-gradient(45deg, #e2e8f0 0, #e2e8f0 2px, #f8fafc 2px, #f8fafc 4px)',
+            'repeating-linear-gradient(45deg, var(--border-default) 0, var(--border-default) 2px, var(--surface-panel) 2px, var(--surface-panel) 4px)',
         }}
         aria-hidden="true"
       />
@@ -159,10 +159,10 @@ function LegendDot({ variant }: { variant: GaugeSegment['variant'] }) {
 }
 
 const cardClass =
-  'rounded-xl border border-slate-200/60 bg-white p-3 shadow-soft transition-[box-shadow,border-color] duration-fast ease-standard sm:p-4';
+  'rounded-xl border border-border/60 bg-surface-panel p-3 shadow-soft transition-[box-shadow,border-color] duration-fast ease-standard sm:p-4';
 
 const cardInteractiveClass =
-  'hover:border-emerald-200 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30';
+  'hover:border-brand-200 hover:shadow-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/30';
 
 export function OrderProgressGaugeCard({
   title,
@@ -193,7 +193,7 @@ export function OrderProgressGaugeCard({
 
   const body = (
     <>
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <h3 className="text-sm font-semibold text-text-strong">{title}</h3>
       <div className="relative mt-2">
         {isLoading ? (
           <div className="flex h-[118px] items-center justify-center">
@@ -210,11 +210,11 @@ export function OrderProgressGaugeCard({
             </>
           ) : (
             <>
-              <div className="text-2xl font-bold tabular-nums tracking-tight text-slate-900 sm:text-3xl">
+              <div className="text-2xl font-bold tabular-nums tracking-tight text-text-strong sm:text-3xl">
                 {percent}%
               </div>
               {!subtitleInFooter && (
-                <div className="mt-0.5 text-xs font-medium text-brand-600">
+                <div className="mt-0.5 text-xs font-medium text-brand-600 dark:text-brand-400">
                   {openOrdersSubtitle(total)}
                 </div>
               )}
@@ -223,7 +223,7 @@ export function OrderProgressGaugeCard({
         </div>
       </div>
       {!isLoading && (
-        <ul className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11px] text-slate-500">
+        <ul className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[11px] text-text-muted">
           {segments.filter((seg) => seg.count > 0).map((seg) => (
             <li key={seg.label} className="flex items-center gap-1.5">
               <LegendDot variant={seg.variant} />
@@ -233,7 +233,7 @@ export function OrderProgressGaugeCard({
         </ul>
       )}
       {(subtitleInFooter || isLoading) && (
-        <p className="mt-4 min-h-[2rem] text-center text-xs font-medium leading-snug text-brand-600">
+        <p className="mt-4 min-h-[2rem] text-center text-xs font-medium leading-snug text-brand-600 dark:text-brand-400">
           {isLoading ? <Skeleton height={14} width="75%" className="mx-auto" /> : openOrdersSubtitle(total)}
         </p>
       )}
@@ -257,7 +257,7 @@ export function OrderProgressGaugeCardSkeleton({
   const subtitleInFooter = subtitlePlacement === 'footer';
   return (
     <div className={cardClass}>
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      <h3 className="text-sm font-semibold text-text-strong">{title}</h3>
       <div className="mt-3 flex h-[118px] items-center justify-center">
         <Skeleton height={88} width={200} />
       </div>

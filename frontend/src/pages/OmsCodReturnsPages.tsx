@@ -1,5 +1,5 @@
 import { ReportWorkspace } from '../components/reports/ReportWorkspace';
-import { PageHeader } from '../components/PageHeader';
+import { AppPageHeader } from '@ds';
 
 function useIsArabic(): boolean {
   if (typeof window === 'undefined') return false;
@@ -14,7 +14,7 @@ export function OmsCodPage() {
   const isArabic = useIsArabic();
   return (
     <div className="space-y-4">
-      <PageHeader
+      <AppPageHeader
         title={isArabic ? 'الدفع عند الاستلام' : 'COD'}
         description={
           isArabic
@@ -32,7 +32,7 @@ export function OmsReturnsPage() {
   const isArabic = useIsArabic();
   return (
     <div className="space-y-4">
-      <PageHeader
+      <AppPageHeader
         title={isArabic ? 'مرتجعات OMS' : 'OMS Returns'}
         description={
           isArabic

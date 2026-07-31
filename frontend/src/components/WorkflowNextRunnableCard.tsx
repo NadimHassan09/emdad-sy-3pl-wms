@@ -29,9 +29,9 @@ export function WorkflowNextRunnableCard({
 
   if (isDraftOrder) {
     return (
-      <section className="mt-4 rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="text-xs uppercase tracking-wide text-slate-500">Next step</div>
-        <p className="mt-2 text-sm text-slate-600">Confirm order to start workflow</p>
+      <section className="mt-4 rounded-md border border-border bg-surface-panel p-4 shadow-sm">
+        <div className="text-xs uppercase tracking-wide text-text-muted">Next step</div>
+        <p className="mt-2 text-sm text-text-body">Confirm order to start workflow</p>
       </section>
     );
   }
@@ -40,14 +40,14 @@ export function WorkflowNextRunnableCard({
 
   if (q.isLoading)
     return (
-      <section className="mt-4 rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-xs text-slate-500">Loading workflow…</p>
+      <section className="mt-4 rounded-md border border-border bg-surface-panel p-4 shadow-sm">
+        <p className="text-xs text-text-muted">Loading workflow…</p>
       </section>
     );
   if (q.isError || !q.data)
     return (
-      <section className="mt-4 rounded-md border border-rose-200 bg-white p-4 shadow-sm">
-        <p className="text-xs text-rose-600">Could not load workflow.</p>
+      <section className="mt-4 rounded-md border border-status-danger-border bg-surface-panel p-4 shadow-sm">
+        <p className="text-xs text-status-danger-fg">Could not load workflow.</p>
       </section>
     );
 
@@ -56,8 +56,8 @@ export function WorkflowNextRunnableCard({
   const step = steps?.find((s) => s.status === 'pending' && s.taskId != null);
 
   return (
-    <section className="mt-4 rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="text-xs uppercase tracking-wide text-slate-500">Next step</div>
+    <section className="mt-4 rounded-md border border-border bg-surface-panel p-4 shadow-sm">
+      <div className="text-xs uppercase tracking-wide text-text-muted">Next step</div>
       {step ? (
         <div className="mt-3">
           <Button type="button" onClick={() => navigate(`/tasks/${step.taskId!}`)}>
@@ -65,7 +65,7 @@ export function WorkflowNextRunnableCard({
           </Button>
         </div>
       ) : (
-        <p className="mt-2 text-sm text-slate-600">Confirm order to start workflow</p>
+        <p className="mt-2 text-sm text-text-body">Confirm order to start workflow</p>
       )}
     </section>
   );

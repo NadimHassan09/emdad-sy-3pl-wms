@@ -12,7 +12,7 @@ import { Combobox } from '../components/Combobox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterPanel, FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
-import { PageHeader } from '../components/PageHeader';
+import { ListPageHeader } from '@ds';
 import { RowActionsMenu } from '../components/RowActionsMenu';
 import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
@@ -112,7 +112,7 @@ export function OmsOrdersListPage() {
   const columns: Column<OmsOrderListItem>[] = [
     {
       header: 'Order #',
-      accessor: (row) => <span className="font-medium text-slate-900">{row.orderNumber}</span>,
+      accessor: (row) => <span className="font-medium text-text-strong">{row.orderNumber}</span>,
     },
     {
       header: 'Customer',
@@ -137,13 +137,13 @@ export function OmsOrdersListPage() {
         row.linkedOutboundOrder ? (
           <Link
             to={`/orders/outbound/${row.linkedOutboundOrder.id}`}
-            className="text-emerald-700 hover:underline"
+            className="text-status-success-fg hover:underline"
             onClick={(e) => e.stopPropagation()}
           >
             {row.linkedOutboundOrder.orderNumber}
           </Link>
         ) : (
-          <span className="text-slate-500">Not Linked</span>
+          <span className="text-text-muted">Not Linked</span>
         ),
     },
     {
@@ -172,10 +172,10 @@ export function OmsOrdersListPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
+      <ListPageHeader
         icon="fa-cart-shopping"
         title="OMS Orders"
-        description="Manage ecommerce and OMS fulfillment orders."
+        subtitle="Manage ecommerce and OMS fulfillment orders."
       />
 
       <FilterPanel title="Order filters" onApply={applyFilters} onReset={resetFilters}>

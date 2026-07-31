@@ -202,7 +202,10 @@ export function CreateClientInboundModal({
           ]}
         />
         {error || submitError ? (
-          <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700" role="alert">
+          <p
+            className="rounded-lg border border-status-danger-border bg-status-danger-bg px-3 py-2 text-sm text-status-danger-fg"
+            role="alert"
+          >
             {error ?? submitError}
           </p>
         ) : null}

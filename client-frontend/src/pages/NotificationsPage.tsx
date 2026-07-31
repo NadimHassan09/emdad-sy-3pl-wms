@@ -178,7 +178,7 @@ export function NotificationsPage(): ReactElement {
         description={
           unreadCount > 0 ? (
             <span className="inline-flex items-center gap-2">
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-600 px-1.5 text-[11px] font-bold text-white">
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-cta px-1.5 text-[11px] font-bold text-on-brand">
                 {unreadCount}
               </span>
               <span>{t('Unread')}</span>
@@ -208,8 +208,8 @@ export function NotificationsPage(): ReactElement {
             aria-selected={filter === mode}
             className={`min-h-8 rounded-full px-3 py-1 text-xs font-semibold transition ${
               filter === mode
-                ? 'bg-brand-600 text-white'
-                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                ? 'bg-cta text-on-brand'
+                : 'bg-surface-sunken text-text-body hover:bg-surface-hover'
             }`}
             onClick={() => setFilter(mode)}
           >
@@ -239,9 +239,9 @@ export function NotificationsPage(): ReactElement {
       <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-xs)]">
         {listQuery.isPending ? (
           <div className="space-y-2 p-3.5" aria-busy="true">
-            <div className="h-14 animate-pulse rounded-lg bg-neutral-100" />
-            <div className="h-14 animate-pulse rounded-lg bg-neutral-100" />
-            <div className="h-14 animate-pulse rounded-lg bg-neutral-100" />
+            <div className="h-14 animate-pulse rounded-lg bg-skeleton-base" />
+            <div className="h-14 animate-pulse rounded-lg bg-skeleton-base" />
+            <div className="h-14 animate-pulse rounded-lg bg-skeleton-base" />
             <span className="sr-only">{t('Loading notifications…')}</span>
           </div>
         ) : filteredItems.length === 0 ? (
@@ -267,13 +267,13 @@ export function NotificationsPage(): ReactElement {
                       <button
                         type="button"
                         className={`flex w-full gap-3 px-3.5 py-3 text-start transition hover:bg-[var(--surface-hover)] ${
-                          !item.isRead ? 'bg-brand-50/50' : ''
+                          !item.isRead ? 'bg-brand-50/50 dark:bg-white/[0.03]' : ''
                         }`}
                         onClick={() => void onItemClick(item)}
                       >
                         <span
                           className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                            item.isRead ? 'bg-transparent' : 'bg-brand-600'
+                            item.isRead ? 'bg-transparent' : 'bg-brand-500 dark:bg-brand-400'
                           }`}
                           aria-hidden="true"
                         />

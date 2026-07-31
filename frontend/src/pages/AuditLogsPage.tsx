@@ -159,7 +159,7 @@ export function AuditLogsPage() {
       {
         header: t('Timestamp', 'الوقت'),
         accessor: (r) => (
-          <span className="whitespace-nowrap font-mono text-xs text-slate-700">
+          <span className="whitespace-nowrap font-mono text-xs text-text-body">
             {formatAuditTimestamp(r.createdAt)}
           </span>
         ),
@@ -169,22 +169,22 @@ export function AuditLogsPage() {
         header: t('Actor', 'المستخدم'),
         accessor: (r) => (
           <div className="min-w-[9rem]">
-            <div className="truncate font-medium text-slate-900">{r.actorName || r.actorEmail}</div>
-            <div className="truncate text-xs text-slate-500">{r.actorEmail}</div>
+            <div className="truncate font-medium text-text-strong">{r.actorName || r.actorEmail}</div>
+            <div className="truncate text-xs text-text-muted">{r.actorEmail}</div>
           </div>
         ),
       },
       {
         header: t('Role', 'الدور'),
         accessor: (r) => (
-          <span className="whitespace-nowrap text-xs text-slate-700">{formatAuditRole(r.actorRole)}</span>
+          <span className="whitespace-nowrap text-xs text-text-body">{formatAuditRole(r.actorRole)}</span>
         ),
         width: '100px',
       },
       {
         header: t('Company', 'الشركة'),
         accessor: (r) => (
-          <span className="truncate text-xs text-slate-600">
+          <span className="truncate text-xs text-text-body">
             {r.companyId ? companyNameById.get(r.companyId) ?? truncateMiddle(r.companyId) : t('System', 'النظام')}
           </span>
         ),
@@ -193,7 +193,7 @@ export function AuditLogsPage() {
       {
         header: t('Action', 'الإجراء'),
         accessor: (r) => (
-          <span className="font-mono text-xs font-medium text-slate-800">{formatAuditActionLabel(r.action)}</span>
+          <span className="font-mono text-xs font-medium text-text-body">{formatAuditActionLabel(r.action)}</span>
         ),
         width: '140px',
       },
@@ -201,8 +201,8 @@ export function AuditLogsPage() {
         header: t('Resource', 'المورد'),
         accessor: (r) => (
           <div className="min-w-[7rem]">
-            <div className="text-xs text-slate-700">{r.resourceType}</div>
-            <div className="font-mono text-[11px] text-slate-500" title={r.resourceId}>
+            <div className="text-xs text-text-body">{r.resourceType}</div>
+            <div className="font-mono text-[11px] text-text-muted" title={r.resourceId}>
               {truncateMiddle(r.resourceId, 10, 6)}
             </div>
           </div>
@@ -212,7 +212,7 @@ export function AuditLogsPage() {
       {
         header: t('Summary', 'ملخص'),
         accessor: (r) => (
-          <span className="line-clamp-2 text-xs text-slate-600">
+          <span className="line-clamp-2 text-xs text-text-body">
             {auditLogSummaryText(r.action, r.resourceType)}
           </span>
         ),
@@ -233,7 +233,7 @@ export function AuditLogsPage() {
         accessor: (r) => (
           <button
             type="button"
-            className="whitespace-nowrap text-xs font-medium text-[var(--color-brand-600,#059669)] hover:underline"
+            className="whitespace-nowrap text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
             onClick={(e) => {
               e.stopPropagation();
               setDetailSeed(r);
@@ -287,10 +287,10 @@ export function AuditLogsPage() {
 
   return (
     <>
-      {errMsg ? <p className="mb-3 text-sm text-rose-600">{errMsg}</p> : null}
+      {errMsg ? <p className="mb-3 text-sm text-status-danger-fg">{errMsg}</p> : null}
 
       {policyQuery.data ? (
-        <p className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <p className="mb-3 rounded-lg border border-border bg-surface-card-muted px-3 py-2 text-xs text-text-body">
           {t(
             `Retention: ${policyQuery.data.retentionDays} days · Query window default ${policyQuery.data.queryDefaultWindowDays}d · Export max ${policyQuery.data.exportMaxRows} rows / ${policyQuery.data.exportMaxDateRangeDays}d range · Count cap ${policyQuery.data.queryCountCap.toLocaleString()}`,
             `الاحتفاظ: ${policyQuery.data.retentionDays} يوم · نافذة الاستعلام ${policyQuery.data.queryDefaultWindowDays} يوم · التصدير ${policyQuery.data.exportMaxRows} صف / ${policyQuery.data.exportMaxDateRangeDays} يوم · حد العد ${policyQuery.data.queryCountCap.toLocaleString()}`,
@@ -403,7 +403,7 @@ export function AuditLogsPage() {
       />
 
       {listQuery.data?.totalCapped ? (
-        <p className="mt-2 text-xs text-amber-700">
+        <p className="mt-2 text-xs text-status-warning-fg">
           {t(
             `Result count capped at ${policyQuery.data?.queryCountCap.toLocaleString() ?? '10,000'}+ matches. Narrow filters or use export with a date range.`,
             `العدد محدود عند ${policyQuery.data?.queryCountCap.toLocaleString() ?? '10000'}+ نتيجة. ضيّق الفلاتر أو صدّر بنطاق تاريخ.`,

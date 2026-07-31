@@ -20,8 +20,8 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["vite/client"],
     "paths": {
-      "@ds": ["../shared/design-system/ui/index.ts"],
-      "@ds/*": ["../shared/design-system/ui/*"],
+      "@ds": ["../shared/design-system-next/ui/index.ts"],
+      "@ds/*": ["../shared/design-system-next/ui/*"],
       "@tanstack/react-query": ["./node_modules/@tanstack/react-query"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
@@ -31,9 +31,9 @@
   },
   "include": [
     "src",
-    "../shared/design-system/ui/**/*.ts",
-    "../shared/design-system/ui/**/*.tsx",
-    "../shared/design-system/lib/**/*.ts",
-    "../shared/design-system/hooks/**/*.ts"
+    "../shared/design-system-next/ui/**/*.ts",
+    "../shared/design-system-next/ui/**/*.tsx",
+    "../shared/design-system-next/lib/**/*.ts",
+    "../shared/design-system-next/hooks/**/*.ts"
   ]
 }

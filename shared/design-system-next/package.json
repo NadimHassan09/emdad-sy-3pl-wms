@@ -1,0 +1,21 @@
+{
+  "name": "@emdad/ds",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Emdad WMS / Client Portal design system (presentation primitives).",
+  "main": "./ui/index.ts",
+  "module": "./ui/index.ts",
+  "types": "./ui/index.ts",
+  "exports": {
+    ".": "./ui/index.ts",
+    "./globals.css": "./globals.css"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "@tanstack/react-query": ">=5"
+  },
+  "sideEffects": [
+    "./globals.css"
+  ]
+}

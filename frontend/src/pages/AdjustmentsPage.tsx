@@ -173,7 +173,7 @@ export function AdjustmentsPage() {
               trigger={
                 <button
                   type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-hover"
                   data-adjustment-action-trigger="true"
                   onClick={() => setOpenActionId((cur) => (cur === a.id ? null : a.id))}
                   aria-label={t('Open actions', 'فتح الإجراءات')}
@@ -188,7 +188,7 @@ export function AdjustmentsPage() {
             >
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-hover"
                 data-adjustment-action-menu-button="true"
                 onClick={() => {
                   setOpenActionId(null);
@@ -200,7 +200,7 @@ export function AdjustmentsPage() {
               {a.status === 'draft' ? (
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
+                  className="block w-full px-3 py-2 text-left text-sm text-status-danger-fg transition hover:bg-status-danger-bg"
                   data-adjustment-action-menu-button="true"
                   onClick={() => {
                     setOpenActionId(null);
@@ -222,7 +222,7 @@ export function AdjustmentsPage() {
   return (
     <>
       {!wid ? (
-        <p className="mb-3 text-sm text-slate-600">Resolve warehouse configuration…</p>
+        <p className="mb-3 text-sm text-text-body">Resolve warehouse configuration…</p>
       ) : null}
 
       <FilterPanel

@@ -84,8 +84,8 @@ export function ProductSpecsValidationModal({
       {product ? (
         <div className="space-y-4">
           <div>
-            <p className="text-sm font-medium text-slate-900">{product.name}</p>
-            <p className="font-mono text-xs text-slate-500">{product.sku}</p>
+            <p className="text-sm font-medium text-text-strong">{product.name}</p>
+            <p className="font-mono text-xs text-text-muted">{product.sku}</p>
           </div>
 
           <div className="space-y-3">
@@ -109,7 +109,7 @@ export function ProductSpecsValidationModal({
                   </div>
                   <button
                     type="button"
-                    className="mb-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                    className="mb-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border text-text-body transition hover:bg-surface-hover"
                     aria-label={
                       isEditing
                         ? t([`Stop editing ${label}`, `إيقاف تعديل ${label}`])
@@ -129,10 +129,10 @@ export function ProductSpecsValidationModal({
             })}
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-text-body">
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+              className="h-4 w-4 rounded border-border text-status-success-fg"
               checked={draft.confirmedMatch}
               onChange={(e) => onChange({ confirmedMatch: e.target.checked })}
             />
@@ -149,7 +149,7 @@ export function ProductSpecsValidationModal({
           />
         </div>
       ) : (
-        <p className="text-sm text-slate-600">{t(['Product not found.', 'المنتج غير موجود.'])}</p>
+        <p className="text-sm text-text-body">{t(['Product not found.', 'المنتج غير موجود.'])}</p>
       )}
     </Modal>
   );

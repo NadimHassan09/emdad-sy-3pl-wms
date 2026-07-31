@@ -7,11 +7,12 @@ import {
   type CreateBillingPlanTemplatePayload,
   type UpdateBillingPlanTemplatePayload,
 } from '../../api/billing';
+import { ListPageHeader } from '@ds';
 import { AnchoredDropdown } from '../../components/AnchoredDropdown';
 import { Button } from '../../components/Button';
 import { DataTable, type Column } from '../../components/DataTable';
+import { PANEL_CARD_CLASS } from '../../components/FilterPanel';
 import { Modal } from '../../components/Modal';
-import { PageHeader } from '../../components/PageHeader';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
@@ -161,7 +162,7 @@ export function BillingPlanTemplatesPage() {
     () => [
       {
         header: 'Name',
-        accessor: (r) => <span className="font-medium text-slate-900">{r.name}</span>,
+        accessor: (r) => <span className="font-medium text-text-strong">{r.name}</span>,
       },
       {
         header: 'Reserved volume',
@@ -199,7 +200,7 @@ export function BillingPlanTemplatesPage() {
                 trigger={
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-card-muted"
                     data-billing-action-menu-button="true"
                     onClick={() => setOpenActionId((cur) => (cur === r.id ? null : r.id))}
                     aria-label="Open actions"
@@ -212,14 +213,14 @@ export function BillingPlanTemplatesPage() {
               >
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                  className="block w-full px-3 py-2 text-left text-sm text-text-body hover:bg-surface-hover"
                   onClick={() => openEdit(r)}
                 >
                   Edit
                 </button>
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50"
+                  className="block w-full px-3 py-2 text-left text-sm text-status-danger-fg hover:bg-status-danger-bg"
                   onClick={() => {
                     if (!window.confirm(`Delete template “${r.name}”?`)) return;
                     deleteMut.mutate(r.id);
@@ -239,10 +240,10 @@ export function BillingPlanTemplatesPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
+      <ListPageHeader
         icon="fa-layer-group"
         title="Plan templates"
-        description="Reusable subscription templates with reserved volume, price, and cycle length."
+        subtitle="Reusable subscription templates with reserved volume, price, and cycle length."
         actions={
           canMutate ? (
             <Button variant="brand" onClick={openCreate}>
@@ -252,7 +253,7 @@ export function BillingPlanTemplatesPage() {
         }
       />
 
-      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className={`${PANEL_CARD_CLASS} mb-0 flex flex-wrap items-end gap-3`}>
         <div className="min-w-[16rem] flex-1">
           <TextField
             label="Search templates"
@@ -286,7 +287,7 @@ export function BillingPlanTemplatesPage() {
       />
 
       {templatesQuery.isError ? (
-        <p className="text-sm text-rose-600">{(templatesQuery.error as Error).message}</p>
+        <p className="text-sm text-status-danger-fg">{(templatesQuery.error as Error).message}</p>
       ) : null}
 
       <Modal

@@ -207,7 +207,7 @@ export function TasksListPage() {
     {
       header: t(['Task type', 'نوع المهمة']),
       accessor: (r) => (
-        <span className="text-sm font-medium text-slate-800">
+        <span className="text-sm font-medium text-text-strong">
           {prettyWorkflowTaskType(r.taskType, t)}
         </span>
       ),
@@ -220,11 +220,11 @@ export function TasksListPage() {
         const orderNo = ref ? orderNumbers.get(ref) : undefined;
         return (
           <div className="min-w-0">
-            <div className="font-mono text-sm font-semibold text-slate-900">
+            <div className="font-mono text-sm font-semibold text-text-strong">
               {orderNo ?? (ref ? `${ref.slice(0, 8)}…` : '—')}
             </div>
             {orderNo && ref ? (
-              <div className="truncate font-mono text-[10px] text-slate-400" title={ref}>
+              <div className="truncate font-mono text-[10px] text-text-faint" title={ref}>
                 {ref.slice(0, 8)}…
               </div>
             ) : null}
@@ -242,14 +242,14 @@ export function TasksListPage() {
     {
       header: t(['Started at', 'بدأ في']),
       accessor: (r) => (
-        <span className="text-xs text-slate-700">{formatTaskDateTime(taskListStartedAtIso(r))}</span>
+        <span className="text-xs text-text-body">{formatTaskDateTime(taskListStartedAtIso(r))}</span>
       ),
       width: '170px',
     },
     {
       header: t(['Ended at', 'انتهى في']),
       accessor: (r) => (
-        <span className="text-xs text-slate-700">{formatTaskDateTime(taskListEndedAtIso(r))}</span>
+        <span className="text-xs text-text-body">{formatTaskDateTime(taskListEndedAtIso(r))}</span>
       ),
       width: '170px',
     },
@@ -258,7 +258,7 @@ export function TasksListPage() {
       accessor: (r) => {
         const durationMs = taskListDurationMs(r, now);
         return (
-          <span className="font-mono text-xs tabular-nums text-slate-700">
+          <span className="font-mono text-xs tabular-nums text-text-body">
             {durationMs != null ? formatTaskDuration(durationMs) : '—'}
           </span>
         );
@@ -315,7 +315,7 @@ export function TasksListPage() {
         loading={pagination.isInitialLoading || (!!appliedFilters.search.trim() && searchResolve.isLoading)}
         empty={
           <div className="space-y-2 py-2 text-center">
-            <p className="text-sm text-slate-500">{emptyMessage}</p>
+            <p className="text-sm text-text-muted">{emptyMessage}</p>
             {hasActiveFilters ? (
               <Button type="button" variant="secondary" size="sm" onClick={handleResetFilters}>
                 {t(['Clear filters', 'مسح الفلاتر'])}

@@ -167,7 +167,7 @@ export function DispatchAddToShipmentModal({
         }
       >
         <div className="space-y-4 text-sm">
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+          <div className="rounded-xl border border-border bg-surface-card p-3">
             <WedgeScanField
               label={t(['Scan package or product', 'امسح طرداً أو منتجاً'])}
               value={wedgeScan}
@@ -184,11 +184,11 @@ export function DispatchAddToShipmentModal({
             />
           </div>
 
-          <div className="flex gap-2 rounded-lg bg-slate-100 p-1">
+          <div className="flex gap-2 rounded-lg bg-surface-card-muted p-1">
             <button
               type="button"
               className={`flex-1 rounded-md px-3 py-2 text-xs font-semibold transition ${
-                mode === 'product' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'
+                mode === 'product' ? 'bg-surface-card text-brand-700 shadow-sm' : 'text-text-body'
               }`}
               onClick={() => setMode('product')}
             >
@@ -197,7 +197,7 @@ export function DispatchAddToShipmentModal({
             <button
               type="button"
               className={`flex-1 rounded-md px-3 py-2 text-xs font-semibold transition ${
-                mode === 'package' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-600'
+                mode === 'package' ? 'bg-surface-card text-brand-700 shadow-sm' : 'text-text-body'
               }`}
               onClick={() => setMode('package')}
             >
@@ -222,7 +222,7 @@ export function DispatchAddToShipmentModal({
                 onChange={(e) => setProductQty(e.target.value)}
                 inputMode="decimal"
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-text-muted">
                 {t([
                   `${lines.length} line(s) on this order. Quantity cannot exceed picked amount.`,
                   `${lines.length} سطر(أسطر) على هذا الطلب. لا يمكن تجاوز الكمية المُلتقطة.`,
@@ -241,13 +241,13 @@ export function DispatchAddToShipmentModal({
               />
               {unscannedPackages.length > 0 ? (
                 <div>
-                  <p className="text-xs font-medium text-slate-600">{t(['Pending packages', 'طرود معلّقة'])}</p>
-                  <ul className="mt-1 max-h-32 space-y-1 overflow-y-auto rounded-lg border border-slate-100 p-2">
+                  <p className="text-xs font-medium text-text-body">{t(['Pending packages', 'طرود معلّقة'])}</p>
+                  <ul className="mt-1 max-h-32 space-y-1 overflow-y-auto rounded-lg border border-border-subtle p-2">
                     {unscannedPackages.map((p) => (
                       <li key={p.id}>
                         <button
                           type="button"
-                          className="w-full rounded px-2 py-1 text-left font-mono text-xs hover:bg-emerald-50"
+                          className="w-full rounded px-2 py-1 text-left font-mono text-xs hover:bg-surface-hover"
                           onClick={() => setPackageInput(p.label)}
                         >
                           {p.label}
@@ -257,7 +257,7 @@ export function DispatchAddToShipmentModal({
                   </ul>
                 </div>
               ) : (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-text-muted">
                   {t(['All packages are already marked as loaded.', 'جميع الطرود مُعلَّمة كمحمّلة.'])}
                 </p>
               )}

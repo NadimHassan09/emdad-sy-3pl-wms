@@ -13,9 +13,9 @@ type Props = {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
-      <dd className="mt-1 text-lg font-semibold text-slate-900">{value}</dd>
+    <div className="rounded-lg border border-border bg-surface-sunken px-4 py-3">
+      <dt className="text-xs font-medium uppercase tracking-wide text-text-muted">{label}</dt>
+      <dd className="mt-1 text-lg font-semibold text-text-strong">{value}</dd>
     </div>
   );
 }
@@ -33,7 +33,7 @@ export function VolumeAllocationPanel({
   description = 'Used storage is calculated from current inventory quantity × product volume (CBM). Location dimensions are not used for billing.',
 }: Props) {
   if (loading) {
-    return <p className="text-sm text-slate-500">Loading storage utilization…</p>;
+    return <p className="text-sm text-text-muted">Loading storage utilization…</p>;
   }
 
   const used = storage?.usedStorageCbm ?? capacity?.usedStorageCbm ?? capacity?.allocatedVolumeCbm ?? '0';
@@ -49,9 +49,9 @@ export function VolumeAllocationPanel({
     storage?.storageUsagePercent ?? capacity?.storageUsagePercent ?? 0;
 
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-      <p className="mt-1 text-xs text-slate-500">{description}</p>
+    <section className="rounded-lg border border-border bg-surface-card p-4 shadow-sm">
+      <h3 className="text-sm font-semibold text-text-strong">{title}</h3>
+      <p className="mt-1 text-xs text-text-muted">{description}</p>
       <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Reserved Storage" value={`${formatDecimal(reserved, 4)} CBM`} />
         <Stat label="Used Storage" value={`${formatDecimal(used, 4)} CBM`} />

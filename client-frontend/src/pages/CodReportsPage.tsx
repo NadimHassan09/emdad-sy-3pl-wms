@@ -93,23 +93,23 @@ export function CodReportsPage(): ReactElement {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Card className="p-6" hover>
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-500 mb-4">
-            <div className="w-6 h-6 rounded-md bg-emerald-50 flex items-center justify-center">
-              <i className="fa-solid fa-boxes-packing text-emerald-600 text-xs" />
+          <div className="flex items-center gap-2 text-sm font-medium text-text-muted mb-4">
+            <div className="w-6 h-6 rounded-md bg-brand-50 dark:bg-white/5 flex items-center justify-center">
+              <i className="fa-solid fa-boxes-packing text-brand-600 dark:text-brand-400 text-xs" />
             </div>
             {t('COD orders')}
           </div>
-          <div className="text-3xl font-bold text-slate-900">{summaryQuery.isPending ? '—' : (summary?.orderCount ?? 0)}</div>
-          <div className="text-xs text-slate-500 mt-1">{t('Matching filters')}</div>
+          <div className="text-3xl font-bold text-text-strong">{summaryQuery.isPending ? '—' : (summary?.orderCount ?? 0)}</div>
+          <div className="text-xs text-text-muted mt-1">{t('Matching filters')}</div>
         </Card>
         <Card className="p-6" hover>
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-500 mb-4">
-            <div className="w-6 h-6 rounded-md bg-amber-50 flex items-center justify-center">
-              <i className="fa-solid fa-money-bill-wave text-amber-600 text-xs" />
+          <div className="flex items-center gap-2 text-sm font-medium text-text-muted mb-4">
+            <div className="w-6 h-6 rounded-md bg-status-warning-bg flex items-center justify-center">
+              <i className="fa-solid fa-money-bill-wave text-status-warning-fg text-xs" />
             </div>
             {t('Total COD amount')}
           </div>
-          <div className="text-3xl font-bold text-slate-900">
+          <div className="text-3xl font-bold text-text-strong">
             {summaryQuery.isPending
               ? '—'
               : summary?.totalCodAmount != null
@@ -124,7 +124,7 @@ export function CodReportsPage(): ReactElement {
           <select
             value={codStatus}
             onChange={(e) => setCodStatus(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 input-premium"
+            className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
           >
             {COD_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -137,34 +137,34 @@ export function CodReportsPage(): ReactElement {
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             title={t('From date')}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 input-premium"
+            className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
           />
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
             title={t('To date')}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 input-premium"
+            className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
           />
         </div>
       </Card>
 
       <Card className="overflow-hidden">
         {pagination.isInitialLoading ? (
-          <div className="px-5 py-10 text-center text-slate-400 text-sm">…</div>
+          <div className="px-5 py-10 text-center text-text-faint text-sm">…</div>
         ) : pagination.rows.length === 0 ? (
           <div className="py-20 flex flex-col items-center justify-center text-center px-6">
-            <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
-              <i className="fa-solid fa-money-bill text-2xl text-slate-300" />
+            <div className="w-16 h-16 rounded-2xl bg-surface-sunken flex items-center justify-center mb-4">
+              <i className="fa-solid fa-money-bill text-2xl text-text-faint" />
             </div>
-            <h3 className="text-base font-semibold text-slate-900">{t('No cash-on-delivery orders')}</h3>
-            <p className="text-sm text-slate-500 mt-1 max-w-xs">{t('COD orders will appear here once they are processed.')}</p>
+            <h3 className="text-base font-semibold text-text-strong">{t('No cash-on-delivery orders')}</h3>
+            <p className="text-sm text-text-muted mt-1 max-w-xs">{t('COD orders will appear here once they are processed.')}</p>
           </div>
         ) : (
           <>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
+                <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
                   <tr>
                     <th className="px-5 py-3 text-left">{t('Order #')}</th>
                     <th className="px-5 py-3 text-left">{t('Recipient')}</th>
@@ -173,20 +173,20 @@ export function CodReportsPage(): ReactElement {
                     <th className="px-5 py-3 text-right">{t('Created')}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-border-subtle">
                   {pagination.rows.map((row) => (
                     <tr
                       key={row.id}
                       onClick={() => navigate(`/ecommerce-orders/${row.id}`)}
-                      className="hover:bg-slate-50/60 transition-colors cursor-pointer"
+                      className="hover:bg-surface-hover transition-colors cursor-pointer"
                     >
-                      <td className="px-5 py-3.5 font-semibold text-slate-900 font-mono">{row.orderNumber}</td>
-                      <td className="px-5 py-3.5 text-slate-600">{row.recipientName ?? '—'}</td>
-                      <td className="px-5 py-3.5 font-medium text-slate-900">
+                      <td className="px-5 py-3.5 font-semibold text-text-strong font-mono">{row.orderNumber}</td>
+                      <td className="px-5 py-3.5 text-text-body">{row.recipientName ?? '—'}</td>
+                      <td className="px-5 py-3.5 font-medium text-text-strong">
                         {row.codAmount != null ? `${row.codAmount}${row.currency ? ` ${row.currency}` : ''}` : '—'}
                       </td>
                       <td className="px-5 py-3.5">{row.codStatus ? <Badge status={row.codStatus} /> : '—'}</td>
-                      <td className="px-5 py-3.5 text-right text-slate-500 text-xs">{new Date(row.createdAt).toLocaleDateString()}</td>
+                      <td className="px-5 py-3.5 text-right text-text-muted text-xs">{new Date(row.createdAt).toLocaleDateString()}</td>
                     </tr>
                   ))}
                 </tbody>

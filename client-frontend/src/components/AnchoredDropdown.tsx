@@ -75,7 +75,7 @@ export function AnchoredDropdown({
         ref={menuRef}
         role="menu"
         className={[
-          'fixed z-[200] min-w-[160px] overflow-hidden rounded-xl border border-slate-200/60 bg-white shadow-soft py-1',
+          'fixed z-[200] min-w-[160px] overflow-hidden rounded-xl border border-border bg-surface-panel shadow-soft py-1',
           menuClassName,
         ]
           .filter(Boolean)

@@ -21,8 +21,8 @@ const TABS: { id: TabId; label: string }[] = [
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-0.5 text-sm text-slate-800">{value}</div>
+      <div className="text-xs uppercase tracking-wide text-text-muted">{label}</div>
+      <div className="mt-0.5 text-sm text-text-strong">{value}</div>
     </div>
   );
 }
@@ -31,13 +31,13 @@ function CodBadge({ order }: { order: OmsOrderDetail }) {
   if (order.paymentMethod !== 'COD') return null;
   const status = order.codStatus ?? 'pending';
   const colors: Record<string, string> = {
-    pending: 'bg-amber-100 text-amber-900',
-    collected: 'bg-sky-100 text-sky-900',
+    pending: 'bg-status-warning-bg text-status-warning-fg',
+    collected: 'bg-brand-100 text-brand-900 dark:bg-brand-950/50 dark:text-brand-200',
     remitted: 'bg-indigo-100 text-indigo-900',
-    settled: 'bg-emerald-100 text-emerald-800',
+    settled: 'bg-status-success-bg text-status-success-fg',
   };
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${colors[status] ?? 'bg-slate-100'}`}>
+    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${colors[status] ?? 'bg-surface-card-muted'}`}>
       COD {status}
     </span>
   );
@@ -86,28 +86,28 @@ export function OutboundOmsPanel({
   });
 
   return (
-    <div className="mb-4 rounded-xl border border-slate-100 bg-white p-6 shadow-sm">
+    <div className="mb-4 rounded-xl border border-border-subtle bg-surface-card p-6 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <h2 className="text-base font-semibold text-slate-900">OMS</h2>
+        <h2 className="text-base font-semibold text-text-strong">OMS</h2>
         <CodBadge order={order} />
         {order.allocationStatus && order.allocationStatus !== 'none' ? (
           <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-900">
             Allocation: {order.allocationStatus}
           </span>
         ) : null}
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+        <span className="rounded-full bg-surface-card-muted px-2 py-0.5 text-xs font-semibold text-text-body">
           Delivery: {order.status}
         </span>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-1 border-b border-slate-100 pb-2">
+      <div className="mb-4 flex flex-wrap gap-1 border-b border-border-subtle pb-2">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
-              tab === t.id ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-50'
+              tab === t.id ? 'bg-status-success-bg text-status-success-fg' : 'text-text-body hover:bg-surface-sunken'
             }`}
           >
             {t.label}
@@ -194,7 +194,7 @@ export function OutboundOmsPanel({
             </Button>
           </div>
           {order.reservations?.length ? (
-            <ul className="text-xs text-slate-600">
+            <ul className="text-xs text-text-body">
               {order.reservations.map((r: OmsStockReservation) => (
                 <li key={r.id} className="font-mono">
                   {r.productId.slice(0, 8)}… · qty {r.quantity} · {r.status}
@@ -208,12 +208,12 @@ export function OutboundOmsPanel({
       {tab === 'timeline' && (
         <ul className="space-y-2 text-sm">
           {(order.timeline ?? []).length === 0 ? (
-            <li className="text-slate-500">No events yet.</li>
+            <li className="text-text-muted">No events yet.</li>
           ) : (
             order.timeline!.map((ev: OmsOrderEvent) => (
-              <li key={ev.id} className="rounded-lg border border-slate-100 px-3 py-2">
-                <div className="font-medium text-slate-800">{ev.eventType}</div>
-                <div className="text-xs text-slate-500">
+              <li key={ev.id} className="rounded-lg border border-border-subtle px-3 py-2">
+                <div className="font-medium text-text-strong">{ev.eventType}</div>
+                <div className="text-xs text-text-muted">
                   {new Date(ev.createdAt).toLocaleString()}
                   {ev.creator?.fullName ? ` · ${ev.creator.fullName}` : ''}
                 </div>
@@ -223,7 +223,7 @@ export function OutboundOmsPanel({
         </ul>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+      <div className="mt-4 flex flex-wrap gap-2 border-t border-border-subtle pt-4">
         <Button size="sm" variant="secondary" loading={mut.isPending} onClick={() => mut.mutate('out')}>
           Out for delivery
         </Button>

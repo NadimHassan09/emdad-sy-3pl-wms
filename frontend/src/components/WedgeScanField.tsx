@@ -80,7 +80,7 @@ export function WedgeScanField({
         {...inputProps}
         onKeyDown={onKeyDown}
       />
-      {hint ? <p className="text-[11px] text-slate-500">{hint}</p> : null}
+      {hint ? <p className="text-[11px] text-text-muted">{hint}</p> : null}
     </div>
   );
 }

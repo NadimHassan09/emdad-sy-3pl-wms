@@ -68,29 +68,28 @@ export function stockHealthLabel(status: StockHealthStatus, isArabic = false): s
 export function stockHealthBarClass(status: StockHealthStatus): string {
   switch (status) {
     case 'healthy':
-      return 'bg-emerald-500';
+      return 'bg-status-success-fg';
     case 'low_stock':
-      return 'bg-amber-500';
+      return 'bg-status-warning-fg';
     case 'critical':
-      return 'bg-rose-500';
     case 'out_of_stock':
-      return 'bg-rose-600';
+      return 'bg-status-danger-fg';
     default:
-      return 'bg-slate-300';
+      return 'bg-border-strong';
   }
 }
 
 export function stockHealthBadgeClass(status: StockHealthStatus): string {
   switch (status) {
     case 'healthy':
-      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      return 'bg-status-success-bg text-status-success-fg border-status-success-border';
     case 'low_stock':
-      return 'bg-amber-50 text-amber-800 border-amber-200';
+      return 'bg-status-warning-bg text-status-warning-fg border-status-warning-border';
     case 'critical':
-      return 'bg-orange-50 text-orange-800 border-orange-200';
+      return 'bg-status-orange-bg text-status-orange-fg border-status-orange-border';
     case 'out_of_stock':
-      return 'bg-rose-50 text-rose-700 border-rose-200';
+      return 'bg-status-danger-bg text-status-danger-fg border-status-danger-border';
     default:
-      return 'bg-slate-50 text-slate-600 border-slate-200';
+      return 'bg-status-neutral-bg text-status-neutral-fg border-status-neutral-border';
   }
 }

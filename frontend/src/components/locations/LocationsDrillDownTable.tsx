@@ -16,12 +16,12 @@ function LocationStatusPill({ status }: { status: string }) {
   const { t } = useWmsTranslation();
   const cls =
     status === 'active'
-      ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
+      ? 'bg-status-success-bg text-status-success-fg ring-status-success-border'
       : status === 'blocked'
-        ? 'bg-amber-50 text-amber-900 ring-amber-200'
+        ? 'bg-status-warning-bg text-status-warning-fg ring-status-warning-border'
         : status === 'archived'
-          ? 'bg-slate-100 text-slate-600 ring-slate-200'
-          : 'bg-slate-50 text-slate-600 ring-slate-200';
+          ? 'bg-status-neutral-bg text-status-neutral-fg ring-status-neutral-border'
+          : 'bg-status-neutral-bg text-status-neutral-fg ring-status-neutral-border';
   return (
     <span
       className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ring-inset ${cls}`}
@@ -102,7 +102,7 @@ export function LocationsDrillDownTable({
           (r.childCount ?? 0) > 0 ? (
             <button
               type="button"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-brand-600,#059669)] transition hover:bg-emerald-50"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-brand-600 transition hover:bg-surface-active dark:text-brand-400"
               aria-label={`${t(['Open children of', 'فتح أبناء'])} ${r.name}`}
               title={t(['View children', 'عرض الأبناء'])}
               onClick={(e) => {
@@ -123,7 +123,7 @@ export function LocationsDrillDownTable({
         accessor: (r) => (
           <button
             type="button"
-            className="text-left font-medium text-slate-900 hover:text-[var(--color-brand-600,#059669)] hover:underline"
+            className="text-left font-medium text-text-strong hover:text-brand-600 hover:underline dark:hover:text-brand-400"
             onClick={() => (r.childCount ?? 0) > 0 && onNavigateInto(r)}
           >
             {formatChildLabel(r.name, r.childCount ?? 0)}
@@ -145,7 +145,7 @@ export function LocationsDrillDownTable({
       {
         header: 'Location Code',
         accessor: (r) => (
-          <span className="max-w-[14rem] truncate font-mono text-xs text-slate-600" title={r.fullPath}>
+          <span className="max-w-[14rem] truncate font-mono text-xs text-text-muted" title={r.fullPath}>
             {r.fullPath}
           </span>
         ),
@@ -194,7 +194,7 @@ export function LocationsDrillDownTable({
                     aria-label={t(['Location actions', 'إجراءات الموقع'])}
                     disabled={actionBusy}
                     data-location-action-trigger="true"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 disabled:opacity-40"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition hover:bg-surface-hover disabled:opacity-40"
                     onClick={() => setOpenActionId(menuOpen ? null : r.id)}
                   >
                     <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor" aria-hidden>
@@ -205,7 +205,7 @@ export function LocationsDrillDownTable({
               >
                 <button
                   type="button"
-                  className="flex w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                  className="flex w-full px-3 py-2 text-left text-sm text-text-body hover:bg-surface-hover"
                   onClick={() => {
                     setOpenActionId(null);
                     onBarcodeClick(r.barcode, r.fullPath);
@@ -216,7 +216,7 @@ export function LocationsDrillDownTable({
                 {locationTypeShowsStockContents(r.type) ? (
                   <button
                     type="button"
-                    className="flex w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                    className="flex w-full px-3 py-2 text-left text-sm text-text-body hover:bg-surface-hover"
                     onClick={() => {
                       setOpenActionId(null);
                       onStockClick(r);
@@ -227,7 +227,7 @@ export function LocationsDrillDownTable({
                 ) : null}
                 <button
                   type="button"
-                  className="flex w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                  className="flex w-full px-3 py-2 text-left text-sm text-text-body hover:bg-surface-hover"
                   onClick={() => {
                     setOpenActionId(null);
                     onEdit(r);
@@ -238,7 +238,7 @@ export function LocationsDrillDownTable({
                 {r.status === 'active' ? (
                   <button
                     type="button"
-                    className="flex w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                    className="flex w-full px-3 py-2 text-left text-sm text-text-body hover:bg-surface-hover"
                     onClick={() => {
                       setOpenActionId(null);
                       onSuspend(r.id);
@@ -250,7 +250,7 @@ export function LocationsDrillDownTable({
                 {r.status === 'blocked' ? (
                   <button
                     type="button"
-                    className="flex w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                    className="flex w-full px-3 py-2 text-left text-sm text-text-body hover:bg-surface-hover"
                     onClick={() => {
                       setOpenActionId(null);
                       onUnsuspend(r.id);
@@ -262,7 +262,7 @@ export function LocationsDrillDownTable({
                 {canPermanentDelete ? (
                   <button
                     type="button"
-                    className="flex w-full px-3 py-2 text-left text-sm text-rose-800 hover:bg-rose-50"
+                    className="flex w-full px-3 py-2 text-left text-sm text-status-danger-fg hover:bg-status-danger-bg"
                     onClick={() => {
                       setOpenActionId(null);
                       onRequestPermanentDelete(r);

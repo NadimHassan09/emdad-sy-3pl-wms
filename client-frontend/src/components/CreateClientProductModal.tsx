@@ -100,7 +100,7 @@ function InputWithGenerate({
           </button>
         </div>
       </label>
-      {hint ? <span className="mt-1 block text-xs text-slate-500">{hint}</span> : null}
+      {hint ? <span className="mt-1 block text-xs text-text-muted">{hint}</span> : null}
     </div>
   );
 }
@@ -183,7 +183,7 @@ export function CreateClientProductModal({
     >
       <form id="create-client-product" onSubmit={submit} className="space-y-3">
         {submitError ? (
-          <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+          <p className="rounded-lg border border-status-danger-border bg-status-danger-bg px-3 py-2 text-sm text-status-danger-fg">
             {submitError}
           </p>
         ) : null}
@@ -221,7 +221,7 @@ export function CreateClientProductModal({
           onChange={(e) => setDescription(e.target.value)}
         />
         <SelectField label={t('UoM')} value={uom} onChange={(e) => setUom(e.target.value)} options={uomOptions} />
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-text-body">
           <input
             type="checkbox"
             checked={expiryTracking}

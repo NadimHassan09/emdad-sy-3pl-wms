@@ -48,7 +48,7 @@ export function RowActionsMenu({
           <button
             type="button"
             data-row-actions={tag}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-muted transition hover:bg-surface-hover"
             onClick={() => setOpen((o) => !o)}
             aria-label={ariaLabel}
             aria-expanded={open}
@@ -67,7 +67,7 @@ export function RowActionsMenu({
             data-row-actions={tag}
             disabled={it.disabled}
             className={`block w-full px-3 py-2 text-start text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
-              it.danger ? 'text-rose-700 hover:bg-rose-50' : 'text-slate-700 hover:bg-slate-100'
+              it.danger ? 'text-status-danger-fg hover:bg-status-danger-bg' : 'text-text-body hover:bg-surface-hover'
             }`}
             onClick={() => {
               setOpen(false);

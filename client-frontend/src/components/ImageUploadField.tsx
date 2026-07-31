@@ -80,18 +80,18 @@ export function ImageUploadField({
 
   return (
     <div className="space-y-2">
-      <div className="text-xs font-semibold text-slate-600">{label}</div>
+      <div className="text-xs font-semibold text-text-body">{label}</div>
       <div className="flex items-center gap-4">
         <button
           type="button"
           disabled={disabled || uploading}
           onClick={() => inputRef.current?.click()}
-          className={`${box} ${radius} border border-dashed border-slate-300 bg-slate-50 overflow-hidden flex items-center justify-center shrink-0 hover:border-emerald-400 hover:bg-emerald-50/40 transition-colors disabled:opacity-50`}
+          className={`${box} ${radius} border border-dashed border-border-strong bg-surface-sunken overflow-hidden flex items-center justify-center shrink-0 hover:border-brand-400 hover:bg-brand-50/40 dark:hover:bg-white/5 transition-colors disabled:opacity-50`}
         >
           {shown ? (
             <img src={shown} alt="" className="w-full h-full object-cover" />
           ) : (
-            <i className="fa-solid fa-camera text-slate-400" />
+            <i className="fa-solid fa-camera text-text-faint" />
           )}
         </button>
         <div className="min-w-0 space-y-2">
@@ -100,7 +100,7 @@ export function ImageUploadField({
               type="button"
               disabled={disabled || uploading}
               onClick={() => inputRef.current?.click()}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-cta text-on-brand hover:bg-cta-hover disabled:opacity-50"
             >
               {uploading
                 ? isArabic
@@ -119,7 +119,7 @@ export function ImageUploadField({
                 type="button"
                 disabled={disabled || uploading}
                 onClick={() => void onRemove()}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-border-strong text-text-body hover:bg-surface-hover disabled:opacity-50"
               >
                 {isArabic ? 'إزالة' : 'Remove'}
               </button>
@@ -129,14 +129,14 @@ export function ImageUploadField({
                 type="button"
                 disabled={disabled || uploading}
                 onClick={() => onFileChange(null)}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-border-strong text-text-body hover:bg-surface-hover disabled:opacity-50"
               >
                 {isArabic ? 'إزالة' : 'Remove'}
               </button>
             ) : null}
           </div>
-          {hint ? <p className="text-[11px] text-slate-400">{hint}</p> : null}
-          {error ? <p className="text-[11px] text-rose-600">{error}</p> : null}
+          {hint ? <p className="text-[11px] text-text-faint">{hint}</p> : null}
+          {error ? <p className="text-[11px] text-danger-600 dark:text-status-danger-fg">{error}</p> : null}
         </div>
       </div>
       <input

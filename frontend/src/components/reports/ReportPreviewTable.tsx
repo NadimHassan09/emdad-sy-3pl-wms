@@ -53,7 +53,7 @@ export function ReportPreviewTable({
   );
 
   return (
-    <div className="report-preview-table overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-slate-50">
+    <div className="report-preview-table overflow-hidden rounded-2xl border border-border bg-surface-panel shadow-soft [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-surface-card-muted">
     <DataTable
       columns={dataColumns}
       rows={serverPagination ? rows : sortedRows}
@@ -87,7 +87,7 @@ function sortableHeader(
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-slate-800"
+      className="inline-flex items-center gap-1 uppercase tracking-wide hover:text-text-strong"
       onClick={() =>
         setSort({
           columnId: col.id,
@@ -96,7 +96,7 @@ function sortableHeader(
       }
     >
       {label}
-      <span className="text-[10px] font-normal normal-case text-slate-400">
+      <span className="text-[10px] font-normal normal-case text-text-faint">
         {active ? (dir === 'asc' ? '↑' : '↓') : '↕'}
       </span>
     </button>

@@ -117,13 +117,13 @@ export function CreateAdHocInvoiceModal({ open, companies, onClose }: Props) {
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-slate-900">Invoice lines</h4>
+            <h4 className="text-sm font-semibold text-text-strong">Invoice lines</h4>
             <Button type="button" size="sm" variant="secondary" onClick={() => setLines((l) => [...l, emptyLine()])}>
               Add line
             </Button>
           </div>
           {lines.map((line, idx) => (
-            <div key={line.key} className="grid gap-2 rounded border border-slate-200 p-3 sm:grid-cols-4">
+            <div key={line.key} className="grid gap-2 rounded border border-border p-3 sm:grid-cols-4">
               <TextField
                 label={idx === 0 ? 'Description' : undefined}
                 value={line.description}

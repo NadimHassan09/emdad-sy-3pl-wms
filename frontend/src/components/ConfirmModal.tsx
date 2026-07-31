@@ -47,7 +47,7 @@ export function ConfirmModal({
         </>
       }
     >
-      <div className="text-sm text-slate-600">{children}</div>
+      <div className="text-sm text-text-body">{children}</div>
     </Modal>
   );
 }

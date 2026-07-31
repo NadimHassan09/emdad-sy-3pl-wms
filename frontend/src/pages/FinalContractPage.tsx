@@ -41,9 +41,9 @@ function generationStatusLabel(
 }
 
 function generationStatusClass(status: ContractGenerationStatus): string {
-  if (status === 'complete') return 'bg-emerald-50 text-emerald-800';
-  if (status === 'partial') return 'bg-amber-50 text-amber-800';
-  return 'bg-slate-100 text-slate-600';
+  if (status === 'complete') return 'bg-status-success-bg text-status-success-fg';
+  if (status === 'partial') return 'bg-status-warning-bg text-status-warning-fg';
+  return 'bg-surface-card-muted text-text-body';
 }
 
 export function FinalContractPage() {
@@ -127,7 +127,7 @@ export function FinalContractPage() {
       {
         header: t(['Contract #', 'رقم العقد']),
         accessor: (row) => (
-          <span className="font-mono font-medium text-slate-900">{row.contractNumber}</span>
+          <span className="font-mono font-medium text-text-strong">{row.contractNumber}</span>
         ),
         width: '150px',
       },

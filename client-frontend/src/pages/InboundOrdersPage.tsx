@@ -107,7 +107,7 @@ export function InboundOrdersPage(): ReactElement {
               setCreateError(null);
               setCreateOpen(true);
             }}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-cta text-on-brand rounded-lg text-sm font-medium hover:bg-cta-hover transition-all shadow-lg shadow-brand-600/20 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <i className="fa-solid fa-plus text-xs" /> {t('New inbound')}
           </button>
@@ -125,12 +125,12 @@ export function InboundOrdersPage(): ReactElement {
       <Card className="p-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1 max-w-sm">
-            <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+            <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-text-faint text-xs" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t('Search order number...')}
-              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm input-premium"
+              className="w-full pl-9 pr-4 py-2 bg-surface-sunken border border-border-strong text-text-strong placeholder:text-text-faint rounded-lg text-sm input-premium"
             />
           </div>
           <div className="flex gap-2">
@@ -138,7 +138,7 @@ export function InboundOrdersPage(): ReactElement {
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               aria-label={t('All statuses')}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 input-premium"
+              className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
             >
               {INBOUND_STATUS_OPTIONS.map((o) => (
                 <option key={o.value || 'all'} value={o.value}>
@@ -153,7 +153,7 @@ export function InboundOrdersPage(): ReactElement {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50/80 text-xs uppercase text-slate-500 font-semibold">
+            <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
               <tr>
                 <th className="px-5 py-3 text-left">{t('Order #')}</th>
                 <th className="px-5 py-3 text-left">{t('Status')}</th>
@@ -162,18 +162,18 @@ export function InboundOrdersPage(): ReactElement {
                 <th className="px-5 py-3 text-right">{t('Created')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border-subtle">
               {pagination.isInitialLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={`sk-${i}`} className="animate-pulse">
                     <td className="px-5 py-3.5" colSpan={5}>
-                      <div className="h-4 w-full max-w-xl rounded bg-slate-100" />
+                      <div className="h-4 w-full max-w-xl rounded bg-skeleton-base" />
                     </td>
                   </tr>
                 ))
               ) : pagination.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-slate-400 text-sm">
+                  <td colSpan={5} className="px-5 py-10 text-center text-text-faint text-sm">
                     {t('No inbound orders found.')}
                   </td>
                 </tr>
@@ -182,19 +182,19 @@ export function InboundOrdersPage(): ReactElement {
                   <tr
                     key={row.id}
                     onClick={() => navigate(`/inbound-orders/${row.id}`)}
-                    className="hover:bg-slate-50/60 transition-colors group cursor-pointer"
+                    className="hover:bg-surface-hover transition-colors group cursor-pointer"
                   >
-                    <td className="px-5 py-3.5 font-semibold text-slate-900 font-mono">
+                    <td className="px-5 py-3.5 font-semibold text-text-strong font-mono">
                       {row.orderNumber || '—'}
                     </td>
                     <td className="px-5 py-3.5">
                       <Badge status={row.status} />
                     </td>
-                    <td className="px-5 py-3.5 text-slate-600">
+                    <td className="px-5 py-3.5 text-text-body">
                       {new Date(row.expectedArrivalDate).toLocaleDateString()}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-600">{row._count?.lines ?? 0}</td>
-                    <td className="px-5 py-3.5 text-right text-slate-500 text-xs">
+                    <td className="px-5 py-3.5 text-text-body">{row._count?.lines ?? 0}</td>
+                    <td className="px-5 py-3.5 text-right text-text-muted text-xs">
                       {new Date(row.createdAt).toLocaleString()}
                     </td>
                   </tr>

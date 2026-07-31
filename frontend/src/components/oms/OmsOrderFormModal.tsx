@@ -262,7 +262,7 @@ export function OmsOrderFormModal({
         ) : null}
 
         {mode === 'create' ? (
-          <p className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+          <p className="rounded-lg border border-border-subtle bg-surface-sunken px-3 py-2 text-xs text-text-body">
             Order will be submitted as <span className="font-medium">pending approval</span>. Approving
             generates the warehouse outbound order.
           </p>
@@ -326,10 +326,10 @@ export function OmsOrderFormModal({
           />
           <TextField label="Currency" value={currency} onChange={(e) => setCurrency(e.target.value)} />
           <div>
-            <div className="mb-1 text-xs font-medium text-slate-600">Subtotal</div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+            <div className="mb-1 text-xs font-medium text-text-body">Subtotal</div>
+            <div className="rounded-lg border border-border bg-surface-sunken px-3 py-2 text-sm text-text-strong">
               {calculatedSubtotal || 0}
-              <span className="ms-2 text-xs text-slate-500">(lines + shipping)</span>
+              <span className="ms-2 text-xs text-text-muted">(lines + shipping)</span>
             </div>
           </div>
         </div>
@@ -338,7 +338,7 @@ export function OmsOrderFormModal({
 
         {mode === 'create' ? (
           <div className="space-y-2">
-            <div className="text-sm font-medium text-slate-800">Order lines</div>
+            <div className="text-sm font-medium text-text-strong">Order lines</div>
             {lines.map((line, idx) => (
               <div key={idx} className="grid gap-2 md:grid-cols-[1fr_100px_120px_auto]">
                 <Combobox
@@ -398,7 +398,7 @@ export function OmsOrderFormModal({
           </div>
         ) : null}
 
-        <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+        <div className="flex justify-end gap-2 border-t border-border-subtle pt-4">
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
           </Button>

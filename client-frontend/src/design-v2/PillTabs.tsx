@@ -18,7 +18,7 @@ export function PillTabs({
   onSelect: (id: string) => void;
 }): ReactElement {
   return (
-    <div className="flex gap-1 p-1 bg-slate-100/60 rounded-xl w-fit">
+    <div className="flex gap-1 p-1 bg-surface-sunken rounded-xl w-fit">
       {tabs.map((t) => (
         <button
           key={t.id}
@@ -26,7 +26,9 @@ export function PillTabs({
           onClick={() => onSelect(t.id)}
           className={cx(
             'px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap',
-            activeId === t.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+            activeId === t.id
+              ? 'bg-surface-panel text-text-strong shadow-sm'
+              : 'text-text-muted hover:text-text-strong',
           )}
         >
           {t.label}

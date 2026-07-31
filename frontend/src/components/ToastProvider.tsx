@@ -38,10 +38,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={t.id}
             className={`pointer-events-auto rounded-md border px-3 py-2 shadow-md text-sm ${
               t.kind === 'error'
-                ? 'border-rose-200 bg-rose-50 text-rose-900'
+                ? 'border-status-danger-border bg-status-danger-bg text-status-danger-fg'
                 : t.kind === 'success'
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                  : 'border-slate-200 bg-white text-slate-800'
+                  ? 'border-status-success-border bg-status-success-bg text-status-success-fg'
+                  : 'border-border bg-surface-panel text-text-body'
             }`}
           >
             {t.message}

@@ -1,5 +1,6 @@
 /**
- * Client Portal Layout — @ds AppShell with dark sidebar + glass topbar.
+ * Client Portal Layout — @ds AppShell with fixed-dark sidebar + theme-aware topbar.
+ * Visual language: approved AIDesigner "Shell/Chrome" pattern (Modern Enterprise Hybrid).
  */
 import { Suspense, useEffect, useRef, useState, type ReactElement } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -7,7 +8,6 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import {
   AppShell,
-  FaIconButton,
   LanguageSwitchOverlay,
   MobileSidebarOverlay,
   PageLoadFallback,
@@ -19,8 +19,12 @@ import {
   SidebarSection,
   Topbar,
   TopbarMobileMenuButton,
+  TopbarNotifications,
+  TopbarThemeToggle,
+  TopbarUserMenu,
   cn,
   useUiLanguage,
+  useUiTheme,
 } from '@ds';
 
 import { useAuth } from '../auth/AuthContext';
@@ -80,11 +84,6 @@ function PortalSidebarLink({
       href={item.to}
       isActive={active}
       icon={<NavIcon path={item.to} />}
-      className={
-        active
-          ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/10'
-          : undefined
-      }
       onClick={(e) => {
         e.preventDefault();
         onNavigate(item.to);
@@ -93,7 +92,7 @@ function PortalSidebarLink({
       <span className="flex min-w-0 flex-1 items-center gap-2">
         <span className="truncate">{isArabic ? item.labelAr : item.label}</span>
         {badge ? (
-          <span className="bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
+          <span className="bg-brand-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
             {badge}
           </span>
         ) : null}
@@ -117,9 +116,8 @@ export function PortalLayout(): ReactElement {
     eventName: 'wms-ui-language-changed',
     fallbackStorageKeys: ['client-ui-language'],
   });
+  const { isDark, toggle: toggleTheme } = useUiTheme({ storageKey: 'client-ui-theme' });
 
-  const notifRef = useOutsideClose(() => setNotifOpen(false));
-  const userMenuRef = useOutsideClose(() => setUserMenuOpen(false));
   const searchRef = useOutsideClose(() => setSearchOpen(false));
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -174,7 +172,6 @@ export function PortalLayout(): ReactElement {
   const omsItems = navItems.filter((n) => n.group === 'oms');
   const notifications = useClientNotifications();
   const displayName = user?.fullName?.trim() || user?.email || 'Account';
-  const avatarLetter = (displayName || 'A').charAt(0).toUpperCase();
   const avatarSrc = clientMediaSrc(user?.avatarUrl);
   const roleDisplay =
     user?.role === 'client_admin' ? (isArabic ? 'مدير عميل' : 'Administrator') : isArabic ? 'موظف' : 'Staff';
@@ -278,11 +275,10 @@ export function PortalLayout(): ReactElement {
       : new Date(iso).toLocaleDateString();
   }
 
-  async function openNotification(id: string) {
-    const item = notifications.items.find((n) => n.id === id);
-    if (item && !item.isRead) await notifications.markRead(id);
-    setNotifOpen(false);
-    const href = item ? clientNotificationHref(item) : undefined;
+  async function openNotification(item: { id: string; isRead: boolean }) {
+    if (!item.isRead) await notifications.markRead(item.id);
+    const full = notifications.items.find((n) => n.id === item.id);
+    const href = full ? clientNotificationHref(full) : undefined;
     if (href) navigate(href);
   }
 
@@ -302,11 +298,7 @@ export function PortalLayout(): ReactElement {
         />
       ) : null}
       {omsItems.length > 0 ? (
-        <SidebarSection
-          label={isArabic ? 'المتجر' : 'Store'}
-          defaultOpen={omsOpen || true}
-          className="text-slate-500"
-        >
+        <SidebarSection label={isArabic ? 'المتجر' : 'Store'} defaultOpen={omsOpen || true}>
           {omsItems.map((item) => (
             <PortalSidebarLink
               key={item.to}
@@ -319,11 +311,7 @@ export function PortalLayout(): ReactElement {
         </SidebarSection>
       ) : null}
       {wmsItems.length > 0 ? (
-        <SidebarSection
-          label={isArabic ? 'المستودع' : 'Warehouse'}
-          defaultOpen={wmsOpen || true}
-          className="text-slate-500"
-        >
+        <SidebarSection label={isArabic ? 'المستودع' : 'Warehouse'} defaultOpen={wmsOpen || true}>
           {wmsItems.map((item) => (
             <PortalSidebarLink
               key={item.to}
@@ -336,11 +324,7 @@ export function PortalLayout(): ReactElement {
         </SidebarSection>
       ) : null}
       {billingItem || invoicesItem ? (
-        <SidebarSection
-          label={isArabic ? 'الحساب' : 'Account'}
-          defaultOpen={accountOpen || true}
-          className="text-slate-500"
-        >
+        <SidebarSection label={isArabic ? 'الحساب' : 'Account'} defaultOpen={accountOpen || true}>
           {billingItem ? (
             <PortalSidebarLink
               item={billingItem}
@@ -373,10 +357,12 @@ export function PortalLayout(): ReactElement {
 
   const brandLogo = (
     <div className="flex items-center gap-3">
-      <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
+      <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center shadow-[0_0_15px_-3px_rgba(16,185,129,0.4)] shrink-0">
         <i className="fa-solid fa-warehouse text-white text-sm" aria-hidden />
       </div>
-      <span className="font-bold text-slate-100 text-lg tracking-tight">EMDAD</span>
+      <span className="font-bold text-[15px] tracking-tight" style={{ color: '#f4f4f5' }}>
+        EMDAD
+      </span>
     </div>
   );
 
@@ -386,19 +372,16 @@ export function PortalLayout(): ReactElement {
       onClick={() => go('/profile')}
       className={cn(
         'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all focus-visible:outline-none focus-visible:shadow-focus',
-        compact
-          ? 'text-slate-400 hover:text-slate-100 hover:bg-white/5'
-          : pathname.startsWith('/profile')
-            ? 'bg-white/5 text-slate-100'
-            : 'text-slate-400 hover:text-slate-100 hover:bg-white/5',
+        'hover:bg-white/5',
+        compact || !pathname.startsWith('/profile') ? 'text-[var(--sidebar-text)]' : 'bg-white/5 text-[var(--sidebar-text)]',
       )}
     >
-      <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden">
-        {avatarSrc ? <img src={avatarSrc} alt="" className="w-full h-full object-cover" /> : avatarLetter}
+      <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden">
+        {avatarSrc ? <img src={avatarSrc} alt="" className="w-full h-full object-cover" /> : (displayName || 'A').charAt(0).toUpperCase()}
       </div>
       <div className="text-left rtl:text-right min-w-0">
-        <div className="text-sm font-medium text-slate-200 truncate">{displayName}</div>
-        <div className="text-xs text-slate-500 truncate">{roleDisplay}</div>
+        <div className="text-sm font-medium truncate" style={{ color: 'var(--sidebar-text)' }}>{displayName}</div>
+        <div className="text-xs truncate" style={{ color: 'var(--sidebar-text-muted)' }}>{roleDisplay}</div>
       </div>
     </button>
   );
@@ -411,27 +394,30 @@ export function PortalLayout(): ReactElement {
           <AppShell.SkipNav />
 
           <AppShell.Body>
-            <Sidebar className="bg-slate-950 border-slate-800">
-              <SidebarBrand className="bg-slate-950 px-5" logo={brandLogo} />
+            <Sidebar>
+              <SidebarBrand className="px-5" logo={brandLogo} />
               {navContent}
-              <SidebarFooter className="border-slate-800 p-3">{profileButton()}</SidebarFooter>
+              <SidebarFooter className="p-3">{profileButton()}</SidebarFooter>
             </Sidebar>
 
             <MobileSidebarOverlay open={mobileNavOpen} onClose={() => setMobileNavOpen(false)}>
-              <SidebarBrand className="bg-slate-950 px-5" logo={brandLogo} />
+              <SidebarBrand className="px-5" logo={brandLogo} />
               {navContent}
-              <SidebarFooter className="border-slate-800 p-3">{profileButton(true)}</SidebarFooter>
+              <SidebarFooter className="p-3">{profileButton(true)}</SidebarFooter>
             </MobileSidebarOverlay>
 
             <AppShell.Column>
-              <Topbar className="glass sticky top-0 z-30 border-b border-slate-200/60">
+              <Topbar className="sticky top-0 z-30">
                 <Topbar.Start>
                   <TopbarMobileMenuButton
                     onClick={() => setMobileNavOpen(true)}
                     label={isArabic ? 'فتح القائمة' : 'Open menu'}
                   />
                   <div className="relative w-full max-w-md hidden sm:block" ref={searchRef}>
-                    <i className="fa-solid fa-magnifying-glass absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+                    <i
+                      className="fa-solid fa-magnifying-glass absolute left-3 rtl:left-auto rtl:right-3 top-1/2 -translate-y-1/2 text-sm"
+                      style={{ color: 'var(--topbar-icon)' }}
+                    />
                     <input
                       ref={searchInputRef}
                       value={searchQuery}
@@ -457,7 +443,11 @@ export function PortalLayout(): ReactElement {
                         }
                       }}
                       placeholder={isArabic ? 'انتقال سريع إلى الصفحات...' : 'Quick jump to pages...'}
-                      className="w-full pl-9 rtl:pl-4 rtl:pr-12 pr-12 py-2 bg-slate-100/60 border border-transparent rounded-lg text-sm placeholder:text-slate-400 focus:bg-white input-premium transition-all focus-visible:outline-none focus-visible:shadow-focus"
+                      className={cn(
+                        'w-full pl-9 rtl:pl-4 rtl:pr-12 pr-12 py-2 rounded-lg text-sm transition-all',
+                        'bg-surface-hover border border-transparent text-text-strong placeholder:text-text-faint',
+                        'focus:bg-surface-panel focus:border-brand-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)] focus:outline-none',
+                      )}
                       aria-label={isArabic ? 'انتقال سريع' : 'Quick jump'}
                       aria-expanded={searchOpen}
                       aria-controls="client-global-search-results"
@@ -466,7 +456,7 @@ export function PortalLayout(): ReactElement {
                     />
                     <kbd
                       dir="ltr"
-                      className="absolute right-3 rtl:right-auto rtl:left-3 top-1/2 -translate-y-1/2 text-[10px] font-sans font-medium text-slate-400 bg-white border border-slate-200 rounded px-1.5 py-0.5 pointer-events-none"
+                      className="absolute right-3 rtl:right-auto rtl:left-3 top-1/2 -translate-y-1/2 text-[10px] font-sans font-medium text-text-faint bg-surface-panel border border-border rounded px-1.5 py-0.5 pointer-events-none"
                     >
                       {quickJumpHint}
                     </kbd>
@@ -474,14 +464,14 @@ export function PortalLayout(): ReactElement {
                       <div
                         id="client-global-search-results"
                         role="listbox"
-                        className="absolute left-0 right-0 top-11 z-50 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-elevated"
+                        className="absolute left-0 right-0 top-11 z-50 overflow-hidden rounded-xl border border-border bg-surface-panel shadow-xl"
                       >
-                        <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-400 border-b border-slate-100">
+                        <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-text-faint border-b border-border-subtle">
                           {isArabic ? 'انتقال سريع' : 'Quick jump'}
                         </p>
                         <ul className="max-h-72 overflow-y-auto py-1">
                           {filteredSearchDestinations.length === 0 ? (
-                            <li className="px-3 py-4 text-center text-xs text-slate-400">
+                            <li className="px-3 py-4 text-center text-xs text-text-faint">
                               {isArabic ? 'لا توجد نتائج' : 'No matching pages'}
                             </li>
                           ) : (
@@ -489,14 +479,14 @@ export function PortalLayout(): ReactElement {
                               <li key={d.to} role="option">
                                 <button
                                   type="button"
-                                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-50 rtl:text-right focus-visible:outline-none focus-visible:shadow-focus"
+                                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm text-text-body hover:bg-surface-hover rtl:text-right focus-visible:outline-none focus-visible:shadow-focus"
                                   onClick={() => {
                                     setSearchOpen(false);
                                     setSearchQuery('');
                                     navigate(d.to);
                                   }}
                                 >
-                                  <i className={cn('fa-solid', d.icon, 'w-4 text-center text-slate-400')} />
+                                  <i className={cn('fa-solid', d.icon, 'w-4 text-center text-text-faint')} />
                                   <span className="font-medium">{d.label}</span>
                                 </button>
                               </li>
@@ -509,142 +499,53 @@ export function PortalLayout(): ReactElement {
                 </Topbar.Start>
 
                 <Topbar.End>
-                  <div className="relative" ref={notifRef}>
-                    <FaIconButton
-                      icon="fa-bell"
-                      badge={notifications.unreadCount || undefined}
-                      active={notifOpen}
-                      title={isArabic ? 'الإشعارات' : 'Notifications'}
-                      aria-label={
-                        isArabic
-                          ? `الإشعارات${notifications.unreadCount ? `، ${notifications.unreadCount} غير مقروء` : ''}`
-                          : `Notifications${notifications.unreadCount ? `, ${notifications.unreadCount} unread` : ''}`
-                      }
-                      onClick={() => setNotifOpen((v) => !v)}
-                    />
-                    {notifOpen ? (
-                      <div className="absolute right-0 rtl:right-auto rtl:left-0 top-11 w-80 max-w-[90vw] bg-white rounded-xl border border-slate-200 shadow-elevated z-50 overflow-hidden">
-                        <div className="p-3 border-b border-slate-100 flex items-center justify-between">
-                          <span className="font-semibold text-sm">
-                            {isArabic ? 'الإشعارات' : 'Notifications'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => void notifications.markAllRead()}
-                            className="text-xs text-emerald-600 font-medium hover:underline focus-visible:outline-none focus-visible:shadow-focus rounded"
-                          >
-                            {isArabic ? 'تعليم الكل كمقروء' : 'Mark all read'}
-                          </button>
-                        </div>
-                        <div className="max-h-80 overflow-y-auto">
-                          {notifications.items.length === 0 ? (
-                            <div className="p-6 text-center text-xs text-slate-400">
-                              {isArabic ? 'لا توجد إشعارات' : 'No notifications yet'}
-                            </div>
-                          ) : (
-                            notifications.items.slice(0, 5).map((n) => (
-                              <div
-                                key={n.id}
-                                onClick={() => void openNotification(n.id)}
-                                className={cn(
-                                  'p-3 border-b border-slate-50 hover:bg-slate-50 transition-colors cursor-pointer',
-                                  !n.isRead && 'bg-emerald-50/30',
-                                )}
-                              >
-                                <div className="flex items-start gap-3">
-                                  <div
-                                    className={cn(
-                                      'w-2 h-2 rounded-full mt-1.5 flex-shrink-0',
-                                      n.isRead ? 'bg-slate-300' : 'bg-emerald-500',
-                                    )}
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-slate-900 truncate">{n.title}</p>
-                                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.body}</p>
-                                    <p className="text-[10px] text-slate-400 mt-1">
-                                      {relativeTime(n.createdAt)}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setNotifOpen(false);
-                            navigate('/notifications');
-                          }}
-                          className="w-full p-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50 border-t border-slate-100 focus-visible:outline-none focus-visible:shadow-focus"
-                        >
-                          {isArabic ? 'عرض كل الإشعارات' : 'View all notifications'}
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
+                  <TopbarThemeToggle
+                    isDark={isDark}
+                    onToggle={toggleTheme}
+                    lightLabel={isArabic ? 'الوضع الفاتح' : 'Switch to light mode'}
+                    darkLabel={isArabic ? 'الوضع الداكن' : 'Switch to dark mode'}
+                  />
 
-                  <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
+                  <div className="w-px h-6 bg-border mx-1 hidden sm:block" />
 
-                  <div className="relative" ref={userMenuRef}>
-                    <button
-                      type="button"
-                      onClick={() => setUserMenuOpen((v) => !v)}
-                      className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-lg hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:shadow-focus"
-                    >
-                      <div className="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold shrink-0 overflow-hidden">
-                        {avatarSrc ? (
-                          <img src={avatarSrc} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          avatarLetter
-                        )}
-                      </div>
-                      <span className="text-sm font-medium text-slate-700 hidden md:block max-w-[10rem] truncate">
-                        {displayName}
-                      </span>
-                      <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" />
-                    </button>
-                    {userMenuOpen ? (
-                      <div className="absolute right-0 rtl:right-auto rtl:left-0 top-11 w-56 bg-white rounded-xl border border-slate-200 shadow-elevated z-50 overflow-hidden">
-                        <div className="p-3 border-b border-slate-100">
-                          <p className="text-sm font-semibold text-slate-900 truncate">{displayName}</p>
-                          <p className="text-xs text-slate-500 truncate">{user?.email}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setUserMenuOpen(false);
-                            navigate('/profile');
-                          }}
-                          className="w-full text-left rtl:text-right px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 focus-visible:outline-none focus-visible:shadow-focus"
-                        >
-                          <i className="fa-solid fa-user text-slate-400 w-4" />
-                          {isArabic ? 'الملف الشخصي' : 'Profile'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void setLanguage(isArabic ? 'EN' : 'AR')}
-                          className="w-full text-left rtl:text-right px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 focus-visible:outline-none focus-visible:shadow-focus"
-                        >
-                          <i className="fa-solid fa-language text-slate-400 w-4" />
-                          {isArabic ? 'English' : 'العربية'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleLogout()}
-                          className="w-full text-left rtl:text-right px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-slate-100 focus-visible:outline-none focus-visible:shadow-focus"
-                        >
-                          <i className="fa-solid fa-arrow-right-from-bracket w-4" />
-                          {isArabic ? 'تسجيل الخروج' : 'Sign out'}
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
+                  <TopbarNotifications
+                    items={notifications.items.map((n) => ({
+                      id: n.id,
+                      title: n.title,
+                      body: n.body,
+                      isRead: n.isRead,
+                      createdAt: n.createdAt,
+                    }))}
+                    unreadCount={notifications.unreadCount}
+                    loading={notifications.isLoading}
+                    title={isArabic ? 'الإشعارات' : 'Notifications'}
+                    emptyLabel={isArabic ? 'لا توجد إشعارات' : 'No notifications yet'}
+                    markAllReadLabel={isArabic ? 'تعليم الكل كمقروء' : 'Mark all read'}
+                    viewAllLabel={isArabic ? 'عرض كل الإشعارات' : 'View all notifications'}
+                    onViewAll={() => navigate('/notifications')}
+                    onItemClick={(item) => void openNotification(item)}
+                    onMarkAllRead={() => void notifications.markAllRead()}
+                    formatTime={relativeTime}
+                    open={notifOpen}
+                    onOpenChange={setNotifOpen}
+                  />
+
+                  <TopbarUserMenu
+                    name={displayName}
+                    role={roleDisplay}
+                    language={isArabic ? 'AR' : 'EN'}
+                    onLanguageChange={(lang) => void setLanguage(lang)}
+                    onSignOut={() => void handleLogout()}
+                    signOutLabel={isArabic ? 'تسجيل الخروج' : 'Sign out'}
+                    languageLabel={isArabic ? 'اللغة' : 'Language'}
+                    open={userMenuOpen}
+                    onOpenChange={setUserMenuOpen}
+                  />
                 </Topbar.End>
               </Topbar>
 
-              <AppShell.Main id="main-content" className="bg-slate-50 p-4 md:p-6 lg:p-8" noPad>
-                <div className="max-w-7xl mx-auto">
+              <AppShell.Main id="main-content" noPad>
+                <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
                   <BillingRestrictionBanner />
                   <ClientRoleAccessBanner />
                   <Suspense fallback={<PageLoadFallback />}>

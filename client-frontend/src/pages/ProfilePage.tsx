@@ -56,17 +56,17 @@ export function ProfilePage(): ReactElement {
   return (
     <div className="space-y-5 animate-enter max-w-3xl">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-          <i className="fa-solid fa-user text-emerald-600" />
+        <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-white/5 flex items-center justify-center">
+          <i className="fa-solid fa-user text-brand-600 dark:text-brand-400" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-slate-900">{label('Profile')}</h1>
-          <p className="text-xs text-slate-500">{label('Your account and preferences')}</p>
+          <h1 className="text-xl font-bold text-text-strong">{label('Profile')}</h1>
+          <p className="text-xs text-text-muted">{label('Your account and preferences')}</p>
         </div>
       </div>
 
       <Card className="overflow-hidden">
-        <div className="h-24 bg-slate-900 relative">
+        <div className="h-24 bg-dark-950 relative">
           <div
             className="absolute inset-0 opacity-20"
             style={{
@@ -78,7 +78,7 @@ export function ProfilePage(): ReactElement {
         </div>
         <div className="px-6 pb-6">
           <div className="relative -mt-10 mb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-            <div className="bg-white rounded-2xl p-3 shadow-lg border border-slate-100">
+            <div className="bg-surface-panel rounded-2xl p-3 shadow-lg border border-border">
               <ImageUploadField
                 label={label('Profile photo')}
                 hint={label('Images are compressed before saving.')}
@@ -117,10 +117,10 @@ export function ProfilePage(): ReactElement {
                     : undefined
                 }
               />
-              {avatarError ? <p className="mt-1 text-xs text-rose-600">{avatarError}</p> : null}
+              {avatarError ? <p className="mt-1 text-xs text-danger-600 dark:text-status-danger-fg">{avatarError}</p> : null}
             </div>
             <span
-              className="mb-1 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 border border-slate-200 rounded-lg bg-slate-50 self-start sm:self-auto"
+              className="mb-1 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-text-muted border border-border rounded-lg bg-surface-sunken self-start sm:self-auto"
               title={label('Profile details are managed by your warehouse account manager.')}
             >
               <i className="fa-solid fa-lock text-[10px]" aria-hidden="true" />
@@ -128,33 +128,33 @@ export function ProfilePage(): ReactElement {
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+            <div className="p-3 bg-surface-sunken rounded-lg border border-border-subtle">
+              <div className="text-[11px] font-bold text-text-faint uppercase tracking-wide">
                 {label('Name')}
               </div>
-              <div className="text-sm font-semibold text-slate-900 mt-0.5">{user?.fullName || '—'}</div>
+              <div className="text-sm font-semibold text-text-strong mt-0.5">{user?.fullName || '—'}</div>
             </div>
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+            <div className="p-3 bg-surface-sunken rounded-lg border border-border-subtle">
+              <div className="text-[11px] font-bold text-text-faint uppercase tracking-wide">
                 {label('Email')}
               </div>
-              <div className="text-sm font-semibold text-slate-900 mt-0.5 break-all">
+              <div className="text-sm font-semibold text-text-strong mt-0.5 break-all">
                 {user?.email ?? '—'}
               </div>
             </div>
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+            <div className="p-3 bg-surface-sunken rounded-lg border border-border-subtle">
+              <div className="text-[11px] font-bold text-text-faint uppercase tracking-wide">
                 {label('Role')}
               </div>
-              <div className="text-sm font-semibold text-slate-900 mt-0.5">
+              <div className="text-sm font-semibold text-text-strong mt-0.5">
                 {user ? roleLabel(user.role, isArabic) : '—'}
               </div>
             </div>
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+            <div className="p-3 bg-surface-sunken rounded-lg border border-border-subtle">
+              <div className="text-[11px] font-bold text-text-faint uppercase tracking-wide">
                 {label('Company')}
               </div>
-              <div className="text-sm font-semibold text-slate-900 mt-0.5">
+              <div className="text-sm font-semibold text-text-strong mt-0.5">
                 {user?.companyName || '—'}
               </div>
             </div>
@@ -177,13 +177,13 @@ export function ProfilePage(): ReactElement {
           }}
         >
           <div className="flex items-start justify-between">
-            <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-              <i className="fa-solid fa-bell text-blue-600" />
+            <div className="w-10 h-10 rounded-lg bg-status-info-bg flex items-center justify-center">
+              <i className="fa-solid fa-bell text-status-info-fg" />
             </div>
-            <i className="fa-solid fa-arrow-right text-slate-300 text-xs" />
+            <i className="fa-solid fa-arrow-right rtl:rotate-180 text-text-faint text-xs" />
           </div>
-          <h3 className="text-sm font-semibold text-slate-900 mt-3">{label('Notifications')}</h3>
-          <p className="text-xs text-slate-500 mt-1">
+          <h3 className="text-sm font-semibold text-text-strong mt-3">{label('Notifications')}</h3>
+          <p className="text-xs text-text-muted mt-1">
             {label('View and manage your notification preferences.')}
           </p>
         </Card>
@@ -202,13 +202,13 @@ export function ProfilePage(): ReactElement {
             }}
           >
             <div className="flex items-start justify-between">
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
-                <i className="fa-solid fa-file-invoice-dollar text-emerald-600" />
+              <div className="w-10 h-10 rounded-lg bg-brand-50 dark:bg-white/5 flex items-center justify-center">
+                <i className="fa-solid fa-file-invoice-dollar text-brand-600 dark:text-brand-400" />
               </div>
-              <i className="fa-solid fa-arrow-right text-slate-300 text-xs" />
+              <i className="fa-solid fa-arrow-right rtl:rotate-180 text-text-faint text-xs" />
             </div>
-            <h3 className="text-sm font-semibold text-slate-900 mt-3">{label('Billing')}</h3>
-            <p className="text-xs text-slate-500 mt-1">
+            <h3 className="text-sm font-semibold text-text-strong mt-3">{label('Billing')}</h3>
+            <p className="text-xs text-text-muted mt-1">
               {label('Review invoices, payments, and subscription.')}
             </p>
           </Card>
@@ -216,13 +216,13 @@ export function ProfilePage(): ReactElement {
       </div>
 
       <Card className="p-5">
-        <h3 className="text-sm font-semibold text-slate-900">{label('Need help?')}</h3>
-        <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+        <h3 className="text-sm font-semibold text-text-strong">{label('Need help?')}</h3>
+        <p className="text-xs text-text-muted mt-1 leading-relaxed">
           {label('Contact your warehouse account manager for access changes or billing questions.')}
         </p>
         <a
           href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Client Portal support')}`}
-          className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors no-underline"
+          className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-white/5 rounded-lg hover:bg-brand-100 dark:hover:bg-white/10 transition-colors no-underline"
         >
           <i className="fa-solid fa-envelope text-[10px]" aria-hidden="true" />
           {label('Contact support')}

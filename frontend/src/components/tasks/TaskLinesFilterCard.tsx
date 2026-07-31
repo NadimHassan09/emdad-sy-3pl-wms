@@ -73,7 +73,7 @@ export function TaskLinesFilterCard({
         />
       </FilterPanel>
       {showingFiltered ? (
-        <p className="mb-4 text-xs text-slate-500">
+        <p className="mb-4 text-xs text-text-muted">
           Showing {resultCount} of {totalCount} lines
         </p>
       ) : null}

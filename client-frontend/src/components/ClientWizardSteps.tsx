@@ -24,17 +24,21 @@ export function ClientWizardSteps({
               className={[
                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition',
                 active
-                  ? 'bg-brand-600 text-white'
+                  ? 'bg-cta text-on-brand'
                   : done
-                    ? 'bg-brand-50 text-brand-800'
-                    : 'bg-neutral-100 text-neutral-500',
+                    ? 'bg-brand-50 text-brand-800 dark:bg-white/5 dark:text-brand-400'
+                    : 'bg-surface-sunken text-text-muted',
               ].join(' ')}
               aria-current={active ? 'step' : undefined}
             >
               <span
                 className={[
                   'inline-flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold',
-                  active ? 'bg-white/20 text-white' : done ? 'bg-brand-200 text-brand-900' : 'bg-neutral-200 text-neutral-600',
+                  active
+                    ? 'bg-white/20 text-white'
+                    : done
+                      ? 'bg-brand-200 text-brand-900 dark:bg-white/10 dark:text-brand-300'
+                      : 'bg-surface-hover text-text-muted',
                 ].join(' ')}
               >
                 {done ? '✓' : step.id}

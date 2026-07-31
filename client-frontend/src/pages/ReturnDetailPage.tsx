@@ -3,9 +3,30 @@ import { isAxiosError } from 'axios';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
-import { StatusBadge } from '@ds';
+import { Alert, Card, Skeleton, StatusBadge } from '@ds';
 
 import { fetchClientReturn } from '../services/clientReturnsService';
+
+function DetailRow({
+  label,
+  value,
+  className,
+  preWrap,
+}: {
+  label: string;
+  value?: ReactElement | string | null;
+  className?: string;
+  preWrap?: boolean;
+}): ReactElement {
+  return (
+    <div className={className}>
+      <dt className="text-xs font-medium text-text-muted">{label}</dt>
+      <dd className={`mt-0.5 text-sm text-text-strong ${preWrap ? 'whitespace-pre-wrap' : ''}`}>
+        {value ?? '—'}
+      </dd>
+    </div>
+  );
+}
 
 export function ReturnDetailPage(): ReactElement {
   const { id = '' } = useParams<{ id: string }>();
@@ -19,92 +40,116 @@ export function ReturnDetailPage(): ReactElement {
   const notFound = error && isAxiosError(error) && error.response?.status === 404;
 
   return (
-    <main className="main">
-      <div className="card">
-        <p style={{ marginBottom: '1rem' }}>
-          <Link className="muted" to="/returns" style={{ textDecoration: 'none' }}>
-            ← Back to returns
-          </Link>
-        </p>
+    <div className="space-y-5 animate-enter">
+      <Link
+        to="/returns"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+      >
+        <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+        Back to returns
+      </Link>
 
-        {notFound ? (
-          <p className="banner banner--error" role="alert">Return not found.</p>
-        ) : error ? (
-          <p className="banner banner--error" role="alert">Could not load this return.</p>
-        ) : null}
+      {notFound ? (
+        <Alert variant="error" title="Return not found." />
+      ) : error ? (
+        <Alert variant="error" title="Could not load this return." />
+      ) : null}
 
-        {isLoading ? (
-          <p className="muted">Loading return…</p>
-        ) : data ? (
-          <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '0.75rem', marginBottom: '1rem' }}>
-              <h1 className="card__title" style={{ margin: 0 }}>
-                Return {data.orderNumber || data.id.slice(0, 8)}
-              </h1>
-              <StatusBadge status={data.status} />
-            </div>
+      {isLoading ? (
+        <div className="space-y-4">
+          <Skeleton height={28} width="40%" />
+          <Skeleton height={140} />
+          <Skeleton height={200} />
+        </div>
+      ) : data ? (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-xl font-bold tracking-tight text-text-strong font-mono">
+              {data.orderNumber || data.id.slice(0, 8)}
+            </h1>
+            <StatusBadge status={data.status} />
+          </div>
 
-            <dl className="details">
-              <div className="details__row">
-                <dt>Original order</dt>
-                <dd>
-                  {data.originalOutbound ? (
-                    <Link to={`/outbound-orders/${data.originalOutbound.id}`}>
-                      {data.originalOutbound.orderNumber}
-                    </Link>
-                  ) : (
-                    '—'
-                  )}
-                </dd>
-              </div>
-              <div className="details__row">
-                <dt>Created</dt>
-                <dd>{new Date(data.createdAt).toLocaleString()}</dd>
-              </div>
-              {data.clientReference ? (
-                <div className="details__row">
-                  <dt>Your reference</dt>
-                  <dd>{data.clientReference}</dd>
-                </div>
-              ) : null}
-              {data.notes ? (
-                <div className="details__row">
-                  <dt>Notes</dt>
-                  <dd style={{ whiteSpace: 'pre-wrap' }}>{data.notes}</dd>
-                </div>
-              ) : null}
-            </dl>
+          <Card padding="none">
+            <Card.Header>
+              <Card.Title>Return details</Card.Title>
+            </Card.Header>
+            <Card.Body>
+              <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+                <DetailRow
+                  label="Original order"
+                  value={
+                    data.originalOutbound ? (
+                      <Link
+                        to={`/outbound-orders/${data.originalOutbound.id}`}
+                        className="font-mono text-brand-600 hover:underline dark:text-brand-400"
+                      >
+                        {data.originalOutbound.orderNumber}
+                      </Link>
+                    ) : (
+                      '—'
+                    )
+                  }
+                />
+                <DetailRow label="Created" value={new Date(data.createdAt).toLocaleString()} />
+                {data.clientReference ? (
+                  <DetailRow label="Your reference" value={data.clientReference} />
+                ) : null}
+                {data.notes ? (
+                  <DetailRow label="Notes" value={data.notes} className="sm:col-span-2" preWrap />
+                ) : null}
+              </dl>
+            </Card.Body>
+          </Card>
 
-            <h2 className="card__title" style={{ marginTop: '1.5rem', fontSize: '1.1rem' }}>Line items</h2>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
+          <Card padding="none" className="overflow-hidden">
+            <Card.Header>
+              <Card.Title>Line items</Card.Title>
+              <span className="text-xs font-medium text-text-muted">
+                {data.lines.length} {data.lines.length === 1 ? 'item' : 'items'}
+              </span>
+            </Card.Header>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
                   <tr>
-                    <th className="num">#</th>
-                    <th>SKU</th>
-                    <th>Product</th>
-                    <th className="num">Expected</th>
-                    <th className="num">Received</th>
-                    <th>Status</th>
+                    <th className="px-4 py-2.5 text-left">#</th>
+                    <th className="px-4 py-2.5 text-left">SKU</th>
+                    <th className="px-4 py-2.5 text-left">Product</th>
+                    <th className="px-4 py-2.5 text-right">Expected</th>
+                    <th className="px-4 py-2.5 text-right">Received</th>
+                    <th className="px-4 py-2.5 text-left">Status</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-border-subtle">
                   {data.lines.map((line) => (
                     <tr key={line.id}>
-                      <td className="num">{line.lineNumber}</td>
-                      <td>{line.product.sku}</td>
-                      <td>{line.product.name}</td>
-                      <td className="num">{line.expectedQuantity}</td>
-                      <td className="num">{line.receivedQuantity}</td>
-                      <td>{line.lineStatus.replace(/_/g, ' ')}</td>
+                      <td className="px-4 py-2.5 text-text-muted">{line.lineNumber}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-text-muted">
+                        {line.product.sku}
+                      </td>
+                      <td className="px-4 py-2.5 font-medium text-text-strong">
+                        {line.product.name}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-text-body">
+                        {line.expectedQuantity}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-text-strong">
+                        {line.receivedQuantity}
+                      </td>
+                      <td className="px-4 py-2.5 text-text-body">
+                        {line.lineStatus.replace(/_/g, ' ')}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </>
-        ) : null}
-      </div>
-    </main>
+          </Card>
+        </>
+      ) : null}
+    </div>
   );
 }
+
+export default ReturnDetailPage;

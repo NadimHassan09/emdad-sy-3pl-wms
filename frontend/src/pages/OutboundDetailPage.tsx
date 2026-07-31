@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { OutboundApi, OutboundOrderLine, type ConfirmOutboundBody } from '../api/outbound';
 import { OmsApi } from '../api/oms';
 import { WorkflowsApi } from '../api/workflows';
-import { Button } from '@ds';
+import { Alert, Button, Card, Skeleton } from '@ds';
 
 import { useAuth } from '../auth/AuthContext';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -156,9 +156,39 @@ export function OutboundDetailPage() {
   });
 
   if (!id) return null;
-  if (order.isLoading) return <p className="text-sm text-slate-500">Loading…</p>;
-  if (order.isError || !order.data)
-    return <p className="text-sm text-rose-600">Failed to load outbound order.</p>;
+  if (order.isLoading) {
+    return (
+      <div className="space-y-5 animate-enter">
+        <Link
+          to="/orders/outbound"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+        >
+          <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+          {t('All outbound orders')}
+        </Link>
+        <Card className="p-5 sm:p-6">
+          <div className="space-y-4" aria-busy="true">
+            <Skeleton height={28} width="40%" />
+            <Skeleton height={140} />
+          </div>
+        </Card>
+      </div>
+    );
+  }
+  if (order.isError || !order.data) {
+    return (
+      <div className="space-y-5 animate-enter">
+        <Link
+          to="/orders/outbound"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+        >
+          <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+          {t('All outbound orders')}
+        </Link>
+        <Alert variant="error" title="Failed to load outbound order." />
+      </div>
+    );
+  }
 
   const o = order.data;
   const canConfirm = o.status === 'draft' || o.status === 'pending_approval';
@@ -192,11 +222,13 @@ export function OutboundDetailPage() {
 
   return (
     <>
-      <div className="mb-2 text-sm text-slate-500">
-        <Link to="/orders/outbound" className="hover:underline">
-          ← {t('All outbound orders')}
-        </Link>
-      </div>
+      <Link
+        to="/orders/outbound"
+        className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+      >
+        <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+        {t('All outbound orders')}
+      </Link>
       <FilterPanel
         title={t('Order details')}
         variant="content"
@@ -281,9 +313,9 @@ export function OutboundDetailPage() {
       ) : null}
 
       {taskOnlyMode && canConfirm ? (
-        <div className="mb-4 space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-4 text-sm text-amber-950">
+        <div className="mb-4 space-y-2 rounded-md border border-status-warning-border bg-status-warning-bg/60 p-4 text-sm text-status-warning-fg">
           <div className="font-medium">Task-driven outbound</div>
-          <p className="text-xs text-amber-900/90">
+          <p className="text-xs text-status-warning-fg">
             Confirm starts pick → pack → dispatch tasks only. Stock is deducted when dispatch completes —
             not on confirm.
           </p>
@@ -300,7 +332,7 @@ export function OutboundDetailPage() {
             />
           ) : null}
           {!effectiveWarehouseId ? (
-            <p className="text-xs text-rose-700">
+            <p className="text-xs text-status-error-fg">
               Resolve a warehouse (default warehouse or VITE_DEFAULT_WAREHOUSE_ID).
             </p>
           ) : null}
@@ -336,7 +368,7 @@ export function OutboundDetailPage() {
       <DataTable columns={lineColumns} rows={o.lines ?? []} rowKey={(l) => l.id} />
 
       {o.status === 'draft' && !taskOnlyMode ? (
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-text-muted">
           Confirming atomically allocates stock FEFO and ships in one legacy transaction unless stock is insufficient.
         </p>
       ) : null}
@@ -362,8 +394,8 @@ export function OutboundDetailPage() {
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
-      <div className="mt-0.5 text-sm text-slate-800">{value}</div>
+      <div className="text-xs uppercase tracking-wide text-text-muted">{label}</div>
+      <div className="mt-0.5 text-sm text-text-strong">{value}</div>
     </div>
   );
 }
