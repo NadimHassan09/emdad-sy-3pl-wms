@@ -54,7 +54,7 @@ function toolbarBtn(active: boolean) {
   return cn(
     'rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors',
     active
-      ? 'bg-brand-600 text-text-on-brand'
+      ? 'bg-brand-600 text-white'
       : 'bg-surface-card-muted text-text-body hover:bg-surface-hover',
   );
 }

@@ -15,7 +15,7 @@ export interface IconButtonProps
 
 const VARIANT: Record<Variant, string> = {
   primary:
-    'bg-cta text-on-brand hover:bg-cta-hover active:bg-cta-active disabled:opacity-40',
+    'bg-cta text-white hover:bg-cta-hover hover:text-white active:bg-cta-active disabled:opacity-40',
   secondary:
     'bg-surface-panel text-text-body border border-border-strong hover:bg-surface-hover',
   subtle:
@@ -23,7 +23,7 @@ const VARIANT: Record<Variant, string> = {
   ghost:
     'bg-transparent text-text-muted hover:bg-surface-hover',
   danger:
-    'bg-danger-600 text-white hover:bg-danger-700 active:bg-danger-900',
+    'bg-danger-600 text-white hover:bg-danger-700 hover:text-white active:bg-danger-700',
 };
 
 const SIZE: Record<Size, string> = {

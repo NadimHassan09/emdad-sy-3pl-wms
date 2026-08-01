@@ -11,6 +11,7 @@ import {
   type CreateCompanyPayload,
   type UpdateCompanyPayload,
 } from '../api/companies';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { Button } from '../components/Button';
 import { CustomerLifecycleModal } from '../components/clients/CustomerLifecycleModal';
@@ -384,7 +385,17 @@ export function ClientsPage() {
   }, [rows, appliedFilters.search, appliedFilters.searchCategory, appliedFilters.status]);
 
   return (
-    <>
+    <AdminListPageShell
+      icon="fa-building"
+      title={t('Clients', 'العملاء')}
+      subtitle={t('Manage client companies', 'إدارة شركات العملاء')}
+      isArabic={isArabic}
+      actions={
+        <Button type="button" variant="brand" onClick={() => setCreateOpen(true)}>
+          {t('+ New company', '+ شركة جديدة')}
+        </Button>
+      }
+    >
       {errMsg ? <Alert variant="error" title={errMsg} className="mb-4" /> : null}
 
       <FilterPanel
@@ -432,12 +443,6 @@ export function ClientsPage() {
       </FilterPanel>
 
       <DataTable
-        title={t('Clients', 'العملاء')}
-        actions={
-          <Button type="button" variant="brand" onClick={() => setCreateOpen(true)}>
-            {t('+ New company', '+ شركة جديدة')}
-          </Button>
-        }
         columns={columns}
         rows={filteredRows}
         rowKey={(r) => r.id}
@@ -706,6 +711,6 @@ export function ClientsPage() {
         isSuperAdmin={isSuperAdmin}
         onClose={() => setLifecycleRow(null)}
       />
-    </>
+    </AdminListPageShell>
   );
 }

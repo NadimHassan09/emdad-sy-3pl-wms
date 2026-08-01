@@ -156,9 +156,9 @@ export function SearchInput({
           disabled={disabled || isLoading}
           className={cn(
             'h-8 px-3 rounded-lg font-medium text-xs whitespace-nowrap',
-            'bg-cta text-on-brand border border-cta',
+            'bg-cta text-white border border-cta',
             'transition-colors duration-fast ease-standard',
-            'hover:bg-cta-hover hover:border-cta-hover',
+            'hover:bg-cta-hover hover:border-cta-hover hover:text-white',
             'disabled:cursor-not-allowed disabled:opacity-40',
             'focus-visible:outline-none focus-visible:shadow-focus',
           )}

@@ -98,7 +98,7 @@ export function OrderManualChargesSection({ referenceType, referenceId, canEdit 
                     <td className="py-2">
                       <Button
                         size="sm"
-                        variant="secondary"
+                        variant="danger"
                         loading={deleteMut.isPending}
                         onClick={() => deleteMut.mutate(c.id)}
                       >

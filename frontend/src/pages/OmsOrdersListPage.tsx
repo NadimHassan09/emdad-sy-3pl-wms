@@ -7,12 +7,12 @@ import { CompaniesApi } from '../api/companies';
 import type { OmsOrderListItem, OmsOrderStatus } from '../api/oms';
 import { OmsApi } from '../api/oms';
 import { useAuth } from '../auth/AuthContext';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { OmsOrderFormModal } from '../components/oms/OmsOrderFormModal';
 import { Combobox } from '../components/Combobox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterPanel, FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
-import { ListPageHeader } from '@ds';
 import { RowActionsMenu } from '../components/RowActionsMenu';
 import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
@@ -53,6 +53,9 @@ export function OmsOrdersListPage() {
   const toast = useToast();
   const { user } = useAuth();
   const isAdmin = canAccessInternalTransfer(user?.role);
+  const isArabic =
+    typeof window !== 'undefined' &&
+    (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
@@ -171,13 +174,22 @@ export function OmsOrdersListPage() {
   ];
 
   return (
-    <div className="space-y-4">
-      <ListPageHeader
-        icon="fa-cart-shopping"
-        title="OMS Orders"
-        subtitle="Manage ecommerce and OMS fulfillment orders."
-      />
-
+    <AdminListPageShell
+      icon="fa-cart-shopping"
+      title="OMS Orders"
+      subtitle="Manage ecommerce and OMS fulfillment orders."
+      isArabic={isArabic}
+      actions={
+        <Button
+          variant="primary"
+          size="md"
+          onClick={() => setCreateOpen(true)}
+          className={FILTER_PRIMARY_BUTTON_CLASS}
+        >
+          Create OMS Order
+        </Button>
+      }
+    >
       <FilterPanel title="Order filters" onApply={applyFilters} onReset={resetFilters}>
         <TextField
           label="Search"
@@ -250,17 +262,6 @@ export function OmsOrdersListPage() {
       </FilterPanel>
 
       <DataTable
-        title="OMS Orders"
-        actions={
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => setCreateOpen(true)}
-            className={FILTER_PRIMARY_BUTTON_CLASS}
-          >
-            Create OMS Order
-          </Button>
-        }
         columns={columns}
         rows={pagination.rows}
         rowKey={(row) => row.id}
@@ -304,6 +305,6 @@ export function OmsOrdersListPage() {
           This removes only the OMS record. Any linked outbound order will not be deleted.
         </p>
       </ConfirmModal>
-    </div>
+    </AdminListPageShell>
   );
 }

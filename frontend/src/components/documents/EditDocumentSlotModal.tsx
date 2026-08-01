@@ -83,7 +83,7 @@ export function EditDocumentSlotModal({ open, row, onClose, onSaved }: Props) {
       widthClass="max-w-2xl"
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="danger" onClick={onClose}>
             {t(['Cancel', 'إلغاء'])}
           </Button>
           <Button

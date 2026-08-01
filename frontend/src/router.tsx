@@ -44,8 +44,10 @@ const InventoryLedgerReferencePage = lazyPage(() => import('./pages/InventoryLed
 const AdjustmentsPage         = lazyPage(() => import('./pages/AdjustmentsPage'),         'AdjustmentsPage');
 const AdjustmentDetailPage    = lazyPage(() => import('./pages/AdjustmentDetailPage'),    'AdjustmentDetailPage');
 const InboundListPage         = lazyPage(() => import('./pages/InboundListPage'),         'InboundListPage');
+const InboundCreatePage       = lazyPage(() => import('./pages/orders/InboundCreatePage'), 'InboundCreatePage');
 const InboundDetailPage       = lazyPage(() => import('./pages/InboundDetailPage'),       'InboundDetailPage');
 const OutboundListPage        = lazyPage(() => import('./pages/OutboundListPage'),        'OutboundListPage');
+const OutboundCreatePage      = lazyPage(() => import('./pages/orders/OutboundCreatePage'), 'OutboundCreatePage');
 const OmsOrdersListPage       = lazyPage(() => import('./pages/OmsOrdersListPage'),       'OmsOrdersListPage');
 const OmsOrderDetailPage      = lazyPage(() => import('./pages/OmsOrderDetailPage'),      'OmsOrderDetailPage');
 const OmsDashboardPage        = lazyPage(() => import('./pages/OmsDashboardPage'),        'OmsDashboardPage');
@@ -84,6 +86,7 @@ const ClientUsersPage         = lazyPage(() => import('./pages/UsersPage'),     
 const WarehouseUserDetailPage = lazyPage(() => import('./pages/UserDetailPage'),         'WarehouseUserDetailPage');
 const ClientUserDetailPage    = lazyPage(() => import('./pages/UserDetailPage'),          'ClientUserDetailPage');
 const NotificationsPage         = lazyPage(() => import('./modules/notifications/NotificationsPage'), 'NotificationsPage');
+const ProfilePage               = lazyPage(() => import('./pages/ProfilePage'),               'ProfilePage');
 const LoginPage               = lazyPage(() => import('./pages/LoginPage'),               'LoginPage');
 const AuditLogsPage           = lazyPage(() => import('./pages/AuditLogsPage'),           'AuditLogsPage');
 const FinalContractPage     = lazyPage(() => import('./pages/FinalContractPage'),     'FinalContractPage');
@@ -143,11 +146,17 @@ export const router = createBrowserRouter([
       { path: 'inventory/adjustments', element: <AdjustmentsPage /> },
       { path: 'inventory/adjustments/:id', element: <AdjustmentDetailPage /> },
       { path: 'inbound', element: <Navigate to="/orders/inbound" replace /> },
+      { path: 'inbound/create', element: <Navigate to="/orders/inbound/new" replace /> },
       { path: 'outbound', element: <Navigate to="/orders/outbound" replace /> },
+      { path: 'outbound/create', element: <Navigate to="/orders/outbound/new" replace /> },
       { path: 'orders', element: <Navigate to="/orders/inbound" replace /> },
       { path: 'orders/inbound', element: <InboundListPage /> },
+      { path: 'orders/inbound/new', element: <InboundCreatePage /> },
+      { path: 'orders/inbound/:id/edit', element: <InboundCreatePage /> },
       { path: 'orders/inbound/:id', element: <InboundDetailPage /> },
       { path: 'orders/outbound', element: <OutboundListPage /> },
+      { path: 'orders/outbound/new', element: <OutboundCreatePage /> },
+      { path: 'orders/outbound/:id/edit', element: <OutboundCreatePage /> },
       { path: 'orders/directed-outbound', element: <QuickDirectedOutboundPage /> },
       { path: 'orders/outbound/:id', element: <OutboundDetailPage /> },
       { path: 'orders/oms', element: <OmsOrdersListPage /> },
@@ -222,6 +231,7 @@ export const router = createBrowserRouter([
       { path: 'users/client_users/:id', element: <ClientUserDetailPage /> },
       { path: 'audit-logs', element: <AuditLogsPage /> },
       { path: 'notifications', element: <NotificationsPage /> },
+      { path: 'profile', element: <ProfilePage /> },
       {
         path: 'settings',
         element: <SettingsLayout />,

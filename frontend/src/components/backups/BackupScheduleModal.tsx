@@ -122,7 +122,7 @@ export function BackupScheduleModal({
       }
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+          <Button type="button" variant="danger" onClick={onClose} disabled={loading}>
             {t(['Cancel', 'إلغاء'])}
           </Button>
           <Button type="submit" form="backup-schedule-form" loading={loading}>

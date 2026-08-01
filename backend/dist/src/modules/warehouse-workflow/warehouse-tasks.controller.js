@@ -24,6 +24,7 @@ const resolve_task_dto_1 = require("./dto/resolve-task.dto");
 const retry_task_dto_1 = require("./dto/retry-task.dto");
 const lease_task_dto_1 = require("./dto/lease-task.dto");
 const patch_task_progress_dto_1 = require("./dto/patch-task-progress.dto");
+const patch_task_plan_dto_1 = require("./dto/patch-task-plan.dto");
 const skip_task_dto_1 = require("./dto/skip-task.dto");
 const workflow_execution_gate_guard_1 = require("./workflow-execution-gate.guard");
 let WarehouseTasksController = class WarehouseTasksController {
@@ -51,6 +52,9 @@ let WarehouseTasksController = class WarehouseTasksController {
     patchProgress(user, id, body) {
         return this.tasks.patchProgress(id, user, body);
     }
+    patchPlan(user, id, body) {
+        return this.tasks.patchPlan(id, user, body);
+    }
     leaseAcquire(user, id, body) {
         return this.tasks.leaseAcquire(id, user, body?.minutes);
     }
@@ -71,6 +75,9 @@ let WarehouseTasksController = class WarehouseTasksController {
     }
     complete(user, id, body) {
         return this.tasks.complete(id, user, body);
+    }
+    adminConfirm(user, id, body) {
+        return this.tasks.adminConfirm(id, user, body);
     }
     cancel(user, id, body) {
         return this.tasks.cancel(id, user, body.reason);
@@ -118,6 +125,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, patch_task_progress_dto_1.PatchTaskProgressDto]),
     __metadata("design:returntype", void 0)
 ], WarehouseTasksController.prototype, "patchProgress", null);
+__decorate([
+    (0, common_1.Put)(':id/plan'),
+    (0, common_1.UseGuards)(workflow_execution_gate_guard_1.WorkflowExecutionGateGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, patch_task_plan_dto_1.PatchTaskPlanDto]),
+    __metadata("design:returntype", void 0)
+], WarehouseTasksController.prototype, "patchPlan", null);
 __decorate([
     (0, common_1.Post)(':id/lease'),
     (0, common_1.UseGuards)(workflow_execution_gate_guard_1.WorkflowExecutionGateGuard),
@@ -185,6 +202,17 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, Object]),
     __metadata("design:returntype", void 0)
 ], WarehouseTasksController.prototype, "complete", null);
+__decorate([
+    (0, common_1.Post)(':id/admin-confirm'),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(auth_groups_1.AuthGroup.ADMIN),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:returntype", void 0)
+], WarehouseTasksController.prototype, "adminConfirm", null);
 __decorate([
     (0, common_1.Post)(':id/cancel'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),

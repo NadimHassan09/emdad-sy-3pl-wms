@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { ReturnsApi, type ReturnOrderListItem, type ReturnOrderStatus } from '../../api/returns';
 import { Alert, FILTER_APPLY_BUTTON_CLASS } from '@ds';
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { Button } from '../../components/Button';
 import { Column, DataTable } from '../../components/DataTable';
 import { FilterPanel } from '../../components/FilterPanel';
@@ -211,8 +212,29 @@ export function ReturnsListPage() {
     resultsSuffix: t('results', 'نتيجة'),
   };
 
+  const createButton = (
+    <Button
+      variant="primary"
+      size="md"
+      onClick={() => setCreateOpen(true)}
+      disabled={!companyId || !wid}
+      className={FILTER_APPLY_BUTTON_CLASS}
+    >
+      {t('+ New return', '+ إرجاع جديد')}
+    </Button>
+  );
+
   return (
-    <div>
+    <AdminListPageShell
+      icon="fa-rotate-left"
+      title={t('Returns', 'الإرجاعات')}
+      subtitle={t(
+        'Receive, inspect, and restock customer returns.',
+        'استلام وفحص وإعادة مخزون إرجاعات العملاء.',
+      )}
+      isArabic={isArabic}
+      actions={createButton}
+    >
       {!companyId ? (
         <Alert
           variant="warning"
@@ -267,22 +289,6 @@ export function ReturnsListPage() {
 
       <div className="hidden md:block">
         <DataTable
-          title={t('Returns', 'الإرجاعات')}
-          description={t(
-            'Receive, inspect, and restock customer returns.',
-            'استلام وفحص وإعادة مخزون إرجاعات العملاء.',
-          )}
-          actions={
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => setCreateOpen(true)}
-              disabled={!companyId || !wid}
-              className={FILTER_APPLY_BUTTON_CLASS}
-            >
-              {t('+ New return', '+ إرجاع جديد')}
-            </Button>
-          }
           columns={cols}
           rows={pagination.rows}
           rowKey={(r) => r.id}
@@ -294,17 +300,6 @@ export function ReturnsListPage() {
       </div>
 
       <div className="space-y-2 md:hidden">
-        <div className="mb-2 flex justify-end">
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => setCreateOpen(true)}
-            disabled={!companyId || !wid}
-            className={FILTER_APPLY_BUTTON_CLASS}
-          >
-            {t('+ New return', '+ إرجاع جديد')}
-          </Button>
-        </div>
         {pagination.rows.map((r) => (
           <article
             key={r.id}
@@ -382,6 +377,6 @@ export function ReturnsListPage() {
         onSubmit={(input) => createMut.mutate(input)}
         isArabic={isArabic}
       />
-    </div>
+    </AdminListPageShell>
   );
 }

@@ -4,7 +4,9 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
+  IsIn,
   IsNumber,
+  IsObject,
   IsOptional,
   IsPositive,
   IsString,
@@ -48,6 +50,15 @@ export class CreateInboundOrderDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsIn(['admin', 'workers'])
+  executionMode?: 'admin' | 'workers';
+
+  /** Admin planning blob — validated in service when executionMode=admin. */
+  @IsOptional()
+  @IsObject()
+  executionPlan?: Record<string, unknown>;
 
   @IsOptional()
   @IsEnum(InboundSourceType)

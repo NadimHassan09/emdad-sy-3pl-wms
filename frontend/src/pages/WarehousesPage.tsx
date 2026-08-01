@@ -9,6 +9,7 @@ import {
   WarehousesApi,
 } from '../api/warehouses';
 import { useAuth } from '../auth/AuthContext';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
@@ -21,7 +22,7 @@ import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useFilters } from '../hooks/useFilters';
 import { COUNTRIES, OTHER_COUNTRY } from '../lib/geography';
-import { AppPageHeader, Badge } from '@ds';
+import { Badge } from '@ds';
 
 type StatusFilter = '' | WarehouseStatus;
 
@@ -165,12 +166,16 @@ export function WarehousesPage() {
   ];
 
   return (
-    <div className="space-y-4">
-      <AppPageHeader
-        title="Warehouses"
-        description="Physical warehouse sites used for inventory, locations, and order workflows."
-      />
-
+    <AdminListPageShell
+      icon="fa-warehouse"
+      title="Warehouses"
+      subtitle="Physical warehouse sites used for inventory, locations, and order workflows."
+      actions={
+        canMutate ? (
+          <Button onClick={() => setOpenCreate(true)}>+ New warehouse</Button>
+        ) : undefined
+      }
+    >
       <FilterPanel
         title="Warehouse filters"
         onApply={applyFilters}
@@ -202,13 +207,7 @@ export function WarehousesPage() {
       </FilterPanel>
 
       <DataTable
-        title="Warehouse sites"
         description="Operators can activate or deactivate warehouses. Deactivation requires all locations to be archived."
-        actions={
-          canMutate ? (
-            <Button onClick={() => setOpenCreate(true)}>+ New warehouse</Button>
-          ) : undefined
-        }
         columns={columns}
         rows={filteredRows}
         rowKey={(w) => w.id}
@@ -247,7 +246,7 @@ export function WarehousesPage() {
           </p>
         ) : null}
       </ConfirmModal>
-    </div>
+    </AdminListPageShell>
   );
 }
 
@@ -331,7 +330,7 @@ function CreateWarehouseModal({ open, onClose, loading, onSubmit }: CreateWareho
       title="New warehouse"
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
+          <Button type="button" variant="danger" onClick={handleClose} disabled={loading}>
             Cancel
           </Button>
           <Button form="create-wh" type="submit" loading={loading}>
@@ -424,7 +423,7 @@ function EditWarehouseModal({
       title={`Edit ${warehouse.code}`}
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+          <Button type="button" variant="danger" onClick={onClose} disabled={loading}>
             Cancel
           </Button>
           <Button type="submit" form="edit-wh" loading={loading}>

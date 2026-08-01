@@ -116,13 +116,15 @@
     --color-warning-700: #b45309;
     --color-warning-900: #78350f;
 
-    --color-danger-50:   #fef2f2;
-    --color-danger-100:  #fee2e2;
-    --color-danger-200:  #fecaca;
-    --color-danger-500:  #ef4444;
-    --color-danger-600:  #dc2626;
-    --color-danger-700:  #b91c1c;
-    --color-danger-900:  #7f1d1d;
+    --color-danger-50:   #fff1f2;
+    --color-danger-100:  #ffe4e6;
+    --color-danger-200:  #fecdd3;
+    --color-danger-500:  #f43f5e;
+    /* Destructive / cancel / reset / sign-out / delete / remove button fill */
+    --color-danger-600:  #E11D48;
+    /* Destructive button hover */
+    --color-danger-700:  #BE123C;
+    --color-danger-900:  #881337;
 
     --color-info-50:     #f0f9ff;
     --color-info-100:    #e0f2fe;

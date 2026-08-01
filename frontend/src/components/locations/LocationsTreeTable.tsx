@@ -465,7 +465,7 @@ export function LocationsTreeTable({
           </button>
           <button
             type="button"
-            className="flex-1 rounded-md border border-brand-500 bg-brand-600 px-3 py-1.5 text-sm font-medium text-text-on-brand transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:border-border disabled:bg-border-strong sm:flex-none"
+            className="flex-1 rounded-md border border-brand-500 bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:border-border disabled:bg-border-strong sm:flex-none"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages || totalRows === 0}
           >

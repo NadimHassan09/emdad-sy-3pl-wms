@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
-import { ListPageHeader } from '@ds';
 import { BillingApi, type BillingInvoiceRow } from '../../api/billing';
 import { CompaniesApi } from '../../api/companies';
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { AnchoredDropdown } from '../../components/AnchoredDropdown';
 import { Combobox } from '../../components/Combobox';
 import { DataTable, type Column } from '../../components/DataTable';
@@ -242,13 +242,11 @@ export function BillingInvoicesPage() {
   ];
 
   return (
-    <div className="space-y-4">
-      <ListPageHeader
-        icon="fa-file-invoice"
-        title="Subscription invoices"
-        subtitle="Cycle invoices for client storage subscriptions."
-      />
-
+    <AdminListPageShell
+      icon="fa-file-invoice"
+      title="Subscription invoices"
+      subtitle="Cycle invoices for client storage subscriptions."
+    >
       <FilterPanel
         title="Invoice filters"
         onApply={applyFilters}
@@ -320,7 +318,6 @@ export function BillingInvoicesPage() {
       </FilterPanel>
 
       <DataTable
-        title="Invoices"
         description="Click a row to view invoice details."
         columns={columns}
         rows={pagination.rows}
@@ -334,6 +331,6 @@ export function BillingInvoicesPage() {
       {pagination.isError ? (
         <p className="text-sm text-status-error-fg">{(pagination.error as Error).message}</p>
       ) : null}
-    </div>
+    </AdminListPageShell>
   );
 }

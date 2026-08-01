@@ -1,4 +1,5 @@
 import { PageResult, api } from './client';
+import type { OrderExecutionMode, OutboundExecutionPlan } from '../lib/execution-plan';
 
 export type OutboundOrderStatus =
   | 'draft'
@@ -50,6 +51,8 @@ export interface OutboundOrder {
   shippedAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
+  executionMode?: OrderExecutionMode | null;
+  executionPlan?: OutboundExecutionPlan | null;
   lines?: OutboundOrderLine[];
   company?: { id: string; name: string };
   _count?: { lines: number };
@@ -63,6 +66,8 @@ export interface CreateOutboundOrderInput {
   notes?: string;
   /** Default true when omitted. */
   requiresPacking?: boolean;
+  executionMode?: OrderExecutionMode;
+  executionPlan?: OutboundExecutionPlan;
   lines: Array<{
     productId: string;
     requestedQuantity: number;
@@ -139,6 +144,28 @@ export const OutboundApi = {
   async create(input: CreateOutboundOrderInput): Promise<OutboundOrder> {
     const headers = input.companyId ? { 'X-Company-Id': input.companyId } : undefined;
     const { data } = await api.post<OutboundOrder>('/outbound-orders', input, { headers });
+    return data;
+  },
+  async updatePlan(
+    id: string,
+    body: {
+      executionMode?: OrderExecutionMode;
+      executionPlan?: OutboundExecutionPlan;
+      requiredShipDate?: string;
+      notes?: string;
+      destinationAddress?: string;
+      requiresPacking?: boolean;
+    },
+  ): Promise<OutboundOrder> {
+    const { data } = await api.patch<OutboundOrder>(`/outbound-orders/${id}/plan`, body);
+    return data;
+  },
+  async executeAdmin(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/execute-admin`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
     return data;
   },
   async confirm(id: string, body?: ConfirmOutboundBody, companyIdOverride?: string): Promise<OutboundOrder> {

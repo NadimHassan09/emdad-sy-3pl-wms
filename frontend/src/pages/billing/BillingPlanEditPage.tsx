@@ -190,7 +190,7 @@ export function BillingPlanEditPage() {
               <>
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="danger"
                   onClick={() => navigate(`/billing/plans/${clientId}`)}
                   disabled={updateMut.isPending}
                 >
@@ -331,7 +331,7 @@ export function BillingPlanEditPage() {
           <>
             <Button
               type="button"
-              variant="secondary"
+              variant="danger"
               className={MODAL_CANCEL_BUTTON_CLASS}
               disabled={updateMut.isPending}
               onClick={() => {

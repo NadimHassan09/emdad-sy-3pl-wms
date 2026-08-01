@@ -220,6 +220,7 @@ function routeGroup(pathname: string): string {
   if (p.startsWith('/audit-logs')) return 'audit-logs';
   if (p.startsWith('/notifications')) return 'notifications';
   if (p.startsWith('/settings')) return 'settings';
+  if (p.startsWith('/profile')) return 'profile';
   return 'other';
 }
 
@@ -244,6 +245,7 @@ const ROUTE_GROUP_ROLES: Record<string, InternalRole[]> = {
   'audit-logs': ['super_admin', 'wh_manager', 'finance'],
   notifications: ALL_ROLES,
   settings: ['super_admin', 'wh_manager'],
+  profile: ALL_ROLES,
   other: ALL_ROLES,
 };
 

@@ -24,7 +24,7 @@ interface AuthContextValue extends AuthState {
     email: string,
     password: string,
     options?: { persistSession?: boolean },
-  ) => Promise<void>;
+  ) => Promise<ClientUser>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -77,6 +77,7 @@ export function AuthProvider({
     async (email: string, password: string, options?: { persistSession?: boolean }) => {
       const me = await authService.login(email, password, options);
       setUser(me);
+      return me;
     },
     [],
   );

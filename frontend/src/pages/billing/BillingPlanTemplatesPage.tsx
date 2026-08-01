@@ -7,7 +7,7 @@ import {
   type CreateBillingPlanTemplatePayload,
   type UpdateBillingPlanTemplatePayload,
 } from '../../api/billing';
-import { ListPageHeader } from '@ds';
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { AnchoredDropdown } from '../../components/AnchoredDropdown';
 import { Button } from '../../components/Button';
 import { DataTable, type Column } from '../../components/DataTable';
@@ -239,20 +239,18 @@ export function BillingPlanTemplatesPage() {
   );
 
   return (
-    <div className="space-y-4">
-      <ListPageHeader
-        icon="fa-layer-group"
-        title="Plan templates"
-        subtitle="Reusable subscription templates with reserved volume, price, and cycle length."
-        actions={
-          canMutate ? (
-            <Button variant="brand" onClick={openCreate}>
-              + Create template
-            </Button>
-          ) : undefined
-        }
-      />
-
+    <AdminListPageShell
+      icon="fa-layer-group"
+      title="Plan templates"
+      subtitle="Reusable subscription templates with reserved volume, price, and cycle length."
+      actions={
+        canMutate ? (
+          <Button variant="brand" onClick={openCreate}>
+            + Create template
+          </Button>
+        ) : undefined
+      }
+    >
       <div className={`${PANEL_CARD_CLASS} mb-0 flex flex-wrap items-end gap-3`}>
         <div className="min-w-[16rem] flex-1">
           <TextField
@@ -263,7 +261,7 @@ export function BillingPlanTemplatesPage() {
           />
         </div>
         <Button
-          variant="secondary"
+          variant="danger"
           onClick={() => {
             setSearch('');
             setAppliedSearch('');
@@ -277,7 +275,6 @@ export function BillingPlanTemplatesPage() {
       </div>
 
       <DataTable
-        title="Templates"
         columns={columns}
         rows={rows}
         rowKey={(r) => r.id}
@@ -303,7 +300,7 @@ export function BillingPlanTemplatesPage() {
           <>
             <Button
               type="button"
-              variant="secondary"
+              variant="danger"
               className={MODAL_CANCEL_BUTTON_CLASS}
               disabled={saving}
               onClick={() => {
@@ -357,6 +354,6 @@ export function BillingPlanTemplatesPage() {
           />
         </form>
       </Modal>
-    </div>
+    </AdminListPageShell>
   );
 }

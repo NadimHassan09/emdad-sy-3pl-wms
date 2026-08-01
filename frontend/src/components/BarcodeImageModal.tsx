@@ -97,7 +97,7 @@ export function BarcodeImageModal({ open, onClose, value, productName, contextLa
       widthClass="max-w-lg"
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="danger" onClick={onClose}>
             Close
           </Button>
           <Button type="button" onClick={downloadPng} disabled={!!error}>

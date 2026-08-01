@@ -5,11 +5,17 @@ exports.parseRateSnapshot = parseRateSnapshot;
 exports.rateSnapshotToDecimals = rateSnapshotToDecimals;
 const client_1 = require("@prisma/client");
 function buildRateSnapshotFromPlan(plan) {
+    const baseFee = plan.outboundBaseFee.gt(0)
+        ? plan.outboundBaseFee
+        : plan.outboundOrderFee;
     return {
         billingPlanId: plan.id,
         fixedSubscriptionFee: plan.fixedSubscriptionFee.toString(),
         inboundOrderFee: plan.inboundOrderFee.toString(),
-        outboundOrderFee: plan.outboundOrderFee.toString(),
+        outboundOrderFee: baseFee.toString(),
+        outboundBaseFee: baseFee.toString(),
+        outboundIncludedItems: plan.outboundIncludedItems,
+        outboundAdditionalItemFee: plan.outboundAdditionalItemFee.toString(),
         packagingFee: plan.packagingFee.toString(),
         qualityCheckFee: plan.qualityCheckFee.toString(),
         excessVolumeFeePerDay: plan.excessVolumeFeePerDay.toString(),
@@ -39,11 +45,17 @@ function parseRateSnapshot(raw) {
         if (typeof o[key] !== 'string')
             return null;
     }
+    const outboundBaseFee = typeof o.outboundBaseFee === 'string' ? o.outboundBaseFee : o.outboundOrderFee;
+    const outboundIncludedItems = typeof o.outboundIncludedItems === 'number' ? o.outboundIncludedItems : 0;
+    const outboundAdditionalItemFee = typeof o.outboundAdditionalItemFee === 'string' ? o.outboundAdditionalItemFee : '0';
     return {
         billingPlanId: o.billingPlanId,
         fixedSubscriptionFee: o.fixedSubscriptionFee,
         inboundOrderFee: o.inboundOrderFee,
         outboundOrderFee: o.outboundOrderFee,
+        outboundBaseFee,
+        outboundIncludedItems,
+        outboundAdditionalItemFee,
         packagingFee: o.packagingFee,
         qualityCheckFee: o.qualityCheckFee,
         excessVolumeFeePerDay: o.excessVolumeFeePerDay,
@@ -54,10 +66,14 @@ function parseRateSnapshot(raw) {
     };
 }
 function rateSnapshotToDecimals(snapshot) {
+    const outboundBaseFee = new client_1.Prisma.Decimal(snapshot.outboundBaseFee || snapshot.outboundOrderFee);
     return {
         fixedSubscriptionFee: new client_1.Prisma.Decimal(snapshot.fixedSubscriptionFee),
         inboundOrderFee: new client_1.Prisma.Decimal(snapshot.inboundOrderFee),
-        outboundOrderFee: new client_1.Prisma.Decimal(snapshot.outboundOrderFee),
+        outboundOrderFee: outboundBaseFee,
+        outboundBaseFee,
+        outboundIncludedItems: snapshot.outboundIncludedItems ?? 0,
+        outboundAdditionalItemFee: new client_1.Prisma.Decimal(snapshot.outboundAdditionalItemFee ?? '0'),
         packagingFee: new client_1.Prisma.Decimal(snapshot.packagingFee),
         qualityCheckFee: new client_1.Prisma.Decimal(snapshot.qualityCheckFee),
         excessVolumeFeePerDay: new client_1.Prisma.Decimal(snapshot.excessVolumeFeePerDay),

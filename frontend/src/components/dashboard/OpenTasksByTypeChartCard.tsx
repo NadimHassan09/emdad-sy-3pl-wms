@@ -67,7 +67,7 @@ function ChartRow({
             <span
               className={cn(
                 'absolute inset-y-0 left-0 z-[1] flex items-center px-2 text-[11px] font-semibold tabular-nums sm:text-xs',
-                labelFitsInside ? 'overflow-hidden text-text-on-brand' : 'text-text-body',
+                labelFitsInside ? 'overflow-hidden text-white' : 'text-text-body',
               )}
               style={labelFitsInside ? { width: `${barWidth}%`, maxWidth: '100%' } : undefined}
             >

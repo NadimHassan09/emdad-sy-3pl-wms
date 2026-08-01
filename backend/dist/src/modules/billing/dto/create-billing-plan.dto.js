@@ -20,6 +20,9 @@ class CreateBillingPlanDto {
     fixedSubscriptionFee;
     inboundOrderFee;
     outboundOrderFee;
+    outboundBaseFee;
+    outboundIncludedItems;
+    outboundAdditionalItemFee;
     packagingFee;
     qualityCheckFee;
     excessVolumeFeePerDay;
@@ -64,6 +67,27 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], CreateBillingPlanDto.prototype, "outboundOrderFee", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], CreateBillingPlanDto.prototype, "outboundBaseFee", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], CreateBillingPlanDto.prototype, "outboundIncludedItems", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], CreateBillingPlanDto.prototype, "outboundAdditionalItemFee", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_transformer_1.Type)(() => Number),

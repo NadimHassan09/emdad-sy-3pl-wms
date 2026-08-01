@@ -337,7 +337,7 @@ export function BarcodeScanModal({ open, onClose, onScan, onCameraError }: Barco
       widthClass="max-w-lg"
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={handleUserClose} disabled={busy}>
+          <Button type="button" variant="danger" onClick={handleUserClose} disabled={busy}>
             {t('Cancel', 'إلغاء')}
           </Button>
         </>

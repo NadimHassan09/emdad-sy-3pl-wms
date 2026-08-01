@@ -4,7 +4,9 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsIn,
   IsNumber,
+  IsObject,
   IsOptional,
   IsPositive,
   IsString,
@@ -53,6 +55,14 @@ export class CreateOutboundOrderDto {
   @IsOptional()
   @IsBoolean()
   requiresPacking?: boolean;
+
+  @IsOptional()
+  @IsIn(['admin', 'workers'])
+  executionMode?: 'admin' | 'workers';
+
+  @IsOptional()
+  @IsObject()
+  executionPlan?: Record<string, unknown>;
 
   @IsArray()
   @ArrayMinSize(1)

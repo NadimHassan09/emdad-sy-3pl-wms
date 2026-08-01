@@ -14,13 +14,16 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
-import { SectionSubNavCard } from './SectionSubNavCard';
-
 import { RequireRouteAccess } from '../auth/RequireRouteAccess';
 import { useAuth } from '../auth/AuthContext';
 import { defaultHomePath, navItemsForRole } from '../lib/rbac';
 
 import { WorkflowUxProvider } from '../workflow/WorkflowUxContext';
+import { SectionSubNavCard } from './SectionSubNavCard';
+import {
+  SectionNavOwnershipProvider,
+  useSectionNavOwned,
+} from './section-nav-ownership';
 
 import {
   AppShell,
@@ -77,6 +80,7 @@ function sidebarLabel(label: string, isArabic: boolean): string {
     Settings: 'الإعدادات',
     Contracts: 'العقود',
     Billing: 'الفوترة',
+    Profile: 'الملف الشخصي',
     'Sign out': 'تسجيل الخروج',
   };
   return ar[label] ?? label;
@@ -347,9 +351,10 @@ export function Layout() {
                   type="button"
                   onClick={() => void handleLogout()}
                   className={cn(
-                    'flex items-center justify-center gap-2 w-full rounded-xl px-4 py-3 text-sm font-medium',
+                    'flex items-center justify-center gap-2 w-full rounded-xl px-4 py-3 text-sm font-semibold',
                     'transition-colors duration-fast',
-                    'text-status-danger-fg hover:bg-status-danger-bg',
+                    'border border-danger-600 bg-danger-600 text-white',
+                    'hover:border-danger-700 hover:bg-danger-700 hover:text-white',
                     'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30',
                   )}
                 >
@@ -480,6 +485,8 @@ export function Layout() {
                         connected
                         language={language}
                         onLanguageChange={setLanguage}
+                        onProfile={() => navigate('/profile')}
+                        profileLabel={t('Profile')}
                         onSignOut={() => void handleLogout()}
                         signOutLabel={t('Sign out')}
                         languageLabel={isArabic ? 'اللغة' : 'Language'}
@@ -493,19 +500,29 @@ export function Layout() {
 
               <AppShell.Main>
                 <WorkflowUxProvider>
-                  <SectionSubNavCard isArabic={isArabic} />
-
-                  <Suspense fallback={<PageLoadFallback />}>
-                    <RequireRouteAccess>
-                      <Outlet />
-                    </RequireRouteAccess>
-                  </Suspense>
+                  <SectionNavOwnershipProvider>
+                    <MainWithOptionalSectionNav isArabic={isArabic} />
+                  </SectionNavOwnershipProvider>
                 </WorkflowUxProvider>
               </AppShell.Main>
             </AppShell.Column>
           </AppShell.Body>
         </AppShell>
       </div>
+    </>
+  );
+}
+
+function MainWithOptionalSectionNav({ isArabic }: { isArabic: boolean }) {
+  const sectionNavOwned = useSectionNavOwned();
+  return (
+    <>
+      {!sectionNavOwned ? <SectionSubNavCard isArabic={isArabic} /> : null}
+      <Suspense fallback={<PageLoadFallback />}>
+        <RequireRouteAccess>
+          <Outlet />
+        </RequireRouteAccess>
+      </Suspense>
     </>
   );
 }

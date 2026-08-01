@@ -94,7 +94,7 @@ export function CreateBackupModal({ open, loading, onClose, onSubmit }: Props) {
       title={t(['Create backup', 'إنشاء نسخة احتياطية'])}
       footer={
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+          <Button type="button" variant="danger" onClick={onClose} disabled={loading}>
             {t(['Cancel', 'إلغاء'])}
           </Button>
           <Button

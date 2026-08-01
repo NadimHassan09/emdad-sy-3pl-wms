@@ -102,7 +102,7 @@ export function CustomerLifecycleModal({
       title={company ? `${t(isArabic, 'Lifecycle', 'دورة الحياة')} — ${company.name}` : ''}
       widthClass="max-w-2xl"
       footer={
-        <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+        <Button type="button" variant="danger" onClick={onClose} disabled={busy}>
           {t(isArabic, 'Close', 'إغلاق')}
         </Button>
       }
@@ -163,7 +163,7 @@ export function CustomerLifecycleModal({
 
           <div className="flex flex-wrap gap-2 border-t border-border-subtle pt-4">
             {a?.canSuspend ? (
-              <Button type="button" variant="secondary" disabled={busy} onClick={() => runMut.mutate('suspend')}>
+              <Button type="button" variant="danger" disabled={busy} onClick={() => runMut.mutate('suspend')}>
                 {t(isArabic, 'Suspend', 'إيقاف مؤقت')}
               </Button>
             ) : null}
@@ -217,7 +217,7 @@ function ArchiveButton({
   const tooltip = ctx.actions.canArchive ? '' : ctx.blockers.archive.join(' ');
   return (
     <span title={tooltip} className="inline-flex">
-      <Button type="button" variant="secondary" disabled={busy || !ctx.actions.canArchive} onClick={onArchive}>
+      <Button type="button" variant="danger" disabled={busy || !ctx.actions.canArchive} onClick={onArchive}>
         {t(isArabic, 'Archive', 'أرشفة')}
       </Button>
     </span>

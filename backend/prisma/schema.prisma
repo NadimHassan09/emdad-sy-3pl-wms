@@ -1429,6 +1429,9 @@ model InboundOrder {
   completedAt         DateTime?          @map("completed_at") @db.Timestamptz(6)
   cancelledAt         DateTime?          @map("cancelled_at") @db.Timestamptz(6)
   cancelledBy         String?            @map("cancelled_by") @db.Uuid
+  /// admin | workers — Admin Execution plans dock/putaway; Confirm runs full facade.
+  executionMode       String?            @map("execution_mode") @db.VarChar(16)
+  executionPlan       Json?              @map("execution_plan")
   createdBy           String             @map("created_by") @db.Uuid
   createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
@@ -1505,6 +1508,9 @@ model OutboundOrder {
   shippedAt            DateTime?           @map("shipped_at") @db.Timestamptz(6)
   cancelledAt          DateTime?           @map("cancelled_at") @db.Timestamptz(6)
   cancelledBy          String?             @map("cancelled_by") @db.Uuid
+  /// admin | workers — Admin Execution; Confirm runs full pick/pack/dispatch facade.
+  executionMode        String?             @map("execution_mode") @db.VarChar(16)
+  executionPlan        Json?               @map("execution_plan")
   createdBy            String              @map("created_by") @db.Uuid
   createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)

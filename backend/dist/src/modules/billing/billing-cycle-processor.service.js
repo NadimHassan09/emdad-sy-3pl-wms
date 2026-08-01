@@ -114,7 +114,7 @@ let BillingCycleProcessorService = BillingCycleProcessorService_1 = class Billin
                 this.log.warn(`Restricted company ${cycle.companyId} — billing cycle ${cycle.id} expired without renewal.`);
             });
             const issuedInvoice = await this.prisma.invoice.findFirst({
-                where: { billingCycleId: cycle.id, status: 'open' },
+                where: { billingCycleId: cycle.id, status: 'unpaid' },
                 orderBy: { issuedAt: 'desc' },
                 select: { id: true, invoiceNumber: true },
             });

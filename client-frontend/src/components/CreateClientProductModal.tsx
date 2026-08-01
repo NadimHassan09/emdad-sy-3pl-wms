@@ -167,7 +167,7 @@ export function CreateClientProductModal({
       widthClass="max-w-2xl"
       footer={
         <>
-          <Button variant="secondary" onClick={handleClose} type="button" disabled={loading}>
+          <Button variant="danger" onClick={handleClose} type="button" disabled={loading}>
             {t('Cancel')}
           </Button>
           <Button

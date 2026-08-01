@@ -6,6 +6,7 @@ import { AdjustmentsApi, type StockAdjustment } from '../api/adjustments';
 import { CompaniesApi } from '../api/companies';
 import { ProductsApi } from '../api/products';
 import { NewAdjustmentModal } from '../components/adjustments/NewAdjustmentModal';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { Button } from '../components/Button';
 import { StatusBadge } from '../components/StatusBadge';
@@ -220,7 +221,20 @@ export function AdjustmentsPage() {
   );
 
   return (
-    <>
+    <AdminListPageShell
+      icon="fa-sliders"
+      title={t('Stock adjustments', 'تعديلات المخزون')}
+      isArabic={isArabic}
+      actions={
+        <Button
+          disabled={!wid}
+          variant="brand"
+          onClick={() => wid && setNewModalOpen(true)}
+        >
+          {t('+ New adjustment', '+ تعديل جديد')}
+        </Button>
+      }
+    >
       {!wid ? (
         <p className="mb-3 text-sm text-text-body">Resolve warehouse configuration…</p>
       ) : null}
@@ -279,16 +293,6 @@ export function AdjustmentsPage() {
       </FilterPanel>
 
       <DataTable
-        title={t('Stock adjustments', 'تعديلات المخزون')}
-        actions={
-          <Button
-            disabled={!wid}
-            variant="brand"
-            onClick={() => wid && setNewModalOpen(true)}
-          >
-            {t('+ New adjustment', '+ تعديل جديد')}
-          </Button>
-        }
         columns={adjustmentCols}
         rows={list.data?.items ?? []}
         rowKey={(a) => a.id}
@@ -329,6 +333,6 @@ export function AdjustmentsPage() {
           )}
         </p>
       </ConfirmModal>
-    </>
+    </AdminListPageShell>
   );
 }

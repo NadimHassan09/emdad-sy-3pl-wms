@@ -100,7 +100,7 @@ export function ImageUploadField({
               type="button"
               disabled={disabled || uploading}
               onClick={() => inputRef.current?.click()}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-cta text-on-brand hover:bg-cta-hover disabled:opacity-50"
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-cta text-white hover:bg-cta-hover disabled:opacity-50"
             >
               {uploading
                 ? isArabic
@@ -119,7 +119,7 @@ export function ImageUploadField({
                 type="button"
                 disabled={disabled || uploading}
                 onClick={() => void onRemove()}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-border-strong text-text-body hover:bg-surface-hover disabled:opacity-50"
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-danger-600 bg-danger-600 text-white hover:border-danger-700 hover:bg-danger-700 disabled:opacity-50"
               >
                 {isArabic ? 'إزالة' : 'Remove'}
               </button>
@@ -129,7 +129,7 @@ export function ImageUploadField({
                 type="button"
                 disabled={disabled || uploading}
                 onClick={() => onFileChange(null)}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-border-strong text-text-body hover:bg-surface-hover disabled:opacity-50"
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-danger-600 bg-danger-600 text-white hover:border-danger-700 hover:bg-danger-700 disabled:opacity-50"
               >
                 {isArabic ? 'إزالة' : 'Remove'}
               </button>

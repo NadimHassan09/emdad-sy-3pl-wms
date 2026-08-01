@@ -87,6 +87,10 @@ let RealtimeService = RealtimeService_1 = class RealtimeService {
         this.emit(companyId, realtime_events_1.RealtimeEvents.OUTBOUND_ORDER_UPDATED, payload);
         this.scheduleDashboard('orders');
     }
+    emitOmsOrderEvent(companyId, payload) {
+        this.emit(companyId, realtime_events_1.RealtimeEvents.OMS_ORDER_EVENT, payload);
+        this.scheduleDashboard('orders');
+    }
     emitTaskUpdated(companyId, payload) {
         this.emit(companyId, realtime_events_1.RealtimeEvents.TASK_UPDATED, payload);
         this.scheduleDashboard('tasks');

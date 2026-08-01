@@ -9,7 +9,12 @@ import {
 } from 'react';
 
 import { AuthApi, type MeResponse } from '../api/auth';
-import { getAccessToken, setAccessToken } from './authStorage';
+import {
+  clearAccessToken,
+  getAccessToken,
+  setAccessToken,
+  setRememberedAccount,
+} from './authStorage';
 
 export type AuthUser = MeResponse & { fullName?: string };
 const AUTH_FULL_NAME_KEY = 'auth.fullName';
@@ -17,7 +22,11 @@ const AUTH_FULL_NAME_KEY = 'auth.fullName';
 type AuthContextValue = {
   user: AuthUser | null;
   booting: boolean;
-  login: (email: string, password: string) => Promise<AuthUser>;
+  login: (
+    email: string,
+    password: string,
+    options?: { persistSession?: boolean },
+  ) => Promise<AuthUser>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -42,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const resolvedFullName = me.fullName?.trim() || cachedFullName?.trim() || undefined;
       setUser({ ...me, fullName: resolvedFullName });
     } catch {
-      setAccessToken(null);
+      clearAccessToken();
       setUser(null);
     } finally {
       setBooting(false);
@@ -53,18 +62,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await AuthApi.login(email, password);
-    setAccessToken(res.access_token);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(AUTH_FULL_NAME_KEY, res.user.fullName);
-    }
-    const me = await AuthApi.me();
-    const resolvedFullName = me.fullName?.trim() || res.user.fullName.trim() || undefined;
-    const authUser: AuthUser = { ...me, fullName: resolvedFullName };
-    setUser(authUser);
-    return authUser;
-  }, []);
+  const login = useCallback(
+    async (email: string, password: string, options?: { persistSession?: boolean }) => {
+      const persist = Boolean(options?.persistSession);
+      const res = await AuthApi.login(email, password);
+      setAccessToken(res.access_token, persist);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(AUTH_FULL_NAME_KEY, res.user.fullName);
+      }
+      if (persist) {
+        setRememberedAccount({
+          email: res.user.email || email,
+          displayName: res.user.fullName || res.user.email || email,
+        });
+      }
+      const me = await AuthApi.me();
+      const resolvedFullName = me.fullName?.trim() || res.user.fullName.trim() || undefined;
+      const authUser: AuthUser = { ...me, fullName: resolvedFullName };
+      setUser(authUser);
+      return authUser;
+    },
+    [],
+  );
 
   const logout = useCallback(async () => {
     try {
@@ -73,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem(AUTH_FULL_NAME_KEY);
       }
-      setAccessToken(null);
+      clearAccessToken();
       setUser(null);
     }
   }, []);

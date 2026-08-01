@@ -41,6 +41,8 @@ class CreateOutboundOrderDto {
     clientReference;
     notes;
     requiresPacking;
+    executionMode;
+    executionPlan;
     lines;
 }
 exports.CreateOutboundOrderDto = CreateOutboundOrderDto;
@@ -77,6 +79,16 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CreateOutboundOrderDto.prototype, "requiresPacking", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['admin', 'workers']),
+    __metadata("design:type", String)
+], CreateOutboundOrderDto.prototype, "executionMode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], CreateOutboundOrderDto.prototype, "executionPlan", void 0);
 __decorate([
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.ArrayMinSize)(1),

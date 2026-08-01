@@ -18,10 +18,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANT_STYLES: Record<Variant, string> = {
   primary:
-    'bg-cta text-on-brand border border-cta ' +
-    'hover:bg-cta-hover hover:border-cta-hover ' +
+    'bg-cta text-white border border-cta ' +
+    'hover:bg-cta-hover hover:border-cta-hover hover:text-white ' +
     'active:bg-cta-active active:scale-[0.97] ' +
-    'disabled:opacity-40',
+    'disabled:opacity-40 disabled:text-white',
   secondary:
     'bg-surface-panel text-text-strong border border-border-strong ' +
     'hover:bg-surface-hover hover:border-text-faint ' +
@@ -39,9 +39,9 @@ const VARIANT_STYLES: Record<Variant, string> = {
     'disabled:opacity-40',
   danger:
     'bg-danger-600 text-white border border-danger-600 ' +
-    'hover:bg-danger-700 hover:border-danger-700 ' +
-    'active:bg-danger-800 active:scale-[0.97] ' +
-    'disabled:opacity-40',
+    'hover:bg-danger-700 hover:border-danger-700 hover:text-white ' +
+    'active:bg-danger-700 active:scale-[0.97] ' +
+    'disabled:opacity-40 disabled:text-white',
 };
 
 const SIZE_STYLES: Record<Size, string> = {

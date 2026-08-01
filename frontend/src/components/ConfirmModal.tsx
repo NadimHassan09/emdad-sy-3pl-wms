@@ -33,7 +33,7 @@ export function ConfirmModal({
       title={title}
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+          <Button type="button" variant="danger" onClick={onClose} disabled={loading}>
             {cancelLabel}
           </Button>
           <Button

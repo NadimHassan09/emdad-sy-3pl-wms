@@ -161,7 +161,7 @@ export function BillingPlanCreatePage() {
             <>
               <Button
                 type="button"
-                variant="secondary"
+                variant="danger"
                 onClick={() => navigate('/billing/plans')}
                 disabled={createMut.isPending}
               >

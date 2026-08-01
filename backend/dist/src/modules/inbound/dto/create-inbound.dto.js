@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CreateInboundOrderDto = exports.CreateInboundOrderLineDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
+const client_1 = require("@prisma/client");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
 class CreateInboundOrderLineDto {
     productId;
@@ -45,6 +46,11 @@ class CreateInboundOrderDto {
     expectedArrivalDate;
     clientReference;
     notes;
+    executionMode;
+    executionPlan;
+    sourceType;
+    storeChannel;
+    externalReference;
     lines;
 }
 exports.CreateInboundOrderDto = CreateInboundOrderDto;
@@ -67,6 +73,31 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateInboundOrderDto.prototype, "notes", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['admin', 'workers']),
+    __metadata("design:type", String)
+], CreateInboundOrderDto.prototype, "executionMode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], CreateInboundOrderDto.prototype, "executionPlan", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(client_1.InboundSourceType),
+    __metadata("design:type", String)
+], CreateInboundOrderDto.prototype, "sourceType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateInboundOrderDto.prototype, "storeChannel", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateInboundOrderDto.prototype, "externalReference", void 0);
 __decorate([
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.ArrayMinSize)(1),

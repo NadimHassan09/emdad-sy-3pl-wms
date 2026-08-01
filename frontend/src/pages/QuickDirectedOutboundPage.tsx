@@ -11,6 +11,7 @@ import {
 } from '../api/outbound';
 import { CreateQuickDirectedOutboundModal } from '../components/outbound/CreateQuickDirectedOutboundModal';
 import { Alert, Button as DsButton } from '@ds';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { Button } from '../components/Button';
 import { Column, DataTable } from '../components/DataTable';
 import { FILTER_PRIMARY_BUTTON_CLASS, FilterPanel } from '../components/FilterPanel';
@@ -199,7 +200,22 @@ export function QuickDirectedOutboundPage() {
   );
 
   return (
-    <>
+    <AdminListPageShell
+      icon="fa-bolt"
+      title={t(['Quick directed outbound', 'إخراج مخزني سريع موجّه'])}
+      isArabic={isArabic}
+      actions={
+        <DsButton
+          variant="primary"
+          size="md"
+          onClick={() => setCreateOpen(true)}
+          className={FILTER_PRIMARY_BUTTON_CLASS}
+          disabled={!warehouseId}
+        >
+          {t(['+ New quick outbound', '+ إخراج سريع جديد'])}
+        </DsButton>
+      }
+    >
       {!warehouseId && (
         <Alert
           variant="warning"
@@ -273,18 +289,6 @@ export function QuickDirectedOutboundPage() {
       </FilterPanel>
 
       <DataTable
-        title={t(['Quick directed outbound', 'إخراج مخزني سريع موجّه'])}
-        actions={
-          <DsButton
-            variant="primary"
-            size="md"
-            onClick={() => setCreateOpen(true)}
-            className={FILTER_PRIMARY_BUTTON_CLASS}
-            disabled={!warehouseId}
-          >
-            {t(['+ New quick outbound', '+ إخراج سريع جديد'])}
-          </DsButton>
-        }
         columns={columns}
         rows={pagination.rows}
         rowKey={(order) => order.id}
@@ -365,6 +369,6 @@ export function QuickDirectedOutboundPage() {
           </div>
         ) : null}
       </Modal>
-    </>
+    </AdminListPageShell>
   );
 }

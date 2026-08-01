@@ -5,6 +5,7 @@ import { Navigate } from 'react-router-dom';
 import { AuditLogsApi, type AuditLogDetail, type AuditLogSummary, type ListAuditLogsParams } from '../api/audit-logs';
 import { CompaniesApi } from '../api/companies';
 import { useAuth } from '../auth/AuthContext';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { AuditLogDetailModal } from '../components/audit-logs/AuditLogDetailModal';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
@@ -286,7 +287,22 @@ export function AuditLogsPage() {
   }
 
   return (
-    <>
+    <AdminListPageShell
+      icon="fa-clock-rotate-left"
+      title={t('Audit logs', 'سجل التدقيق')}
+      subtitle={t(
+        'Operational traceability across warehouse actions. Click a row or View for full before/after state.',
+        'تتبع تشغيلي لإجراءات المستودع. انقر على صف أو «عرض» لرؤية الحالة قبل/بعد.',
+      )}
+      isArabic={isArabic}
+      actions={
+        policyQuery.data?.exportEnabled ? (
+          <Button type="button" variant="secondary" loading={exporting} onClick={() => void handleExport()}>
+            {t('Export CSV', 'تصدير CSV')}
+          </Button>
+        ) : undefined
+      }
+    >
       {errMsg ? <p className="mb-3 text-sm text-status-danger-fg">{errMsg}</p> : null}
 
       {policyQuery.data ? (
@@ -360,18 +376,6 @@ export function AuditLogsPage() {
       </FilterPanel>
 
       <DataTable
-        title={t('Audit logs', 'سجل التدقيق')}
-        description={t(
-          'Operational traceability across warehouse actions. Click a row or View for full before/after state.',
-          'تتبع تشغيلي لإجراءات المستودع. انقر على صف أو «عرض» لرؤية الحالة قبل/بعد.',
-        )}
-        actions={
-          policyQuery.data?.exportEnabled ? (
-            <Button type="button" variant="secondary" loading={exporting} onClick={() => void handleExport()}>
-              {t('Export CSV', 'تصدير CSV')}
-            </Button>
-          ) : null
-        }
         columns={columns}
         rows={listQuery.data?.items ?? []}
         rowKey={(r) => `${r.id}:${r.createdAt}`}
@@ -439,7 +443,7 @@ export function AuditLogsPage() {
           system: t('System', 'النظام'),
         }}
       />
-    </>
+    </AdminListPageShell>
   );
 }
 

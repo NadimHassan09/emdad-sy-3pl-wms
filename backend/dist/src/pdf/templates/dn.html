@@ -1,0 +1,128 @@
+<section class="doc-parties">
+  <div class="doc-parties__col">
+    <div class="doc-parties__heading">{{L.deliverTo}}</div>
+    <div class="kv">
+      <span class="kv__k">{{L.customer}}</span>
+      <span class="kv__v">{{party.customer}}</span>
+    </div>
+    <div class="kv">
+      <span class="kv__k">{{L.destination}}</span>
+      <span class="kv__v">{{party.destination}}</span>
+    </div>
+    <div class="kv">
+      <span class="kv__k">{{L.warehouse}}</span>
+      <span class="kv__v">{{party.warehouse}}</span>
+    </div>
+  </div>
+  <div class="doc-parties__col">
+    <div class="kv">
+      <span class="kv__k">{{L.outboundOrderNumber}}</span>
+      <span class="kv__v">{{party.orderNumber}}</span>
+    </div>
+    <div class="kv">
+      <span class="kv__k">{{L.reference}}</span>
+      <span class="kv__v">{{party.reference}}</span>
+    </div>
+    <div class="kv">
+      <span class="kv__k">{{L.dispatchDate}}</span>
+      <span class="kv__v">{{party.date}}</span>
+    </div>
+    <div class="kv">
+      <span class="kv__k">{{L.carrier}}</span>
+      <span class="kv__v">{{party.carrier}}</span>
+    </div>
+    <div class="kv">
+      <span class="kv__k">{{L.trackingNumber}}</span>
+      <span class="kv__v">{{party.tracking}}</span>
+    </div>
+    {{#if party.vehicle}}
+    <div class="kv">
+      <span class="kv__k">{{L.vehicleNumber}}</span>
+      <span class="kv__v">{{party.vehicle}}</span>
+    </div>
+    {{/if}}
+    {{#if party.driver}}
+    <div class="kv">
+      <span class="kv__k">{{L.driverName}}</span>
+      <span class="kv__v">{{party.driver}}</span>
+    </div>
+    {{/if}}
+  </div>
+</section>
+
+<section class="doc-table-wrap">
+  <div class="doc-table-label">{{L.items}}</div>
+  <table class="doc-table">
+    <thead>
+      <tr>
+        <th style="width:4%">{{L.colNo}}</th>
+        <th style="width:13%">{{L.colSku}}</th>
+        <th style="width:38%">{{L.colProduct}}</th>
+        <th style="width:12%">{{L.colOrderedQty}}</th>
+        <th style="width:12%">{{L.colPickedQty}}</th>
+        <th style="width:12%">{{L.colShippedQty}}</th>
+        <th style="width:9%">{{L.colUnit}}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each items}}
+      <tr>
+        <td class="center muted">{{this.idx}}</td>
+        <td class="sku">{{this.sku}}</td>
+        <td>{{this.name}}</td>
+        <td class="num">{{this.orderedQty}}</td>
+        <td class="num">{{this.pickedQty}}</td>
+        <td class="num">{{this.shippedQty}}</td>
+        <td class="center">{{this.unit}}</td>
+      </tr>
+      {{/each}}
+      {{#each emptyRows}}
+      <tr class="doc-table__row--empty">
+        <td class="center">&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td class="num">&nbsp;</td>
+        <td class="num">&nbsp;</td>
+        <td class="num">&nbsp;</td>
+        <td class="center">&nbsp;</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</section>
+
+<div class="doc-totals">
+  <span>{{L.totalSkus}}: <strong>{{summary.totalSkus}}</strong></span>
+  <span>{{L.totalQuantity}}: <strong>{{summary.totalQty}}</strong></span>
+  <span>{{L.totalItems}}: <strong>{{summary.totalItems}}</strong></span>
+</div>
+
+<div class="doc-meta-line">
+  <span>{{L.preparedBy}}: <strong>{{summary.preparedBy}}</strong></span>
+  <span>{{L.releasedBy}}: <strong>{{summary.releasedBy}}</strong></span>
+  <span>{{L.dispatchTime}}: <strong>{{summary.dispatchTime}}</strong></span>
+</div>
+
+<div class="doc-notes {{#unless notes}}empty{{/unless}}">
+  <span class="doc-notes__label">{{L.notes}}</span>
+  {{#if notes}}{{notes}}{{else}}{{L.notProvided}}{{/if}}
+</div>
+
+<section class="doc-signatures section--keep">
+  <div class="doc-signatures__title">{{L.signatures}}</div>
+  <div class="doc-signatures__grid">
+    {{#each signatures}}
+    <div class="doc-sign">
+      <div class="doc-sign__role">{{this.role}}</div>
+      <div class="doc-sign__field">
+        <span>{{L.signature}}</span>
+        <span class="doc-sign__line"></span>
+      </div>
+      <div class="doc-sign__field">
+        <span>{{L.nameAndDate}}</span>
+        <span class="doc-sign__line"></span>
+      </div>
+    </div>
+    {{/each}}
+  </div>
+</section>

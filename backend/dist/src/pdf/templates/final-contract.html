@@ -1,0 +1,110 @@
+<section class="fc-section">
+  <div class="doc-table-label">{{L.sectionParties}}</div>
+  <div class="doc-parties">
+    <div class="doc-parties__col">
+      <div class="doc-parties__heading">{{L.serviceProvider}}</div>
+      <div class="kv"><span class="kv__k">{{L.companyName}}</span><span class="kv__v">{{provider.name}}</span></div>
+      <div class="kv"><span class="kv__k">{{L.companyType}}</span><span class="kv__v">{{provider.type}}</span></div>
+      <div class="kv"><span class="kv__k">{{L.address}}</span><span class="kv__v">{{provider.address}}</span></div>
+      <div class="kv"><span class="kv__k">{{L.phone}}</span><span class="kv__v">{{provider.phone}}</span></div>
+      <div class="kv"><span class="kv__k">{{L.email}}</span><span class="kv__v">{{provider.email}}</span></div>
+      <div class="kv"><span class="kv__k">{{L.taxId}}</span><span class="kv__v">{{provider.taxId}}</span></div>
+    </div>
+    <div class="doc-parties__col">
+      <div class="doc-parties__heading">{{L.clientCustomer}}</div>
+      <div class="kv"><span class="kv__k">{{L.companyName}}</span><span class="kv__v">{{client.name}}</span></div>
+      <div class="kv"><span class="kv__k">{{L.companyType}}</span><span class="kv__v">{{client.type}}</span></div>
+      <div class="kv"><span class="kv__k">{{L.address}}</span><span class="kv__v">{{client.address}}</span></div>
+      <div class="kv"><span class="kv__k">{{L.phone}}</span><span class="kv__v">{{client.phone}}</span></div>
+      <div class="kv"><span class="kv__k">{{L.email}}</span><span class="kv__v">{{client.email}}</span></div>
+      <div class="kv"><span class="kv__k">{{L.taxId}}</span><span class="kv__v">{{client.taxId}}</span></div>
+    </div>
+  </div>
+  <p class="fc-intro">{{L.partiesIntro}}</p>
+</section>
+
+<section class="fc-section">
+  <div class="doc-table-label">{{L.sectionScope}}</div>
+  <div class="fc-services">
+    {{#each scopeServices}}
+    <div class="fc-services__item">
+      <span class="fc-services__idx">{{this.idx}}</span>
+      <span>{{this.label}}</span>
+    </div>
+    {{/each}}
+  </div>
+</section>
+
+<section class="fc-section">
+  <div class="doc-table-label">{{L.sectionPricing}}</div>
+  <table class="doc-table">
+    <thead>
+      <tr>
+        <th style="width:16%">{{L.colService}}</th>
+        <th style="width:28%">{{L.colDescription}}</th>
+        <th style="width:16%">{{L.colUnit}}</th>
+        <th style="width:14%">{{L.colRate}}</th>
+        <th style="width:26%">{{L.colBilling}}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each pricingRows}}
+      <tr>
+        <td><strong>{{this.service}}</strong></td>
+        <td>{{this.description}}</td>
+        <td class="center">{{this.unit}}</td>
+        <td class="num">{{this.rate}}</td>
+        <td class="center">{{this.billing}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  <p class="fc-footnote">{{L.pricingFootnote}}</p>
+</section>
+
+<section class="fc-section fc-terms">
+  <div class="fc-terms__col">
+    <div class="doc-table-label">{{L.sectionProviderObligations}}</div>
+    <ul class="fc-list">{{#each providerObligations}}<li>{{this}}</li>{{/each}}</ul>
+  </div>
+  <div class="fc-terms__col">
+    <div class="doc-table-label">{{L.sectionClientObligations}}</div>
+    <ul class="fc-list">{{#each clientObligations}}<li>{{this}}</li>{{/each}}</ul>
+  </div>
+</section>
+
+<section class="fc-section fc-terms">
+  <div class="fc-terms__col">
+    <div class="doc-table-label">{{L.sectionTerm}}</div>
+    <ul class="fc-list">{{#each termBullets}}<li>{{this}}</li>{{/each}}</ul>
+  </div>
+  <div class="fc-terms__col">
+    <div class="doc-table-label">{{L.sectionLiability}}</div>
+    <ul class="fc-list">{{#each liabilityBullets}}<li>{{this}}</li>{{/each}}</ul>
+  </div>
+</section>
+
+<section class="fc-section">
+  <div class="doc-table-label">{{L.sectionGeneral}}</div>
+  <ul class="fc-list fc-list--single">{{#each generalBullets}}<li>{{this}}</li>{{/each}}</ul>
+</section>
+
+<section class="doc-signatures section--keep">
+  <div class="doc-signatures__title">{{L.signatures}}</div>
+  <div class="doc-signatures__grid fc-signatures">
+    <div class="doc-sign">
+      <div class="doc-sign__role">{{provider.name}}</div>
+      <div class="doc-sign__field"><span>{{L.name}}</span><span class="doc-sign__line">{{provider.signatoryName}}</span></div>
+      <div class="doc-sign__field"><span>{{L.title}}</span><span class="doc-sign__line">{{provider.signatoryTitle}}</span></div>
+      <div class="doc-sign__field"><span>{{L.signature}}</span><span class="doc-sign__line"></span></div>
+      <div class="doc-sign__field"><span>{{L.date}}</span><span class="doc-sign__line">{{header.issueDate}}</span></div>
+    </div>
+    <div class="doc-sign">
+      <div class="doc-sign__role">{{client.name}}</div>
+      <div class="doc-sign__field"><span>{{L.name}}</span><span class="doc-sign__line">{{client.signatoryName}}</span></div>
+      <div class="doc-sign__field"><span>{{L.title}}</span><span class="doc-sign__line">{{client.signatoryTitle}}</span></div>
+      <div class="doc-sign__field"><span>{{L.signature}}</span><span class="doc-sign__line"></span></div>
+      <div class="doc-sign__field"><span>{{L.date}}</span><span class="doc-sign__line">{{header.issueDate}}</span></div>
+    </div>
+  </div>
+</section>

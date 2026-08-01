@@ -1,1 +1,0 @@
-import{j as t}from"./vendor-react-Codo4t-7.js";import{A as p}from"./AppPageHeader-5l9PKznh.js";function i({title:r,description:e,actions:a,icon:o}){return t.jsx(p,{title:r,description:e,actions:a,icon:o})}export{i as P};

@@ -13,6 +13,7 @@ import {
   type UserRole,
   type UserStatus,
 } from '../api/users';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
@@ -513,7 +514,23 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
   const errMsg = pagination.error instanceof Error ? pagination.error.message : null;
 
   return (
-    <>
+    <AdminListPageShell
+      icon="fa-users"
+      title={pageTitle}
+      isArabic={isArabic}
+      actions={
+        <Button
+          type="button"
+          variant="brand"
+          onClick={() => {
+            resetCreateForm();
+            setCreateOpen(true);
+          }}
+        >
+          {t('+ New user', '+ مستخدم جديد')}
+        </Button>
+      }
+    >
       {errMsg ? <Alert variant="error" title={errMsg} className="mb-4" /> : null}
 
       <FilterPanel
@@ -545,19 +562,6 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       </FilterPanel>
 
       <DataTable
-        title={pageTitle}
-        actions={
-          <Button
-            type="button"
-            variant="brand"
-            onClick={() => {
-              resetCreateForm();
-              setCreateOpen(true);
-            }}
-          >
-            {t('+ New user', '+ مستخدم جديد')}
-          </Button>
-        }
         columns={tableColumns}
         rows={pagination.rows}
         rowKey={(u) => u.id}
@@ -781,7 +785,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
           </form>
         </Modal>
       )}
-    </>
+    </AdminListPageShell>
   );
 }
 

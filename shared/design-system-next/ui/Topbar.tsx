@@ -182,6 +182,8 @@ export interface TopbarUserMenuProps {
   connected?: boolean;
   language?: 'EN' | 'AR';
   onLanguageChange?: (lang: 'EN' | 'AR') => void | Promise<void>;
+  onProfile?: () => void;
+  profileLabel?: string;
   onSignOut?: () => void;
   signOutLabel?: string;
   languageLabel?: string;
@@ -232,6 +234,8 @@ function TopbarUserMenuDropdown({
   role,
   language,
   onLanguageChange,
+  onProfile,
+  profileLabel,
   onSignOut,
   signOutLabel,
   languageLabel,
@@ -243,6 +247,8 @@ function TopbarUserMenuDropdown({
   role?: string;
   language?: 'EN' | 'AR';
   onLanguageChange?: (lang: 'EN' | 'AR') => void | Promise<void>;
+  onProfile?: () => void;
+  profileLabel: string;
   onSignOut?: () => void;
   signOutLabel: string;
   languageLabel: string;
@@ -250,6 +256,7 @@ function TopbarUserMenuDropdown({
   onClose: () => void;
 }) {
   const showLanguage = language !== undefined && onLanguageChange !== undefined;
+  const showProfile = onProfile !== undefined;
   const showSignOut = onSignOut !== undefined;
 
   return createPortal(
@@ -283,6 +290,28 @@ function TopbarUserMenuDropdown({
           <p className="text-sm font-semibold text-text-strong truncate">{name}</p>
           {role && <p className="mt-0.5 text-xs text-text-muted truncate">{role}</p>}
         </div>
+
+        {showProfile && (
+          <div role="none" className="border-b border-border-subtle p-1.5">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onClose();
+                onProfile();
+              }}
+              className={cn(
+                'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-start',
+                'text-sm font-medium text-text-strong',
+                'transition-colors duration-fast',
+                'hover:bg-surface-hover',
+              )}
+            >
+              <i className="fa-solid fa-user text-xs text-text-muted" aria-hidden="true" />
+              {profileLabel}
+            </button>
+          </div>
+        )}
 
         {showLanguage && (
           <div role="none" className="border-b border-border-subtle px-3 py-3">
@@ -348,6 +377,8 @@ export function TopbarUserMenu({
   connected = true,
   language,
   onLanguageChange,
+  onProfile,
+  profileLabel = 'Profile',
   onSignOut,
   signOutLabel = 'Sign out',
   languageLabel = 'Language',
@@ -399,7 +430,9 @@ export function TopbarUserMenu({
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [open]);
 
-  const showMenu = open && (onLanguageChange !== undefined || onSignOut !== undefined);
+  const showMenu =
+    open &&
+    (onLanguageChange !== undefined || onSignOut !== undefined || onProfile !== undefined);
 
   return (
     <div className="relative shrink-0">
@@ -458,6 +491,8 @@ export function TopbarUserMenu({
           role={role}
           language={language}
           onLanguageChange={onLanguageChange}
+          onProfile={onProfile}
+          profileLabel={profileLabel}
           onSignOut={onSignOut}
           signOutLabel={signOutLabel}
           languageLabel={languageLabel}

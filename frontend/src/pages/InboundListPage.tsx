@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, Button, EmptyState, ListPageHeader, Textarea } from '@ds';
+import { Alert, Button, EmptyState, Textarea } from '@ds';
 
 import { CompaniesApi } from '../api/companies';
 import {
@@ -13,6 +13,7 @@ import {
 } from '../api/inbound';
 import { Product, ProductsApi } from '../api/products';
 import { useAuth } from '../auth/AuthContext';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { Combobox } from '../components/Combobox';
@@ -32,6 +33,7 @@ import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
+import { useOrderWorkspaceMode } from '../hooks/useOrderWorkspaceMode';
 import { useFilters } from '../hooks/useFilters';
 import {
   CHUNK_SIZE_STANDARD,
@@ -139,6 +141,14 @@ export function InboundListPage() {
   const isArabic =
     typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (label: string) => inboundLabel(label, isArabic);
+  const orderWorkspaceMode = useOrderWorkspaceMode();
+  const openCreate = () => {
+    if (orderWorkspaceMode) {
+      navigate('/orders/inbound/new');
+    } else {
+      setOpen(true);
+    }
+  };
   const { warehouseId: wid } = useDefaultWarehouseId();
 
   const initialList = useMemo<ListDraft>(
@@ -312,7 +322,7 @@ export function InboundListPage() {
         <Button
           variant="primary"
           size="md"
-          onClick={() => setOpen(true)}
+          onClick={openCreate}
           className={FILTER_PRIMARY_BUTTON_CLASS}
         >
           {t('+ New inbound')}
@@ -322,7 +332,21 @@ export function InboundListPage() {
   );
 
   return (
-    <div className="space-y-5 animate-enter">
+    <AdminListPageShell
+      icon="fa-arrow-down"
+      title={t('Inbound orders')}
+      isArabic={isArabic}
+      actions={
+        <Button
+          variant="primary"
+          size="md"
+          onClick={openCreate}
+          className={FILTER_PRIMARY_BUTTON_CLASS}
+        >
+          {t('+ New inbound')}
+        </Button>
+      }
+    >
       {!wid && (
         <Alert
           variant="warning"
@@ -344,21 +368,6 @@ export function InboundListPage() {
           }
         />
       )}
-
-      <ListPageHeader
-        icon="fa-arrow-down"
-        title={t('Inbound orders')}
-        actions={
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => setOpen(true)}
-            className={FILTER_PRIMARY_BUTTON_CLASS}
-          >
-            {t('+ New inbound')}
-          </Button>
-        }
-      />
 
       <FilterPanel
         title={t('Order filters')}
@@ -462,13 +471,15 @@ export function InboundListPage() {
         }}
       />
 
-      <CreateInboundModal
-        open={open}
-        onClose={() => setOpen(false)}
-        loading={createMut.isPending}
-        onSubmit={(input) => createMut.mutate(input)}
-        isArabic={isArabic}
-      />
+      {!orderWorkspaceMode && (
+        <CreateInboundModal
+          open={open}
+          onClose={() => setOpen(false)}
+          loading={createMut.isPending}
+          onSubmit={(input) => createMut.mutate(input)}
+          isArabic={isArabic}
+        />
+      )}
 
       <ConfirmModal
         open={!!toCancel}
@@ -501,7 +512,7 @@ export function InboundListPage() {
           {t('This permanently removes the order and its lines. This action cannot be undone.')}
         </p>
       </ConfirmModal>
-    </div>
+    </AdminListPageShell>
   );
 }
 

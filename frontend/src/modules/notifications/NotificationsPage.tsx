@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { Button } from '../../components/Button';
 import { QK } from '../../constants/query-keys';
 import {
@@ -97,17 +98,13 @@ export function NotificationsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold text-text-strong sm:text-xl">{t('Notifications')}</h1>
-          {unreadCount > 0 ? (
-            <p className="text-sm text-text-muted">
-              {unreadCount} {t('Unread').toLowerCase()}
-            </p>
-          ) : null}
-        </div>
-        {unreadCount > 0 ? (
+    <AdminListPageShell
+      icon="fa-bell"
+      title={t('Notifications')}
+      subtitle={unreadCount > 0 ? `${unreadCount} ${t('Unread').toLowerCase()}` : undefined}
+      isArabic={isArabic}
+      actions={
+        unreadCount > 0 ? (
           <Button
             variant="secondary"
             size="sm"
@@ -116,9 +113,9 @@ export function NotificationsPage() {
           >
             {t('Mark all read')}
           </Button>
-        ) : null}
-      </div>
-
+        ) : undefined
+      }
+    >
       <div className="flex flex-wrap gap-2">
         {(['all', 'unread', 'read'] as const).map((mode) => (
           <button
@@ -126,7 +123,7 @@ export function NotificationsPage() {
             type="button"
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
               filter === mode
-                ? 'bg-brand-600 text-text-on-brand'
+                ? 'bg-brand-600 text-white'
                 : 'bg-surface-card-muted text-text-body hover:bg-surface-hover'
             }`}
             onClick={() => onFilterChange(mode)}
@@ -212,6 +209,6 @@ export function NotificationsPage() {
           </div>
         ) : null}
       </section>
-    </div>
+    </AdminListPageShell>
   );
 }

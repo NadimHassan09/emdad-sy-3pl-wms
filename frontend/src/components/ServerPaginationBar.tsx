@@ -53,7 +53,7 @@ export function ServerPaginationBar({ pagination, loading, labels, className = '
         </button>
         <button
           type="button"
-          className="flex-1 rounded-md border border-cta bg-cta px-3 py-1.5 text-sm font-medium text-on-brand transition hover:border-cta-hover hover:bg-cta-hover disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-sunken disabled:text-text-faint sm:flex-none"
+          className="flex-1 rounded-md border border-cta bg-cta px-3 py-1.5 text-sm font-medium text-white transition hover:border-cta-hover hover:bg-cta-hover disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-sunken disabled:text-text-faint sm:flex-none"
           onClick={() => onPageChange(Math.min(totalPages, page + 1))}
           disabled={page >= totalPages || loading || total === 0}
         >

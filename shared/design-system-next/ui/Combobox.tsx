@@ -1,4 +1,13 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
+import { createPortal } from 'react-dom';
 
 import {
   FILTER_FIELD_CONTROL_CLASS,
@@ -34,11 +43,78 @@ interface ComboboxProps {
   clearable?: boolean;
 }
 
+const VIEWPORT_PAD = 8;
+const MENU_MAX_H = 240;
+
+function OptionsList({
+  filtered,
+  value,
+  activeIdx,
+  emptyMessage,
+  onPick,
+  setActiveIdx,
+  listRef,
+  style,
+  className,
+}: {
+  filtered: ComboboxOption[];
+  value: string;
+  activeIdx: number;
+  emptyMessage: string;
+  onPick: (v: string) => void;
+  setActiveIdx: (i: number) => void;
+  listRef?: React.RefObject<HTMLUListElement | null>;
+  style?: CSSProperties;
+  className?: string;
+}) {
+  return (
+    <ul
+      ref={listRef}
+      className={
+        className ??
+        'max-h-60 overflow-auto rounded-md border border-border bg-surface-panel py-1 text-sm shadow-lg'
+      }
+      role="listbox"
+      style={style}
+    >
+      {filtered.length === 0 ? (
+        <li className="px-3 py-2 text-text-muted">{emptyMessage}</li>
+      ) : (
+        filtered.map((o, idx) => {
+          const isActive = idx === activeIdx;
+          const isSelected = o.value === value;
+          return (
+            <li
+              key={o.value}
+              role="option"
+              aria-selected={isSelected}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onPick(o.value);
+              }}
+              onMouseEnter={() => setActiveIdx(idx)}
+              className={`cursor-pointer px-3 py-1.5 ${
+                isActive
+                  ? 'bg-brand-50 text-brand-800 dark:bg-white/5 dark:text-brand-400'
+                  : 'text-text-body'
+              } ${isSelected ? 'font-semibold' : ''}`}
+            >
+              <div>{o.label}</div>
+              {o.hint ? <div className="text-xs text-text-muted">{o.hint}</div> : null}
+            </li>
+          );
+        })
+      )}
+    </ul>
+  );
+}
+
 /**
  * Lightweight searchable single-select. No external deps.
  *  - Type to filter (case-insensitive substring against label and hint).
  *  - ↑/↓ to navigate, Enter to select, Esc to close.
  *  - Click outside closes the popup.
+ *  - Overlay mode portals the list to `document.body` so overflow:hidden parents cannot clip it.
  */
 export function Combobox({
   label,
@@ -60,8 +136,15 @@ export function Combobox({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
+  const [coords, setCoords] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   const selected = options.find((o) => o.value === value);
 
@@ -75,10 +158,54 @@ export function Combobox({
     );
   }, [options, query]);
 
+  const pick = (v: string) => {
+    onChange(v);
+    setOpen(false);
+    setQuery('');
+    onSearchQueryChange?.('');
+  };
+
+  useLayoutEffect(() => {
+    if (!open || dropdownInFlow) {
+      setCoords(null);
+      return;
+    }
+    const update = () => {
+      const el = inputRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_PAD;
+      const spaceAbove = rect.top - VIEWPORT_PAD;
+      const openUp = spaceBelow < 160 && spaceAbove > spaceBelow;
+      const maxHeight = Math.min(MENU_MAX_H, Math.max(120, openUp ? spaceAbove : spaceBelow));
+      const top = openUp
+        ? Math.max(VIEWPORT_PAD, rect.top - maxHeight - 4)
+        : rect.bottom + 4;
+      setCoords({
+        top,
+        left: Math.max(
+          VIEWPORT_PAD,
+          Math.min(rect.left, window.innerWidth - rect.width - VIEWPORT_PAD),
+        ),
+        width: rect.width,
+        maxHeight,
+      });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open, dropdownInFlow, filtered.length, query]);
+
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
-      if (!wrapperRef.current) return;
-      if (!wrapperRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (wrapperRef.current?.contains(t)) return;
+      if (listRef.current?.contains(t)) return;
+      setOpen(false);
     }
     if (open) document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
@@ -92,19 +219,14 @@ export function Combobox({
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setOpen(true);
-      setActiveIdx((i) => Math.min(i + 1, filtered.length - 1));
+      setActiveIdx((i) => Math.min(i + 1, Math.max(filtered.length - 1, 0)));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setActiveIdx((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
       const opt = filtered[activeIdx];
-      if (opt) {
-        onChange(opt.value);
-        setOpen(false);
-        setQuery('');
-        onSearchQueryChange?.('');
-      }
+      if (opt) pick(opt.value);
     } else if (e.key === 'Escape') {
       setOpen(false);
       setQuery('');
@@ -113,6 +235,33 @@ export function Combobox({
   };
 
   const display = open ? query : selected?.label ?? '';
+
+  const portalList =
+    !dropdownInFlow &&
+    open &&
+    coords &&
+    typeof document !== 'undefined'
+      ? createPortal(
+          <OptionsList
+            listRef={listRef}
+            filtered={filtered}
+            value={value}
+            activeIdx={activeIdx}
+            emptyMessage={emptyMessage}
+            onPick={pick}
+            setActiveIdx={setActiveIdx}
+            className="z-[80] overflow-auto rounded-md border border-border bg-surface-panel py-1 text-sm shadow-lg"
+            style={{
+              position: 'fixed',
+              top: coords.top,
+              left: coords.left,
+              width: coords.width,
+              maxHeight: coords.maxHeight,
+            }}
+          />,
+          document.body,
+        )
+      : null;
 
   return (
     <label htmlFor={inputId} className={`block min-w-0 ${className}`}>
@@ -163,83 +312,19 @@ export function Combobox({
               open ? 'mt-1 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
             }`}
           >
-            <ul
-              className="min-h-0 max-h-60 overflow-auto rounded-md border border-border bg-surface-panel py-1 text-sm shadow-lg"
-              role="listbox"
-            >
-              {filtered.length === 0 ? (
-                <li className="px-3 py-2 text-text-muted">{emptyMessage}</li>
-              ) : (
-                filtered.map((o, idx) => {
-                  const isActive = idx === activeIdx;
-                  const isSelected = o.value === value;
-                  return (
-                    <li
-                      key={o.value}
-                      role="option"
-                      aria-selected={isSelected}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        onChange(o.value);
-                        setOpen(false);
-                        setQuery('');
-                        onSearchQueryChange?.('');
-                      }}
-                      onMouseEnter={() => setActiveIdx(idx)}
-                      className={`cursor-pointer px-3 py-1.5 ${
-                        isActive ? 'bg-brand-50 text-brand-800 dark:bg-white/5 dark:text-brand-400' : 'text-text-body'
-                      } ${isSelected ? 'font-semibold' : ''}`}
-                    >
-                      <div>{o.label}</div>
-                      {o.hint && (
-                        <div className="text-xs text-text-muted">{o.hint}</div>
-                      )}
-                    </li>
-                  );
-                })
-              )}
-            </ul>
+            <div className="min-h-0">
+              <OptionsList
+                filtered={filtered}
+                value={value}
+                activeIdx={activeIdx}
+                emptyMessage={emptyMessage}
+                onPick={pick}
+                setActiveIdx={setActiveIdx}
+              />
+            </div>
           </div>
-        ) : (
-          open && (
-            <ul
-              className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-surface-panel py-1 text-sm shadow-lg"
-              role="listbox"
-            >
-              {filtered.length === 0 ? (
-                <li className="px-3 py-2 text-text-muted">{emptyMessage}</li>
-              ) : (
-                filtered.map((o, idx) => {
-                  const isActive = idx === activeIdx;
-                  const isSelected = o.value === value;
-                  return (
-                    <li
-                      key={o.value}
-                      role="option"
-                      aria-selected={isSelected}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        onChange(o.value);
-                        setOpen(false);
-                        setQuery('');
-                        onSearchQueryChange?.('');
-                      }}
-                      onMouseEnter={() => setActiveIdx(idx)}
-                      className={`cursor-pointer px-3 py-1.5 ${
-                        isActive ? 'bg-brand-50 text-brand-800 dark:bg-white/5 dark:text-brand-400' : 'text-text-body'
-                      } ${isSelected ? 'font-semibold' : ''}`}
-                    >
-                      <div>{o.label}</div>
-                      {o.hint && (
-                        <div className="text-xs text-text-muted">{o.hint}</div>
-                      )}
-                    </li>
-                  );
-                })
-              )}
-            </ul>
-          )
-        )}
+        ) : null}
+        {portalList}
       </div>
       {error ? (
         <span className="mt-1 block text-xs text-danger-600 dark:text-status-danger-fg">{error}</span>

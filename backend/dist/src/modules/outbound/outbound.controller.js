@@ -20,6 +20,8 @@ const parse_uuid_loose_pipe_1 = require("../../common/pipes/parse-uuid-loose.pip
 const create_outbound_dto_1 = require("./dto/create-outbound.dto");
 const confirm_outbound_body_dto_1 = require("./dto/confirm-outbound-body.dto");
 const list_outbound_query_dto_1 = require("./dto/list-outbound-query.dto");
+const quick_directed_outbound_dto_1 = require("./dto/quick-directed-outbound.dto");
+const update_outbound_plan_dto_1 = require("./dto/update-outbound-plan.dto");
 const outbound_service_1 = require("./outbound.service");
 let OutboundController = class OutboundController {
     outbound;
@@ -29,11 +31,20 @@ let OutboundController = class OutboundController {
     create(user, dto) {
         return this.outbound.create(user, dto);
     }
+    quickDirected(user, dto) {
+        return this.outbound.quickDirectedOutbound(user, dto);
+    }
     list(user, query) {
         return this.outbound.list(user, query);
     }
     findOne(user, id) {
         return this.outbound.findById(id, user);
+    }
+    updatePlan(user, id, body) {
+        return this.outbound.updatePlan(user, id, body);
+    }
+    executeAdmin(user, id) {
+        return this.outbound.executeAdmin(user, id);
     }
     confirm(user, id, body) {
         return this.outbound.confirmAndDeduct(user, id, body);
@@ -55,6 +66,14 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], OutboundController.prototype, "create", null);
 __decorate([
+    (0, common_1.Post)('quick-directed'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, quick_directed_outbound_dto_1.QuickDirectedOutboundDto]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "quickDirected", null);
+__decorate([
     (0, common_1.Get)(),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Query)()),
@@ -70,6 +89,23 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], OutboundController.prototype, "findOne", null);
+__decorate([
+    (0, common_1.Patch)(':id/plan'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, update_outbound_plan_dto_1.UpdateOutboundPlanDto]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "updatePlan", null);
+__decorate([
+    (0, common_1.Post)(':id/execute-admin'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "executeAdmin", null);
 __decorate([
     (0, common_1.Post)(':id/confirm'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

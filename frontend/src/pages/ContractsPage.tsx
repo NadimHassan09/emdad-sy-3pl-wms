@@ -13,6 +13,7 @@ import {
   type DocumentType,
 } from '../api/documents';
 import { Alert } from '@ds';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { Button } from '../components/Button';
 import { Column, DataTable } from '../components/DataTable';
 import { EditDocumentSlotModal } from '../components/documents/EditDocumentSlotModal';
@@ -312,7 +313,7 @@ export function ContractsPage() {
   );
 
   return (
-    <>
+    <AdminListPageShell icon="fa-file-contract" title={pageTitle} isArabic={isArabic}>
       {pagination.isError && (
         <Alert
           variant="error"
@@ -391,7 +392,6 @@ export function ContractsPage() {
       </FilterPanel>
 
       <DataTable
-        title={pageTitle}
         columns={columns}
         rows={pagination.rows}
         rowKey={(row) => row.slotKey}
@@ -414,6 +414,6 @@ export function ContractsPage() {
         onClose={() => setEditRow(null)}
         onSaved={() => void queryClient.invalidateQueries({ queryKey: queryKeyPrefix })}
       />
-    </>
+    </AdminListPageShell>
   );
 }

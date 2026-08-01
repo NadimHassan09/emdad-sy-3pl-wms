@@ -5,6 +5,7 @@ import { CompaniesApi } from '../api/companies';
 import { DocumentsApi, type ContractGenerationFilter, type ContractGenerationStatus, type DocumentLang } from '../api/documents';
 import { FinalContractsApi, type FinalContractRow } from '../api/final-contracts';
 import { Alert } from '@ds';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { Button } from '../components/Button';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
@@ -217,7 +218,16 @@ export function FinalContractPage() {
   );
 
   return (
-    <>
+    <AdminListPageShell
+      icon="fa-file-signature"
+      title={t(['Final contracts', 'العقود النهائية'])}
+      isArabic={isArabic}
+      actions={
+        <Button type="button" onClick={() => setCreateOpen(true)}>
+          {t(['+ Create final contract', '+ إنشاء عقد نهائي'])}
+        </Button>
+      }
+    >
       {pagination.isError && (
         <Alert
           variant="error"
@@ -288,7 +298,6 @@ export function FinalContractPage() {
       </FilterPanel>
 
       <DataTable
-        title={t(['Final contracts', 'العقود النهائية'])}
         columns={columns}
         rows={pagination.rows}
         rowKey={(row) => row.id}
@@ -298,11 +307,6 @@ export function FinalContractPage() {
           'No final contracts match the filters.',
           'لا توجد عقود نهائية مطابقة للفلاتر.',
         ])}
-        actions={
-          <Button type="button" onClick={() => setCreateOpen(true)}>
-            {t(['+ Create final contract', '+ إنشاء عقد نهائي'])}
-          </Button>
-        }
         labels={{
           rowsSuffix: t(['rows', 'صف']),
           resultsSuffix: t(['results', 'نتيجة']),
@@ -325,6 +329,6 @@ export function FinalContractPage() {
         onClose={() => setEditContract(null)}
         onSaved={() => void queryClient.invalidateQueries({ queryKey: QK.contractsFinalContract })}
       />
-    </>
+    </AdminListPageShell>
   );
 }

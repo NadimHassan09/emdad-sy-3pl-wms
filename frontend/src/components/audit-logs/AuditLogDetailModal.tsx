@@ -55,7 +55,7 @@ export function AuditLogDetailModal({ open, onClose, row, loading, companyName, 
       title={labels.title}
       widthClass="max-w-3xl"
       footer={
-        <Button type="button" variant="secondary" onClick={onClose}>
+        <Button type="button" variant="danger" onClick={onClose}>
           {labels.close}
         </Button>
       }

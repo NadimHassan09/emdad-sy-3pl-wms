@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -17,6 +18,7 @@ import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CreateInboundOrderDto } from './dto/create-inbound.dto';
 import { ListInboundQueryDto } from './dto/list-inbound-query.dto';
 import { ReceiveLineDto } from './dto/receive-line.dto';
+import { UpdateInboundPlanDto } from './dto/update-inbound-plan.dto';
 import { InboundService } from './inbound.service';
 
 @Controller('inbound-orders')
@@ -36,6 +38,23 @@ export class InboundController {
   @Get(':id')
   findOne(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.inbound.findById(id, user);
+  }
+
+  @Patch(':id/plan')
+  updatePlan(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() body: UpdateInboundPlanDto,
+  ) {
+    return this.inbound.updatePlan(user, id, body);
+  }
+
+  @Post(':id/execute-admin')
+  executeAdmin(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.inbound.executeAdmin(user, id);
   }
 
   @Post(':id/confirm')

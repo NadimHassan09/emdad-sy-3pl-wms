@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { WarehouseTaskListItem } from '../api/tasks';
 import { TasksApi } from '../api/tasks';
 import { Alert, Button } from '@ds';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
 import { SelectField } from '../components/SelectField';
@@ -40,7 +41,7 @@ type TaskListFilters = {
 
 export function TasksListPage() {
   const { user } = useAuth();
-  const { t } = useWmsTranslation();
+  const { t, isArabic } = useWmsTranslation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -272,7 +273,11 @@ export function TasksListPage() {
     : t(['No warehouse tasks yet.', 'لا توجد مهام مستودع بعد.']);
 
   return (
-    <div>
+    <AdminListPageShell
+      icon="fa-list-check"
+      title={t(['Warehouse tasks', 'مهام المستودع'])}
+      isArabic={isArabic}
+    >
       <FilterPanel
         title={t(['Task filters', 'فلاتر المهام'])}
         onApply={handleApplyFilters}
@@ -308,7 +313,6 @@ export function TasksListPage() {
         />
       </FilterPanel>
       <DataTable
-        title={t(['Warehouse tasks', 'مهام المستودع'])}
         columns={columns}
         rows={displayRows}
         rowKey={(r) => r.id}
@@ -317,7 +321,7 @@ export function TasksListPage() {
           <div className="space-y-2 py-2 text-center">
             <p className="text-sm text-text-muted">{emptyMessage}</p>
             {hasActiveFilters ? (
-              <Button type="button" variant="secondary" size="sm" onClick={handleResetFilters}>
+              <Button type="button" variant="danger" size="sm" onClick={handleResetFilters}>
                 {t(['Clear filters', 'مسح الفلاتر'])}
               </Button>
             ) : null}
@@ -351,6 +355,6 @@ export function TasksListPage() {
           </Alert.Action>
         </Alert>
       )}
-    </div>
+    </AdminListPageShell>
   );
 }

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { CompaniesApi } from '../api/companies';
 import { InventoryApi, LedgerRow } from '../api/inventory';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
@@ -190,7 +191,11 @@ export function InventoryLedgerPage() {
   );
 
   return (
-    <>
+    <AdminListPageShell
+      icon="fa-book"
+      title={t('Inventory ledger', 'سجل المخزون')}
+      isArabic={isArabic}
+    >
       {!wid ? (
         <p className="text-sm text-text-body">Resolve warehouse configuration…</p>
       ) : null}
@@ -261,7 +266,6 @@ export function InventoryLedgerPage() {
       </FilterPanel>
 
       <DataTable
-        title={t('Inventory ledger', 'سجل المخزون')}
         columns={columns}
         rows={pagination.rows}
         rowKey={ledgerRowKey}
@@ -298,6 +302,6 @@ export function InventoryLedgerPage() {
         }}
         onCameraError={(msg) => toast.error(msg)}
       />
-    </>
+    </AdminListPageShell>
   );
 }

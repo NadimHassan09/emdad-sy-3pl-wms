@@ -2,9 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { OmsApi } from '../api/oms';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { StatusBadge } from '../components/StatusBadge';
 import { QK } from '../constants/query-keys';
-import { Alert, AppPageHeader, Card, Skeleton } from '@ds';
+import { Alert, Card, Skeleton } from '@ds';
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
@@ -21,10 +22,24 @@ export function OmsDashboardPage() {
     queryFn: () => OmsApi.dashboard(),
   });
 
+  const headerActions = (
+    <Link
+      to="/orders/oms"
+      className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-brand-700"
+    >
+      View OMS orders
+    </Link>
+  );
+
   if (dash.isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton height={48} width="40%" />
+      <AdminListPageShell
+        icon="fa-gauge-high"
+        title="OMS Dashboard"
+        subtitle="E-commerce order pipeline and COD snapshot"
+        actions={headerActions}
+        showSectionNav
+      >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <Card key={i} padding="md">
@@ -33,36 +48,37 @@ export function OmsDashboardPage() {
             </Card>
           ))}
         </div>
-      </div>
+      </AdminListPageShell>
     );
   }
   if (dash.isError || !dash.data) {
     return (
-      <Alert
-        variant="error"
-        title="Could not load OMS dashboard"
-        description="There was a problem retrieving dashboard data. Try again."
-      />
+      <AdminListPageShell
+        icon="fa-gauge-high"
+        title="OMS Dashboard"
+        subtitle="E-commerce order pipeline and COD snapshot"
+        actions={headerActions}
+        showSectionNav
+      >
+        <Alert
+          variant="error"
+          title="Could not load OMS dashboard"
+          description="There was a problem retrieving dashboard data. Try again."
+        />
+      </AdminListPageShell>
     );
   }
 
   const d = dash.data;
 
   return (
-    <div className="space-y-4">
-      <AppPageHeader
-        title="OMS Dashboard"
-        description="E-commerce order pipeline and COD snapshot"
-        actions={
-          <Link
-            to="/orders/oms"
-            className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-text-on-brand transition hover:bg-brand-700"
-          >
-            View OMS orders
-          </Link>
-        }
-      />
-
+    <AdminListPageShell
+      icon="fa-gauge-high"
+      title="OMS Dashboard"
+      subtitle="E-commerce order pipeline and COD snapshot"
+      actions={headerActions}
+      showSectionNav
+    >
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Orders today" value={d.ordersToday} />
         <StatCard label="Pending approval" value={d.pendingApproval ?? d.pendingOrders} />
@@ -125,6 +141,6 @@ export function OmsDashboardPage() {
           )}
         </Card>
       </div>
-    </div>
+    </AdminListPageShell>
   );
 }

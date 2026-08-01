@@ -3,10 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { BillingApi } from '../../api/billing';
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { PieChart, type PieSlice } from '../../components/PieChart';
 import { QK } from '../../constants/query-keys';
 import { formatDate, formatDecimal } from '../../lib/billing-invoice-display';
-import { Alert, AppPageHeader, Card, Skeleton } from '@ds';
+import { Alert, Card, Skeleton } from '@ds';
 
 const CURRENCY = 'SYP';
 
@@ -119,12 +120,13 @@ export function BillingDashboardPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <AppPageHeader
-        title="Billing dashboard"
-        description="Subscription revenue, plan activity, and upcoming renewals."
-      />
-
+    <AdminListPageShell
+      icon="fa-chart-pie"
+      title="Billing dashboard"
+      subtitle="Subscription revenue, plan activity, and upcoming renewals."
+      showSectionNav
+      className="space-y-6 animate-enter"
+    >
       {summaryQuery.isPending ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -216,6 +218,6 @@ export function BillingDashboardPage() {
           </ListCard>
         </div>
       </div>
-    </div>
+    </AdminListPageShell>
   );
 }

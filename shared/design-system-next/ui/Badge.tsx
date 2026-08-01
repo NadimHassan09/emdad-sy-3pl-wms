@@ -50,12 +50,12 @@ const SOFT_TONE: Record<Tone, string> = {
 
 const SOLID_TONE: Record<Tone, string> = {
   neutral: 'bg-text-muted text-on-brand border-transparent',
-  brand:   'bg-cta text-on-brand border-transparent',
-  accent:  'bg-accent-600 text-on-brand border-transparent',
-  success: 'bg-success-600 text-on-brand border-transparent',
-  warning: 'bg-warning-600 text-on-brand border-transparent',
-  danger:  'bg-danger-600 text-on-brand border-transparent',
-  info:    'bg-info-600 text-on-brand border-transparent',
+  brand:   'bg-cta text-white border-transparent',
+  accent:  'bg-accent-600 text-white border-transparent',
+  success: 'bg-success-600 text-white border-transparent',
+  warning: 'bg-warning-600 text-white border-transparent',
+  danger:  'bg-danger-600 text-white border-transparent',
+  info:    'bg-info-600 text-white border-transparent',
 };
 
 const OUTLINE_TONE: Record<Tone, string> = {

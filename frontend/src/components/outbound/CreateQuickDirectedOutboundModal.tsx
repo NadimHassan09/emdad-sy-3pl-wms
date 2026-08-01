@@ -68,7 +68,7 @@ export function CreateQuickDirectedOutboundModal({
         widthClass="max-w-lg"
         footer={
           <div className="flex flex-wrap justify-end gap-3">
-            <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
+            <Button type="button" variant="danger" onClick={handleClose} disabled={loading}>
               {t(['Cancel', 'إلغاء'])}
             </Button>
             <Button

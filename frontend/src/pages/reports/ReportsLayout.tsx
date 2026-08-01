@@ -1,7 +1,8 @@
 import { Outlet } from 'react-router-dom';
 
-import { Alert, AppPageHeader } from '@ds';
+import { Alert } from '@ds';
 
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { ReportsNav } from '../../components/reports/ReportsNav';
 import { useDefaultWarehouseId } from '../../hooks/useDefaultWarehouse';
 
@@ -28,9 +29,12 @@ export function ReportsLayout() {
   const { warehouseId } = useDefaultWarehouseId();
 
   return (
-    <div className="space-y-4">
-      <AppPageHeader title={tr('Reporting Center')} />
-
+    <AdminListPageShell
+      icon="fa-chart-line"
+      title={tr('Reporting Center')}
+      isArabic={isArabic}
+      showSectionNav={false}
+    >
       {!warehouseId && (
         <Alert
           variant="warning"
@@ -43,6 +47,6 @@ export function ReportsLayout() {
       <ReportsNav isArabic={isArabic} />
 
       <Outlet context={{ isArabic }} />
-    </div>
+    </AdminListPageShell>
   );
 }

@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InboundOrderStatus, Prisma } from '@prisma/client';
+import { InboundOrderStatus, Prisma, WarehouseTaskStatus, WarehouseTaskType } from '@prisma/client';
 
 import { readCompanyIdCatalogFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
@@ -40,10 +40,17 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { BillingAccessService } from '../billing/billing-access.service';
 import { adminInboundListItem } from '../realtime/realtime-client.payload';
 import { WorkflowBootstrapService } from '../warehouse-workflow/workflow-bootstrap.service';
+import { WarehouseTasksService } from '../warehouse-workflow/warehouse-tasks.service';
+import {
+  assertInboundAdminPlanComplete,
+  normalizeExecutionMode,
+  parseInboundExecutionPlan,
+} from '../orders/execution-plan.util';
 import { ConfirmInboundBodyDto } from './dto/confirm-inbound-body.dto';
 import { CreateInboundOrderDto } from './dto/create-inbound.dto';
 import { ListInboundQueryDto } from './dto/list-inbound-query.dto';
 import { ReceiveLineDto } from './dto/receive-line.dto';
+import { UpdateInboundPlanDto } from './dto/update-inbound-plan.dto';
 
 const ORDER_INCLUDE = {
   company: { select: { id: true, name: true } },
@@ -89,6 +96,7 @@ export class InboundService {
     private readonly stock: StockHelpers,
     private readonly config: ConfigService,
     private readonly workflowBootstrap: WorkflowBootstrapService,
+    private readonly tasks: WarehouseTasksService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
     private readonly companyAccess: CompanyAccessService,
@@ -125,6 +133,22 @@ export class InboundService {
 
     assertCalendarDateNotBeforeToday(dto.expectedArrivalDate, 'Expected arrival date');
 
+    // Client portal submissions are completed by admin (dock / putaway / confirm).
+    // Allow executionMode=admin without a full plan; admin fills it via updatePlan.
+    const clientSubmission = !!opts?.pendingClientApproval;
+    const executionMode = clientSubmission
+      ? 'admin'
+      : normalizeExecutionMode(dto.executionMode);
+    let executionPlan: Prisma.InputJsonValue | undefined;
+    if (dto.executionPlan && !clientSubmission) {
+      const parsed = parseInboundExecutionPlan(dto.executionPlan);
+      if (!parsed) throw new BadRequestException('Invalid executionPlan.');
+      if (executionMode === 'admin') assertInboundAdminPlanComplete(parsed);
+      executionPlan = parsed as unknown as Prisma.InputJsonValue;
+    } else if (executionMode === 'admin' && !clientSubmission) {
+      throw new BadRequestException('Admin execution requires executionPlan on create.');
+    }
+
     const productById = new Map(products.map((p) => [p.id, p]));
     const lineCreates: Prisma.InboundOrderLineCreateWithoutOrderInput[] = [];
     for (let idx = 0; idx < dto.lines.length; idx++) {
@@ -158,6 +182,8 @@ export class InboundService {
         sourceType: dto.sourceType,
         storeChannel: dto.storeChannel,
         externalReference: dto.externalReference,
+        executionMode,
+        executionPlan,
         createdBy: user.id,
         lines: {
           create: lineCreates,
@@ -165,6 +191,32 @@ export class InboundService {
       },
       include: ORDER_INCLUDE,
     });
+
+    if (executionPlan && order.lines.length > 0) {
+      const parsed = parseInboundExecutionPlan(executionPlan)!;
+      const byProduct = new Map(order.lines.map((l) => [l.productId, l.id]));
+      const used = new Set<string>();
+      parsed.lines = parsed.lines.map((pl) => {
+        let orderLineId = pl.orderLineId;
+        if (!orderLineId || !order.lines.some((l) => l.id === orderLineId)) {
+          const match = order.lines.find(
+            (l) => l.productId === pl.productId && !used.has(l.id),
+          );
+          orderLineId = match?.id;
+          if (match) used.add(match.id);
+        } else {
+          used.add(orderLineId);
+        }
+        void byProduct;
+        return { ...pl, orderLineId };
+      });
+      parsed.planUpdatedAt = new Date().toISOString();
+      await tx.inboundOrder.update({
+        where: { id: order.id },
+        data: { executionPlan: parsed as unknown as Prisma.InputJsonValue },
+      });
+      order.executionPlan = parsed as unknown as Prisma.JsonValue;
+    }
     this.realtime.emitInboundOrderCreated(order.companyId, {
       orderId: order.id,
       status: order.status,
@@ -263,6 +315,172 @@ export class InboundService {
       this.companyAccess.validateResourceOwnership(user, order);
       return order;
     });
+  }
+
+  async updatePlan(user: AuthPrincipal, id: string, dto: UpdateInboundPlanDto) {
+    const order = await this.findById(id, user);
+    if (!isInboundConfirmable(order.status)) {
+      throw new InvalidStateException(
+        `Plan can only be updated while draft (current: ${order.status}).`,
+      );
+    }
+    const executionMode = normalizeExecutionMode(dto.executionMode ?? order.executionMode);
+    let executionPlan: Prisma.InputJsonValue | undefined | null = undefined;
+    if (dto.executionPlan !== undefined) {
+      const parsed = parseInboundExecutionPlan(dto.executionPlan);
+      if (!parsed) throw new BadRequestException('Invalid executionPlan.');
+      const used = new Set<string>();
+      parsed.lines = parsed.lines.map((pl) => {
+        let orderLineId = pl.orderLineId;
+        if (!orderLineId || !order.lines.some((l) => l.id === orderLineId)) {
+          const match = order.lines.find(
+            (l) => l.productId === pl.productId && !used.has(l.id),
+          );
+          orderLineId = match?.id;
+          if (match) used.add(match.id);
+        } else {
+          used.add(orderLineId);
+        }
+        return { ...pl, orderLineId };
+      });
+      parsed.planUpdatedAt = new Date().toISOString();
+      if (executionMode === 'admin') assertInboundAdminPlanComplete(parsed);
+      executionPlan = parsed as unknown as Prisma.InputJsonValue;
+    } else if (executionMode === 'admin') {
+      const existing = parseInboundExecutionPlan(order.executionPlan);
+      if (!existing) throw new BadRequestException('Admin mode requires executionPlan.');
+      assertInboundAdminPlanComplete(existing);
+    }
+
+    if (dto.expectedArrivalDate) {
+      assertCalendarDateNotBeforeToday(dto.expectedArrivalDate, 'Expected arrival date');
+    }
+
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const updated = await tx.inboundOrder.update({
+        where: { id },
+        data: {
+          executionMode,
+          ...(executionPlan !== undefined ? { executionPlan } : {}),
+          ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+          ...(dto.expectedArrivalDate
+            ? { expectedArrivalDate: new Date(dto.expectedArrivalDate) }
+            : {}),
+        },
+        include: ORDER_INCLUDE,
+      });
+      return updated;
+    });
+  }
+
+  async executeAdmin(user: AuthPrincipal, orderId: string) {
+    const order = await this.findById(orderId, user);
+    if (normalizeExecutionMode(order.executionMode) !== 'admin') {
+      throw new BadRequestException('execute-admin requires executionMode=admin.');
+    }
+    if (!isInboundConfirmable(order.status)) {
+      throw new BadRequestException(
+        `Admin execute requires draft order (current: ${order.status}).`,
+      );
+    }
+    const plan = parseInboundExecutionPlan(order.executionPlan);
+    if (!plan) throw new BadRequestException('Admin execute requires a saved executionPlan.');
+    assertInboundAdminPlanComplete(plan);
+
+    const stagingByLineId: Record<string, string> = {};
+    for (const line of order.lines) {
+      stagingByLineId[line.id] = plan.receivingDockId;
+    }
+
+    const wrap = (step: string, err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      return new BadRequestException(`Admin execute failed at ${step}: ${msg}`);
+    };
+
+    try {
+      await this.confirm(user, orderId, {
+        warehouseId: plan.warehouseId,
+        stagingByLineId,
+      });
+    } catch (err) {
+      throw wrap('confirm', err);
+    }
+
+    const waitTask = async (taskType: WarehouseTaskType) => {
+      for (let i = 0; i < 8; i++) {
+        const t = await this.prisma.warehouseTask.findFirst({
+          where: {
+            taskType,
+            status: {
+              in: [
+                WarehouseTaskStatus.pending,
+                WarehouseTaskStatus.assigned,
+                WarehouseTaskStatus.in_progress,
+              ],
+            },
+            workflowInstance: { referenceType: 'inbound_order', referenceId: orderId },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (t) return t;
+        await new Promise((r) => setTimeout(r, 50 * (i + 1)));
+      }
+      throw new BadRequestException(
+        `Admin execute failed: expected open ${taskType} task was not created.`,
+      );
+    };
+
+    const receiving = await waitTask(WarehouseTaskType.receiving);
+    try {
+      await this.tasks.adminConfirm(receiving.id, user, {
+        task_type: 'receiving',
+        lines: order.lines.map((l) => {
+          const lotPayload =
+            l.product?.trackingType === 'lot' && l.expectedLotNumber?.trim()
+              ? { capture_lot_number: l.expectedLotNumber.trim() }
+              : {};
+          return {
+            inbound_order_line_id: l.id,
+            received_qty: String(l.expectedQuantity),
+            ...lotPayload,
+          };
+        }),
+      });
+    } catch (err) {
+      throw wrap('receiving', err);
+    }
+
+    const putaway = await waitTask(WarehouseTaskType.putaway);
+    const putawayLines: Array<{
+      inbound_order_line_id: string;
+      putaway_quantity: string;
+      destination_location_id: string;
+    }> = [];
+    for (const ol of order.lines) {
+      const planLine =
+        plan.lines.find((p) => p.orderLineId === ol.id) ??
+        plan.lines.find((p) => p.productId === ol.productId);
+      for (const s of planLine?.putaway ?? []) {
+        putawayLines.push({
+          inbound_order_line_id: ol.id,
+          putaway_quantity: String(s.qty),
+          destination_location_id: s.locationId,
+        });
+      }
+    }
+    if (putawayLines.length === 0) {
+      throw new BadRequestException('Admin execute failed at putaway: no destination splits.');
+    }
+    try {
+      await this.tasks.adminConfirm(putaway.id, user, {
+        task_type: 'putaway',
+        lines: putawayLines,
+      });
+    } catch (err) {
+      throw wrap('putaway', err);
+    }
+
+    return this.findById(orderId, user);
   }
 
   async confirm(user: AuthPrincipal, id: string, body?: ConfirmInboundBodyDto) {

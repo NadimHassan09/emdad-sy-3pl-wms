@@ -4,9 +4,9 @@ import { Link, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../../auth/AuthContext';
 import { CycleCountApi, type BlindCycleCountTaskListItem } from '../../api/cycle-count';
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { Button } from '../../components/Button';
 import { Column, DataTable } from '../../components/DataTable';
-import { PageHeader } from '../../components/PageHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { QK } from '../../constants/query-keys';
 import { useDefaultWarehouseId } from '../../hooks/useDefaultWarehouse';
@@ -73,38 +73,37 @@ export function CycleCountMyTasksPage() {
     [isArabic],
   );
 
+  const dashboardAction = (
+    <Link to="/cycle-count">
+      <Button variant="ghost">{t('Dashboard', 'لوحة الجرد')}</Button>
+    </Link>
+  );
+
   if (!canExecute) {
     return (
-      <div>
-        <PageHeader
-          title={t('My cycle counts', 'مهام الجرد')}
-          description={t(
-            'Blind count execution is only available for warehouse operators with a linked Worker profile.',
-            'تنفيذ الجرد الأعمى متاح فقط لمشغلي المستودع المرتبطين بملف عامل.',
-          )}
-          actions={
-            <Link to="/cycle-count">
-              <Button variant="ghost">{t('Dashboard', 'لوحة الجرد')}</Button>
-            </Link>
-          }
-        />
+      <AdminListPageShell
+        icon="fa-clipboard-list"
+        title={t('My cycle counts', 'مهام الجرد')}
+        subtitle={t(
+          'Blind count execution is only available for warehouse operators with a linked Worker profile.',
+          'تنفيذ الجرد الأعمى متاح فقط لمشغلي المستودع المرتبطين بملف عامل.',
+        )}
+        isArabic={isArabic}
+        actions={dashboardAction}
+      >
         <WorkerProfileOnboardingBanner t={t} operatorUserId={user?.id} />
-      </div>
+      </AdminListPageShell>
     );
   }
 
   return (
-    <div>
-      <PageHeader
-        title={t('My cycle counts', 'مهام الجرد')}
-        description={t('Assigned count sessions — tap to execute.', 'جلسات الجرد المكلفة — اضغط للتنفيذ.')}
-        actions={
-          <Link to="/cycle-count">
-            <Button variant="ghost">{t('Dashboard', 'لوحة الجرد')}</Button>
-          </Link>
-        }
-      />
-
+    <AdminListPageShell
+      icon="fa-clipboard-list"
+      title={t('My cycle counts', 'مهام الجرد')}
+      subtitle={t('Assigned count sessions — tap to execute.', 'جلسات الجرد المكلفة — اضغط للتنفيذ.')}
+      isArabic={isArabic}
+      actions={dashboardAction}
+    >
       <DataTable<BlindCycleCountTaskListItem>
         columns={cols}
         rows={tasks.data ?? []}
@@ -113,6 +112,6 @@ export function CycleCountMyTasksPage() {
         onRowClick={(r) => navigate(`/cycle-count/${r.id}/execute`)}
         rowKey={(r) => r.id}
       />
-    </div>
+    </AdminListPageShell>
   );
 }

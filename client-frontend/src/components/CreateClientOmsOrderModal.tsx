@@ -228,7 +228,7 @@ export function CreateClientOmsOrderModal({
       widthClass="max-w-4xl"
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
+          <Button type="button" variant="danger" onClick={handleClose} disabled={loading}>
             {t('Cancel')}
           </Button>
           <Button
@@ -372,7 +372,7 @@ export function CreateClientOmsOrderModal({
                     <div className={idx === 0 ? 'pt-6' : 'pt-1'}>
                       <Button
                         type="button"
-                        variant="secondary"
+                        variant="danger"
                         size="sm"
                         disabled={lines.length <= 1 || loading}
                         onClick={() => setLines((prev) => prev.filter((_, i) => i !== idx))}

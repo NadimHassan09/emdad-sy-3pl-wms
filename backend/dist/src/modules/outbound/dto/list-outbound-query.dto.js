@@ -24,6 +24,7 @@ class ListOutboundQueryDto extends pagination_dto_1.PaginationDto {
     createdFrom;
     createdTo;
     status;
+    quickDirectedOnly;
 }
 exports.ListOutboundQueryDto = ListOutboundQueryDto;
 __decorate([
@@ -63,4 +64,11 @@ __decorate([
     (0, class_validator_1.IsIn)(ORDER_STATUSES),
     __metadata("design:type", String)
 ], ListOutboundQueryDto.prototype, "status", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, query_transform_1.QueryBoolOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ListOutboundQueryDto.prototype, "quickDirectedOnly", void 0);
 //# sourceMappingURL=list-outbound-query.dto.js.map

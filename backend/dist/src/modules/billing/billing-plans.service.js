@@ -17,6 +17,7 @@ const prisma_service_1 = require("../../common/prisma/prisma.service");
 const billing_access_service_1 = require("./billing-access.service");
 const billing_audit_service_1 = require("./billing-audit.service");
 const billing_invoice_calculation_service_1 = require("./billing-invoice-calculation.service");
+const billing_usage_service_1 = require("./billing-usage.service");
 const billing_rate_snapshot_util_1 = require("./billing-rate-snapshot.util");
 const billing_plans_list_query_1 = require("./billing-plans-list.query");
 const PLAN_SELECT = {
@@ -27,6 +28,9 @@ const PLAN_SELECT = {
     fixedSubscriptionFee: true,
     inboundOrderFee: true,
     outboundOrderFee: true,
+    outboundBaseFee: true,
+    outboundIncludedItems: true,
+    outboundAdditionalItemFee: true,
     packagingFee: true,
     qualityCheckFee: true,
     excessVolumeFeePerDay: true,
@@ -40,12 +44,14 @@ let BillingPlansService = class BillingPlansService {
     prisma;
     companyAccess;
     volumeCapacity;
+    usage;
     invoiceCalc;
     billingAudit;
-    constructor(prisma, companyAccess, volumeCapacity, invoiceCalc, billingAudit) {
+    constructor(prisma, companyAccess, volumeCapacity, usage, invoiceCalc, billingAudit) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.volumeCapacity = volumeCapacity;
+        this.usage = usage;
         this.invoiceCalc = invoiceCalc;
         this.billingAudit = billingAudit;
     }
@@ -109,7 +115,10 @@ let BillingPlansService = class BillingPlansService {
                     cycleLengthDays: dto.cycleLengthDays,
                     fixedSubscriptionFee: dto.fixedSubscriptionFee ?? 0,
                     inboundOrderFee: dto.inboundOrderFee ?? 0,
-                    outboundOrderFee: dto.outboundOrderFee ?? 0,
+                    outboundOrderFee: dto.outboundOrderFee ?? dto.outboundBaseFee ?? 0,
+                    outboundBaseFee: dto.outboundBaseFee ?? dto.outboundOrderFee ?? 0,
+                    outboundIncludedItems: dto.outboundIncludedItems ?? 0,
+                    outboundAdditionalItemFee: dto.outboundAdditionalItemFee ?? 0,
                     packagingFee: dto.packagingFee ?? 0,
                     qualityCheckFee: dto.qualityCheckFee ?? 0,
                     excessVolumeFeePerDay: dto.excessVolumeFeePerDay ?? 0,
@@ -162,6 +171,9 @@ let BillingPlansService = class BillingPlansService {
                 fixedSubscriptionFee: dto.fixedSubscriptionFee,
                 inboundOrderFee: dto.inboundOrderFee,
                 outboundOrderFee: dto.outboundOrderFee,
+                outboundBaseFee: dto.outboundBaseFee,
+                outboundIncludedItems: dto.outboundIncludedItems,
+                outboundAdditionalItemFee: dto.outboundAdditionalItemFee,
                 packagingFee: dto.packagingFee,
                 qualityCheckFee: dto.qualityCheckFee,
                 excessVolumeFeePerDay: dto.excessVolumeFeePerDay,
@@ -182,25 +194,40 @@ let BillingPlansService = class BillingPlansService {
         return updated;
     }
     async getCapacitySummary() {
-        const [totalVol, allocatedVol, totalWt, allocatedWt] = await Promise.all([
-            this.volumeCapacity.getTotalWarehouseVolume(),
-            this.volumeCapacity.getAllocatedVolume(),
+        const [storage, totalWt, allocatedWt] = await Promise.all([
+            this.usage.getSystemStorageSnapshot(),
             this.volumeCapacity.getTotalWarehouseWeight(),
             this.volumeCapacity.getAllocatedWeight(),
         ]);
-        const allocatableVol = totalVol.mul(0.9);
         const allocatableWt = totalWt.mul(0.9);
         return {
-            totalWarehouseVolumeCbm: totalVol.toString(),
-            allocatableCapacityCbm: allocatableVol.toString(),
-            allocatedVolumeCbm: allocatedVol.toString(),
-            remainingAllocatableCbm: client_1.Prisma.Decimal.max(allocatableVol.sub(allocatedVol), new client_1.Prisma.Decimal(0)).toString(),
+            usedStorageCbm: storage.usedStorageCbm.toString(),
+            reservedStorageCbm: storage.reservedStorageCbm.toString(),
+            remainingStorageCbm: storage.remainingStorageCbm.toString(),
+            storageUsagePercent: storage.storageUsagePercent,
+            totalWarehouseVolumeCbm: storage.reservedStorageCbm.toString(),
+            allocatableCapacityCbm: storage.reservedStorageCbm.toString(),
+            allocatedVolumeCbm: storage.usedStorageCbm.toString(),
+            remainingAllocatableCbm: storage.remainingStorageCbm.toString(),
             totalWarehouseWeightKg: totalWt.toString(),
             allocatableCapacityKg: allocatableWt.toString(),
             allocatedWeightKg: allocatedWt.toString(),
             remainingAllocatableKg: client_1.Prisma.Decimal.max(allocatableWt.sub(allocatedWt), new client_1.Prisma.Decimal(0)).toString(),
-            allocationRatio: 0.9,
-            sparePoolRatio: 0.1,
+            allocationRatio: 1,
+            sparePoolRatio: 0,
+            basis: 'inventory_product_cbm',
+        };
+    }
+    async getCompanyStorageSummary(companyId, user) {
+        this.companyAccess.assertCompanyAccess(user, companyId);
+        const storage = await this.usage.getCompanyStorageSnapshot(companyId);
+        return {
+            companyId,
+            usedStorageCbm: storage.usedStorageCbm.toString(),
+            reservedStorageCbm: storage.reservedStorageCbm.toString(),
+            remainingStorageCbm: storage.remainingStorageCbm.toString(),
+            storageUsagePercent: storage.storageUsagePercent,
+            basis: 'inventory_product_cbm',
         };
     }
 };
@@ -210,6 +237,7 @@ exports.BillingPlansService = BillingPlansService = __decorate([
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         company_access_service_1.CompanyAccessService,
         billing_access_service_1.BillingVolumeCapacityService,
+        billing_usage_service_1.BillingUsageService,
         billing_invoice_calculation_service_1.BillingInvoiceCalculationService,
         billing_audit_service_1.BillingAuditService])
 ], BillingPlansService);
@@ -222,6 +250,9 @@ function mapOverviewSqlRow(row) {
         fixedSubscriptionFee: row.fixed_subscription_fee.toString(),
         inboundOrderFee: row.inbound_order_fee.toString(),
         outboundOrderFee: row.outbound_order_fee.toString(),
+        outboundBaseFee: (row.outbound_base_fee ?? row.outbound_order_fee).toString(),
+        outboundIncludedItems: row.outbound_included_items ?? 0,
+        outboundAdditionalItemFee: (row.outbound_additional_item_fee ?? 0).toString(),
         packagingFee: row.packaging_fee.toString(),
         qualityCheckFee: row.quality_check_fee.toString(),
         excessVolumeFeePerDay: row.excess_volume_fee_per_day.toString(),

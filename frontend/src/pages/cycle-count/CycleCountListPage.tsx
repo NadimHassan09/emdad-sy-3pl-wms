@@ -9,6 +9,7 @@ import {
   type CycleCountStatus,
 } from '../../api/cycle-count';
 import { WorkersApi } from '../../api/workers';
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { Column, DataTable } from '../../components/DataTable';
 import { FilterPanel } from '../../components/FilterPanel';
 import { PillSubNav } from '../../components/PillSubNav';
@@ -285,7 +286,34 @@ export function CycleCountListPage() {
     tab === 'sessions' ? countsPagination.isFetching : historyPagination.isFetching;
 
   return (
-    <div>
+    <AdminListPageShell
+      icon="fa-clipboard-check"
+      title={t('Cycle count', 'الجرد الدوري')}
+      subtitle={t(
+        'Operational inventory verification — sessions, schedules, and discrepancies.',
+        'التحقق التشغيلي من المخزون — الجلسات والجداول والفروقات.',
+      )}
+      isArabic={isArabic}
+      showSectionNav
+    >
+      <PillSubNav
+        ariaLabel={t('Cycle count views', 'عروض الجرد الدوري')}
+        items={[
+          {
+            key: 'sessions',
+            label: t('Count sessions', 'جلسات الجرد'),
+            onClick: () => setTab('sessions'),
+            active: tab === 'sessions',
+          },
+          {
+            key: 'schedule',
+            label: t('Product schedule', 'جدول المنتجات'),
+            onClick: () => setTab('schedule'),
+            active: tab === 'schedule',
+          },
+        ]}
+      />
+
       <FilterPanel
         title={t('Filters', 'الفلاتر')}
         onApply={applyFilters}
@@ -343,31 +371,8 @@ export function CycleCountListPage() {
           />
       </FilterPanel>
 
-      <PillSubNav
-        ariaLabel={t('Cycle count views', 'عروض الجرد الدوري')}
-        items={[
-          {
-            key: 'sessions',
-            label: t('Count sessions', 'جلسات الجرد'),
-            onClick: () => setTab('sessions'),
-            active: tab === 'sessions',
-          },
-          {
-            key: 'schedule',
-            label: t('Product schedule', 'جدول المنتجات'),
-            onClick: () => setTab('schedule'),
-            active: tab === 'schedule',
-          },
-        ]}
-      />
-
       {tab === 'sessions' ? (
         <DataTable<CycleCountListItem>
-          title={t('Cycle count', 'الجرد الدوري')}
-          description={t(
-            'Operational inventory verification — sessions, schedules, and discrepancies.',
-            'التحقق التشغيلي من المخزون — الجلسات والجداول والفروقات.',
-          )}
           columns={sessionCols}
           rows={countsPagination.rows}
           loading={countsPagination.isInitialLoading}
@@ -378,7 +383,6 @@ export function CycleCountListPage() {
         />
       ) : (
         <DataTable<CycleCountProductHistoryRow>
-          title={t('Product schedule', 'جدول المنتجات')}
           columns={scheduleCols}
           rows={historyPagination.rows}
           loading={historyPagination.isInitialLoading}
@@ -387,6 +391,6 @@ export function CycleCountListPage() {
           rowKey={(r) => r.id}
         />
       )}
-    </div>
+    </AdminListPageShell>
   );
 }

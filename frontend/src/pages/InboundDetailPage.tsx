@@ -13,7 +13,6 @@ import { Combobox } from '../components/Combobox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { OrderDocumentsCard } from '../components/documents/OrderDocumentsCard';
-import { OrderManualChargesSection } from '../components/billing/OrderManualChargesSection';
 import { FILTER_RESET_BUTTON_CLASS, FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { StatusBadge } from '../components/StatusBadge';
@@ -21,10 +20,19 @@ import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { OrderNextTaskHandoff } from '../components/tasks/OrderNextTaskHandoff';
 import { WorkflowOrderTimeline } from '../components/WorkflowOrderTimeline';
+import { OrderWorkspaceLayout } from '../components/orders/OrderWorkspaceLayout';
+import { InboundReceivingStagePanel } from '../components/orders/InboundReceivingStagePanel';
+import { InboundPutawayStagePanel } from '../components/orders/InboundPutawayStagePanel';
+import { OrderWorkspaceDocumentsSection } from '../components/orders/OrderWorkspaceDocumentsSection';
+import { AdminInboundOrderSummary } from '../components/orders/AdminInboundOrderSummary';
+import { usesAdminOrderExecutionUi } from '../lib/execution-plan';
 import { WorkflowsApi } from '../api/workflows';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
+import { useOrderWorkspaceMode } from '../hooks/useOrderWorkspaceMode';
 import { useTaskOnlyMode } from '../hooks/useTaskOnlyMode';
+import { useInboundWorkspaceSection } from '../lib/order-workspace-section';
+import { findTimelineTask, isCompletedTaskStatus } from '../lib/order-workspace-tasks';
 import { generateLotNumber } from '../lib/identifiers';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
 import { inboundHasQuantityShortfall } from '../lib/inbound-shortfall';
@@ -51,13 +59,20 @@ function inboundDetailLabel(label: string, isArabic: boolean): string {
     Cancel: 'إلغاء',
     'Order deleted.': 'تم حذف الطلب.',
     'Confirm order': 'تأكيد الطلب',
+    'Start workflow': 'بدء سير العمل',
+    Overview: 'نظرة عامة',
+    Receiving: 'الاستلام',
+    Putaway: 'الإيداع',
+    Documents: 'المستندات',
+    Activity: 'النشاط',
+    Notes: 'ملاحظات',
+    History: 'السجل',
     'Approve order': 'اعتماد الطلب',
     'Order #': 'رقم الطلب #',
     Status: 'الحالة',
     'Expected arrival': 'تاريخ الوصول المتوقع',
     'Confirmed at': 'تم التأكيد في',
     'Completed at': 'تم الإكمال في',
-    Notes: 'ملاحظات',
     Warehouse: 'المستودع',
     SKU: 'رمز الصنف',
     Product: 'المنتج',
@@ -80,6 +95,9 @@ export function InboundDetailPage() {
   const [receivingLine, setReceivingLine] = useState<InboundOrderLine | null>(null);
 
   const taskOnlyMode = useTaskOnlyMode();
+  const orderWorkspaceMode = useOrderWorkspaceMode();
+  const { activeSection, setSection } = useInboundWorkspaceSection();
+  const [stageFooter, setStageFooter] = useState<ReactNode>(null);
   const { warehouseId, warehouses } = useDefaultWarehouseId();
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   /** Single receiving dock applied to every line when confirming (task-only workflow). */
@@ -109,14 +127,30 @@ export function InboundDetailPage() {
     enabled: !!id,
   });
 
+  const workflowTimeline = useQuery({
+    queryKey: QK.workflows.timeline('inbound_order', id),
+    queryFn: () => WorkflowsApi.getTimeline('inbound_order', id, order.data?.companyId),
+    enabled: !!id && orderWorkspaceMode && !!order.data,
+  });
+
   const confirmMut = useMutation({
     mutationFn: (body?: ConfirmInboundBody | null) =>
       InboundApi.confirm(id, body === null ? {} : body ?? {}, order.data?.companyId),
     onSuccess: async () => {
-      toast.success(taskOnlyMode ? 'Order confirmed / workflow started.' : 'Order confirmed.');
+      toast.success(
+        taskOnlyMode
+          ? orderWorkspaceMode
+            ? 'Workflow started.'
+            : 'Order confirmed / workflow started.'
+          : 'Order confirmed.',
+      );
       qc.invalidateQueries({ queryKey: [...QK.inboundOrders, id] });
       qc.invalidateQueries({ queryKey: QK.inboundOrders });
       invalidateWorkflowTasksInventory(qc, { referenceId: id, referenceType: 'inbound_order' });
+      if (orderWorkspaceMode && taskOnlyMode) {
+        setSection('receiving');
+        return;
+      }
       if (!taskOnlyMode) return;
       try {
         const companyId = order.data?.companyId;
@@ -185,6 +219,13 @@ export function InboundDetailPage() {
   }
 
   const o = order.data;
+
+  // Admin Order Execution: plan → print → one Confirm (default for admin + client portal orders).
+  // Workers mode keeps the task/stage workspace.
+  if (orderWorkspaceMode && usesAdminOrderExecutionUi(o.executionMode)) {
+    return <AdminInboundOrderSummary order={o} />;
+  }
+
   const canConfirm = o.status === 'draft' || o.status === 'pending_approval';
   const canCancel =
     o.status === 'draft' || o.status === 'pending_approval' || o.status === 'confirmed';
@@ -230,6 +271,241 @@ export function InboundDetailPage() {
       },
       width: '120px',
     });
+  }
+
+  if (orderWorkspaceMode) {
+    const wfTasks = workflowTimeline.data?.tasks ?? [];
+    const receivingTask = findTimelineTask(wfTasks, 'receiving');
+    const receivingCompleted = receivingTask ? isCompletedTaskStatus(receivingTask.status) : false;
+    const workflowStarted = o.status !== 'draft' && o.status !== 'pending_approval';
+
+    const headerActions =
+      canCancel || canDelete || canConfirm ? (
+        <>
+          {canDelete ? (
+            <Button
+              type="button"
+              variant="danger"
+              size="md"
+              onClick={() => setDeleteOpen(true)}
+              loading={deleteMut.isPending}
+            >
+              {t('Delete order')}
+            </Button>
+          ) : null}
+          {canCancel ? (
+            <Button
+              type="button"
+              variant="danger"
+              size="md"
+              onClick={() => cancelMut.mutate()}
+              loading={cancelMut.isPending}
+            >
+              {t('Cancel order')}
+            </Button>
+          ) : null}
+        </>
+      ) : undefined;
+
+    const confirmButton =
+      canConfirm && activeSection === 'overview' ? (
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={() => {
+            if (taskOnlyMode) {
+              const stagingByLineId = Object.fromEntries(
+                o.lines.map((l) => [l.id, receivingDockId.trim()]),
+              );
+              confirmMut.mutate({
+                warehouseId: effectiveWarehouseId,
+                stagingByLineId,
+              });
+            } else {
+              confirmMut.mutate(null);
+            }
+          }}
+          loading={confirmMut.isPending}
+          disabled={confirmDisabledTaskOnly}
+        >
+          {o.status === 'pending_approval'
+            ? t('Approve order')
+            : taskOnlyMode
+              ? t('Start workflow')
+              : t('Confirm order')}
+        </Button>
+      ) : null;
+
+    return (
+      <>
+        <OrderWorkspaceLayout
+          title={o.orderNumber || t('Inbound order')}
+          subtitle={o.company?.name ?? undefined}
+          statusBadge={<StatusBadge status={o.status} />}
+          backTo="/orders/inbound"
+          backLabel={t('All inbound orders')}
+          sections={[
+            { id: 'overview', label: t('Overview') },
+            { id: 'receiving', label: t('Receiving'), disabled: !workflowStarted },
+            {
+              id: 'putaway',
+              label: t('Putaway'),
+              disabled: false,
+            },
+            { id: 'documents', label: t('Documents') },
+            { id: 'activity', label: t('Activity'), disabled: !workflowStarted },
+            { id: 'notes', label: t('Notes') },
+            { id: 'history', label: t('History') },
+          ]}
+          activeSection={activeSection}
+          onSectionChange={(sectionId) => {
+            setStageFooter(null);
+            setSection(sectionId as typeof activeSection);
+          }}
+          headerActions={
+            headerActions || confirmButton ? (
+              <>
+                {headerActions}
+                {confirmButton}
+              </>
+            ) : undefined
+          }
+          footer={['receiving', 'putaway'].includes(activeSection) ? stageFooter : undefined}
+        >
+          {activeSection === 'overview' ? (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-5 md:grid-cols-4">
+                <Field label={t('Order #')} value={<span className="font-mono">{o.orderNumber || '—'}</span>} />
+                <Field label={t('Status')} value={<StatusBadge status={o.status} />} />
+                <Field label={t('Client')} value={o.company?.name ?? '—'} />
+                <Field
+                  label={t('Expected arrival')}
+                  value={new Date(o.expectedArrivalDate).toLocaleDateString()}
+                />
+                <Field
+                  label={t('Confirmed at')}
+                  value={o.confirmedAt ? new Date(o.confirmedAt).toLocaleString() : '—'}
+                />
+                <Field
+                  label={t('Completed at')}
+                  value={o.completedAt ? new Date(o.completedAt).toLocaleString() : '—'}
+                />
+              </div>
+              {taskOnlyMode && canConfirm ? (
+                <div className="rounded-lg border border-border bg-surface-card p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-text-strong">{t('Receiving setup')}</h3>
+                  {warehouses.length > 1 ? (
+                    <Combobox
+                      label="Warehouse for workflow"
+                      required
+                      value={selectedWarehouseId || warehouseId}
+                      onChange={setSelectedWarehouseId}
+                      options={warehouses
+                        .filter((w) => w.status === 'active')
+                        .map((w) => ({ value: w.id, label: `${w.name} (${w.code})` }))}
+                      placeholder="Select warehouse…"
+                    />
+                  ) : null}
+                  {effectiveWarehouseId ? (
+                    <ReceivingDockPicker
+                      warehouseId={effectiveWarehouseId}
+                      value={receivingDockId}
+                      onChange={setReceivingDockId}
+                    />
+                  ) : (
+                    <p className="text-xs text-status-danger-fg">
+                      Set default warehouse or VITE_DEFAULT_WAREHOUSE_ID.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+              <DataTable title={t('Lines')} columns={lineColumns} rows={o.lines} rowKey={(l) => l.id} />
+            </div>
+          ) : null}
+
+          {activeSection === 'receiving' ? (
+            <InboundReceivingStagePanel
+              order={o}
+              companyId={o.companyId}
+              warehouseId={effectiveWarehouseId}
+              renderFooter={setStageFooter}
+              onConfirmed={() => setSection('putaway')}
+            />
+          ) : null}
+
+          {activeSection === 'putaway' ? (
+            <InboundPutawayStagePanel
+              order={o}
+              companyId={o.companyId}
+              warehouseId={effectiveWarehouseId}
+              receivingCompleted={receivingCompleted}
+              renderFooter={setStageFooter}
+            />
+          ) : null}
+
+          {activeSection === 'documents' ? (
+            <OrderWorkspaceDocumentsSection mode="inbound" order={o} companyId={o.companyId} />
+          ) : null}
+
+          {activeSection === 'activity' ? (
+            <WorkflowOrderTimeline
+              referenceType="inbound_order"
+              referenceId={id}
+              enabled={!!id && o.status !== 'draft'}
+              companyIdOverride={o.companyId}
+            />
+          ) : null}
+
+          {activeSection === 'notes' ? (
+            <div className="rounded-lg border border-border bg-surface-card p-4">
+              <h3 className="text-sm font-semibold text-text-strong">{t('Notes')}</h3>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-text-body">
+                {o.notes?.trim() ? o.notes : '—'}
+              </p>
+            </div>
+          ) : null}
+
+          {activeSection === 'history' ? (
+            <div className="space-y-2 rounded-lg border border-border bg-surface-card p-4 text-sm">
+              <div className="flex justify-between gap-3 border-b border-border-subtle py-2">
+                <span className="text-text-muted">{t('Created')}</span>
+                <span className="font-medium text-text-strong">
+                  {new Date(o.createdAt).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3 border-b border-border-subtle py-2">
+                <span className="text-text-muted">{t('Confirmed at')}</span>
+                <span className="font-medium text-text-strong">
+                  {o.confirmedAt ? new Date(o.confirmedAt).toLocaleString() : '—'}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3 py-2">
+                <span className="text-text-muted">{t('Completed at')}</span>
+                <span className="font-medium text-text-strong">
+                  {o.completedAt ? new Date(o.completedAt).toLocaleString() : '—'}
+                </span>
+              </div>
+            </div>
+          ) : null}
+        </OrderWorkspaceLayout>
+
+        <ConfirmModal
+          open={deleteOpen}
+          title={t('Delete this order?')}
+          confirmLabel={t('Delete')}
+          cancelLabel={t('Cancel')}
+          danger
+          loading={deleteMut.isPending}
+          onClose={() => !deleteMut.isPending && setDeleteOpen(false)}
+          onConfirm={() => deleteMut.mutate()}
+        >
+          <p className="text-sm">
+            {t('This permanently removes the order and its lines. This action cannot be undone.')}
+          </p>
+        </ConfirmModal>
+      </>
+    );
   }
 
   return (
@@ -377,12 +653,6 @@ export function InboundDetailPage() {
         companyIdOverride={o.companyId}
       />
 
-      <OrderManualChargesSection
-        referenceType="inbound_order"
-        referenceId={id}
-        canEdit={user?.role === 'super_admin' || user?.role === 'wh_manager'}
-      />
-
       <DataTable
         title={o.orderNumber || t('Inbound order')}
         columns={lineColumns}
@@ -524,7 +794,7 @@ function ReceiveModal({ line, warehouseId, loading, onClose, onSubmit }: Receive
       title={`Receive ${line.product?.sku ?? ''}`}
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={close} disabled={loading}>
+          <Button type="button" variant="danger" onClick={close} disabled={loading}>
             Cancel
           </Button>
           <Button form="receive" type="submit" loading={loading}>

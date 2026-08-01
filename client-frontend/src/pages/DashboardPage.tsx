@@ -265,21 +265,21 @@ function FinanceCard({
     </>
   );
 
-  return (
+    return (
     <Card
       className={`p-4 ${emphasize ? 'border-2 border-brand-500 bg-gradient-to-br from-brand-50/90 to-transparent dark:from-white/[0.04] shadow-lg shadow-brand-600/10' : ''}`}
       hover
     >
       {to ? (
         <Link to={to} className="no-underline block">
-          {inner}
-        </Link>
+        {inner}
+      </Link>
       ) : (
         inner
       )}
       {action}
     </Card>
-  );
+    );
 }
 
 export function DashboardPage(): ReactElement {
@@ -580,7 +580,7 @@ export function DashboardPage(): ReactElement {
             >
               {t('View cash on delivery')}
             </Button>
-          </div>
+        </div>
         }
       />
 
@@ -629,7 +629,7 @@ export function DashboardPage(): ReactElement {
           loading={loadingCod}
           to="/my-profits"
         />
-      </div>
+              </div>
 
       {/* ✓ KEEP — Order movement pie + Order summary status row */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
@@ -637,7 +637,7 @@ export function DashboardPage(): ReactElement {
           <div className="mb-3">
             <h2 className="text-base font-bold text-text-strong">{t('Order movement')}</h2>
             <p className="text-xs text-text-muted mt-0.5">{t('Last 7 days')}</p>
-          </div>
+              </div>
           <div className="h-52">
             {pieData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-sm text-text-faint">{t('No data')}</div>
@@ -890,7 +890,7 @@ export function DashboardPage(): ReactElement {
             action={
               <a
                 href={payoutMailto}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cta px-3 py-2 text-xs font-bold text-on-brand hover:bg-cta-hover no-underline"
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cta px-3 py-2 text-xs font-bold text-white hover:bg-cta-hover no-underline"
               >
                 {t('Request payout')}
               </a>
@@ -951,7 +951,7 @@ export function DashboardPage(): ReactElement {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] font-bold uppercase text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-white/5 px-1.5 py-0.5 rounded">
                         {item.kind}
-                      </span>
+                </span>
                       {item.status ? <Badge status={item.status} /> : null}
                     </div>
                     <div className="text-sm font-semibold text-text-strong truncate">{item.title}</div>

@@ -117,7 +117,7 @@ export function ClientOrderLinesTable({
                         <Button
                           type="button"
                           size="sm"
-                          variant="secondary"
+                          variant="danger"
                           disabled={loading}
                           onClick={() => onRemoveLine(row.lineKey)}
                         >

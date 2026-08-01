@@ -68,7 +68,7 @@ export function ProductSpecsValidationModal({
       widthClass="max-w-lg"
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={handleClose}>
+          <Button type="button" variant="danger" onClick={handleClose}>
             {t(['Cancel', 'إلغاء'])}
           </Button>
           <Button

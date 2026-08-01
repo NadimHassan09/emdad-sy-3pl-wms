@@ -218,7 +218,7 @@ export function PackageDetailsModal({
         widthClass="max-w-3xl"
         footer={
           <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={onClose}>
+            <Button type="button" variant="danger" onClick={onClose}>
               {t(['Close', 'إغلاق'])}
             </Button>
             {!readOnly ? (
@@ -313,7 +313,7 @@ export function PackageDetailsModal({
                         <Button
                           type="button"
                           size="sm"
-                          variant="secondary"
+                          variant="danger"
                           onClick={() =>
                             onRemoveLineFromPackage(pkg.id, item.outboundOrderLineId)
                           }

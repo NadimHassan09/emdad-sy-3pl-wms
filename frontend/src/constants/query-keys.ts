@@ -144,5 +144,9 @@ export const QK = {
     dashboardSummary: ['billing', 'dashboard-summary'] as const,
     expiringBuckets: ['billing', 'expiring-buckets'] as const,
     preview: ['billing', 'preview'] as const,
+    templates: ['billing', 'templates'] as const,
+    companiesWithoutPlan: ['billing', 'companies-without-plan'] as const,
+    dashboardAnalytics: ['billing', 'dashboard-analytics'] as const,
+    planDetail: (clientId: string) => ['billing', 'plan-detail', clientId] as const,
   },
 };

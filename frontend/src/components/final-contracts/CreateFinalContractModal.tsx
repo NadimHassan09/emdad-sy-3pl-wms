@@ -184,7 +184,7 @@ export function CreateFinalContractModal({ open, onClose, onSaved, contract }: P
       widthClass="max-w-3xl"
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="danger" onClick={onClose}>
             {t(['Cancel', 'إلغاء'])}
           </Button>
           <Button type="submit" form="create-final-contract-form" loading={saveMutation.isPending}>

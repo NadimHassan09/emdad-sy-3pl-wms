@@ -417,7 +417,7 @@ export function BackupHistoryPage() {
               <Button
                 type="button"
                 size="sm"
-                variant="secondary"
+                variant="danger"
                 className="mt-2"
                 onClick={() => setActiveCreateJobId(null)}
               >

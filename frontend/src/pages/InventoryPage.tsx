@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { CompaniesApi } from '../api/companies';
 import { InventoryApi, ProductStockSummaryRow } from '../api/inventory';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { BarcodeImageModal } from '../components/BarcodeImageModal';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { Alert, Badge } from '@ds';
@@ -289,7 +290,11 @@ export function InventoryPage() {
   );
 
   return (
-    <>
+    <AdminListPageShell
+      icon="fa-boxes-stacked"
+      title={t('Inventory', 'المخزون')}
+      isArabic={isArabic}
+    >
       {!warehouseIdForced && (
         <Alert
           variant="warning"
@@ -363,7 +368,6 @@ export function InventoryPage() {
       </FilterPanel>
 
       <DataTable
-        title={t('Inventory', 'المخزون')}
         columns={summaryColumns}
         rows={pagination.rows}
         rowKey={(r) => r.productId}
@@ -409,6 +413,6 @@ export function InventoryPage() {
         }}
         onCameraError={(msg) => toast.error(msg)}
       />
-    </>
+    </AdminListPageShell>
   );
 }

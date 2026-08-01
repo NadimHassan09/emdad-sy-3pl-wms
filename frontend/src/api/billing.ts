@@ -2,6 +2,10 @@ import { api, type PageResult } from './client';
 
 export type BillingCycleStatus = 'active' | 'expired' | 'renewed';
 
+export type BillingPlanType = 'custom' | 'template';
+
+export type BillingApplyMode = 'immediate' | 'next_cycle';
+
 export type BillingPlanRow = {
   id: string;
   companyId: string;
@@ -19,9 +23,33 @@ export type BillingPlanRow = {
   excessWeightFeePerDay: string;
   reservedVolume: string;
   reservedWeight: string;
+  /** Present when template/custom billing modes are enabled on the API. */
+  planType?: BillingPlanType;
+  templateId?: string | null;
+  templateName?: string | null;
+  pendingChanges?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 };
+
+export type BillingPlanTemplateRow = {
+  id: string;
+  name: string;
+  reservedVolume: string;
+  fixedSubscriptionFee: string;
+  cycleLengthDays: number;
+  active?: boolean;
+};
+
+export type CreateBillingPlanTemplatePayload = {
+  name: string;
+  reservedVolume: number;
+  fixedSubscriptionFee: number;
+  cycleLengthDays: number;
+  active?: boolean;
+};
+
+export type UpdateBillingPlanTemplatePayload = Partial<CreateBillingPlanTemplatePayload>;
 
 export type BillingCycleRow = {
   id: string;
@@ -129,7 +157,11 @@ export type CreateBillingPlanPayload = {
 
 export type UpdateBillingPlanPayload = Partial<
   Omit<CreateBillingPlanPayload, 'companyId' | 'cycleStartsAt'>
->;
+> & {
+  planType?: BillingPlanType;
+  templateId?: string | null;
+  applyMode?: BillingApplyMode;
+};
 
 export type BillingInvoiceStatus = 'draft' | 'unpaid' | 'paid' | 'cancelled' | 'open' | 'overdue';
 
@@ -209,6 +241,14 @@ export type BillingInvoiceRow = {
   lines?: BillingInvoiceLineRow[];
 };
 
+export type BillingPlanDetailResponse = {
+  company: { id: string; name: string; status: string };
+  plan: BillingPlanRow | null;
+  currentCycle: BillingCycleRow | null;
+  cycles: BillingCycleRow[];
+  invoices: BillingInvoiceRow[];
+};
+
 export type OrderManualChargeRow = {
   id: string;
   companyId: string;
@@ -252,6 +292,7 @@ export type BillingPlanOverviewItem = {
   cycleStart: string | null;
   cycleEnd: string | null;
   daysRemaining: number | null;
+  nextRenewalDate?: string | null;
   cycleStatus: 'active' | 'renewed' | 'expired' | 'none';
   billingStatus: 'operational' | 'restricted' | 'inactive';
 };
@@ -262,6 +303,7 @@ export type ListBillingPlansParams = {
   cycleStatus?: '' | 'active' | 'renewed' | 'expired' | 'none';
   daysRemaining?: '' | 'critical' | 'warning' | 'healthy' | 'expired' | 'none';
   billingStatus?: '' | 'operational' | 'restricted' | 'inactive';
+  planType?: '' | 'custom' | 'template';
   expiryFrom?: string;
   expiryTo?: string;
   sort_by?:
@@ -361,6 +403,85 @@ export const BillingApi = {
   async updatePlan(id: string, payload: UpdateBillingPlanPayload): Promise<BillingPlanRow> {
     const { data } = await api.patch<BillingPlanRow>(`/billing/plans/${id}`, payload);
     return data;
+  },
+
+  async suspendPlan(id: string): Promise<BillingPlanRow> {
+    return BillingApi.updatePlan(id, { active: false });
+  },
+
+  async resumePlan(id: string): Promise<BillingPlanRow> {
+    return BillingApi.updatePlan(id, { active: true });
+  },
+
+  /**
+   * Client billing workspace payload (plan + cycles + invoices).
+   * Composed from existing list/detail endpoints until a dedicated API exists.
+   */
+  async getPlanDetailByClient(companyId: string): Promise<BillingPlanDetailResponse> {
+    const [plansPage, cycles, invoicesPage, companyRes] = await Promise.all([
+      BillingApi.listPlansPage({ companyId, limit: 20, offset: 0 }),
+      BillingApi.listCycles(companyId),
+      BillingApi.listInvoicesPage({
+        companyId,
+        limit: 50,
+        offset: 0,
+        sort_by: 'createdAt',
+        sort_dir: 'desc',
+      }),
+      api.get<{ id: string; name: string; status: string }>(`/companies/${companyId}`),
+    ]);
+
+    const overview =
+      plansPage.items.find((row) => row.plan.active) ?? plansPage.items[0] ?? null;
+    const company = companyRes.data;
+
+    return {
+      company: overview
+        ? {
+            id: overview.companyId,
+            name: overview.companyName,
+            status: overview.companyStatus,
+          }
+        : { id: company.id, name: company.name, status: company.status },
+      plan: overview?.plan ?? null,
+      currentCycle: overview?.currentCycle ?? null,
+      cycles,
+      invoices: invoicesPage.items,
+    };
+  },
+
+  /** Templates API is not available on this backend build yet. */
+  async listTemplates(_params?: { activeOnly?: boolean }): Promise<BillingPlanTemplateRow[]> {
+    return [];
+  },
+
+  async createTemplate(
+    _payload: CreateBillingPlanTemplatePayload,
+  ): Promise<BillingPlanTemplateRow> {
+    throw new Error('Billing plan templates are not available yet.');
+  },
+
+  async updateTemplate(
+    _id: string,
+    _payload: UpdateBillingPlanTemplatePayload,
+  ): Promise<BillingPlanTemplateRow> {
+    throw new Error('Billing plan templates are not available yet.');
+  },
+
+  async deleteTemplate(_id: string): Promise<void> {
+    throw new Error('Billing plan templates are not available yet.');
+  },
+
+  async listCompaniesWithoutPlan(_search?: string): Promise<Array<{ id: string; name: string }>> {
+    const { data } = await api.get<Array<{ id: string; name: string; status?: string }>>(
+      '/companies',
+      { params: { includeAll: true } },
+    );
+    const plans = await BillingApi.listPlansPage({ limit: 500, offset: 0 });
+    const withPlan = new Set(plans.items.map((row) => row.companyId));
+    return data
+      .filter((c) => !withPlan.has(c.id))
+      .map((c) => ({ id: c.id, name: c.name }));
   },
 
   async listCycles(companyId?: string): Promise<BillingCycleRow[]> {

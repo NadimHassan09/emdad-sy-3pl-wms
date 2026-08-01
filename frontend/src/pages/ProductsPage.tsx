@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, Badge, Button as DsButton, ListPageHeader } from '@ds';
+import { Alert, Badge, Button as DsButton } from '@ds';
 
 import { CompaniesApi } from '../api/companies';
 import {
@@ -12,6 +12,7 @@ import {
   ProductsApi,
   UpdateProductInput,
 } from '../api/products';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
@@ -506,7 +507,23 @@ export function ProductsPage() {
   );
 
   return (
-    <div className="space-y-5 animate-enter">
+    <AdminListPageShell
+      icon="fa-boxes-stacked"
+      title={t(['Products', 'المنتجات'])}
+      subtitle={t(['Warehouse product catalog', 'كتالوج منتجات المستودع'])}
+      isArabic={isArabic}
+      actions={
+        <DsButton
+          variant="primary"
+          size="md"
+          onClick={() => setOpenCreate(true)}
+          className={FILTER_PRIMARY_BUTTON_CLASS}
+          startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
+        >
+          {t(['New product', 'منتج جديد'])}
+        </DsButton>
+      }
+    >
       {pagination.isError ? (
         <Alert
           variant="error"
@@ -518,23 +535,6 @@ export function ProductsPage() {
           }
         />
       ) : null}
-
-      <ListPageHeader
-        icon="fa-boxes-stacked"
-        title={t(['Products', 'المنتجات'])}
-        subtitle={t(['Warehouse product catalog', 'كتالوج منتجات المستودع'])}
-        actions={
-          <DsButton
-            variant="primary"
-            size="md"
-            onClick={() => setOpenCreate(true)}
-            className={FILTER_PRIMARY_BUTTON_CLASS}
-            startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
-          >
-            {t(['New product', 'منتج جديد'])}
-          </DsButton>
-        }
-      />
 
       <FilterPanel
         title={t(['Product filters', 'فلاتر المنتجات'])}
@@ -621,7 +621,7 @@ export function ProductsPage() {
         }}
         onCameraError={(msg) => toast.error(msg)}
       />
-    </div>
+    </AdminListPageShell>
   );
 }
 

@@ -3,6 +3,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { InventoryApi, StockRow } from '../api/inventory';
 import { CreateLocationInput, Location, LocationsApi, LocationType } from '../api/locations';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { BarcodeImageModal } from '../components/BarcodeImageModal';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { Button } from '../components/Button';
@@ -12,7 +13,6 @@ import { LocationParentPicker } from '../components/locations/LocationParentPick
 import { LocationsDrillDownTable } from '../components/locations/LocationsDrillDownTable';
 import { Modal } from '../components/Modal';
 import { Card } from '@ds';
-import { PageHeader } from '../components/PageHeader';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
@@ -52,7 +52,7 @@ const INCLUDE_ARCHIVED_LOCATIONS = true;
 export function LocationsPage() {
   const qc = useQueryClient();
   const toast = useToast();
-  const { t } = useWmsTranslation();
+  const { t, isArabic } = useWmsTranslation();
   const { warehouseId } = useDefaultWarehouseId();
   const initialLocFilters = useMemo<LocationDraftFilters>(
     () => ({ name: '', barcode: '', locationType: '' }),
@@ -220,18 +220,17 @@ export function LocationsPage() {
     updateMut.isPending;
 
   return (
-    <>
-      <PageHeader
-        icon="fa-map-location-dot"
-        title={t(['Locations', 'المواقع التخزينية'])}
-        description={t(['Manage warehouse storage locations.', 'إدارة مواقع التخزين في المستودع.'])}
-        actions={
-          <Button variant="brand" disabled={!warehouseId} onClick={() => setOpen(true)}>
-            {t(['+ New location', '+ موقع جديد'])}
-          </Button>
-        }
-      />
-
+    <AdminListPageShell
+      icon="fa-location-dot"
+      title={t(['Locations', 'المواقع التخزينية'])}
+      subtitle={t(['Manage warehouse storage locations.', 'إدارة مواقع التخزين في المستودع.'])}
+      isArabic={isArabic}
+      actions={
+        <Button variant="brand" disabled={!warehouseId} onClick={() => setOpen(true)}>
+          {t(['+ New location', '+ موقع جديد'])}
+        </Button>
+      }
+    >
       <nav
         aria-label={t(['Location hierarchy', 'تسلسل المواقع'])}
         className="mb-3 flex flex-wrap items-center gap-1 text-sm"
@@ -363,7 +362,7 @@ export function LocationsPage() {
           <>
             <Button
               type="button"
-              variant="secondary"
+              variant="danger"
               onClick={() => !permanentDeleteMut.isPending && setPendingPermanentDelete(null)}
               disabled={permanentDeleteMut.isPending}
             >
@@ -423,7 +422,7 @@ export function LocationsPage() {
         }}
         onCameraError={(msg) => toast.error(msg)}
       />
-    </>
+    </AdminListPageShell>
   );
 }
 
@@ -466,7 +465,7 @@ function LocationStockModal({
       }
       widthClass="max-w-3xl"
       footer={
-        <Button type="button" variant="secondary" onClick={onClose}>
+        <Button type="button" variant="danger" onClick={onClose}>
           {t(['Close', 'إغلاق'])}
         </Button>
       }

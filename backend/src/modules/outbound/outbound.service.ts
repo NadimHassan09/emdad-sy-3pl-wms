@@ -7,7 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { OutboundOrderStatus, Prisma } from '@prisma/client';
+import { OutboundOrderStatus, Prisma, WarehouseTaskStatus, WarehouseTaskType } from '@prisma/client';
 
 import { readCompanyIdCatalogFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
@@ -37,6 +37,13 @@ import {
   outboundConfirmDefersDeduction,
   taskOnlyFlows,
 } from '../warehouse-workflow/feature-flags';
+import {
+  assertOutboundAdminPlanComplete,
+  normalizeExecutionMode,
+  parseOutboundExecutionPlan,
+} from '../orders/execution-plan.util';
+import { WorkflowBootstrapService } from '../warehouse-workflow/workflow-bootstrap.service';
+import { WarehouseTasksService } from '../warehouse-workflow/warehouse-tasks.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { BillingAccessService } from '../billing/billing-access.service';
@@ -50,11 +57,11 @@ import {
   type OmsOrderCreateExtras,
   omsOrderDataFromExtras,
 } from '../oms/oms-order.types';
-import { WorkflowBootstrapService } from '../warehouse-workflow/workflow-bootstrap.service';
 import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
 import { ConfirmOutboundBodyDto } from './dto/confirm-outbound-body.dto';
 import { ListOutboundQueryDto } from './dto/list-outbound-query.dto';
 import { QuickDirectedOutboundDto } from './dto/quick-directed-outbound.dto';
+import { UpdateOutboundPlanDto } from './dto/update-outbound-plan.dto';
 import {
   buildQuickDirectedPickMessages,
   type QuickDirectedPickSlice,
@@ -110,6 +117,7 @@ export class OutboundService {
     private readonly ledger: LedgerIdempotencyService,
     private readonly config: ConfigService,
     private readonly workflowBootstrap: WorkflowBootstrapService,
+    private readonly tasks: WarehouseTasksService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
     private readonly companyAccess: CompanyAccessService,
@@ -184,6 +192,19 @@ export class OutboundService {
 
     await this.assertSufficientStockForLines(companyId, dto.lines, products);
 
+    const executionMode = normalizeExecutionMode(dto.executionMode);
+    let executionPlan: Prisma.InputJsonValue | undefined;
+    if (dto.executionPlan) {
+      const parsed = parseOutboundExecutionPlan(dto.executionPlan);
+      if (!parsed) throw new BadRequestException('Invalid executionPlan.');
+      if (dto.requiresPacking === false) parsed.requiresPacking = false;
+      if (dto.requiresPacking === true) parsed.requiresPacking = true;
+      if (executionMode === 'admin') assertOutboundAdminPlanComplete(parsed);
+      executionPlan = parsed as unknown as Prisma.InputJsonValue;
+    } else if (executionMode === 'admin') {
+      throw new BadRequestException('Admin execution requires executionPlan on create.');
+    }
+
     const created = await tx.outboundOrder.create({
       data: {
         companyId,
@@ -194,6 +215,8 @@ export class OutboundService {
         clientReference: dto.clientReference,
         notes: dto.notes,
         requiresPacking: dto.requiresPacking !== false,
+        executionMode,
+        executionPlan,
         createdBy: user.id,
         ...omsOrderDataFromExtras(opts?.oms),
         lines: {
@@ -222,6 +245,30 @@ export class OutboundService {
       },
       include: ORDER_INCLUDE,
     });
+
+    if (executionPlan && created.lines.length > 0) {
+      const parsed = parseOutboundExecutionPlan(executionPlan)!;
+      const used = new Set<string>();
+      parsed.lines = parsed.lines.map((pl) => {
+        let orderLineId = pl.orderLineId;
+        if (!orderLineId || !created.lines.some((l) => l.id === orderLineId)) {
+          const match = created.lines.find(
+            (l) => l.productId === pl.productId && !used.has(l.id),
+          );
+          orderLineId = match?.id;
+          if (match) used.add(match.id);
+        } else {
+          used.add(orderLineId);
+        }
+        return { ...pl, orderLineId };
+      });
+      parsed.planUpdatedAt = new Date().toISOString();
+      await tx.outboundOrder.update({
+        where: { id: created.id },
+        data: { executionPlan: parsed as unknown as Prisma.InputJsonValue },
+      });
+      created.executionPlan = parsed as unknown as Prisma.JsonValue;
+    }
 
     if (opts?.oms && this.omsOrders) {
       await this.omsOrders.mirrorFromOutbound(tx, {
@@ -451,6 +498,216 @@ export class OutboundService {
       this.companyAccess.validateResourceOwnership(user, order);
       return order;
     });
+  }
+
+  async updatePlan(user: AuthPrincipal, id: string, dto: UpdateOutboundPlanDto) {
+    const order = await this.findById(id, user);
+    if (!isOutboundConfirmable(order.status)) {
+      throw new InvalidStateException(
+        `Plan can only be updated while draft (current: ${order.status}).`,
+      );
+    }
+    const executionMode = normalizeExecutionMode(dto.executionMode ?? order.executionMode);
+    let executionPlan: Prisma.InputJsonValue | undefined;
+    if (dto.executionPlan !== undefined) {
+      const parsed = parseOutboundExecutionPlan(dto.executionPlan);
+      if (!parsed) throw new BadRequestException('Invalid executionPlan.');
+      if (dto.requiresPacking !== undefined) parsed.requiresPacking = dto.requiresPacking;
+      const used = new Set<string>();
+      parsed.lines = parsed.lines.map((pl) => {
+        let orderLineId = pl.orderLineId;
+        if (!orderLineId || !order.lines.some((l) => l.id === orderLineId)) {
+          const match = order.lines.find(
+            (l) => l.productId === pl.productId && !used.has(l.id),
+          );
+          orderLineId = match?.id;
+          if (match) used.add(match.id);
+        } else {
+          used.add(orderLineId);
+        }
+        return { ...pl, orderLineId };
+      });
+      parsed.planUpdatedAt = new Date().toISOString();
+      if (executionMode === 'admin') assertOutboundAdminPlanComplete(parsed);
+      executionPlan = parsed as unknown as Prisma.InputJsonValue;
+    } else if (executionMode === 'admin') {
+      const existing = parseOutboundExecutionPlan(order.executionPlan);
+      if (!existing) throw new BadRequestException('Admin mode requires executionPlan.');
+      assertOutboundAdminPlanComplete(existing);
+    }
+
+    if (dto.requiredShipDate) {
+      assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
+    }
+
+    return withTenantRls(this.prisma, user, async (tx) => {
+      return tx.outboundOrder.update({
+        where: { id },
+        data: {
+          executionMode,
+          ...(executionPlan !== undefined ? { executionPlan } : {}),
+          ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+          ...(dto.destinationAddress !== undefined
+            ? { destinationAddress: dto.destinationAddress }
+            : {}),
+          ...(dto.requiresPacking !== undefined ? { requiresPacking: dto.requiresPacking } : {}),
+          ...(dto.requiredShipDate
+            ? { requiredShipDate: new Date(dto.requiredShipDate) }
+            : {}),
+        },
+        include: ORDER_INCLUDE,
+      });
+    });
+  }
+
+  async executeAdmin(user: AuthPrincipal, orderId: string) {
+    const order = await this.findById(orderId, user);
+    if (normalizeExecutionMode(order.executionMode) !== 'admin') {
+      throw new BadRequestException('execute-admin requires executionMode=admin.');
+    }
+    if (!isOutboundConfirmable(order.status)) {
+      throw new BadRequestException(
+        `Admin execute requires draft order (current: ${order.status}).`,
+      );
+    }
+    const plan = parseOutboundExecutionPlan(order.executionPlan);
+    if (!plan) throw new BadRequestException('Admin execute requires a saved executionPlan.');
+    assertOutboundAdminPlanComplete(plan);
+
+    const wrap = (step: string, err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      return new BadRequestException(`Admin execute failed at ${step}: ${msg}`);
+    };
+
+    try {
+      await this.confirmAndDeduct(user, orderId, { warehouseId: plan.warehouseId });
+    } catch (err) {
+      throw wrap('confirm', err);
+    }
+
+    const waitTask = async (taskType: WarehouseTaskType) => {
+      for (let i = 0; i < 8; i++) {
+        const t = await this.prisma.warehouseTask.findFirst({
+          where: {
+            taskType,
+            status: {
+              in: [
+                WarehouseTaskStatus.pending,
+                WarehouseTaskStatus.assigned,
+                WarehouseTaskStatus.in_progress,
+              ],
+            },
+            workflowInstance: { referenceType: 'outbound_order', referenceId: orderId },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (t) return t;
+        await new Promise((r) => setTimeout(r, 50 * (i + 1)));
+      }
+      throw new BadRequestException(
+        `Admin execute failed: expected open ${taskType} task was not created.`,
+      );
+    };
+
+    const pick = await waitTask(WarehouseTaskType.pick);
+    try {
+      await this.tasks.start(pick.id, user);
+    } catch (err) {
+      throw wrap('pick_start', err);
+    }
+
+    const pickDetail = await this.prisma.warehouseTask.findUnique({ where: { id: pick.id } });
+    if (!pickDetail) throw new NotFoundException('Pick task missing after start.');
+    const exec =
+      pickDetail.executionState &&
+      typeof pickDetail.executionState === 'object' &&
+      !Array.isArray(pickDetail.executionState)
+        ? (pickDetail.executionState as Record<string, unknown>)
+        : {};
+    const reservations = Array.isArray(exec.reservations) ? exec.reservations : [];
+    if (reservations.length === 0) {
+      throw new BadRequestException(
+        'Admin execute failed at pick: no FEFO reservations (stock may be insufficient).',
+      );
+    }
+
+    const pickGroups = new Map<
+      string,
+      Array<{ location_id: string; lot_id?: string | null; quantity: string }>
+    >();
+    for (const raw of reservations) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+      const row = raw as Record<string, unknown>;
+      const lineId =
+        typeof row.outboundOrderLineId === 'string'
+          ? row.outboundOrderLineId
+          : typeof row.outbound_order_line_id === 'string'
+            ? row.outbound_order_line_id
+            : null;
+      const locationId =
+        typeof row.locationId === 'string'
+          ? row.locationId
+          : typeof row.location_id === 'string'
+            ? row.location_id
+            : null;
+      const qty =
+        row.quantity != null
+          ? String(row.quantity)
+          : row.qty != null
+            ? String(row.qty)
+            : null;
+      if (!lineId || !locationId || !qty) continue;
+      const lotRaw = row.lotId ?? row.lot_id;
+      const lotId = lotRaw == null || lotRaw === '' ? null : String(lotRaw);
+      const g = pickGroups.get(lineId) ?? [];
+      g.push({ location_id: locationId, lot_id: lotId, quantity: qty });
+      pickGroups.set(lineId, g);
+    }
+
+    try {
+      await this.tasks.complete(pick.id, user, {
+        task_type: 'pick',
+        picks: [...pickGroups.entries()].map(([outbound_order_line_id, lines]) => ({
+          outbound_order_line_id,
+          lines,
+        })),
+      });
+    } catch (err) {
+      throw wrap('pick', err);
+    }
+
+    const requiresPacking = order.requiresPacking !== false && plan.requiresPacking !== false;
+    if (requiresPacking) {
+      const pack = await waitTask(WarehouseTaskType.pack);
+      const refreshed = await this.findById(orderId, user);
+      try {
+        await this.tasks.adminConfirm(pack.id, user, {
+          task_type: 'pack',
+          lines: refreshed.lines.map((l) => ({
+            outbound_order_line_id: l.id,
+            packed_qty: String(l.pickedQuantity ?? l.requestedQuantity),
+          })),
+        });
+      } catch (err) {
+        throw wrap('pack', err);
+      }
+    }
+
+    const dispatch = await waitTask(WarehouseTaskType.dispatch);
+    const finalOrder = await this.findById(orderId, user);
+    try {
+      await this.tasks.adminConfirm(dispatch.id, user, {
+        task_type: 'dispatch',
+        lines: finalOrder.lines.map((l) => ({
+          outbound_order_line_id: l.id,
+          ship_qty: String(l.pickedQuantity ?? l.requestedQuantity),
+        })),
+      });
+    } catch (err) {
+      throw wrap('dispatch', err);
+    }
+
+    return this.findById(orderId, user);
   }
 
   async cancel(id: string, user: AuthPrincipal) {

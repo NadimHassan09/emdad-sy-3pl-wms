@@ -1,16 +1,11 @@
 import { useMemo, type ReactElement, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Bar,
-  BarChart,
   Cell,
   Pie,
   PieChart,
   ResponsiveContainer,
   Tooltip,
-  XAxis,
-  YAxis,
 } from 'recharts';
 
 import { Alert } from '@ds';
@@ -29,16 +24,7 @@ import { fetchStockPage } from '../services/stockService';
 const SALES_EMAIL = 'sales@emdadsy.com';
 const CURRENCY = 'SYP';
 
-const INCLUDED_FEATURES = [
-  'OMS',
-  'WMS',
-  'Inventory Management',
-  'Returns Management',
-  'Client Portal',
-  'Barcode Support',
-  'Reporting',
-  'Notifications',
-] as const;
+const INCLUDED_FEATURES = ['OMS', 'WMS'] as const;
 
 function tLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
@@ -150,39 +136,6 @@ function inCycle(iso: string, start?: string | null, end?: string | null): boole
   return t >= new Date(start).getTime() && t <= new Date(end).getTime();
 }
 
-function pctUsed(used: number, max: number | null): number | null {
-  if (max == null || !Number.isFinite(max) || max <= 0) return null;
-  if (!Number.isFinite(used)) return 0;
-  return Math.min(100, Math.round((used / max) * 1000) / 10);
-}
-
-function ProgressBar({
-  percent,
-  tone = 'emerald',
-}: {
-  percent: number | null;
-  tone?: 'emerald' | 'amber' | 'rose' | 'sky';
-}): ReactElement {
-  const p = percent == null ? 0 : Math.max(0, Math.min(100, percent));
-  const bar =
-    tone === 'amber'
-      ? 'bg-status-warning-fg'
-      : tone === 'rose'
-        ? 'bg-status-danger-fg'
-        : tone === 'sky'
-          ? 'bg-status-info-fg'
-          : 'bg-brand-500';
-  const level = percent == null ? 'emerald' : percent >= 90 ? 'rose' : percent >= 70 ? 'amber' : tone;
-  const fill =
-    level === 'rose' ? 'bg-status-danger-fg' : level === 'amber' ? 'bg-status-warning-fg' : bar;
-
-  return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-sunken" role="progressbar" aria-valuenow={p} aria-valuemin={0} aria-valuemax={100}>
-      <div className={`h-full rounded-full transition-all duration-500 ${fill}`} style={{ width: `${p}%` }} />
-    </div>
-  );
-}
-
 function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }): ReactElement {
   return (
     <div className="mb-4">
@@ -273,7 +226,6 @@ export function BillingPage(): ReactElement {
   const totalVolume = Number(
     storage?.reservedVolumeCbm ?? summary?.reservedVolume ?? plan?.reservedVolume ?? 0,
   );
-  const volumePct = pctUsed(usedVolume, totalVolume > 0 ? totalVolume : null);
   const remainingVolume =
     storage?.remainingVolumeCbm != null
       ? Number(storage.remainingVolumeCbm)
@@ -299,11 +251,6 @@ export function BillingPage(): ReactElement {
 
   const ordersTotal = inboundCycle + outboundCycle;
 
-  const orderChartData = [
-    { name: t('Inbound'), count: inboundCycle, fill: 'var(--color-brand-500)' },
-    { name: t('Outbound'), count: outboundCycle, fill: 'var(--color-info-500)' },
-  ];
-
   const capacityDonut = [
     { name: t('Used'), value: Math.max(0, usedVolume), fill: 'var(--color-brand-500)' },
     {
@@ -313,52 +260,8 @@ export function BillingPage(): ReactElement {
     },
   ];
 
-  const productsCount = overviewQuery.data?.productsCount ?? skuCount;
-  const productsPct = null; // no product cap from API
-  const ordersPct = null; // no monthly order cap from API
-
-  const autoRenewOn = cycle?.status === 'active' || cycle?.status === 'renewed';
-  const estimatedAmount =
-    summary?.currentInvoice?.grandTotal ??
-    summary?.currentInvoice?.totalAmount ??
-    plan?.fixedSubscriptionFee ??
-    null;
   const estimatedDate = cycle?.endsAt ?? null;
-
-  const upgradeHref = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent('Upgrade plan request')}`;
   const salesHref = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent('Sales inquiry')}`;
-
-  const limits = [
-    {
-      key: 'volume',
-      label: t('Warehouse volume'),
-      usage: `${formatDecimal(usedVolume, 2)} ${t('m³')}`,
-      max:
-        totalVolume > 0 ? `${formatDecimal(totalVolume, 2)} ${t('m³')}` : t('Unlimited'),
-      percent: volumePct,
-    },
-    {
-      key: 'products',
-      label: t('Products'),
-      usage: String(productsCount),
-      max: t('Unlimited'),
-      percent: productsPct,
-    },
-    {
-      key: 'users',
-      label: t('Users'),
-      usage: '—',
-      max: t('Unlimited'),
-      percent: null as number | null,
-    },
-    {
-      key: 'orders',
-      label: t('Monthly orders'),
-      usage: String(ordersTotal),
-      max: t('Unlimited'),
-      percent: ordersPct,
-    },
-  ];
 
   return (
     <div className="space-y-5 animate-enter">
@@ -423,72 +326,47 @@ export function BillingPage(): ReactElement {
         <>
           {/* Section 1 — Current Subscription */}
           <Card className="p-6 border-l-[3px] border-l-brand-500" hover>
-            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-medium text-text-muted uppercase tracking-wide mb-2">
-                  {t('Current subscription')}
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-2xl font-bold text-text-strong">
-                    {plan ? planDisplayName(plan.cycleLengthDays, t) : '…'}
-                  </h2>
-                  {summary ? (
-                    <Badge status={accountBadgeStatus(summary.accountStatus)}>
-                      {subscriptionStatusLabel(summary.accountStatus, t)}
-                    </Badge>
-            ) : null}
-                </div>
-                <p className="text-sm text-text-muted mt-2 max-w-xl">
-                  {t('Includes reserved warehouse capacity and fulfillment services.')}
-                  {totalVolume > 0
-                    ? ` ${formatDecimal(totalVolume, 2)} ${t('m³')}.`
-                    : ''}
-                </p>
-
-                <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div>
-                    <div className="text-xs text-text-muted">{t('Price')}</div>
-                    <div className="text-lg font-bold text-text-strong mt-0.5">
-                      {plan ? formatDecimal(plan.fixedSubscriptionFee) : '—'}{' '}
-                      <span className="text-sm font-normal text-text-faint">{CURRENCY}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-text-muted">{t('Billing cycle')}</div>
-                    <div className="text-sm font-semibold text-text-strong mt-1">
-                      {cycleCadence(plan?.cycleLengthDays, t)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-text-muted">{t('Next billing')}</div>
-                    <div className="text-sm font-semibold text-text-strong mt-1">
-                      {formatDate(estimatedDate)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-text-muted">{t('Auto-renewal')}</div>
-                    <div className="text-sm font-semibold text-text-strong mt-1">
-                      {cycle ? (autoRenewOn ? t('On') : t('Off')) : '—'}
-                    </div>
-                  </div>
-                </div>
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-text-muted uppercase tracking-wide mb-2">
+                {t('Current subscription')}
               </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-2xl font-bold text-text-strong">
+                  {plan ? planDisplayName(plan.cycleLengthDays, t) : '…'}
+                </h2>
+                {summary ? (
+                  <Badge status={accountBadgeStatus(summary.accountStatus)}>
+                    {subscriptionStatusLabel(summary.accountStatus, t)}
+                  </Badge>
+                ) : null}
+              </div>
+              <p className="text-sm text-text-muted mt-2 max-w-xl">
+                {t('Includes reserved warehouse capacity and fulfillment services.')}
+                {totalVolume > 0
+                  ? ` ${formatDecimal(totalVolume, 2)} ${t('m³')}.`
+                  : ''}
+              </p>
 
-              <div className="flex flex-wrap lg:flex-col gap-2 shrink-0">
-                <a
-                  href={upgradeHref}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-on-brand bg-cta hover:bg-cta-hover transition-colors"
-                >
-                  <i className="fa-solid fa-arrow-up-right-dots text-xs" />
-                  {t('Upgrade plan')}
-                </a>
-                <a
-                  href={salesHref}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-text-body bg-surface-sunken hover:bg-surface-hover border border-border-strong transition-colors"
-                >
-                  <i className="fa-solid fa-headset text-xs" />
-                  {t('Contact sales')}
-                </a>
+              <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div>
+                  <div className="text-xs text-text-muted">{t('Price')}</div>
+                  <div className="text-lg font-bold text-text-strong mt-0.5">
+                    {plan ? formatDecimal(plan.fixedSubscriptionFee) : '—'}{' '}
+                    <span className="text-sm font-normal text-text-faint">{CURRENCY}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-text-muted">{t('Billing cycle')}</div>
+                  <div className="text-sm font-semibold text-text-strong mt-1">
+                    {cycleCadence(plan?.cycleLengthDays, t)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-text-muted">{t('Next billing')}</div>
+                  <div className="text-sm font-semibold text-text-strong mt-1">
+                    {formatDate(estimatedDate)}
+                  </div>
+                </div>
               </div>
             </div>
           </Card>
@@ -533,7 +411,7 @@ export function BillingPage(): ReactElement {
               </StatCard>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+            <div className="mt-4">
               <Card className="p-5">
                 <h3 className="text-sm font-semibold text-text-strong mb-4">{t('Warehouse capacity')}</h3>
                 <div className="h-44">
@@ -576,113 +454,10 @@ export function BillingPage(): ReactElement {
                   </span>
                 </div>
               </Card>
-
-              <Card className="p-5">
-                <h3 className="text-sm font-semibold text-text-strong mb-4">
-                  {t('Orders this billing cycle')}
-                </h3>
-                <div className="h-44">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={orderChartData} barSize={36}>
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
-                      <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
-                      <Tooltip
-                        contentStyle={{
-                          borderRadius: 10,
-                          border: '1px solid var(--border-default)',
-                          background: 'var(--surface-panel)',
-                          color: 'var(--text-strong)',
-                          boxShadow: 'var(--shadow-md)',
-                        }}
-                      />
-                      <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                        {orderChartData.map((entry) => (
-                          <Cell key={entry.name} fill={entry.fill} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </Card>
             </div>
           </div>
 
-          {/* Section 3 — Subscription Limits */}
-          <div>
-            <SectionHeader
-              title={t('Subscription limits')}
-              subtitle={t('Usage against your plan entitlements')}
-            />
-            <Card className="overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
-                    <tr>
-                      <th className="px-5 py-3 text-left">{t('Limit')}</th>
-                      <th className="px-5 py-3 text-left">{t('Current usage')}</th>
-                      <th className="px-5 py-3 text-left">{t('Maximum limit')}</th>
-                      <th className="px-5 py-3 text-left min-w-[140px]">{t('Progress')}</th>
-                      <th className="px-5 py-3 text-right">%</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border-subtle">
-                    {limits.map((row) => (
-                      <tr key={row.key}>
-                        <td className="px-5 py-3.5 font-medium text-text-strong">{row.label}</td>
-                        <td className="px-5 py-3.5 text-text-body tabular-nums">{row.usage}</td>
-                        <td className="px-5 py-3.5 text-text-body">{row.max}</td>
-                        <td className="px-5 py-3.5">
-                          <ProgressBar percent={row.percent} />
-                        </td>
-                        <td className="px-5 py-3.5 text-right text-text-muted tabular-nums">
-                          {row.percent != null ? `${row.percent}%` : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          </div>
-
-          {/* Section 4 — Next Invoice Preview */}
-          <div>
-            <SectionHeader title={t('Next invoice preview')} />
-            <Card className="p-6" hover>
-              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 flex-1">
-                  <div>
-                    <div className="text-xs text-text-muted">{t('Estimated amount')}</div>
-                    <div className="text-2xl font-bold text-text-strong mt-1">
-                      {estimatedAmount != null ? formatDecimal(estimatedAmount) : '—'}{' '}
-                      <span className="text-sm font-normal text-text-faint">{CURRENCY}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-text-muted">{t('Estimated billing date')}</div>
-                    <div className="text-sm font-semibold text-text-strong mt-2">
-                      {formatDate(estimatedDate)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-text-muted">{t('Payment method')}</div>
-                    <div className="text-sm font-semibold text-text-strong mt-2">
-                      {t('Manual settlement')}
-                    </div>
-                  </div>
-                </div>
-                <Link
-                  to="/invoices"
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-white/5 hover:bg-brand-100 dark:hover:bg-white/10 transition-colors shrink-0"
-                >
-                  <i className="fa-solid fa-file-invoice text-xs" />
-                  {t('View all invoices')}
-                </Link>
-              </div>
-            </Card>
-          </div>
-
-          {/* Section 5 — Included Features */}
+          {/* Section 3 — Included Features */}
           <div>
             <SectionHeader
               title={t('Included features')}

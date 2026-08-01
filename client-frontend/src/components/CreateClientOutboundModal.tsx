@@ -232,7 +232,7 @@ export function CreateClientOutboundModal({
       footer={
         step === 1 ? (
           <>
-            <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
+            <Button type="button" variant="danger" onClick={handleClose} disabled={loading}>
               {t('Cancel')}
             </Button>
             <Button

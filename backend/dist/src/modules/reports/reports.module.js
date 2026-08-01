@@ -19,6 +19,7 @@ const reports_cache_service_1 = require("./reports-cache.service");
 const reports_controller_1 = require("./reports.controller");
 const reports_policy_config_1 = require("./reports-policy.config");
 const finance_reports_runner_1 = require("./finance-reports.runner");
+const oms_reports_runner_1 = require("./oms-reports.runner");
 const inventory_intelligence_reports_runner_1 = require("./inventory-intelligence-reports.runner");
 const operational_reports_runner_1 = require("./operational-reports.runner");
 const reports_service_1 = require("./reports.service");
@@ -44,6 +45,7 @@ exports.ReportsModule = ReportsModule = __decorate([
             operational_reports_runner_1.OperationalReportsRunner,
             inventory_intelligence_reports_runner_1.InventoryIntelligenceReportsRunner,
             finance_reports_runner_1.FinanceReportsRunner,
+            oms_reports_runner_1.OmsReportsRunner,
         ],
         exports: [reports_service_1.ReportsService, reports_framework_service_1.ReportsFrameworkService],
     })

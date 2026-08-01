@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert } from '@ds';
 import { FormsApi, type LeadFormSubmission } from '../../api/forms';
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { Column, DataTable } from '../../components/DataTable';
@@ -34,7 +35,7 @@ function formatDateTime(iso?: string | null): string {
 }
 
 export function FormsPage() {
-  const { t } = useWmsTranslation();
+  const { t, isArabic } = useWmsTranslation();
   const { user } = useAuth();
   const toast = useToast();
   const qc = useQueryClient();
@@ -148,7 +149,15 @@ export function FormsPage() {
   ];
 
   return (
-    <div>
+    <AdminListPageShell
+      icon="fa-clipboard-list"
+      title={t(['Forms', 'النماذج'])}
+      subtitle={t([
+        'Form submissions captured from landing pages.',
+        'النماذج المُرسلة من صفحات الهبوط.',
+      ])}
+      isArabic={isArabic}
+    >
       <FilterPanel
         title={t(['Lead filters', 'فلاتر العملاء المحتملين'])}
         onApply={applyFilters}
@@ -185,11 +194,6 @@ export function FormsPage() {
       </FilterPanel>
 
       <DataTable
-        title={t(['Lead submissions', 'نماذج العملاء المحتملين'])}
-        description={t([
-          'Form submissions captured from landing pages.',
-          'النماذج المُرسلة من صفحات الهبوط.',
-        ])}
         columns={columns}
         rows={pagination.rows}
         rowKey={(r) => r.id}
@@ -256,7 +260,7 @@ export function FormsPage() {
           </p>
         ) : null}
       </ConfirmModal>
-    </div>
+    </AdminListPageShell>
   );
 }
 

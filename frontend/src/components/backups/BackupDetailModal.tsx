@@ -53,7 +53,7 @@ export function BackupDetailModal({ open, onClose, row, loading, labels }: Props
       title={labels.title}
       widthClass="max-w-3xl"
       footer={
-        <Button type="button" variant="secondary" onClick={onClose}>
+        <Button type="button" variant="danger" onClick={onClose}>
           {labels.close}
         </Button>
       }

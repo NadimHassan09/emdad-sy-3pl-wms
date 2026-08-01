@@ -240,7 +240,7 @@ export function OmsOrderDetailPage() {
                 Complete
               </Button>
             ) : null}
-            <Button variant="secondary" onClick={() => setDeleteOpen(true)}>
+            <Button variant="danger" onClick={() => setDeleteOpen(true)}>
               Delete
             </Button>
           </div>
@@ -425,7 +425,7 @@ export function OmsOrderDetailPage() {
             placeholder={order.shippingFee ?? '0'}
           />
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setApproveOpen(false)}>
+            <Button variant="danger" onClick={() => setApproveOpen(false)}>
               Cancel
             </Button>
             <Button loading={approveMut.isPending} onClick={() => approveMut.mutate()}>
@@ -443,7 +443,7 @@ export function OmsOrderDetailPage() {
             onChange={(e) => setRejectReason(e.target.value)}
           />
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setRejectOpen(false)}>
+            <Button variant="danger" onClick={() => setRejectOpen(false)}>
               Cancel
             </Button>
             <Button loading={rejectMut.isPending} onClick={() => rejectMut.mutate()}>

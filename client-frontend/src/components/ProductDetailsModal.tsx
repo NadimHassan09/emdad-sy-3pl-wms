@@ -135,7 +135,7 @@ export function ProductDetailsModal({
       title={`${t('Product details')}${productName ? ` · ${productName}` : ''}`}
       widthClass="max-w-3xl"
       footer={
-        <Button type="button" variant="secondary" onClick={onClose}>
+        <Button type="button" variant="danger" onClick={onClose}>
           {t('Close')}
         </Button>
       }

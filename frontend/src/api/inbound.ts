@@ -1,4 +1,5 @@
 import { PageResult, api } from './client';
+import type { InboundExecutionPlan, OrderExecutionMode } from '../lib/execution-plan';
 
 export type InboundOrderStatus =
   | 'draft'
@@ -41,6 +42,8 @@ export interface InboundOrder {
   completedAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
+  executionMode?: OrderExecutionMode | null;
+  executionPlan?: InboundExecutionPlan | null;
   lines: InboundOrderLine[];
   company?: { id: string; name: string };
   _count?: { lines: number };
@@ -50,6 +53,8 @@ export interface CreateInboundOrderInput {
   companyId?: string;
   expectedArrivalDate: string;
   notes?: string;
+  executionMode?: OrderExecutionMode;
+  executionPlan?: InboundExecutionPlan;
   lines: Array<{
     productId: string;
     expectedQuantity: number;
@@ -66,7 +71,6 @@ export interface ReceiveLineInput {
   overrideLot?: boolean;
 }
 
-/** Optional body; required fields when backend `TASK_ONLY_FLOWS=true`. */
 export interface ConfirmInboundBody {
   warehouseId?: string;
   stagingByLineId?: Record<string, string>;
@@ -95,6 +99,26 @@ export const InboundApi = {
   async create(input: CreateInboundOrderInput): Promise<InboundOrder> {
     const headers = input.companyId ? { 'X-Company-Id': input.companyId } : undefined;
     const { data } = await api.post<InboundOrder>('/inbound-orders', input, { headers });
+    return data;
+  },
+  async updatePlan(
+    id: string,
+    body: {
+      executionMode?: OrderExecutionMode;
+      executionPlan?: InboundExecutionPlan;
+      expectedArrivalDate?: string;
+      notes?: string;
+    },
+  ): Promise<InboundOrder> {
+    const { data } = await api.patch<InboundOrder>(`/inbound-orders/${id}/plan`, body);
+    return data;
+  },
+  async executeAdmin(id: string, companyIdOverride?: string): Promise<InboundOrder> {
+    const { data } = await api.post<InboundOrder>(
+      `/inbound-orders/${id}/execute-admin`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
     return data;
   },
   async confirm(id: string, body?: ConfirmInboundBody, companyIdOverride?: string): Promise<InboundOrder> {

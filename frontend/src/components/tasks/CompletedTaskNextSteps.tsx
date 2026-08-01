@@ -73,7 +73,7 @@ export function CompletedTaskNextSteps({
   return (
     <Card className="border-border bg-surface-card-muted p-4">
       <div className="flex items-center gap-2 text-sm font-semibold text-text-strong">
-        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-cta text-on-brand">
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-cta text-white">
           <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="m4.5 10.5 3.2 3.2L15.5 6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>

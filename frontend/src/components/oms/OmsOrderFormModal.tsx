@@ -379,7 +379,7 @@ export function OmsOrderFormModal({
                 <div className={idx === 0 ? 'pt-6' : 'pt-1'}>
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="danger"
                     onClick={() => setLines((prev) => prev.filter((_, i) => i !== idx))}
                     disabled={lines.length <= 1}
                   >
@@ -399,7 +399,7 @@ export function OmsOrderFormModal({
         ) : null}
 
         <div className="flex justify-end gap-2 border-t border-border-subtle pt-4">
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="danger" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" loading={saveMut.isPending}>

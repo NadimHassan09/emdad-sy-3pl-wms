@@ -49,7 +49,7 @@ export { LanguageSwitchOverlay } from './LanguageSwitchOverlay';
 export type { LanguageSwitchOverlayProps } from './LanguageSwitchOverlay';
 
 export { LoginScreen } from './LoginScreen';
-export type { LoginScreenProps } from './LoginScreen';
+export type { LoginScreenProps, LoginRememberedAccount } from './LoginScreen';
 
 // Form
 export { Button } from './Button';

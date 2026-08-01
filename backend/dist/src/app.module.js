@@ -44,6 +44,9 @@ const notifications_module_1 = require("./modules/notifications/notifications.mo
 const realtime_module_1 = require("./modules/realtime/realtime.module");
 const reports_module_1 = require("./modules/reports/reports.module");
 const forms_module_1 = require("./modules/forms/forms.module");
+const final_contracts_module_1 = require("./modules/final-contracts/final-contracts.module");
+const oms_module_1 = require("./modules/oms/oms.module");
+const pdf_module_1 = require("./pdf/pdf.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -95,6 +98,9 @@ exports.AppModule = AppModule = __decorate([
             realtime_module_1.RealtimeModule,
             reports_module_1.ReportsModule,
             forms_module_1.FormsModule,
+            final_contracts_module_1.FinalContractsModule,
+            oms_module_1.OmsModule,
+            pdf_module_1.PdfModule,
         ],
         providers: [
             { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard },

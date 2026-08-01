@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientProductsController = void 0;
 const common_1 = require("@nestjs/common");
 const public_decorator_1 = require("../../../common/auth/public.decorator");
+const parse_uuid_loose_pipe_1 = require("../../../common/pipes/parse-uuid-loose.pipe");
 const client_user_decorator_1 = require("../auth/client-user.decorator");
 const jwt_client_auth_guard_1 = require("../auth/jwt-client-auth.guard");
 const list_products_query_dto_1 = require("../../products/dto/list-products-query.dto");
@@ -27,6 +28,9 @@ let ClientProductsController = class ClientProductsController {
     }
     list(client, query) {
         return this.products.list(client, query);
+    }
+    getById(client, id) {
+        return this.products.findById(client, id);
     }
     create(client, dto) {
         return this.products.create(client, dto);
@@ -41,6 +45,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, list_products_query_dto_1.ListProductsQueryDto]),
     __metadata("design:returntype", void 0)
 ], ClientProductsController.prototype, "list", null);
+__decorate([
+    (0, common_1.Get)(':id'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ClientProductsController.prototype, "getById", null);
 __decorate([
     (0, common_1.Post)(),
     __param(0, (0, client_user_decorator_1.ClientUser)()),

@@ -109,7 +109,7 @@ export function OutboundOrdersPage(): ReactElement {
               setCreateError(null);
               setCreateOpen(true);
             }}
-            className="px-4 py-2 bg-cta text-on-brand rounded-lg text-sm font-medium hover:bg-cta-hover transition-all shadow-lg shadow-brand-600/20 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-cta text-white rounded-lg text-sm font-medium hover:bg-cta-hover transition-all shadow-lg shadow-brand-600/20 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <i className="fa-solid fa-plus text-xs" /> {t('New outbound')}
           </button>

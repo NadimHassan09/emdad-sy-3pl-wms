@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -17,6 +18,7 @@ import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
 import { ConfirmOutboundBodyDto } from './dto/confirm-outbound-body.dto';
 import { ListOutboundQueryDto } from './dto/list-outbound-query.dto';
 import { QuickDirectedOutboundDto } from './dto/quick-directed-outbound.dto';
+import { UpdateOutboundPlanDto } from './dto/update-outbound-plan.dto';
 import { OutboundService } from './outbound.service';
 
 @Controller('outbound-orders')
@@ -41,6 +43,23 @@ export class OutboundController {
   @Get(':id')
   findOne(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.outbound.findById(id, user);
+  }
+
+  @Patch(':id/plan')
+  updatePlan(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() body: UpdateOutboundPlanDto,
+  ) {
+    return this.outbound.updatePlan(user, id, body);
+  }
+
+  @Post(':id/execute-admin')
+  executeAdmin(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.outbound.executeAdmin(user, id);
   }
 
   @Post(':id/confirm')

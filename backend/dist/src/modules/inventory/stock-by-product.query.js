@@ -133,7 +133,9 @@ function stockByProductPageSql(ctx, limit, offset) {
     SELECT cs.product_id,
            SUM(cs.quantity_on_hand)::text AS total_quantity,
            SUM(cs.quantity_reserved)::text AS reserved_quantity,
-           SUM(cs.quantity_available)::text AS available_quantity,
+           -- Available excludes receiving-area stock awaiting putaway: only
+           -- stock with status = available can be picked/allocated to outbound.
+           COALESCE(SUM(cs.quantity_available) FILTER (WHERE cs.status = 'available'), 0)::text AS available_quantity,
            p.sku,
            p.name,
            p.uom::text AS uom,

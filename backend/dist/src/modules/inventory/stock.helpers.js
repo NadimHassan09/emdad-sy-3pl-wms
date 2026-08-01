@@ -102,6 +102,33 @@ let StockHelpers = class StockHelpers {
     async upsertPositive(tx, m) {
         await this.upsertPositiveWithMeta(tx, m);
     }
+    async setStockStatus(tx, m) {
+        const lotId = m.lotId ?? null;
+        if (lotId) {
+            await tx.$executeRaw `
+        UPDATE current_stock
+           SET status = ${m.status}::stock_status,
+               last_movement_at = NOW()
+         WHERE company_id = ${m.companyId}::uuid
+           AND product_id = ${m.productId}::uuid
+           AND location_id = ${m.locationId}::uuid
+           AND lot_id = ${lotId}::uuid
+           AND package_id IS NULL
+      `;
+        }
+        else {
+            await tx.$executeRaw `
+        UPDATE current_stock
+           SET status = ${m.status}::stock_status,
+               last_movement_at = NOW()
+         WHERE company_id = ${m.companyId}::uuid
+           AND product_id = ${m.productId}::uuid
+           AND location_id = ${m.locationId}::uuid
+           AND lot_id IS NULL
+           AND package_id IS NULL
+      `;
+        }
+    }
     async decrementWithMeta(tx, m) {
         const qtyStr = m.quantity.toString();
         const take = new client_1.Prisma.Decimal(qtyStr);

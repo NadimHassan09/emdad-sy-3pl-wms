@@ -220,11 +220,11 @@ export function FilterPanel({
               {headerActions}
               <Button
                 type="button"
-                variant="secondary"
+                variant="danger"
                 size="md"
                 onClick={onReset}
                 disabled={loading}
-                className={`${FILTER_ACTION_BUTTON_SIZE_CLASS} !rounded-[10px] border border-border bg-surface-panel px-3 text-sm font-semibold text-text-body shadow-sm hover:bg-surface-hover`}
+                className={`${FILTER_RESET_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
               >
                 {resetLabel}
               </Button>

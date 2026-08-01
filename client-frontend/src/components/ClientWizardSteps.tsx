@@ -24,7 +24,7 @@ export function ClientWizardSteps({
               className={[
                 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold transition',
                 active
-                  ? 'bg-cta text-on-brand'
+                  ? 'bg-cta text-white'
                   : done
                     ? 'bg-brand-50 text-brand-800 dark:bg-white/5 dark:text-brand-400'
                     : 'bg-surface-sunken text-text-muted',

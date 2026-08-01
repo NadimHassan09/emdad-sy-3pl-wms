@@ -24,6 +24,7 @@ const realtime_master_data_payload_1 = require("../realtime/realtime-master-data
 const product_audit_util_1 = require("./product-audit.util");
 const product_barcode_util_1 = require("./product-barcode.util");
 const product_delete_references_util_1 = require("./product-delete-references.util");
+const product_volume_util_1 = require("./product-volume.util");
 const SKU_RETRY_LIMIT = 5;
 const BARCODE_RETRY_LIMIT = 8;
 const INTERNAL_ROLES = new Set([
@@ -83,6 +84,14 @@ let ProductsService = class ProductsService {
                         await (0, product_barcode_util_1.assertCompanyBarcodeAvailable)(tx, companyId, clientBarcode);
                     }
                     const barcode = clientBarcode || (await this.allocateUniqueBarcode(companyId, tx));
+                    const lengthCm = dto.lengthCm != null ? new client_1.Prisma.Decimal(dto.lengthCm) : undefined;
+                    const widthCm = dto.widthCm != null ? new client_1.Prisma.Decimal(dto.widthCm) : undefined;
+                    const heightCm = dto.heightCm != null ? new client_1.Prisma.Decimal(dto.heightCm) : undefined;
+                    const volumeCbm = (0, product_volume_util_1.resolveProductVolumeCbmFromDims)({
+                        lengthCm: lengthCm ?? null,
+                        widthCm: widthCm ?? null,
+                        heightCm: heightCm ?? null,
+                    });
                     return tx.product.create({
                         data: {
                             companyId,
@@ -92,17 +101,12 @@ let ProductsService = class ProductsService {
                             description: dto.description,
                             trackingType: 'lot',
                             uom: dto.uom ?? 'piece',
-                            expiryTracking: dto.expiryTracking ?? true,
+                            expiryTracking: dto.expiryTracking ?? false,
                             minStockThreshold: dto.minStockThreshold ?? 0,
-                            lengthCm: dto.lengthCm != null
-                                ? new client_1.Prisma.Decimal(dto.lengthCm)
-                                : undefined,
-                            widthCm: dto.widthCm != null
-                                ? new client_1.Prisma.Decimal(dto.widthCm)
-                                : undefined,
-                            heightCm: dto.heightCm != null
-                                ? new client_1.Prisma.Decimal(dto.heightCm)
-                                : undefined,
+                            lengthCm,
+                            widthCm,
+                            heightCm,
+                            volumeCbm,
                             weightKg: dto.weightKg != null
                                 ? new client_1.Prisma.Decimal(dto.weightKg)
                                 : undefined,
@@ -311,6 +315,16 @@ let ProductsService = class ProductsService {
         if (dto.weightKg !== undefined) {
             data.weightKg =
                 dto.weightKg === null ? null : new client_1.Prisma.Decimal(dto.weightKg);
+        }
+        if (dto.lengthCm !== undefined ||
+            dto.widthCm !== undefined ||
+            dto.heightCm !== undefined) {
+            data.volumeCbm = (0, product_volume_util_1.resolveProductVolumeCbmFromDims)({
+                lengthCm: dto.lengthCm,
+                widthCm: dto.widthCm,
+                heightCm: dto.heightCm,
+                previous: product,
+            });
         }
         if (Object.keys(data).length === 0) {
             return this.findById(id, user);

@@ -107,7 +107,7 @@ export function ClientBarcodeImageModal({
       widthClass="max-w-lg"
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="danger" onClick={onClose}>
             {t('Close')}
           </Button>
           <Button

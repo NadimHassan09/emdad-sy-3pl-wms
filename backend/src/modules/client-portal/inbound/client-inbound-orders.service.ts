@@ -21,8 +21,11 @@ export class ClientInboundOrdersService {
   }
 
   async create(client: ClientPrincipal, dto: CreateInboundOrderDto) {
-    return this.inbound.create(clientAuthPrincipal(client), dto, {
-      pendingClientApproval: true,
-    });
+    // Warehouse admin completes dock / putaway / confirm on the admin plan UI.
+    return this.inbound.create(
+      clientAuthPrincipal(client),
+      { ...dto, executionMode: 'admin', executionPlan: undefined },
+      { pendingClientApproval: true },
+    );
   }
 }

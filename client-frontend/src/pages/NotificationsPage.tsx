@@ -178,7 +178,7 @@ export function NotificationsPage(): ReactElement {
         description={
           unreadCount > 0 ? (
             <span className="inline-flex items-center gap-2">
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-cta px-1.5 text-[11px] font-bold text-on-brand">
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-cta px-1.5 text-[11px] font-bold text-white">
                 {unreadCount}
               </span>
               <span>{t('Unread')}</span>
@@ -208,7 +208,7 @@ export function NotificationsPage(): ReactElement {
             aria-selected={filter === mode}
             className={`min-h-8 rounded-full px-3 py-1 text-xs font-semibold transition ${
               filter === mode
-                ? 'bg-cta text-on-brand'
+                ? 'bg-cta text-white'
                 : 'bg-surface-sunken text-text-body hover:bg-surface-hover'
             }`}
             onClick={() => setFilter(mode)}

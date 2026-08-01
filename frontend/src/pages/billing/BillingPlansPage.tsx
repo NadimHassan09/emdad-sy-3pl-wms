@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { Alert, ListPageHeader } from '@ds';
+import { Alert } from '@ds';
 import { BillingApi, type BillingPlanOverviewItem } from '../../api/billing';
 import { CompaniesApi } from '../../api/companies';
-import { VolumeAllocationPanel } from '../../components/billing/VolumeAllocationPanel';
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { AnchoredDropdown } from '../../components/AnchoredDropdown';
 import { Button } from '../../components/Button';
 import { Combobox } from '../../components/Combobox';
@@ -155,12 +155,6 @@ export function BillingPlansPage() {
     queryFn: () => CompaniesApi.list({ includeAll: true }),
   });
 
-  const capacityQuery = useQuery({
-    queryKey: QK.billing.capacity,
-    queryFn: () => BillingApi.getCapacitySummary(),
-    enabled: canMutate,
-  });
-
   const serverFilters = useMemo(
     () => ({
       companyId: appliedFilters.companyId.trim() || undefined,
@@ -224,10 +218,6 @@ export function BillingPlansPage() {
     {
       header: 'Current cycle end',
       accessor: (r) => formatDate(r.cycleEnd),
-    },
-    {
-      header: 'Next renewal',
-      accessor: (r) => formatDate(r.nextRenewalDate ?? r.cycleEnd),
     },
     {
       header: 'Status',
@@ -334,32 +324,23 @@ export function BillingPlansPage() {
   ];
 
   return (
-    <div className="space-y-4">
-      <ListPageHeader
-        icon="fa-file-invoice-dollar"
-        title="Billing plans"
-        subtitle="Subscription storage billing by client — reserved volume, price, and cycle."
-        actions={
-          canMutate ? (
-            <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" onClick={() => navigate('/billing/templates')}>
-                Create plan template
-              </Button>
-              <Button variant="brand" onClick={() => navigate('/billing/plans/new')}>
-                + Create plan
-              </Button>
-            </div>
-          ) : undefined
-        }
-      />
-
-      <VolumeAllocationPanel
-        capacity={capacityQuery.data}
-        loading={capacityQuery.isLoading}
-        title="System storage"
-        description="Used storage across all clients from inventory quantity × product CBM. Reserved storage is the sum of active billing plan reserved volumes."
-      />
-
+    <AdminListPageShell
+      icon="fa-file-invoice-dollar"
+      title="Billing plans"
+      subtitle="Subscription storage billing by client — reserved volume, price, and cycle."
+      actions={
+        canMutate ? (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => navigate('/billing/templates')}>
+              Create plan template
+            </Button>
+            <Button variant="brand" onClick={() => navigate('/billing/plans/new')}>
+              + Create plan
+            </Button>
+          </div>
+        ) : undefined
+      }
+    >
       <FilterPanel
         title="Billing plan filters"
         onApply={applyFilters}
@@ -462,8 +443,6 @@ export function BillingPlansPage() {
       </FilterPanel>
 
       <DataTable
-        title="Active plans"
-        description="Click a row to open client billing plan details. Cycles renew automatically."
         columns={columns}
         rows={pagination.rows}
         rowKey={(r) => r.plan.id}
@@ -476,6 +455,6 @@ export function BillingPlansPage() {
       {pagination.isError ? (
         <Alert variant="error" title={(pagination.error as Error).message} className="mb-4" />
       ) : null}
-    </div>
+    </AdminListPageShell>
   );
 }

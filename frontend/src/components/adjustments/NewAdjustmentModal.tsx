@@ -165,7 +165,7 @@ export function NewAdjustmentModal({
           <Button
             type="button"
             size="sm"
-            variant="secondary"
+            variant="danger"
             disabled={pending}
             onClick={() => setPendingRows((rows) => rows.filter((x) => x.key !== r.key))}
           >

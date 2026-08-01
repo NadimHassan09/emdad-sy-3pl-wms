@@ -109,7 +109,7 @@ export function BillingPlanFormModal({
       widthClass="max-w-2xl"
       footer={
         <>
-          <Button type="button" variant="secondary" className={MODAL_CANCEL_BUTTON_CLASS} onClick={onClose}>
+          <Button type="button" variant="danger" className={MODAL_CANCEL_BUTTON_CLASS} onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" form="billing-plan-form" variant="brand" disabled={saving}>

@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 
-import { AppPageHeader } from '@ds';
-
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { SystemMaintenanceScreen } from '../../components/backups/SystemMaintenanceScreen';
 import { SettingsNav } from '../../components/settings/SettingsNav';
 import { useAuth } from '../../auth/AuthContext';
@@ -11,7 +10,7 @@ import { useBackupMaintenanceWatch } from '../../hooks/useBackupMaintenance';
 import { useWmsTranslation } from '../../lib/ui-i18n';
 
 function SettingsLayoutBody() {
-  const { t } = useWmsTranslation();
+  const { t, isArabic } = useWmsTranslation();
   const { user } = useAuth();
   const { trackedJobId, setTrackedJobId } = useBackupOperationContext();
   const watchMaintenance = user?.role === 'super_admin';
@@ -28,15 +27,16 @@ function SettingsLayoutBody() {
   }, [jobStatus?.status, setTrackedJobId]);
 
   return (
-    <div className="space-y-4">
-      <AppPageHeader
-        title={t(['Settings', 'الإعدادات'])}
-        description={t([
-          'System configuration and backup administration.',
-          'إعدادات النظام وإدارة النسخ الاحتياطي.',
-        ])}
-      />
-
+    <AdminListPageShell
+      icon="fa-gear"
+      title={t(['Settings', 'الإعدادات'])}
+      subtitle={t([
+        'System configuration and backup administration.',
+        'إعدادات النظام وإدارة النسخ الاحتياطي.',
+      ])}
+      isArabic={isArabic}
+      showSectionNav={false}
+    >
       <SettingsNav />
 
       <Outlet />
@@ -47,7 +47,7 @@ function SettingsLayoutBody() {
           jobStatus={jobStatus}
         />
       ) : null}
-    </div>
+    </AdminListPageShell>
   );
 }
 

@@ -24,6 +24,7 @@ const identifiers_1 = require("../../common/generators/identifiers");
 const assert_product_orderable_1 = require("../../common/utils/assert-product-orderable");
 const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantity");
 const audit_log_service_1 = require("../../common/audit/audit-log.service");
+const receiving_qty_validation_1 = require("../warehouse-workflow/receiving-qty.validation");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const tenant_rls_1 = require("../../common/prisma/tenant-rls");
 const stock_helpers_1 = require("../inventory/stock.helpers");
@@ -33,6 +34,8 @@ const realtime_service_1 = require("../realtime/realtime.service");
 const billing_access_service_1 = require("../billing/billing-access.service");
 const realtime_client_payload_1 = require("../realtime/realtime-client.payload");
 const workflow_bootstrap_service_1 = require("../warehouse-workflow/workflow-bootstrap.service");
+const warehouse_tasks_service_1 = require("../warehouse-workflow/warehouse-tasks.service");
+const execution_plan_util_1 = require("../orders/execution-plan.util");
 const ORDER_INCLUDE = {
     company: { select: { id: true, name: true } },
     lines: {
@@ -67,16 +70,18 @@ let InboundService = class InboundService {
     stock;
     config;
     workflowBootstrap;
+    tasks;
     realtime;
     notifications;
     companyAccess;
     audit;
     billingAccess;
-    constructor(prisma, stock, config, workflowBootstrap, realtime, notifications, companyAccess, audit, billingAccess) {
+    constructor(prisma, stock, config, workflowBootstrap, tasks, realtime, notifications, companyAccess, audit, billingAccess) {
         this.prisma = prisma;
         this.stock = stock;
         this.config = config;
         this.workflowBootstrap = workflowBootstrap;
+        this.tasks = tasks;
         this.realtime = realtime;
         this.notifications = notifications;
         this.companyAccess = companyAccess;
@@ -103,6 +108,22 @@ let InboundService = class InboundService {
                 (0, assert_product_orderable_1.assertProductOrderableForOrders)(p.status);
             }
             (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(dto.expectedArrivalDate, 'Expected arrival date');
+            const clientSubmission = !!opts?.pendingClientApproval;
+            const executionMode = clientSubmission
+                ? 'admin'
+                : (0, execution_plan_util_1.normalizeExecutionMode)(dto.executionMode);
+            let executionPlan;
+            if (dto.executionPlan && !clientSubmission) {
+                const parsed = (0, execution_plan_util_1.parseInboundExecutionPlan)(dto.executionPlan);
+                if (!parsed)
+                    throw new common_1.BadRequestException('Invalid executionPlan.');
+                if (executionMode === 'admin')
+                    (0, execution_plan_util_1.assertInboundAdminPlanComplete)(parsed);
+                executionPlan = parsed;
+            }
+            else if (executionMode === 'admin' && !clientSubmission) {
+                throw new common_1.BadRequestException('Admin execution requires executionPlan on create.');
+            }
             const productById = new Map(products.map((p) => [p.id, p]));
             const lineCreates = [];
             for (let idx = 0; idx < dto.lines.length; idx++) {
@@ -133,6 +154,11 @@ let InboundService = class InboundService {
                     expectedArrivalDate: new Date(dto.expectedArrivalDate),
                     clientReference: dto.clientReference,
                     notes: dto.notes,
+                    sourceType: dto.sourceType,
+                    storeChannel: dto.storeChannel,
+                    externalReference: dto.externalReference,
+                    executionMode,
+                    executionPlan,
                     createdBy: user.id,
                     lines: {
                         create: lineCreates,
@@ -140,6 +166,31 @@ let InboundService = class InboundService {
                 },
                 include: ORDER_INCLUDE,
             });
+            if (executionPlan && order.lines.length > 0) {
+                const parsed = (0, execution_plan_util_1.parseInboundExecutionPlan)(executionPlan);
+                const byProduct = new Map(order.lines.map((l) => [l.productId, l.id]));
+                const used = new Set();
+                parsed.lines = parsed.lines.map((pl) => {
+                    let orderLineId = pl.orderLineId;
+                    if (!orderLineId || !order.lines.some((l) => l.id === orderLineId)) {
+                        const match = order.lines.find((l) => l.productId === pl.productId && !used.has(l.id));
+                        orderLineId = match?.id;
+                        if (match)
+                            used.add(match.id);
+                    }
+                    else {
+                        used.add(orderLineId);
+                    }
+                    void byProduct;
+                    return { ...pl, orderLineId };
+                });
+                parsed.planUpdatedAt = new Date().toISOString();
+                await tx.inboundOrder.update({
+                    where: { id: order.id },
+                    data: { executionPlan: parsed },
+                });
+                order.executionPlan = parsed;
+            }
             this.realtime.emitInboundOrderCreated(order.companyId, {
                 orderId: order.id,
                 status: order.status,
@@ -234,6 +285,158 @@ let InboundService = class InboundService {
             this.companyAccess.validateResourceOwnership(user, order);
             return order;
         });
+    }
+    async updatePlan(user, id, dto) {
+        const order = await this.findById(id, user);
+        if (!isInboundConfirmable(order.status)) {
+            throw new domain_exceptions_1.InvalidStateException(`Plan can only be updated while draft (current: ${order.status}).`);
+        }
+        const executionMode = (0, execution_plan_util_1.normalizeExecutionMode)(dto.executionMode ?? order.executionMode);
+        let executionPlan = undefined;
+        if (dto.executionPlan !== undefined) {
+            const parsed = (0, execution_plan_util_1.parseInboundExecutionPlan)(dto.executionPlan);
+            if (!parsed)
+                throw new common_1.BadRequestException('Invalid executionPlan.');
+            const used = new Set();
+            parsed.lines = parsed.lines.map((pl) => {
+                let orderLineId = pl.orderLineId;
+                if (!orderLineId || !order.lines.some((l) => l.id === orderLineId)) {
+                    const match = order.lines.find((l) => l.productId === pl.productId && !used.has(l.id));
+                    orderLineId = match?.id;
+                    if (match)
+                        used.add(match.id);
+                }
+                else {
+                    used.add(orderLineId);
+                }
+                return { ...pl, orderLineId };
+            });
+            parsed.planUpdatedAt = new Date().toISOString();
+            if (executionMode === 'admin')
+                (0, execution_plan_util_1.assertInboundAdminPlanComplete)(parsed);
+            executionPlan = parsed;
+        }
+        else if (executionMode === 'admin') {
+            const existing = (0, execution_plan_util_1.parseInboundExecutionPlan)(order.executionPlan);
+            if (!existing)
+                throw new common_1.BadRequestException('Admin mode requires executionPlan.');
+            (0, execution_plan_util_1.assertInboundAdminPlanComplete)(existing);
+        }
+        if (dto.expectedArrivalDate) {
+            (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(dto.expectedArrivalDate, 'Expected arrival date');
+        }
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const updated = await tx.inboundOrder.update({
+                where: { id },
+                data: {
+                    executionMode,
+                    ...(executionPlan !== undefined ? { executionPlan } : {}),
+                    ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+                    ...(dto.expectedArrivalDate
+                        ? { expectedArrivalDate: new Date(dto.expectedArrivalDate) }
+                        : {}),
+                },
+                include: ORDER_INCLUDE,
+            });
+            return updated;
+        });
+    }
+    async executeAdmin(user, orderId) {
+        const order = await this.findById(orderId, user);
+        if ((0, execution_plan_util_1.normalizeExecutionMode)(order.executionMode) !== 'admin') {
+            throw new common_1.BadRequestException('execute-admin requires executionMode=admin.');
+        }
+        if (!isInboundConfirmable(order.status)) {
+            throw new common_1.BadRequestException(`Admin execute requires draft order (current: ${order.status}).`);
+        }
+        const plan = (0, execution_plan_util_1.parseInboundExecutionPlan)(order.executionPlan);
+        if (!plan)
+            throw new common_1.BadRequestException('Admin execute requires a saved executionPlan.');
+        (0, execution_plan_util_1.assertInboundAdminPlanComplete)(plan);
+        const stagingByLineId = {};
+        for (const line of order.lines) {
+            stagingByLineId[line.id] = plan.receivingDockId;
+        }
+        const wrap = (step, err) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            return new common_1.BadRequestException(`Admin execute failed at ${step}: ${msg}`);
+        };
+        try {
+            await this.confirm(user, orderId, {
+                warehouseId: plan.warehouseId,
+                stagingByLineId,
+            });
+        }
+        catch (err) {
+            throw wrap('confirm', err);
+        }
+        const waitTask = async (taskType) => {
+            for (let i = 0; i < 8; i++) {
+                const t = await this.prisma.warehouseTask.findFirst({
+                    where: {
+                        taskType,
+                        status: {
+                            in: [
+                                client_1.WarehouseTaskStatus.pending,
+                                client_1.WarehouseTaskStatus.assigned,
+                                client_1.WarehouseTaskStatus.in_progress,
+                            ],
+                        },
+                        workflowInstance: { referenceType: 'inbound_order', referenceId: orderId },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                });
+                if (t)
+                    return t;
+                await new Promise((r) => setTimeout(r, 50 * (i + 1)));
+            }
+            throw new common_1.BadRequestException(`Admin execute failed: expected open ${taskType} task was not created.`);
+        };
+        const receiving = await waitTask(client_1.WarehouseTaskType.receiving);
+        try {
+            await this.tasks.adminConfirm(receiving.id, user, {
+                task_type: 'receiving',
+                lines: order.lines.map((l) => {
+                    const lotPayload = l.product?.trackingType === 'lot' && l.expectedLotNumber?.trim()
+                        ? { capture_lot_number: l.expectedLotNumber.trim() }
+                        : {};
+                    return {
+                        inbound_order_line_id: l.id,
+                        received_qty: String(l.expectedQuantity),
+                        ...lotPayload,
+                    };
+                }),
+            });
+        }
+        catch (err) {
+            throw wrap('receiving', err);
+        }
+        const putaway = await waitTask(client_1.WarehouseTaskType.putaway);
+        const putawayLines = [];
+        for (const ol of order.lines) {
+            const planLine = plan.lines.find((p) => p.orderLineId === ol.id) ??
+                plan.lines.find((p) => p.productId === ol.productId);
+            for (const s of planLine?.putaway ?? []) {
+                putawayLines.push({
+                    inbound_order_line_id: ol.id,
+                    putaway_quantity: String(s.qty),
+                    destination_location_id: s.locationId,
+                });
+            }
+        }
+        if (putawayLines.length === 0) {
+            throw new common_1.BadRequestException('Admin execute failed at putaway: no destination splits.');
+        }
+        try {
+            await this.tasks.adminConfirm(putaway.id, user, {
+                task_type: 'putaway',
+                lines: putawayLines,
+            });
+        }
+        catch (err) {
+            throw wrap('putaway', err);
+        }
+        return this.findById(orderId, user);
     }
     async confirm(user, id, body) {
         const order = await this.findById(id, user);
@@ -433,6 +636,14 @@ let InboundService = class InboundService {
             }
             (0, assert_product_orderable_1.assertProductOrderableForOrders)(line.product.status);
             (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(line.product.uom, dto.quantity, 'Receive quantity');
+            const delta = new client_1.Prisma.Decimal(dto.quantity);
+            (0, receiving_qty_validation_1.assertReceivingQuantitiesWithinExpected)({
+                expected: line.expectedQuantity,
+                receivedQty: delta,
+                damagedQty: new client_1.Prisma.Decimal(0),
+                priorReceived: line.receivedQuantity,
+                lineId: line.id,
+            });
             const location = await tx.location.findUnique({
                 where: { id: dto.locationId },
                 select: { id: true, warehouseId: true, type: true, status: true },
@@ -444,7 +655,6 @@ let InboundService = class InboundService {
                 if (!this.isDockStagingLocationType(location.type)) {
                     throw new domain_exceptions_1.InvalidLocationTypeException('Deferred putaway mode: receive only to a receiving dock location (`input`). Inventory posts on putaway task.');
                 }
-                const delta = new client_1.Prisma.Decimal(dto.quantity);
                 await tx.inboundOrderLine.update({
                     where: { id: lineId },
                     data: { receivedQuantity: { increment: delta } },
@@ -612,6 +822,7 @@ exports.InboundService = InboundService = __decorate([
         stock_helpers_1.StockHelpers,
         config_1.ConfigService,
         workflow_bootstrap_service_1.WorkflowBootstrapService,
+        warehouse_tasks_service_1.WarehouseTasksService,
         realtime_service_1.RealtimeService,
         notifications_service_1.NotificationsService,
         company_access_service_1.CompanyAccessService,

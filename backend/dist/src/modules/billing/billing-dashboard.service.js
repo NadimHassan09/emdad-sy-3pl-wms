@@ -67,7 +67,7 @@ let BillingDashboardService = class BillingDashboardService {
     async listRecentInvoices(user, limit = 5) {
         const take = Math.min(Math.max(limit, 1), 20);
         const where = {
-            status: { in: ['open', 'paid'] },
+            status: { in: ['unpaid', 'open', 'paid'] },
         };
         if (user.tenantScope === 'restricted') {
             where.companyId = { in: user.authorizedCompanyIds };
@@ -154,9 +154,12 @@ let BillingDashboardService = class BillingDashboardService {
         const invoiceWhere = {
             ...(tenantCompanyIds ? { companyId: { in: tenantCompanyIds } } : {}),
         };
-        const [outstanding, monthRevenue, openCount, overdueCount, suspendedCount] = await Promise.all([
+        const [outstanding, monthRevenue, unpaidCount, suspendedCount] = await Promise.all([
             this.prisma.invoice.aggregate({
-                where: { ...invoiceWhere, status: { in: ['open', 'overdue'] } },
+                where: {
+                    ...invoiceWhere,
+                    status: { in: ['unpaid', 'open', 'overdue'] },
+                },
                 _sum: { totalAmount: true },
             }),
             this.prisma.invoice.aggregate({
@@ -168,10 +171,10 @@ let BillingDashboardService = class BillingDashboardService {
                 _sum: { totalAmount: true },
             }),
             this.prisma.invoice.count({
-                where: { ...invoiceWhere, status: 'open' },
-            }),
-            this.prisma.invoice.count({
-                where: { ...invoiceWhere, status: 'overdue' },
+                where: {
+                    ...invoiceWhere,
+                    status: { in: ['unpaid', 'open', 'overdue'] },
+                },
             }),
             this.prisma.company.count({
                 where: {
@@ -183,8 +186,8 @@ let BillingDashboardService = class BillingDashboardService {
         return {
             outstandingAmount: (outstanding._sum.totalAmount ?? new client_1.Prisma.Decimal(0)).toString(),
             currentMonthRevenue: (monthRevenue._sum.totalAmount ?? new client_1.Prisma.Decimal(0)).toString(),
-            openInvoiceCount: openCount,
-            overdueInvoiceCount: overdueCount,
+            openInvoiceCount: unpaidCount,
+            overdueInvoiceCount: 0,
             suspendedAccountCount: suspendedCount,
         };
     }

@@ -29,7 +29,7 @@ export function SectionSubNavCard({ isArabic = false }: SectionSubNavCardProps) 
                   'inline-flex items-center rounded-lg px-3 py-1.5 text-sm font-medium transition sm:px-4 sm:py-2',
                   'focus-visible:outline-none focus-visible:shadow-focus',
                   active
-                    ? 'bg-cta text-on-brand shadow-sm hover:bg-cta-hover'
+                    ? 'bg-cta text-white shadow-sm hover:bg-cta-hover'
                     : 'text-text-body hover:bg-surface-hover',
                 ].join(' ')}
               >

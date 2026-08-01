@@ -16,6 +16,8 @@ interface Props {
   referenceType: DocumentReferenceType;
   referenceId: string;
   companyIdOverride?: string;
+  /** When false, skip the outer "Documents" panel chrome (title/card). */
+  showPanel?: boolean;
 }
 
 function useIsArabic(): boolean {
@@ -39,7 +41,12 @@ type DocRow = {
   byLang: Map<DocumentLang, DocumentMeta>;
 };
 
-export function OrderDocumentsCard({ referenceType, referenceId, companyIdOverride }: Props) {
+export function OrderDocumentsCard({
+  referenceType,
+  referenceId,
+  companyIdOverride,
+  showPanel = true,
+}: Props) {
   const isArabic = useIsArabic();
   const toast = useToast();
   const qc = useQueryClient();
@@ -150,65 +157,72 @@ export function OrderDocumentsCard({ referenceType, referenceId, companyIdOverri
 
   const isLoading = docsQuery.isLoading || timelineQuery.isLoading;
 
-  return (
-    <FilterPanel title={t('Documents', 'المستندات')} variant="content">
-      {isLoading ? (
-        <p className="text-sm text-text-muted">{t('Loading…', 'جارٍ التحميل…')}</p>
-      ) : rows.length === 0 ? (
-        <p className="text-sm text-text-muted">{pendingHint}</p>
-      ) : (
-        <div className="space-y-2">
-          {rows.map((row) => (
-            <div
-              key={`${row.type}:${row.taskId}`}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-card px-4 py-3"
-            >
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[#EAF6F0] text-[#0B5E3C]">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
-                </span>
-                <div>
-                  <div className="text-sm font-semibold text-text-strong">{typeLabel(row.type)}</div>
-                  <div className="font-mono text-xs text-text-muted">
-                    {row.number || t('Not generated yet', 'لم يُنشأ بعد')}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {LANGS.map((lang) => {
-                  const existing = row.byLang.get(lang);
-                  const busyKey = `${row.type}:${row.taskId}:${lang}`;
-                  return (
-                    <Button
-                      key={lang}
-                      size="sm"
-                      variant={existing ? 'secondary' : 'primary'}
-                      loading={busy === busyKey}
-                      onClick={() => handleAction(row, lang)}
-                    >
-                      {existing
-                        ? `${t('Open PDF', 'فتح PDF')} · ${langLabel(lang)}`
-                        : `${t('Create PDF', 'إنشاء PDF')} · ${langLabel(lang)}`}
-                    </Button>
-                  );
-                })}
+  const body = isLoading ? (
+    <p className="text-sm text-text-muted">{t('Loading…', 'جارٍ التحميل…')}</p>
+  ) : rows.length === 0 ? (
+    showPanel ? <p className="text-sm text-text-muted">{pendingHint}</p> : null
+  ) : (
+    <div className="space-y-2">
+      {rows.map((row) => (
+        <div
+          key={`${row.type}:${row.taskId}`}
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface-card px-4 py-3"
+        >
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[#EAF6F0] text-[#0B5E3C]">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+            </span>
+            <div>
+              <div className="text-sm font-semibold text-text-strong">{typeLabel(row.type)}</div>
+              <div className="font-mono text-xs text-text-muted">
+                {row.number || t('Not generated yet', 'لم يُنشأ بعد')}
               </div>
             </div>
-          ))}
+          </div>
+          <div className="flex items-center gap-2">
+            {LANGS.map((lang) => {
+              const existing = row.byLang.get(lang);
+              const busyKey = `${row.type}:${row.taskId}:${lang}`;
+              return (
+                <Button
+                  key={lang}
+                  size="sm"
+                  variant={existing ? 'secondary' : 'primary'}
+                  loading={busy === busyKey}
+                  onClick={() => handleAction(row, lang)}
+                >
+                  {existing
+                    ? `${t('Open PDF', 'فتح PDF')} · ${langLabel(lang)}`
+                    : `${t('Create PDF', 'إنشاء PDF')} · ${langLabel(lang)}`}
+                </Button>
+              );
+            })}
+          </div>
         </div>
-      )}
+      ))}
+    </div>
+  );
+
+  if (!showPanel) {
+    if (!body) return null;
+    return body;
+  }
+
+  return (
+    <FilterPanel title={t('Documents', 'المستندات')} variant="content">
+      {body}
     </FilterPanel>
   );
 }

@@ -16,7 +16,7 @@ class UpdateInvoiceStatusDto {
 }
 exports.UpdateInvoiceStatusDto = UpdateInvoiceStatusDto;
 __decorate([
-    (0, class_validator_1.IsIn)(['paid', 'cancelled', 'open']),
+    (0, class_validator_1.IsIn)(['paid', 'cancelled', 'unpaid']),
     __metadata("design:type", String)
 ], UpdateInvoiceStatusDto.prototype, "status", void 0);
 //# sourceMappingURL=update-invoice-status.dto.js.map

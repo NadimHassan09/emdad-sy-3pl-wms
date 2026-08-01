@@ -153,7 +153,7 @@ export function DispatchAddToShipmentModal({
         widthClass="max-w-md"
         footer={
           <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={handleClose}>
+            <Button type="button" variant="danger" onClick={handleClose}>
               {t(['Cancel', 'إلغاء'])}
             </Button>
             <Button

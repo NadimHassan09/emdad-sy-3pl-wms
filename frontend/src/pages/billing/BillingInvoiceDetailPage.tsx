@@ -72,7 +72,7 @@ function LineTable({
                 <td className="py-2">
                   <Button
                     size="sm"
-                    variant="secondary"
+                    variant="danger"
                     loading={removingId === line.id}
                     onClick={() => onRemove(line.id)}
                   >
@@ -268,7 +268,7 @@ export function BillingInvoiceDetailPage() {
               {canMutate && invoice.status !== 'cancelled' && invoice.status !== 'paid' ? (
                 <Button
                   size="sm"
-                  variant="secondary"
+                  variant="danger"
                   loading={statusMut.isPending}
                   onClick={() => statusMut.mutate('cancelled')}
                 >
@@ -278,7 +278,7 @@ export function BillingInvoiceDetailPage() {
               {canMutate && (isDraft || invoice.status === 'cancelled') ? (
                 <Button
                   size="sm"
-                  variant="secondary"
+                  variant="danger"
                   loading={deleteMut.isPending}
                   onClick={() => {
                     if (!window.confirm(`Delete invoice ${invoice.invoiceNumber}?`)) return;

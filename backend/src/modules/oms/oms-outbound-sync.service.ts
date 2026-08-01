@@ -42,7 +42,7 @@ export class OmsOutboundSyncService {
     actorUserId?: string,
   ): Promise<void> {
     const oms = await tx.omsOrder.findFirst({
-      where: { outboundOrderId, deletedAt: null },
+      where: { outboundOrderId },
       select: {
         id: true,
         companyId: true,

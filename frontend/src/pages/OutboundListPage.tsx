@@ -12,6 +12,7 @@ import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { OrderDraftLinesTable } from '../components/OrderDraftLinesTable';
 import { Alert, Button as DsButton } from '@ds';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -29,6 +30,7 @@ import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
+import { useOrderWorkspaceMode } from '../hooks/useOrderWorkspaceMode';
 import { useFilters } from '../hooks/useFilters';
 import {
   CHUNK_SIZE_STANDARD,
@@ -139,6 +141,14 @@ export function OutboundListPage() {
   const isArabic =
     typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (label: string) => outboundLabel(label, isArabic);
+  const orderWorkspaceMode = useOrderWorkspaceMode();
+  const openCreate = () => {
+    if (orderWorkspaceMode) {
+      navigate('/orders/outbound/new');
+    } else {
+      setOpen(true);
+    }
+  };
   const { warehouseId: wid } = useDefaultWarehouseId();
 
   const initialList = useMemo<OutListDraft>(
@@ -284,7 +294,21 @@ export function OutboundListPage() {
   );
 
   return (
-    <>
+    <AdminListPageShell
+      icon="fa-arrow-up"
+      title={t('Outbound orders')}
+      isArabic={isArabic}
+      actions={
+        <DsButton
+          variant="primary"
+          size="md"
+          onClick={openCreate}
+          className={FILTER_PRIMARY_BUTTON_CLASS}
+        >
+          {t('+ New outbound')}
+        </DsButton>
+      }
+    >
       {!wid && (
         <Alert
           variant="warning"
@@ -350,17 +374,6 @@ export function OutboundListPage() {
       </FilterPanel>
 
       <DataTable
-        title={t('Outbound orders')}
-        actions={
-          <DsButton
-            variant="primary"
-            size="md"
-            onClick={() => setOpen(true)}
-            className={FILTER_PRIMARY_BUTTON_CLASS}
-          >
-            {t('+ New outbound')}
-          </DsButton>
-        }
         columns={columns}
         rows={pagination.rows}
         rowKey={(o) => o.id}
@@ -378,13 +391,15 @@ export function OutboundListPage() {
         }}
       />
 
-      <CreateOutboundModal
-        open={open}
-        onClose={() => setOpen(false)}
-        loading={createMut.isPending}
-        isArabic={isArabic}
-        onSubmit={(input) => createMut.mutate(input)}
-      />
+      {!orderWorkspaceMode && (
+        <CreateOutboundModal
+          open={open}
+          onClose={() => setOpen(false)}
+          loading={createMut.isPending}
+          isArabic={isArabic}
+          onSubmit={(input) => createMut.mutate(input)}
+        />
+      )}
 
       <ConfirmModal
         open={!!toCancel}
@@ -417,7 +432,7 @@ export function OutboundListPage() {
           {t('This permanently removes the order and its lines. This action cannot be undone.')}
         </p>
       </ConfirmModal>
-    </>
+    </AdminListPageShell>
   );
 }
 

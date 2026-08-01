@@ -81,7 +81,7 @@ export function CreateAdHocInvoiceModal({ open, companies, onClose }: Props) {
       widthClass="max-w-3xl"
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="danger" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" form="ad-hoc-invoice-form" variant="brand" loading={createMut.isPending}>
@@ -166,7 +166,7 @@ export function CreateAdHocInvoiceModal({ open, companies, onClose }: Props) {
                 <Button
                   type="button"
                   size="sm"
-                  variant="secondary"
+                  variant="danger"
                   className="sm:col-span-4"
                   onClick={() => setLines((rows) => rows.filter((r) => r.key !== line.key))}
                 >

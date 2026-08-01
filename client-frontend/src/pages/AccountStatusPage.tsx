@@ -47,7 +47,7 @@ export function AccountStatusPage(): ReactElement {
 
         <a
           href="mailto:support@emdadsy.com"
-          className="mt-6 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-cta bg-cta px-3.5 py-3 text-sm font-semibold text-on-brand shadow-xs transition-[colors,transform] duration-fast hover:border-cta-hover hover:bg-cta-hover active:scale-[0.97]"
+          className="mt-6 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-cta bg-cta px-3.5 py-3 text-sm font-semibold text-white shadow-xs transition-[colors,transform] duration-fast hover:border-cta-hover hover:bg-cta-hover active:scale-[0.97]"
         >
           <i className="fa-solid fa-envelope text-sm" aria-hidden="true" />
           {t('Contact support', 'تواصل مع الدعم')}

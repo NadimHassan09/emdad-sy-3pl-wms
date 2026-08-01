@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="{{lang}}" dir="{{dir}}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{header.titleMain}} {{header.referenceNo}}</title>
+    <style>{{{fontFace}}}</style>
+    <style>{{{styles}}}</style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="doc-header">
+        <div class="doc-header__brand">
+          <img class="doc-header__logo" src="{{brand.logo}}" alt="" />
+          <div>
+            <div class="doc-header__company">{{brand.name}}</div>
+            <div class="doc-header__tagline">{{brand.tagline}}</div>
+          </div>
+        </div>
+        <div class="doc-header__doc">
+          <div class="doc-header__title">{{header.titleMain}}</div>
+          {{#if header.barcode}}
+          <img class="doc-header__barcode" src="{{header.barcode}}" alt="{{header.referenceNo}}" />
+          {{/if}}
+          <div class="doc-header__ref">{{header.referenceNo}}</div>
+          <div class="doc-header__date">{{L.issueDate}}: {{header.issueDate}}</div>
+        </div>
+      </header>
+
+      {{{content}}}
+    </div>
+  </body>
+</html>

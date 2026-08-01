@@ -1,0 +1,72 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.OmsWebhooksController = void 0;
+const common_1 = require("@nestjs/common");
+const public_decorator_1 = require("../../../common/auth/public.decorator");
+const current_user_decorator_1 = require("../../../common/auth/current-user.decorator");
+const parse_uuid_loose_pipe_1 = require("../../../common/pipes/parse-uuid-loose.pipe");
+const sales_channel_dto_1 = require("../dto/sales-channel.dto");
+const oms_sales_channel_service_1 = require("./oms-sales-channel.service");
+let OmsWebhooksController = class OmsWebhooksController {
+    channels;
+    constructor(channels) {
+        this.channels = channels;
+    }
+    list(user, companyId) {
+        return this.channels.list(user, companyId);
+    }
+    create(user, dto) {
+        return this.channels.create(user, dto);
+    }
+    inbound(channelId, secret, body) {
+        return this.channels.processInboundWebhook(channelId, secret, {
+            eventType: body.eventType,
+            externalId: body.externalId,
+            payload: body.payload,
+        });
+    }
+};
+exports.OmsWebhooksController = OmsWebhooksController;
+__decorate([
+    (0, common_1.Get)('sales-channels'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)('companyId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OmsWebhooksController.prototype, "list", null);
+__decorate([
+    (0, common_1.Post)('sales-channels'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, sales_channel_dto_1.CreateOmsSalesChannelDto]),
+    __metadata("design:returntype", void 0)
+], OmsWebhooksController.prototype, "create", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('webhooks/inbound/:channelId'),
+    __param(0, (0, common_1.Param)('channelId', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(1, (0, common_1.Headers)('x-webhook-secret')),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object, sales_channel_dto_1.OmsInboundWebhookDto]),
+    __metadata("design:returntype", void 0)
+], OmsWebhooksController.prototype, "inbound", null);
+exports.OmsWebhooksController = OmsWebhooksController = __decorate([
+    (0, common_1.Controller)('oms'),
+    __metadata("design:paramtypes", [oms_sales_channel_service_1.OmsSalesChannelService])
+], OmsWebhooksController);
+//# sourceMappingURL=oms-webhooks.controller.js.map

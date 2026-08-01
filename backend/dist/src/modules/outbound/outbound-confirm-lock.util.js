@@ -11,6 +11,7 @@ const client_1 = require("@prisma/client");
 exports.OUTBOUND_CONFIRMABLE = [
     client_1.OutboundOrderStatus.draft,
     client_1.OutboundOrderStatus.pending_approval,
+    client_1.OutboundOrderStatus.allocated,
 ];
 exports.OUTBOUND_POST_CONFIRM = [
     client_1.OutboundOrderStatus.confirmed,

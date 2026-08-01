@@ -21,6 +21,7 @@ const parse_uuid_loose_pipe_1 = require("../../common/pipes/parse-uuid-loose.pip
 const create_inbound_dto_1 = require("./dto/create-inbound.dto");
 const list_inbound_query_dto_1 = require("./dto/list-inbound-query.dto");
 const receive_line_dto_1 = require("./dto/receive-line.dto");
+const update_inbound_plan_dto_1 = require("./dto/update-inbound-plan.dto");
 const inbound_service_1 = require("./inbound.service");
 let InboundController = class InboundController {
     inbound;
@@ -35,6 +36,12 @@ let InboundController = class InboundController {
     }
     findOne(user, id) {
         return this.inbound.findById(id, user);
+    }
+    updatePlan(user, id, body) {
+        return this.inbound.updatePlan(user, id, body);
+    }
+    executeAdmin(user, id) {
+        return this.inbound.executeAdmin(user, id);
     }
     confirm(user, id, body) {
         return this.inbound.confirm(user, id, body);
@@ -74,6 +81,23 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], InboundController.prototype, "findOne", null);
+__decorate([
+    (0, common_1.Patch)(':id/plan'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, update_inbound_plan_dto_1.UpdateInboundPlanDto]),
+    __metadata("design:returntype", void 0)
+], InboundController.prototype, "updatePlan", null);
+__decorate([
+    (0, common_1.Post)(':id/execute-admin'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], InboundController.prototype, "executeAdmin", null);
 __decorate([
     (0, common_1.Post)(':id/confirm'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

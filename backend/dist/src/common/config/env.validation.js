@@ -63,6 +63,19 @@ const envSchema = zod_1.z.object({
     BACKUP_ENCRYPTION_KEY: zod_1.z.string().min(16).optional(),
     BACKUP_GDRIVE_STARTUP_STRICT: zod_1.z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
     CRON_LEADER_ENABLED: zod_1.z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+    DOCUMENT_STORAGE_DIR: zod_1.z.string().min(1).optional(),
+    DOCUMENT_DEFAULT_LANG: zod_1.z.enum(['en', 'ar']).optional(),
+    PUPPETEER_EXECUTABLE_PATH: zod_1.z.string().min(1).optional(),
+    DOC_BRAND_NAME: zod_1.z.string().min(1).optional(),
+    DOC_BRAND_NAME_AR: zod_1.z.string().min(1).optional(),
+    DOC_BRAND_TAGLINE: zod_1.z.string().min(1).optional(),
+    DOC_BRAND_TAGLINE_AR: zod_1.z.string().min(1).optional(),
+    DOC_BRAND_PHONE: zod_1.z.string().min(1).optional(),
+    DOC_BRAND_EMAIL: zod_1.z.string().min(1).optional(),
+    DOC_BRAND_WEBSITE: zod_1.z.string().min(1).optional(),
+    DOC_BRAND_ADDRESS_EN: zod_1.z.string().min(1).optional(),
+    DOC_BRAND_ADDRESS_AR: zod_1.z.string().min(1).optional(),
+    ALLOCATE_ON_ORDER_CREATE: zod_1.z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
 });
 function envBool(raw) {
     if (raw === undefined || raw === null || raw === '')
