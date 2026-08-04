@@ -24,6 +24,7 @@ import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useBackupAdminAccess } from '../../hooks/useBackupAdminAccess';
 import { useBackupRunningStatusPoll } from '../../hooks/useBackupRunningStatusPoll';
+import { useCachedState } from '../../hooks/useCachedState';
 import { useFilters } from '../../hooks/useFilters';
 import {
   backupCreatedByLabel,
@@ -91,8 +92,8 @@ export function BackupHistoryPage() {
   const typeOptions = useMemo(() => localizedBackupTypeFilterOptions(t), [t]);
   const statusOptions = useMemo(() => localizedBackupStatusFilterOptions(t), [t]);
 
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useCachedState('page', 1);
+  const [pageSize, setPageSize] = useCachedState('pageSize', 20);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detailSeed, setDetailSeed] = useState<BackupSummary | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);

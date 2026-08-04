@@ -1,10 +1,11 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
+import { useCachedState } from '../hooks/useCachedState';
 
 import { Badge } from '../design-v2/Badge';
 import { Card } from '../design-v2/Card';
@@ -70,7 +71,7 @@ export function InvoicesPage(): ReactElement {
   const navigate = useNavigate();
   const isArabic = isClientArabic();
   const t = (label: string) => invoicesLabel(label, isArabic);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useCachedState('status', '');
 
   const invoicePagination = useChunkedServerPagination<ClientInvoice>({
     chunkSize: CHUNK_SIZE_STANDARD,

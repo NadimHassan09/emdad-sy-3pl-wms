@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { Button } from '../../components/Button';
 import { QK } from '../../constants/query-keys';
+import { useCachedState } from '../../hooks/useCachedState';
 import {
   adminNotificationHref,
   formatAdminNotificationTime,
@@ -52,8 +52,8 @@ export function NotificationsPage() {
     (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = pageLabel(isArabic);
 
-  const [page, setPage] = useState(0);
-  const [filter, setFilter] = useState<NotificationReadFilter>('all');
+  const [page, setPage] = useCachedState('page', 0);
+  const [filter, setFilter] = useCachedState<NotificationReadFilter>('filter', 'all');
 
   const listQuery = useQuery({
     queryKey: QK.notifications.list({ page, filter, pageSize: PAGE_SIZE }),

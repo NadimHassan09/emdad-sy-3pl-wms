@@ -16,6 +16,7 @@ function backendClusterApp({
   outFile,
   errorFile,
   defaultInstances,
+  env = {},
 }) {
   return {
     name,
@@ -34,6 +35,7 @@ function backendClusterApp({
     env_file: '.env',
     env: {
       CRON_LEADER_ENABLED: 'true',
+      ...env,
     },
     out_file: outFile,
     error_file: errorFile,

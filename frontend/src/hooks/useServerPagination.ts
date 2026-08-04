@@ -1,7 +1,9 @@
 import { keepPreviousData, useQuery, type QueryKey } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import type { PageResult } from '../api/client';
+import { useCachedState } from '../../../shared/design-system-next/hooks/useCachedState';
 
 export const TASK_LIST_DEFAULT_PAGE_SIZE = 25;
 export const TASK_LIST_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
@@ -37,12 +39,20 @@ export function useServerPagination<T>({
   defaultPageSize = TASK_LIST_DEFAULT_PAGE_SIZE,
   pageSizeOptions = TASK_LIST_PAGE_SIZE_OPTIONS,
 }: UseServerPaginationOptions<T>) {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(defaultPageSize);
+  const { pathname } = useLocation();
+  const [page, setPage] = useCachedState(`serverPage:${pathname}`, 1);
+  const [pageSize, setPageSize] = useCachedState(
+    `serverPageSize:${pathname}`,
+    defaultPageSize,
+  );
 
+  const filterJson = JSON.stringify(filterKey);
+  const prevFilterJson = useRef(filterJson);
   useEffect(() => {
+    if (prevFilterJson.current === filterJson) return;
+    prevFilterJson.current = filterJson;
     setPage(1);
-  }, [JSON.stringify(filterKey)]);
+  }, [filterJson, setPage]);
 
   const offset = (page - 1) * pageSize;
 
@@ -61,13 +71,16 @@ export function useServerPagination<T>({
     (next: number) => {
       setPage(Math.max(1, Math.min(totalPages, next)));
     },
-    [totalPages],
+    [totalPages, setPage],
   );
 
-  const onPageSizeChange = useCallback((size: number) => {
-    setPageSize(size);
-    setPage(1);
-  }, []);
+  const onPageSizeChange = useCallback(
+    (size: number) => {
+      setPageSize(size);
+      setPage(1);
+    },
+    [setPage, setPageSize],
+  );
 
   const serverPagination = useMemo(
     () => ({

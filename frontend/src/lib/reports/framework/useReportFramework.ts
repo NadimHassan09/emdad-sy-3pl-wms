@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 
+import { useCachedState } from '../../../hooks/useCachedState';
 import { useFilters } from '../../../hooks/useFilters';
 import { useReportServerData } from '../../../hooks/useReportServerData';
 import { getReportById } from '../registry';
@@ -29,11 +30,14 @@ export function useReportFramework({
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters, applyPatch } =
     useFilters<ReportFilterValues>(initialFilters);
 
-  const [hasGenerated, setHasGenerated] = useState(false);
+  const [hasGenerated, setHasGenerated] = useCachedState(`report:${reportId}:generated`, false);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ReportViewMode>(report.defaultView);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [viewMode, setViewMode] = useCachedState<ReportViewMode>(
+    `report:${reportId}:view`,
+    report.defaultView,
+  );
+  const [page, setPage] = useCachedState(`report:${reportId}:page`, 1);
+  const [pageSize, setPageSize] = useCachedState(`report:${reportId}:pageSize`, 50);
   const [exporting, setExporting] = useState<ReportExportFormat | null>(null);
 
   const permitted = canViewReport(userRole, reportId);

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, type ReactElement } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert, Button, EmptyState } from '@ds';
 
 import { ClientPageIntro } from '../components/ClientPageIntro';
+import { useCachedState } from '../hooks/useCachedState';
 import { isClientArabic } from '../lib/client-ui-language';
 import { CLIENT_NOTIFICATIONS_QUERY_KEY } from '../hooks/useClientNotifications';
 import {
@@ -87,16 +88,17 @@ export function NotificationsPage(): ReactElement {
   const isArabic = isClientArabic();
   const t = (label: string) => notificationsLabel(label, isArabic);
 
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useCachedState('page', 0);
   const filterFromUrl = parseFilterMode(searchParams.get('filter'));
-  const [filter, setFilter] = useState<FilterMode>(() => {
+  const initialFilter: FilterMode = (() => {
     const fromUrl = parseFilterMode(
       typeof window !== 'undefined'
         ? new URLSearchParams(window.location.search).get('filter')
         : null,
     );
     return fromUrl !== 'all' ? fromUrl : readStoredFilter();
-  });
+  })();
+  const [filter, setFilter] = useCachedState<FilterMode>('filter', initialFilter);
 
   useEffect(() => {
     if (filterFromUrl !== filter && searchParams.has('filter')) {

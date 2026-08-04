@@ -5,6 +5,7 @@ import { AppPageHeader, Card } from '@ds';
 import { useAuth } from '../auth/AuthContext';
 import { canAccessPath } from '../lib/rbac';
 import { useWmsTranslation } from '../lib/ui-i18n';
+import { CopyEmailButton } from '../components/CopyEmailButton';
 
 function roleLabel(role: string, isArabic: boolean): string {
   const map: Record<string, [string, string]> = {
@@ -205,13 +206,14 @@ export function ProfilePage(): ReactElement {
             'تواصل مع الدعم لتغييرات الوصول أو أسئلة الحساب.',
           )}
         </p>
-        <a
-          href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Admin Portal support')}`}
-          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 no-underline transition-colors hover:bg-brand-100 dark:bg-white/5 dark:text-brand-400 dark:hover:bg-white/10"
+        <CopyEmailButton
+          copyText={SUPPORT_EMAIL}
+          copiedLabel={label('Copied', 'تم النسخ')}
+          className="mt-3 inline-flex items-center gap-2 rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 no-underline transition-colors hover:bg-brand-100 dark:bg-white/5 dark:text-brand-400 dark:hover:bg-white/10 cursor-pointer"
         >
           <i className="fa-solid fa-envelope text-[10px]" aria-hidden="true" />
           {label('Contact support', 'تواصل مع الدعم')}
-        </a>
+        </CopyEmailButton>
       </Card>
     </div>
   );

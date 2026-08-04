@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Alert } from '@ds';
@@ -6,6 +6,7 @@ import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
+import { useCachedState } from '../hooks/useCachedState';
 
 import { Badge } from '../design-v2/Badge';
 import { Card } from '../design-v2/Card';
@@ -57,8 +58,8 @@ function inboundLabel(label: string, isArabic: boolean): string {
 
 export function InboundOrdersPage(): ReactElement {
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const [search, setSearch] = useCachedState('search', '');
+  const [status, setStatus] = useCachedState('status', '');
   const isArabic = isClientArabic();
   const t = (label: string) => inboundLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);

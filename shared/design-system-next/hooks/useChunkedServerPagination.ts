@@ -4,7 +4,9 @@ import {
   useQueryClient,
   type QueryKey,
 } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import { readListUiCache, writeListUiCache } from './listUiCache';
 
 /** Minimal list page shape — shared by Admin + Client chunked lists. */
 export type PageResult<T> = {
@@ -34,6 +36,8 @@ export type UseChunkedServerPaginationOptions<T> = {
   chunkQueryKeyPrefix: string;
   enabled?: boolean;
   pageSize?: number;
+  /** When set, UI page is restored across list↔detail navigation. */
+  persistKey?: string;
 };
 
 function chunkQueryKey(
@@ -61,15 +65,37 @@ export function useChunkedServerPagination<T>({
   chunkQueryKeyPrefix,
   enabled = true,
   pageSize = UI_PAGE_SIZE,
+  persistKey,
 }: UseChunkedServerPaginationOptions<T>) {
   const qc = useQueryClient();
-  const [page, setPage] = useState(1);
+  const pageCacheKey = persistKey ? `${persistKey}::page` : null;
+
+  const [page, setPageState] = useState(() => {
+    if (!pageCacheKey) return 1;
+    const cached = readListUiCache<number>(pageCacheKey);
+    return typeof cached === 'number' && cached >= 1 ? cached : 1;
+  });
+
+  const setPage = useCallback(
+    (next: number | ((prev: number) => number)) => {
+      setPageState((prev) => {
+        const value = typeof next === 'function' ? next(prev) : next;
+        if (pageCacheKey) writeListUiCache(pageCacheKey, value);
+        return value;
+      });
+    },
+    [pageCacheKey],
+  );
 
   const pagesInChunk = pagesPerChunk(chunkSize, pageSize);
 
+  const filterJson = JSON.stringify(filterKey);
+  const prevFilterJson = useRef(filterJson);
   useEffect(() => {
+    if (prevFilterJson.current === filterJson) return;
+    prevFilterJson.current = filterJson;
     setPage(1);
-  }, [JSON.stringify(filterKey)]);
+  }, [filterJson, setPage]);
 
   const chunkIndex = Math.floor(((page - 1) * pageSize) / chunkSize);
   const chunkOffset = chunkIndex * chunkSize;
@@ -134,11 +160,11 @@ export function useChunkedServerPagination<T>({
         (chunkIndex + 1) * chunkSize,
       ].filter((o) => o >= 0),
     );
-    const filterJson = JSON.stringify(filterKey);
+    const fj = JSON.stringify(filterKey);
 
     for (const q of qc.getQueryCache().findAll({ queryKey: [chunkQueryKeyPrefix], exact: false })) {
       const key = q.queryKey;
-      if (key.length < 3 || JSON.stringify(key[1]) !== filterJson) continue;
+      if (key.length < 3 || JSON.stringify(key[1]) !== fj) continue;
       const off = (key[2] as { offset?: number })?.offset;
       if (typeof off === 'number' && !keepOffsets.has(off)) {
         qc.removeQueries({ queryKey: key });
@@ -149,7 +175,7 @@ export function useChunkedServerPagination<T>({
       .getQueryCache()
       .findAll({ queryKey: [...rtQueryKeyPrefix, 'list'], exact: false })) {
       const key = q.queryKey;
-      if (key.length < 4 || JSON.stringify(key[key.length - 2]) !== filterJson) continue;
+      if (key.length < 4 || JSON.stringify(key[key.length - 2]) !== fj) continue;
       const off = (key[key.length - 1] as { offset?: number })?.offset ?? 0;
       if (!keepOffsets.has(off)) {
         qc.removeQueries({ queryKey: key });
@@ -166,10 +192,10 @@ export function useChunkedServerPagination<T>({
     (next: number) => {
       setPage(Math.max(1, Math.min(totalPages, next)));
     },
-    [totalPages],
+    [totalPages, setPage],
   );
 
-  const resetPage = useCallback(() => setPage(1), []);
+  const resetPage = useCallback(() => setPage(1), [setPage]);
 
   const isInitialLoading = currentQuery.isLoading && currentQuery.data === undefined;
 

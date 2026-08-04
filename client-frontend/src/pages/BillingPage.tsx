@@ -15,6 +15,7 @@ import { Card } from '../design-v2/Card';
 import { formatDate, formatDecimal } from '../lib/billing-display';
 import { buildBillingRestrictionCopy } from '../lib/client-billing-restriction';
 import { isClientArabic } from '../lib/client-ui-language';
+import { CopyEmailButton } from '../components/CopyEmailButton';
 import { fetchClientBillingSummary } from '../services/clientBillingService';
 import { fetchClientDashboardOverview } from '../services/clientDashboardService';
 import { fetchClientInboundOrders } from '../services/clientInboundOrdersService';
@@ -288,7 +289,8 @@ export function BillingPage(): ReactElement {
   ];
 
   const estimatedDate = cycle?.endsAt ?? null;
-  const salesHref = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent('Sales inquiry')}`;
+  // Avoid `mailto:` so browsers don't prompt to open other apps on the user's device.
+  const salesCopyText = SALES_EMAIL;
 
   return (
     <div className="space-y-5 animate-enter">
@@ -342,12 +344,13 @@ export function BillingPage(): ReactElement {
           <p className="text-sm text-text-muted mt-1">
             {t('Contact your account manager to set up a subscription.')}
           </p>
-          <a
-            href={salesHref}
-            className="inline-flex mt-4 items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-on-brand bg-cta hover:bg-cta-hover transition-colors"
+          <CopyEmailButton
+            copyText={salesCopyText}
+            copiedLabel={t('Copied')}
+            className="inline-flex mt-4 items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-on-brand bg-cta hover:bg-cta-hover transition-colors cursor-pointer"
           >
             {t('Contact sales')}
-          </a>
+          </CopyEmailButton>
         </Card>
       ) : (
         <>

@@ -52,4 +52,5 @@ export const RealtimeEvents = {
   PRESENCE_ONLINE: 'presence.online',
   PRESENCE_OFFLINE: 'presence.offline',
   AUTH_SESSION_CHANGED: 'auth.session.changed',
+  SYSTEM_VERSION: 'system.version',
 } as const;

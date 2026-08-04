@@ -7,6 +7,7 @@ import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
+import { useCachedState } from '../hooks/useCachedState';
 
 import { useAuth } from '../auth/AuthContext';
 import { AnchoredDropdown } from '../components/AnchoredDropdown';
@@ -87,7 +88,7 @@ export function ProductsPage(): ReactElement {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const canManageProducts = isClientAdmin(user?.role);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useCachedState('search', '');
   const [openActionId, setOpenActionId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);

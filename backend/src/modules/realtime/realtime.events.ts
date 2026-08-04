@@ -52,6 +52,8 @@ export const RealtimeEvents = {
   PRESENCE_ONLINE: 'presence.online',
   PRESENCE_OFFLINE: 'presence.offline',
   AUTH_SESSION_CHANGED: 'auth.session.changed',
+  /** Architecture 2.2 — sole synchronization event (Module Versions + queue sequence). */
+  SYSTEM_VERSION: 'system.version',
 } as const;
 
 export type RealtimeEventName = (typeof RealtimeEvents)[keyof typeof RealtimeEvents];

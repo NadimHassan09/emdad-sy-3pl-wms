@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type ReactNode, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { Alert, Card, ListPageHeader, Skeleton } from '@ds';
 import { CodApi, OmsApi, OmsReturnsApi } from '../api/oms';
@@ -39,6 +39,7 @@ function fmtMoney(value: string | null | undefined, currency?: string | null): s
 
 export function OmsOrderDetailPage() {
   const { id = '' } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
@@ -49,10 +50,15 @@ export function OmsOrderDetailPage() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
+  const [shippingFeeAfterOpen, setShippingFeeAfterOpen] = useState(false);
   const [approveShippingFee, setApproveShippingFee] = useState('');
+  const [shippingFeeAfter, setShippingFeeAfter] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [returnReason, setReturnReason] = useState('');
   const [returnQty, setReturnQty] = useState<Record<string, string>>({});
+
+  const openShippingFeeRequested = Boolean((location.state as { openShippingFee?: boolean } | null)?.openShippingFee);
+  const autoOpenedShippingFeeModalRef = useRef(false);
 
   const orderQuery = useQuery({
     queryKey: [...QK.omsOrders, id],
@@ -98,6 +104,20 @@ export function OmsOrderDetailPage() {
     onSuccess: () => {
       toast.success('Order approved.');
       setApproveOpen(false);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const setShippingFeeAfterMut = useMutation({
+    mutationFn: () => {
+      const fee = shippingFeeAfter.trim();
+      return OmsApi.update(id, { shippingFee: fee ? Number(fee) : undefined });
+    },
+    onSuccess: () => {
+      toast.success('Shipping fee updated.');
+      setShippingFeeAfterOpen(false);
+      setShippingFeeAfter('');
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -183,6 +203,18 @@ export function OmsOrderDetailPage() {
     return Object.fromEntries(order.lines.map((l) => [l.id, l.requestedQuantity]));
   }, [order]);
 
+  // Auto-open the "Specify shipping fee" modal when coming from the /orders/oms row actions.
+  // Must be declared before any early-return (loading/error) paths to keep React hook order stable.
+  useEffect(() => {
+    if (!openShippingFeeRequested) return;
+    if (autoOpenedShippingFeeModalRef.current) return;
+    if (!order) return;
+    if (order.status !== 'shipped' && order.status !== 'completed') return;
+    setShippingFeeAfter(order.shippingFee ?? '');
+    setShippingFeeAfterOpen(true);
+    autoOpenedShippingFeeModalRef.current = true;
+  }, [openShippingFeeRequested, order]);
+
   if (orderQuery.isLoading) {
     return (
       <div className="space-y-5 animate-enter">
@@ -226,6 +258,8 @@ export function OmsOrderDetailPage() {
   const canMarkDelivered = commercial === 'out_for_delivery';
   const canCancel = commercial !== 'delivered' && commercial !== 'cancelled';
   const canCreateReturn = commercial === 'delivered';
+  const canSpecifyShippingFeeAfterFulfillment =
+    order.status === 'shipped' || order.status === 'completed';
   const canRetryCod = order.codGenerationStatus === 'failed';
 
   return (
@@ -267,6 +301,17 @@ export function OmsOrderDetailPage() {
             {canCancel ? (
               <Button variant="secondary" onClick={() => setCancelOpen(true)}>
                 Cancel order
+              </Button>
+            ) : null}
+            {canSpecifyShippingFeeAfterFulfillment ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShippingFeeAfter(order.shippingFee ?? '');
+                  setShippingFeeAfterOpen(true);
+                }}
+              >
+                Specify shipping fee
               </Button>
             ) : null}
             {canRetryCod ? (
@@ -527,6 +572,32 @@ export function OmsOrderDetailPage() {
             </Button>
             <Button loading={approveMut.isPending} onClick={() => approveMut.mutate()}>
               Approve
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={shippingFeeAfterOpen}
+        onClose={() => setShippingFeeAfterOpen(false)}
+        title="Specify shipping fee"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-text-body">
+            Update the shipping fee after this OMS order is already shipped/completed.
+          </p>
+          <TextField
+            label="Shipping fee"
+            value={shippingFeeAfter}
+            onChange={(e) => setShippingFeeAfter(e.target.value)}
+            placeholder={order.shippingFee ?? '0'}
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="danger" onClick={() => setShippingFeeAfterOpen(false)}>
+              Cancel
+            </Button>
+            <Button loading={setShippingFeeAfterMut.isPending} onClick={() => setShippingFeeAfterMut.mutate()}>
+              Save fee
             </Button>
           </div>
         </div>

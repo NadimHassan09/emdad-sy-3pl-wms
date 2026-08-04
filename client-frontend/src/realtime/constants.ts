@@ -25,4 +25,5 @@ export const RealtimeEvents = {
   INVOICE_UPDATED: 'invoice.updated',
   PLAN_UPDATED: 'plan.updated',
   AUTH_SESSION_CHANGED: 'auth.session.changed',
+  SYSTEM_VERSION: 'system.version',
 } as const;

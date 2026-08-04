@@ -1,7 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
-import { LoginScreen, useUiTheme } from '@ds';
+import { LoginScreen, applyUiTheme } from '@ds';
 import { useAuth } from '../auth/AuthContext';
 import {
   clearRememberedAccount,
@@ -72,7 +72,10 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useUiTheme({ storageKey: 'admin-ui-theme' });
+  // Login pages should not follow user/browser dark-mode preferences.
+  useLayoutEffect(() => {
+    applyUiTheme('light', ['#admin-root', '#client-portal-root']);
+  }, []);
 
   useEffect(() => {
     endLogoutFlow();

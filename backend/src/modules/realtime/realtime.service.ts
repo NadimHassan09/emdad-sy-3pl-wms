@@ -6,6 +6,9 @@ import { companyRoomName, INTERNAL_MASTER_DATA_ROOM, normalizeCompanyId, userRoo
 import { RealtimeEvents, type RealtimeEventName } from './realtime.events';
 import type { UserListRealtimePayload } from './realtime-master-data.payload';
 import { buildTaskListPayload } from './realtime-task.payload';
+import { MutationBusService } from './sync/mutation-bus.service';
+import { RealtimeSyncModeService } from './sync/realtime-sync-mode.service';
+import type { MutationQueueService } from './sync/mutation-queue.service';
 
 @Injectable()
 export class RealtimeService {
@@ -15,10 +18,31 @@ export class RealtimeService {
     | ((section: 'orders' | 'tasks' | 'inventory' | 'kpi' | 'all') => void)
     | null = null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mutationBus: MutationBusService,
+    private readonly syncMode: RealtimeSyncModeService,
+  ) {}
+
+  private mutationQueue: MutationQueueService | null = null;
 
   attachServer(server: Server): void {
     this.io = server;
+    this.mutationQueue?.attachServer(server);
+  }
+
+  /** Wired from RealtimeModule after both services exist (avoids circular ctor deps). */
+  attachMutationQueue(queue: MutationQueueService): void {
+    this.mutationQueue = queue;
+    if (this.io) queue.attachServer(this.io);
+  }
+
+  private notify(
+    mutationId: string,
+    companyId?: string | null,
+    userId?: string | null,
+  ): void {
+    this.mutationBus.publish({ mutationId, companyId, userId });
   }
 
   registerDashboardSchedule(
@@ -41,7 +65,12 @@ export class RealtimeService {
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, event, payload);
   }
 
-  private emitToRoom(room: string, event: RealtimeEventName, payload: Record<string, unknown>): void {
+  /** Ungated emit — used for presence / session (not Module Versions sync). */
+  private emitToRoomRaw(
+    room: string,
+    event: RealtimeEventName,
+    payload: Record<string, unknown>,
+  ): void {
     if (!this.io) {
       this.log.debug(`Skip ${event} (socket server not ready).`);
       return;
@@ -53,7 +82,13 @@ export class RealtimeService {
     }
   }
 
+  private emitToRoom(room: string, event: RealtimeEventName, payload: Record<string, unknown>): void {
+    if (!this.syncMode.emitLegacy()) return;
+    this.emitToRoomRaw(room, event, payload);
+  }
+
   private emit(companyId: string, event: RealtimeEventName, payload: Record<string, unknown>): void {
+    if (!this.syncMode.emitLegacy()) return;
     if (!this.io) {
       this.log.debug(`Skip ${event} (socket server not ready).`);
       return;
@@ -73,8 +108,10 @@ export class RealtimeService {
 
   emitInboundOrderCreated(
     companyId: string,
-    payload: { orderId: string; status: string; listItem?: Record<string, unknown> },
+    payload: {
+      orderId: string; status: string; listItem?: Record<string, unknown> },
   ): void {
+    this.notify('InboundCreated', companyId);
     this.emit(companyId, RealtimeEvents.INBOUND_ORDER_CREATED, payload);
     this.scheduleDashboard('orders');
   }
@@ -88,14 +125,17 @@ export class RealtimeService {
       listItem?: Record<string, unknown>;
     },
   ): void {
+    this.notify('InboundUpdated', companyId);
     this.emit(companyId, RealtimeEvents.INBOUND_ORDER_UPDATED, payload);
     this.scheduleDashboard('orders');
   }
 
   emitOutboundOrderCreated(
     companyId: string,
-    payload: { orderId: string; status: string; listItem?: Record<string, unknown> },
+    payload: {
+      orderId: string; status: string; listItem?: Record<string, unknown> },
   ): void {
+    this.notify('OutboundCreated', companyId);
     this.emit(companyId, RealtimeEvents.OUTBOUND_ORDER_CREATED, payload);
     this.scheduleDashboard('orders');
   }
@@ -109,30 +149,37 @@ export class RealtimeService {
       listItem?: Record<string, unknown>;
     },
   ): void {
+    this.notify('OutboundUpdated', companyId);
     this.emit(companyId, RealtimeEvents.OUTBOUND_ORDER_UPDATED, payload);
     this.scheduleDashboard('orders');
   }
 
   emitOmsOrderEvent(
     companyId: string,
-    payload: { orderId: string; status: string; event: string },
+    payload: {
+      orderId: string; status: string; event: string },
   ): void {
+    this.notify('OmsOrderEvent', companyId);
     this.emit(companyId, RealtimeEvents.OMS_ORDER_EVENT, payload);
     this.scheduleDashboard('orders');
   }
 
   emitOmsReturnEvent(
     companyId: string,
-    payload: { returnId: string; status: string; event: string; omsOrderId?: string },
+    payload: {
+      returnId: string; status: string; event: string; omsOrderId?: string },
   ): void {
+    this.notify('OmsReturnEvent', companyId);
     this.emit(companyId, RealtimeEvents.OMS_RETURN_EVENT, payload);
     this.scheduleDashboard('orders');
   }
 
   emitCompanyLifecycleChanged(
     companyId: string,
-    payload: { companyId: string; status: string; action: string },
+    payload: {
+      companyId: string; status: string; action: string },
   ): void {
+    this.notify('CompanyLifecycle', companyId);
     this.emit(companyId, RealtimeEvents.COMPANY_LIFECYCLE_CHANGED, payload);
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.COMPANY_LIFECYCLE_CHANGED, payload);
     this.scheduleDashboard('kpi');
@@ -140,16 +187,20 @@ export class RealtimeService {
 
   emitBillingRestrictionChanged(
     companyId: string,
-    payload: { companyId: string; restricted: boolean; status?: string },
+    payload: {
+      companyId: string; restricted: boolean; status?: string },
   ): void {
+    this.notify('BillingRestriction', companyId);
     this.emit(companyId, RealtimeEvents.BILLING_RESTRICTION_CHANGED, payload);
     this.scheduleDashboard('kpi');
   }
 
   emitCodUpdated(
     companyId: string,
-    payload: { orderId?: string; codRecordId?: string; status: string },
+    payload: {
+      orderId?: string; codRecordId?: string; status: string },
   ): void {
+    this.notify('CodUpdated', companyId);
     this.emit(companyId, RealtimeEvents.COD_UPDATED, payload);
     this.scheduleDashboard('orders');
   }
@@ -167,6 +218,7 @@ export class RealtimeService {
       pdfUrl: string;
     },
   ): void {
+    this.notify('DocumentGenerated', companyId);
     this.emit(companyId, RealtimeEvents.DOCUMENT_GENERATED, payload);
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.DOCUMENT_GENERATED, {
       ...payload,
@@ -176,16 +228,20 @@ export class RealtimeService {
 
   emitDocumentSlotOverrideChanged(
     companyId: string,
-    payload: { taskId: string; type: string; companyId: string },
+    payload: {
+      taskId: string; type: string; companyId: string },
   ): void {
+    this.notify('DocumentSlotOverride', companyId);
     this.emit(companyId, RealtimeEvents.DOCUMENT_SLOT_OVERRIDE_CHANGED, payload);
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.DOCUMENT_SLOT_OVERRIDE_CHANGED, payload);
   }
 
   emitFinalContractChanged(
     companyId: string | null,
-    payload: { contractId: string; action: string; companyId?: string | null },
+    payload: {
+      contractId: string; action: string; companyId?: string | null },
   ): void {
+    this.notify('FinalContractChanged', companyId);
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.FINAL_CONTRACT_CHANGED, payload);
     if (companyId) {
       this.emit(companyId, RealtimeEvents.FINAL_CONTRACT_CHANGED, payload);
@@ -193,7 +249,7 @@ export class RealtimeService {
   }
 
   emitFormSubmitted(payload: {
-    submission: {
+      submission: {
       id: string;
       fullName: string;
       phone: string;
@@ -203,6 +259,7 @@ export class RealtimeService {
       createdAt: Date | string;
     };
   }): void {
+    this.notify('FormSubmitted');
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.FORM_SUBMITTED, payload);
   }
 
@@ -216,6 +273,7 @@ export class RealtimeService {
       action?: string;
     },
   ): void {
+    this.notify('InvoiceUpdated', companyId);
     this.emit(companyId, RealtimeEvents.INVOICE_UPDATED, payload);
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.INVOICE_UPDATED, payload);
     this.scheduleDashboard('kpi');
@@ -230,13 +288,14 @@ export class RealtimeService {
       action?: string;
     },
   ): void {
+    this.notify('PlanUpdated', companyId);
     this.emit(companyId, RealtimeEvents.PLAN_UPDATED, payload);
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.PLAN_UPDATED, payload);
     this.scheduleDashboard('kpi');
   }
 
   emitBackupJobProgress(payload: {
-    jobId: string;
+      jobId: string;
     status: string;
     type?: string;
     progressPercent?: number;
@@ -244,6 +303,7 @@ export class RealtimeService {
     errorMessage?: string | null;
     label?: string | null;
   }): void {
+    this.notify('BackupJobProgress');
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.BACKUP_JOB_PROGRESS, payload);
   }
 
@@ -258,14 +318,17 @@ export class RealtimeService {
       workflowInstanceId?: string;
     },
   ): void {
+    this.notify('TaskUpdated', companyId);
     this.emit(companyId, RealtimeEvents.TASK_UPDATED, payload);
     this.scheduleDashboard('tasks');
   }
 
   emitInventoryChanged(
     companyId: string,
-    payload: { source?: string; orderId?: string; taskId?: string; productId?: string },
+    payload: {
+      source?: string; orderId?: string; taskId?: string; productId?: string },
   ): void {
+    this.notify('InventoryChanged', companyId);
     void this.emitInventoryChangedAsync(companyId, payload);
   }
 
@@ -344,26 +407,31 @@ export class RealtimeService {
   }
 
   emitProductCreated(companyId: string, product: Record<string, unknown>): void {
+    this.notify('ProductCreated', companyId);
     this.emit(companyId, RealtimeEvents.PRODUCT_CREATED, { product });
     this.scheduleDashboard('kpi');
   }
 
   emitProductUpdated(companyId: string, product: Record<string, unknown>): void {
+    this.notify('ProductUpdated', companyId);
     this.emit(companyId, RealtimeEvents.PRODUCT_UPDATED, { product });
     this.scheduleDashboard('kpi');
   }
 
   emitProductArchived(companyId: string, productId: string): void {
+    this.notify('ProductArchived', companyId);
     this.emit(companyId, RealtimeEvents.PRODUCT_ARCHIVED, { productId });
     this.scheduleDashboard('kpi');
   }
 
   emitProductDeleted(companyId: string, productId: string): void {
+    this.notify('ProductDeleted', companyId);
     this.emit(companyId, RealtimeEvents.PRODUCT_DELETED, { productId });
     this.scheduleDashboard('kpi');
   }
 
   emitUserCreated(user: UserListRealtimePayload): void {
+    this.notify('UserCreated', user.companyId);
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.USER_CREATED, { user });
     if (user.companyId) {
       this.emit(user.companyId, RealtimeEvents.USER_CREATED, { user });
@@ -372,6 +440,7 @@ export class RealtimeService {
   }
 
   emitUserUpdated(user: UserListRealtimePayload): void {
+    this.notify('UserUpdated', user.companyId);
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.USER_UPDATED, { user });
     if (user.companyId) {
       this.emit(user.companyId, RealtimeEvents.USER_UPDATED, { user });
@@ -379,6 +448,7 @@ export class RealtimeService {
   }
 
   emitUserDeleted(userId: string, companyId: string | null): void {
+    this.notify('UserDeleted', companyId);
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.USER_DELETED, { userId });
     if (companyId) {
       this.emit(companyId, RealtimeEvents.USER_DELETED, { userId });
@@ -386,24 +456,29 @@ export class RealtimeService {
   }
 
   emitWarehouseCreated(warehouse: Record<string, unknown>): void {
+    this.notify('WarehouseCreated');
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.WAREHOUSE_CREATED, { warehouse });
   }
 
   emitWarehouseUpdated(warehouse: Record<string, unknown>): void {
+    this.notify('WarehouseUpdated');
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.WAREHOUSE_UPDATED, { warehouse });
   }
 
   emitLocationCreated(location: Record<string, unknown>): void {
+    this.notify('LocationCreated');
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.LOCATION_CREATED, { location });
     this.scheduleDashboard('inventory');
   }
 
   emitLocationUpdated(location: Record<string, unknown>): void {
+    this.notify('LocationUpdated');
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.LOCATION_UPDATED, { location });
     this.scheduleDashboard('inventory');
   }
 
   emitLocationArchived(warehouseId: string, locationId: string): void {
+    this.notify('LocationArchived');
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.LOCATION_ARCHIVED, {
       warehouseId,
       locationId,
@@ -413,30 +488,38 @@ export class RealtimeService {
 
   emitReturnCreated(
     companyId: string,
-    payload: { listItem: Record<string, unknown>; return: Record<string, unknown> },
+    payload: {
+      listItem: Record<string, unknown>; return: Record<string, unknown> },
   ): void {
+    this.notify('ReturnCreated', companyId);
     this.emit(companyId, RealtimeEvents.RETURN_CREATED, payload);
     this.scheduleDashboard('kpi');
   }
 
   emitReturnUpdated(
     companyId: string,
-    payload: { listItem: Record<string, unknown>; return: Record<string, unknown> },
+    payload: {
+      listItem: Record<string, unknown>; return: Record<string, unknown> },
   ): void {
+    this.notify('ReturnUpdated', companyId);
     this.emit(companyId, RealtimeEvents.RETURN_UPDATED, payload);
   }
 
   emitReturnConfirmed(
     companyId: string,
-    payload: { listItem: Record<string, unknown>; return: Record<string, unknown> },
+    payload: {
+      listItem: Record<string, unknown>; return: Record<string, unknown> },
   ): void {
+    this.notify('ReturnConfirmed', companyId);
     this.emit(companyId, RealtimeEvents.RETURN_CONFIRMED, payload);
   }
 
   emitReturnCompleted(
     companyId: string,
-    payload: { listItem: Record<string, unknown>; return: Record<string, unknown> },
+    payload: {
+      listItem: Record<string, unknown>; return: Record<string, unknown> },
   ): void {
+    this.notify('ReturnCompleted', companyId);
     this.emit(companyId, RealtimeEvents.RETURN_COMPLETED, payload);
     this.scheduleDashboard('inventory');
     this.scheduleDashboard('kpi');
@@ -444,83 +527,120 @@ export class RealtimeService {
 
   emitCycleCountCreated(
     companyId: string,
-    payload: { listItem: Record<string, unknown>; count: Record<string, unknown> },
+    payload: {
+      listItem: Record<string, unknown>; count: Record<string, unknown> },
   ): void {
+    this.notify('CycleCountCreated', companyId);
     this.emit(companyId, RealtimeEvents.CYCLE_COUNT_CREATED, payload);
     this.scheduleDashboard('kpi');
   }
 
   emitCycleCountUpdated(
     companyId: string,
-    payload: { listItem: Record<string, unknown>; count: Record<string, unknown> },
+    payload: {
+      listItem: Record<string, unknown>; count: Record<string, unknown> },
   ): void {
+    this.notify('CycleCountUpdated', companyId);
     this.emit(companyId, RealtimeEvents.CYCLE_COUNT_UPDATED, payload);
   }
 
   emitCycleCountCompleted(
     companyId: string,
-    payload: { listItem: Record<string, unknown>; count: Record<string, unknown> },
+    payload: {
+      listItem: Record<string, unknown>; count: Record<string, unknown> },
   ): void {
+    this.notify('CycleCountCompleted', companyId);
     this.emit(companyId, RealtimeEvents.CYCLE_COUNT_COMPLETED, payload);
     this.scheduleDashboard('inventory');
     this.scheduleDashboard('kpi');
   }
 
   emitAdjustmentCreated(companyId: string, adjustment: Record<string, unknown>): void {
+    this.notify('AdjustmentCreated', companyId);
     this.emit(companyId, RealtimeEvents.ADJUSTMENT_CREATED, { adjustment });
   }
 
   emitAdjustmentApproved(companyId: string, adjustment: Record<string, unknown>): void {
+    this.notify('AdjustmentApproved', companyId);
     this.emit(companyId, RealtimeEvents.ADJUSTMENT_APPROVED, { adjustment });
     this.scheduleDashboard('inventory');
   }
 
   emitTransferCreated(companyId: string, transfer: Record<string, unknown>): void {
+    this.notify('TransferCreated', companyId);
     this.emit(companyId, RealtimeEvents.TRANSFER_CREATED, { transfer });
   }
 
   emitTransferCompleted(companyId: string, transfer: Record<string, unknown>): void {
+    this.notify('TransferCompleted', companyId);
     this.emit(companyId, RealtimeEvents.TRANSFER_COMPLETED, { transfer });
     this.scheduleDashboard('inventory');
   }
 
   emitDashboardKpiUpdated(patch: Record<string, unknown>): void {
+    this.notify('DashboardUpdated');
     this.emitDashboard(RealtimeEvents.DASHBOARD_KPI_UPDATED, patch);
   }
 
   emitDashboardInventoryUpdated(patch: Record<string, unknown>): void {
+    this.notify('DashboardUpdated');
     this.emitDashboard(RealtimeEvents.DASHBOARD_INVENTORY_UPDATED, patch);
   }
 
   emitDashboardOrdersUpdated(patch: Record<string, unknown>): void {
+    this.notify('DashboardUpdated');
     this.emitDashboard(RealtimeEvents.DASHBOARD_ORDERS_UPDATED, patch);
   }
 
   emitDashboardTasksUpdated(patch: Record<string, unknown>): void {
+    this.notify('DashboardUpdated');
     this.emitDashboard(RealtimeEvents.DASHBOARD_TASKS_UPDATED, patch);
   }
 
   emitPresenceOnline(presence: Record<string, unknown>): void {
-    this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.PRESENCE_ONLINE, { presence });
+    this.notify('PresenceOnline');
+    // Presence is live UI state (not Module Versions sync) — always emit.
+    this.emitToRoomRaw(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.PRESENCE_ONLINE, { presence });
   }
 
   emitPresenceOffline(presence: Record<string, unknown>): void {
-    this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.PRESENCE_OFFLINE, { presence });
+    this.notify('PresenceOffline');
+    this.emitToRoomRaw(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.PRESENCE_OFFLINE, { presence });
   }
 
   emitAuthSessionChanged(
     userId: string,
     payload: { type: string; userId: string; reason?: string },
   ): void {
-    this.emitToUser(userId, RealtimeEvents.AUTH_SESSION_CHANGED, payload);
-    this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.AUTH_SESSION_CHANGED, payload);
+    this.notify('SessionChanged', null, userId);
+    // Session force-logout needs the typed payload — always emit.
+    this.emitToUserRaw(userId, RealtimeEvents.AUTH_SESSION_CHANGED, payload);
+    this.emitToRoomRaw(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.AUTH_SESSION_CHANGED, payload);
+  }
+
+  private emitToUserRaw(
+    userId: string,
+    event: RealtimeEventName,
+    payload: Record<string, unknown>,
+  ): void {
+    if (!this.io) {
+      this.log.debug(`Skip ${event} (socket server not ready).`);
+      return;
+    }
+    try {
+      this.io.to(userRoomName(userId)).emit(event, { ...payload, at: new Date().toISOString() });
+    } catch (err) {
+      this.log.warn(`Emit ${event} failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   emitToUser(userId: string, event: RealtimeEventName, payload: Record<string, unknown>): void {
-    this.emitToRoom(userRoomName(userId), event, payload);
+    if (!this.syncMode.emitLegacy()) return;
+    this.emitToUserRaw(userId, event, payload);
   }
 
   emitAuditLogCreated(auditLog: Record<string, unknown>, companyId: string | null): void {
+    this.notify('AuditLogCreated', companyId);
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.AUDIT_LOG_CREATED, { auditLog });
     if (companyId) {
       this.emit(companyId, RealtimeEvents.AUDIT_LOG_CREATED, { auditLog });
@@ -531,6 +651,7 @@ export class RealtimeService {
     notification: Record<string, unknown>,
     target: { userId?: string | null; companyId?: string | null },
   ): void {
+    this.notify('NotificationCreated', target.companyId, target.userId);
     const payload = { notification };
     if (target.userId) {
       this.emitToUser(target.userId, RealtimeEvents.NOTIFICATION_CREATED, payload);
@@ -543,10 +664,12 @@ export class RealtimeService {
     userId: string,
     payload: { notification?: Record<string, unknown>; markAllRead?: boolean },
   ): void {
+    this.notify('NotificationRead', null, userId);
     this.emitToUser(userId, RealtimeEvents.NOTIFICATION_READ, payload);
   }
 
   emitNotificationDeleted(userId: string, notificationId: string): void {
+    this.notify('NotificationDeleted', null, userId);
     this.emitToUser(userId, RealtimeEvents.NOTIFICATION_DELETED, { notificationId });
   }
 

@@ -81,6 +81,14 @@ const envSchema = z.object({
   DOC_BRAND_ADDRESS_AR: z.string().min(1).optional(),
   // OMS — when true, reserve stock on order create (admin OMS) and on warehouse confirm (client portal).
   ALLOCATE_ON_ORDER_CREATE: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+  // Realtime Architecture 2.2
+  REALTIME_SYNC_MODE: z.enum(['legacy', 'dual', 'canonical']).optional(),
+  REALTIME_MERGE_WINDOW_MS: z.coerce.number().int().min(0).max(5000).optional(),
+  REALTIME_EMIT_DEBOUNCE_MS: z.coerce.number().int().min(0).max(5000).optional(),
+  // Login brute-force lockout (IP-based). Disable on staging with LOGIN_BRUTE_FORCE_ENABLED=false.
+  LOGIN_BRUTE_FORCE_ENABLED: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+  LOGIN_BRUTE_FORCE_MAX_FAILURES: z.coerce.number().int().min(1).max(100).optional(),
+  LOGIN_BRUTE_FORCE_WINDOW_MS: z.coerce.number().int().min(1000).max(3_600_000).optional(),
 });
 
 function envBool(raw: unknown): boolean {

@@ -1,8 +1,8 @@
 import type { FormEvent, ReactElement } from 'react';
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 
-import { LoginScreen, useUiTheme } from '@ds';
+import { LoginScreen, applyUiTheme } from '@ds';
 import { useAuth } from '../auth/AuthContext';
 import { useClientArabic } from '../lib/client-ui-language';
 import { clientMediaSrc } from '../lib/client-media';
@@ -40,7 +40,11 @@ export function LoginPage(): ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const isArabic = useClientArabic();
-  useUiTheme({ storageKey: 'client-ui-theme' });
+  // Login pages should not follow user/browser dark-mode preferences.
+  // Force light theme to keep the login UI consistent on every environment.
+  useLayoutEffect(() => {
+    applyUiTheme('light', ['#client-portal-root', '#admin-root']);
+  }, []);
 
   const t = (en: string, ar: string) => (isArabic ? ar : en);
 

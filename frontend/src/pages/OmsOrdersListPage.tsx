@@ -165,6 +165,16 @@ export function OmsOrdersListPage() {
             ariaLabel="Open actions"
             items={[
               { key: 'edit', label: 'Edit', onClick: () => setEditOrderId(row.id) },
+              ...(row.status === 'shipped' || row.status === 'completed'
+                ? [
+                    {
+                      key: 'shippingFee',
+                      label: 'Specify shipping fee',
+                      onClick: () =>
+                        navigate(`/orders/oms/${row.id}`, { state: { openShippingFee: true } }),
+                    } as const,
+                  ]
+                : []),
               { key: 'delete', label: 'Delete', danger: true, onClick: () => setDeleteOrder(row) },
             ]}
           />

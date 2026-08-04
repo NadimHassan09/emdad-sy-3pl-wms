@@ -1,5 +1,7 @@
 # Realtime Verification Report
 
+> **Supersession notice (2026-08-04):** This report proves Architecture **1.0** (feature-specific wire events + listeners) for Waves 0–4. The **target** design is now Architecture **2.2** — see [`REALTIME_ARCHITECTURE.md`](./REALTIME_ARCHITECTURE.md) and [`REALTIME_IMPLEMENTATION_PLAN.md`](./REALTIME_IMPLEMENTATION_PLAN.md). Do not use this report as a mandate to add more feature socket events.
+
 | Field | Value |
 |-------|-------|
 | **Architecture Version** | `1.0` |

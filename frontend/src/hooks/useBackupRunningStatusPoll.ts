@@ -7,7 +7,8 @@ import { isBackupRunning } from '../lib/backup-display';
 
 /**
  * Fallback poll for running/pending backup rows when socket push is unavailable.
- * Primary path: `backup.job.progress` via RealtimeProvider.
+ * Primary path: `system.version` → backups module refetch (Architecture 2.2).
+ * This poll is a degraded fallback when socket sync is unavailable.
  */
 export function useBackupRunningStatusPoll(rows: BackupSummary[]) {
   const runningIds = useMemo(

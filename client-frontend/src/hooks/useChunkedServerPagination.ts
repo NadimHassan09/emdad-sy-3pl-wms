@@ -1,6 +1,14 @@
-/** Client re-export — SoT lives in shared/design-system/hooks (no Admin @wms alias). */
+/**
+ * Client wrapper — injects pathname persist key so page survives list↔detail navigation.
+ */
+import { useLocation } from 'react-router-dom';
+
+import {
+  useChunkedServerPagination as useChunkedServerPaginationBase,
+  type UseChunkedServerPaginationOptions,
+} from '../../../shared/design-system-next/hooks/useChunkedServerPagination';
+
 export {
-  useChunkedServerPagination,
   CHUNK_SIZE_STANDARD,
   CHUNK_SIZE_TASKS,
   UI_PAGE_SIZE,
@@ -10,3 +18,13 @@ export type {
   UseChunkedServerPaginationOptions,
   PageResult,
 } from '../../../shared/design-system-next/hooks/useChunkedServerPagination';
+
+export function useChunkedServerPagination<T>(
+  options: UseChunkedServerPaginationOptions<T>,
+) {
+  const { pathname } = useLocation();
+  return useChunkedServerPaginationBase({
+    ...options,
+    persistKey: options.persistKey ?? `chunkPage:${pathname}`,
+  });
+}

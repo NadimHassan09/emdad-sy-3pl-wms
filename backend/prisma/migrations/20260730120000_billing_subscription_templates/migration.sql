@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS "billing_plan_templates" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "name" TEXT NOT NULL,
+    "reserved_volume" DECIMAL(14,4) NOT NULL DEFAULT 0,
+    "reserved_weight" DECIMAL(14,4) NOT NULL DEFAULT 0,
+    "fixed_subscription_fee" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "cycle_length_days" INTEGER NOT NULL,
+    "inbound_order_fee" DECIMAL(10,4) NOT NULL DEFAULT 0,
+    "outbound_order_fee" DECIMAL(10,4) NOT NULL DEFAULT 0,
+    "outbound_base_fee" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "outbound_included_items" INTEGER NOT NULL DEFAULT 0,
+    "outbound_additional_item_fee" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "packaging_fee" DECIMAL(10,4) NOT NULL DEFAULT 0,
+    "quality_check_fee" DECIMAL(10,4) NOT NULL DEFAULT 0,
+    "excess_volume_fee_per_day" DECIMAL(10,4) NOT NULL DEFAULT 0,
+    "excess_weight_fee_per_day" DECIMAL(10,4) NOT NULL DEFAULT 0,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "billing_plan_templates_pkey" PRIMARY KEY ("id")
+);

@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useUiTheme } from '@ds';
+import { CopyEmailButton } from '../components/CopyEmailButton';
 
 export function AccountStatusPage(): ReactElement {
   const isArabic =
@@ -45,13 +46,14 @@ export function AccountStatusPage(): ReactElement {
           {t('Please contact support to restore access.', 'يرجى التواصل مع الدعم لاستعادة الوصول.')}
         </p>
 
-        <a
-          href="mailto:support@emdadsy.com"
-          className="mt-6 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-cta bg-cta px-3.5 py-3 text-sm font-semibold text-white shadow-xs transition-[colors,transform] duration-fast hover:border-cta-hover hover:bg-cta-hover active:scale-[0.97]"
+        <CopyEmailButton
+          copyText="support@emdadsy.com"
+          copiedLabel={t('Copied', 'تم النسخ')}
+          className="mt-6 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-cta bg-cta px-3.5 py-3 text-sm font-semibold text-white shadow-xs transition-[colors,transform] duration-fast hover:border-cta-hover hover:bg-cta-hover active:scale-[0.97] cursor-pointer"
         >
           <i className="fa-solid fa-envelope text-sm" aria-hidden="true" />
           {t('Contact support', 'تواصل مع الدعم')}
-        </a>
+        </CopyEmailButton>
 
         <Link
           to="/login"

@@ -15,6 +15,7 @@ import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
+import { useCachedState } from '../hooks/useCachedState';
 import { useFilters } from '../hooks/useFilters';
 import {
   auditActionBadgeClass,
@@ -66,8 +67,8 @@ export function AuditLogsPage() {
     (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (en: string, ar: string) => (isArabic ? ar : en);
 
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [page, setPage] = useCachedState('page', 1);
+  const [pageSize, setPageSize] = useCachedState('pageSize', 50);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detailSeed, setDetailSeed] = useState<AuditLogSummary | null>(null);
   const [exporting, setExporting] = useState(false);

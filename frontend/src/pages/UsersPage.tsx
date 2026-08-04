@@ -214,8 +214,20 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
 
   const presenceQuery = useQuery({
     queryKey: QK.presenceOnlineUsers,
-    queryFn: () => new Set<string>(),
-    staleTime: Infinity,
+    queryFn: async () => {
+      const { getAccessToken } = await import('../auth/authStorage');
+      const { getApiBaseUrl } = await import('../api/apiBaseUrl');
+      const token = getAccessToken();
+      if (!token) return new Set<string>();
+      const res = await fetch(`${getApiBaseUrl()}/realtime/presence/online`, {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+      });
+      if (!res.ok) return new Set<string>();
+      const body = (await res.json()) as { data?: { userIds?: string[] } };
+      return new Set(body.data?.userIds ?? []);
+    },
+    staleTime: 30_000,
     initialData: () => new Set<string>(),
   });
   const onlineUserIds = presenceQuery.data;

@@ -32,8 +32,11 @@ export default defineConfig(({ mode }) => {
       'react': pathResolve('./node_modules/react'),
       'react-dom': pathResolve('./node_modules/react-dom'),
       'react/jsx-runtime': pathResolve('./node_modules/react/jsx-runtime.js'),
+      '@tanstack/react-query': pathResolve(
+        './node_modules/@tanstack/react-query/build/modern/index.js',
+      ),
     },
-    dedupe: ['react', 'react-dom'],
+    dedupe: ['react', 'react-dom', '@tanstack/react-query'],
   },
   server: {
     port: 5173,

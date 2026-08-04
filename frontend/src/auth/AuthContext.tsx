@@ -97,6 +97,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onSessionChanged = (ev: Event) => {
       const detail = (ev as CustomEvent<{ type?: string; reason?: string }>).detail;
+      if (detail?.type === 'revalidate') {
+        void refresh();
+        return;
+      }
       if (
         detail?.type === 'forced_logout' ||
         detail?.type === 'expired' ||
@@ -123,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener('wms:session-changed', onSessionChanged);
     return () => window.removeEventListener('wms:session-changed', onSessionChanged);
-  }, []);
+  }, [refresh]);
 
   const login = useCallback(
     async (email: string, password: string, options?: { persistSession?: boolean }) => {

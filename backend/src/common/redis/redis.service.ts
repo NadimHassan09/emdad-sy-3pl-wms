@@ -200,6 +200,44 @@ export class RedisService implements OnModuleDestroy {
     return fresh;
   }
 
+
+  async incr(key: string): Promise<number> {
+    if (!this.client) {
+      return 0;
+    }
+    try {
+      await this.ensureConnected();
+      return await this.client.incr(this.k(key));
+    } catch (e) {
+      this.log.debug(`Redis incr error for ${key}: ${(e as Error).message}`);
+      return 0;
+    }
+  }
+
+  async hincrby(key: string, field: string, amount = 1): Promise<number> {
+    if (!this.client) {
+      return 0;
+    }
+    try {
+      await this.ensureConnected();
+      return await this.client.hincrby(this.k(key), field, amount);
+    } catch (e) {
+      this.log.debug(`Redis hincrby error for ${key}: ${(e as Error).message}`);
+      return 0;
+    }
+  }
+
+  async hgetall(key: string): Promise<Record<string, string>> {
+    if (!this.client) return {};
+    try {
+      await this.ensureConnected();
+      return (await this.client.hgetall(this.k(key))) ?? {};
+    } catch (e) {
+      this.log.debug(`Redis hgetall error for ${key}: ${(e as Error).message}`);
+      return {};
+    }
+  }
+
   private async ensureConnected(): Promise<void> {
     if (!this.client || this.disabled) return;
     if ((this.client as Redis & { status?: string }).status === 'wait') {

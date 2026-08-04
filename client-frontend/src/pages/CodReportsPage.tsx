@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -7,6 +7,7 @@ import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
+import { useCachedState } from '../hooks/useCachedState';
 
 import { Badge } from '../design-v2/Badge';
 import { Card } from '../design-v2/Card';
@@ -52,9 +53,9 @@ export function CodReportsPage(): ReactElement {
   const isArabic = isClientArabic();
   const t = (label: string) => labelText(label, isArabic);
 
-  const [codStatus, setCodStatus] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [codStatus, setCodStatus] = useCachedState('codStatus', '');
+  const [dateFrom, setDateFrom] = useCachedState('dateFrom', '');
+  const [dateTo, setDateTo] = useCachedState('dateTo', '');
 
   const filterKey = useMemo(
     () => ({
