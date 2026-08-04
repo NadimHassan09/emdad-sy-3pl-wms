@@ -18,6 +18,23 @@ export const OUTBOUND_ORDER_STATUSES_BLOCKING_PRODUCT_DELETE = [
   'shipped',
 ] as const;
 
+/** OMS orders that represent committed sales / warehouse activity. */
+export const OMS_ORDER_STATUSES_BLOCKING_PRODUCT_DELETE = [
+  'approved',
+  'confirmed',
+  'processing',
+  'allocated',
+  'picking',
+  'packing',
+  'ready_to_ship',
+  'out_for_delivery',
+  'shipped',
+  'delivered',
+  'failed_delivery',
+  'completed',
+  'returned',
+] as const;
+
 /** Draft/cancelled orders may be cleaned up when hard-deleting an unused product. */
 export const INBOUND_ORDER_STATUSES_REMOVABLE_PRODUCT_LINES = [
   'draft',
@@ -28,6 +45,13 @@ export const INBOUND_ORDER_STATUSES_REMOVABLE_PRODUCT_LINES = [
 export const OUTBOUND_ORDER_STATUSES_REMOVABLE_PRODUCT_LINES = [
   'draft',
   'pending_approval',
+  'cancelled',
+] as const;
+
+export const OMS_ORDER_STATUSES_REMOVABLE_PRODUCT_LINES = [
+  'draft',
+  'pending_approval',
+  'rejected',
   'cancelled',
 ] as const;
 
@@ -57,6 +81,15 @@ export function outboundLinesBlockingProductDeleteWhere(
   };
 }
 
+export function omsLinesBlockingProductDeleteWhere(
+  productIds: string | string[],
+): Prisma.OmsOrderLineWhereInput {
+  return {
+    productId: productIdFilter(productIds),
+    order: { status: { in: [...OMS_ORDER_STATUSES_BLOCKING_PRODUCT_DELETE] } },
+  };
+}
+
 export async function purgeRemovableOrderLinesForProduct(
   tx: Prisma.TransactionClient,
   productId: string,
@@ -71,6 +104,12 @@ export async function purgeRemovableOrderLinesForProduct(
     where: {
       productId,
       order: { status: { in: [...OUTBOUND_ORDER_STATUSES_REMOVABLE_PRODUCT_LINES] } },
+    },
+  });
+  await tx.omsOrderLine.deleteMany({
+    where: {
+      productId,
+      order: { status: { in: [...OMS_ORDER_STATUSES_REMOVABLE_PRODUCT_LINES] } },
     },
   });
 }

@@ -209,7 +209,7 @@ let ProductsService = class ProductsService {
             ]));
             const referencedProductIds = new Set();
             if (ids.length > 0) {
-                const [inboundRefs, outboundRefs, adjustmentRefs, ledgerRefs] = await Promise.all([
+                const [inboundRefs, outboundRefs, omsRefs, adjustmentRefs, ledgerRefs] = await Promise.all([
                     tx.inboundOrderLine.groupBy({
                         by: ['productId'],
                         where: (0, product_delete_references_util_1.inboundLinesBlockingProductDeleteWhere)(ids),
@@ -217,6 +217,10 @@ let ProductsService = class ProductsService {
                     tx.outboundOrderLine.groupBy({
                         by: ['productId'],
                         where: (0, product_delete_references_util_1.outboundLinesBlockingProductDeleteWhere)(ids),
+                    }),
+                    tx.omsOrderLine.groupBy({
+                        by: ['productId'],
+                        where: (0, product_delete_references_util_1.omsLinesBlockingProductDeleteWhere)(ids),
                     }),
                     tx.stockAdjustmentLine.groupBy({
                         by: ['productId'],
@@ -230,6 +234,7 @@ let ProductsService = class ProductsService {
                 for (const row of [
                     ...inboundRefs,
                     ...outboundRefs,
+                    ...omsRefs,
                     ...adjustmentRefs,
                     ...ledgerRefs,
                 ]) {
@@ -439,7 +444,7 @@ let ProductsService = class ProductsService {
         if (product.status === 'archived') {
             throw new common_1.BadRequestException('Archived products cannot be hard-deleted from this action.');
         }
-        const [onHandAgg, resAgg, inboundLines, outboundLines, adjLines, ledger] = await this.prisma.$transaction([
+        const [onHandAgg, resAgg, inboundLines, outboundLines, omsLines, adjLines, ledger] = await this.prisma.$transaction([
             this.prisma.currentStock.aggregate({
                 where: { productId: id },
                 _sum: { quantityOnHand: true },
@@ -454,6 +459,9 @@ let ProductsService = class ProductsService {
             this.prisma.outboundOrderLine.count({
                 where: (0, product_delete_references_util_1.outboundLinesBlockingProductDeleteWhere)(id),
             }),
+            this.prisma.omsOrderLine.count({
+                where: (0, product_delete_references_util_1.omsLinesBlockingProductDeleteWhere)(id),
+            }),
             this.prisma.stockAdjustmentLine.count({ where: { productId: id } }),
             this.prisma.inventoryLedger.count({ where: { productId: id } }),
         ]);
@@ -462,7 +470,11 @@ let ProductsService = class ProductsService {
         if (onHand.greaterThan(0) || reserved.greaterThan(0)) {
             throw new common_1.ConflictException('Cannot delete product while on-hand or reserved quantity is greater than zero.');
         }
-        if (inboundLines > 0 || outboundLines > 0 || adjLines > 0 || ledger > 0) {
+        if (inboundLines > 0 ||
+            outboundLines > 0 ||
+            omsLines > 0 ||
+            adjLines > 0 ||
+            ledger > 0) {
             throw new common_1.ConflictException('Cannot delete product that appears on orders, adjustments, or inventory history. Archive it instead.');
         }
         await this.prisma.$transaction(async (tx) => {

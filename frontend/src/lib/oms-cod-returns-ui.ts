@@ -3,7 +3,7 @@
  * Pages, routes, APIs, and permissions remain intact; when false, nav is hidden
  * and direct URLs redirect to the OMS Dashboard.
  *
- * Re-enable: set OMS_COD_RETURNS_UI_ENABLED=true at frontend build time.
+ * Re-enable / disable: set OMS_COD_RETURNS_UI_ENABLED at frontend build time (defaults true in staging).
  */
 declare const __OMS_COD_RETURNS_UI_ENABLED__: string | undefined;
 
@@ -24,9 +24,9 @@ function readBuildFlag(): string | undefined {
   }
 }
 
-/** Temporarily defaults to hidden until explicitly re-enabled. */
+/** Temporarily defaults to enabled in staging; set OMS_COD_RETURNS_UI_ENABLED=false to hide. */
 export function isOmsCodReturnsUiEnabled(): boolean {
-  return parseFlag(readBuildFlag());
+  return parseFlag(readBuildFlag() ?? 'true');
 }
 
 /** Paths owned by the temporarily hidden OMS COD / Returns modules. */

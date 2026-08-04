@@ -65,6 +65,9 @@ const envSchema = z.object({
   CRON_LEADER_ENABLED: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
   // PDF document generation (GRN / Delivery Note).
   DOCUMENT_STORAGE_DIR: z.string().min(1).optional(),
+  // Compressed product / avatar images (default: storage/media under cwd).
+  MEDIA_STORAGE_DIR: z.string().min(1).optional(),
+  MEDIA_MAX_UPLOAD_BYTES: z.coerce.number().int().positive().optional(),
   DOCUMENT_DEFAULT_LANG: z.enum(['en', 'ar']).optional(),
   PUPPETEER_EXECUTABLE_PATH: z.string().min(1).optional(),
   DOC_BRAND_NAME: z.string().min(1).optional(),

@@ -60,8 +60,18 @@ const ORDER_INCLUDE = {
                     status: true,
                     trackingType: true,
                     uom: true,
+                    imagePath: true,
                 },
             },
+        },
+    },
+    stockReservations: {
+        where: { status: { in: ['active', 'fulfilled'] } },
+        orderBy: { createdAt: 'asc' },
+        include: {
+            product: { select: { id: true, sku: true, name: true } },
+            location: { select: { id: true, fullPath: true, barcode: true } },
+            lot: { select: { id: true, lotNumber: true } },
         },
     },
 };
@@ -138,9 +148,12 @@ let OutboundService = class OutboundService {
                 (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(p.uom, l.requestedQuantity, 'Requested quantity');
             }
             await this.assertSufficientStockForLines(companyId, dto.lines, products);
-            const executionMode = (0, execution_plan_util_1.normalizeExecutionMode)(dto.executionMode);
+            const clientSubmission = !!opts?.pendingClientApproval;
+            const executionMode = clientSubmission
+                ? 'admin'
+                : (0, execution_plan_util_1.normalizeExecutionMode)(dto.executionMode);
             let executionPlan;
-            if (dto.executionPlan) {
+            if (dto.executionPlan && !clientSubmission) {
                 const parsed = (0, execution_plan_util_1.parseOutboundExecutionPlan)(dto.executionPlan);
                 if (!parsed)
                     throw new common_1.BadRequestException('Invalid executionPlan.');
@@ -152,7 +165,7 @@ let OutboundService = class OutboundService {
                     (0, execution_plan_util_1.assertOutboundAdminPlanComplete)(parsed);
                 executionPlan = parsed;
             }
-            else if (executionMode === 'admin') {
+            else if (executionMode === 'admin' && !clientSubmission) {
                 throw new common_1.BadRequestException('Admin execution requires executionPlan on create.');
             }
             const created = await tx.outboundOrder.create({
@@ -240,12 +253,14 @@ let OutboundService = class OutboundService {
                 });
             }
             if (this.orderAllocation?.isEnabled() &&
-                opts?.oms?.allocateAfterCreate !== false &&
-                !opts?.pendingClientApproval) {
+                opts?.oms?.allocateAfterCreate !== false) {
+                const planWarehouse = executionPlan != null
+                    ? (0, execution_plan_util_1.parseOutboundExecutionPlan)(executionPlan)?.warehouseId
+                    : undefined;
                 await this.orderAllocation.allocateOrder(tx, {
                     outboundOrderId: created.id,
                     companyId: created.companyId,
-                    warehouseId: opts?.oms?.warehouseId,
+                    warehouseId: opts?.oms?.warehouseId ?? planWarehouse,
                     actorUserId: user.id,
                     previousStatus: created.status,
                     lines: created.lines.map((line) => ({
@@ -339,8 +354,12 @@ let OutboundService = class OutboundService {
         if (companyId) {
             where.companyId = companyId;
         }
-        if (query.status)
+        if (query.statusIn?.length) {
+            where.status = { in: query.statusIn };
+        }
+        else if (query.status) {
             where.status = query.status;
+        }
         if (query.orderSearch?.trim()) {
             const t = query.orderSearch.trim();
             const orParts = [
@@ -462,7 +481,7 @@ let OutboundService = class OutboundService {
             (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(dto.requiredShipDate, 'Required ship date');
         }
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
-            return tx.outboundOrder.update({
+            const updated = await tx.outboundOrder.update({
                 where: { id },
                 data: {
                     executionMode,
@@ -478,6 +497,35 @@ let OutboundService = class OutboundService {
                 },
                 include: ORDER_INCLUDE,
             });
+            if (this.orderAllocation?.isEnabled() && updated.lines.length > 0) {
+                const plan = (0, execution_plan_util_1.parseOutboundExecutionPlan)(updated.executionPlan) ??
+                    (0, execution_plan_util_1.parseOutboundExecutionPlan)(order.executionPlan);
+                const previousPlan = (0, execution_plan_util_1.parseOutboundExecutionPlan)(order.executionPlan);
+                const warehouseChanged = !!plan?.warehouseId &&
+                    plan.warehouseId !== (previousPlan?.warehouseId ?? undefined);
+                const has = await this.orderAllocation.hasActiveReservations(tx, id);
+                if (has && warehouseChanged) {
+                    await this.orderAllocation.releaseAllocation(tx, {
+                        outboundOrderId: id,
+                        companyId: updated.companyId,
+                        actorUserId: user.id,
+                    });
+                }
+                await this.orderAllocation.allocateOrder(tx, {
+                    outboundOrderId: id,
+                    companyId: updated.companyId,
+                    warehouseId: plan?.warehouseId,
+                    actorUserId: user.id,
+                    previousStatus: updated.status,
+                    lines: updated.lines.map((line) => ({
+                        outboundOrderLineId: line.id,
+                        productId: line.productId,
+                        requestedQty: line.requestedQuantity,
+                        specificLotId: line.specificLotId,
+                    })),
+                });
+            }
+            return updated;
         });
     }
     async executeAdmin(user, orderId) {
@@ -761,11 +809,23 @@ let OutboundService = class OutboundService {
     async confirmAndDeduct(user, orderId, body) {
         const before = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => tx.outboundOrder.findUnique({
             where: { id: orderId },
-            select: { status: true, companyId: true, orderNumber: true, id: true },
+            select: {
+                status: true,
+                companyId: true,
+                orderNumber: true,
+                id: true,
+                executionPlan: true,
+                executionMode: true,
+            },
         }));
         if (!before)
             throw new common_1.NotFoundException('Outbound order not found.');
         this.companyAccess.validateResourceOwnership(user, before);
+        const releasePlan = (0, execution_plan_util_1.parseOutboundExecutionPlan)(before.executionPlan);
+        if (!releasePlan) {
+            throw new common_1.BadRequestException('A complete execution plan is required before confirmation or release.');
+        }
+        (0, execution_plan_util_1.assertOutboundAdminPlanComplete)(releasePlan);
         if ((0, feature_flags_1.taskOnlyFlows)(this.config)) {
             if (!body?.warehouseId) {
                 throw new common_1.BadRequestException('When TASK_ONLY_FLOWS=true, confirm body must include warehouseId for workflow bootstrap.');
@@ -992,8 +1052,6 @@ let OutboundService = class OutboundService {
                     fromLocationId: row.locationId,
                     movementType: 'outbound_pick',
                     quantity: take,
-                    quantityBefore: meta.before,
-                    quantityAfter: meta.after,
                     referenceType: 'outbound_order',
                     referenceId: orderId,
                     operatorId: user.id,
@@ -1178,8 +1236,6 @@ let OutboundService = class OutboundService {
                     fromLocationId: row.locationId,
                     movementType: 'outbound_pick',
                     quantity: take,
-                    quantityBefore: meta.before,
-                    quantityAfter: meta.after,
                     referenceType: 'outbound_order',
                     referenceId: order.id,
                     operatorId: user.id,

@@ -15,10 +15,12 @@ const crypto_module_1 = require("../../common/crypto/crypto.module");
 const prisma_module_1 = require("../../common/prisma/prisma.module");
 const inbound_module_1 = require("../inbound/inbound.module");
 const inventory_module_1 = require("../inventory/inventory.module");
+const media_module_1 = require("../media/media.module");
 const outbound_module_1 = require("../outbound/outbound.module");
 const products_module_1 = require("../products/products.module");
 const billing_module_1 = require("../billing/billing.module");
 const oms_module_1 = require("../oms/oms.module");
+const oms_returns_module_1 = require("../oms-returns/oms-returns.module");
 const returns_module_1 = require("../returns/returns.module");
 const client_auth_controller_1 = require("./auth/client-auth.controller");
 const client_auth_service_1 = require("./auth/client-auth.service");
@@ -26,6 +28,7 @@ const jwt_client_auth_guard_1 = require("./auth/jwt-client-auth.guard");
 const jwt_client_strategy_1 = require("./auth/strategies/jwt-client.strategy");
 const client_inbound_orders_controller_1 = require("./inbound/client-inbound-orders.controller");
 const client_inbound_orders_service_1 = require("./inbound/client-inbound-orders.service");
+const client_media_controller_1 = require("./media/client-media.controller");
 const client_outbound_orders_controller_1 = require("./outbound/client-outbound-orders.controller");
 const client_outbound_orders_service_1 = require("./outbound/client-outbound-orders.service");
 const client_products_controller_1 = require("./products/client-products.controller");
@@ -42,6 +45,8 @@ const client_oms_orders_controller_1 = require("./oms/client-oms-orders.controll
 const client_oms_orders_service_1 = require("./oms/client-oms-orders.service");
 const client_returns_controller_1 = require("./returns/client-returns.controller");
 const client_returns_service_1 = require("./returns/client-returns.service");
+const client_oms_returns_controller_1 = require("./oms-returns/client-oms-returns.controller");
+const client_oms_returns_service_1 = require("./oms-returns/client-oms-returns.service");
 let ClientPortalModule = class ClientPortalModule {
 };
 exports.ClientPortalModule = ClientPortalModule;
@@ -64,22 +69,26 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             crypto_module_1.CryptoModule,
             inventory_module_1.InventoryModule,
             products_module_1.ProductsModule,
+            media_module_1.MediaModule,
             inbound_module_1.InboundModule,
             outbound_module_1.OutboundModule,
             billing_module_1.BillingModule,
             oms_module_1.OmsModule,
+            oms_returns_module_1.OmsReturnsModule,
             returns_module_1.ReturnsModule,
         ],
         controllers: [
             client_auth_controller_1.ClientAuthController,
             client_stock_controller_1.ClientStockController,
             client_products_controller_1.ClientProductsController,
+            client_media_controller_1.ClientMediaController,
             client_inbound_orders_controller_1.ClientInboundOrdersController,
             client_outbound_orders_controller_1.ClientOutboundOrdersController,
             client_notifications_controller_1.ClientNotificationsController,
             client_billing_controller_1.ClientBillingController,
             client_dashboard_controller_1.ClientDashboardController,
             client_oms_orders_controller_1.ClientOmsOrdersController,
+            client_oms_returns_controller_1.ClientOmsReturnsController,
             client_returns_controller_1.ClientReturnsController,
         ],
         providers: [
@@ -92,6 +101,7 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             client_billing_service_1.ClientBillingService,
             client_dashboard_service_1.ClientDashboardService,
             client_oms_orders_service_1.ClientOmsOrdersService,
+            client_oms_returns_service_1.ClientOmsReturnsService,
             client_returns_service_1.ClientReturnsService,
             jwt_client_strategy_1.JwtClientStrategy,
             jwt_client_auth_guard_1.JwtClientAuthGuard,

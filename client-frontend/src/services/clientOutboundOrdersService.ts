@@ -36,6 +36,8 @@ export interface ClientOutboundOrderLine {
     status: string;
     trackingType: string;
     uom: string | null;
+    imagePath?: string | null;
+    imageUrl?: string | null;
   };
 }
 

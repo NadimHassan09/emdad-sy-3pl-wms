@@ -348,7 +348,9 @@ export function BillingInvoiceDetailPage() {
             </p>
 
             <LineTable title="Subscription (locked)" lines={subscriptionLines} />
-            <LineTable title="System charges" lines={otherSystemLines} />
+            {otherSystemLines.length > 0 ? (
+              <LineTable title="System charges" lines={otherSystemLines} />
+            ) : null}
             <LineTable title="Order charges (VAS)" lines={orderChargeLines(lines)} />
             <LineTable
               title="Additional charges"

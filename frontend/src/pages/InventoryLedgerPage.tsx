@@ -22,12 +22,11 @@ import {
 import { useFilters } from '../hooks/useFilters';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import {
-  fmtLedgerQty,
   fmtSignedDelta,
   ledgerEntryDetailPath,
   ledgerMovementCategory,
   ledgerMovementLabel,
-  ledgerQuantityDisplay,
+  ledgerSignedChange,
 } from '../lib/ledger-display';
 
 type LedgerSearchCategory = 'name' | 'sku' | 'barcode';
@@ -35,7 +34,8 @@ type LedgerSearchCategory = 'name' | 'sku' | 'barcode';
 type LedgerDraft = {
   searchQuery: string;
   searchCategory: LedgerSearchCategory;
-  movementType: '' | 'inbound' | 'outbound' | 'adjustment';
+  movementType: '' | 'inbound' | 'outbound' | 'return';
+  includeInternal: boolean;
   companyId: string;
   createdFrom: string;
   createdTo: string;
@@ -47,6 +47,7 @@ function ledgerSearchParams(filters: LedgerDraft, warehouseId: string | undefine
     warehouseId: warehouseId || undefined,
     companyId: filters.companyId.trim() || undefined,
     movementType: filters.movementType || undefined,
+    includeInternal: filters.includeInternal || undefined,
     createdFrom: filters.createdFrom.trim() || undefined,
     createdTo: filters.createdTo.trim() || undefined,
   };
@@ -80,6 +81,7 @@ export function InventoryLedgerPage() {
       searchQuery: '',
       searchCategory: 'name',
       movementType: '',
+      includeInternal: false,
       companyId: '',
       createdFrom: '',
       createdTo: '',
@@ -133,6 +135,13 @@ export function InventoryLedgerPage() {
         accessor: (r) => <span className="font-medium text-text-strong">{r.product.name}</span>,
       },
       {
+        header: t('SKU', 'رمز الصنف'),
+        accessor: (r) => (
+          <span className="font-mono text-xs text-text-muted">{r.product.sku}</span>
+        ),
+        width: '120px',
+      },
+      {
         header: t('Client', 'العميل'),
         accessor: (r) => r.company.name,
         width: '140px',
@@ -152,18 +161,9 @@ export function InventoryLedgerPage() {
         width: '160px',
       },
       {
-        header: t('Before quantity', 'الكمية قبل'),
+        header: t('Quantity', 'الكمية'),
         accessor: (r) => {
-          const { before } = ledgerQuantityDisplay(r);
-          return <span className="font-mono text-text-body">{fmtLedgerQty(before)}</span>;
-        },
-        width: '110px',
-        className: 'text-right',
-      },
-      {
-        header: t('Δ Qty', 'فرق الكمية'),
-        accessor: (r) => {
-          const { delta } = ledgerQuantityDisplay(r);
+          const delta = ledgerSignedChange(r);
           const pos = delta > 0;
           const neg = delta < 0;
           return (
@@ -173,15 +173,6 @@ export function InventoryLedgerPage() {
               {fmtSignedDelta(delta)}
             </span>
           );
-        },
-        width: '100px',
-        className: 'text-right',
-      },
-      {
-        header: t('After quantity', 'الكمية بعد'),
-        accessor: (r) => {
-          const { after } = ledgerQuantityDisplay(r);
-          return <span className="font-mono text-text-body">{fmtLedgerQty(after)}</span>;
         },
         width: '110px',
         className: 'text-right',
@@ -238,12 +229,31 @@ export function InventoryLedgerPage() {
             setDraft({ movementType: e.target.value as LedgerDraft['movementType'] })
           }
           options={[
-            { value: '', label: t('All movement types', 'كل أنواع الحركات') },
+            { value: '', label: t('All (filtered)', 'الكل (مفلتر)') },
             { value: 'inbound', label: t('Inbound', 'وارد') },
             { value: 'outbound', label: t('Outbound', 'صادر') },
-            { value: 'adjustment', label: t('Adjustments', 'تعديلات') },
+            { value: 'return', label: t('Return', 'مرتجع') },
           ]}
         />
+        <label className="flex cursor-pointer items-start gap-2.5 pt-6">
+          <input
+            type="checkbox"
+            checked={draftFilters.includeInternal}
+            onChange={(e) => setDraft({ includeInternal: e.target.checked })}
+            className="mt-0.5 h-4 w-4 rounded border-border-strong text-brand-600 focus:ring-brand-500"
+          />
+          <span className="text-sm text-text-body">
+            <span className="font-medium text-text-strong">
+              {t('Show internal operations', 'إظهار العمليات الداخلية')}
+            </span>
+            <span className="mt-0.5 block text-xs text-text-muted">
+              {t(
+                'Adjustments, transfers, scrap, and QC',
+                'التعديلات والتحويلات والإتلاف وفحص الجودة',
+              )}
+            </span>
+          </span>
+        </label>
         <Combobox
           label={t('Client', 'العميل')}
           value={draftFilters.companyId}

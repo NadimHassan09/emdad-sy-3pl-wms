@@ -11,7 +11,6 @@ import { Column, DataTable } from '../components/DataTable';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import {
-  fmtLedgerQty,
   fmtSignedDelta,
   ledgerMovementCategory,
   ledgerMovementLabel,
@@ -24,6 +23,7 @@ import {
 function movementTone(cat: LedgerMovementCategory): string {
   switch (cat) {
     case 'inbound':
+    case 'return':
       return 'text-brand-700';
     case 'outbound':
       return 'text-status-danger-fg';
@@ -35,6 +35,7 @@ function movementTone(cat: LedgerMovementCategory): string {
 function movementIcon(cat: LedgerMovementCategory): string {
   switch (cat) {
     case 'inbound':
+    case 'return':
       return 'fa-solid fa-arrow-down';
     case 'outbound':
       return 'fa-solid fa-arrow-up';
@@ -258,7 +259,7 @@ export function InventoryLedgerEntryPage() {
         width: '260px',
       },
       {
-        header: t('Δ Qty', 'فرق الكمية'),
+        header: t('Quantity', 'الكمية'),
         accessor: (r) => {
           const pos = r.delta > 0;
           const neg = r.delta < 0;
@@ -270,23 +271,7 @@ export function InventoryLedgerEntryPage() {
             </span>
           );
         },
-        width: '100px',
-        className: 'text-right',
-      },
-      {
-        header: t('Before', 'قبل'),
-        accessor: (r) => (
-          <span className="font-mono text-text-body">{fmtLedgerQty(r.before)}</span>
-        ),
-        width: '100px',
-        className: 'text-right',
-      },
-      {
-        header: t('After', 'بعد'),
-        accessor: (r) => (
-          <span className="font-mono text-text-body">{fmtLedgerQty(r.after)}</span>
-        ),
-        width: '100px',
+        width: '110px',
         className: 'text-right',
       },
     ],

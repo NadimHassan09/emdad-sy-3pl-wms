@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const realtime_service_1 = require("../realtime/realtime.service");
 const billing_access_service_1 = require("./billing-access.service");
 const billing_audit_service_1 = require("./billing-audit.service");
 const billing_invoice_calculation_service_1 = require("./billing-invoice-calculation.service");
@@ -47,13 +48,15 @@ let BillingPlansService = class BillingPlansService {
     usage;
     invoiceCalc;
     billingAudit;
-    constructor(prisma, companyAccess, volumeCapacity, usage, invoiceCalc, billingAudit) {
+    realtime;
+    constructor(prisma, companyAccess, volumeCapacity, usage, invoiceCalc, billingAudit, realtime) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.volumeCapacity = volumeCapacity;
         this.usage = usage;
         this.invoiceCalc = invoiceCalc;
         this.billingAudit = billingAudit;
+        this.realtime = realtime;
     }
     async listPage(user, query) {
         if (query.companyId) {
@@ -151,6 +154,12 @@ let BillingPlansService = class BillingPlansService {
                 newState: plan,
             });
             void this.invoiceCalc.recalculateForCompany(plan.companyId, 'cycle_started');
+            this.realtime.emitPlanUpdated(plan.companyId, {
+                planId: plan.id,
+                companyId: plan.companyId,
+                active: plan.active,
+                action: 'plan_created',
+            });
             return plan;
         });
     }
@@ -190,6 +199,12 @@ let BillingPlansService = class BillingPlansService {
             companyId: updated.companyId,
             previousState: previous,
             newState: updated,
+        });
+        this.realtime.emitPlanUpdated(updated.companyId, {
+            planId: updated.id,
+            companyId: updated.companyId,
+            active: updated.active,
+            action: 'plan_updated',
         });
         return updated;
     }
@@ -239,7 +254,8 @@ exports.BillingPlansService = BillingPlansService = __decorate([
         billing_access_service_1.BillingVolumeCapacityService,
         billing_usage_service_1.BillingUsageService,
         billing_invoice_calculation_service_1.BillingInvoiceCalculationService,
-        billing_audit_service_1.BillingAuditService])
+        billing_audit_service_1.BillingAuditService,
+        realtime_service_1.RealtimeService])
 ], BillingPlansService);
 function mapOverviewSqlRow(row) {
     const plan = {

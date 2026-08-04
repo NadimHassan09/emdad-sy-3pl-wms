@@ -146,35 +146,21 @@ export function deriveCodStatus(
   return null;
 }
 
-/** Map warehouse outbound status → OMS status for ongoing sync. */
-export function mapOutboundStatusToOms(status: string): OmsOrderStatus {
+/** Map warehouse outbound status → OMS commercial status.
+ * Returns null when OMS status must not change (no WMS stage mirroring).
+ * Terminal outbound (left warehouse) → Out for Delivery only.
+ * Delivered is admin-only — never set from warehouse sync.
+ */
+export function mapOutboundStatusToOms(status: string): OmsOrderStatus | null {
   switch (status) {
-    case 'confirmed':
-      return 'approved';
-    case 'allocated':
-      return 'allocated';
-    case 'picking':
-      return 'picking';
-    case 'packing':
-      return 'packing';
-    case 'ready_to_ship':
-      return 'ready_to_ship';
-    case 'out_for_delivery':
-      return 'out_for_delivery';
     case 'shipped':
-      return 'shipped';
+    case 'out_for_delivery':
     case 'delivered':
-      return 'delivered';
-    case 'returned':
-      return 'returned';
+      return 'out_for_delivery';
     case 'cancelled':
       return 'cancelled';
-    case 'pending_approval':
-    case 'pending_stock':
-    case 'draft':
-      return 'approved';
     default:
-      return 'processing';
+      return null;
   }
 }
 

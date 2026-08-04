@@ -29,6 +29,11 @@ export interface ProductStockSummaryRow {
   onHand?: string;
   reserved?: string;
   available?: string;
+  lastMovement?: {
+    at: string;
+    quantityChange: string;
+    movementType: string;
+  } | null;
   product: { id: string; sku: string; name: string; uom: string; barcode: string | null };
   client: { id: string; name: string };
 }
@@ -109,13 +114,33 @@ export interface LedgerQuery {
   productBarcode?: string;
   companyId?: string;
   warehouseId?: string;
-  movementType?: 'inbound' | 'outbound' | 'adjustment' | string;
+  movementType?: 'inbound' | 'outbound' | 'return' | 'adjustment' | 'transfer' | string;
+  includeInternal?: boolean;
   referenceType?: string;
   referenceId?: string;
+  referenceSearch?: string;
+  operatorId?: string;
+  operatorSearch?: string;
+  locationId?: string;
+  lotId?: string;
+  lotNumber?: string;
   createdFrom?: string;
   createdTo?: string;
   limit?: number;
   offset?: number;
+}
+
+export interface BalanceHistoryPoint {
+  day: string;
+  balance: number;
+}
+
+export interface BalanceHistoryResult {
+  productId: string;
+  currentOnHand: string;
+  from: string;
+  to: string;
+  points: BalanceHistoryPoint[];
 }
 
 export interface InternalTransferInput {
@@ -148,6 +173,19 @@ export const InventoryApi = {
   async stockByProductSummary(query: StockQuery = {}): Promise<PageResult<ProductStockSummaryRow>> {
     const { data } = await api.get<PageResult<ProductStockSummaryRow>>('/inventory/stock/by-product', {
       params: { limit: 200, ...query },
+    });
+    return data;
+  },
+
+  async balanceHistory(query: {
+    productId: string;
+    warehouseId?: string;
+    companyId?: string;
+    from: string;
+    to: string;
+  }): Promise<BalanceHistoryResult> {
+    const { data } = await api.get<BalanceHistoryResult>('/inventory/stock/balance-history', {
+      params: query,
     });
     return data;
   },

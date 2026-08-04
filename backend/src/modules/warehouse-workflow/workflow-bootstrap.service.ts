@@ -213,26 +213,37 @@ export class WorkflowBootstrapService {
   /**
    * GET /workflows/context-settings — authoritative TASK_ONLY flag + UX merge defaults.
    * `warehouseId` is always a string echo of the query param (empty when omitted).
+   * Global admins may omit an active tenant (company UX falls back to defaults).
    */
   async getWorkflowContextSettings(user: AuthPrincipal, warehouseId?: string) {
-    const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
     const flag = taskOnlyFlows(this.config);
     const defaults = {
       showAdvancedJson: false,
       confirmUnsavedDraft: true,
     };
-    const company = await this.prisma.company.findUnique({
-      where: { id: tenantCompanyId },
-      select: { workflowUxSettings: true },
-    });
+
+    const companyId = user.companyId;
+    if (!companyId && user.tenantScope !== 'all') {
+      throw new BadRequestException('An active client tenant is required for this operation.');
+    }
+
+    const company = companyId
+      ? await this.prisma.company.findUnique({
+          where: { id: companyId },
+          select: { workflowUxSettings: true },
+        })
+      : null;
+
+    const wid = (warehouseId ?? '').trim();
     let warehouse: { workflowUxSettings: unknown } | null = null;
-    if (warehouseId) {
+    if (wid) {
       warehouse = await this.prisma.warehouse.findUnique({
-        where: { id: warehouseId },
+        where: { id: wid },
         select: { workflowUxSettings: true },
       });
       if (!warehouse) throw new NotFoundException('Warehouse not found.');
     }
+
     const c = (company?.workflowUxSettings as Record<string, unknown> | null) ?? {};
     const w = (warehouse?.workflowUxSettings as Record<string, unknown> | null) ?? {};
     const merged = {
@@ -240,8 +251,6 @@ export class WorkflowBootstrapService {
       ...c,
       ...w,
     };
-
-    const wid = (warehouseId ?? '').trim();
 
     return {
       taskOnlyFlows: flag,

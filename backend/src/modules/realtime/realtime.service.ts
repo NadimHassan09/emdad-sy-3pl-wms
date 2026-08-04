@@ -121,6 +121,132 @@ export class RealtimeService {
     this.scheduleDashboard('orders');
   }
 
+  emitOmsReturnEvent(
+    companyId: string,
+    payload: { returnId: string; status: string; event: string; omsOrderId?: string },
+  ): void {
+    this.emit(companyId, RealtimeEvents.OMS_RETURN_EVENT, payload);
+    this.scheduleDashboard('orders');
+  }
+
+  emitCompanyLifecycleChanged(
+    companyId: string,
+    payload: { companyId: string; status: string; action: string },
+  ): void {
+    this.emit(companyId, RealtimeEvents.COMPANY_LIFECYCLE_CHANGED, payload);
+    this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.COMPANY_LIFECYCLE_CHANGED, payload);
+    this.scheduleDashboard('kpi');
+  }
+
+  emitBillingRestrictionChanged(
+    companyId: string,
+    payload: { companyId: string; restricted: boolean; status?: string },
+  ): void {
+    this.emit(companyId, RealtimeEvents.BILLING_RESTRICTION_CHANGED, payload);
+    this.scheduleDashboard('kpi');
+  }
+
+  emitCodUpdated(
+    companyId: string,
+    payload: { orderId?: string; codRecordId?: string; status: string },
+  ): void {
+    this.emit(companyId, RealtimeEvents.COD_UPDATED, payload);
+    this.scheduleDashboard('orders');
+  }
+
+  emitDocumentGenerated(
+    companyId: string,
+    payload: {
+      documentId: string;
+      type: string;
+      referenceType: string;
+      referenceId: string;
+      taskId?: string | null;
+      documentNumber: string;
+      language: string;
+      pdfUrl: string;
+    },
+  ): void {
+    this.emit(companyId, RealtimeEvents.DOCUMENT_GENERATED, payload);
+    this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.DOCUMENT_GENERATED, {
+      ...payload,
+      companyId,
+    });
+  }
+
+  emitDocumentSlotOverrideChanged(
+    companyId: string,
+    payload: { taskId: string; type: string; companyId: string },
+  ): void {
+    this.emit(companyId, RealtimeEvents.DOCUMENT_SLOT_OVERRIDE_CHANGED, payload);
+    this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.DOCUMENT_SLOT_OVERRIDE_CHANGED, payload);
+  }
+
+  emitFinalContractChanged(
+    companyId: string | null,
+    payload: { contractId: string; action: string; companyId?: string | null },
+  ): void {
+    this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.FINAL_CONTRACT_CHANGED, payload);
+    if (companyId) {
+      this.emit(companyId, RealtimeEvents.FINAL_CONTRACT_CHANGED, payload);
+    }
+  }
+
+  emitFormSubmitted(payload: {
+    submission: {
+      id: string;
+      fullName: string;
+      phone: string;
+      email: string;
+      activityType: string;
+      message?: string | null;
+      createdAt: Date | string;
+    };
+  }): void {
+    this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.FORM_SUBMITTED, payload);
+  }
+
+  emitInvoiceUpdated(
+    companyId: string,
+    payload: {
+      invoiceId: string;
+      companyId: string;
+      status: string;
+      invoiceNumber?: string | null;
+      action?: string;
+    },
+  ): void {
+    this.emit(companyId, RealtimeEvents.INVOICE_UPDATED, payload);
+    this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.INVOICE_UPDATED, payload);
+    this.scheduleDashboard('kpi');
+  }
+
+  emitPlanUpdated(
+    companyId: string,
+    payload: {
+      planId: string;
+      companyId: string;
+      active?: boolean;
+      action?: string;
+    },
+  ): void {
+    this.emit(companyId, RealtimeEvents.PLAN_UPDATED, payload);
+    this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.PLAN_UPDATED, payload);
+    this.scheduleDashboard('kpi');
+  }
+
+  emitBackupJobProgress(payload: {
+    jobId: string;
+    status: string;
+    type?: string;
+    progressPercent?: number;
+    bytesWritten?: string | number;
+    errorMessage?: string | null;
+    label?: string | null;
+  }): void {
+    this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.BACKUP_JOB_PROGRESS, payload);
+  }
+
   emitTaskUpdated(
     companyId: string,
     payload: {

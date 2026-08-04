@@ -117,7 +117,14 @@ export function Combobox({
   return (
     <label htmlFor={inputId} className={`block min-w-0 ${className}`}>
       {label ? (
-        <span className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>{label}</span>
+        <span className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+          {label}
+          {required ? (
+            <span aria-hidden="true" className="ms-1 text-danger-600">
+              *
+            </span>
+          ) : null}
+        </span>
       ) : null}
       <div ref={wrapperRef} className={dropdownInFlow ? '' : 'relative'}>
         <input

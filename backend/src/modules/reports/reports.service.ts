@@ -344,7 +344,7 @@ export class ReportsService {
       client: r.company.name,
       movement: r.movementType,
       status: 'Done',
-      quantity: fmtQty(r.quantity),
+      quantity: r.quantityChange ?? fmtQty(r.quantity),
       reference: `${r.referenceType} ${String(r.referenceId).slice(0, 8)}…`,
       operator: r.operator.fullName,
       lot: r.lot?.lotNumber ?? '',

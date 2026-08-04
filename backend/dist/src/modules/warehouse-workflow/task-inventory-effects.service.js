@@ -197,7 +197,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                     }
                 }
             }
-            const stockMeta = await this.stock.upsertPositiveWithMeta(tx, {
+            await this.stock.upsertPositive(tx, {
                 companyId,
                 productId: line.productId,
                 locationId: stagingLocationId,
@@ -221,8 +221,6 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 toLocationId: stagingLocationId,
                 movementType: client_1.MovementType.inbound_receive,
                 quantity: qty,
-                quantityBefore: stockMeta.before,
-                quantityAfter: stockMeta.after,
                 referenceType: 'inbound_order',
                 referenceId: inboundOrderId,
                 operatorId,
@@ -408,8 +406,6 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 toLocationId: null,
                 movementType: client_1.MovementType.outbound_pick,
                 quantity: new client_1.Prisma.Decimal(r.quantity),
-                quantityBefore: meta.before,
-                quantityAfter: meta.after,
                 referenceType: 'outbound_order',
                 referenceId: outboundOrderId,
                 operatorId,

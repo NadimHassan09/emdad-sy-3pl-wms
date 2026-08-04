@@ -32,7 +32,21 @@ export interface OutboundOrderLine {
     barcode?: string | null;
     trackingType: 'none' | 'lot' | 'package';
     uom: string;
+    imagePath?: string | null;
   };
+}
+
+export interface OutboundStockReservation {
+  id: string;
+  productId: string;
+  locationId: string;
+  lotId: string | null;
+  outboundOrderLineId: string | null;
+  quantity: string;
+  status: 'active' | 'released' | 'fulfilled' | string;
+  product?: { id: string; sku: string; name: string };
+  location?: { id: string; fullPath: string; barcode?: string | null };
+  lot?: { id: string; lotNumber: string } | null;
 }
 
 export interface OutboundOrder {
@@ -54,6 +68,7 @@ export interface OutboundOrder {
   executionMode?: OrderExecutionMode | null;
   executionPlan?: OutboundExecutionPlan | null;
   lines?: OutboundOrderLine[];
+  stockReservations?: OutboundStockReservation[];
   company?: { id: string; name: string };
   _count?: { lines: number };
 }

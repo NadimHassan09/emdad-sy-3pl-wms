@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentType } from '@prisma/client';
 
 import { PrismaService } from '../common/prisma/prisma.service';
+import { RealtimeService } from '../modules/realtime/realtime.service';
 import { DocumentBranding, resolveBranding } from './branding';
 import { DocumentStorageService } from './document-storage.service';
 import { DocumentSlotOverridesService } from './document-slot-overrides.service';
@@ -32,6 +33,7 @@ export class DnPdfService {
     private readonly storage: DocumentStorageService,
     private readonly documents: DocumentsService,
     private readonly slotOverrides: DocumentSlotOverridesService,
+    private readonly realtime: RealtimeService,
     config: ConfigService,
   ) {
     this.branding = resolveBranding(config);
@@ -156,7 +158,18 @@ export class DnPdfService {
 
     if (existing && opts?.force) {
       const doc = await this.documents.refreshFile(existing.id, stored);
-      return this.toResult(doc);
+      const result = this.toResult(doc);
+      this.realtime.emitDocumentGenerated(order.companyId, {
+        documentId: result.id,
+        type: DocumentType.delivery_note,
+        referenceType: 'outbound_order',
+        referenceId: order.id,
+        taskId,
+        documentNumber: result.documentNumber,
+        language: result.language,
+        pdfUrl: result.pdfUrl,
+      });
+      return result;
     }
 
     const doc = await this.documents.create({
@@ -174,7 +187,18 @@ export class DnPdfService {
       generatedBy: operatorId,
     });
 
-    return this.toResult(doc);
+    const result = this.toResult(doc);
+    this.realtime.emitDocumentGenerated(order.companyId, {
+      documentId: result.id,
+      type: DocumentType.delivery_note,
+      referenceType: 'outbound_order',
+      referenceId: order.id,
+      taskId,
+      documentNumber: result.documentNumber,
+      language: result.language,
+      pdfUrl: result.pdfUrl,
+    });
+    return result;
   }
 
   private toResult(doc: {

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentType } from '@prisma/client';
 
 import { PrismaService } from '../common/prisma/prisma.service';
+import { RealtimeService } from '../modules/realtime/realtime.service';
 import { DocumentBranding, resolveBranding } from './branding';
 import { DocumentStorageService } from './document-storage.service';
 import { DocumentSlotOverridesService } from './document-slot-overrides.service';
@@ -45,6 +46,7 @@ export class GrnPdfService {
     private readonly storage: DocumentStorageService,
     private readonly documents: DocumentsService,
     private readonly slotOverrides: DocumentSlotOverridesService,
+    private readonly realtime: RealtimeService,
     config: ConfigService,
   ) {
     this.branding = resolveBranding(config);
@@ -199,7 +201,18 @@ export class GrnPdfService {
 
     if (existing && opts?.force) {
       const doc = await this.documents.refreshFile(existing.id, stored);
-      return this.toResult(doc);
+      const result = this.toResult(doc);
+      this.emitGenerated(order.companyId, {
+        documentId: result.id,
+        type: DocumentType.grn,
+        referenceType: 'inbound_order',
+        referenceId: order.id,
+        taskId,
+        documentNumber: result.documentNumber,
+        language: result.language,
+        pdfUrl: result.pdfUrl,
+      });
+      return result;
     }
 
     const doc = await this.documents.create({
@@ -217,7 +230,34 @@ export class GrnPdfService {
       generatedBy: operatorId,
     });
 
-    return this.toResult(doc);
+    const result = this.toResult(doc);
+    this.emitGenerated(order.companyId, {
+      documentId: result.id,
+      type: DocumentType.grn,
+      referenceType: 'inbound_order',
+      referenceId: order.id,
+      taskId,
+      documentNumber: result.documentNumber,
+      language: result.language,
+      pdfUrl: result.pdfUrl,
+    });
+    return result;
+  }
+
+  private emitGenerated(
+    companyId: string,
+    payload: {
+      documentId: string;
+      type: string;
+      referenceType: string;
+      referenceId: string;
+      taskId?: string | null;
+      documentNumber: string;
+      language: string;
+      pdfUrl: string;
+    },
+  ): void {
+    this.realtime.emitDocumentGenerated(companyId, payload);
   }
 
   private toResult(doc: {

@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import {
   composeDestinationAddress,
   deriveCodStatus,
+  mapOutboundStatusToOms,
   serializeOmsOrder,
 } from './oms-order.mapper';
 
@@ -35,6 +36,25 @@ describe('deriveCodStatus', () => {
 
   it('returns null for prepaid orders', () => {
     expect(deriveCodStatus('PREPAID', new Prisma.Decimal('100'))).toBeNull();
+  });
+});
+
+describe('mapOutboundStatusToOms', () => {
+  it('maps terminal outbound to out_for_delivery only', () => {
+    expect(mapOutboundStatusToOms('shipped')).toBe('out_for_delivery');
+    expect(mapOutboundStatusToOms('out_for_delivery')).toBe('out_for_delivery');
+    expect(mapOutboundStatusToOms('delivered')).toBe('out_for_delivery');
+  });
+
+  it('does not mirror warehouse stages onto OMS', () => {
+    expect(mapOutboundStatusToOms('picking')).toBeNull();
+    expect(mapOutboundStatusToOms('packing')).toBeNull();
+    expect(mapOutboundStatusToOms('allocated')).toBeNull();
+    expect(mapOutboundStatusToOms('ready_to_ship')).toBeNull();
+  });
+
+  it('maps cancelled outbound to cancelled', () => {
+    expect(mapOutboundStatusToOms('cancelled')).toBe('cancelled');
   });
 });
 

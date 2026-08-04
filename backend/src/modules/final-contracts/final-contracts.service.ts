@@ -9,6 +9,7 @@ import {
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { withTenantRls } from '../../common/prisma/tenant-rls';
+import { RealtimeService } from '../realtime/realtime.service';
 import { CreateFinalContractDto } from './dto/create-final-contract.dto';
 import { ListFinalContractsQueryDto } from './dto/list-final-contracts-query.dto';
 import { UpdateFinalContractDto } from './dto/update-final-contract.dto';
@@ -32,6 +33,7 @@ export class FinalContractsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly companyAccess: CompanyAccessService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async nextContractNumber(): Promise<string> {
@@ -68,6 +70,12 @@ export class FinalContractsService {
         createdBy: user.id ?? null,
       },
       include: { company: { select: { id: true, name: true } } },
+    });
+
+    this.realtime.emitFinalContractChanged(row.companyId, {
+      contractId: row.id,
+      companyId: row.companyId,
+      action: 'created',
     });
 
     return this.serializeRow(row, null, null);
@@ -208,6 +216,12 @@ export class FinalContractsService {
           : {}),
       },
       include: { company: { select: { id: true, name: true } } },
+    });
+
+    this.realtime.emitFinalContractChanged(row.companyId, {
+      contractId: row.id,
+      companyId: row.companyId,
+      action: 'updated',
     });
 
     const docs = await this.prisma.document.findMany({

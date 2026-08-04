@@ -20,6 +20,14 @@ export class ClientReturnsController {
     return this.returns.list(client, query);
   }
 
+  @Get('outbound-quota/:outboundId')
+  getOutboundQuota(
+    @ClientUser() client: ClientPrincipal,
+    @Param('outboundId', ParseUuidLoosePipe) outboundId: string,
+  ) {
+    return this.returns.getOutboundQuota(client, outboundId);
+  }
+
   @Get(':id')
   findOne(@ClientUser() client: ClientPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.returns.findOne(client, id);

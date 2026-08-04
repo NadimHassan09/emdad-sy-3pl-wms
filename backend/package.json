@@ -4,7 +4,7 @@
   "private": true,
   "description": "EMDAD 3PL WMS — Phase 1 backend (NestJS + Prisma)",
   "scripts": {
-    "build": "nest build",
+    "build": "nest build && node scripts/copy-pdf-assets.js",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",

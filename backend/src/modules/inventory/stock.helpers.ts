@@ -31,7 +31,8 @@ export interface QuantityMeta {
 /**
  * Atomic stock helpers inside a DB transaction.
  * Prefer upsertPositiveWithMeta / decrementWithMeta so callers can populate
- * inventory_ledger.quantity_before / quantity_after at write time.
+ * Stock mutation helpers. QuantityMeta (before/after on-hand) is for stock
+ * concurrency checks only — do not copy onto inventory_ledger rows.
  */
 @Injectable()
 export class StockHelpers {

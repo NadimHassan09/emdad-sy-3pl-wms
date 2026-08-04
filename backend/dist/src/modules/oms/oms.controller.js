@@ -34,7 +34,7 @@ let OmsController = class OmsController {
         return this.orders.list(user, query);
     }
     create(user, dto) {
-        return this.orders.create(user, dto);
+        return this.orders.create(user, dto, { provisionOutbound: !dto.outboundOrderId });
     }
     findOne(user, id) {
         return this.orders.findById(id, user);

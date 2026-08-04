@@ -1,5 +1,4 @@
 import { useMemo, useState, type ReactElement } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
 import { Alert } from '@ds';
@@ -8,26 +7,23 @@ import {
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
 
-import { CreateClientInboundModal } from '../components/CreateClientInboundModal';
 import { Badge } from '../design-v2/Badge';
 import { Card } from '../design-v2/Card';
 import { ListPageHeader } from '../design-v2/ListPageHeader';
 import { TableFooterPagination } from '../design-v2/TableFooterPagination';
 import { useDebouncedValue } from '../design-v2/useDebouncedValue';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
-import { isClientArabic } from '../lib/client-ui-language';
 import {
-  createClientInboundOrder,
-  fetchClientInboundOrders,
-} from '../services/clientInboundOrdersService';
+  clientInboundStatusLabel,
+  mapClientInboundDisplayStatus,
+} from '../lib/client-inbound-status';
+import { isClientArabic } from '../lib/client-ui-language';
+import { fetchClientInboundOrders } from '../services/clientInboundOrdersService';
 
 const INBOUND_STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
-  { value: 'draft', label: 'Draft' },
   { value: 'pending_approval', label: 'Waiting for approval' },
-  { value: 'confirmed', label: 'Confirmed' },
   { value: 'in_progress', label: 'In progress' },
-  { value: 'partially_received', label: 'Partially received' },
   { value: 'completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
 ];
@@ -42,6 +38,10 @@ function inboundLabel(label: string, isArabic: boolean): string {
     'Search order number...': 'ابحث برقم الطلب...',
     Filters: 'فلاتر',
     'All statuses': 'كل الحالات',
+    'Waiting for approval': 'بانتظار الموافقة',
+    'In progress': 'قيد التنفيذ',
+    Completed: 'مكتمل',
+    Cancelled: 'ملغي',
     'Order #': 'رقم الطلب',
     Status: 'الحالة',
     'Expected Arrival': 'الوصول المتوقع',
@@ -57,26 +57,12 @@ function inboundLabel(label: string, isArabic: boolean): string {
 
 export function InboundOrdersPage(): ReactElement {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const isArabic = isClientArabic();
   const t = (label: string) => inboundLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
   const debouncedSearch = useDebouncedValue(search, 300);
-
-  const createMut = useMutation({
-    mutationFn: createClientInboundOrder,
-    onSuccess: (order) => {
-      void queryClient.invalidateQueries({ queryKey: ['client', 'inbound-orders'] });
-      setCreateError(null);
-      setCreateOpen(false);
-      navigate(`/inbound-orders/${order.id}`);
-    },
-    onError: (err: Error) => setCreateError(err.message || 'Could not submit order.'),
-  });
 
   const filterKey = useMemo(
     () => ({ orderSearch: debouncedSearch.trim() || undefined, status: status || undefined }),
@@ -103,10 +89,7 @@ export function InboundOrdersPage(): ReactElement {
             type="button"
             disabled={!billingAccess.operationalAllowed}
             title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
-            onClick={() => {
-              setCreateError(null);
-              setCreateOpen(true);
-            }}
+            onClick={() => navigate('/inbound-orders/new')}
             className="px-4 py-2 bg-cta text-white rounded-lg text-sm font-medium hover:bg-cta-hover transition-all shadow-lg shadow-brand-600/20 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <i className="fa-solid fa-plus text-xs" /> {t('New inbound')}
@@ -188,7 +171,9 @@ export function InboundOrdersPage(): ReactElement {
                       {row.orderNumber || '—'}
                     </td>
                     <td className="px-5 py-3.5">
-                      <Badge status={row.status} />
+                      <Badge status={mapClientInboundDisplayStatus(row.status)}>
+                        {clientInboundStatusLabel(row.status, isArabic)}
+                      </Badge>
                     </td>
                     <td className="px-5 py-3.5 text-text-body">
                       {new Date(row.expectedArrivalDate).toLocaleDateString()}
@@ -205,18 +190,6 @@ export function InboundOrdersPage(): ReactElement {
         </div>
         <TableFooterPagination pagination={pagination.serverPagination} isArabic={isArabic} />
       </Card>
-
-      <CreateClientInboundModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        loading={createMut.isPending}
-        submitError={createError}
-        onSubmit={(input) => {
-          setCreateError(null);
-          createMut.mutate(input);
-        }}
-        isArabic={isArabic}
-      />
     </div>
   );
 }

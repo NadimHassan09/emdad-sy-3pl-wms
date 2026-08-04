@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.DocumentSlotOverridesService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../common/prisma/prisma.service");
+const realtime_service_1 = require("../modules/realtime/realtime.service");
 const EMPTY = {
     clientReference: '',
     notes: '',
@@ -32,8 +33,10 @@ function display(value) {
 }
 let DocumentSlotOverridesService = class DocumentSlotOverridesService {
     prisma;
-    constructor(prisma) {
+    realtime;
+    constructor(prisma, realtime) {
         this.prisma = prisma;
+        this.realtime = realtime;
     }
     async resolveForTask(taskId, type) {
         const merged = await this.loadMerged(taskId, type);
@@ -73,6 +76,35 @@ let DocumentSlotOverridesService = class DocumentSlotOverridesService {
             create: { taskId, ...data },
             update: data,
         });
+        const task = await this.prisma.warehouseTask.findUnique({
+            where: { id: taskId },
+            include: { workflowInstance: true },
+        });
+        const referenceId = task?.workflowInstance.referenceId;
+        let companyId = null;
+        if (task && referenceId) {
+            if (dto.type === 'grn') {
+                const order = await this.prisma.inboundOrder.findUnique({
+                    where: { id: referenceId },
+                    select: { companyId: true },
+                });
+                companyId = order?.companyId ?? null;
+            }
+            else {
+                const order = await this.prisma.outboundOrder.findUnique({
+                    where: { id: referenceId },
+                    select: { companyId: true },
+                });
+                companyId = order?.companyId ?? null;
+            }
+        }
+        if (companyId) {
+            this.realtime.emitDocumentSlotOverrideChanged(companyId, {
+                taskId,
+                type: dto.type,
+                companyId,
+            });
+        }
         return this.getEditable(taskId, dto.type);
     }
     async loadMerged(taskId, type) {
@@ -156,6 +188,7 @@ let DocumentSlotOverridesService = class DocumentSlotOverridesService {
 exports.DocumentSlotOverridesService = DocumentSlotOverridesService;
 exports.DocumentSlotOverridesService = DocumentSlotOverridesService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        realtime_service_1.RealtimeService])
 ], DocumentSlotOverridesService);
 //# sourceMappingURL=document-slot-overrides.service.js.map

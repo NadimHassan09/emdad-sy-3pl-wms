@@ -8,6 +8,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReturnsService = void 0;
 const common_1 = require("@nestjs/common");
@@ -21,6 +24,7 @@ const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantit
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const tenant_rls_1 = require("../../common/prisma/tenant-rls");
 const realtime_service_1 = require("../realtime/realtime.service");
+const oms_returns_service_1 = require("../oms-returns/oms-returns.service");
 const realtime_ops_payload_1 = require("../realtime/realtime-ops.payload");
 const list_return_orders_query_dto_1 = require("./dto/list-return-orders-query.dto");
 const outbound_confirm_lock_util_1 = require("../outbound/outbound-confirm-lock.util");
@@ -69,13 +73,15 @@ let ReturnsService = class ReturnsService {
     workflow;
     audit;
     realtime;
-    constructor(prisma, companyAccess, quantityGuard, workflow, audit, realtime) {
+    omsReturns;
+    constructor(prisma, companyAccess, quantityGuard, workflow, audit, realtime, omsReturns) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.quantityGuard = quantityGuard;
         this.workflow = workflow;
         this.audit = audit;
         this.realtime = realtime;
+        this.omsReturns = omsReturns;
     }
     async create(user, dto) {
         const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
@@ -121,15 +127,24 @@ let ReturnsService = class ReturnsService {
         }
         const productById = new Map(products.map((p) => [p.id, p]));
         const lineCreates = [];
+        const resolvedLots = [];
         for (let idx = 0; idx < dto.lines.length; idx++) {
             const l = dto.lines[idx];
             const p = productById.get(l.productId);
             (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(p.uom, l.expectedQuantity, 'Expected quantity');
-            if (p.trackingType === client_1.ProductTrackingType.lot && !l.lotId) {
+            let lotId = l.lotId ?? null;
+            if (p.trackingType === client_1.ProductTrackingType.lot && !lotId) {
+                lotId = await this.resolveLotFromOutbound({
+                    productId: l.productId,
+                    outboundOrderLineId: l.outboundOrderLineId,
+                    originalOutboundOrderId: dto.originalOutboundOrderId,
+                });
+            }
+            if (p.trackingType === client_1.ProductTrackingType.lot && !lotId) {
                 throw new common_1.BadRequestException(`Product ${p.sku} requires a lot on return lines.`);
             }
-            if (l.lotId) {
-                await this.assertLotForProduct(l.lotId, l.productId, companyId);
+            if (lotId) {
+                await this.assertLotForProduct(lotId, l.productId, companyId);
             }
             if (l.packageId) {
                 await this.assertLinePackage(l.packageId, l.productId, companyId);
@@ -137,6 +152,7 @@ let ReturnsService = class ReturnsService {
             if (l.outboundOrderLineId && !dto.originalOutboundOrderId) {
                 throw new common_1.BadRequestException('outboundOrderLineId requires originalOutboundOrderId on the return header.');
             }
+            resolvedLots.push(lotId);
             lineCreates.push({
                 product: { connect: { id: l.productId } },
                 expectedQuantity: new client_1.Prisma.Decimal(l.expectedQuantity),
@@ -145,15 +161,15 @@ let ReturnsService = class ReturnsService {
                     ? { outboundOrderLine: { connect: { id: l.outboundOrderLineId } } }
                     : {}),
                 ...(l.packageId ? { package: { connect: { id: l.packageId } } } : {}),
-                ...(l.lotId ? { lot: { connect: { id: l.lotId } } } : {}),
+                ...(lotId ? { lot: { connect: { id: lotId } } } : {}),
                 ...(l.condition ? { condition: l.condition } : {}),
                 ...(l.disposition ? { disposition: l.disposition } : {}),
             });
         }
         if (dto.originalOutboundOrderId) {
-            await this.quantityGuard.assertWithinShippedLimits(dto.originalOutboundOrderId, dto.lines.map((l) => ({
+            await this.quantityGuard.assertWithinShippedLimits(dto.originalOutboundOrderId, dto.lines.map((l, idx) => ({
                 productId: l.productId,
-                lotId: l.lotId ?? null,
+                lotId: resolvedLots[idx],
                 outboundOrderLineId: l.outboundOrderLineId ?? null,
                 expectedQuantity: new client_1.Prisma.Decimal(l.expectedQuantity),
             })));
@@ -212,6 +228,32 @@ let ReturnsService = class ReturnsService {
             if (query.createdTo)
                 createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
             where.createdAt = createdAt;
+        }
+        if (query.source === 'oms') {
+            andParts.push({
+                OR: [
+                    { clientReference: { startsWith: 'oms:' } },
+                    { originalOutbound: { is: { omsOrder: { isNot: null } } } },
+                ],
+            });
+        }
+        else if (query.source === 'outbound') {
+            andParts.push({
+                AND: [
+                    {
+                        OR: [
+                            { clientReference: null },
+                            { NOT: { clientReference: { startsWith: 'oms:' } } },
+                        ],
+                    },
+                    {
+                        OR: [
+                            { originalOutboundOrderId: null },
+                            { originalOutbound: { is: { omsOrder: null } } },
+                        ],
+                    },
+                ],
+            });
         }
         if (andParts.length > 0)
             where.AND = andParts;
@@ -393,7 +435,108 @@ let ReturnsService = class ReturnsService {
             resourceId: id,
         }));
         this.emitReturnEvent(updated, 'completed');
+        try {
+            await this.omsReturns?.onWarehouseReturnCompleted(user, id);
+        }
+        catch {
+        }
         return updated;
+    }
+    async finalizeAfterOmsApproval(user, returnOrderId) {
+        let order = await this.findById(returnOrderId, user);
+        if (order.status === client_1.ReturnOrderStatus.completed) {
+            return order;
+        }
+        if (order.status === client_1.ReturnOrderStatus.cancelled) {
+            throw new domain_exceptions_1.InvalidStateException('Cannot finalize a cancelled return order.');
+        }
+        if (!order.warehouseId) {
+            const warehouseId = await this.resolveWarehouseIdFromOutbound(order.originalOutboundOrderId);
+            if (!warehouseId) {
+                throw new common_1.BadRequestException('Cannot resolve warehouse for return restock. Provide warehouseId on approve.');
+            }
+            order = await this.prisma.returnOrder.update({
+                where: { id: returnOrderId },
+                data: { warehouseId },
+                include: ORDER_INCLUDE,
+            });
+        }
+        if (order.status === client_1.ReturnOrderStatus.draft) {
+            order = await this.confirm(user, returnOrderId);
+        }
+        if (order.status === client_1.ReturnOrderStatus.confirmed) {
+            order = await this.startReceiving(user, returnOrderId);
+        }
+        order = await this.findById(returnOrderId, user);
+        for (const line of order.lines) {
+            const remaining = line.expectedQuantity.minus(line.receivedQuantity);
+            if (remaining.gt(0)) {
+                await this.receiveLine(user, returnOrderId, line.id, {
+                    quantity: Number(remaining),
+                });
+            }
+        }
+        order = await this.findById(returnOrderId, user);
+        for (const line of order.lines) {
+            if (line.lineStatus === client_1.ReturnLineStatus.posted)
+                continue;
+            if (line.receivedQuantity.lte(0))
+                continue;
+            const targetLocationId = await this.resolveRestockLocationId({
+                warehouseId: order.warehouseId,
+                productId: line.productId,
+                lotId: line.lotId,
+                outboundOrderId: order.originalOutboundOrderId,
+            });
+            await this.applyDisposition(user, returnOrderId, line.id, {
+                disposition: client_1.ReturnItemDisposition.restock,
+                targetLocationId,
+            });
+        }
+        return this.complete(user, returnOrderId);
+    }
+    async resolveWarehouseIdFromOutbound(outboundOrderId) {
+        if (!outboundOrderId)
+            return null;
+        const reservation = await this.prisma.stockReservation.findFirst({
+            where: { outboundOrderId },
+            orderBy: { createdAt: 'desc' },
+            select: { location: { select: { warehouseId: true } } },
+        });
+        return reservation?.location.warehouseId ?? null;
+    }
+    async resolveRestockLocationId(params) {
+        if (params.outboundOrderId) {
+            const fromOutbound = await this.prisma.stockReservation.findFirst({
+                where: {
+                    outboundOrderId: params.outboundOrderId,
+                    productId: params.productId,
+                    ...(params.lotId ? { lotId: params.lotId } : {}),
+                    location: {
+                        warehouseId: params.warehouseId,
+                        type: { in: ['internal', 'fridge'] },
+                        status: 'active',
+                    },
+                },
+                orderBy: { createdAt: 'desc' },
+                select: { locationId: true },
+            });
+            if (fromOutbound?.locationId)
+                return fromOutbound.locationId;
+        }
+        const sellable = await this.prisma.location.findFirst({
+            where: {
+                warehouseId: params.warehouseId,
+                type: { in: ['internal', 'fridge'] },
+                status: 'active',
+            },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true },
+        });
+        if (!sellable) {
+            throw new common_1.BadRequestException('No sellable location available to restock returned inventory.');
+        }
+        return sellable.id;
     }
     async cancel(user, id) {
         const order = await this.findById(id, user);
@@ -484,15 +627,70 @@ let ReturnsService = class ReturnsService {
             throw new common_1.BadRequestException('Lot does not belong to the return line product.');
         }
     }
+    async resolveLotFromOutbound(params) {
+        if (params.outboundOrderLineId) {
+            const line = await this.prisma.outboundOrderLine.findUnique({
+                where: { id: params.outboundOrderLineId },
+                select: {
+                    specificLotId: true,
+                    outboundOrderId: true,
+                    productId: true,
+                },
+            });
+            if (line?.specificLotId)
+                return line.specificLotId;
+            if (line) {
+                const byLine = await this.prisma.stockReservation.findFirst({
+                    where: {
+                        outboundOrderLineId: params.outboundOrderLineId,
+                        productId: params.productId,
+                        lotId: { not: null },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    select: { lotId: true },
+                });
+                if (byLine?.lotId)
+                    return byLine.lotId;
+                const byOrder = await this.prisma.stockReservation.findFirst({
+                    where: {
+                        outboundOrderId: line.outboundOrderId,
+                        productId: params.productId,
+                        lotId: { not: null },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    select: { lotId: true },
+                });
+                if (byOrder?.lotId)
+                    return byOrder.lotId;
+            }
+        }
+        if (params.originalOutboundOrderId) {
+            const byOrder = await this.prisma.stockReservation.findFirst({
+                where: {
+                    outboundOrderId: params.originalOutboundOrderId,
+                    productId: params.productId,
+                    lotId: { not: null },
+                },
+                orderBy: { createdAt: 'desc' },
+                select: { lotId: true },
+            });
+            if (byOrder?.lotId)
+                return byOrder.lotId;
+        }
+        return null;
+    }
 };
 exports.ReturnsService = ReturnsService;
 exports.ReturnsService = ReturnsService = __decorate([
     (0, common_1.Injectable)(),
+    __param(6, (0, common_1.Optional)()),
+    __param(6, (0, common_1.Inject)((0, common_1.forwardRef)(() => oms_returns_service_1.OmsReturnsService))),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         company_access_service_1.CompanyAccessService,
         return_quantity_validation_1.ReturnQuantityValidation,
         return_workflow_service_1.ReturnWorkflowService,
         audit_log_service_1.AuditLogService,
-        realtime_service_1.RealtimeService])
+        realtime_service_1.RealtimeService,
+        oms_returns_service_1.OmsReturnsService])
 ], ReturnsService);
 //# sourceMappingURL=returns.service.js.map

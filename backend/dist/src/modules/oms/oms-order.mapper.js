@@ -115,32 +115,14 @@ function deriveCodStatus(paymentMethod, codAmount) {
 }
 function mapOutboundStatusToOms(status) {
     switch (status) {
-        case 'confirmed':
-            return 'approved';
-        case 'allocated':
-            return 'allocated';
-        case 'picking':
-            return 'picking';
-        case 'packing':
-            return 'packing';
-        case 'ready_to_ship':
-            return 'ready_to_ship';
-        case 'out_for_delivery':
-            return 'out_for_delivery';
         case 'shipped':
-            return 'shipped';
+        case 'out_for_delivery':
         case 'delivered':
-            return 'delivered';
-        case 'returned':
-            return 'returned';
+            return 'out_for_delivery';
         case 'cancelled':
             return 'cancelled';
-        case 'pending_approval':
-        case 'pending_stock':
-        case 'draft':
-            return 'approved';
         default:
-            return 'processing';
+            return null;
     }
 }
 function omsEventTypeForStatus(status) {

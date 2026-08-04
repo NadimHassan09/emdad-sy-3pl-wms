@@ -11,6 +11,7 @@ import {
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
 import { CreateInvoiceLineDto } from './dto/create-invoice-line.dto';
@@ -74,7 +75,21 @@ export class BillingInvoicesService {
     private readonly companyAccess: CompanyAccessService,
     private readonly billingAudit: BillingAuditService,
     private readonly invoiceCalc: BillingInvoiceCalculationService,
+    private readonly realtime: RealtimeService,
   ) {}
+
+  private emitInvoice(
+    invoice: { id: string; companyId: string; status: string; invoiceNumber?: string | null },
+    action: string,
+  ): void {
+    this.realtime.emitInvoiceUpdated(invoice.companyId, {
+      invoiceId: invoice.id,
+      companyId: invoice.companyId,
+      status: invoice.status,
+      invoiceNumber: invoice.invoiceNumber ?? null,
+      action,
+    });
+  }
 
   async updateStatus(
     user: AuthPrincipal,
@@ -126,6 +141,7 @@ export class BillingInvoicesService {
       newState: { status },
     });
 
+    this.emitInvoice(updated, action);
     return updated;
   }
 
@@ -144,7 +160,7 @@ export class BillingInvoicesService {
         return d;
       })();
 
-    return this.prisma.invoice.update({
+    const updated = await this.prisma.invoice.update({
       where: { id },
       data: {
         status: BillingInvoiceStatus.unpaid,
@@ -153,6 +169,8 @@ export class BillingInvoicesService {
       },
       select: INVOICE_SELECT,
     });
+    this.emitInvoice(updated, 'invoice_issued');
+    return updated;
   }
 
   async createAdHoc(user: AuthPrincipal, dto: CreateAdHocInvoiceDto) {
@@ -161,7 +179,7 @@ export class BillingInvoicesService {
       throw new BadRequestException('At least one invoice line is required.');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const invoice = await tx.invoice.create({
         data: {
           companyId: dto.companyId,
@@ -183,6 +201,8 @@ export class BillingInvoicesService {
         select: INVOICE_SELECT,
       });
     });
+    this.emitInvoice(created, 'invoice_created');
+    return created;
   }
 
   async updateInvoice(user: AuthPrincipal, id: string, dto: UpdateInvoiceDto) {
@@ -211,11 +231,13 @@ export class BillingInvoicesService {
       data.vatPercentage = new Prisma.Decimal(dto.vatPercentage);
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       await tx.invoice.update({ where: { id }, data });
       await this.invoiceCalc.applyInvoiceTotals(tx, id);
       return tx.invoice.findUniqueOrThrow({ where: { id }, select: INVOICE_SELECT });
     });
+    this.emitInvoice(updated, 'invoice_updated');
+    return updated;
   }
 
   async listPage(user: AuthPrincipal, query: ListBillingInvoicesQueryDto) {

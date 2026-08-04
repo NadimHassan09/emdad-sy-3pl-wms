@@ -14,7 +14,8 @@ export type SectionSubNavConfig = {
 
 function isOrdersDetailPath(pathname: string): boolean {
   return (
-    /^\/(inbound|outbound|ecommerce)-orders\/[^/]+$/.test(pathname) ||
+    /^\/(inbound|outbound|ecommerce)-orders\/(?!returns(?:\/|$))[^/]+$/.test(pathname) ||
+    /^\/(outbound|ecommerce)-orders\/returns\/[^/]+$/.test(pathname) ||
     /^\/returns\/[^/]+$/.test(pathname)
   );
 }
@@ -35,7 +36,13 @@ const WMS_ORDERS_SECTION: SectionSubNavConfig = {
       labelKey: 'Outbound',
       labelAr: 'الصادر',
       to: '/outbound-orders',
-      match: (p) => p.startsWith('/outbound-orders'),
+      match: (p) => p.startsWith('/outbound-orders') && !p.startsWith('/outbound-orders/returns'),
+    },
+    {
+      labelKey: 'Returns',
+      labelAr: 'المرتجعات',
+      to: '/outbound-orders/returns',
+      match: (p) => p.startsWith('/outbound-orders/returns'),
     },
   ],
 };
@@ -54,7 +61,7 @@ const OMS_SECTION: SectionSubNavConfig = {
       labelKey: 'Online orders',
       labelAr: 'الطلبات الإلكترونية',
       to: '/ecommerce-orders',
-      match: (p) => p.startsWith('/ecommerce-orders'),
+      match: (p) => p.startsWith('/ecommerce-orders') && !p.startsWith('/ecommerce-orders/returns'),
     },
     {
       labelKey: 'Cash on delivery',
@@ -65,8 +72,8 @@ const OMS_SECTION: SectionSubNavConfig = {
     {
       labelKey: 'Returns',
       labelAr: 'المرتجعات',
-      to: '/returns',
-      match: (p) => p.startsWith('/returns'),
+      to: '/ecommerce-orders/returns',
+      match: (p) => p.startsWith('/ecommerce-orders/returns') || p.startsWith('/returns'),
     },
   ],
 };

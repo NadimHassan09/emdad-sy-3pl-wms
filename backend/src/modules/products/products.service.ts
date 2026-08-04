@@ -30,6 +30,7 @@ import {
 } from './product-barcode.util';
 import {
   inboundLinesBlockingProductDeleteWhere,
+  omsLinesBlockingProductDeleteWhere,
   outboundLinesBlockingProductDeleteWhere,
   purgeRemovableOrderLinesForProduct,
 } from './product-delete-references.util';
@@ -254,7 +255,7 @@ export class ProductsService {
 
       const referencedProductIds = new Set<string>();
       if (ids.length > 0) {
-        const [inboundRefs, outboundRefs, adjustmentRefs, ledgerRefs] =
+        const [inboundRefs, outboundRefs, omsRefs, adjustmentRefs, ledgerRefs] =
           await Promise.all([
             tx.inboundOrderLine.groupBy({
               by: ['productId'],
@@ -263,6 +264,10 @@ export class ProductsService {
             tx.outboundOrderLine.groupBy({
               by: ['productId'],
               where: outboundLinesBlockingProductDeleteWhere(ids),
+            }),
+            tx.omsOrderLine.groupBy({
+              by: ['productId'],
+              where: omsLinesBlockingProductDeleteWhere(ids),
             }),
             tx.stockAdjustmentLine.groupBy({
               by: ['productId'],
@@ -276,6 +281,7 @@ export class ProductsService {
         for (const row of [
           ...inboundRefs,
           ...outboundRefs,
+          ...omsRefs,
           ...adjustmentRefs,
           ...ledgerRefs,
         ]) {
@@ -528,7 +534,7 @@ export class ProductsService {
       throw new BadRequestException('Archived products cannot be hard-deleted from this action.');
     }
 
-    const [onHandAgg, resAgg, inboundLines, outboundLines, adjLines, ledger] =
+    const [onHandAgg, resAgg, inboundLines, outboundLines, omsLines, adjLines, ledger] =
       await this.prisma.$transaction([
         this.prisma.currentStock.aggregate({
           where: { productId: id },
@@ -544,6 +550,9 @@ export class ProductsService {
         this.prisma.outboundOrderLine.count({
           where: outboundLinesBlockingProductDeleteWhere(id),
         }),
+        this.prisma.omsOrderLine.count({
+          where: omsLinesBlockingProductDeleteWhere(id),
+        }),
         this.prisma.stockAdjustmentLine.count({ where: { productId: id } }),
         this.prisma.inventoryLedger.count({ where: { productId: id } }),
       ]);
@@ -555,7 +564,13 @@ export class ProductsService {
         'Cannot delete product while on-hand or reserved quantity is greater than zero.',
       );
     }
-    if (inboundLines > 0 || outboundLines > 0 || adjLines > 0 || ledger > 0) {
+    if (
+      inboundLines > 0 ||
+      outboundLines > 0 ||
+      omsLines > 0 ||
+      adjLines > 0 ||
+      ledger > 0
+    ) {
       throw new ConflictException(
         'Cannot delete product that appears on orders, adjustments, or inventory history. Archive it instead.',
       );

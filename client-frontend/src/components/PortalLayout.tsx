@@ -8,7 +8,6 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import {
   AppShell,
-  LanguageSwitchOverlay,
   MobileSidebarOverlay,
   PageLoadFallback,
   Sidebar,
@@ -22,6 +21,7 @@ import {
   TopbarNotifications,
   TopbarThemeToggle,
   TopbarUserMenu,
+  UiSwitchOverlay,
   cn,
   useUiLanguage,
   useUiTheme,
@@ -46,7 +46,8 @@ const NAV_ICONS: Record<string, string> = {
   '/products': 'fa-boxes-stacked',
   '/ecommerce-orders': 'fa-cart-shopping',
   '/my-profits': 'fa-money-bill',
-  '/returns': 'fa-rotate-left',
+  '/ecommerce-orders/returns': 'fa-rotate-left',
+  '/outbound-orders/returns': 'fa-rotate-left',
   '/profile': 'fa-user',
 };
 
@@ -111,12 +112,39 @@ export function PortalLayout(): ReactElement {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const { language, setLanguage, isArabic, isSwitching } = useUiLanguage({
+  const { language, setLanguage, isArabic, isSwitching: isLanguageSwitching } = useUiLanguage({
     storageKey: 'wms-ui-language',
     eventName: 'wms-ui-language-changed',
     fallbackStorageKeys: ['client-ui-language'],
+    minLoadingMs: 700,
   });
-  const { isDark, toggle: toggleTheme } = useUiTheme({ storageKey: 'client-ui-theme' });
+  const {
+    isDark,
+    toggle: toggleTheme,
+    isSwitching: isThemeSwitching,
+    switchingTo,
+  } = useUiTheme({ storageKey: 'client-ui-theme', minLoadingMs: 700 });
+
+  const transitionOverlayOpen = isLanguageSwitching || isThemeSwitching;
+  const transitionOverlayCopy = (() => {
+    if (isThemeSwitching) {
+      const toDark = (switchingTo ?? (isDark ? 'light' : 'dark')) === 'dark';
+      if (isArabic) {
+        return {
+          title: toDark ? 'جاري التبديل إلى الوضع الداكن…' : 'جاري التبديل إلى الوضع الفاتح…',
+          hint: 'يتم تحديث المظهر',
+        };
+      }
+      return {
+        title: toDark ? 'Switching to dark mode…' : 'Switching to light mode…',
+        hint: 'Updating appearance',
+      };
+    }
+    if (isArabic) {
+      return { title: 'جاري تحميل اللغة…', hint: 'يتم تحديث الواجهة' };
+    }
+    return { title: 'Loading language…', hint: 'Updating interface' };
+  })();
 
   const searchRef = useOutsideClose(() => setSearchOpen(false));
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -154,7 +182,15 @@ export function PortalLayout(): ReactElement {
   }
 
   function isActive(item: ClientNavItem): boolean {
-    return item.exact ? pathname === item.to : pathname.startsWith(item.to);
+    if (item.exact) return pathname === item.to;
+    if (!(pathname === item.to || pathname.startsWith(`${item.to}/`))) return false;
+    const longerMatch = navItems.some(
+      (other) =>
+        other.to.length > item.to.length &&
+        (other.to === item.to || other.to.startsWith(`${item.to}/`)) &&
+        (pathname === other.to || pathname.startsWith(`${other.to}/`)),
+    );
+    return !longerMatch;
   }
 
   function go(to: string) {
@@ -202,7 +238,7 @@ export function PortalLayout(): ReactElement {
       keywords: ['cod', 'cash', 'profits', 'أرباح', 'دفع', 'تحصيل'],
     },
     {
-      to: '/returns',
+      to: '/ecommerce-orders/returns',
       icon: 'fa-rotate-left',
       label: isArabic ? 'المرتجعات' : 'Returns',
       keywords: ['return', 'مرتجع'],
@@ -218,6 +254,12 @@ export function PortalLayout(): ReactElement {
       icon: 'fa-arrow-up',
       label: isArabic ? 'الصادر' : 'Outbound orders',
       keywords: ['outbound', 'out', 'ship', 'صادر'],
+    },
+    {
+      to: '/outbound-orders/returns',
+      icon: 'fa-rotate-left',
+      label: isArabic ? 'مرتجعات الصادر' : 'Outbound returns',
+      keywords: ['return', 'outbound', 'مرتجع', 'صادر'],
     },
     {
       to: '/products',
@@ -249,7 +291,13 @@ export function PortalLayout(): ReactElement {
       label: isArabic ? 'الملف الشخصي' : 'Profile',
       keywords: ['profile', 'account', 'ملف'],
     },
-  ].filter((d) => d.to === '/profile' || d.to === '/dashboard' || navItems.some((n) => n.to === d.to));
+  ].filter(
+    (d) =>
+      d.to === '/profile' ||
+      d.to === '/dashboard' ||
+      d.to === '/outbound-orders/returns' ||
+      navItems.some((n) => n.to === d.to),
+  );
 
   const qNorm = searchQuery.trim().toLowerCase();
   const filteredSearchDestinations = qNorm
@@ -388,7 +436,11 @@ export function PortalLayout(): ReactElement {
 
   return (
     <>
-      <LanguageSwitchOverlay open={isSwitching} language={language} />
+      <UiSwitchOverlay
+        open={transitionOverlayOpen}
+        title={transitionOverlayCopy.title}
+        hint={transitionOverlayCopy.hint}
+      />
       <div id="client-portal-root" key={language} className="h-dvh max-h-dvh overflow-hidden">
         <AppShell>
           <AppShell.SkipNav />

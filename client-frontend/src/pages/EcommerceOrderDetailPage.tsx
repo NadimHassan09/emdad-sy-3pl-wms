@@ -6,6 +6,10 @@ import { useQuery } from '@tanstack/react-query';
 import { Alert, Card, Skeleton, StatusBadge } from '@ds';
 
 import { ClientOrderTrackingPanel } from '../components/ClientOrderTrackingPanel';
+import {
+  clientOmsCommercialStatusBadgeKey,
+  clientOmsCommercialStatusLabel,
+} from '../lib/client-oms-commercial-status';
 import { isClientArabic } from '../lib/client-ui-language';
 import {
   fetchClientOmsOrder,
@@ -127,7 +131,9 @@ export function EcommerceOrderDetailPage(): ReactElement {
             <h1 className="text-xl font-bold tracking-tight text-text-strong font-mono">
               {data.orderNumber || data.id.slice(0, 8)}
             </h1>
-            <StatusBadge status={data.status} />
+            <StatusBadge status={clientOmsCommercialStatusBadgeKey(data.status)} isArabic={isArabic}>
+              {clientOmsCommercialStatusLabel(data.status, isArabic)}
+            </StatusBadge>
           </div>
 
           {data.rejectionReason ? (

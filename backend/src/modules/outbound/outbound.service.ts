@@ -95,8 +95,18 @@ const ORDER_INCLUDE = {
           status: true,
           trackingType: true,
           uom: true,
+          imagePath: true,
         },
       },
+    },
+  },
+  stockReservations: {
+    where: { status: { in: ['active', 'fulfilled'] as const } },
+    orderBy: { createdAt: 'asc' as const },
+    include: {
+      product: { select: { id: true, sku: true, name: true } },
+      location: { select: { id: true, fullPath: true, barcode: true } },
+      lot: { select: { id: true, lotNumber: true } },
     },
   },
 } satisfies Prisma.OutboundOrderInclude;
@@ -192,16 +202,20 @@ export class OutboundService {
 
     await this.assertSufficientStockForLines(companyId, dto.lines, products);
 
-    const executionMode = normalizeExecutionMode(dto.executionMode);
+    // Client portal / partial creates: allow admin mode without a full plan (Admin completes via updatePlan).
+    const clientSubmission = !!opts?.pendingClientApproval;
+    const executionMode = clientSubmission
+      ? 'admin'
+      : normalizeExecutionMode(dto.executionMode);
     let executionPlan: Prisma.InputJsonValue | undefined;
-    if (dto.executionPlan) {
+    if (dto.executionPlan && !clientSubmission) {
       const parsed = parseOutboundExecutionPlan(dto.executionPlan);
       if (!parsed) throw new BadRequestException('Invalid executionPlan.');
       if (dto.requiresPacking === false) parsed.requiresPacking = false;
       if (dto.requiresPacking === true) parsed.requiresPacking = true;
       if (executionMode === 'admin') assertOutboundAdminPlanComplete(parsed);
       executionPlan = parsed as unknown as Prisma.InputJsonValue;
-    } else if (executionMode === 'admin') {
+    } else if (executionMode === 'admin' && !clientSubmission) {
       throw new BadRequestException('Admin execution requires executionPlan on create.');
     }
 
@@ -296,13 +310,16 @@ export class OutboundService {
 
     if (
       this.orderAllocation?.isEnabled() &&
-      opts?.oms?.allocateAfterCreate !== false &&
-      !opts?.pendingClientApproval
+      opts?.oms?.allocateAfterCreate !== false
     ) {
+      const planWarehouse =
+        executionPlan != null
+          ? parseOutboundExecutionPlan(executionPlan)?.warehouseId
+          : undefined;
       await this.orderAllocation.allocateOrder(tx, {
         outboundOrderId: created.id,
         companyId: created.companyId,
-        warehouseId: opts?.oms?.warehouseId,
+        warehouseId: opts?.oms?.warehouseId ?? planWarehouse,
         actorUserId: user.id,
         previousStatus: created.status,
         lines: created.lines.map((line) => ({
@@ -409,7 +426,7 @@ export class OutboundService {
     }
   }
 
-  async list(user: AuthPrincipal, query: ListOutboundQueryDto) {
+  async list(user: AuthPrincipal, query: ListOutboundQueryDto & { statusIn?: OutboundOrderStatus[] }) {
     const baseAnd: Prisma.OutboundOrderWhereInput[] = [];
     const where: Prisma.OutboundOrderWhereInput = {};
 
@@ -417,7 +434,11 @@ export class OutboundService {
     if (companyId) {
       where.companyId = companyId;
     }
-    if (query.status) where.status = query.status;
+    if (query.statusIn?.length) {
+      where.status = { in: query.statusIn };
+    } else if (query.status) {
+      where.status = query.status;
+    }
 
     if (query.orderSearch?.trim()) {
       const t = query.orderSearch.trim();
@@ -541,7 +562,7 @@ export class OutboundService {
     }
 
     return withTenantRls(this.prisma, user, async (tx) => {
-      return tx.outboundOrder.update({
+      const updated = await tx.outboundOrder.update({
         where: { id },
         data: {
           executionMode,
@@ -557,6 +578,40 @@ export class OutboundService {
         },
         include: ORDER_INCLUDE,
       });
+
+      // Ensure soft-hold exists (and refresh warehouse scope when the plan warehouse changes).
+      if (this.orderAllocation?.isEnabled() && updated.lines.length > 0) {
+        const plan =
+          parseOutboundExecutionPlan(updated.executionPlan) ??
+          parseOutboundExecutionPlan(order.executionPlan);
+        const previousPlan = parseOutboundExecutionPlan(order.executionPlan);
+        const warehouseChanged =
+          !!plan?.warehouseId &&
+          plan.warehouseId !== (previousPlan?.warehouseId ?? undefined);
+        const has = await this.orderAllocation.hasActiveReservations(tx, id);
+        if (has && warehouseChanged) {
+          await this.orderAllocation.releaseAllocation(tx, {
+            outboundOrderId: id,
+            companyId: updated.companyId,
+            actorUserId: user.id,
+          });
+        }
+        await this.orderAllocation.allocateOrder(tx, {
+          outboundOrderId: id,
+          companyId: updated.companyId,
+          warehouseId: plan?.warehouseId,
+          actorUserId: user.id,
+          previousStatus: updated.status,
+          lines: updated.lines.map((line) => ({
+            outboundOrderLineId: line.id,
+            productId: line.productId,
+            requestedQty: line.requestedQuantity,
+            specificLotId: line.specificLotId,
+          })),
+        });
+      }
+
+      return updated;
     });
   }
 
@@ -712,9 +767,8 @@ export class OutboundService {
 
   async cancel(id: string, user: AuthPrincipal) {
     const order = await this.findById(id, user);
-    // An order can be cancelled any time before it ships. Stock is only deducted
-    // when dispatch completes (status becomes `shipped`), so cancelling an
-    // in-progress order never needs to touch — or restore — inventory.
+    // Cancel before ship: release soft-holds (stock_reservations) so available qty returns.
+    // On-hand is only decremented when dispatch completes (status becomes `shipped`).
     if (
       order.status === OutboundOrderStatus.shipped ||
       order.status === OutboundOrderStatus.cancelled
@@ -732,9 +786,7 @@ export class OutboundService {
           actorUserId: user.id,
         });
       }
-      // Tear down all remaining work for this order: deleting the workflow
-      // instance cascades its nodes, tasks, assignments and events. No inventory
-      // is moved — product quantities are left exactly as they are.
+      // Tear down remaining warehouse work for this order.
       await tx.workflowInstance.deleteMany({
         where: { referenceType: 'outbound_order', referenceId: id },
       });
@@ -906,11 +958,27 @@ export class OutboundService {
     const before = await withTenantRls(this.prisma, user, async (tx) =>
       tx.outboundOrder.findUnique({
         where: { id: orderId },
-        select: { status: true, companyId: true, orderNumber: true, id: true },
+        select: {
+          status: true,
+          companyId: true,
+          orderNumber: true,
+          id: true,
+          executionPlan: true,
+          executionMode: true,
+        },
       }),
     );
     if (!before) throw new NotFoundException('Outbound order not found.');
     this.companyAccess.validateResourceOwnership(user, before);
+
+    // Unified Order Execution: Confirm/Release requires the same complete plan.
+    const releasePlan = parseOutboundExecutionPlan(before.executionPlan);
+    if (!releasePlan) {
+      throw new BadRequestException(
+        'A complete execution plan is required before confirmation or release.',
+      );
+    }
+    assertOutboundAdminPlanComplete(releasePlan);
 
     if (taskOnlyFlows(this.config)) {
       if (!body?.warehouseId) {
@@ -1199,8 +1267,6 @@ export class OutboundService {
           fromLocationId: row.locationId,
           movementType: 'outbound_pick',
           quantity: take,
-          quantityBefore: meta.before,
-          quantityAfter: meta.after,
           referenceType: 'outbound_order',
           referenceId: orderId,
           operatorId: user.id,
@@ -1440,8 +1506,6 @@ export class OutboundService {
           fromLocationId: row.locationId,
           movementType: 'outbound_pick',
           quantity: take,
-          quantityBefore: meta.before,
-          quantityAfter: meta.after,
           referenceType: 'outbound_order',
           referenceId: order.id,
           operatorId: user.id,

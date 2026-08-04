@@ -1,46 +1,33 @@
 import { useMemo, useState, type ReactElement } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, Button, EmptyState, ListPageHeader, Skeleton } from '@ds';
+import { Alert, Button, EmptyState, ListPageHeader, Skeleton, StatusBadge } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
 
-import { CreateClientOmsOrderModal } from '../components/CreateClientOmsOrderModal';
-import { Badge } from '../design-v2/Badge';
 import { Card } from '../design-v2/Card';
 import { StorePillTabs } from '../design-v2/StorePillTabs';
 import { TableFooterPagination } from '../design-v2/TableFooterPagination';
 import { useDebouncedValue } from '../design-v2/useDebouncedValue';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
+import {
+  CLIENT_OMS_COMMERCIAL_FILTER_OPTIONS,
+  clientOmsCommercialStatusBadgeKey,
+  clientOmsCommercialStatusLabel,
+} from '../lib/client-oms-commercial-status';
 import { isClientArabic } from '../lib/client-ui-language';
 import {
-  createClientOmsOrder,
   fetchClientOmsOrders,
   type ClientOmsOrderListItem,
   type ClientOmsOrderStatus,
 } from '../services/clientOmsOrdersService';
 
-const STATUS_OPTIONS = [
-  { value: '', label: 'All statuses' },
-  { value: 'pending_approval', label: 'Pending approval' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'allocated', label: 'Allocated' },
-  { value: 'picking', label: 'Picking' },
-  { value: 'packing', label: 'Packing' },
-  { value: 'ready_to_ship', label: 'Ready to ship' },
-  { value: 'out_for_delivery', label: 'Out for delivery' },
-  { value: 'shipped', label: 'Shipped' },
-  { value: 'delivered', label: 'Delivered' },
-  { value: 'failed_delivery', label: 'Failed delivery' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'returned', label: 'Returned' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
+const STATUS_OPTIONS = CLIENT_OMS_COMMERCIAL_FILTER_OPTIONS.map((o) => ({
+  value: o.value,
+  label: o.label,
+}));
 
 function labelText(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
@@ -69,26 +56,12 @@ function labelText(label: string, isArabic: boolean): string {
 
 export function EcommerceOrdersPage(): ReactElement {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const isArabic = isClientArabic();
   const t = (label: string) => labelText(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
   const debouncedSearch = useDebouncedValue(search, 300);
-
-  const createMut = useMutation({
-    mutationFn: createClientOmsOrder,
-    onSuccess: (order) => {
-      void queryClient.invalidateQueries({ queryKey: ['client', 'ecommerce-orders'] });
-      setCreateError(null);
-      setCreateOpen(false);
-      navigate(`/ecommerce-orders/${order.id}`);
-    },
-    onError: (err: Error) => setCreateError(err.message || 'Could not submit order.'),
-  });
 
   const filterKey = useMemo(
     () => ({
@@ -108,18 +81,13 @@ export function EcommerceOrdersPage(): ReactElement {
 
   const hasActiveFilters = Boolean(debouncedSearch.trim() || status);
 
-  function openCreate() {
-    setCreateError(null);
-    setCreateOpen(true);
-  }
-
   const createButton = (
     <Button
       variant="primary"
       size="md"
       disabled={!billingAccess.operationalAllowed}
       title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
-      onClick={openCreate}
+      onClick={() => navigate('/ecommerce-orders/new')}
       startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
     >
       {t('Create order')}
@@ -211,7 +179,7 @@ export function EcommerceOrdersPage(): ReactElement {
                 <Button
                   variant="primary"
                   size="md"
-                  onClick={openCreate}
+                  onClick={() => navigate('/ecommerce-orders/new')}
                   startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
                 >
                   {t('Create first order')}
@@ -244,7 +212,9 @@ export function EcommerceOrdersPage(): ReactElement {
                         {row.orderNumber || '—'}
                       </td>
                       <td className="px-5 py-3.5">
-                        <Badge status={row.status} />
+                        <StatusBadge status={clientOmsCommercialStatusBadgeKey(row.status)} isArabic={isArabic}>
+                          {clientOmsCommercialStatusLabel(row.status, isArabic)}
+                        </StatusBadge>
                       </td>
                       <td className="px-5 py-3.5 text-text-body">{row.recipientName || '—'}</td>
                       <td className="px-5 py-3.5 text-text-body">{row.storeChannel || '—'}</td>
@@ -265,18 +235,6 @@ export function EcommerceOrdersPage(): ReactElement {
           </>
         )}
       </Card>
-
-      <CreateClientOmsOrderModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        loading={createMut.isPending}
-        submitError={createError}
-        onSubmit={(input) => {
-          setCreateError(null);
-          createMut.mutate(input);
-        }}
-        isArabic={isArabic}
-      />
     </div>
   );
 }

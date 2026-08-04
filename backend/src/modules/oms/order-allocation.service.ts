@@ -124,10 +124,11 @@ export class OrderAllocationService {
 
     const allocatableStatuses: OutboundOrderStatus[] = [
       OutboundOrderStatus.draft,
-      OutboundOrderStatus.pending_approval,
       OutboundOrderStatus.confirmed,
       OutboundOrderStatus.pending_stock,
     ];
+    // Keep pending_approval so client-portal approval UX still lists the order.
+    // Soft-hold is tracked via allocationStatus + stock_reservations, not status flip.
     const canSetAllocated =
       !params.previousStatus || allocatableStatuses.includes(params.previousStatus);
 

@@ -17,10 +17,10 @@ const common_1 = require("@nestjs/common");
 const create_inbound_dto_1 = require("../../inbound/dto/create-inbound.dto");
 const public_decorator_1 = require("../../../common/auth/public.decorator");
 const parse_uuid_loose_pipe_1 = require("../../../common/pipes/parse-uuid-loose.pipe");
-const list_inbound_query_dto_1 = require("../../inbound/dto/list-inbound-query.dto");
 const client_user_decorator_1 = require("../auth/client-user.decorator");
 const jwt_client_auth_guard_1 = require("../auth/jwt-client-auth.guard");
 const client_inbound_orders_service_1 = require("./client-inbound-orders.service");
+const client_list_inbound_query_dto_1 = require("./dto/client-list-inbound-query.dto");
 let ClientInboundOrdersController = class ClientInboundOrdersController {
     inbound;
     constructor(inbound) {
@@ -42,7 +42,7 @@ __decorate([
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, list_inbound_query_dto_1.ListInboundQueryDto]),
+    __metadata("design:paramtypes", [Object, client_list_inbound_query_dto_1.ClientListInboundQueryDto]),
     __metadata("design:returntype", void 0)
 ], ClientInboundOrdersController.prototype, "list", null);
 __decorate([

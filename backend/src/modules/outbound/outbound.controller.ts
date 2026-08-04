@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  GoneException,
   Param,
   Patch,
   Post,
@@ -17,7 +18,6 @@ import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
 import { ConfirmOutboundBodyDto } from './dto/confirm-outbound-body.dto';
 import { ListOutboundQueryDto } from './dto/list-outbound-query.dto';
-import { QuickDirectedOutboundDto } from './dto/quick-directed-outbound.dto';
 import { UpdateOutboundPlanDto } from './dto/update-outbound-plan.dto';
 import { OutboundService } from './outbound.service';
 
@@ -31,8 +31,8 @@ export class OutboundController {
   }
 
   @Post('quick-directed')
-  quickDirected(@CurrentUser() user: AuthPrincipal, @Body() dto: QuickDirectedOutboundDto) {
-    return this.outbound.quickDirectedOutbound(user, dto);
+  quickDirected() {
+    throw new GoneException('Quick directed outbound is no longer available.');
   }
 
   @Get()

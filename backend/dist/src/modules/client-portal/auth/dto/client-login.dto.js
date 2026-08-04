@@ -14,6 +14,7 @@ const class_validator_1 = require("class-validator");
 class ClientLoginDto {
     email;
     password;
+    rememberMe;
 }
 exports.ClientLoginDto = ClientLoginDto;
 __decorate([
@@ -27,4 +28,9 @@ __decorate([
     (0, class_validator_1.MaxLength)(128),
     __metadata("design:type", String)
 ], ClientLoginDto.prototype, "password", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], ClientLoginDto.prototype, "rememberMe", void 0);
 //# sourceMappingURL=client-login.dto.js.map

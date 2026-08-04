@@ -11,8 +11,7 @@ export default defineConfig(({ mode }) => {
   const devBackend = (env.VITE_DEV_BACKEND_URL ?? DEFAULT_DEV_BACKEND).replace(/\/$/, '');
 
   const backupGdriveUiEnabled = env.BACKUP_GDRIVE_UI_ENABLED ?? 'false';
-  // Temporarily hide OMS COD / Returns UI (pages + APIs remain). Set true to re-enable.
-  const omsCodReturnsUiEnabled = env.OMS_COD_RETURNS_UI_ENABLED ?? 'false';
+  const omsCodReturnsUiEnabled = env.OMS_COD_RETURNS_UI_ENABLED ?? 'true';
 
   return {
   define: {

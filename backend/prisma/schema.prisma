@@ -398,6 +398,8 @@ enum OmsAllocationStatus {
 enum OmsOrderStatus {
   draft
   pending_approval
+  /// Commercial in-fulfillment state (Waiting approved / admin-created). Not a WMS stage.
+  pending
   rejected
   approved
   confirmed
@@ -415,6 +417,33 @@ enum OmsOrderStatus {
   cancelled
 
   @@map("oms_order_status")
+}
+
+enum CodRecordStatus {
+  pending
+  available
+  paid_out
+
+  @@map("cod_record_status")
+}
+
+enum CodGenerationStatus {
+  none
+  pending
+  ok
+  failed
+
+  @@map("cod_generation_status")
+}
+
+enum OmsReturnStatus {
+  requested
+  approved
+  rejected
+  completed
+  cancelled
+
+  @@map("oms_return_status")
 }
 
 enum OmsSalesChannelType {
@@ -643,6 +672,8 @@ model Company {
   omsOrders              OmsOrder[]
   omsSalesChannels       OmsSalesChannel[]
   omsIntegrationEvents   OmsIntegrationEvent[]
+  codRecords             CodRecord[]
+  omsReturns             OmsReturn[]
 
   @@map("companies")
 }
@@ -903,6 +934,11 @@ model User {
   omsOrdersCancelled         OmsOrder[]               @relation("OmsOrderCancelledBy")
   omsOrdersApproved          OmsOrder[]               @relation("OmsOrderApprovedBy")
   omsOrdersRejected          OmsOrder[]               @relation("OmsOrderRejectedBy")
+  codRecordsCreated          CodRecord[]              @relation("CodRecordCreatedBy")
+  codAdjustmentsCreated      CodAdjustment[]          @relation("CodAdjustmentCreatedBy")
+  omsReturnsOwned            OmsReturn[]              @relation("OmsReturnCreatedBy")
+  omsReturnsApproved         OmsReturn[]              @relation("OmsReturnApprovedBy")
+  omsReturnsRejected         OmsReturn[]              @relation("OmsReturnRejectedBy")
 
   @@map("users")
 }
@@ -1106,6 +1142,7 @@ model Product {
   expiryTracking     Boolean             @default(false) @map("expiry_tracking")
   minStockThreshold  Int                 @default(0) @map("min_stock_threshold")
   status             ProductStatus       @default(active)
+  imagePath          String?             @map("image_path")
   createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime            @default(now()) @map("updated_at") @db.Timestamptz(6)
 
@@ -1123,6 +1160,7 @@ model Product {
   cycleCountProductHistory   CycleCountProductHistory[]
   stockReservations          StockReservation[]
   omsOrderLines              OmsOrderLine[]
+  omsReturnLines             OmsReturnLine[]
 
   @@unique([companyId, sku], map: "uq_product_sku_per_company")
   @@map("products")
@@ -1579,6 +1617,7 @@ model OmsOrder {
   codCollectedAt       DateTime?           @map("cod_collected_at") @db.Timestamptz(6)
   codRemittedAt        DateTime?           @map("cod_remitted_at") @db.Timestamptz(6)
   codStatus            OmsCodStatus?       @map("cod_status")
+  codGenerationStatus  CodGenerationStatus @default(none) @map("cod_generation_status")
   allocationStatus     OmsAllocationStatus @default(none) @map("allocation_status")
   allocatedAt          DateTime?           @map("allocated_at") @db.Timestamptz(6)
   outForDeliveryAt     DateTime?           @map("out_for_delivery_at") @db.Timestamptz(6)
@@ -1607,6 +1646,8 @@ model OmsOrder {
   rejector      User?            @relation("OmsOrderRejectedBy", fields: [rejectedBy], references: [id])
   lines         OmsOrderLine[]
   omsEvents     OmsOrderEvent[]
+  codRecord     CodRecord?
+  omsReturns    OmsReturn[]
 
   @@index([companyId, createdAt(sort: Desc)], map: "idx_oms_orders_created")
   @@index([companyId, status], map: "idx_oms_orders_status")
@@ -1677,6 +1718,101 @@ model OmsOrderEvent {
   @@index([outboundOrderId, createdAt(sort: Desc)], map: "idx_oms_order_events_order")
   @@index([omsOrderId, createdAt(sort: Desc)], map: "idx_oms_order_events_oms")
   @@map("oms_order_events")
+}
+
+model CodRecord {
+  id             String          @id @default(uuid()) @db.Uuid
+  companyId      String          @map("company_id") @db.Uuid
+  omsOrderId     String          @unique @map("oms_order_id") @db.Uuid
+  /// Never mutated after create — Current Amount = original + sum(adjustments).
+  originalAmount Decimal         @map("original_amount") @db.Decimal(15, 4)
+  currency       String          @default("SYP")
+  status         CodRecordStatus @default(pending)
+  notes          String?
+  createdBy      String          @map("created_by") @db.Uuid
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  availableAt    DateTime?       @map("available_at") @db.Timestamptz(6)
+  paidOutAt      DateTime?       @map("paid_out_at") @db.Timestamptz(6)
+
+  company     Company         @relation(fields: [companyId], references: [id])
+  omsOrder    OmsOrder        @relation(fields: [omsOrderId], references: [id], onDelete: Cascade)
+  creator     User            @relation("CodRecordCreatedBy", fields: [createdBy], references: [id])
+  adjustments CodAdjustment[]
+
+  @@index([companyId, status], map: "idx_cod_records_company_status")
+  @@map("cod_records")
+}
+
+model CodAdjustment {
+  id          String   @id @default(uuid()) @db.Uuid
+  codRecordId String   @map("cod_record_id") @db.Uuid
+  omsReturnId String?  @unique @map("oms_return_id") @db.Uuid
+  /// Signed amount; returns are typically negative.
+  amount      Decimal  @db.Decimal(15, 4)
+  reason      String?
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  codRecord CodRecord  @relation(fields: [codRecordId], references: [id], onDelete: Cascade)
+  omsReturn OmsReturn? @relation(fields: [omsReturnId], references: [id], onDelete: SetNull)
+  creator   User       @relation("CodAdjustmentCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([codRecordId], map: "idx_cod_adjustments_record")
+  @@map("cod_adjustments")
+}
+
+model OmsReturn {
+  id                String          @id @default(uuid()) @db.Uuid
+  companyId         String          @map("company_id") @db.Uuid
+  omsOrderId        String          @map("oms_order_id") @db.Uuid
+  warehouseReturnId String?         @unique @map("warehouse_return_id") @db.Uuid
+  /// DEFAULT '' — populated by application on create
+  returnNumber      String          @unique @default("") @map("return_number")
+  status            OmsReturnStatus @default(requested)
+  reason            String?
+  notes             String?
+  rejectionReason   String?         @map("rejection_reason")
+  createdBy         String          @map("created_by") @db.Uuid
+  approvedBy        String?         @map("approved_by") @db.Uuid
+  rejectedBy        String?         @map("rejected_by") @db.Uuid
+  approvedAt        DateTime?       @map("approved_at") @db.Timestamptz(6)
+  rejectedAt        DateTime?       @map("rejected_at") @db.Timestamptz(6)
+  completedAt       DateTime?       @map("completed_at") @db.Timestamptz(6)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  company         Company      @relation(fields: [companyId], references: [id])
+  omsOrder        OmsOrder     @relation(fields: [omsOrderId], references: [id], onDelete: Cascade)
+  warehouseReturn ReturnOrder? @relation(fields: [warehouseReturnId], references: [id], onDelete: SetNull)
+  creator         User         @relation("OmsReturnCreatedBy", fields: [createdBy], references: [id])
+  approver        User?        @relation("OmsReturnApprovedBy", fields: [approvedBy], references: [id])
+  rejector        User?        @relation("OmsReturnRejectedBy", fields: [rejectedBy], references: [id])
+  lines           OmsReturnLine[]
+  codAdjustment   CodAdjustment?
+
+  @@index([companyId, status], map: "idx_oms_returns_company_status")
+  @@index([omsOrderId], map: "idx_oms_returns_order")
+  @@map("oms_returns")
+}
+
+model OmsReturnLine {
+  id             String   @id @default(uuid()) @db.Uuid
+  omsReturnId    String   @map("oms_return_id") @db.Uuid
+  productId      String   @map("product_id") @db.Uuid
+  quantity       Decimal  @db.Decimal(15, 4)
+  unitPrice      Decimal? @map("unit_price") @db.Decimal(15, 4)
+  lineTotal      Decimal? @map("line_total") @db.Decimal(15, 4)
+  lotId          String?  @map("lot_id") @db.Uuid
+  lineNumber     Int      @map("line_number")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  omsReturn OmsReturn @relation(fields: [omsReturnId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id])
+
+  @@index([omsReturnId], map: "idx_oms_return_lines_return")
+  @@map("oms_return_lines")
 }
 
 model OmsSalesChannel {
@@ -1774,6 +1910,7 @@ model ReturnOrder {
   originalOutbound OutboundOrder? @relation(fields: [originalOutboundOrderId], references: [id])
   package          Package?       @relation(fields: [packageId], references: [id])
   lines            ReturnOrderLine[]
+  omsReturn        OmsReturn?
 
   @@index([companyId], map: "idx_return_orders_company")
   @@map("return_orders")

@@ -18,7 +18,9 @@ import { isClientArabic } from '../lib/client-ui-language';
 import { fetchClientBillingSummary } from '../services/clientBillingService';
 import { fetchClientDashboardOverview } from '../services/clientDashboardService';
 import { fetchClientInboundOrders } from '../services/clientInboundOrdersService';
+import { fetchClientOmsOrders } from '../services/clientOmsOrdersService';
 import { fetchClientOutboundOrders } from '../services/clientOutboundOrdersService';
+import { fetchClientReturns } from '../services/clientReturnsService';
 import { fetchStockPage } from '../services/stockService';
 
 const SALES_EMAIL = 'sales@emdadsy.com';
@@ -42,8 +44,6 @@ function tLabel(label: string, isArabic: boolean): string {
     'Quarterly Plan': 'الخطة الربع سنوية',
     'Yearly Plan': 'الخطة السنوية',
     'Warehouse Plan': 'خطة المستودع',
-    'Includes reserved warehouse capacity and fulfillment services.':
-      'تشمل سعة مستودع محجوزة وخدمات تنفيذ الطلبات.',
     Active: 'نشط',
     Expiring: 'ينتهي قريبًا',
     Suspended: 'موقوف',
@@ -54,6 +54,7 @@ function tLabel(label: string, isArabic: boolean): string {
     'Next billing': 'الفوترة التالية',
     Price: 'السعر',
     'Billing cycle': 'دورة الفوترة',
+    Capacity: 'السعة',
     'Auto-renewal': 'التجديد التلقائي',
     Limit: 'الحد',
     Progress: 'التقدم',
@@ -70,6 +71,10 @@ function tLabel(label: string, isArabic: boolean): string {
     'Total orders': 'إجمالي الطلبات',
     Inbound: 'وارد',
     Outbound: 'صادر',
+    'OMS orders this billing cycle': 'طلبات إلكترونية في دورة الفوترة',
+    'Total OMS orders': 'إجمالي الطلبات الإلكترونية',
+    'Returns this billing cycle': 'مرتجعات دورة الفوترة الحالية',
+    'Total returns': 'إجمالي المرتجعات',
     'Warehouse capacity': 'سعة المستودع',
     Used: 'مستخدم',
     Remaining: 'متبقي',
@@ -207,6 +212,18 @@ export function BillingPage(): ReactElement {
     enabled: !!plan,
   });
 
+  const omsQuery = useQuery({
+    queryKey: ['client', 'billing', 'oms-cycle', cycleStart, cycleEnd],
+    queryFn: () => fetchClientOmsOrders({ limit: 200, offset: 0 }),
+    enabled: !!plan,
+  });
+
+  const returnsQuery = useQuery({
+    queryKey: ['client', 'billing', 'returns-cycle', cycleStart, cycleEnd],
+    queryFn: () => fetchClientReturns({ limit: 200, offset: 0 }),
+    enabled: !!plan,
+  });
+
   const notice =
     summary != null
       ? buildBillingRestrictionCopy(
@@ -248,6 +265,16 @@ export function BillingPage(): ReactElement {
     const rows = outboundQuery.data?.items ?? [];
     return rows.filter((r) => inCycle(r.createdAt, cycleStart, cycleEnd)).length;
   }, [outboundQuery.data, cycleStart, cycleEnd]);
+
+  const omsCycle = useMemo(() => {
+    const rows = omsQuery.data?.items ?? [];
+    return rows.filter((r) => inCycle(r.createdAt, cycleStart, cycleEnd)).length;
+  }, [omsQuery.data, cycleStart, cycleEnd]);
+
+  const returnsCycle = useMemo(() => {
+    const rows = returnsQuery.data?.items ?? [];
+    return rows.filter((r) => inCycle(r.createdAt, cycleStart, cycleEnd)).length;
+  }, [returnsQuery.data, cycleStart, cycleEnd]);
 
   const ordersTotal = inboundCycle + outboundCycle;
 
@@ -340,14 +367,7 @@ export function BillingPage(): ReactElement {
                   </Badge>
                 ) : null}
               </div>
-              <p className="text-sm text-text-muted mt-2 max-w-xl">
-                {t('Includes reserved warehouse capacity and fulfillment services.')}
-                {totalVolume > 0
-                  ? ` ${formatDecimal(totalVolume, 2)} ${t('m³')}.`
-                  : ''}
-              </p>
-
-              <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>
                   <div className="text-xs text-text-muted">{t('Price')}</div>
                   <div className="text-lg font-bold text-text-strong mt-0.5">
@@ -365,6 +385,14 @@ export function BillingPage(): ReactElement {
                   <div className="text-xs text-text-muted">{t('Next billing')}</div>
                   <div className="text-sm font-semibold text-text-strong mt-1">
                     {formatDate(estimatedDate)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-text-muted">{t('Capacity')}</div>
+                  <div className="text-sm font-semibold text-text-strong mt-1">
+                    {totalVolume > 0
+                      ? `${formatDecimal(totalVolume, 2)} ${t('m³')}`
+                      : '—'}
                   </div>
                 </div>
               </div>
@@ -408,6 +436,24 @@ export function BillingPage(): ReactElement {
                     <span className="font-semibold text-text-strong">{outboundCycle}</span>
                   </div>
                 </div>
+              </StatCard>
+
+              <StatCard
+                icon="fa-cart-shopping"
+                iconTone="bg-brand-50 text-brand-700 dark:bg-white/5 dark:text-brand-400"
+                label={t('OMS orders this billing cycle')}
+              >
+                <div className="text-2xl font-bold text-text-strong">{omsCycle}</div>
+                <div className="text-xs text-text-muted mt-1">{t('Total OMS orders')}</div>
+              </StatCard>
+
+              <StatCard
+                icon="fa-rotate-left"
+                iconTone="bg-status-danger-bg text-status-danger-fg"
+                label={t('Returns this billing cycle')}
+              >
+                <div className="text-2xl font-bold text-text-strong">{returnsCycle}</div>
+                <div className="text-xs text-text-muted mt-1">{t('Total returns')}</div>
               </StatCard>
             </div>
 

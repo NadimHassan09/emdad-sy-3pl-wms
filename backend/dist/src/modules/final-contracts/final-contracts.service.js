@@ -15,6 +15,7 @@ const company_read_scope_1 = require("../../common/auth/company-read-scope");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const tenant_rls_1 = require("../../common/prisma/tenant-rls");
+const realtime_service_1 = require("../realtime/realtime.service");
 function generationStatus(en, ar) {
     if (en && ar)
         return 'complete';
@@ -25,9 +26,11 @@ function generationStatus(en, ar) {
 let FinalContractsService = class FinalContractsService {
     prisma;
     companyAccess;
-    constructor(prisma, companyAccess) {
+    realtime;
+    constructor(prisma, companyAccess, realtime) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
+        this.realtime = realtime;
     }
     async nextContractNumber() {
         const rows = await this.prisma.$queryRawUnsafe(`SELECT nextval('final_contract_document_seq')::int AS n`);
@@ -59,6 +62,11 @@ let FinalContractsService = class FinalContractsService {
                 createdBy: user.id ?? null,
             },
             include: { company: { select: { id: true, name: true } } },
+        });
+        this.realtime.emitFinalContractChanged(row.companyId, {
+            contractId: row.id,
+            companyId: row.companyId,
+            action: 'created',
         });
         return this.serializeRow(row, null, null);
     }
@@ -188,6 +196,11 @@ let FinalContractsService = class FinalContractsService {
             },
             include: { company: { select: { id: true, name: true } } },
         });
+        this.realtime.emitFinalContractChanged(row.companyId, {
+            contractId: row.id,
+            companyId: row.companyId,
+            action: 'updated',
+        });
         const docs = await this.prisma.document.findMany({
             where: { referenceType: 'final_contract', referenceId: id },
         });
@@ -248,6 +261,7 @@ exports.FinalContractsService = FinalContractsService;
 exports.FinalContractsService = FinalContractsService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        company_access_service_1.CompanyAccessService])
+        company_access_service_1.CompanyAccessService,
+        realtime_service_1.RealtimeService])
 ], FinalContractsService);
 //# sourceMappingURL=final-contracts.service.js.map

@@ -24,7 +24,7 @@ import { transferPayload } from '../realtime/realtime-ops.payload';
 import { InternalTransferDto } from './dto/internal-transfer.dto';
 import { LedgerEntryQueryDto } from './dto/ledger-entry-query.dto';
 import { LedgerQueryDto, StockQueryDto } from './dto/stock-query.dto';
-import { ledgerSignedQuantity } from './ledger-mapper';
+import { ledgerSignedQuantity, toLedgerDisplayMovement } from './ledger-mapper';
 import { StockHelpers } from './stock.helpers';
 import {
   buildStockByProductSqlContext,
@@ -37,6 +37,7 @@ import {
   ledgerBusinessGroupPageSql,
   ledgerBusinessGroupsCountSql,
   ledgerEntrySiblingRowsSql,
+  ledgerSignedQuantitySql,
   type LedgerEntrySiblingRow,
   type LedgerGroupPageRow,
 } from './ledger-list.query';
@@ -70,17 +71,10 @@ type LocationForLabel = {
   barcode: string;
 };
 
-const BUSINESS_LEDGER_MOVEMENTS: MovementType[] = [
-  MovementType.inbound_receive,
-  MovementType.outbound_pick,
-  MovementType.adjustment_positive,
-  MovementType.adjustment_negative,
-];
-
-function toBusinessMovementType(movementType: MovementType): 'inbound' | 'outbound' | 'adjustment' {
-  if (movementType === MovementType.inbound_receive) return 'inbound';
-  if (movementType === MovementType.outbound_pick) return 'outbound';
-  return 'adjustment';
+function toBusinessMovementType(
+  movementType: MovementType,
+): ReturnType<typeof toLedgerDisplayMovement> {
+  return toLedgerDisplayMovement(movementType);
 }
 
 function businessGroupKey(row: {
@@ -286,6 +280,13 @@ export class InventoryService {
         onHand: r.total_quantity,
         reserved: r.reserved_quantity,
         available: r.available_quantity,
+        lastMovement: r.last_movement_at
+          ? {
+              at: r.last_movement_at,
+              quantityChange: r.last_quantity_change ?? '0',
+              movementType: r.last_movement_type ?? 'inbound_receive',
+            }
+          : null,
         product: {
           id: r.product_id,
           sku: r.sku,
@@ -384,6 +385,109 @@ export class InventoryService {
     });
   }
 
+  /**
+   * Daily on-hand stock level for one product over a date window.
+   * Reconstructs from current on-hand minus signed ledger deltas after each day.
+   */
+  async balanceHistory(
+    user: AuthPrincipal,
+    query: {
+      productId: string;
+      companyId?: string;
+      warehouseId?: string;
+      from: string;
+      to: string;
+    },
+  ) {
+    const companyId = readCompanyIdFilterRequired(
+      this.companyAccess,
+      user,
+      query.companyId,
+    );
+    const fromDay = query.from;
+    const toDay = query.to;
+    if (fromDay > toDay) {
+      throw new BadRequestException('from must be on or before to');
+    }
+
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const stockWhere: Prisma.CurrentStockWhereInput = {
+        productId: query.productId,
+        ...(companyId ? { companyId } : {}),
+        ...(query.warehouseId ? { warehouseId: query.warehouseId } : {}),
+      };
+      const agg = await tx.currentStock.aggregate({
+        where: stockWhere,
+        _sum: { quantityOnHand: true },
+      });
+      const currentOnHand = Number(agg._sum.quantityOnHand ?? 0);
+
+      const warehouseCond = query.warehouseId
+        ? Prisma.sql`AND (
+            il.from_location_id IN (
+              SELECT id FROM locations
+               WHERE warehouse_id = ${query.warehouseId}::uuid AND status = 'active'
+            )
+            OR il.to_location_id IN (
+              SELECT id FROM locations
+               WHERE warehouse_id = ${query.warehouseId}::uuid AND status = 'active'
+            )
+          )`
+        : Prisma.sql``;
+      const companyCond = companyId
+        ? Prisma.sql`AND il.company_id = ${companyId}::uuid`
+        : Prisma.sql``;
+
+      // Deltas from start of window through now (needed to walk balances).
+      const deltaRows = await tx.$queryRaw<Array<{ day: string; delta: string }>>(Prisma.sql`
+        SELECT to_char(date_trunc('day', il.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
+               SUM(${ledgerSignedQuantitySql('il')})::text AS delta
+          FROM inventory_ledger il
+         WHERE il.product_id = ${query.productId}::uuid
+           ${companyCond}
+           ${warehouseCond}
+           AND il.movement_type IN (
+             'inbound_receive'::movement_type,
+             'outbound_pick'::movement_type,
+             'return_receive'::movement_type,
+             'adjustment_positive'::movement_type,
+             'adjustment_negative'::movement_type,
+             'scrap'::movement_type
+           )
+           AND il.created_at >= ${new Date(`${fromDay}T00:00:00.000Z`)}::timestamptz
+         GROUP BY 1
+         ORDER BY 1 ASC
+      `);
+
+      const deltaByDay = new Map(deltaRows.map((r) => [r.day, Number(r.delta)]));
+      const sumAfter = (dayInclusive: string): number => {
+        let s = 0;
+        for (const [day, d] of deltaByDay) {
+          if (day > dayInclusive) s += d;
+        }
+        return s;
+      };
+
+      const points: Array<{ day: string; balance: number }> = [];
+      const cursor = new Date(`${fromDay}T00:00:00.000Z`);
+      const end = new Date(`${toDay}T00:00:00.000Z`);
+      while (cursor <= end) {
+        const day = cursor.toISOString().slice(0, 10);
+        const balance = currentOnHand - sumAfter(day);
+        points.push({ day, balance: Math.round(balance * 10000) / 10000 });
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+
+      return {
+        productId: query.productId,
+        currentOnHand: String(currentOnHand),
+        from: fromDay,
+        to: toDay,
+        points,
+      };
+    });
+  }
+
   private mapLedgerEntrySiblingRow(row: LedgerEntrySiblingRow): LedgerRowWithRelations {
     return {
       id: row.id,
@@ -396,10 +500,8 @@ export class InventoryService {
       toLocationId: row.to_location_id,
       movementType: row.movement_type,
       quantity: new Prisma.Decimal(row.quantity),
-      quantityBefore:
-        row.quantity_before != null ? new Prisma.Decimal(row.quantity_before) : null,
-      quantityAfter:
-        row.quantity_after != null ? new Prisma.Decimal(row.quantity_after) : null,
+      quantityBefore: null,
+      quantityAfter: null,
       referenceType: row.reference_type as LedgerRowWithRelations['referenceType'],
       referenceId: row.reference_id,
       operatorId: row.operator_id,
@@ -432,10 +534,8 @@ export class InventoryService {
       referenceId: row.reference_id,
       quantity: new Prisma.Decimal(Math.abs(signedDelta)).toString(),
       quantityChange: signedDelta.toString(),
-      quantityBefore:
-        row.quantity_before != null ? new Prisma.Decimal(row.quantity_before).toString() : null,
-      quantityAfter:
-        row.quantity_after != null ? new Prisma.Decimal(row.quantity_after).toString() : null,
+      quantityBefore: null as string | null,
+      quantityAfter: null as string | null,
       fromLocationId: null as string | null,
       toLocationId: null as string | null,
       locationId: null as string | null,
@@ -526,9 +626,9 @@ export class InventoryService {
               referenceType: head.referenceType,
               referenceId: head.referenceId,
               quantity: qty,
-              quantityChange: qty,
+              quantityChange: ledgerSignedQuantity(head.movementType, new Prisma.Decimal(qty)),
               quantityBefore: null,
-              quantityAfter: qty,
+              quantityAfter: null,
               fromLocationId: null,
               toLocationId: slice.locationId,
               locationId: slice.locationId,
@@ -586,8 +686,8 @@ export class InventoryService {
       referenceId: row.referenceId,
       quantity: row.quantity.toString(),
       quantityChange: ledgerSignedQuantity(row.movementType, row.quantity),
-      quantityBefore: row.quantityBefore?.toString() ?? null,
-      quantityAfter: row.quantityAfter?.toString() ?? null,
+      quantityBefore: null,
+      quantityAfter: null,
       fromLocationId: row.fromLocationId,
       toLocationId: row.toLocationId,
       locationId,
@@ -690,8 +790,6 @@ export class InventoryService {
             toLocationId: dto.toLocationId,
             movementType: 'internal_transfer',
             quantity: qty,
-            quantityBefore: dec.before,
-            quantityAfter: inc.after,
             referenceType: 'transfer',
             referenceId,
             operatorId: user.id,

@@ -5,6 +5,7 @@ import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '../auth/AuthContext';
 import { getAccessToken } from '../auth/authStorage';
 import { QK } from '../constants/query-keys';
+import { useTenantCompanyId } from '../hooks/useTenantCompanyId';
 import { RealtimeEvents } from './constants';
 import type { WarehouseTaskListItem } from '../api/tasks';
 import {
@@ -56,6 +57,16 @@ import {
   patchDashboardTasks,
 } from './dashboard-cache';
 import {
+  invalidateAdminClientsConsistencyGroup,
+  invalidateAdminCodConsistencyGroup,
+  invalidateAdminDocumentsConsistencyGroup,
+  invalidateAdminFormsConsistencyGroup,
+  invalidateAdminBillingInvoicesPlansGroup,
+  invalidateAdminOmsConsistencyGroup,
+  invalidateAdminOmsReturnsConsistencyGroup,
+  patchAdminBackupJobProgress,
+} from './consistency-groups';
+import {
   patchPresenceOffline,
   patchPresenceOnline,
   type PresenceUser,
@@ -74,25 +85,29 @@ import type { AppNotification } from '../services/notificationsService';
 type Props = { children: ReactNode };
 
 /**
- * Internal WMS realtime: connects to `/realtime` with JWT + tenant `companyId`
- * (same as `X-Company-Id` — use `VITE_MOCK_COMPANY_ID` in dev).
+ * Internal WMS realtime: connects to `/realtime` with JWT.
+ * When a tenant is known (`useTenantCompanyId`), join that company room too;
+ * otherwise still connect for master-data / user rooms (super_admin).
  */
 export function RealtimeProvider({ children }: Props): ReactElement {
   const { user } = useAuth();
   const qc = useQueryClient();
   const socketRef = useRef<Socket | null>(null);
+  const companyId = useTenantCompanyId();
 
   useEffect(() => {
     const token = getAccessToken();
-    const companyId = (import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined)?.trim();
-    if (!user || !token || !companyId) {
+    if (!user || !token) {
       socketRef.current?.disconnect();
       socketRef.current = null;
       return;
     }
 
     const socket = io(`${socketHttpOrigin()}/realtime`, {
-      auth: { token, companyId },
+      auth: {
+        token,
+        ...(companyId ? { companyId } : {}),
+      },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: Infinity,
@@ -135,11 +150,7 @@ export function RealtimeProvider({ children }: Props): ReactElement {
       event?: string;
     }): void => {
       if (!payload?.orderId) return;
-      void qc.invalidateQueries({ queryKey: QK.omsOrders });
-      void qc.invalidateQueries({ queryKey: [...QK.omsOrders, payload.orderId] });
-      void qc.invalidateQueries({ queryKey: QK.omsDashboard });
-      void qc.invalidateQueries({ queryKey: QK.outboundOrders });
-      void qc.invalidateQueries({ queryKey: QK.dashboardOverview });
+      invalidateAdminOmsConsistencyGroup(qc, payload.orderId);
     };
     const onTask = (payload: {
       taskId?: string;
@@ -327,6 +338,79 @@ export function RealtimeProvider({ children }: Props): ReactElement {
         );
       }
     };
+    const onCompanyLifecycle = (): void => {
+      invalidateAdminClientsConsistencyGroup(qc);
+    };
+    const onBillingRestriction = (): void => {
+      invalidateAdminClientsConsistencyGroup(qc);
+    };
+    const onCodUpdated = (): void => {
+      invalidateAdminCodConsistencyGroup(qc);
+    };
+    const onOmsReturnEvent = (): void => {
+      invalidateAdminOmsReturnsConsistencyGroup(qc);
+    };
+    const onDocumentGenerated = (payload: {
+      referenceType?: string;
+      referenceId?: string;
+    }): void => {
+      invalidateAdminDocumentsConsistencyGroup(qc, payload);
+    };
+    const onFinalContractChanged = (): void => {
+      invalidateAdminDocumentsConsistencyGroup(qc);
+    };
+    const onFormSubmitted = (): void => {
+      invalidateAdminFormsConsistencyGroup(qc);
+    };
+    const onInvoiceUpdated = (): void => {
+      invalidateAdminBillingInvoicesPlansGroup(qc);
+    };
+    const onPlanUpdated = (): void => {
+      invalidateAdminBillingInvoicesPlansGroup(qc);
+    };
+    const onBackupJobProgress = (payload: {
+      jobId?: string;
+      status?: string;
+      progressPercent?: number;
+      bytesWritten?: string | number;
+      errorMessage?: string | null;
+    }): void => {
+      patchAdminBackupJobProgress(qc, payload);
+    };
+    const onDocumentSlotOverride = (payload: { taskId?: string }): void => {
+      invalidateAdminDocumentsConsistencyGroup(qc);
+      if (payload?.taskId) {
+        void qc.invalidateQueries({ queryKey: ['documents'] });
+        void qc.invalidateQueries({ queryKey: QK.tasks.all });
+      }
+    };
+    const onReconnect = (): void => {
+      // Failure Handling §11: stale recovery after reconnect
+      void qc.invalidateQueries({ queryKey: QK.dashboardOverview });
+      void qc.invalidateQueries({ queryKey: QK.dashboardOpenOrdersCharts });
+      void qc.invalidateQueries({ queryKey: QK.inboundOrders });
+      void qc.invalidateQueries({ queryKey: QK.outboundOrders });
+      void qc.invalidateQueries({ queryKey: QK.inventoryStockByProduct });
+      void qc.invalidateQueries({ queryKey: QK.inventoryStock });
+      void qc.invalidateQueries({ queryKey: QK.ledger });
+      void qc.invalidateQueries({ queryKey: QK.products });
+      void qc.invalidateQueries({ queryKey: QK.tasks.all });
+      void qc.invalidateQueries({ queryKey: QK.adjustments });
+      void qc.invalidateQueries({ queryKey: QK.cycleCount.all });
+      void qc.invalidateQueries({ queryKey: QK.notifications.all });
+      void qc.invalidateQueries({ queryKey: QK.backups.all });
+      void qc.invalidateQueries({ queryKey: QK.returns.all });
+      void qc.invalidateQueries({ queryKey: QK.users.all });
+      void qc.invalidateQueries({ queryKey: QK.warehouses });
+      void qc.invalidateQueries({ queryKey: QK.locations.all });
+      invalidateAdminOmsConsistencyGroup(qc);
+      invalidateAdminOmsReturnsConsistencyGroup(qc);
+      invalidateAdminCodConsistencyGroup(qc);
+      invalidateAdminClientsConsistencyGroup(qc);
+      invalidateAdminBillingInvoicesPlansGroup(qc);
+      invalidateAdminDocumentsConsistencyGroup(qc);
+      invalidateAdminFormsConsistencyGroup(qc);
+    };
 
     socket.on(RealtimeEvents.INBOUND_ORDER_CREATED, onInboundCreated);
     socket.on(RealtimeEvents.INBOUND_ORDER_UPDATED, onInboundUpdated);
@@ -369,6 +453,18 @@ export function RealtimeProvider({ children }: Props): ReactElement {
     socket.on(RealtimeEvents.PRESENCE_ONLINE, onPresenceOnline);
     socket.on(RealtimeEvents.PRESENCE_OFFLINE, onPresenceOffline);
     socket.on(RealtimeEvents.AUTH_SESSION_CHANGED, onAuthSessionChanged);
+    socket.on(RealtimeEvents.COMPANY_LIFECYCLE_CHANGED, onCompanyLifecycle);
+    socket.on(RealtimeEvents.BILLING_RESTRICTION_CHANGED, onBillingRestriction);
+    socket.on(RealtimeEvents.COD_UPDATED, onCodUpdated);
+    socket.on(RealtimeEvents.OMS_RETURN_EVENT, onOmsReturnEvent);
+    socket.on(RealtimeEvents.DOCUMENT_GENERATED, onDocumentGenerated);
+    socket.on(RealtimeEvents.FINAL_CONTRACT_CHANGED, onFinalContractChanged);
+    socket.on(RealtimeEvents.DOCUMENT_SLOT_OVERRIDE_CHANGED, onDocumentSlotOverride);
+    socket.on(RealtimeEvents.FORM_SUBMITTED, onFormSubmitted);
+    socket.on(RealtimeEvents.INVOICE_UPDATED, onInvoiceUpdated);
+    socket.on(RealtimeEvents.PLAN_UPDATED, onPlanUpdated);
+    socket.on(RealtimeEvents.BACKUP_JOB_PROGRESS, onBackupJobProgress);
+    socket.on('connect', onReconnect);
 
     return () => {
       socket.off(RealtimeEvents.INBOUND_ORDER_CREATED, onInboundCreated);
@@ -412,10 +508,22 @@ export function RealtimeProvider({ children }: Props): ReactElement {
       socket.off(RealtimeEvents.PRESENCE_ONLINE, onPresenceOnline);
       socket.off(RealtimeEvents.PRESENCE_OFFLINE, onPresenceOffline);
       socket.off(RealtimeEvents.AUTH_SESSION_CHANGED, onAuthSessionChanged);
+      socket.off(RealtimeEvents.COMPANY_LIFECYCLE_CHANGED, onCompanyLifecycle);
+      socket.off(RealtimeEvents.BILLING_RESTRICTION_CHANGED, onBillingRestriction);
+      socket.off(RealtimeEvents.COD_UPDATED, onCodUpdated);
+      socket.off(RealtimeEvents.OMS_RETURN_EVENT, onOmsReturnEvent);
+      socket.off(RealtimeEvents.DOCUMENT_GENERATED, onDocumentGenerated);
+      socket.off(RealtimeEvents.FINAL_CONTRACT_CHANGED, onFinalContractChanged);
+      socket.off(RealtimeEvents.DOCUMENT_SLOT_OVERRIDE_CHANGED, onDocumentSlotOverride);
+      socket.off(RealtimeEvents.FORM_SUBMITTED, onFormSubmitted);
+      socket.off(RealtimeEvents.INVOICE_UPDATED, onInvoiceUpdated);
+      socket.off(RealtimeEvents.PLAN_UPDATED, onPlanUpdated);
+      socket.off(RealtimeEvents.BACKUP_JOB_PROGRESS, onBackupJobProgress);
+      socket.off('connect', onReconnect);
       socket.disconnect();
       if (socketRef.current === socket) socketRef.current = null;
     };
-  }, [user, qc]);
+  }, [user, qc, companyId]);
 
   return <>{children}</>;
 }

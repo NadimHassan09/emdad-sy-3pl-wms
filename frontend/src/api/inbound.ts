@@ -28,6 +28,7 @@ export interface InboundOrderLine {
     trackingType: 'none' | 'lot' | 'package';
     uom: string;
     expiryTracking?: boolean;
+    imagePath?: string | null;
   };
 }
 

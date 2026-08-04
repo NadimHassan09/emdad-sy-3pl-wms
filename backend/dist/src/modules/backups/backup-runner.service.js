@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const realtime_service_1 = require("../realtime/realtime.service");
 const backup_config_1 = require("./backup-config");
 const backup_drive_sync_service_1 = require("./backup-drive-sync.service");
 const backup_storage_service_1 = require("./backup-storage.service");
@@ -28,8 +29,10 @@ let BackupRunnerService = BackupRunnerService_1 = class BackupRunnerService {
     operations;
     audit;
     driveSync;
+    realtime;
     logger = new common_1.Logger(BackupRunnerService_1.name);
-    constructor(prisma, backupConfig, storage, pg, operations, audit, driveSync) {
+    lastEmittedProgress = new Map();
+    constructor(prisma, backupConfig, storage, pg, operations, audit, driveSync, realtime) {
         this.prisma = prisma;
         this.backupConfig = backupConfig;
         this.storage = storage;
@@ -37,6 +40,7 @@ let BackupRunnerService = BackupRunnerService_1 = class BackupRunnerService {
         this.operations = operations;
         this.audit = audit;
         this.driveSync = driveSync;
+        this.realtime = realtime;
     }
     isBusy() {
         return this.operations.isBusy();
@@ -84,16 +88,22 @@ let BackupRunnerService = BackupRunnerService_1 = class BackupRunnerService {
                     dumpFilename,
                 },
             });
+            this.emitProgress(jobId, {
+                status: client_1.BackupJobStatus.running,
+                type,
+                progressPercent: 0,
+                bytesWritten: 0,
+            });
             const dbName = this.pg.parseDbName(this.pg.getDatabaseUrl());
             const estimatedBytes = await this.pg.estimateDatabaseBytes(dbName);
             await this.pg.runPgDump(dumpPath, (bytes) => {
                 const pct = this.estimateProgress(bytes, estimatedBytes);
-                void this.updateProgress(jobId, pct, bytes).catch(() => undefined);
+                void this.updateProgress(jobId, pct, bytes, type).catch(() => undefined);
             }, estimatedBytes);
             const sizeBytes = await this.storage.fileSize(dumpPath);
             if (sizeBytes <= 0)
                 throw new Error('pg_dump produced an empty file.');
-            await this.updateProgress(jobId, 92, sizeBytes);
+            await this.updateProgress(jobId, 92, sizeBytes, type);
             const checksumSha256 = await this.storage.sha256File(dumpPath);
             const row = await this.prisma.backupJob.findUnique({
                 where: { id: jobId },
@@ -115,7 +125,7 @@ let BackupRunnerService = BackupRunnerService_1 = class BackupRunnerService {
                 createdByEmail: user.email ?? `user-${user.id}`,
             };
             await this.storage.writeManifest(jobId, manifest);
-            await this.updateProgress(jobId, 98, sizeBytes);
+            await this.updateProgress(jobId, 98, sizeBytes, type);
             await this.prisma.backupJob.update({
                 where: { id: jobId },
                 data: {
@@ -127,6 +137,14 @@ let BackupRunnerService = BackupRunnerService_1 = class BackupRunnerService {
                     errorMessage: null,
                 },
             });
+            this.emitProgress(jobId, {
+                status: client_1.BackupJobStatus.completed,
+                type,
+                progressPercent: 100,
+                bytesWritten: sizeBytes,
+                label: manifest.label,
+            });
+            this.lastEmittedProgress.delete(jobId);
             const auditAction = options.auditAction ?? 'backup.created';
             await this.audit.log(this.audit.fromPrincipal(user, {
                 action: auditAction,
@@ -149,7 +167,7 @@ let BackupRunnerService = BackupRunnerService_1 = class BackupRunnerService {
         catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             this.logger.error(`Backup ${jobId} (${type}) failed: ${message}`);
-            await this.markFailed(jobId, message);
+            await this.markFailed(jobId, message, type);
             await this.storage.removeJobArtifacts(jobId).catch(() => undefined);
             throw err;
         }
@@ -162,16 +180,27 @@ let BackupRunnerService = BackupRunnerService_1 = class BackupRunnerService {
             return Math.min(85, 10 + Math.floor(bytesWritten / 1_000_000) * 5);
         return 0;
     }
-    async updateProgress(jobId, progressPercent, bytesWritten) {
+    async updateProgress(jobId, progressPercent, bytesWritten, type) {
+        const clamped = Math.max(0, Math.min(100, progressPercent));
         await this.prisma.backupJob.update({
             where: { id: jobId },
             data: {
-                progressPercent: Math.max(0, Math.min(100, progressPercent)),
+                progressPercent: clamped,
                 bytesWritten: BigInt(Math.max(0, bytesWritten)),
             },
         });
+        const last = this.lastEmittedProgress.get(jobId) ?? -1;
+        if (clamped - last >= 2 || clamped >= 90) {
+            this.lastEmittedProgress.set(jobId, clamped);
+            this.emitProgress(jobId, {
+                status: client_1.BackupJobStatus.running,
+                type,
+                progressPercent: clamped,
+                bytesWritten,
+            });
+        }
     }
-    async markFailed(jobId, errorMessage) {
+    async markFailed(jobId, errorMessage, type) {
         await this.prisma.backupJob.update({
             where: { id: jobId },
             data: {
@@ -180,6 +209,15 @@ let BackupRunnerService = BackupRunnerService_1 = class BackupRunnerService {
                 completedAt: new Date(),
             },
         });
+        this.emitProgress(jobId, {
+            status: client_1.BackupJobStatus.failed,
+            type,
+            errorMessage,
+        });
+        this.lastEmittedProgress.delete(jobId);
+    }
+    emitProgress(jobId, payload) {
+        this.realtime.emitBackupJobProgress({ jobId, ...payload });
     }
 };
 exports.BackupRunnerService = BackupRunnerService;
@@ -191,6 +229,7 @@ exports.BackupRunnerService = BackupRunnerService = BackupRunnerService_1 = __de
         backup_pg_tools_service_1.BackupPgToolsService,
         backup_operations_service_1.BackupOperationsService,
         audit_log_service_1.AuditLogService,
-        backup_drive_sync_service_1.BackupDriveSyncService])
+        backup_drive_sync_service_1.BackupDriveSyncService,
+        realtime_service_1.RealtimeService])
 ], BackupRunnerService);
 //# sourceMappingURL=backup-runner.service.js.map

@@ -94,7 +94,6 @@ export function BillingInvoicesPage() {
       createdTo: appliedFilters.createdTo || undefined,
       sort_by: appliedFilters.sort_by,
       sort_dir: appliedFilters.sort_dir,
-      invoiceSource: 'cycle' as const,
     }),
     [appliedFilters],
   );
@@ -244,8 +243,8 @@ export function BillingInvoicesPage() {
   return (
     <AdminListPageShell
       icon="fa-file-invoice"
-      title="Subscription invoices"
-      subtitle="Cycle invoices for client storage subscriptions."
+      title="Invoices"
+      subtitle="Client billing invoices across all sources."
     >
       <FilterPanel
         title="Invoice filters"
@@ -324,7 +323,7 @@ export function BillingInvoicesPage() {
         rowKey={(r) => r.id}
         onRowClick={(r) => navigate(`/billing/invoices/${r.id}`)}
         loading={pagination.isInitialLoading}
-        empty="No subscription invoices match your filters."
+        empty="No invoices match your filters."
         serverPagination={pagination.serverPagination}
       />
 

@@ -5,6 +5,7 @@ exports.stockByProductCountSql = stockByProductCountSql;
 exports.stockByProductPageSql = stockByProductPageSql;
 const client_1 = require("@prisma/client");
 const company_read_scope_1 = require("../../common/auth/company-read-scope");
+const ledger_list_query_1 = require("./ledger-list.query");
 const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 async function resolveInboundLedgerSliceSql(prisma, orderIds) {
     if (orderIds.length === 0) {
@@ -48,9 +49,7 @@ async function buildStockByProductSqlContext(prisma, companyAccess, user, query)
         client_1.Prisma.sql `INNER JOIN products p ON p.id = cs.product_id`,
         client_1.Prisma.sql `INNER JOIN companies c ON c.id = p.company_id`,
     ];
-    const conditions = [
-        client_1.Prisma.sql `cs.quantity_on_hand > 0`,
-    ];
+    const conditions = [client_1.Prisma.sql `cs.quantity_on_hand > 0`];
     if (companyId) {
         conditions.push(client_1.Prisma.sql `cs.company_id = ${companyId}::uuid`);
     }
@@ -118,6 +117,7 @@ async function buildStockByProductSqlContext(prisma, companyAccess, user, query)
     return {
         joins: client_1.Prisma.join(joins, ' '),
         where: client_1.Prisma.join(conditions, ' AND '),
+        warehouseId: query.warehouseId,
     };
 }
 function stockByProductCountSql(ctx) {
@@ -128,27 +128,81 @@ function stockByProductCountSql(ctx) {
      WHERE ${ctx.where}
   `;
 }
+function lastMovementWarehouseCond(warehouseId) {
+    if (!warehouseId)
+        return client_1.Prisma.sql ``;
+    return client_1.Prisma.sql `AND (
+    il.from_location_id IN (
+      SELECT id FROM locations
+       WHERE warehouse_id = ${warehouseId}::uuid AND status = 'active'
+    )
+    OR il.to_location_id IN (
+      SELECT id FROM locations
+       WHERE warehouse_id = ${warehouseId}::uuid AND status = 'active'
+    )
+  )`;
+}
 function stockByProductPageSql(ctx, limit, offset) {
+    const wh = lastMovementWarehouseCond(ctx.warehouseId);
     return client_1.Prisma.sql `
-    SELECT cs.product_id,
-           SUM(cs.quantity_on_hand)::text AS total_quantity,
-           SUM(cs.quantity_reserved)::text AS reserved_quantity,
-           -- Available excludes receiving-area stock awaiting putaway: only
-           -- stock with status = available can be picked/allocated to outbound.
-           COALESCE(SUM(cs.quantity_available) FILTER (WHERE cs.status = 'available'), 0)::text AS available_quantity,
-           p.sku,
-           p.name,
-           p.uom::text AS uom,
-           p.barcode,
-           c.id AS company_id,
-           c.name AS company_name
-      FROM current_stock cs
-      ${ctx.joins}
-     WHERE ${ctx.where}
-     GROUP BY cs.product_id, p.id, p.sku, p.name, p.uom, p.barcode, c.id, c.name
-     ORDER BY p.name ASC
-     LIMIT ${limit}
-    OFFSET ${offset}
+    WITH products_page AS (
+      SELECT cs.product_id,
+             SUM(cs.quantity_on_hand)::text AS total_quantity,
+             SUM(cs.quantity_reserved)::text AS reserved_quantity,
+             COALESCE(SUM(cs.quantity_available) FILTER (WHERE cs.status = 'available'), 0)::text AS available_quantity,
+             p.sku,
+             p.name,
+             p.uom::text AS uom,
+             p.barcode,
+             c.id AS company_id,
+             c.name AS company_name
+        FROM current_stock cs
+        ${ctx.joins}
+       WHERE ${ctx.where}
+       GROUP BY cs.product_id, p.id, p.sku, p.name, p.uom, p.barcode, c.id, c.name
+       ORDER BY p.name ASC
+       LIMIT ${limit}
+      OFFSET ${offset}
+    )
+    SELECT pp.*,
+           lm.last_movement_at,
+           lm.last_quantity_change,
+           lm.last_movement_type
+      FROM products_page pp
+      LEFT JOIN LATERAL (
+        WITH filtered AS (
+          SELECT
+            il.created_at,
+            il.movement_type,
+            ${(0, ledger_list_query_1.ledgerSignedQuantitySql)('il')} AS signed_qty,
+            ${(0, ledger_list_query_1.ledgerBusinessGroupKeySql)('il')} AS group_key
+            FROM inventory_ledger il
+           WHERE il.product_id = pp.product_id
+             AND il.movement_type IN (
+               'inbound_receive'::movement_type,
+               'outbound_pick'::movement_type,
+               'return_receive'::movement_type
+             )
+             ${wh}
+        ),
+        groups AS (
+          SELECT
+            group_key,
+            MIN(created_at) AS created_at,
+            (array_agg(movement_type ORDER BY created_at ASC, signed_qty DESC))[1] AS movement_type,
+            SUM(signed_qty) AS signed_delta
+            FROM filtered
+           GROUP BY group_key
+        )
+        SELECT
+          g.created_at AS last_movement_at,
+          g.signed_delta::text AS last_quantity_change,
+          g.movement_type::text AS last_movement_type
+          FROM groups g
+         ORDER BY g.created_at DESC
+         LIMIT 1
+      ) lm ON true
+     ORDER BY pp.name ASC
   `;
 }
 //# sourceMappingURL=stock-by-product.query.js.map

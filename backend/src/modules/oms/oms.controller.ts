@@ -45,7 +45,7 @@ export class OmsController {
 
   @Post('orders')
   create(@CurrentUser() user: AuthPrincipal, @Body() dto: CreateOmsOrderDto) {
-    return this.orders.create(user, dto);
+    return this.orders.create(user, dto, { provisionOutbound: !dto.outboundOrderId });
   }
 
   @Get('orders/:id')

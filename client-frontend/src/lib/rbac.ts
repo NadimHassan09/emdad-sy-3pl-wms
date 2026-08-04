@@ -40,7 +40,7 @@ const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
     label: 'Returns',
     labelAr: 'المرتجعات',
     iconKey: 'Orders',
-    to: '/returns',
+    to: '/ecommerce-orders/returns',
     group: 'oms',
     roles: ['client_admin', 'client_staff'],
   },

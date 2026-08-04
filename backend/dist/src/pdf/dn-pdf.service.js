@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../common/prisma/prisma.service");
+const realtime_service_1 = require("../modules/realtime/realtime.service");
 const branding_1 = require("./branding");
 const document_storage_service_1 = require("./document-storage.service");
 const document_slot_overrides_service_1 = require("./document-slot-overrides.service");
@@ -30,14 +31,16 @@ let DnPdfService = DnPdfService_1 = class DnPdfService {
     storage;
     documents;
     slotOverrides;
+    realtime;
     logger = new common_1.Logger(DnPdfService_1.name);
     branding;
-    constructor(prisma, pdf, storage, documents, slotOverrides, config) {
+    constructor(prisma, pdf, storage, documents, slotOverrides, realtime, config) {
         this.prisma = prisma;
         this.pdf = pdf;
         this.storage = storage;
         this.documents = documents;
         this.slotOverrides = slotOverrides;
+        this.realtime = realtime;
         this.branding = (0, branding_1.resolveBranding)(config);
     }
     async generateForDispatchTask(taskId, lang, opts) {
@@ -143,7 +146,18 @@ let DnPdfService = DnPdfService_1 = class DnPdfService {
             : await this.storage.write(client_1.DocumentType.delivery_note, fileName, buffer);
         if (existing && opts?.force) {
             const doc = await this.documents.refreshFile(existing.id, stored);
-            return this.toResult(doc);
+            const result = this.toResult(doc);
+            this.realtime.emitDocumentGenerated(order.companyId, {
+                documentId: result.id,
+                type: client_1.DocumentType.delivery_note,
+                referenceType: 'outbound_order',
+                referenceId: order.id,
+                taskId,
+                documentNumber: result.documentNumber,
+                language: result.language,
+                pdfUrl: result.pdfUrl,
+            });
+            return result;
         }
         const doc = await this.documents.create({
             companyId: order.companyId,
@@ -159,7 +173,18 @@ let DnPdfService = DnPdfService_1 = class DnPdfService {
             fileSize: stored.fileSize,
             generatedBy: operatorId,
         });
-        return this.toResult(doc);
+        const result = this.toResult(doc);
+        this.realtime.emitDocumentGenerated(order.companyId, {
+            documentId: result.id,
+            type: client_1.DocumentType.delivery_note,
+            referenceType: 'outbound_order',
+            referenceId: order.id,
+            taskId,
+            documentNumber: result.documentNumber,
+            language: result.language,
+            pdfUrl: result.pdfUrl,
+        });
+        return result;
     }
     toResult(doc) {
         return {
@@ -180,6 +205,7 @@ exports.DnPdfService = DnPdfService = DnPdfService_1 = __decorate([
         document_storage_service_1.DocumentStorageService,
         documents_service_1.DocumentsService,
         document_slot_overrides_service_1.DocumentSlotOverridesService,
+        realtime_service_1.RealtimeService,
         config_1.ConfigService])
 ], DnPdfService);
 //# sourceMappingURL=dn-pdf.service.js.map

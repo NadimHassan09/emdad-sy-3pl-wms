@@ -38,7 +38,6 @@ function notificationsLabel(label: string, isArabic: boolean): string {
     Today: 'اليوم',
     Yesterday: 'أمس',
     Earlier: 'أقدم',
-    'Filter applies to the current page only.': 'الفلتر يطبّق على الصفحة الحالية فقط.',
   };
   return ar[label] ?? label;
 }
@@ -218,11 +217,6 @@ export function NotificationsPage(): ReactElement {
           </button>
         ))}
       </div>
-      {filter !== 'all' ? (
-        <p className="text-xs text-[var(--text-muted)]">
-          {t('Filter applies to the current page only.')}
-        </p>
-      ) : null}
 
       {listQuery.isError ? (
         <Alert

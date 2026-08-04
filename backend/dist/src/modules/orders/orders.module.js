@@ -11,7 +11,6 @@ const common_1 = require("@nestjs/common");
 const inbound_module_1 = require("../inbound/inbound.module");
 const outbound_module_1 = require("../outbound/outbound.module");
 const warehouse_workflow_module_1 = require("../warehouse-workflow/warehouse-workflow.module");
-const admin_order_execution_service_1 = require("./admin-order-execution.service");
 let OrdersModule = class OrdersModule {
 };
 exports.OrdersModule = OrdersModule;
@@ -22,8 +21,8 @@ exports.OrdersModule = OrdersModule = __decorate([
             (0, common_1.forwardRef)(() => outbound_module_1.OutboundModule),
             warehouse_workflow_module_1.WarehouseWorkflowModule,
         ],
-        providers: [admin_order_execution_service_1.AdminOrderExecutionService],
-        exports: [admin_order_execution_service_1.AdminOrderExecutionService],
+        providers: [],
+        exports: [],
     })
 ], OrdersModule);
 //# sourceMappingURL=orders.module.js.map

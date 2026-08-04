@@ -8,7 +8,6 @@ import { Badge } from '../design-v2/Badge';
 import { ListPageHeader } from '../design-v2/ListPageHeader';
 import { isClientArabic } from '../lib/client-ui-language';
 import { fetchClientProduct } from '../services/clientProductsService';
-import { clientMediaSrc } from '../lib/client-media';
 
 const UOM_LABELS: Record<string, { en: string; ar: string }> = {
   piece: { en: 'Piece', ar: 'قطعة' },
@@ -142,7 +141,16 @@ export function ProductDetailPage(): ReactElement {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ListPageHeader
           icon="fa-box"
-          title={data?.name ?? t('Product details')}
+          title={
+            <span className="inline-flex max-w-full items-center gap-2.5">
+              <span className="min-w-0 truncate">{data?.name ?? t('Product details')}</span>
+              {data ? (
+                <span className="shrink-0">
+                  <Badge status={data.status} />
+                </span>
+              ) : null}
+            </span>
+          }
           subtitle={t('Stock and catalog fields for this SKU')}
         />
         <Link
@@ -174,24 +182,6 @@ export function ProductDetailPage(): ReactElement {
         </Card>
       ) : data ? (
         <>
-          <div className="flex flex-wrap items-center gap-4">
-            {clientMediaSrc(data.imageUrl) ? (
-              <img
-                src={clientMediaSrc(data.imageUrl) ?? undefined}
-                alt=""
-                className="h-14 w-14 shrink-0 rounded-xl border border-border object-cover"
-              />
-            ) : (
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-surface-card-muted text-text-faint">
-                <i className="fa-solid fa-box text-lg" aria-hidden="true" />
-              </div>
-            )}
-            <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-lg font-bold text-text-strong">{data.name}</h2>
-              <Badge status={data.status} />
-            </div>
-          </div>
-
           <div className="grid gap-3 sm:grid-cols-3">
             <MetricCard label={t('Available for sale')} value={fmtQty(data.totalAvailable)} emphasis />
             <MetricCard label={t('Reserved')} value={fmtQty(data.totalReserved)} />

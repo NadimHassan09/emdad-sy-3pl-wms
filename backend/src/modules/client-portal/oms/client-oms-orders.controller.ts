@@ -3,18 +3,12 @@ import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/co
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { ParseUuidLoosePipe } from '../../../common/pipes/parse-uuid-loose.pipe';
-import { PaginationDto } from '../../../common/dto/pagination.dto';
 import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ClientOmsOrdersService } from './client-oms-orders.service';
 import { CreateClientOmsOrderDto } from './dto/create-client-oms-order.dto';
+import { ClientCodReportQueryDto } from './dto/client-cod-report-query.dto';
 import { ListClientOmsOrdersQueryDto } from './dto/list-client-oms-orders-query.dto';
-
-class ClientCodReportQueryDto extends PaginationDto {
-  codStatus?: string;
-  dateFrom?: string;
-  dateTo?: string;
-}
 
 @Public()
 @UseGuards(JwtClientAuthGuard)

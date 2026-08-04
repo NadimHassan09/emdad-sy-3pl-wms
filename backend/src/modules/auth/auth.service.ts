@@ -109,8 +109,9 @@ export class AuthService {
     );
 
     const accessExpiresIn = this.config.get<string>('JWT_ACCESS_EXPIRES_IN') ?? DEFAULT_ACCESS_EXPIRES;
-    const refreshExpiresIn =
-      this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? DEFAULT_REFRESH_EXPIRES;
+    const refreshExpiresIn = dto.rememberMe
+      ? '30d'
+      : this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ?? DEFAULT_REFRESH_EXPIRES;
     const accessMaxAgeMs = this.expiresInToMs(accessExpiresIn);
     const refreshMaxAgeMs = this.expiresInToMs(refreshExpiresIn);
     const refreshExpiresAt = new Date(Date.now() + refreshMaxAgeMs);

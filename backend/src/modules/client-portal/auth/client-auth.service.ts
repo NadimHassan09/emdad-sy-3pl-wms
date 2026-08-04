@@ -86,7 +86,11 @@ export class ClientAuthService {
       data: { lastLoginAt: now, lastActivityAt: now },
     });
 
-    const expiresIn = this.config.get<string>('CLIENT_JWT_EXPIRES_IN') ?? this.config.get<string>('JWT_EXPIRES_IN') ?? '8h';
+    const expiresIn = dto.rememberMe
+      ? '30d'
+      : this.config.get<string>('CLIENT_JWT_EXPIRES_IN') ??
+        this.config.get<string>('JWT_EXPIRES_IN') ??
+        '8h';
     const maxAgeMs = this.expiresInToMs(expiresIn);
     const payload: JwtClientAccessPayload = {
       sub: user.id,

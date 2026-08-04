@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type UiTheme = 'light' | 'dark';
 export type UiThemePreference = UiTheme | 'system';
@@ -11,6 +11,8 @@ export type UseUiThemeOptions = {
    * Defaults to Client Portal + Admin roots; missing nodes are skipped.
    */
   extraRootSelectors?: string[];
+  /** Minimum overlay duration so the switch feels intentional (ms). */
+  minLoadingMs?: number;
 };
 
 const DEFAULT_EXTRA_ROOTS = ['#client-portal-root', '#admin-root'];
@@ -38,13 +40,26 @@ function resolveTheme(preference: UiThemePreference): UiTheme {
  * `tokens.css` keys its dark-theme overrides off of.
  */
 export function applyUiTheme(resolved: UiTheme, extraRootSelectors: string[] = []): void {
-  const roots = [document.documentElement, ...extraRootSelectors
-    .map((sel) => document.querySelector(sel))
-    .filter((el): el is HTMLElement => el !== null)];
+  const roots = [
+    document.documentElement,
+    ...extraRootSelectors
+      .map((sel) => document.querySelector(sel))
+      .filter((el): el is HTMLElement => el !== null),
+  ];
 
   for (const root of roots) {
     root.classList.toggle('dark', resolved === 'dark');
   }
+}
+
+async function waitAtLeast(started: number, minLoadingMs: number): Promise<void> {
+  const elapsed = Date.now() - started;
+  if (elapsed < minLoadingMs) {
+    await new Promise<void>((resolve) => window.setTimeout(resolve, minLoadingMs - elapsed));
+  }
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
 }
 
 /**
@@ -55,11 +70,17 @@ export function applyUiTheme(resolved: UiTheme, extraRootSelectors: string[] = [
 export function useUiTheme({
   storageKey,
   extraRootSelectors = DEFAULT_EXTRA_ROOTS,
+  minLoadingMs = 700,
 }: UseUiThemeOptions) {
   const [preference, setPreferenceState] = useState<UiThemePreference>(() =>
     readStoredPreference(storageKey),
   );
-  const [resolved, setResolved] = useState<UiTheme>(() => resolveTheme(readStoredPreference(storageKey)));
+  const [resolved, setResolved] = useState<UiTheme>(() =>
+    resolveTheme(readStoredPreference(storageKey)),
+  );
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [switchingTo, setSwitchingTo] = useState<UiTheme | null>(null);
+  const switchingRef = useRef(false);
   const extraRootsKey = extraRootSelectors.join('\0');
 
   useEffect(() => {
@@ -82,16 +103,40 @@ export function useUiTheme({
     return () => mql.removeEventListener('change', onChange);
   }, [preference, extraRootsKey, extraRootSelectors]);
 
-  const setPreference = useCallback((next: UiThemePreference) => {
-    setPreferenceState(next);
-  }, []);
+  const runSwitch = useCallback(
+    async (nextPreference: UiThemePreference) => {
+      if (switchingRef.current) return;
+      const nextResolved = resolveTheme(nextPreference);
+      if (nextResolved === resolveTheme(preference) && nextPreference === preference) return;
+
+      switchingRef.current = true;
+      setIsSwitching(true);
+      setSwitchingTo(nextResolved);
+      const started = Date.now();
+
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 40));
+      setPreferenceState(nextPreference);
+
+      await waitAtLeast(started, minLoadingMs);
+
+      setIsSwitching(false);
+      setSwitchingTo(null);
+      switchingRef.current = false;
+    },
+    [preference, minLoadingMs],
+  );
+
+  const setPreference = useCallback(
+    (next: UiThemePreference) => {
+      void runSwitch(next);
+    },
+    [runSwitch],
+  );
 
   const toggle = useCallback(() => {
-    setPreferenceState((current) => {
-      const currentResolved = resolveTheme(current);
-      return currentResolved === 'dark' ? 'light' : 'dark';
-    });
-  }, []);
+    const currentResolved = resolveTheme(preference);
+    void runSwitch(currentResolved === 'dark' ? 'light' : 'dark');
+  }, [preference, runSwitch]);
 
   return {
     /** 'light' | 'dark' | 'system' — the user's stored choice. */
@@ -99,6 +144,10 @@ export function useUiTheme({
     /** 'light' | 'dark' — the actual applied theme. */
     theme: resolved,
     isDark: resolved === 'dark',
+    /** True while the theme transition overlay should cover the UI. */
+    isSwitching,
+    /** Target theme while switching (for overlay copy). */
+    switchingTo,
     setPreference,
     toggle,
   };

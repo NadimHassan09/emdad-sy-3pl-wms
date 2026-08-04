@@ -5,6 +5,12 @@ import { useQuery } from '@tanstack/react-query';
 
 import { Alert, Card, Skeleton, StatusBadge } from '@ds';
 
+import {
+  clientInboundStatusLabel,
+  mapClientInboundDisplayStatus,
+} from '../lib/client-inbound-status';
+import { isClientArabic } from '../lib/client-ui-language';
+import { clientMediaSrc } from '../lib/client-media';
 import { fetchClientInboundOrder } from '../services/clientInboundOrdersService';
 
 function fmtQty(s: string): string {
@@ -48,6 +54,7 @@ function DetailRow({
 
 export function InboundOrderDetailPage(): ReactElement {
   const { id = '' } = useParams<{ id: string }>();
+  const isArabic = isClientArabic();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['client', 'inbound-orders', id],
@@ -85,7 +92,9 @@ export function InboundOrderDetailPage(): ReactElement {
             <h1 className="text-xl font-bold tracking-tight text-text-strong font-mono">
               {data.orderNumber || data.id.slice(0, 8)}
             </h1>
-            <StatusBadge status={data.status} />
+            <StatusBadge status={mapClientInboundDisplayStatus(data.status)}>
+              {clientInboundStatusLabel(data.status, isArabic)}
+            </StatusBadge>
           </div>
 
           {data.status === 'pending_approval' ? (
@@ -102,7 +111,12 @@ export function InboundOrderDetailPage(): ReactElement {
             <Card.Body>
               <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
                 <DetailRow label="Order #" value={data.orderNumber} />
-                <DetailRow label="Client" value={data.company?.name} />
+                <DetailRow
+                  label="Number of SKUs"
+                  value={String(
+                    new Set(data.lines.map((line) => line.product.sku || line.product.id)).size,
+                  )}
+                />
                 <DetailRow label="Expected arrival" value={formatDate(data.expectedArrivalDate)} />
                 <DetailRow label="Created" value={formatDateTime(data.createdAt)} />
                 {data.clientReference ? (
@@ -114,9 +128,12 @@ export function InboundOrderDetailPage(): ReactElement {
                 {data.completedAt ? (
                   <DetailRow label="Completed" value={formatDateTime(data.completedAt)} />
                 ) : null}
-                {data.notes ? (
-                  <DetailRow label="Notes" value={data.notes} className="sm:col-span-2" preWrap />
-                ) : null}
+                <DetailRow
+                  label="Notes"
+                  value={data.notes?.trim() || '—'}
+                  className="sm:col-span-2"
+                  preWrap
+                />
               </dl>
             </Card.Body>
           </Card>
@@ -133,34 +150,52 @@ export function InboundOrderDetailPage(): ReactElement {
                 <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
                   <tr>
                     <th className="px-4 py-2.5 text-left">#</th>
-                    <th className="px-4 py-2.5 text-left">SKU</th>
+                    <th className="px-4 py-2.5 text-left">Image</th>
                     <th className="px-4 py-2.5 text-left">Product</th>
+                    <th className="px-4 py-2.5 text-left">SKU</th>
                     <th className="px-4 py-2.5 text-right">Expected</th>
                     <th className="px-4 py-2.5 text-right">Received</th>
-                    <th className="px-4 py-2.5 text-left">Lot</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
-                  {data.lines.map((line) => (
-                    <tr key={line.id}>
-                      <td className="px-4 py-2.5 text-text-muted">{line.lineNumber}</td>
-                      <td className="px-4 py-2.5 font-mono text-xs text-text-muted">
-                        {line.product.sku}
-                      </td>
-                      <td className="px-4 py-2.5 font-medium text-text-strong">
-                        {line.product.name}
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-text-body">
-                        {fmtQty(line.expectedQuantity)}
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-semibold text-text-strong">
-                        {fmtQty(line.receivedQuantity)}
-                      </td>
-                      <td className="px-4 py-2.5 text-text-body">
-                        {line.expectedLotNumber ?? '—'}
-                      </td>
-                    </tr>
-                  ))}
+                  {data.lines.map((line) => {
+                    const imageSrc = clientMediaSrc(
+                      line.product.imageUrl ??
+                        (line.product.imagePath
+                          ? `/media/${line.product.imagePath.replace(/^\/+/, '')}`
+                          : null),
+                    );
+                    return (
+                      <tr key={line.id}>
+                        <td className="px-4 py-2.5 text-text-muted">{line.lineNumber}</td>
+                        <td className="px-4 py-2.5">
+                          {imageSrc ? (
+                            <img
+                              src={imageSrc}
+                              alt=""
+                              className="h-10 w-10 rounded-lg border border-border object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border-subtle bg-surface-sunken text-text-faint">
+                              <i className="fa-solid fa-box text-xs" aria-hidden="true" />
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 font-medium text-text-strong">
+                          {line.product.name}
+                        </td>
+                        <td className="px-4 py-2.5 font-mono text-xs text-text-muted">
+                          {line.product.sku}
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-text-body">
+                          {fmtQty(line.expectedQuantity)}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-text-strong">
+                          {fmtQty(line.receivedQuantity)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

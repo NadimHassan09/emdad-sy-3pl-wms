@@ -1,6 +1,6 @@
 import axios, { AxiosError, type AxiosInstance } from 'axios';
 
-import { getAccessToken, setAccessToken } from '../auth/authStorage';
+import { getAccessToken, setAccessToken, setPostLoginReturnTo } from '../auth/authStorage';
 import { getApiBaseUrl } from './apiBaseUrl';
 
 const baseURL = getApiBaseUrl();
@@ -48,10 +48,14 @@ api.interceptors.response.use(
   },
   (err: AxiosError<ApiError>) => {
     const status = err.response?.status;
-    if (status === 401) {
+    const reqUrl = String(err.config?.url ?? '');
+    const isAuthRefresh = reqUrl.includes('/auth/refresh');
+    if (status === 401 && !isAuthRefresh) {
       setAccessToken(null);
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.assign('/login');
+        const returnTo = `${window.location.pathname}${window.location.search}`;
+        setPostLoginReturnTo(returnTo);
+        window.location.assign(`/login?next=${encodeURIComponent(returnTo)}`);
       }
     }
     const data = err.response?.data;

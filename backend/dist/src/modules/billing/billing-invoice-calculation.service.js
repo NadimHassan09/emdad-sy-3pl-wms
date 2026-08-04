@@ -17,10 +17,8 @@ const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const billing_rate_snapshot_util_1 = require("./billing-rate-snapshot.util");
 const billing_totals_util_1 = require("./billing-totals.util");
-const billing_usage_service_1 = require("./billing-usage.service");
-const MS_PER_DAY = 86_400_000;
-const SYSTEM_LINE_TYPES = [
-    'subscription',
+const SYSTEM_LINE_TYPES = ['subscription'];
+const RETIRED_USAGE_LINE_TYPES = [
     'inbound',
     'outbound',
     'packaging',
@@ -45,12 +43,10 @@ const PLAN_RATE_SELECT = {
 };
 let BillingInvoiceCalculationService = BillingInvoiceCalculationService_1 = class BillingInvoiceCalculationService {
     prisma;
-    usage;
     audit;
     log = new common_1.Logger(BillingInvoiceCalculationService_1.name);
-    constructor(prisma, usage, audit) {
+    constructor(prisma, audit) {
         this.prisma = prisma;
-        this.usage = usage;
         this.audit = audit;
     }
     async recalculateForCompany(companyId, trigger) {
@@ -140,12 +136,17 @@ let BillingInvoiceCalculationService = BillingInvoiceCalculationService_1 = clas
         if (!rates)
             return null;
         const windowEnd = cycle.endsAt < now ? cycle.endsAt : now;
-        const metrics = await this.collectCycleMetrics(companyId, cycle.startsAt, windowEnd, rates);
-        const daysElapsed = this.daysElapsedInCycle(cycle.startsAt, windowEnd);
-        const lines = this.computeLines(rates, metrics, daysElapsed);
+        const lines = this.computeLines(rates);
         const result = await this.prisma.$transaction(async (tx) => {
             const invoice = await this.getOrCreateDraftInvoice(tx, companyId, cycle.id);
             const previousTotal = invoice.grandTotal.toString();
+            await tx.invoiceLine.deleteMany({
+                where: {
+                    invoiceId: invoice.id,
+                    lineSource: client_1.BillingInvoiceLineSource.system,
+                    type: { in: RETIRED_USAGE_LINE_TYPES },
+                },
+            });
             for (const line of lines) {
                 await this.upsertSystemInvoiceLine(tx, invoice.id, line);
             }
@@ -217,106 +218,10 @@ let BillingInvoiceCalculationService = BillingInvoiceCalculationService_1 = clas
             snapshottedAt: new Date(0).toISOString(),
         });
     }
-    async collectCycleMetrics(companyId, windowStart, windowEnd, rates) {
-        const [inboundCount, outboundOrders, packagingCount, qcCount, usage] = await Promise.all([
-            this.prisma.inboundOrder.count({
-                where: {
-                    companyId,
-                    status: 'completed',
-                    completedAt: { gte: windowStart, lte: windowEnd },
-                },
-            }),
-            this.prisma.outboundOrder.findMany({
-                where: {
-                    companyId,
-                    status: 'shipped',
-                    shippedAt: { gte: windowStart, lte: windowEnd },
-                },
-                select: {
-                    lines: { select: { pickedQuantity: true } },
-                },
-            }),
-            this.prisma.warehouseTask.count({
-                where: {
-                    taskType: 'pack',
-                    status: 'completed',
-                    completedAt: { gte: windowStart, lte: windowEnd },
-                    workflowInstance: { companyId, referenceType: 'outbound_order' },
-                },
-            }),
-            this.prisma.warehouseTask.count({
-                where: {
-                    taskType: 'qc',
-                    status: 'completed',
-                    completedAt: { gte: windowStart, lte: windowEnd },
-                    workflowInstance: { companyId, referenceType: 'inbound_order' },
-                },
-            }),
-            this.usage.getCompanyUsage(companyId),
-        ]);
-        const outboundTotalFee = this.computeTieredOutboundTotal(outboundOrders, rates);
-        return {
-            inboundCount,
-            outboundTotalFee,
-            packagingCount,
-            qcCount,
-            usageVolumeCbm: usage.volumeCbm,
-            usageWeightKg: usage.weightKg,
-        };
-    }
-    computeTieredOutboundTotal(orders, rates) {
-        let total = new client_1.Prisma.Decimal(0);
-        const included = new client_1.Prisma.Decimal(rates.outboundIncludedItems);
-        for (const order of orders) {
-            const shippedItems = order.lines.reduce((sum, line) => sum.add(line.pickedQuantity), new client_1.Prisma.Decimal(0));
-            const extraItems = client_1.Prisma.Decimal.max(shippedItems.sub(included), new client_1.Prisma.Decimal(0));
-            const orderFee = rates.outboundBaseFee.add(extraItems.mul(rates.outboundAdditionalItemFee));
-            total = total.add(orderFee);
-        }
-        return total.toDecimalPlaces(2);
-    }
-    computeLines(rates, metrics, daysElapsed) {
-        const excessVolume = client_1.Prisma.Decimal.max(metrics.usageVolumeCbm.sub(rates.reservedVolume), new client_1.Prisma.Decimal(0));
-        const excessWeight = client_1.Prisma.Decimal.max(metrics.usageWeightKg.sub(rates.reservedWeight), new client_1.Prisma.Decimal(0));
-        const dayFactor = new client_1.Prisma.Decimal(daysElapsed);
-        const specs = [
-            {
-                type: 'subscription',
-                quantity: new client_1.Prisma.Decimal(1),
-                unitPrice: rates.fixedSubscriptionFee,
-            },
-            {
-                type: 'inbound',
-                quantity: new client_1.Prisma.Decimal(metrics.inboundCount),
-                unitPrice: rates.inboundOrderFee,
-            },
-            {
-                type: 'outbound',
-                quantity: new client_1.Prisma.Decimal(1),
-                unitPrice: metrics.outboundTotalFee,
-            },
-            {
-                type: 'packaging',
-                quantity: new client_1.Prisma.Decimal(metrics.packagingCount),
-                unitPrice: rates.packagingFee,
-            },
-            {
-                type: 'quality_check',
-                quantity: new client_1.Prisma.Decimal(metrics.qcCount),
-                unitPrice: rates.qualityCheckFee,
-            },
-            {
-                type: 'excess_volume',
-                quantity: excessVolume.mul(dayFactor),
-                unitPrice: rates.excessVolumeFeePerDay,
-            },
-            {
-                type: 'excess_weight',
-                quantity: excessWeight.mul(dayFactor),
-                unitPrice: rates.excessWeightFeePerDay,
-            },
-        ];
-        return specs.map(({ type, quantity, unitPrice }) => {
+    computeLines(rates) {
+        return SYSTEM_LINE_TYPES.map((type) => {
+            const quantity = new client_1.Prisma.Decimal(1);
+            const unitPrice = rates.fixedSubscriptionFee;
             const totalPrice = quantity.mul(unitPrice).toDecimalPlaces(2);
             return {
                 type,
@@ -397,10 +302,6 @@ let BillingInvoiceCalculationService = BillingInvoiceCalculationService_1 = clas
             }
         }
     }
-    daysElapsedInCycle(startsAt, asOf) {
-        const ms = Math.max(0, asOf.getTime() - startsAt.getTime());
-        return Math.max(1, Math.ceil(ms / MS_PER_DAY));
-    }
     async getOrCreateDraftInvoice(tx, companyId, billingCycleId) {
         const existing = await tx.invoice.findFirst({
             where: { billingCycleId, status: client_1.BillingInvoiceStatus.draft },
@@ -445,7 +346,6 @@ exports.BillingInvoiceCalculationService = BillingInvoiceCalculationService;
 exports.BillingInvoiceCalculationService = BillingInvoiceCalculationService = BillingInvoiceCalculationService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        billing_usage_service_1.BillingUsageService,
         audit_log_service_1.AuditLogService])
 ], BillingInvoiceCalculationService);
 //# sourceMappingURL=billing-invoice-calculation.service.js.map

@@ -17,6 +17,8 @@ export interface ClientProductRow {
   totalAvailable?: string;
   imageUrl?: string | null;
   imagePath?: string | null;
+  /** True when hard-delete is allowed (zero stock and no order / inventory history). */
+  deletable?: boolean;
 }
 
 export interface ClientProductDetail {
@@ -86,6 +88,25 @@ export async function fetchClientProduct(id: string): Promise<ClientProductDetai
 
 export async function createClientProduct(input: CreateClientProductInput): Promise<ClientProductRow> {
   const { data } = await apiClient.post<ClientProductRow>('/products', input);
+  return data;
+}
+
+export interface UpdateClientProductInput {
+  name?: string;
+  description?: string;
+  minStockThreshold?: number;
+}
+
+export async function updateClientProduct(
+  id: string,
+  input: UpdateClientProductInput,
+): Promise<ClientProductDetail> {
+  const { data } = await apiClient.patch<ClientProductDetail>(`/products/${id}`, input);
+  return data;
+}
+
+export async function deleteClientProduct(id: string): Promise<{ id: string; deleted: true }> {
+  const { data } = await apiClient.delete<{ id: string; deleted: true }>(`/products/${id}`);
   return data;
 }
 

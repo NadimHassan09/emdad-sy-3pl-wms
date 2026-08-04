@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
+import { setPostLoginReturnTo } from './authStorage';
 import { useAuth } from './AuthContext';
 
 export function RequireAuth({ children }: { children: ReactNode }) {
@@ -17,6 +18,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   if (!user) {
     const from = `${location.pathname}${location.search}`;
+    setPostLoginReturnTo(from);
     return <Navigate to="/login" replace state={{ from }} />;
   }
 

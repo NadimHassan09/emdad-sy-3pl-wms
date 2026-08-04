@@ -5,6 +5,7 @@ export type ClientOmsCodStatus = 'pending' | 'collected' | 'remitted' | 'settled
 export type ClientOmsOrderStatus =
   | 'draft'
   | 'pending_approval'
+  | 'pending'
   | 'rejected'
   | 'approved'
   | 'confirmed'

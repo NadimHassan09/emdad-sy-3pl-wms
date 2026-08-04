@@ -53,6 +53,8 @@ export type LoginScreenProps = {
   /** @deprecated Use onClearRememberedAccount. */
   onUseDifferentAccount?: () => void;
   clearRememberedAccountLabel?: string;
+  /** Primary continue CTA under the remembered account (one-click resume). */
+  continueLabel?: string;
   /** Optional background image URL (defaults to `/login-bg.jpg`). */
   backgroundSrc?: string;
 };
@@ -177,6 +179,7 @@ export function LoginScreen({
   onClearRememberedAccount,
   onUseDifferentAccount,
   clearRememberedAccountLabel = 'Remove remembered account',
+  continueLabel = 'Continue',
   backgroundSrc = '/login-bg.jpg',
 }: LoginScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
@@ -266,6 +269,23 @@ export function LoginScreen({
                 </button>
               ) : null}
             </div>
+            {onSelectRememberedAccount ? (
+              <button
+                type="button"
+                onClick={onSelectRememberedAccount}
+                disabled={loading}
+                className={cn(
+                  'flex h-11 w-full items-center justify-center gap-2 rounded-xl',
+                  'bg-brand-600 text-sm font-semibold text-white shadow-sm',
+                  'transition hover:bg-brand-700',
+                  'focus-visible:outline-none focus-visible:shadow-focus',
+                  'disabled:cursor-not-allowed disabled:opacity-60',
+                )}
+              >
+                {loading ? submittingLabel : continueLabel}
+                {!loading ? <i className="fa-solid fa-arrow-right text-xs rtl:rotate-180" aria-hidden /> : null}
+              </button>
+            ) : null}
             <DividerLabel>{orLabel}</DividerLabel>
           </div>
         ) : null}

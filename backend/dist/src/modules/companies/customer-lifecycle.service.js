@@ -23,6 +23,7 @@ const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const refresh_session_service_1 = require("../auth/refresh-session.service");
+const realtime_service_1 = require("../realtime/realtime.service");
 const DEFAULT_RETENTION_DAYS = 90;
 const DAY_MS = 86_400_000;
 const INBOUND_OPEN_STATUSES = [
@@ -49,13 +50,39 @@ let CustomerLifecycleService = CustomerLifecycleService_1 = class CustomerLifecy
     audit;
     refreshSessions;
     config;
+    realtime;
     logger = new common_1.Logger(CustomerLifecycleService_1.name);
-    constructor(prisma, companyAccess, audit, refreshSessions, config) {
+    constructor(prisma, companyAccess, audit, refreshSessions, config, realtime) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.audit = audit;
         this.refreshSessions = refreshSessions;
         this.config = config;
+        this.realtime = realtime;
+    }
+    emitLifecycle(companyId, status, action, forceLogoutUsers) {
+        this.realtime.emitCompanyLifecycleChanged(companyId, { companyId, status, action });
+        if (action === 'suspended' || action === 'archived' || action === 'restricted') {
+            this.realtime.emitBillingRestrictionChanged(companyId, {
+                companyId,
+                restricted: true,
+                status,
+            });
+        }
+        if (action === 'restored' || action === 'activated') {
+            this.realtime.emitBillingRestrictionChanged(companyId, {
+                companyId,
+                restricted: false,
+                status,
+            });
+        }
+        for (const u of forceLogoutUsers ?? []) {
+            this.realtime.emitAuthSessionChanged(u.id, {
+                type: 'forced_logout',
+                userId: u.id,
+                reason: `company_${action}`,
+            });
+        }
     }
     retentionDays() {
         const raw = this.config.get('CUSTOMER_PURGE_RETENTION_DAYS');
@@ -228,6 +255,7 @@ let CustomerLifecycleService = CustomerLifecycleService_1 = class CustomerLifecy
                 this.logger.warn(`Failed to revoke sessions for user ${u.id}: ${String(e)}`);
             }
         }
+        return users;
     }
     async suspend(user, id, reason) {
         this.companyAccess.assertCompanyAccess(user, id);
@@ -245,7 +273,9 @@ let CustomerLifecycleService = CustomerLifecycleService_1 = class CustomerLifecy
                 suspensionReason: reason?.trim() || null,
             },
         });
-        await this.revokeCompanyUserSessions(id);
+        await this.revokeCompanyUserSessions(id).then((users) => {
+            this.emitLifecycle(id, updated.status, 'suspended', users);
+        });
         await this.audit.logBestEffort(this.audit.fromPrincipal(user, {
             action: 'customer.suspended',
             resourceType: 'company',
@@ -285,7 +315,9 @@ let CustomerLifecycleService = CustomerLifecycleService_1 = class CustomerLifecy
                 },
             });
         });
-        await this.revokeCompanyUserSessions(id);
+        await this.revokeCompanyUserSessions(id).then((users) => {
+            this.emitLifecycle(id, updated.status, 'archived', users);
+        });
         await this.audit.logBestEffort(this.audit.fromPrincipal(user, {
             action: 'customer.archived',
             resourceType: 'company',
@@ -332,6 +364,7 @@ let CustomerLifecycleService = CustomerLifecycleService_1 = class CustomerLifecy
             previousState: { status: previousStatus },
             newState: { status: updated.status, reason: reason?.trim() || null },
         }));
+        this.emitLifecycle(id, updated.status, 'restored');
         return updated;
     }
     async hardDelete(user, id) {
@@ -469,6 +502,7 @@ exports.CustomerLifecycleService = CustomerLifecycleService = CustomerLifecycleS
         company_access_service_1.CompanyAccessService,
         audit_log_service_1.AuditLogService,
         refresh_session_service_1.RefreshSessionService,
-        config_1.ConfigService])
+        config_1.ConfigService,
+        realtime_service_1.RealtimeService])
 ], CustomerLifecycleService);
 //# sourceMappingURL=customer-lifecycle.service.js.map

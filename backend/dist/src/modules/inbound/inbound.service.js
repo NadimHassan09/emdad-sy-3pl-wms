@@ -51,6 +51,7 @@ const ORDER_INCLUDE = {
                     trackingType: true,
                     uom: true,
                     expiryTracking: true,
+                    imagePath: true,
                 },
             },
         },
@@ -63,6 +64,15 @@ const INBOUND_CONFIRMABLE = [
 ];
 function isInboundConfirmable(status) {
     return INBOUND_CONFIRMABLE.includes(status);
+}
+function isInboundPlanEditable(status, lines) {
+    if (isInboundConfirmable(status))
+        return true;
+    if (status !== client_1.InboundOrderStatus.confirmed &&
+        status !== client_1.InboundOrderStatus.in_progress) {
+        return false;
+    }
+    return lines.every((l) => l.receivedQuantity.lte(0));
 }
 const INBOUND_DELETABLE = [client_1.InboundOrderStatus.cancelled];
 let InboundService = class InboundService {
@@ -227,8 +237,12 @@ let InboundService = class InboundService {
         if (companyId) {
             where.companyId = companyId;
         }
-        if (query.status)
+        if (query.statusIn?.length) {
+            where.status = { in: query.statusIn };
+        }
+        else if (query.status) {
             where.status = query.status;
+        }
         if (query.orderSearch?.trim()) {
             const t = query.orderSearch.trim();
             const orParts = [
@@ -288,8 +302,8 @@ let InboundService = class InboundService {
     }
     async updatePlan(user, id, dto) {
         const order = await this.findById(id, user);
-        if (!isInboundConfirmable(order.status)) {
-            throw new domain_exceptions_1.InvalidStateException(`Plan can only be updated while draft (current: ${order.status}).`);
+        if (!isInboundPlanEditable(order.status, order.lines)) {
+            throw new domain_exceptions_1.InvalidStateException(`Plan can only be updated before receiving starts (current: ${order.status}).`);
         }
         const executionMode = (0, execution_plan_util_1.normalizeExecutionMode)(dto.executionMode ?? order.executionMode);
         let executionPlan = undefined;
@@ -450,6 +464,11 @@ let InboundService = class InboundService {
         if (order.lines.length === 0) {
             throw new common_1.BadRequestException('Add at least one line before confirming this order.');
         }
+        const releasePlan = (0, execution_plan_util_1.parseInboundExecutionPlan)(order.executionPlan);
+        if (!releasePlan) {
+            throw new common_1.BadRequestException('A complete execution plan is required before confirmation or release.');
+        }
+        (0, execution_plan_util_1.assertInboundAdminPlanComplete)(releasePlan);
         if ((0, feature_flags_1.taskOnlyFlows)(this.config)) {
             if (!body?.warehouseId || !body.stagingByLineId) {
                 throw new common_1.BadRequestException('When TASK_ONLY_FLOWS=true, confirm body must include warehouseId and stagingByLineId (per line).');
@@ -725,7 +744,7 @@ let InboundService = class InboundService {
                     lotId = created.id;
                 }
             }
-            const stockMeta = await this.stock.upsertPositiveWithMeta(tx, {
+            await this.stock.upsertPositive(tx, {
                 companyId: order.companyId,
                 productId: line.productId,
                 locationId: dto.locationId,
@@ -741,8 +760,6 @@ let InboundService = class InboundService {
                     toLocationId: dto.locationId,
                     movementType: 'inbound_receive',
                     quantity: new client_1.Prisma.Decimal(dto.quantity),
-                    quantityBefore: stockMeta.before,
-                    quantityAfter: stockMeta.after,
                     referenceType: 'inbound_order',
                     referenceId: orderId,
                     operatorId: user.id,

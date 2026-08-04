@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class ClientLoginDto {
   @IsEmail()
@@ -9,4 +9,9 @@ export class ClientLoginDto {
   @MinLength(1)
   @MaxLength(128)
   password!: string;
+
+  /** Persist session for 30 days (HttpOnly cookie + JWT lifetime). */
+  @IsOptional()
+  @IsBoolean()
+  rememberMe?: boolean;
 }

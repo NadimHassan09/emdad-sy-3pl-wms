@@ -61,7 +61,7 @@ export function clientNotificationHref(notification: ClientNotification): string
     return `/ecommerce-orders/${id}`;
   }
   if ((type === 'return_order' || type === 'return' || type === 'oms_return') && id) {
-    return `/returns/${id}`;
+    return `/ecommerce-orders/returns/${id}`;
   }
   if (type === 'product' && id) {
     return `/products/${id}`;
@@ -81,7 +81,7 @@ export function clientNotificationHref(notification: ClientNotification): string
     return '/my-profits';
   }
   if (notifType.includes('return')) {
-    return id ? `/returns/${id}` : '/returns';
+    return id ? `/ecommerce-orders/returns/${id}` : '/ecommerce-orders/returns';
   }
   if (
     notifType.includes('oms') ||

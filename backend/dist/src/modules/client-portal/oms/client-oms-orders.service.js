@@ -15,16 +15,36 @@ const client_1 = require("@prisma/client");
 const client_auth_principal_1 = require("../../../common/auth/client-auth-principal");
 const prisma_service_1 = require("../../../common/prisma/prisma.service");
 const tenant_rls_1 = require("../../../common/prisma/tenant-rls");
-const oms_order_events_service_1 = require("../../oms/oms-order-events.service");
 const oms_orders_service_1 = require("../../oms/oms-orders.service");
+function portalCodStatusFromRecord(status) {
+    switch (status) {
+        case client_1.CodRecordStatus.available:
+            return client_1.OmsCodStatus.collected;
+        case client_1.CodRecordStatus.paid_out:
+            return client_1.OmsCodStatus.remitted;
+        case client_1.CodRecordStatus.pending:
+        default:
+            return client_1.OmsCodStatus.pending;
+    }
+}
+function matchesPortalCodFilter(portalStatus, filter) {
+    if (!filter?.trim())
+        return true;
+    const f = filter.trim();
+    if (f === 'settled')
+        return portalStatus === client_1.OmsCodStatus.remitted;
+    if (f === 'available')
+        return portalStatus === client_1.OmsCodStatus.collected;
+    if (f === 'paid_out')
+        return portalStatus === client_1.OmsCodStatus.remitted;
+    return portalStatus === f;
+}
 let ClientOmsOrdersService = class ClientOmsOrdersService {
     prisma;
     omsOrders;
-    events;
-    constructor(prisma, omsOrders, events) {
+    constructor(prisma, omsOrders) {
         this.prisma = prisma;
         this.omsOrders = omsOrders;
-        this.events = events;
     }
     async list(client, query) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
@@ -59,8 +79,7 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
     }
     async findOne(client, id) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
-        const order = await this.omsOrders.findById(id, user);
-        return order;
+        return this.omsOrders.findById(id, user);
     }
     async timeline(client, id) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
@@ -68,31 +87,83 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
     }
     async codReport(client, query) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
-        const where = {
-            companyId: client.companyId,
-            paymentMethod: 'COD',
-        };
-        if (query.codStatus?.trim()) {
-            const status = query.codStatus.trim();
-            if (Object.values(client_1.OmsCodStatus).includes(status)) {
-                where.codStatus = status;
+        const createdAt = query.dateFrom || query.dateTo
+            ? {
+                ...(query.dateFrom
+                    ? { gte: new Date(`${query.dateFrom}T00:00:00.000Z`) }
+                    : {}),
+                ...(query.dateTo
+                    ? { lte: new Date(`${query.dateTo}T23:59:59.999Z`) }
+                    : {}),
             }
-        }
-        if (query.dateFrom || query.dateTo) {
-            const createdAt = {};
-            if (query.dateFrom)
-                createdAt.gte = new Date(`${query.dateFrom}T00:00:00.000Z`);
-            if (query.dateTo)
-                createdAt.lte = new Date(`${query.dateTo}T23:59:59.999Z`);
-            where.createdAt = createdAt;
-        }
+            : undefined;
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
-            const [items, total, summary] = await Promise.all([
-                tx.omsOrder.findMany({
-                    where,
+            const [codRecords, legacyOrders] = await Promise.all([
+                tx.codRecord.findMany({
+                    where: {
+                        companyId: client.companyId,
+                        ...(createdAt
+                            ? {
+                                omsOrder: {
+                                    paymentMethod: 'COD',
+                                    createdAt,
+                                    ...(query.storeChannel?.trim()
+                                        ? {
+                                            storeChannel: {
+                                                contains: query.storeChannel.trim(),
+                                                mode: 'insensitive',
+                                            },
+                                        }
+                                        : {}),
+                                },
+                            }
+                            : {
+                                omsOrder: {
+                                    paymentMethod: 'COD',
+                                    ...(query.storeChannel?.trim()
+                                        ? {
+                                            storeChannel: {
+                                                contains: query.storeChannel.trim(),
+                                                mode: 'insensitive',
+                                            },
+                                        }
+                                        : {}),
+                                },
+                            }),
+                    },
+                    include: {
+                        adjustments: { select: { amount: true } },
+                        omsOrder: {
+                            select: {
+                                id: true,
+                                orderNumber: true,
+                                status: true,
+                                recipientName: true,
+                                currency: true,
+                                createdAt: true,
+                                deliveredAt: true,
+                                storeChannel: true,
+                            },
+                        },
+                    },
                     orderBy: { createdAt: 'desc' },
-                    take: query.limit,
-                    skip: query.offset,
+                }),
+                tx.omsOrder.findMany({
+                    where: {
+                        companyId: client.companyId,
+                        paymentMethod: 'COD',
+                        codRecord: null,
+                        ...(createdAt ? { createdAt } : {}),
+                        ...(query.storeChannel?.trim()
+                            ? {
+                                storeChannel: {
+                                    contains: query.storeChannel.trim(),
+                                    mode: 'insensitive',
+                                },
+                            }
+                            : {}),
+                    },
+                    orderBy: { createdAt: 'desc' },
                     select: {
                         id: true,
                         orderNumber: true,
@@ -107,24 +178,58 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
                         deliveredAt: true,
                     },
                 }),
-                tx.omsOrder.count({ where }),
-                tx.omsOrder.aggregate({
-                    where,
-                    _sum: { codAmount: true },
-                    _count: { id: true },
-                }),
             ]);
+            const rows = [];
+            for (const rec of codRecords) {
+                const adjSum = rec.adjustments.reduce((s, a) => s.add(a.amount), new client_1.Prisma.Decimal(0));
+                const current = rec.originalAmount.add(adjSum);
+                const portalStatus = portalCodStatusFromRecord(rec.status);
+                rows.push({
+                    id: rec.omsOrder.id,
+                    orderNumber: rec.omsOrder.orderNumber,
+                    status: rec.omsOrder.status,
+                    recipientName: rec.omsOrder.recipientName,
+                    codAmount: current.toString(),
+                    codStatus: portalStatus,
+                    codCollectedAt: rec.availableAt,
+                    codRemittedAt: rec.paidOutAt,
+                    currency: rec.currency ?? rec.omsOrder.currency,
+                    createdAt: rec.omsOrder.createdAt,
+                    deliveredAt: rec.omsOrder.deliveredAt,
+                    codRecordId: rec.id,
+                });
+            }
+            for (const order of legacyOrders) {
+                rows.push({
+                    id: order.id,
+                    orderNumber: order.orderNumber,
+                    status: order.status,
+                    recipientName: order.recipientName,
+                    codAmount: order.codAmount?.toString() ?? null,
+                    codStatus: order.codStatus,
+                    codCollectedAt: order.codCollectedAt,
+                    codRemittedAt: order.codRemittedAt,
+                    currency: order.currency,
+                    createdAt: order.createdAt,
+                    deliveredAt: order.deliveredAt,
+                });
+            }
+            const filtered = rows.filter((r) => matchesPortalCodFilter(r.codStatus, query.codStatus));
+            filtered.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+            const total = filtered.length;
+            const page = filtered.slice(query.offset, query.offset + query.limit);
+            const totalCodAmount = filtered.reduce((sum, r) => {
+                const n = Number(r.codAmount);
+                return sum + (Number.isFinite(n) ? n : 0);
+            }, 0);
             return {
-                items: items.map((row) => ({
-                    ...row,
-                    codAmount: row.codAmount?.toString() ?? null,
-                })),
+                items: page,
                 total,
                 limit: query.limit,
                 offset: query.offset,
                 summary: {
-                    orderCount: summary._count.id,
-                    totalCodAmount: summary._sum.codAmount?.toString() ?? '0',
+                    orderCount: total,
+                    totalCodAmount: String(totalCodAmount),
                 },
             };
         });
@@ -134,7 +239,6 @@ exports.ClientOmsOrdersService = ClientOmsOrdersService;
 exports.ClientOmsOrdersService = ClientOmsOrdersService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        oms_orders_service_1.OmsOrdersService,
-        oms_order_events_service_1.OmsOrderEventsService])
+        oms_orders_service_1.OmsOrdersService])
 ], ClientOmsOrdersService);
 //# sourceMappingURL=client-oms-orders.service.js.map

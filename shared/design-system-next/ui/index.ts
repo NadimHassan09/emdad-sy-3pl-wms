@@ -47,6 +47,8 @@ export type { UiTheme, UiThemePreference, UseUiThemeOptions } from '../lib/use-u
 export { useDebouncedValue } from '../lib/use-debounced-value';
 export { LanguageSwitchOverlay } from './LanguageSwitchOverlay';
 export type { LanguageSwitchOverlayProps } from './LanguageSwitchOverlay';
+export { UiSwitchOverlay } from './UiSwitchOverlay';
+export type { UiSwitchOverlayProps } from './UiSwitchOverlay';
 
 export { LoginScreen } from './LoginScreen';
 export type { LoginScreenProps, LoginRememberedAccount } from './LoginScreen';

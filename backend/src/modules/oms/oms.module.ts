@@ -4,6 +4,7 @@ import { AuditModule } from '../../common/audit/audit.module';
 import { CompanyAccessModule } from '../../common/company-access/company-access.module';
 import { OutboundModule } from '../outbound/outbound.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { CodModule } from '../cod/cod.module';
 import { OmsController } from './oms.controller';
 import { OmsDashboardService } from './oms-dashboard.service';
 import { OmsOrderEventsService } from './oms-order-events.service';
@@ -14,7 +15,13 @@ import { OmsWebhooksController } from './sales-channels/oms-webhooks.controller'
 import { OrderAllocationService } from './order-allocation.service';
 
 @Module({
-  imports: [AuditModule, CompanyAccessModule, RealtimeModule, forwardRef(() => OutboundModule)],
+  imports: [
+    AuditModule,
+    CompanyAccessModule,
+    RealtimeModule,
+    forwardRef(() => OutboundModule),
+    forwardRef(() => CodModule),
+  ],
   controllers: [OmsController, OmsWebhooksController],
   providers: [
     OrderAllocationService,

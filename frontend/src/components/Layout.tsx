@@ -39,7 +39,7 @@ import {
   TopbarNotifications,
   TopbarThemeToggle,
   TopbarUserMenu,
-  LanguageSwitchOverlay,
+  UiSwitchOverlay,
   cn,
   renderSidebarNavIcon,
   useUiLanguage,
@@ -213,11 +213,38 @@ export function Layout() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const { language, setLanguage, isArabic, isSwitching } = useUiLanguage({
+  const { language, setLanguage, isArabic, isSwitching: isLanguageSwitching } = useUiLanguage({
     storageKey: 'wms-ui-language',
     eventName: 'wms-ui-language-changed',
+    minLoadingMs: 700,
   });
-  const { isDark, toggle: toggleTheme } = useUiTheme({ storageKey: 'admin-ui-theme' });
+  const {
+    isDark,
+    toggle: toggleTheme,
+    isSwitching: isThemeSwitching,
+    switchingTo,
+  } = useUiTheme({ storageKey: 'admin-ui-theme', minLoadingMs: 700 });
+
+  const transitionOverlayOpen = isLanguageSwitching || isThemeSwitching;
+  const transitionOverlayCopy = (() => {
+    if (isThemeSwitching) {
+      const toDark = (switchingTo ?? (isDark ? 'light' : 'dark')) === 'dark';
+      if (isArabic) {
+        return {
+          title: toDark ? 'جاري التبديل إلى الوضع الداكن…' : 'جاري التبديل إلى الوضع الفاتح…',
+          hint: 'يتم تحديث المظهر',
+        };
+      }
+      return {
+        title: toDark ? 'Switching to dark mode…' : 'Switching to light mode…',
+        hint: 'Updating appearance',
+      };
+    }
+    if (isArabic) {
+      return { title: 'جاري تحميل اللغة…', hint: 'يتم تحديث الواجهة' };
+    }
+    return { title: 'Loading language…', hint: 'Updating interface' };
+  })();
 
   const t = (label: string) => sidebarLabel(label, isArabic);
 
@@ -302,7 +329,11 @@ export function Layout() {
 
   return (
     <>
-      <LanguageSwitchOverlay open={isSwitching} language={language} />
+      <UiSwitchOverlay
+        open={transitionOverlayOpen}
+        title={transitionOverlayCopy.title}
+        hint={transitionOverlayCopy.hint}
+      />
       <div id="admin-root" key={language} className="h-dvh max-h-dvh overflow-hidden">
         <AppShell>
           <AppShell.SkipNav />

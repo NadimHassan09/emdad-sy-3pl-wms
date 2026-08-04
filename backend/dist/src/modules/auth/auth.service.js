@@ -101,7 +101,9 @@ let AuthService = class AuthService {
             newState: { lastLoginAt: now.toISOString(), lastActivityAt: now.toISOString() },
         }));
         const accessExpiresIn = this.config.get('JWT_ACCESS_EXPIRES_IN') ?? DEFAULT_ACCESS_EXPIRES;
-        const refreshExpiresIn = this.config.get('JWT_REFRESH_EXPIRES_IN') ?? DEFAULT_REFRESH_EXPIRES;
+        const refreshExpiresIn = dto.rememberMe
+            ? '30d'
+            : this.config.get('JWT_REFRESH_EXPIRES_IN') ?? DEFAULT_REFRESH_EXPIRES;
         const accessMaxAgeMs = this.expiresInToMs(accessExpiresIn);
         const refreshMaxAgeMs = this.expiresInToMs(refreshExpiresIn);
         const refreshExpiresAt = new Date(Date.now() + refreshMaxAgeMs);

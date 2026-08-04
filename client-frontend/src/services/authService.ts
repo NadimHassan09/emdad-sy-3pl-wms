@@ -20,8 +20,16 @@ export async function login(
   password: string,
   options?: { persistSession?: boolean },
 ): Promise<ClientUser> {
-  const { data } = await apiClient.post<ClientLoginPayload>('/auth/login', { email, password });
-  setStoredBearer(data.access_token, Boolean(options?.persistSession));
+  const rememberMe = Boolean(options?.persistSession);
+  const body: { email: string; password: string; rememberMe?: boolean } = {
+    email,
+    password,
+  };
+  if (rememberMe) {
+    body.rememberMe = true;
+  }
+  const { data } = await apiClient.post<ClientLoginPayload>('/auth/login', body);
+  setStoredBearer(data.access_token, rememberMe);
   return mapUser(data.user);
 }
 

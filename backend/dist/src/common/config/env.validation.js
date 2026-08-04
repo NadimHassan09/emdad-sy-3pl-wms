@@ -64,6 +64,8 @@ const envSchema = zod_1.z.object({
     BACKUP_GDRIVE_STARTUP_STRICT: zod_1.z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
     CRON_LEADER_ENABLED: zod_1.z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
     DOCUMENT_STORAGE_DIR: zod_1.z.string().min(1).optional(),
+    MEDIA_STORAGE_DIR: zod_1.z.string().min(1).optional(),
+    MEDIA_MAX_UPLOAD_BYTES: zod_1.z.coerce.number().int().positive().optional(),
     DOCUMENT_DEFAULT_LANG: zod_1.z.enum(['en', 'ar']).optional(),
     PUPPETEER_EXECUTABLE_PATH: zod_1.z.string().min(1).optional(),
     DOC_BRAND_NAME: zod_1.z.string().min(1).optional(),

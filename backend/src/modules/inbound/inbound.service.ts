@@ -67,6 +67,7 @@ const ORDER_INCLUDE = {
           trackingType: true,
           uom: true,
           expiryTracking: true,
+          imagePath: true,
         },
       },
     },
@@ -83,6 +84,21 @@ const INBOUND_CONFIRMABLE: InboundOrderStatus[] = [
 
 function isInboundConfirmable(status: InboundOrderStatus): boolean {
   return INBOUND_CONFIRMABLE.includes(status);
+}
+
+/** Plan edits after confirm are allowed until any quantity has been received. */
+function isInboundPlanEditable(
+  status: InboundOrderStatus,
+  lines: Array<{ receivedQuantity: Prisma.Decimal }>,
+): boolean {
+  if (isInboundConfirmable(status)) return true;
+  if (
+    status !== InboundOrderStatus.confirmed &&
+    status !== InboundOrderStatus.in_progress
+  ) {
+    return false;
+  }
+  return lines.every((l) => l.receivedQuantity.lte(0));
 }
 
 // Only cancelled orders may be permanently deleted by an admin. Every other
@@ -249,7 +265,7 @@ export class InboundService {
     });
   }
 
-  async list(user: AuthPrincipal, query: ListInboundQueryDto) {
+  async list(user: AuthPrincipal, query: ListInboundQueryDto & { statusIn?: InboundOrderStatus[] }) {
     const baseAnd: Prisma.InboundOrderWhereInput[] = [];
     const where: Prisma.InboundOrderWhereInput = {};
 
@@ -257,7 +273,11 @@ export class InboundService {
     if (companyId) {
       where.companyId = companyId;
     }
-    if (query.status) where.status = query.status;
+    if (query.statusIn?.length) {
+      where.status = { in: query.statusIn };
+    } else if (query.status) {
+      where.status = query.status;
+    }
 
     if (query.orderSearch?.trim()) {
       const t = query.orderSearch.trim();
@@ -319,9 +339,9 @@ export class InboundService {
 
   async updatePlan(user: AuthPrincipal, id: string, dto: UpdateInboundPlanDto) {
     const order = await this.findById(id, user);
-    if (!isInboundConfirmable(order.status)) {
+    if (!isInboundPlanEditable(order.status, order.lines)) {
       throw new InvalidStateException(
-        `Plan can only be updated while draft (current: ${order.status}).`,
+        `Plan can only be updated before receiving starts (current: ${order.status}).`,
       );
     }
     const executionMode = normalizeExecutionMode(dto.executionMode ?? order.executionMode);
@@ -497,6 +517,14 @@ export class InboundService {
     if (order.lines.length === 0) {
       throw new BadRequestException('Add at least one line before confirming this order.');
     }
+    // Unified Order Execution: Confirm/Release requires the same complete plan (no operational prompts).
+    const releasePlan = parseInboundExecutionPlan(order.executionPlan);
+    if (!releasePlan) {
+      throw new BadRequestException(
+        'A complete execution plan is required before confirmation or release.',
+      );
+    }
+    assertInboundAdminPlanComplete(releasePlan);
     if (taskOnlyFlows(this.config)) {
       if (!body?.warehouseId || !body.stagingByLineId) {
         throw new BadRequestException(
@@ -846,7 +874,7 @@ export class InboundService {
         }
       }
 
-      const stockMeta = await this.stock.upsertPositiveWithMeta(tx, {
+      await this.stock.upsertPositive(tx, {
         companyId: order.companyId,
         productId: line.productId,
         locationId: dto.locationId,
@@ -863,8 +891,6 @@ export class InboundService {
           toLocationId: dto.locationId,
           movementType: 'inbound_receive',
           quantity: new Prisma.Decimal(dto.quantity),
-          quantityBefore: stockMeta.before,
-          quantityAfter: stockMeta.after,
           referenceType: 'inbound_order',
           referenceId: orderId,
           operatorId: user.id,

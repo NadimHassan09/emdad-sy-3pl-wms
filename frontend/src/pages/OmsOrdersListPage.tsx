@@ -15,7 +15,7 @@ import { Column, DataTable } from '../components/DataTable';
 import { FilterPanel, FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
 import { RowActionsMenu } from '../components/RowActionsMenu';
 import { SelectField } from '../components/SelectField';
-import { StatusBadge } from '../components/StatusBadge';
+import { OmsStatusBadge } from '../components/oms/OmsStatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
@@ -25,6 +25,7 @@ import {
 } from '../hooks/useChunkedServerPagination';
 import { useFilters } from '../hooks/useFilters';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
+import { OMS_COMMERCIAL_FILTER_OPTIONS } from '../lib/oms-commercial-status';
 import { canAccessInternalTransfer } from '../lib/rbac';
 
 type ListDraft = {
@@ -57,7 +58,6 @@ export function OmsOrdersListPage() {
     typeof window !== 'undefined' &&
     (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
 
-  const [createOpen, setCreateOpen] = useState(false);
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const [deleteOrder, setDeleteOrder] = useState<OmsOrderListItem | null>(null);
 
@@ -123,7 +123,7 @@ export function OmsOrdersListPage() {
     },
     {
       header: 'Status',
-      accessor: (row) => <StatusBadge status={row.status} />,
+      accessor: (row) => <OmsStatusBadge status={row.status} isArabic={isArabic} />,
     },
     {
       header: 'Sales Channel',
@@ -183,7 +183,7 @@ export function OmsOrdersListPage() {
         <Button
           variant="primary"
           size="md"
-          onClick={() => setCreateOpen(true)}
+          onClick={() => navigate('/orders/oms/new')}
           className={FILTER_PRIMARY_BUTTON_CLASS}
         >
           Create OMS Order
@@ -213,22 +213,7 @@ export function OmsOrdersListPage() {
           onChange={(e) => setDraft({ status: e.target.value })}
           options={[
             { value: '', label: 'All statuses' },
-            { value: 'pending_approval', label: 'Pending approval' },
-            { value: 'approved', label: 'Approved' },
-            { value: 'rejected', label: 'Rejected' },
-            { value: 'draft', label: 'Draft' },
-            { value: 'confirmed', label: 'Confirmed' },
-            { value: 'allocated', label: 'Allocated' },
-            { value: 'picking', label: 'Picking' },
-            { value: 'packing', label: 'Packing' },
-            { value: 'ready_to_ship', label: 'Ready to ship' },
-            { value: 'out_for_delivery', label: 'Out for delivery' },
-            { value: 'shipped', label: 'Shipped' },
-            { value: 'delivered', label: 'Delivered' },
-            { value: 'failed_delivery', label: 'Failed delivery' },
-            { value: 'completed', label: 'Completed' },
-            { value: 'returned', label: 'Returned' },
-            { value: 'cancelled', label: 'Cancelled' },
+            ...OMS_COMMERCIAL_FILTER_OPTIONS.filter((o) => o.value !== ''),
           ]}
         />
         <TextField
@@ -269,15 +254,6 @@ export function OmsOrdersListPage() {
         loading={pagination.isInitialLoading}
         onRowClick={(row) => navigate(`/orders/oms/${row.id}`)}
         empty="No e-commerce orders match the filters."
-      />
-
-      <OmsOrderFormModal
-        open={createOpen}
-        mode="create"
-        onClose={() => setCreateOpen(false)}
-        onSaved={() => {
-          void qc.invalidateQueries({ queryKey: QK.omsOrders });
-        }}
       />
 
       <OmsOrderFormModal

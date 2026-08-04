@@ -20,6 +20,7 @@ const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard")
 const roles_decorator_1 = require("../../common/auth/roles.decorator");
 const roles_guard_1 = require("../../common/auth/roles.guard");
 const availability_query_dto_1 = require("./dto/availability-query.dto");
+const balance_history_query_dto_1 = require("./dto/balance-history-query.dto");
 const consistency_query_dto_1 = require("./dto/consistency-query.dto");
 const internal_transfer_dto_1 = require("./dto/internal-transfer.dto");
 const ledger_entry_query_dto_1 = require("./dto/ledger-entry-query.dto");
@@ -35,6 +36,9 @@ let InventoryController = class InventoryController {
     }
     stockByProduct(user, query) {
         return this.inventory.stockByProductSummary(user, query);
+    }
+    balanceHistory(user, query) {
+        return this.inventory.balanceHistory(user, query);
     }
     stock(user, query) {
         return this.inventory.stock(user, query);
@@ -67,6 +71,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, stock_query_dto_1.StockQueryDto]),
     __metadata("design:returntype", void 0)
 ], InventoryController.prototype, "stockByProduct", null);
+__decorate([
+    (0, common_1.Get)('stock/balance-history'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, balance_history_query_dto_1.BalanceHistoryQueryDto]),
+    __metadata("design:returntype", void 0)
+], InventoryController.prototype, "balanceHistory", null);
 __decorate([
     (0, common_1.Get)('stock'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

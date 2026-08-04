@@ -8,23 +8,25 @@ exports.ledgerEntrySiblingRowsSql = ledgerEntrySiblingRowsSql;
 exports.ledgerBusinessGroupPageSql = ledgerBusinessGroupPageSql;
 const client_1 = require("@prisma/client");
 const company_read_scope_1 = require("../../common/auth/company-read-scope");
-const BUSINESS_LEDGER_MOVEMENTS = [
-    client_1.MovementType.inbound_receive,
-    client_1.MovementType.outbound_pick,
-    client_1.MovementType.adjustment_positive,
-    client_1.MovementType.adjustment_negative,
-];
-function expandMovementFilter(movementType) {
-    if (!movementType)
-        return BUSINESS_LEDGER_MOVEMENTS;
+const ledger_mapper_1 = require("./ledger-mapper");
+function expandMovementFilter(movementType, includeInternal) {
     if (movementType === 'inbound')
         return [client_1.MovementType.inbound_receive];
     if (movementType === 'outbound')
         return [client_1.MovementType.outbound_pick];
+    if (movementType === 'return')
+        return [client_1.MovementType.return_receive];
     if (movementType === 'adjustment') {
         return [client_1.MovementType.adjustment_positive, client_1.MovementType.adjustment_negative];
     }
-    return [movementType];
+    if (movementType === 'transfer')
+        return [client_1.MovementType.internal_transfer];
+    if (movementType)
+        return [movementType];
+    if (includeInternal) {
+        return [...ledger_mapper_1.PRIMARY_LEDGER_MOVEMENTS, ...ledger_mapper_1.INTERNAL_LEDGER_MOVEMENTS];
+    }
+    return [...ledger_mapper_1.PRIMARY_LEDGER_MOVEMENTS];
 }
 function ledgerBusinessGroupKeySql(alias = 'il') {
     const a = client_1.Prisma.raw(alias);
@@ -42,6 +44,8 @@ function ledgerBusinessGroupKeySql(alias = 'il') {
            CASE ${a}.movement_type
              WHEN 'inbound_receive' THEN 'inbound'
              WHEN 'outbound_pick' THEN 'outbound'
+             WHEN 'return_receive' THEN 'return'
+             WHEN 'internal_transfer' THEN 'transfer'
              ELSE 'adjustment'
            END || ':' || ${a}.id::text
     END
@@ -66,8 +70,9 @@ async function buildLedgerListSqlContext(_prisma, companyAccess, user, query) {
         client_1.Prisma.sql `LEFT JOIN lots l ON l.id = il.lot_id`,
         client_1.Prisma.sql `INNER JOIN users u ON u.id = il.operator_id`,
     ];
+    const includeInternal = query.includeInternal === true;
     const conditions = [
-        client_1.Prisma.sql `il.movement_type IN (${client_1.Prisma.join(expandMovementFilter(query.movementType).map((t) => client_1.Prisma.sql `${t}::movement_type`), ', ')})`,
+        client_1.Prisma.sql `il.movement_type IN (${client_1.Prisma.join(expandMovementFilter(query.movementType, includeInternal).map((t) => client_1.Prisma.sql `${t}::movement_type`), ', ')})`,
     ];
     if (companyId) {
         conditions.unshift(client_1.Prisma.sql `il.company_id = ${companyId}::uuid`);
@@ -121,6 +126,45 @@ async function buildLedgerListSqlContext(_prisma, companyAccess, user, query) {
       )
     )`);
     }
+    if (query.operatorId) {
+        conditions.push(client_1.Prisma.sql `il.operator_id = ${query.operatorId}::uuid`);
+    }
+    if (query.operatorSearch?.trim()) {
+        const pattern = `%${query.operatorSearch.trim()}%`;
+        conditions.push(client_1.Prisma.sql `u.full_name ILIKE ${pattern}`);
+    }
+    if (query.locationId) {
+        conditions.push(client_1.Prisma.sql `(
+      il.from_location_id = ${query.locationId}::uuid
+      OR il.to_location_id = ${query.locationId}::uuid
+    )`);
+    }
+    if (query.lotId) {
+        conditions.push(client_1.Prisma.sql `il.lot_id = ${query.lotId}::uuid`);
+    }
+    else if (query.lotNumber?.trim()) {
+        const pattern = `%${query.lotNumber.trim()}%`;
+        conditions.push(client_1.Prisma.sql `l.lot_number ILIKE ${pattern}`);
+    }
+    if (query.referenceSearch?.trim()) {
+        const term = query.referenceSearch.trim();
+        const pattern = `%${term}%`;
+        conditions.push(client_1.Prisma.sql `(
+      il.reference_id::text ILIKE ${pattern}
+      OR EXISTS (
+        SELECT 1 FROM inbound_orders io
+         WHERE io.id = il.reference_id AND io.order_number ILIKE ${pattern}
+      )
+      OR EXISTS (
+        SELECT 1 FROM outbound_orders oo
+         WHERE oo.id = il.reference_id AND oo.order_number ILIKE ${pattern}
+      )
+      OR EXISTS (
+        SELECT 1 FROM return_orders ro
+         WHERE ro.id = il.reference_id AND ro.order_number ILIKE ${pattern}
+      )
+    )`);
+    }
     return {
         joins: client_1.Prisma.join(joins, ' '),
         where: client_1.Prisma.join(conditions, ' AND '),
@@ -150,8 +194,6 @@ const LEDGER_GROUP_PAGE_CTE = (ctx) => client_1.Prisma.sql `
       il.movement_type,
       il.reference_type,
       il.reference_id,
-      il.quantity_before,
-      il.quantity_after,
       il.from_location_id,
       il.to_location_id,
       il.notes,
@@ -197,8 +239,6 @@ const LEDGER_GROUP_PAGE_CTE = (ctx) => client_1.Prisma.sql `
       (array_agg(f.operator_id ORDER BY f.created_at ASC, f.id ASC))[1] AS operator_id,
       (array_agg(f.operator_full_name ORDER BY f.created_at ASC, f.id ASC))[1] AS operator_full_name,
       (array_agg(f.notes ORDER BY f.created_at ASC, f.id ASC))[1] AS notes,
-      (array_agg(f.quantity_before ORDER BY f.created_at ASC, f.id ASC))[1] AS quantity_before,
-      (array_agg(f.quantity_after ORDER BY f.created_at DESC, f.id DESC))[1] AS quantity_after,
       SUM(f.signed_qty)::text AS signed_delta,
       COALESCE(MAX(lc.loc_count), 0)::int AS loc_count
       FROM filtered f
@@ -235,8 +275,6 @@ function ledgerEntrySiblingRowsSql(input) {
       il.reference_type::text AS reference_type,
       il.reference_id,
       il.quantity::text AS quantity,
-      il.quantity_before::text AS quantity_before,
-      il.quantity_after::text AS quantity_after,
       il.from_location_id,
       il.to_location_id,
       il.operator_id,
@@ -251,12 +289,6 @@ function ledgerEntrySiblingRowsSql(input) {
        AND il.reference_type = ${input.referenceType}::ledger_ref_type
        AND il.reference_id = ${input.referenceId}::uuid
        AND il.product_id = ${input.productId}::uuid
-       AND il.movement_type IN (
-         'inbound_receive'::movement_type,
-         'outbound_pick'::movement_type,
-         'adjustment_positive'::movement_type,
-         'adjustment_negative'::movement_type
-       )
        AND ${ledgerBusinessGroupKeySql('il')} = ${input.groupKey}
        ${warehouseCond}
      ORDER BY il.created_at ASC, il.id ASC
@@ -282,8 +314,6 @@ function ledgerBusinessGroupPageSql(ctx, limit, offset) {
       operator_id,
       operator_full_name,
       notes,
-      quantity_before::text AS quantity_before,
-      quantity_after::text AS quantity_after,
       signed_delta,
       loc_count
       FROM groups

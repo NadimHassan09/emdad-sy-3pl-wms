@@ -2,12 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Alert } from '@ds';
+
 import { CompaniesApi } from '../api/companies';
 import { InventoryApi, ProductStockSummaryRow } from '../api/inventory';
 import { AdminListPageShell } from '../components/AdminListPageShell';
 import { BarcodeImageModal } from '../components/BarcodeImageModal';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
-import { Alert, Badge } from '@ds';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
@@ -17,32 +18,12 @@ import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
-import { useFilters } from '../hooks/useFilters';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
-import {
-  stockHealthBarClass,
-  stockHealthLabel,
-  stockHealthProgress,
-  stockHealthStatus,
-  type StockHealthStatus,
-} from '../lib/stock-health';
-
-function stockHealthTone(status: StockHealthStatus): 'success' | 'warning' | 'danger' | 'neutral' {
-  switch (status) {
-    case 'healthy':
-      return 'success';
-    case 'low_stock':
-      return 'warning';
-    case 'critical':
-    case 'out_of_stock':
-      return 'danger';
-    default:
-      return 'neutral';
-  }
-}
+import { useFilters } from '../hooks/useFilters';
+import { fmtSignedDelta, ledgerMovementCategory } from '../lib/ledger-display';
 
 const fmtQty = (s: string): string => {
   const n = Number(s);
@@ -64,96 +45,28 @@ function uomLabel(uom: string) {
   return UOM_OPTIONS.find((o) => o.value === uom)?.label ?? uom;
 }
 
-const SUMMARY_COLUMNS: Column<ProductStockSummaryRow>[] = [
-  {
-    header: 'Product',
-    accessor: (r) => <span className="font-medium text-text-strong">{r.product.name}</span>,
-    width: '280px',
-  },
-  {
-    header: 'Client',
-    accessor: (r) => r.client.name,
-    width: '180px',
-  },
-  {
-    header: 'SKU',
-    accessor: (r) => <span className="font-mono text-xs">{r.product.sku}</span>,
-    width: '160px',
-  },
-  {
-    header: 'Barcode',
-    accessor: (r) =>
-      r.product.barcode ? (
-        <span className="font-mono text-xs text-text-body">{r.product.barcode}</span>
-      ) : (
-        <span className="text-text-faint">—</span>
-      ),
-    width: '160px',
-  },
-  {
-    header: 'On hand',
-    accessor: (r) => {
-      const stock = Number(r.onHand ?? r.totalQuantity ?? 0);
-      const threshold = r.minStockThreshold ?? 0;
-      const status = stockHealthStatus(stock, threshold);
-      const percent = stockHealthProgress(stock, threshold);
-      return (
-        <div className="flex items-center justify-end gap-2">
-          {percent != null ? (
-            <div className="h-1.5 w-12 overflow-hidden rounded-full bg-surface-sunken shrink-0">
-              <div
-                className={`h-full rounded-full ${stockHealthBarClass(status)}`}
-                style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
-              />
-            </div>
-          ) : null}
-          <span className="font-mono font-semibold text-text-strong tabular-nums">
-            {fmtQty(r.onHand ?? r.totalQuantity)}
-          </span>
-        </div>
-      );
-    },
-    width: '140px',
-    className: 'text-right',
-  },
-  {
-    header: 'Reserved',
-    accessor: (r) => (
-      <span className="font-mono text-right block text-text-body">{fmtQty(r.reserved ?? '0')}</span>
-    ),
-    width: '100px',
-    className: 'text-right',
-  },
-  {
-    header: 'Available',
-    accessor: (r) => (
-      <span className="font-mono text-right block text-text-body">{fmtQty(r.available ?? '0')}</span>
-    ),
-    width: '100px',
-    className: 'text-right',
-  },
-  {
-    header: 'Stock health',
-    accessor: (r) => {
-      const status = stockHealthStatus(
-        Number(r.available ?? r.onHand ?? r.totalQuantity ?? 0),
-        r.minStockThreshold ?? 0,
-      );
-      if (!status) return <span className="text-text-faint">—</span>;
-      return (
-        <Badge tone={stockHealthTone(status)} size="xs" dot>
-          {stockHealthLabel(status)}
-        </Badge>
-      );
-    },
-    width: '120px',
-  },
-  {
-    header: 'UOM',
-    accessor: (r) => <span className="text-text-body">{uomLabel(r.product.uom)}</span>,
-    width: '100px',
-  },
-];
+function LastMovementCell({ row }: { row: ProductStockSummaryRow }) {
+  const mv = row.lastMovement;
+  if (!mv) return <span className="text-text-faint">—</span>;
+  const n = Number(mv.quantityChange);
+  const cat = ledgerMovementCategory(mv.movementType);
+  const up = n > 0 || cat === 'inbound' || cat === 'return';
+  const down = n < 0 || cat === 'outbound';
+  const color =
+    up && !down
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : down
+        ? 'text-rose-600 dark:text-rose-400'
+        : 'text-text-muted';
+  return (
+    <span
+      className={`inline-flex items-center gap-1 font-mono text-sm font-semibold tabular-nums ${color}`}
+    >
+      <span aria-hidden>{n < 0 || down ? '▼' : '▲'}</span>
+      {fmtSignedDelta(Number.isFinite(n) ? n : 0)}
+    </span>
+  );
+}
 
 type InventorySearchCategory = 'name' | 'sku' | 'barcode' | 'lotNumber' | 'inboundOrderNumber';
 
@@ -199,7 +112,8 @@ function inventorySearchParams(
 
 export function InventoryPage() {
   const isArabic =
-    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+    typeof window !== 'undefined' &&
+    (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (en: string, ar: string) => (isArabic ? ar : en);
   const navigate = useNavigate();
   const toast = useToast();
@@ -255,14 +169,25 @@ export function InventoryPage() {
 
   const summaryColumns: Column<ProductStockSummaryRow>[] = useMemo(
     () => [
-      { ...SUMMARY_COLUMNS[0], header: t('Product', 'المنتج') },
-      { ...SUMMARY_COLUMNS[1], header: t('Client', 'العميل') },
-      { ...SUMMARY_COLUMNS[2], header: t('SKU', 'رمز الصنف') },
       {
-        ...SUMMARY_COLUMNS[3],
+        header: t('Product', 'المنتج'),
+        accessor: (r) => <span className="font-medium text-text-strong">{r.product.name}</span>,
+        width: '240px',
+      },
+      {
+        header: t('Client', 'العميل'),
+        accessor: (r) => r.client.name,
+        width: '160px',
+      },
+      {
+        header: t('SKU', 'رمز الصنف'),
+        accessor: (r) => <span className="font-mono text-xs">{r.product.sku}</span>,
+        width: '140px',
+      },
+      {
         header: t('Barcode', 'الباركود'),
         width: '90px',
-        accessor: (r: ProductStockSummaryRow) =>
+        accessor: (r) =>
           r.product.barcode ? (
             <button
               type="button"
@@ -280,11 +205,26 @@ export function InventoryPage() {
             <span className="text-text-faint">—</span>
           ),
       },
-      { ...SUMMARY_COLUMNS[4], header: t('On hand', 'المتوفر') },
-      { ...SUMMARY_COLUMNS[5], header: t('Reserved', 'محجوز') },
-      { ...SUMMARY_COLUMNS[6], header: t('Available', 'متاح') },
-      { ...SUMMARY_COLUMNS[7], header: t('Total quantity', 'إجمالي الكمية') },
-      { ...SUMMARY_COLUMNS[8], header: t('UOM', 'وحدة القياس') },
+      {
+        header: t('Available stock', 'المخزون المتاح'),
+        accessor: (r) => (
+          <span className="block text-right font-mono text-base font-bold tabular-nums text-text-strong">
+            {fmtQty(r.available ?? '0')}
+          </span>
+        ),
+        width: '140px',
+        className: 'text-right',
+      },
+      {
+        header: t('Last movement', 'آخر حركة'),
+        accessor: (r) => <LastMovementCell row={r} />,
+        width: '130px',
+      },
+      {
+        header: t('Unit', 'الوحدة'),
+        accessor: (r) => <span className="text-text-body">{uomLabel(r.product.uom)}</span>,
+        width: '100px',
+      },
     ],
     [isArabic],
   );
@@ -293,6 +233,10 @@ export function InventoryPage() {
     <AdminListPageShell
       icon="fa-boxes-stacked"
       title={t('Inventory', 'المخزون')}
+      subtitle={t(
+        'Browse products and open details for stock history.',
+        'تصفح المنتجات وافتح التفاصيل لسجل المخزون.',
+      )}
       isArabic={isArabic}
     >
       {!warehouseIdForced && (
@@ -317,7 +261,9 @@ export function InventoryPage() {
           )}
           className="mb-4"
         >
-          <Alert.Action onClick={() => pagination.refetch()}>{t('Retry', 'إعادة المحاولة')}</Alert.Action>
+          <Alert.Action onClick={() => pagination.refetch()}>
+            {t('Retry', 'إعادة المحاولة')}
+          </Alert.Action>
         </Alert>
       )}
 
@@ -329,42 +275,42 @@ export function InventoryPage() {
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
       >
-          <TextField
-            label={t('Search', 'بحث')}
-            value={draftFilters.searchQuery}
-            onChange={(e) => setDraft({ searchQuery: e.target.value })}
-            placeholder={t('Contains…', 'يحتوي على…')}
-            className={draftFilters.searchCategory !== 'name' ? 'font-mono' : undefined}
-          />
-          <SelectField
-            label={t('Search by', 'البحث حسب')}
-            name="searchCategory"
-            value={draftFilters.searchCategory}
-            onChange={(e) =>
-              setDraft({ searchCategory: e.target.value as InventorySearchCategory })
-            }
-            options={searchCategoryOptions}
-          />
-          <FilterScanButton
-            label={t('Barcode', 'الباركود')}
-            onClick={() => setScanOpen(true)}
-            title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
-            ariaLabel={t('Scan barcode', 'مسح الباركود')}
-          />
-          <Combobox
-            label={t('Client', 'العميل')}
-            value={draftFilters.companyId}
-            onChange={(v) => setDraft({ companyId: v })}
-            options={[
-              { value: '', label: t('All clients', 'كل العملاء') },
-              ...(companies.data ?? []).map((c) => ({
-                value: c.id,
-                label: c.name,
-                hint: c.contactEmail,
-              })),
-            ]}
-            placeholder={t('All clients', 'كل العملاء')}
-          />
+        <TextField
+          label={t('Search', 'بحث')}
+          value={draftFilters.searchQuery}
+          onChange={(e) => setDraft({ searchQuery: e.target.value })}
+          placeholder={t('Contains…', 'يحتوي على…')}
+          className={draftFilters.searchCategory !== 'name' ? 'font-mono' : undefined}
+        />
+        <SelectField
+          label={t('Search by', 'البحث حسب')}
+          name="searchCategory"
+          value={draftFilters.searchCategory}
+          onChange={(e) =>
+            setDraft({ searchCategory: e.target.value as InventorySearchCategory })
+          }
+          options={searchCategoryOptions}
+        />
+        <FilterScanButton
+          label={t('Barcode', 'الباركود')}
+          onClick={() => setScanOpen(true)}
+          title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
+          ariaLabel={t('Scan barcode', 'مسح الباركود')}
+        />
+        <Combobox
+          label={t('Client', 'العميل')}
+          value={draftFilters.companyId}
+          onChange={(v) => setDraft({ companyId: v })}
+          options={[
+            { value: '', label: t('All clients', 'كل العملاء') },
+            ...(companies.data ?? []).map((c) => ({
+              value: c.id,
+              label: c.name,
+              hint: c.contactEmail,
+            })),
+          ]}
+          placeholder={t('All clients', 'كل العملاء')}
+        />
       </FilterPanel>
 
       <DataTable

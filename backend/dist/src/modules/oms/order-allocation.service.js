@@ -87,7 +87,6 @@ let OrderAllocationService = class OrderAllocationService {
         }
         const allocatableStatuses = [
             client_1.OutboundOrderStatus.draft,
-            client_1.OutboundOrderStatus.pending_approval,
             client_1.OutboundOrderStatus.confirmed,
             client_1.OutboundOrderStatus.pending_stock,
         ];

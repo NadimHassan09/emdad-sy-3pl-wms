@@ -46,6 +46,8 @@ const reports_module_1 = require("./modules/reports/reports.module");
 const forms_module_1 = require("./modules/forms/forms.module");
 const final_contracts_module_1 = require("./modules/final-contracts/final-contracts.module");
 const oms_module_1 = require("./modules/oms/oms.module");
+const cod_module_1 = require("./modules/cod/cod.module");
+const oms_returns_module_1 = require("./modules/oms-returns/oms-returns.module");
 const pdf_module_1 = require("./pdf/pdf.module");
 let AppModule = class AppModule {
 };
@@ -100,6 +102,8 @@ exports.AppModule = AppModule = __decorate([
             forms_module_1.FormsModule,
             final_contracts_module_1.FinalContractsModule,
             oms_module_1.OmsModule,
+            cod_module_1.CodModule,
+            oms_returns_module_1.OmsReturnsModule,
             pdf_module_1.PdfModule,
         ],
         providers: [

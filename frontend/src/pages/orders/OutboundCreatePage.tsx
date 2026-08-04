@@ -1,8 +1,8 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { FormEvent, useEffect, useMemo, useState, type ReactElement } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
-import { Alert, AppPageHeader, Breadcrumb, Button, Card, Textarea } from '@ds';
+import { Alert, Button, Textarea } from '@ds';
 
 import { CompaniesApi } from '../../api/companies';
 import { InventoryApi } from '../../api/inventory';
@@ -10,16 +10,17 @@ import { CreateOutboundOrderInput, OutboundApi } from '../../api/outbound';
 import type { Product } from '../../api/products';
 import { ProductsApi } from '../../api/products';
 import { Combobox } from '../../components/Combobox';
-import { ProductThumbWithFallback } from '../../components/products/ProductThumb';
+import { DispatchDockPicker } from '../../components/locations/DispatchDockPicker';
+import { PackingLocationPicker } from '../../components/locations/PackingLocationPicker';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useDefaultWarehouseId } from '../../hooks/useDefaultWarehouse';
 import type { OrderExecutionMode, OutboundExecutionPlan } from '../../lib/execution-plan';
+import { outboundAdminPlanReadinessIssues } from '../../lib/execution-plan';
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../../lib/order-planning-dates';
 
 const DEFAULT_COMPANY_ID = (import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined) ?? '';
-const FORM_ID = 'outbound-plan-form';
 const NOTES_MAX = 500;
 
 const CARRIER_OPTIONS = [
@@ -41,11 +42,11 @@ function tLabel(label: string, ar: boolean): string {
   if (!ar) return label;
   const map: Record<string, string> = {
     'Outbound orders': 'طلبات الصادر',
-    New: 'جديد',
     'New outbound order': 'طلب صادر جديد',
     'Edit outbound plan': 'تعديل خطة الصادر',
     'Plan everything before execution.': 'خطّط كل شيء قبل التنفيذ.',
-    'Review and update the plan before execution.': 'راجع وحدّث الخطة قبل التنفيذ.',
+    'Create a warehouse shipment request': 'إنشاء طلب شحن صادر للمستودع',
+    'Back to outbound orders': 'العودة إلى طلبات الصادر',
     'Save plan': 'حفظ الخطة',
     Cancel: 'إلغاء',
     'General information': 'معلومات عامة',
@@ -61,58 +62,120 @@ function tLabel(label: string, ar: boolean): string {
     'Each product will be packed before dispatch.': 'سيُغلَّف كل منتج قبل الإرسال.',
     'When enabled, the workflow is: pick → pack → dispatch. When disabled, pick goes straight to the delivery area.':
       'عند التفعيل يكون المسار: التقاط ← تغليف ← إرسال. عند الإلغاء يذهب الالتقاط مباشرة إلى منطقة التسليم.',
+    'Packing location': 'موقع التغليف',
+    'Dispatch dock': 'رصيف الإرسال',
+    Warehouse: 'المستودع',
+    'Where items are packed before shipping.': 'مكان تغليف المنتجات قبل الشحن.',
+    'Where the shipment leaves the warehouse.': 'مكان مغادرة الشحنة للمستودع.',
+    'Set a default warehouse first.': 'عيّن مستودعاً افتراضياً أولاً.',
+    'Select a packing location.': 'اختر موقع التغليف.',
+    'Select a dispatch dock.': 'اختر رصيف الإرسال.',
     'Execution mode': 'وضع التنفيذ',
-    Recommended: 'موصى به',
     'Execute by Admin': 'تنفيذ بواسطة المسؤول',
-    'I will do everything myself. No tasks will be assigned to workers.':
-      'سأتولى كل شيء بنفسي. لن تُسند مهام إلى العمال.',
+    'I will do the warehouse work myself, then Confirm order.':
+      'سأتولى عمل المستودع بنفسي، ثم أؤكّد الطلب.',
     'Pick, pack (if required) and dispatch': 'التقاط وتغليف (إن لزم) وإرسال',
-    'No tasks will be created.': 'لن تُنشأ مهام.',
+    'Confirm once from the order page — no stage tabs.':
+      'تأكيد واحد من صفحة الطلب — بدون تبويبات مراحل.',
     'Execute by Workers': 'تنفيذ بواسطة العمال',
-    'Tasks will be created and assigned to warehouse workers.':
-      'ستُنشأ مهام وتُسند إلى عمال المستودع.',
+    'Release to workers after the plan is ready. Workers execute Tasks.':
+      'أطلق للعمال بعد جاهزية الخطة. العمال ينفّذون المهام.',
     'Tasks will be created for workers': 'ستُنشأ مهام للعمال',
-    'You can monitor progress in real time.': 'يمكنك متابعة التقدم في الوقت الفعلي.',
-    Lines: 'البنود',
+    'You can monitor progress from the order page.': 'يمكنك متابعة التقدم من صفحة الطلب.',
+    Products: 'المنتجات',
     '+ Add line': '+ إضافة بند',
-    '+ Add product': '+ إضافة منتج',
     Product: 'المنتج',
-    SKU: 'رمز الصنف',
+    Quantity: 'الكمية',
+    'Enter Qty': 'أدخل الكمية',
+    'Select a product first': 'اختر منتجاً أولاً',
+    'Search and select a product...': 'ابحث واختر منتجاً...',
+    'Current quantity:': 'الكمية الحالية:',
     Available: 'المتاح',
-    'Expected qty': 'الكمية المتوقعة',
-    Unit: 'الوحدة',
     'Total items:': 'إجمالي القطع:',
-    'Pick product…': 'اختر منتجاً…',
-    Remove: 'إزالة',
     'Next steps': 'الخطوات التالية',
-    'Click Save plan to create a draft. You can print instructions and confirm the order after completing the work.':
-      'اضغط حفظ الخطة لإنشاء مسودة. يمكنك طباعة التعليمات وتأكيد الطلب بعد إنجاز العمل.',
+    'Click Save plan to create a draft. Print and Confirm (or Release) from the order page.':
+      'اضغط حفظ الخطة لإنشاء مسودة. اطبع وأكّد (أو أطلِق) من صفحة الطلب.',
     'Pick a client.': 'اختر عميلاً.',
     'Enter a destination address.': 'أدخل عنوان الوجهة.',
     'Required ship date cannot be before today.': 'لا يمكن أن يكون تاريخ الشحن المطلوب قبل اليوم.',
     'All products are already on this order.': 'كل المنتجات مضافة مسبقاً إلى هذا الطلب.',
     'Each product can only appear once on the order.': 'لا يمكن تكرار نفس المنتج أكثر من مرة في الطلب.',
     'Exceeds available stock': 'تتجاوز المخزون المتاح',
+    Remove: 'إزالة',
   };
   return map[label] ?? label;
 }
 
-function SectionHeading({ n, children }: { n: number; children: ReactNode }) {
+function SectionHeading({ title }: { title: string }): ReactElement {
   return (
-    <div className="flex items-center gap-3">
-      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">
-        {n}
-      </span>
-      <h2 className="text-base font-semibold text-text-strong">{children}</h2>
-    </div>
+    <h2 className="text-[11px] font-bold uppercase tracking-[0.1em] text-brand-600 dark:text-brand-400">
+      {title}
+    </h2>
   );
 }
 
-function PlanCard({ children, className = '' }: { children: ReactNode; className?: string }) {
+function formatOnHand(n: number | undefined): string {
+  if (n === undefined) return '…';
+  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+function ModeOption({
+  selected,
+  onSelect,
+  icon,
+  title,
+  bullets,
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  icon: string;
+  title: string;
+  bullets: string[];
+}): ReactElement {
   return (
-    <Card padding="none" elevation="raised" className={`border-border ${className}`}>
-      <Card.Body className="space-y-5 px-6 py-6">{children}</Card.Body>
-    </Card>
+    <button
+      type="button"
+      onClick={onSelect}
+      className={[
+        'rounded-2xl border-2 p-5 text-start transition',
+        selected
+          ? 'border-brand-500 bg-brand-50 shadow-sm dark:bg-brand-950/40'
+          : 'border-border bg-surface-card hover:border-border-strong',
+      ].join(' ')}
+    >
+      <div className="flex items-start gap-3.5">
+        <span
+          className={[
+            'mt-1 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2',
+            selected ? 'border-brand-600' : 'border-border-strong',
+          ].join(' ')}
+          aria-hidden
+        >
+          {selected ? <span className="h-2.5 w-2.5 rounded-full bg-brand-600" /> : null}
+        </span>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span
+              className={[
+                'flex h-10 w-10 items-center justify-center rounded-full',
+                selected ? 'bg-brand-100 text-brand-700' : 'bg-surface-sunken text-text-muted',
+              ].join(' ')}
+            >
+              <i className={`fa-solid ${icon}`} aria-hidden />
+            </span>
+            <span className="text-[15px] font-semibold text-text-strong">{title}</span>
+          </div>
+          <ul className="space-y-2 text-sm text-text-body">
+            {bullets.map((b) => (
+              <li key={b} className="flex items-start gap-2">
+                <i className="fa-solid fa-check mt-0.5 text-brand-600" aria-hidden />
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -134,7 +197,14 @@ export function OutboundCreatePage() {
   const [notes, setNotes] = useState('');
   const [requiresPacking, setRequiresPacking] = useState(true);
   const [executionMode, setExecutionMode] = useState<OrderExecutionMode>('admin');
-  const { warehouseId } = useDefaultWarehouseId();
+  const { warehouseId, warehouses } = useDefaultWarehouseId();
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+  const [packingLocationId, setPackingLocationId] = useState('');
+  const [dispatchDockId, setDispatchDockId] = useState('');
+  const effectiveWarehouseId =
+    (selectedWarehouseId && warehouses.some((w) => w.id === selectedWarehouseId)
+      ? selectedWarehouseId
+      : warehouseId) || '';
   const [lines, setLines] = useState<DraftLine[]>([
     { key: '1', productId: '', requestedQuantity: '' },
   ]);
@@ -148,6 +218,7 @@ export function OutboundCreatePage() {
   useEffect(() => {
     if (!existing.data) return;
     const o = existing.data;
+    const plan = o.executionPlan;
     setCompanyId(o.companyId);
     setShipDate(o.requiredShipDate.slice(0, 10));
     setDestination(o.destinationAddress ?? '');
@@ -155,8 +226,11 @@ export function OutboundCreatePage() {
     setNotes(o.notes ?? '');
     setRequiresPacking(o.requiresPacking !== false);
     setExecutionMode(o.executionMode === 'workers' ? 'workers' : 'admin');
+    if (plan?.warehouseId) setSelectedWarehouseId(plan.warehouseId);
+    setPackingLocationId(plan?.packingLocationId ?? '');
+    setDispatchDockId(plan?.dispatchDockId ?? '');
     setLines(
-      o.lines.map((l) => ({
+      (o.lines ?? []).map((l) => ({
         key: l.id,
         productId: l.productId,
         requestedQuantity: String(l.requestedQuantity),
@@ -210,7 +284,7 @@ export function OutboundCreatePage() {
     const current = lines.find((l) => l.key === lineKey)?.productId;
     return activeProducts
       .filter((p) => p.id === current || !usedProductIds.has(p.id))
-      .map((p) => ({ value: p.id, label: `${p.name} (${p.sku})` }));
+      .map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` }));
   };
 
   const canAddLine = activeProducts.some((p) => !usedProductIds.has(p.id));
@@ -269,16 +343,12 @@ export function OutboundCreatePage() {
     [lines],
   );
 
-  const addLine = () => {
-    if (!canAddLine) {
-      toast.error(t('All products are already on this order.'));
-      return;
+  const carrierOptions = useMemo(() => {
+    if (carrier && !CARRIER_OPTIONS.some((c) => c.value === carrier)) {
+      return [{ value: carrier, label: carrier }, ...CARRIER_OPTIONS];
     }
-    setLines((prev) => [
-      ...prev,
-      { key: `n-${Date.now()}`, productId: '', requestedQuantity: '' },
-    ]);
-  };
+    return CARRIER_OPTIONS;
+  }, [carrier]);
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -295,11 +365,21 @@ export function OutboundCreatePage() {
       }
       if (shortages.length > 0) throw new Error('Insufficient stock for one or more products.');
 
+      if (executionMode === 'admin') {
+        if (!effectiveWarehouseId.trim()) throw new Error(t('Set a default warehouse first.'));
+        if (requiresPacking && !packingLocationId.trim()) {
+          throw new Error(t('Select a packing location.'));
+        }
+        if (!dispatchDockId.trim()) throw new Error(t('Select a dispatch dock.'));
+      }
+
       const executionPlan: OutboundExecutionPlan | undefined =
         executionMode === 'admin'
           ? {
-              warehouseId: warehouseId || '',
+              warehouseId: effectiveWarehouseId,
               requiresPacking,
+              packingLocationId: requiresPacking ? packingLocationId.trim() : undefined,
+              dispatchDockId: dispatchDockId.trim(),
               lines: validLines.map((l) => ({
                 productId: l.productId,
                 expectedQty: Number(l.requestedQuantity),
@@ -307,6 +387,16 @@ export function OutboundCreatePage() {
               planUpdatedAt: new Date().toISOString(),
             }
           : undefined;
+      if (executionPlan) {
+        const issues = outboundAdminPlanReadinessIssues(
+          executionPlan,
+          validLines.map((l) => ({
+            productId: l.productId,
+            requestedQuantity: l.requestedQuantity,
+          })),
+        );
+        if (issues.length) throw new Error(issues[0]!);
+      }
 
       if (isEdit) {
         return OutboundApi.updatePlan(editId!, {
@@ -352,72 +442,78 @@ export function OutboundCreatePage() {
     return <p className="p-6 text-sm text-text-muted">Loading…</p>;
   }
 
-  const uomLabel = (uom?: string) =>
-    uom ? uom.charAt(0).toUpperCase() + uom.slice(1) : '—';
-
-  const carrierOptions = useMemo(() => {
-    if (carrier && !CARRIER_OPTIONS.some((c) => c.value === carrier)) {
-      return [{ value: carrier, label: carrier }, ...CARRIER_OPTIONS];
-    }
-    return CARRIER_OPTIONS;
-  }, [carrier]);
+  const loading = saveMut.isPending;
 
   return (
-    <div className="w-full max-w-[1100px] space-y-4 animate-enter pb-10">
-      <Breadcrumb
-        items={[
-          { label: t('Outbound orders'), href: '/orders/outbound' },
-          { label: isEdit ? t('Edit outbound plan') : t('New') },
-        ]}
-      />
-      <AppPageHeader
-        className="!mb-1"
-        title={isEdit ? t('Edit outbound plan') : t('New outbound order')}
-        description={
-          isEdit
-            ? t('Review and update the plan before execution.')
-            : t('Plan everything before execution.')
-        }
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() =>
-                navigate(isEdit ? `/orders/outbound/${editId}` : '/orders/outbound')
-              }
-            >
-              {t('Cancel')}
-            </Button>
-            <Button
-              type="submit"
-              form={FORM_ID}
-              variant="primary"
-              loading={saveMut.isPending}
-              disabled={shortages.length > 0}
-            >
-              {t('Save plan')}
-            </Button>
-          </div>
-        }
-      />
+    <div className="mx-auto max-w-4xl space-y-8 animate-enter pb-10">
+      <div className="space-y-3">
+        <nav aria-label="Breadcrumb">
+          <Link
+            to="/orders/outbound"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 no-underline hover:text-brand-800 hover:underline"
+          >
+            <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+            {t('Back to outbound orders')}
+          </Link>
+        </nav>
+        <header className="space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight text-text-strong">
+            {isEdit ? t('Edit outbound plan') : t('New outbound order')}
+          </h1>
+          <p className="text-sm text-text-muted">
+            {isEdit
+              ? t('Plan everything before execution.')
+              : t('Create a warehouse shipment request')}
+          </p>
+        </header>
+      </div>
 
-      <form id={FORM_ID} onSubmit={onSubmit} className="space-y-4">
-        {/* ─── 1. General information ─── */}
-        <PlanCard>
-          <SectionHeading n={1}>{t('General information')}</SectionHeading>
+      <form id="outbound-plan-form" onSubmit={onSubmit} className="space-y-10">
+        <section className="space-y-3">
+          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">
+            {t('Execution mode')}
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <ModeOption
+              selected={executionMode === 'admin'}
+              onSelect={() => setExecutionMode('admin')}
+              icon="fa-user"
+              title={t('Execute by Admin')}
+              bullets={[
+                t('I will do the warehouse work myself, then Confirm order.'),
+                t('Pick, pack (if required) and dispatch'),
+                t('Confirm once from the order page — no stage tabs.'),
+              ]}
+            />
+            <ModeOption
+              selected={executionMode === 'workers'}
+              onSelect={() => setExecutionMode('workers')}
+              icon="fa-users"
+              title={t('Execute by Workers')}
+              bullets={[
+                t('Release to workers after the plan is ready. Workers execute Tasks.'),
+                t('Tasks will be created for workers'),
+                t('You can monitor progress from the order page.'),
+              ]}
+            />
+          </div>
+        </section>
+
+        <section className="space-y-5">
+          <SectionHeading title={t('General information')} />
           <div className="grid gap-5 md:grid-cols-2">
             <Combobox
-              label={`${t('Client')} *`}
+              label={t('Client')}
               required
               value={companyId}
               onChange={setCompanyId}
               options={(companies.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
               disabled={isEdit}
               clearable={false}
+              dropdownInFlow
             />
             <TextField
-              label={`${t('Required ship date')} *`}
+              label={t('Required ship date')}
               type="date"
               required
               min={localCalendarDateYmd()}
@@ -431,321 +527,163 @@ export function OutboundCreatePage() {
               options={carrierOptions}
               placeholder={t('Select carrier (optional)')}
               clearable
+              dropdownInFlow
             />
-            <div>
-              <Textarea
-                label={t('Notes')}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value.slice(0, NOTES_MAX))}
-                rows={3}
-                maxLength={NOTES_MAX}
-                placeholder={t('Add any notes about this outbound order…')}
-              />
-              <p className="mt-1.5 text-end text-xs tabular-nums text-text-muted">
-                {notes.length} / {NOTES_MAX}
-              </p>
-            </div>
-          </div>
-          <div className="relative">
             <TextField
-              label={`${t('Destination address')} *`}
+              label={t('Destination address')}
               required
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
-              className="!ps-10"
-            />
-            <i
-              className="fa-solid fa-location-dot pointer-events-none absolute start-3.5 top-[2.45rem] text-sm text-text-muted"
-              aria-hidden
             />
           </div>
-        </PlanCard>
-
-        {/* ─── 2. Packing & dispatch ─── */}
-        <PlanCard>
-          <SectionHeading n={2}>{t('Packing & dispatch')}</SectionHeading>
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.9fr)] lg:items-start">
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface-sunken/40 px-4 py-4">
-              <input
-                type="checkbox"
-                checked={requiresPacking}
-                onChange={(e) => setRequiresPacking(e.target.checked)}
-                className="mt-1 h-4 w-4 rounded border-border-strong text-brand-600 focus:ring-brand-500"
-              />
-              <span>
-                <span className="block text-sm font-semibold text-text-strong">
-                  {t('Packing required')}
-                </span>
-                <span className="mt-1 block text-sm text-text-muted">
-                  {t('Each product will be packed before dispatch.')}
-                </span>
-              </span>
-            </label>
-            <div className="flex gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-4 text-sm leading-relaxed text-sky-900">
-              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-600">
-                <i className="fa-solid fa-circle-info" aria-hidden />
-              </span>
-              <p>
-                {t(
-                  'When enabled, the workflow is: pick → pack → dispatch. When disabled, pick goes straight to the delivery area.',
-                )}
-              </p>
-            </div>
-          </div>
-        </PlanCard>
-
-        {/* ─── 3. Execution mode ─── */}
-        <PlanCard>
-          <SectionHeading n={3}>{t('Execution mode')}</SectionHeading>
-          <div className="grid gap-4 md:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => setExecutionMode('admin')}
-              className={[
-                'rounded-2xl border-2 p-5 text-start transition',
-                executionMode === 'admin'
-                  ? 'border-brand-500 bg-brand-50 shadow-sm'
-                  : 'border-border bg-white hover:border-border-strong',
-              ].join(' ')}
-            >
-              <div className="flex items-start gap-3.5">
-                <span
-                  className={[
-                    'mt-1 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2',
-                    executionMode === 'admin' ? 'border-brand-600' : 'border-border-strong',
-                  ].join(' ')}
-                >
-                  {executionMode === 'admin' ? (
-                    <span className="h-2.5 w-2.5 rounded-full bg-brand-600" />
-                  ) : null}
-                </span>
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-brand-700">
-                      <i className="fa-solid fa-user" aria-hidden />
-                    </span>
-                    <span className="text-[15px] font-semibold text-text-strong">
-                      {t('Execute by Admin')}
-                    </span>
-                    <span className="rounded-full border border-brand-200 bg-brand-100 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700">
-                      {t('Recommended')}
-                    </span>
-                  </div>
-                  <p className="text-sm leading-relaxed text-text-muted">
-                    {t('I will do everything myself. No tasks will be assigned to workers.')}
-                  </p>
-                  <ul className="space-y-2 text-sm text-text-body">
-                    <li className="flex items-start gap-2">
-                      <i className="fa-solid fa-check mt-0.5 text-brand-600" aria-hidden />
-                      <span>{t('Pick, pack (if required) and dispatch')}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <i className="fa-solid fa-check mt-0.5 text-brand-600" aria-hidden />
-                      <span>{t('No tasks will be created.')}</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setExecutionMode('workers')}
-              className={[
-                'rounded-2xl border-2 p-5 text-start transition',
-                executionMode === 'workers'
-                  ? 'border-brand-500 bg-brand-50 shadow-sm'
-                  : 'border-border bg-white hover:border-border-strong',
-              ].join(' ')}
-            >
-              <div className="flex items-start gap-3.5">
-                <span
-                  className={[
-                    'mt-1 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2',
-                    executionMode === 'workers' ? 'border-brand-600' : 'border-border-strong',
-                  ].join(' ')}
-                >
-                  {executionMode === 'workers' ? (
-                    <span className="h-2.5 w-2.5 rounded-full bg-brand-600" />
-                  ) : null}
-                </span>
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-sunken text-text-muted">
-                      <i className="fa-solid fa-users" aria-hidden />
-                    </span>
-                    <span className="text-[15px] font-semibold text-text-strong">
-                      {t('Execute by Workers')}
-                    </span>
-                  </div>
-                  <p className="text-sm leading-relaxed text-text-muted">
-                    {t('Tasks will be created and assigned to warehouse workers.')}
-                  </p>
-                  <ul className="space-y-2 text-sm text-text-body">
-                    <li className="flex items-start gap-2">
-                      <i className="fa-solid fa-check mt-0.5 text-brand-600" aria-hidden />
-                      <span>{t('Tasks will be created for workers')}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <i className="fa-solid fa-check mt-0.5 text-brand-600" aria-hidden />
-                      <span>{t('You can monitor progress in real time.')}</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </button>
-          </div>
-        </PlanCard>
-
-        {/* ─── 4. Lines ─── */}
-        <PlanCard>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <SectionHeading n={4}>{t('Lines')}</SectionHeading>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={addLine}
-              disabled={!companyId || !canAddLine || saveMut.isPending}
-              className="!border-brand-200 !text-brand-700 hover:!bg-brand-50"
-            >
-              {t('+ Add line')}
-            </Button>
-          </div>
-
-          <div className="overflow-visible rounded-xl border border-border">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-surface-sunken/60 text-start text-xs font-medium text-text-muted">
-                  <th className="w-10 px-4 py-3 font-medium">#</th>
-                  <th className="min-w-[260px] px-3 py-3 font-medium">{t('Product')}</th>
-                  <th className="w-36 px-3 py-3 font-medium">{t('SKU')}</th>
-                  <th className="w-28 px-3 py-3 font-medium">{t('Available')}</th>
-                  <th className="w-36 px-3 py-3 font-medium">{t('Expected qty')}</th>
-                  <th className="w-28 px-3 py-3 font-medium">{t('Unit')}</th>
-                  <th className="w-12 px-3 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((line, idx) => {
-                  const p = productById.get(line.productId);
-                  const avail = line.productId
-                    ? availabilityByProduct.get(line.productId)
-                    : undefined;
-                  const summed = line.productId
-                    ? requestedByProduct.get(line.productId) ?? 0
-                    : 0;
-                  const isShort = avail !== undefined && summed > avail;
-                  return (
-                    <tr key={line.key} className="border-b border-border last:border-b-0">
-                      <td className="px-4 py-3.5 align-middle text-text-muted tabular-nums">
-                        {idx + 1}
-                      </td>
-                      <td className="px-3 py-3.5 align-middle">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <ProductThumbWithFallback
-                            productId={line.productId || null}
-                            name={p?.name}
-                            size="md"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <Combobox
-                              value={line.productId}
-                              onChange={(id) =>
-                                setLines((prev) =>
-                                  prev.map((l) =>
-                                    l.key === line.key ? { ...l, productId: id } : l,
-                                  ),
-                                )
-                              }
-                              options={optionsForLine(line.key)}
-                              placeholder={t('Pick product…')}
-                              disabled={!companyId}
-                              clearable={false}
-                              emptyMessage={t('All products are already on this order.')}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3.5 align-middle">
-                        <div className="flex h-11 items-center rounded-lg border border-border bg-surface-sunken/40 px-3 font-mono text-xs text-text-muted">
-                          {p?.sku ?? '—'}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3.5 align-middle">
-                        <div
-                          className={[
-                            'flex h-11 items-center rounded-lg border border-border bg-surface-sunken/40 px-3 tabular-nums',
-                            isShort ? 'text-status-error-fg' : 'text-text-body',
-                          ].join(' ')}
-                        >
-                          {avail !== undefined
-                            ? avail.toLocaleString(undefined, { maximumFractionDigits: 4 })
-                            : line.productId
-                              ? '…'
-                              : '—'}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3.5 align-middle">
-                        <TextField
-                          type="number"
-                          min={0}
-                          step="1"
-                          value={line.requestedQuantity}
-                          onChange={(e) =>
-                            setLines((prev) =>
-                              prev.map((l) =>
-                                l.key === line.key
-                                  ? { ...l, requestedQuantity: e.target.value }
-                                  : l,
-                              ),
-                            )
-                          }
-                          error={isShort ? t('Exceeds available stock') : undefined}
-                        />
-                      </td>
-                      <td className="px-3 py-3.5 align-middle">
-                        <div className="flex h-11 items-center rounded-lg border border-border bg-surface-sunken/40 px-3 text-text-body">
-                          {uomLabel(p?.uom)}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3.5 align-middle">
-                        <button
-                          type="button"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-danger-500 hover:bg-danger-50 disabled:opacity-40"
-                          disabled={lines.length <= 1 || saveMut.isPending}
-                          aria-label={t('Remove')}
-                          onClick={() =>
-                            setLines((prev) => prev.filter((l) => l.key !== line.key))
-                          }
-                        >
-                          <i className="fa-regular fa-trash-can text-sm" aria-hidden />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={addLine}
-              disabled={!companyId || !canAddLine || saveMut.isPending}
-            >
-              {t('+ Add product')}
-            </Button>
-            <p className="text-sm text-text-muted">
-              {t('Total items:')}{' '}
-              <span className="font-semibold tabular-nums text-text-strong">
-                {totalItems.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-              </span>
+          <div>
+            <Textarea
+              label={t('Notes')}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value.slice(0, NOTES_MAX))}
+              rows={4}
+              maxLength={NOTES_MAX}
+              placeholder={t('Add any notes about this outbound order…')}
+            />
+            <p className="mt-1.5 text-end text-xs tabular-nums text-text-muted">
+              {notes.length} / {NOTES_MAX}
             </p>
           </div>
+        </section>
+
+        <section className="space-y-4">
+          <SectionHeading title={t('Products')} />
+
+          <div className="space-y-3">
+            <div className="hidden gap-3 px-0.5 sm:grid sm:grid-cols-[minmax(0,1fr)_140px_40px]">
+              <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">
+                {t('Product')}
+                <span aria-hidden="true" className="ms-0.5 text-danger-600">
+                  *
+                </span>
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">
+                {t('Quantity')}
+                <span aria-hidden="true" className="ms-0.5 text-danger-600">
+                  *
+                </span>
+              </span>
+              <span className="sr-only">{t('Remove')}</span>
+            </div>
+
+            {lines.map((line) => {
+              const p = productById.get(line.productId);
+              const avail = line.productId
+                ? availabilityByProduct.get(line.productId)
+                : undefined;
+              const summed = line.productId
+                ? requestedByProduct.get(line.productId) ?? 0
+                : 0;
+              const isShort = avail !== undefined && summed > avail;
+
+              return (
+                <div
+                  key={line.key}
+                  className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[minmax(0,1fr)_140px_40px]"
+                >
+                  <div className="min-w-0">
+                    <Combobox
+                      value={line.productId}
+                      onChange={(id) =>
+                        setLines((prev) =>
+                          prev.map((l) =>
+                            l.key === line.key ? { ...l, productId: id } : l,
+                          ),
+                        )
+                      }
+                      options={optionsForLine(line.key)}
+                      placeholder={t('Search and select a product...')}
+                      disabled={!companyId}
+                      clearable={false}
+                      dropdownInFlow
+                      emptyMessage={t('All products are already on this order.')}
+                    />
+                    {p ? (
+                      <p className="mt-1.5 text-[11px] text-text-muted">
+                        {t('Available')}:{' '}
+                        <span
+                          className={[
+                            'font-mono font-semibold',
+                            isShort ? 'text-status-error-fg' : 'text-text-strong',
+                          ].join(' ')}
+                        >
+                          {formatOnHand(avail)}
+                        </span>{' '}
+                        <span className="uppercase text-text-body">{p.uom}</span>
+                      </p>
+                    ) : null}
+                    {isShort ? (
+                      <p className="mt-1 text-[11px] font-medium text-status-error-fg">
+                        {t('Exceeds available stock')}
+                      </p>
+                    ) : null}
+                  </div>
+                  <TextField
+                    type="number"
+                    min={0}
+                    step="1"
+                    aria-label={t('Quantity')}
+                    value={line.requestedQuantity}
+                    onChange={(e) =>
+                      setLines((prev) =>
+                        prev.map((l) =>
+                          l.key === line.key
+                            ? { ...l, requestedQuantity: e.target.value }
+                            : l,
+                        ),
+                      )
+                    }
+                    disabled={!line.productId}
+                    placeholder={line.productId ? t('Enter Qty') : t('Select a product first')}
+                  />
+                  <button
+                    type="button"
+                    aria-label={t('Remove')}
+                    disabled={lines.length <= 1 || loading}
+                    onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+                    className="mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border-strong text-text-muted transition hover:border-status-danger-border hover:bg-status-danger-bg hover:text-status-danger-fg disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <i className="fa-solid fa-trash-can text-sm" aria-hidden />
+                  </button>
+                </div>
+              );
+            })}
+
+            <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[minmax(0,1fr)_140px_40px]">
+              <div className="hidden sm:block" />
+              <div className="hidden sm:block" />
+              <button
+                type="button"
+                aria-label={t('+ Add line')}
+                disabled={!companyId || !canAddLine || loading}
+                onClick={() => {
+                  if (!canAddLine) {
+                    toast.error(t('All products are already on this order.'));
+                    return;
+                  }
+                  setLines((prev) => [
+                    ...prev,
+                    { key: `n-${Date.now()}`, productId: '', requestedQuantity: '' },
+                  ]);
+                }}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border-strong text-text-muted transition hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <i className="fa-solid fa-plus text-sm" aria-hidden />
+              </button>
+            </div>
+          </div>
+
+          <p className="text-sm text-text-muted">
+            {t('Total items:')}{' '}
+            <span className="font-semibold tabular-nums text-text-strong">
+              {totalItems.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+            </span>
+          </p>
 
           {shortages.length > 0 ? (
             <Alert variant="error" title="Order cannot be saved — insufficient stock:">
@@ -762,23 +700,114 @@ export function OutboundCreatePage() {
               </ul>
             </Alert>
           ) : null}
-        </PlanCard>
+        </section>
 
-        <div className="flex items-start gap-3.5 rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4 text-sm text-sky-900">
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-600">
-            <i className="fa-solid fa-lightbulb" aria-hidden />
-          </span>
-          <div className="min-w-0 flex-1 leading-relaxed">
-            <div className="font-semibold text-sky-950">{t('Next steps')}</div>
-            <p className="mt-0.5 text-sky-800/90">
-              {t(
-                'Click Save plan to create a draft. You can print instructions and confirm the order after completing the work.',
+        <section className="space-y-5">
+          <SectionHeading title={t('Packing & dispatch')} />
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={requiresPacking}
+              onChange={(e) => {
+                setRequiresPacking(e.target.checked);
+                if (!e.target.checked) setPackingLocationId('');
+              }}
+              className="mt-1 h-4 w-4 rounded border-border-strong text-brand-600 focus:ring-brand-500"
+            />
+            <span>
+              <span className="block text-sm font-semibold text-text-strong">
+                {t('Packing required')}
+              </span>
+              <span className="mt-1 block text-sm text-text-muted">
+                {t(
+                  'When enabled, the workflow is: pick → pack → dispatch. When disabled, pick goes straight to the delivery area.',
+                )}
+              </span>
+            </span>
+          </label>
+
+          {executionMode === 'admin' ? (
+            <div className="space-y-5">
+              {warehouses.length > 1 ? (
+                <Combobox
+                  label={t('Warehouse')}
+                  required
+                  value={effectiveWarehouseId}
+                  onChange={(id) => {
+                    setSelectedWarehouseId(id);
+                    setPackingLocationId('');
+                    setDispatchDockId('');
+                  }}
+                  options={warehouses
+                    .filter((w) => w.status === 'active')
+                    .map((w) => ({ value: w.id, label: `${w.name} (${w.code})` }))}
+                  clearable={false}
+                  dropdownInFlow
+                />
+              ) : null}
+
+              {effectiveWarehouseId ? (
+                <>
+                  {requiresPacking ? (
+                    <div className="space-y-2">
+                      <PackingLocationPicker
+                        warehouseId={effectiveWarehouseId}
+                        value={packingLocationId}
+                        onChange={setPackingLocationId}
+                        label={t('Packing location')}
+                        dropdownInFlow
+                      />
+                      <p className="text-sm text-text-muted">
+                        {t('Where items are packed before shipping.')}
+                      </p>
+                    </div>
+                  ) : null}
+                  <div className="space-y-2">
+                    <DispatchDockPicker
+                      warehouseId={effectiveWarehouseId}
+                      value={dispatchDockId}
+                      onChange={setDispatchDockId}
+                      label={t('Dispatch dock')}
+                      dropdownInFlow
+                    />
+                    <p className="text-sm text-text-muted">
+                      {t('Where the shipment leaves the warehouse.')}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <Alert variant="warning" title={t('Set a default warehouse first.')} />
               )}
-            </p>
-          </div>
-          <span className="mt-0.5 hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100/80 text-sky-500 sm:flex">
-            <i className="fa-solid fa-print text-lg" aria-hidden />
-          </span>
+            </div>
+          ) : null}
+        </section>
+
+        <p className="text-sm text-text-muted">
+          <span className="font-semibold text-text-strong">{t('Next steps')}: </span>
+          {t(
+            'Click Save plan to create a draft. Print and Confirm (or Release) from the order page.',
+          )}
+        </p>
+
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border-subtle pt-6">
+          <Button
+            type="button"
+            variant="danger"
+            disabled={loading}
+            onClick={() =>
+              navigate(isEdit ? `/orders/outbound/${editId}` : '/orders/outbound')
+            }
+          >
+            {t('Cancel')}
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            loading={loading}
+            disabled={shortages.length > 0}
+          >
+            {t('Save plan')}
+          </Button>
         </div>
       </form>
     </div>

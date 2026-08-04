@@ -19,6 +19,7 @@ const prisma_service_1 = require("../../common/prisma/prisma.service");
 const return_disposition_policy_1 = require("./return-disposition.policy");
 const return_inventory_service_1 = require("./return-inventory.service");
 const returns_constants_1 = require("./returns.constants");
+const realtime_service_1 = require("../realtime/realtime.service");
 const ORDER_INCLUDE = {
     company: { select: { id: true, name: true } },
     warehouse: { select: { id: true, code: true, name: true } },
@@ -39,11 +40,13 @@ let ReturnWorkflowService = class ReturnWorkflowService {
     companyAccess;
     inventory;
     audit;
-    constructor(prisma, companyAccess, inventory, audit) {
+    realtime;
+    constructor(prisma, companyAccess, inventory, audit, realtime) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.inventory = inventory;
         this.audit = audit;
+        this.realtime = realtime;
     }
     async inspectLine(user, returnOrderId, lineId, dto) {
         const order = await this.loadOrder(returnOrderId, user);
@@ -178,6 +181,13 @@ let ReturnWorkflowService = class ReturnWorkflowService {
                 where: { id: returnOrderId },
                 include: ORDER_INCLUDE,
             });
+        }).then((updated) => {
+            this.realtime.emitInventoryChanged(order.companyId, {
+                source: 'return_inventory_post',
+                orderId: returnOrderId,
+                productId: line.productId,
+            });
+            return updated;
         });
     }
     async postAllEligibleLines(user, returnOrderId) {
@@ -251,6 +261,7 @@ exports.ReturnWorkflowService = ReturnWorkflowService = __decorate([
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         company_access_service_1.CompanyAccessService,
         return_inventory_service_1.ReturnInventoryService,
-        audit_log_service_1.AuditLogService])
+        audit_log_service_1.AuditLogService,
+        realtime_service_1.RealtimeService])
 ], ReturnWorkflowService);
 //# sourceMappingURL=return-workflow.service.js.map

@@ -1,5 +1,4 @@
 import { useMemo, useState, type ReactElement } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
 import { Alert } from '@ds';
@@ -8,27 +7,20 @@ import {
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
 
-import { CreateClientOutboundModal } from '../components/CreateClientOutboundModal';
 import { Badge } from '../design-v2/Badge';
 import { Card } from '../design-v2/Card';
 import { ListPageHeader } from '../design-v2/ListPageHeader';
 import { TableFooterPagination } from '../design-v2/TableFooterPagination';
 import { useDebouncedValue } from '../design-v2/useDebouncedValue';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
+import { mapClientOutboundDisplayStatus, clientOutboundStatusLabel } from '../lib/client-outbound-status';
 import { isClientArabic } from '../lib/client-ui-language';
-import {
-  createClientOutboundOrder,
-  fetchClientOutboundOrders,
-} from '../services/clientOutboundOrdersService';
+import { fetchClientOutboundOrders } from '../services/clientOutboundOrdersService';
 
 const OUTBOUND_STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
-  { value: 'draft', label: 'Draft' },
   { value: 'pending_approval', label: 'Waiting for approval' },
-  { value: 'confirmed', label: 'Confirmed' },
-  { value: 'picking', label: 'Picking' },
-  { value: 'packing', label: 'Packing' },
-  { value: 'ready_to_ship', label: 'Ready to ship' },
+  { value: 'in_progress', label: 'In progress' },
   { value: 'shipped', label: 'Shipped' },
   { value: 'cancelled', label: 'Cancelled' },
 ];
@@ -43,6 +35,10 @@ function outboundLabel(label: string, isArabic: boolean): string {
     'Search order number...': 'ابحث برقم الطلب...',
     Filters: 'فلاتر',
     'All statuses': 'كل الحالات',
+    'Waiting for approval': 'بانتظار الموافقة',
+    'In progress': 'قيد التنفيذ',
+    Shipped: 'تم الشحن',
+    Cancelled: 'ملغي',
     'Order #': 'رقم الطلب',
     Status: 'الحالة',
     Recipient: 'المستلم',
@@ -59,26 +55,12 @@ function outboundLabel(label: string, isArabic: boolean): string {
 
 export function OutboundOrdersPage(): ReactElement {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const isArabic = isClientArabic();
   const t = (label: string) => outboundLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
   const debouncedSearch = useDebouncedValue(search, 300);
-
-  const createMut = useMutation({
-    mutationFn: createClientOutboundOrder,
-    onSuccess: (order) => {
-      void queryClient.invalidateQueries({ queryKey: ['client', 'outbound-orders'] });
-      setCreateError(null);
-      setCreateOpen(false);
-      navigate(`/outbound-orders/${order.id}`);
-    },
-    onError: (err: Error) => setCreateError(err.message || 'Could not submit order.'),
-  });
 
   const filterKey = useMemo(
     () => ({ orderSearch: debouncedSearch.trim() || undefined, status: status || undefined }),
@@ -105,10 +87,7 @@ export function OutboundOrdersPage(): ReactElement {
             type="button"
             disabled={!billingAccess.operationalAllowed}
             title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
-            onClick={() => {
-              setCreateError(null);
-              setCreateOpen(true);
-            }}
+            onClick={() => navigate('/outbound-orders/new')}
             className="px-4 py-2 bg-cta text-white rounded-lg text-sm font-medium hover:bg-cta-hover transition-all shadow-lg shadow-brand-600/20 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <i className="fa-solid fa-plus text-xs" /> {t('New outbound')}
@@ -191,7 +170,9 @@ export function OutboundOrdersPage(): ReactElement {
                       {row.orderNumber || '—'}
                     </td>
                     <td className="px-5 py-3.5">
-                      <Badge status={row.status} />
+                      <Badge status={mapClientOutboundDisplayStatus(row.status)}>
+                        {clientOutboundStatusLabel(row.status, isArabic)}
+                      </Badge>
                     </td>
                     <td className="px-5 py-3.5 text-text-body">{row.recipientName || '—'}</td>
                     <td className="px-5 py-3.5 text-text-body">
@@ -211,18 +192,6 @@ export function OutboundOrdersPage(): ReactElement {
         </div>
         <TableFooterPagination pagination={pagination.serverPagination} isArabic={isArabic} />
       </Card>
-
-      <CreateClientOutboundModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        loading={createMut.isPending}
-        submitError={createError}
-        onSubmit={(input) => {
-          setCreateError(null);
-          createMut.mutate(input);
-        }}
-        isArabic={isArabic}
-      />
     </div>
   );
 }

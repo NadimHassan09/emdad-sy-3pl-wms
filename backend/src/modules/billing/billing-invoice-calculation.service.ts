@@ -18,12 +18,15 @@ import {
   BillingRecalcTrigger,
 } from './billing-recalculation.types';
 import { computeInvoiceTotals, sumLineTotals } from './billing-totals.util';
-import { BillingUsageService } from './billing-usage.service';
 
-const MS_PER_DAY = 86_400_000;
+/** System lines still generated on each recalculation. */
+const SYSTEM_LINE_TYPES: BillingInvoiceLineType[] = ['subscription'];
 
-const SYSTEM_LINE_TYPES: BillingInvoiceLineType[] = [
-  'subscription',
+/**
+ * Former usage-based system charges. Invoices are fixed-subscription only;
+ * these types are deleted on recalc so totals match the plan price.
+ */
+const RETIRED_USAGE_LINE_TYPES: BillingInvoiceLineType[] = [
   'inbound',
   'outbound',
   'packaging',
@@ -54,7 +57,6 @@ export class BillingInvoiceCalculationService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly usage: BillingUsageService,
     private readonly audit: AuditLogService,
   ) {}
 
@@ -166,18 +168,19 @@ export class BillingInvoiceCalculationService {
     if (!rates) return null;
 
     const windowEnd = cycle.endsAt < now ? cycle.endsAt : now;
-    const metrics = await this.collectCycleMetrics(
-      companyId,
-      cycle.startsAt,
-      windowEnd,
-      rates,
-    );
-    const daysElapsed = this.daysElapsedInCycle(cycle.startsAt, windowEnd);
-    const lines = this.computeLines(rates, metrics, daysElapsed);
+    const lines = this.computeLines(rates);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const invoice = await this.getOrCreateDraftInvoice(tx, companyId, cycle.id);
       const previousTotal = invoice.grandTotal.toString();
+
+      await tx.invoiceLine.deleteMany({
+        where: {
+          invoiceId: invoice.id,
+          lineSource: BillingInvoiceLineSource.system,
+          type: { in: RETIRED_USAGE_LINE_TYPES },
+        },
+      });
 
       for (const line of lines) {
         await this.upsertSystemInvoiceLine(tx, invoice.id, line);
@@ -261,143 +264,12 @@ export class BillingInvoiceCalculationService {
     });
   }
 
-  private async collectCycleMetrics(
-    companyId: string,
-    windowStart: Date,
-    windowEnd: Date,
-    rates: ReturnType<typeof rateSnapshotToDecimals>,
-  ) {
-    const [inboundCount, outboundOrders, packagingCount, qcCount, usage] =
-      await Promise.all([
-        this.prisma.inboundOrder.count({
-          where: {
-            companyId,
-            status: 'completed',
-            completedAt: { gte: windowStart, lte: windowEnd },
-          },
-        }),
-        this.prisma.outboundOrder.findMany({
-          where: {
-            companyId,
-            status: 'shipped',
-            shippedAt: { gte: windowStart, lte: windowEnd },
-          },
-          select: {
-            lines: { select: { pickedQuantity: true } },
-          },
-        }),
-        this.prisma.warehouseTask.count({
-          where: {
-            taskType: 'pack',
-            status: 'completed',
-            completedAt: { gte: windowStart, lte: windowEnd },
-            workflowInstance: { companyId, referenceType: 'outbound_order' },
-          },
-        }),
-        this.prisma.warehouseTask.count({
-          where: {
-            taskType: 'qc',
-            status: 'completed',
-            completedAt: { gte: windowStart, lte: windowEnd },
-            workflowInstance: { companyId, referenceType: 'inbound_order' },
-          },
-        }),
-        this.usage.getCompanyUsage(companyId),
-      ]);
-
-    const outboundTotalFee = this.computeTieredOutboundTotal(outboundOrders, rates);
-
-    return {
-      inboundCount,
-      outboundTotalFee,
-      packagingCount,
-      qcCount,
-      usageVolumeCbm: usage.volumeCbm,
-      usageWeightKg: usage.weightKg,
-    };
-  }
-
-  private computeTieredOutboundTotal(
-    orders: Array<{ lines: Array<{ pickedQuantity: Prisma.Decimal }> }>,
-    rates: ReturnType<typeof rateSnapshotToDecimals>,
-  ): Prisma.Decimal {
-    let total = new Prisma.Decimal(0);
-    const included = new Prisma.Decimal(rates.outboundIncludedItems);
-
-    for (const order of orders) {
-      const shippedItems = order.lines.reduce(
-        (sum, line) => sum.add(line.pickedQuantity),
-        new Prisma.Decimal(0),
-      );
-      const extraItems = Prisma.Decimal.max(shippedItems.sub(included), new Prisma.Decimal(0));
-      const orderFee = rates.outboundBaseFee.add(
-        extraItems.mul(rates.outboundAdditionalItemFee),
-      );
-      total = total.add(orderFee);
-    }
-
-    return total.toDecimalPlaces(2);
-  }
-
   private computeLines(
     rates: ReturnType<typeof rateSnapshotToDecimals>,
-    metrics: Awaited<ReturnType<typeof this.collectCycleMetrics>>,
-    daysElapsed: number,
   ): BillingLineComputation[] {
-    const excessVolume = Prisma.Decimal.max(
-      metrics.usageVolumeCbm.sub(rates.reservedVolume),
-      new Prisma.Decimal(0),
-    );
-    const excessWeight = Prisma.Decimal.max(
-      metrics.usageWeightKg.sub(rates.reservedWeight),
-      new Prisma.Decimal(0),
-    );
-
-    const dayFactor = new Prisma.Decimal(daysElapsed);
-
-    const specs: Array<{
-      type: BillingInvoiceLineType;
-      quantity: Prisma.Decimal;
-      unitPrice: Prisma.Decimal;
-    }> = [
-      {
-        type: 'subscription',
-        quantity: new Prisma.Decimal(1),
-        unitPrice: rates.fixedSubscriptionFee,
-      },
-      {
-        type: 'inbound',
-        quantity: new Prisma.Decimal(metrics.inboundCount),
-        unitPrice: rates.inboundOrderFee,
-      },
-      {
-        type: 'outbound',
-        quantity: new Prisma.Decimal(1),
-        unitPrice: metrics.outboundTotalFee,
-      },
-      {
-        type: 'packaging',
-        quantity: new Prisma.Decimal(metrics.packagingCount),
-        unitPrice: rates.packagingFee,
-      },
-      {
-        type: 'quality_check',
-        quantity: new Prisma.Decimal(metrics.qcCount),
-        unitPrice: rates.qualityCheckFee,
-      },
-      {
-        type: 'excess_volume',
-        quantity: excessVolume.mul(dayFactor),
-        unitPrice: rates.excessVolumeFeePerDay,
-      },
-      {
-        type: 'excess_weight',
-        quantity: excessWeight.mul(dayFactor),
-        unitPrice: rates.excessWeightFeePerDay,
-      },
-    ];
-
-    return specs.map(({ type, quantity, unitPrice }) => {
+    return SYSTEM_LINE_TYPES.map((type) => {
+      const quantity = new Prisma.Decimal(1);
+      const unitPrice = rates.fixedSubscriptionFee;
       const totalPrice = quantity.mul(unitPrice).toDecimalPlaces(2);
       return {
         type,
@@ -492,11 +364,6 @@ export class BillingInvoiceCalculationService {
         await tx.invoiceLine.create({ data: { invoiceId, ...data } });
       }
     }
-  }
-
-  private daysElapsedInCycle(startsAt: Date, asOf: Date): number {
-    const ms = Math.max(0, asOf.getTime() - startsAt.getTime());
-    return Math.max(1, Math.ceil(ms / MS_PER_DAY));
   }
 
   private async getOrCreateDraftInvoice(

@@ -46,23 +46,11 @@ function detailLabel(label: string, isArabic: boolean): string {
     'Billing plan snapshot': 'لقطة خطة الفوترة',
     'No rate snapshot for this billing cycle.': 'لا توجد لقطة أسعار لهذه الدورة.',
     'Fixed subscription fee': 'رسوم الاشتراك الثابتة',
-    'Inbound order fee': 'رسوم طلب الوارد',
-    'Outbound order fee': 'رسوم طلب الصادر',
-    'Packaging fee': 'رسوم التغليف',
-    'Quality check fee': 'رسوم فحص الجودة',
-    'Excess volume / day': 'حجم زائد / يوم',
-    'Excess weight / day': 'وزن زائد / يوم',
     'Reserved volume': 'الحجم المحجوز',
     'm³': 'م³',
     'Snapshotted at': 'تاريخ اللقطة',
     'Line items & charges': 'البنود والرسوم',
     'Fixed subscription': 'الاشتراك الثابت',
-    'Inbound totals': 'إجمالي الوارد',
-    'Outbound totals': 'إجمالي الصادر',
-    'Packaging totals': 'إجمالي التغليف',
-    'Quality check totals': 'إجمالي فحص الجودة',
-    'Volume charges': 'رسوم الحجم',
-    'Weight charges': 'رسوم الوزن',
     Subtotal: 'المجموع الفرعي',
     Discount: 'الخصم',
     Taxes: 'الضرائب',
@@ -204,24 +192,6 @@ export function BillingInvoiceDetailPage(): ReactElement {
                 <DetailField label={t('Fixed subscription fee')}>
                   {formatDecimal(snapshot.fixedSubscriptionFee)} {CURRENCY}
                 </DetailField>
-                <DetailField label={t('Inbound order fee')}>
-                  {formatDecimal(snapshot.inboundOrderFee, 4)} {CURRENCY}
-                </DetailField>
-                <DetailField label={t('Outbound order fee')}>
-                  {formatDecimal(snapshot.outboundOrderFee, 4)} {CURRENCY}
-                </DetailField>
-                <DetailField label={t('Packaging fee')}>
-                  {formatDecimal(snapshot.packagingFee, 4)} {CURRENCY}
-                </DetailField>
-                <DetailField label={t('Quality check fee')}>
-                  {formatDecimal(snapshot.qualityCheckFee, 4)} {CURRENCY}
-                </DetailField>
-                <DetailField label={t('Excess volume / day')}>
-                  {formatDecimal(snapshot.excessVolumeFeePerDay, 4)} {CURRENCY}
-                </DetailField>
-                <DetailField label={t('Excess weight / day')}>
-                  {formatDecimal(snapshot.excessWeightFeePerDay, 4)} {CURRENCY}
-                </DetailField>
                 <DetailField label={t('Reserved volume')}>
                   {formatDecimal(snapshot.reservedVolume, 4)} {t('m³')}
                 </DetailField>
@@ -241,15 +211,6 @@ export function BillingInvoiceDetailPage(): ReactElement {
           <DetailSection title={t('Line items & charges')}>
             <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-raised)]/50 px-4 py-1">
               <ChargeRow label={t('Fixed subscription')} amount={lineTotalByType(lines, 'subscription')} />
-              <ChargeRow label={t('Inbound totals')} amount={lineTotalByType(lines, 'inbound')} />
-              <ChargeRow label={t('Outbound totals')} amount={lineTotalByType(lines, 'outbound')} />
-              <ChargeRow label={t('Packaging totals')} amount={lineTotalByType(lines, 'packaging')} />
-              <ChargeRow
-                label={t('Quality check totals')}
-                amount={lineTotalByType(lines, 'quality_check')}
-              />
-              <ChargeRow label={t('Volume charges')} amount={lineTotalByType(lines, 'excess_volume')} />
-              <ChargeRow label={t('Weight charges')} amount={lineTotalByType(lines, 'excess_weight')} />
               {lines
                 .filter(
                   (l) =>

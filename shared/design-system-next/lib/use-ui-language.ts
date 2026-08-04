@@ -41,7 +41,7 @@ export function applyUiLanguage(
 export function useUiLanguage({
   storageKey,
   eventName,
-  minLoadingMs = 420,
+  minLoadingMs = 700,
   fallbackStorageKeys = storageKey === 'wms-ui-language' ? ['client-ui-language'] : [],
 }: UseUiLanguageOptions & { fallbackStorageKeys?: string[] }) {
   const [language, setLanguageState] = useState<UiLanguage>(() =>

@@ -17,6 +17,7 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RefreshSessionService } from '../auth/refresh-session.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 const DEFAULT_RETENTION_DAYS = 90;
 const DAY_MS = 86_400_000;
@@ -100,7 +101,38 @@ export class CustomerLifecycleService {
     private readonly audit: AuditLogService,
     private readonly refreshSessions: RefreshSessionService,
     private readonly config: ConfigService,
+    private readonly realtime: RealtimeService,
   ) {}
+
+  private emitLifecycle(
+    companyId: string,
+    status: string,
+    action: string,
+    forceLogoutUsers?: { id: string }[],
+  ): void {
+    this.realtime.emitCompanyLifecycleChanged(companyId, { companyId, status, action });
+    if (action === 'suspended' || action === 'archived' || action === 'restricted') {
+      this.realtime.emitBillingRestrictionChanged(companyId, {
+        companyId,
+        restricted: true,
+        status,
+      });
+    }
+    if (action === 'restored' || action === 'activated') {
+      this.realtime.emitBillingRestrictionChanged(companyId, {
+        companyId,
+        restricted: false,
+        status,
+      });
+    }
+    for (const u of forceLogoutUsers ?? []) {
+      this.realtime.emitAuthSessionChanged(u.id, {
+        type: 'forced_logout',
+        userId: u.id,
+        reason: `company_${action}`,
+      });
+    }
+  }
 
   private retentionDays(): number {
     const raw = this.config.get<string | number>('CUSTOMER_PURGE_RETENTION_DAYS');
@@ -300,7 +332,7 @@ export class CustomerLifecycleService {
   }
 
   /** Revoke every session for a company's users (immediate logout). */
-  private async revokeCompanyUserSessions(companyId: string): Promise<void> {
+  private async revokeCompanyUserSessions(companyId: string): Promise<{ id: string }[]> {
     const users = await this.prisma.user.findMany({
       where: { companyId },
       select: { id: true },
@@ -312,6 +344,7 @@ export class CustomerLifecycleService {
         this.logger.warn(`Failed to revoke sessions for user ${u.id}: ${String(e)}`);
       }
     }
+    return users;
   }
 
   async suspend(user: AuthPrincipal, id: string, reason?: string) {
@@ -330,7 +363,9 @@ export class CustomerLifecycleService {
         suspensionReason: reason?.trim() || null,
       },
     });
-    await this.revokeCompanyUserSessions(id);
+    await this.revokeCompanyUserSessions(id).then((users) => {
+      this.emitLifecycle(id, updated.status, 'suspended', users);
+    });
     await this.audit.logBestEffort(
       this.audit.fromPrincipal(user, {
         action: 'customer.suspended',
@@ -376,7 +411,9 @@ export class CustomerLifecycleService {
         },
       });
     });
-    await this.revokeCompanyUserSessions(id);
+    await this.revokeCompanyUserSessions(id).then((users) => {
+      this.emitLifecycle(id, updated.status, 'archived', users);
+    });
     await this.audit.logBestEffort(
       this.audit.fromPrincipal(user, {
         action: 'customer.archived',
@@ -429,6 +466,7 @@ export class CustomerLifecycleService {
         newState: { status: updated.status, reason: reason?.trim() || null },
       }),
     );
+    this.emitLifecycle(id, updated.status, 'restored');
     return updated;
   }
 

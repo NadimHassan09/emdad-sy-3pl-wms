@@ -13,6 +13,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.FormsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const realtime_service_1 = require("../realtime/realtime.service");
 function endOfDay(iso) {
     const d = new Date(iso);
     if (iso.length <= 10) {
@@ -22,9 +23,11 @@ function endOfDay(iso) {
 }
 let FormsService = FormsService_1 = class FormsService {
     prisma;
+    realtime;
     logger = new common_1.Logger(FormsService_1.name);
-    constructor(prisma) {
+    constructor(prisma, realtime) {
         this.prisma = prisma;
+        this.realtime = realtime;
     }
     async submit(dto, meta) {
         const submission = await this.prisma.leadFormSubmission.create({
@@ -35,10 +38,19 @@ let FormsService = FormsService_1 = class FormsService {
                 activityType: dto.activityType,
                 message: dto.message?.trim() ? dto.message.trim() : null,
             },
-            select: { id: true, createdAt: true },
+            select: {
+                id: true,
+                fullName: true,
+                phone: true,
+                email: true,
+                activityType: true,
+                message: true,
+                createdAt: true,
+            },
         });
         this.logger.log(`lead submission received id=${submission.id} activity="${dto.activityType}" ` +
             `origin=${meta?.origin ?? 'n/a'} ip=${meta?.ip ?? 'n/a'}`);
+        this.realtime.emitFormSubmitted({ submission });
         return { id: submission.id, createdAt: submission.createdAt, received: true };
     }
     async list(_user, query) {
@@ -106,6 +118,7 @@ let FormsService = FormsService_1 = class FormsService {
 exports.FormsService = FormsService;
 exports.FormsService = FormsService = FormsService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        realtime_service_1.RealtimeService])
 ], FormsService);
 //# sourceMappingURL=forms.service.js.map

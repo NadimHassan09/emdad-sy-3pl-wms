@@ -82,7 +82,11 @@ let ClientAuthService = class ClientAuthService {
             where: { id: user.id },
             data: { lastLoginAt: now, lastActivityAt: now },
         });
-        const expiresIn = this.config.get('CLIENT_JWT_EXPIRES_IN') ?? this.config.get('JWT_EXPIRES_IN') ?? '8h';
+        const expiresIn = dto.rememberMe
+            ? '30d'
+            : this.config.get('CLIENT_JWT_EXPIRES_IN') ??
+                this.config.get('JWT_EXPIRES_IN') ??
+                '8h';
         const maxAgeMs = this.expiresInToMs(expiresIn);
         const payload = {
             sub: user.id,

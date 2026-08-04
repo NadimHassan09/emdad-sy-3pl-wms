@@ -38,6 +38,8 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { FormsModule } from './modules/forms/forms.module';
 import { FinalContractsModule } from './modules/final-contracts/final-contracts.module';
 import { OmsModule } from './modules/oms/oms.module';
+import { CodModule } from './modules/cod/cod.module';
+import { OmsReturnsModule } from './modules/oms-returns/oms-returns.module';
 import { PdfModule } from './pdf/pdf.module';
 
 @Module({
@@ -89,6 +91,8 @@ import { PdfModule } from './pdf/pdf.module';
     FormsModule,
     FinalContractsModule,
     OmsModule,
+    CodModule,
+    OmsReturnsModule,
     PdfModule,
   ],
   providers: [

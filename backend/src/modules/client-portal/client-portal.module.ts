@@ -7,10 +7,12 @@ import { CryptoModule } from '../../common/crypto/crypto.module';
 import { PrismaModule } from '../../common/prisma/prisma.module';
 import { InboundModule } from '../inbound/inbound.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { MediaModule } from '../media/media.module';
 import { OutboundModule } from '../outbound/outbound.module';
 import { ProductsModule } from '../products/products.module';
 import { BillingModule } from '../billing/billing.module';
 import { OmsModule } from '../oms/oms.module';
+import { OmsReturnsModule } from '../oms-returns/oms-returns.module';
 import { ReturnsModule } from '../returns/returns.module';
 import { ClientAuthController } from './auth/client-auth.controller';
 import { ClientAuthService } from './auth/client-auth.service';
@@ -18,6 +20,7 @@ import { JwtClientAuthGuard } from './auth/jwt-client-auth.guard';
 import { JwtClientStrategy } from './auth/strategies/jwt-client.strategy';
 import { ClientInboundOrdersController } from './inbound/client-inbound-orders.controller';
 import { ClientInboundOrdersService } from './inbound/client-inbound-orders.service';
+import { ClientMediaController } from './media/client-media.controller';
 import { ClientOutboundOrdersController } from './outbound/client-outbound-orders.controller';
 import { ClientOutboundOrdersService } from './outbound/client-outbound-orders.service';
 import { ClientProductsController } from './products/client-products.controller';
@@ -34,6 +37,8 @@ import { ClientOmsOrdersController } from './oms/client-oms-orders.controller';
 import { ClientOmsOrdersService } from './oms/client-oms-orders.service';
 import { ClientReturnsController } from './returns/client-returns.controller';
 import { ClientReturnsService } from './returns/client-returns.service';
+import { ClientOmsReturnsController } from './oms-returns/client-oms-returns.controller';
+import { ClientOmsReturnsService } from './oms-returns/client-oms-returns.service';
 
 @Module({
   imports: [
@@ -54,22 +59,26 @@ import { ClientReturnsService } from './returns/client-returns.service';
     CryptoModule,
     InventoryModule,
     ProductsModule,
+    MediaModule,
     InboundModule,
     OutboundModule,
     BillingModule,
     OmsModule,
+    OmsReturnsModule,
     ReturnsModule,
   ],
   controllers: [
     ClientAuthController,
     ClientStockController,
     ClientProductsController,
+    ClientMediaController,
     ClientInboundOrdersController,
     ClientOutboundOrdersController,
     ClientNotificationsController,
     ClientBillingController,
     ClientDashboardController,
     ClientOmsOrdersController,
+    ClientOmsReturnsController,
     ClientReturnsController,
   ],
   providers: [
@@ -82,6 +91,7 @@ import { ClientReturnsService } from './returns/client-returns.service';
     ClientBillingService,
     ClientDashboardService,
     ClientOmsOrdersService,
+    ClientOmsReturnsService,
     ClientReturnsService,
     JwtClientStrategy,
     JwtClientAuthGuard,

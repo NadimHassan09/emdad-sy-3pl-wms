@@ -27,6 +27,9 @@ let ClientReturnsService = class ClientReturnsService {
     findOne(client, id) {
         return this.returns.findById(id, (0, client_auth_principal_1.clientAuthPrincipal)(client));
     }
+    getOutboundQuota(client, outboundId) {
+        return this.returns.getOutboundReturnQuota((0, client_auth_principal_1.clientAuthPrincipal)(client), outboundId);
+    }
     create(client, dto) {
         return this.returns.create((0, client_auth_principal_1.clientAuthPrincipal)(client), {
             ...dto,

@@ -26,15 +26,23 @@ function lazyPage<M extends Record<string, React.ComponentType>>(
 const LoginPage             = lazyPage(() => import('./pages/LoginPage'),             'LoginPage');
 const AccountStatusPage     = lazyPage(() => import('./pages/AccountStatusPage'),     'AccountStatusPage');
 const InboundOrdersPage     = lazyPage(() => import('./pages/InboundOrdersPage'),     'InboundOrdersPage');
+const CreateInboundOrderPage = lazyPage(() => import('./pages/CreateInboundOrderPage'), 'CreateInboundOrderPage');
 const InboundOrderDetailPage = lazyPage(() => import('./pages/InboundOrderDetailPage'), 'InboundOrderDetailPage');
 const OutboundOrdersPage    = lazyPage(() => import('./pages/OutboundOrdersPage'),    'OutboundOrdersPage');
+const CreateOutboundOrderPage = lazyPage(() => import('./pages/CreateOutboundOrderPage'), 'CreateOutboundOrderPage');
 const OutboundOrderDetailPage = lazyPage(() => import('./pages/OutboundOrderDetailPage'), 'OutboundOrderDetailPage');
 const EcommerceOrdersPage   = lazyPage(() => import('./pages/EcommerceOrdersPage'),   'EcommerceOrdersPage');
+const CreateEcommerceOrderPage = lazyPage(() => import('./pages/CreateEcommerceOrderPage'), 'CreateEcommerceOrderPage');
 const EcommerceOrderDetailPage = lazyPage(() => import('./pages/EcommerceOrderDetailPage'), 'EcommerceOrderDetailPage');
 const CodReportsPage          = lazyPage(() => import('./pages/CodReportsPage'),          'CodReportsPage');
-const ReturnsPage             = lazyPage(() => import('./pages/ReturnsPage'),             'ReturnsPage');
+const EcommerceReturnsPage    = lazyPage(() => import('./pages/ReturnsListPage'),         'EcommerceReturnsPage');
+const OutboundReturnsPage     = lazyPage(() => import('./pages/ReturnsListPage'),         'OutboundReturnsPage');
+const CreateEcommerceReturnPage = lazyPage(() => import('./pages/CreateReturnPage'),     'CreateEcommerceReturnPage');
+const CreateOutboundReturnPage  = lazyPage(() => import('./pages/CreateReturnPage'),     'CreateOutboundReturnPage');
 const ReturnDetailPage        = lazyPage(() => import('./pages/ReturnDetailPage'),        'ReturnDetailPage');
 const ProductsPage          = lazyPage(() => import('./pages/ProductsPage'),          'ProductsPage');
+const CreateProductPage     = lazyPage(() => import('./pages/CreateProductPage'),     'CreateProductPage');
+const EditProductPage       = lazyPage(() => import('./pages/EditProductPage'),       'EditProductPage');
 const ProductDetailPage     = lazyPage(() => import('./pages/ProductDetailPage'),     'ProductDetailPage');
 const DashboardPage         = lazyPage(() => import('./pages/DashboardPage'),         'DashboardPage');
 const BillingPage           = lazyPage(() => import('./pages/BillingPage'),           'BillingPage');
@@ -53,6 +61,11 @@ const queryClient = new QueryClient({
 function LegacyBillingInvoiceRedirect(): ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   return <Navigate to={`/invoices/${id}`} replace />;
+}
+
+function LegacyReturnRedirect(): ReactElement {
+  const { id = '' } = useParams<{ id: string }>();
+  return <Navigate to={`/ecommerce-orders/returns/${id}`} replace />;
 }
 
 function AppRoutes(): ReactElement {
@@ -88,6 +101,22 @@ function AppRoutes(): ReactElement {
               }
             />
             <Route
+              path="products/new"
+              element={
+                <RequireRouteAccess>
+                  <CreateProductPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="products/:id/edit"
+              element={
+                <RequireRouteAccess>
+                  <EditProductPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
               path="products/:id"
               element={
                 <RequireRouteAccess>
@@ -100,6 +129,14 @@ function AppRoutes(): ReactElement {
               element={
                 <RequireRouteAccess>
                   <InboundOrdersPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="inbound-orders/new"
+              element={
+                <RequireRouteAccess>
+                  <CreateInboundOrderPage />
                 </RequireRouteAccess>
               }
             />
@@ -120,6 +157,38 @@ function AppRoutes(): ReactElement {
               }
             />
             <Route
+              path="outbound-orders/new"
+              element={
+                <RequireRouteAccess>
+                  <CreateOutboundOrderPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="outbound-orders/returns"
+              element={
+                <RequireRouteAccess>
+                  <OutboundReturnsPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="outbound-orders/returns/new"
+              element={
+                <RequireRouteAccess>
+                  <CreateOutboundReturnPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="outbound-orders/returns/:id"
+              element={
+                <RequireRouteAccess>
+                  <ReturnDetailPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
               path="outbound-orders/:id"
               element={
                 <RequireRouteAccess>
@@ -132,6 +201,38 @@ function AppRoutes(): ReactElement {
               element={
                 <RequireRouteAccess>
                   <EcommerceOrdersPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="ecommerce-orders/new"
+              element={
+                <RequireRouteAccess>
+                  <CreateEcommerceOrderPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="ecommerce-orders/returns"
+              element={
+                <RequireRouteAccess>
+                  <EcommerceReturnsPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="ecommerce-orders/returns/new"
+              element={
+                <RequireRouteAccess>
+                  <CreateEcommerceReturnPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="ecommerce-orders/returns/:id"
+              element={
+                <RequireRouteAccess>
+                  <ReturnDetailPage />
                 </RequireRouteAccess>
               }
             />
@@ -152,22 +253,9 @@ function AppRoutes(): ReactElement {
               }
             />
             <Route path="cod-reports" element={<Navigate to="/my-profits" replace />} />
-            <Route
-              path="returns"
-              element={
-                <RequireRouteAccess>
-                  <ReturnsPage />
-                </RequireRouteAccess>
-              }
-            />
-            <Route
-              path="returns/:id"
-              element={
-                <RequireRouteAccess>
-                  <ReturnDetailPage />
-                </RequireRouteAccess>
-              }
-            />
+            <Route path="returns" element={<Navigate to="/ecommerce-orders/returns" replace />} />
+            <Route path="returns/new" element={<Navigate to="/ecommerce-orders/returns/new" replace />} />
+            <Route path="returns/:id" element={<LegacyReturnRedirect />} />
             <Route
               path="billing"
               element={

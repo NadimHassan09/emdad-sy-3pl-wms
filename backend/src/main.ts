@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import type { INestApplication } from '@nestjs/common';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -199,6 +200,19 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   app.setGlobalPrefix('api');
+
+  // Product / avatar images under storage/media → /api/client/media/...
+  // (clientMediaSrc joins API base `/api/client` with `/media/...`).
+  const mediaRoot = join(process.cwd(), 'storage', 'media');
+  app.use(
+    '/api/client/media',
+    express.static(mediaRoot, {
+      // Allow Nest routes (e.g. GET /media/products/:id) when no file matches.
+      fallthrough: true,
+      maxAge: isProd ? '7d' : 0,
+      index: false,
+    }),
+  );
 
   const port = parseInt(config.get<string>('PORT') ?? '3000', 10);
   await app.listen(port);

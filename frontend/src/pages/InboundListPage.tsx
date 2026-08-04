@@ -1,31 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, Button, EmptyState, Textarea } from '@ds';
+import { Alert, Button, EmptyState } from '@ds';
 
 import { CompaniesApi } from '../api/companies';
 import {
-  CreateInboundOrderInput,
   InboundApi,
   InboundOrder,
   InboundOrderStatus,
 } from '../api/inbound';
-import { Product, ProductsApi } from '../api/products';
 import { useAuth } from '../auth/AuthContext';
 import { AdminListPageShell } from '../components/AdminListPageShell';
-import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
-import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { Combobox } from '../components/Combobox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
-import { OrderDraftLinesTable } from '../components/OrderDraftLinesTable';
 import {
   FILTER_PRIMARY_BUTTON_CLASS,
   FILTER_RESET_BUTTON_CLASS,
   FilterPanel,
 } from '../components/FilterPanel';
-import { Modal } from '../components/Modal';
 import { RowActionsMenu, type RowAction } from '../components/RowActionsMenu';
 import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
@@ -33,7 +27,6 @@ import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
-import { useOrderWorkspaceMode } from '../hooks/useOrderWorkspaceMode';
 import { useFilters } from '../hooks/useFilters';
 import {
   CHUNK_SIZE_STANDARD,
@@ -42,10 +35,7 @@ import {
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { inboundHasQuantityShortfall } from '../lib/inbound-shortfall';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
-import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../lib/order-planning-dates';
 import { canAccessInternalTransfer } from '../lib/rbac';
-
-const DEFAULT_COMPANY_ID = (import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined) ?? '';
 
 type ListDraft = {
   orderSearch: string;
@@ -135,19 +125,13 @@ export function InboundListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = canAccessInternalTransfer(user?.role);
-  const [open, setOpen] = useState(false);
   const [toCancel, setToCancel] = useState<InboundOrder | null>(null);
   const [toDelete, setToDelete] = useState<InboundOrder | null>(null);
   const isArabic =
     typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (label: string) => inboundLabel(label, isArabic);
-  const orderWorkspaceMode = useOrderWorkspaceMode();
   const openCreate = () => {
-    if (orderWorkspaceMode) {
-      navigate('/orders/inbound/new');
-    } else {
-      setOpen(true);
-    }
+    navigate('/orders/inbound/new');
   };
   const { warehouseId: wid } = useDefaultWarehouseId();
 
@@ -211,17 +195,6 @@ export function InboundListPage() {
     [isArabic],
   );
 
-  const createMut = useMutation({
-    mutationFn: InboundApi.create,
-    onSuccess: (order) => {
-      toast.success(`Inbound order ${order.orderNumber} created.`);
-      qc.invalidateQueries({ queryKey: QK.inboundOrders });
-      setOpen(false);
-      navigate(`/orders/inbound/${order.id}`);
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
   const cancelMut = useMutation({
     mutationFn: (orderId: string) => InboundApi.cancel(orderId),
     onSuccess: (_data, orderId) => {
@@ -245,8 +218,17 @@ export function InboundListPage() {
 
   const rowActions = (o: InboundOrder): RowAction[] => {
     const actions: RowAction[] = [];
-    if (o.status === 'draft' || o.status === 'pending_approval') {
-      actions.push({ key: 'edit', label: t('Edit'), onClick: () => navigate(`/orders/inbound/${o.id}`) });
+    const hasReceived = (o.lines ?? []).some((l) => Number(l.receivedQuantity) > 0);
+    const canEditPlan =
+      o.status === 'draft' ||
+      o.status === 'pending_approval' ||
+      ((o.status === 'confirmed' || o.status === 'in_progress') && !hasReceived);
+    if (canEditPlan) {
+      actions.push({
+        key: 'edit',
+        label: t('Edit'),
+        onClick: () => navigate(`/orders/inbound/${o.id}/edit`),
+      });
     }
     if (o.status !== 'completed' && o.status !== 'cancelled') {
       actions.push({ key: 'cancel', label: t('Cancel order'), danger: true, onClick: () => setToCancel(o) });
@@ -471,16 +453,6 @@ export function InboundListPage() {
         }}
       />
 
-      {!orderWorkspaceMode && (
-        <CreateInboundModal
-          open={open}
-          onClose={() => setOpen(false)}
-          loading={createMut.isPending}
-          onSubmit={(input) => createMut.mutate(input)}
-          isArabic={isArabic}
-        />
-      )}
-
       <ConfirmModal
         open={!!toCancel}
         title={t('Cancel this order?')}
@@ -513,385 +485,5 @@ export function InboundListPage() {
         </p>
       </ConfirmModal>
     </AdminListPageShell>
-  );
-}
-
-interface DraftLine {
-  productId: string;
-  expectedQuantity: string;
-}
-
-function formatProductOnHand(p: Product): string {
-  const n = Number(p.totalOnHand ?? 0);
-  return Number.isFinite(n)
-    ? n.toLocaleString(undefined, { maximumFractionDigits: 4 })
-    : String(p.totalOnHand ?? '0');
-}
-
-interface CreateInboundModalProps {
-  open: boolean;
-  onClose: () => void;
-  loading: boolean;
-  onSubmit: (input: CreateInboundOrderInput) => void;
-  isArabic: boolean;
-}
-
-function CreateInboundModal({ open, onClose, loading, onSubmit, isArabic }: CreateInboundModalProps) {
-  const toast = useToast();
-  const t = (label: string) => inboundLabel(label, isArabic);
-  const [companyId, setCompanyId] = useState(DEFAULT_COMPANY_ID);
-  const [arrival, setArrival] = useState(() => localCalendarDateYmd());
-  const [notes, setNotes] = useState('');
-  const [lines, setLines] = useState<DraftLine[]>([{ productId: '', expectedQuantity: '' }]);
-  const [scanOpen, setScanOpen] = useState(false);
-  const [step, setStep] = useState<1 | 2>(1);
-  const [stepHint, setStepHint] = useState<string | null>(null);
-
-  const companies = useQuery({
-    queryKey: QK.companies,
-    queryFn: () => CompaniesApi.list(),
-    enabled: open,
-  });
-
-  const products = useQuery({
-    queryKey: [...QK.products, companyId],
-    queryFn: () => ProductsApi.list({ companyId, limit: 200 }),
-    enabled: open && !!companyId,
-    staleTime: 5 * 60_000,
-  });
-
-  useEffect(() => {
-    if (open && !companyId && companies.data?.length) {
-      const fallback =
-        companies.data.find((c) => c.id === DEFAULT_COMPANY_ID) ?? companies.data[0];
-      setCompanyId(fallback.id);
-    }
-  }, [open, companyId, companies.data]);
-
-  useEffect(() => {
-    setLines((prev) => prev.map((l) => ({ ...l, productId: '' })));
-  }, [companyId]);
-
-  // Only active products are orderable; suspended/archived rows are rejected by
-  // the backend, so keep them out of the create form entirely.
-  const orderableProducts = useMemo(
-    () => (products.data?.items ?? []).filter((p) => p.status === 'active'),
-    [products.data],
-  );
-
-  const productOptions = useMemo(
-    () =>
-      orderableProducts.map((p) => ({
-        value: p.id,
-        label: `${p.sku} — ${p.name}`,
-        hint: `On hand ${formatProductOnHand(p)} ${p.uom}`,
-      })),
-    [orderableProducts],
-  );
-
-  const productsById = useMemo(() => {
-    const m = new Map<string, Product>();
-    for (const p of orderableProducts) m.set(p.id, p);
-    return m;
-  }, [orderableProducts]);
-
-  const tableLines = useMemo(
-    () =>
-      lines.map((l, idx) => ({
-        lineKey: String(idx),
-        productId: l.productId,
-        quantity: l.expectedQuantity,
-      })),
-    [lines],
-  );
-
-  const reset = () => {
-    setCompanyId(DEFAULT_COMPANY_ID);
-    setArrival(localCalendarDateYmd());
-    setNotes('');
-    setLines([{ productId: '', expectedQuantity: '' }]);
-    setScanOpen(false);
-    setStep(1);
-    setStepHint(null);
-  };
-
-  const handleClose = () => {
-    if (!loading) {
-      reset();
-      onClose();
-    }
-  };
-
-  const updateLine = (idx: number, patch: Partial<DraftLine>) => {
-    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
-  };
-
-  const applyProductByBarcode = async (raw: string) => {
-    const code = raw.trim();
-    if (!companyId) {
-      toast.error('Pick a client first.');
-      return;
-    }
-    if (!code) {
-      toast.error('Scan a barcode.');
-      return;
-    }
-    try {
-      const { items } = await ProductsApi.list({
-        companyId,
-        productBarcode: code,
-        limit: 50,
-      });
-      const norm = code.toLowerCase();
-      const orderable = items.filter((p) => p.status === 'active');
-      const exact = orderable.filter((p) => (p.barcode ?? '').trim().toLowerCase() === norm);
-      const product = exact.length === 1 ? exact[0]! : orderable.length === 1 ? orderable[0]! : null;
-      if (!product) {
-        const suspendedMatch = items.some(
-          (p) => p.status !== 'active' && (p.barcode ?? '').trim().toLowerCase() === norm,
-        );
-        toast.error(
-          suspendedMatch
-            ? 'This product is suspended and cannot be added to orders.'
-            : exact.length > 1
-              ? 'Multiple products share this barcode fragment — type a longer code or pick from the list.'
-              : 'No product found for this barcode.',
-        );
-        return;
-      }
-      setLines((prev) => {
-        const emptyIdx = prev.findIndex((l) => !l.productId);
-        if (emptyIdx >= 0) {
-          return prev.map((l, i) => (i === emptyIdx ? { ...l, productId: product.id } : l));
-        }
-        return [...prev, { productId: product.id, expectedQuantity: '' }];
-      });
-      toast.success(`${product.sku} added from barcode.`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lookup failed.');
-    }
-  };
-
-  const goToLinesStep = () => {
-    if (!companyId.trim()) {
-      const msg = isArabic ? 'اختر عميلاً للمتابعة.' : 'Select a client to continue.';
-      setStepHint(msg);
-      toast.error(isArabic ? 'اختر عميلاً.' : 'Pick a client.');
-      return;
-    }
-    if (!isYmdOnOrAfterLocalToday(arrival)) {
-      const msg = t('Expected arrival date cannot be before today.');
-      setStepHint(msg);
-      toast.error(msg);
-      return;
-    }
-    setStepHint(null);
-    setStep(2);
-  };
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (step !== 2) return;
-    if (!isYmdOnOrAfterLocalToday(arrival)) {
-      toast.error(t('Expected arrival date cannot be before today.'));
-      return;
-    }
-    onSubmit({
-      companyId,
-      expectedArrivalDate: arrival,
-      notes: notes || undefined,
-      lines: lines
-        .filter((l) => l.productId && l.expectedQuantity)
-        .map((l) => ({
-          productId: l.productId,
-          expectedQuantity: Number(l.expectedQuantity),
-        })),
-    });
-  };
-
-  return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      title={t('New inbound order')}
-      widthClass="max-w-3xl"
-      footer={
-        step === 1 ? (
-          <>
-            <Button
-              type="button"
-              variant="danger"
-              size="md"
-              onClick={handleClose}
-              disabled={loading}
-              className={FILTER_RESET_BUTTON_CLASS}
-            >
-              {t('Cancel')}
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              disabled={loading || !companyId.trim()}
-              className={FILTER_PRIMARY_BUTTON_CLASS}
-              onClick={goToLinesStep}
-              title={
-                !companyId.trim()
-                  ? isArabic
-                    ? 'اختر عميلاً للمتابعة'
-                    : 'Select a client to continue'
-                  : undefined
-              }
-            >
-              {t('Next')}
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              type="button"
-              variant="danger"
-              size="md"
-              onClick={handleClose}
-              disabled={loading}
-              className={FILTER_RESET_BUTTON_CLASS}
-            >
-              {t('Cancel')}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setStep(1)}
-              disabled={loading}
-            >
-              {t('Back')}
-            </Button>
-            <Button
-              form="create-inbound"
-              type="submit"
-              variant="primary"
-              size="md"
-              loading={loading}
-              className={FILTER_PRIMARY_BUTTON_CLASS}
-            >
-              {t('Create')}
-            </Button>
-          </>
-        )
-      }
-    >
-      {/* No overflow/max-height here — the Modal's body div is the sole scroll zone. */}
-      <form id="create-inbound" onSubmit={submit} className="space-y-4">
-        {step === 1 ? (
-          <div className="space-y-4">
-            {stepHint ? (
-              <p
-                className="rounded-lg border border-status-warning-border bg-status-warning-bg px-3 py-2 text-sm text-status-warning-fg"
-                role="status"
-              >
-                {stepHint}
-              </p>
-            ) : !companyId.trim() ? (
-              <p className="text-xs text-text-muted" role="note">
-                {isArabic
-                  ? 'يلزم اختيار عميل قبل الانتقال إلى بنود الطلب.'
-                  : 'Select a client before continuing to order lines.'}
-              </p>
-            ) : null}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Combobox
-                label={t('Client')}
-                required
-                value={companyId}
-                onChange={(v) => {
-                  setCompanyId(v);
-                  setStepHint(null);
-                }}
-                clearable={false}
-                dropdownInFlow
-                options={(companies.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-                placeholder={isArabic ? 'اختر عميلاً…' : 'Pick a client…'}
-              />
-              <TextField
-                label={t('Expected arrival date')}
-                type="date"
-                required
-                min={localCalendarDateYmd()}
-                value={arrival}
-                onChange={(e) => setArrival(e.target.value)}
-              />
-            </div>
-            <Textarea
-              label={t('Notes')}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={4}
-            />
-          </div>
-        ) : (
-          <OrderDraftLinesTable
-            title={t('Lines')}
-            productHeader={t('Product')}
-            lines={tableLines}
-            productOptions={productOptions}
-            productsById={productsById}
-            companyId={companyId}
-            companyDisabledMessage={isArabic ? 'اختر عميلاً أولاً' : 'Pick a client first'}
-            pickProductPlaceholder={t('Pick product…')}
-            quantityHeader={t('Quantity')}
-            emptyMessage={t('No lines yet — add a product below.')}
-            removeLabel={t('Remove')}
-            loading={loading}
-            formatOnHand={formatProductOnHand}
-            onHandLabel={isArabic ? 'الكمية الحالية:' : 'Current quantity:'}
-            onUpdateLine={(lineKey, patch) => {
-              const idx = Number(lineKey);
-              updateLine(idx, {
-                ...(patch.productId !== undefined ? { productId: patch.productId } : {}),
-                ...(patch.quantity !== undefined ? { expectedQuantity: patch.quantity } : {}),
-              });
-            }}
-            onRemoveLine={(lineKey) => {
-              setLines((prev) => prev.filter((_, i) => i !== Number(lineKey)));
-            }}
-            toolbar={
-              <>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={!companyId || loading}
-                  onClick={() => setScanOpen(true)}
-                  aria-label={t('Scan barcode')}
-                  title={t('Scan barcode')}
-                  className="px-2.5"
-                >
-                  <BarcodeScanIcon className="h-5 w-5" />
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="secondary"
-                  disabled={loading}
-                  onClick={() => setLines((prev) => [...prev, { productId: '', expectedQuantity: '' }])}
-                >
-                  {t('+ Add line')}
-                </Button>
-              </>
-            }
-          />
-        )}
-      </form>
-
-      <BarcodeScanModal
-        open={scanOpen}
-        onClose={() => setScanOpen(false)}
-        onScan={(text) => {
-          void applyProductByBarcode(text);
-          setScanOpen(false);
-        }}
-        onCameraError={(msg) => toast.error(msg)}
-      />
-    </Modal>
   );
 }

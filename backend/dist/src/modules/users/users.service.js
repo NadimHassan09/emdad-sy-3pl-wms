@@ -380,6 +380,13 @@ let UsersService = class UsersService {
             }
             const row = this.toListRow(u);
             this.realtime.emitUserUpdated(this.serializeUserForRealtime(row));
+            if (dto.status === client_1.UserStatus.inactive || dto.role !== undefined) {
+                this.realtime.emitAuthSessionChanged(id, {
+                    type: 'forced_logout',
+                    userId: id,
+                    reason: dto.status === client_1.UserStatus.inactive ? 'user_deactivated' : 'role_changed',
+                });
+            }
             return row;
         });
     }
@@ -406,6 +413,11 @@ let UsersService = class UsersService {
                 await tx.user.delete({ where: { id } });
             });
             this.realtime.emitUserDeleted(id, u.companyId);
+            this.realtime.emitAuthSessionChanged(id, {
+                type: 'forced_logout',
+                userId: id,
+                reason: 'user_deleted',
+            });
             return { id, deleted: true };
         }
         catch (e) {

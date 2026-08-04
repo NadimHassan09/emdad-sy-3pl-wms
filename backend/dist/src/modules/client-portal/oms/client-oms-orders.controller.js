@@ -16,17 +16,12 @@ exports.ClientOmsOrdersController = void 0;
 const common_1 = require("@nestjs/common");
 const public_decorator_1 = require("../../../common/auth/public.decorator");
 const parse_uuid_loose_pipe_1 = require("../../../common/pipes/parse-uuid-loose.pipe");
-const pagination_dto_1 = require("../../../common/dto/pagination.dto");
 const client_user_decorator_1 = require("../auth/client-user.decorator");
 const jwt_client_auth_guard_1 = require("../auth/jwt-client-auth.guard");
 const client_oms_orders_service_1 = require("./client-oms-orders.service");
 const create_client_oms_order_dto_1 = require("./dto/create-client-oms-order.dto");
+const client_cod_report_query_dto_1 = require("./dto/client-cod-report-query.dto");
 const list_client_oms_orders_query_dto_1 = require("./dto/list-client-oms-orders-query.dto");
-class ClientCodReportQueryDto extends pagination_dto_1.PaginationDto {
-    codStatus;
-    dateFrom;
-    dateTo;
-}
 let ClientOmsOrdersController = class ClientOmsOrdersController {
     oms;
     constructor(oms) {
@@ -86,7 +81,7 @@ __decorate([
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Query)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, ClientCodReportQueryDto]),
+    __metadata("design:paramtypes", [Object, client_cod_report_query_dto_1.ClientCodReportQueryDto]),
     __metadata("design:returntype", void 0)
 ], ClientOmsOrdersController.prototype, "codReport", null);
 exports.ClientOmsOrdersController = ClientOmsOrdersController = __decorate([

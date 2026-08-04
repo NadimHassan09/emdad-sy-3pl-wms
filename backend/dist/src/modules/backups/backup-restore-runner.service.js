@@ -50,6 +50,7 @@ const promises_1 = require("node:fs/promises");
 const path = __importStar(require("node:path"));
 const audit_log_service_1 = require("../../common/audit/audit-log.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const realtime_service_1 = require("../realtime/realtime.service");
 const backup_config_1 = require("./backup-config");
 const backup_drive_integration_service_1 = require("./backup-drive-integration.service");
 const backup_drive_service_1 = require("./backup-drive.service");
@@ -69,9 +70,11 @@ let BackupRestoreRunnerService = BackupRestoreRunnerService_1 = class BackupRest
     driveIntegration;
     drive;
     fileEncryption;
+    realtime;
     logger = new common_1.Logger(BackupRestoreRunnerService_1.name);
     progressCache = new Map();
-    constructor(prisma, backupConfig, storage, pg, maintenance, operations, audit, driveIntegration, drive, fileEncryption) {
+    lastEmittedProgress = new Map();
+    constructor(prisma, backupConfig, storage, pg, maintenance, operations, audit, driveIntegration, drive, fileEncryption, realtime) {
         this.prisma = prisma;
         this.backupConfig = backupConfig;
         this.storage = storage;
@@ -82,6 +85,7 @@ let BackupRestoreRunnerService = BackupRestoreRunnerService_1 = class BackupRest
         this.driveIntegration = driveIntegration;
         this.drive = drive;
         this.fileEncryption = fileEncryption;
+        this.realtime = realtime;
     }
     enqueueRestore(restoreJobId, sourceBackupId, user, createPreSnapshot) {
         if (!this.operations.tryAcquire(restoreJobId)) {
@@ -131,6 +135,12 @@ let BackupRestoreRunnerService = BackupRestoreRunnerService_1 = class BackupRest
                     startedAt: new Date(),
                     progressPercent: 5,
                 },
+            });
+            this.realtime.emitBackupJobProgress({
+                jobId: restoreJobId,
+                status: client_1.BackupJobStatus.running,
+                type: client_1.BackupJobType.restore,
+                progressPercent: 5,
             });
             if (createPreSnapshot || this.backupConfig.preSnapshotRequired) {
                 preSnapshotId = await this.createPreSnapshot(restoreJobId, user);
@@ -300,6 +310,18 @@ let BackupRestoreRunnerService = BackupRestoreRunnerService_1 = class BackupRest
         }
         catch {
         }
+        const clamped = Math.max(0, Math.min(100, progressPercent));
+        const last = this.lastEmittedProgress.get(jobId) ?? -1;
+        if (clamped - last >= 5 || clamped >= 90) {
+            this.lastEmittedProgress.set(jobId, clamped);
+            this.realtime.emitBackupJobProgress({
+                jobId,
+                status: client_1.BackupJobStatus.running,
+                type: client_1.BackupJobType.restore,
+                progressPercent: clamped,
+                bytesWritten,
+            });
+        }
     }
     setCachedProgress(jobId, progressPercent, bytesWritten) {
         this.progressCache.set(jobId, {
@@ -328,7 +350,16 @@ let BackupRestoreRunnerService = BackupRestoreRunnerService_1 = class BackupRest
                 data: { id: jobId, startedAt: new Date(), ...data },
             });
         }
+        this.realtime.emitBackupJobProgress({
+            jobId,
+            status: client_1.BackupJobStatus.completed,
+            type: client_1.BackupJobType.restore,
+            progressPercent: 100,
+            bytesWritten: Number(data.bytesWritten),
+            label: data.label,
+        });
         this.progressCache.delete(jobId);
+        this.lastEmittedProgress.delete(jobId);
     }
     async markFailed(jobId, errorMessage, triggeredByUserId) {
         this.progressCache.set(jobId, {
@@ -365,6 +396,13 @@ let BackupRestoreRunnerService = BackupRestoreRunnerService_1 = class BackupRest
             catch {
             }
         }
+        this.realtime.emitBackupJobProgress({
+            jobId,
+            status: client_1.BackupJobStatus.failed,
+            type: client_1.BackupJobType.restore,
+            errorMessage,
+        });
+        this.lastEmittedProgress.delete(jobId);
     }
 };
 exports.BackupRestoreRunnerService = BackupRestoreRunnerService;
@@ -379,6 +417,7 @@ exports.BackupRestoreRunnerService = BackupRestoreRunnerService = BackupRestoreR
         audit_log_service_1.AuditLogService,
         backup_drive_integration_service_1.BackupDriveIntegrationService,
         backup_drive_service_1.BackupDriveService,
-        backup_file_encryption_service_1.BackupFileEncryptionService])
+        backup_file_encryption_service_1.BackupFileEncryptionService,
+        realtime_service_1.RealtimeService])
 ], BackupRestoreRunnerService);
 //# sourceMappingURL=backup-restore-runner.service.js.map

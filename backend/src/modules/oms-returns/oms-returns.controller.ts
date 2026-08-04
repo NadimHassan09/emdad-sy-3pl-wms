@@ -1,0 +1,61 @@
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+
+import { CurrentUser } from '../../common/auth/current-user.decorator';
+import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
+import {
+  ApproveOmsReturnDto,
+  CreateOmsReturnDto,
+  RejectOmsReturnDto,
+} from './dto/oms-return.dto';
+import {
+  ListOmsReturnsQueryDto,
+  OmsReturnsService,
+} from './oms-returns.service';
+
+@Controller('oms/returns')
+export class OmsReturnsController {
+  constructor(private readonly returns: OmsReturnsService) {}
+
+  @Get()
+  list(
+    @CurrentUser() user: AuthPrincipal,
+    @Query() query: ListOmsReturnsQueryDto,
+  ) {
+    return this.returns.list(user, query);
+  }
+
+  @Post()
+  create(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: CreateOmsReturnDto,
+  ) {
+    return this.returns.create(user, dto);
+  }
+
+  @Get(':id')
+  findOne(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.returns.findById(id, user);
+  }
+
+  @Post(':id/approve')
+  approve(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: ApproveOmsReturnDto,
+  ) {
+    return this.returns.approve(id, user, dto);
+  }
+
+  @Post(':id/reject')
+  reject(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: RejectOmsReturnDto,
+  ) {
+    return this.returns.reject(id, user, dto);
+  }
+}

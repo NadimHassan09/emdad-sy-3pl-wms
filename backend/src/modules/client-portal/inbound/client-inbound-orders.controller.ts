@@ -5,10 +5,10 @@ import { CreateInboundOrderDto } from '../../inbound/dto/create-inbound.dto';
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { ParseUuidLoosePipe } from '../../../common/pipes/parse-uuid-loose.pipe';
-import { ListInboundQueryDto } from '../../inbound/dto/list-inbound-query.dto';
 import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ClientInboundOrdersService } from './client-inbound-orders.service';
+import { ClientListInboundQueryDto } from './dto/client-list-inbound-query.dto';
 
 @Public()
 @UseGuards(JwtClientAuthGuard)
@@ -17,7 +17,7 @@ export class ClientInboundOrdersController {
   constructor(private readonly inbound: ClientInboundOrdersService) {}
 
   @Get()
-  list(@ClientUser() client: ClientPrincipal, @Query() query: ListInboundQueryDto) {
+  list(@ClientUser() client: ClientPrincipal, @Query() query: ClientListInboundQueryDto) {
     return this.inbound.list(client, query);
   }
 

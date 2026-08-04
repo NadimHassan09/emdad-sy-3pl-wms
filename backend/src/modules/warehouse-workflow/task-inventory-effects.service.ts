@@ -250,7 +250,7 @@ export class TaskInventoryEffectsService {
         }
       }
 
-      const stockMeta = await this.stock.upsertPositiveWithMeta(tx, {
+      await this.stock.upsertPositive(tx, {
         companyId,
         productId: line.productId,
         locationId: stagingLocationId,
@@ -279,8 +279,6 @@ export class TaskInventoryEffectsService {
         toLocationId: stagingLocationId,
         movementType: MovementType.inbound_receive,
         quantity: qty,
-        quantityBefore: stockMeta.before,
-        quantityAfter: stockMeta.after,
         referenceType: 'inbound_order',
         referenceId: inboundOrderId,
         operatorId,
@@ -527,8 +525,6 @@ export class TaskInventoryEffectsService {
         toLocationId: null,
         movementType: MovementType.outbound_pick,
         quantity: new Prisma.Decimal(r.quantity),
-        quantityBefore: meta.before,
-        quantityAfter: meta.after,
         referenceType: 'outbound_order',
         referenceId: outboundOrderId,
         operatorId,

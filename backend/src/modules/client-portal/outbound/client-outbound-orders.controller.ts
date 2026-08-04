@@ -5,10 +5,10 @@ import { CreateOutboundOrderDto } from '../../outbound/dto/create-outbound.dto';
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { ParseUuidLoosePipe } from '../../../common/pipes/parse-uuid-loose.pipe';
-import { ListOutboundQueryDto } from '../../outbound/dto/list-outbound-query.dto';
 import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ClientOutboundOrdersService } from './client-outbound-orders.service';
+import { ClientListOutboundQueryDto } from './dto/client-list-outbound-query.dto';
 
 @Public()
 @UseGuards(JwtClientAuthGuard)
@@ -17,7 +17,7 @@ export class ClientOutboundOrdersController {
   constructor(private readonly outbound: ClientOutboundOrdersService) {}
 
   @Get()
-  list(@ClientUser() client: ClientPrincipal, @Query() query: ListOutboundQueryDto) {
+  list(@ClientUser() client: ClientPrincipal, @Query() query: ClientListOutboundQueryDto) {
     return this.outbound.list(client, query);
   }
 

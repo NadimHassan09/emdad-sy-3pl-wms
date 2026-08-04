@@ -25,6 +25,8 @@ interface AuthContextValue extends AuthState {
     password: string,
     options?: { persistSession?: boolean },
   ) => Promise<ClientUser>;
+  /** Resume remembered session via cookie/bearer without password. */
+  resumeSession: () => Promise<ClientUser>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -82,6 +84,12 @@ export function AuthProvider({
     [],
   );
 
+  const resumeSession = useCallback(async () => {
+    const me = await authService.fetchCurrentUser();
+    setUser(me);
+    return me;
+  }, []);
+
   const logout = useCallback(async () => {
     await authService.logout();
     setUser(null);
@@ -97,10 +105,11 @@ export function AuthProvider({
       user,
       bootstrapped,
       login,
+      resumeSession,
       logout,
       refreshUser,
     }),
-    [user, bootstrapped, login, logout, refreshUser],
+    [user, bootstrapped, login, resumeSession, logout, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

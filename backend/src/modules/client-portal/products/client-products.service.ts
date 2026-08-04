@@ -9,6 +9,11 @@ import { NotificationsService } from '../../notifications/notifications.service'
 import { ListProductsQueryDto } from '../../products/dto/list-products-query.dto';
 import { ProductsService } from '../../products/products.service';
 import { ClientCreateProductDto } from './dto/client-create-product.dto';
+import { ClientUpdateProductDto } from './dto/client-update-product.dto';
+
+function productImageUrl(imagePath: string | null | undefined, productId: string): string | null {
+  return imagePath ? `/media/products/${productId}` : null;
+}
 
 @Injectable()
 export class ClientProductsService {
@@ -20,10 +25,17 @@ export class ClientProductsService {
   ) {}
 
   async list(client: ClientPrincipal, query: ListProductsQueryDto) {
-    return this.products.list(clientAuthPrincipal(client), {
+    const page = await this.products.list(clientAuthPrincipal(client), {
       ...query,
       companyId: client.companyId,
     });
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        ...item,
+        imageUrl: productImageUrl(item.imagePath ?? null, item.id),
+      })),
+    };
   }
 
   async findById(client: ClientPrincipal, id: string) {
@@ -69,6 +81,8 @@ export class ClientProductsService {
             .toDecimalPlaces(6)
         : null);
 
+    const imagePath = product.imagePath ?? null;
+
     return {
       id: product.id,
       name: product.name,
@@ -99,6 +113,8 @@ export class ClientProductsService {
       earliestExpiryDate: earliestExpiry?.lot?.expiryDate
         ? earliestExpiry.lot.expiryDate.toISOString().slice(0, 10)
         : null,
+      imagePath,
+      imageUrl: productImageUrl(imagePath, product.id),
     };
   }
 
@@ -123,6 +139,35 @@ export class ClientProductsService {
       // Product is already persisted; do not fail the client request if notify fails.
     }
 
-    return product;
+    return {
+      ...product,
+      imagePath: product.imagePath ?? null,
+      imageUrl: productImageUrl(product.imagePath ?? null, product.id),
+    };
+  }
+
+  async update(client: ClientPrincipal, id: string, dto: ClientUpdateProductDto) {
+    if (client.role === UserRole.client_staff) {
+      throw new ForbiddenException('Only client administrators can edit products.');
+    }
+    const updated = await this.products.update(
+      id,
+      {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.minStockThreshold !== undefined
+          ? { minStockThreshold: dto.minStockThreshold }
+          : {}),
+      },
+      clientAuthPrincipal(client),
+    );
+    return this.findById(client, updated.id);
+  }
+
+  async remove(client: ClientPrincipal, id: string) {
+    if (client.role === UserRole.client_staff) {
+      throw new ForbiddenException('Only client administrators can delete products.');
+    }
+    return this.products.removePermanentlyIfSafe(id, clientAuthPrincipal(client));
   }
 }

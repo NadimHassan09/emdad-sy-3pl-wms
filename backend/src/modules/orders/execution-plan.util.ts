@@ -10,10 +10,11 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
 }
 
+/** Omitted/null/unknown → admin (Unified Order Execution default). Only explicit `workers` stays workers. */
 export function normalizeExecutionMode(
   raw: string | null | undefined,
 ): OrderExecutionMode {
-  return raw === 'admin' ? 'admin' : 'workers';
+  return raw === 'workers' ? 'workers' : 'admin';
 }
 
 export function parseInboundExecutionPlan(raw: unknown): InboundExecutionPlan | null {
@@ -146,5 +147,12 @@ export function assertOutboundAdminPlanComplete(plan: OutboundExecutionPlan): vo
   if (plan.lines.length === 0) {
     throw new BadRequestException('Admin plan requires at least one line.');
   }
-  // packingLocationId / dispatchDockId are optional in v1 (FEFO confirm assigns sources).
+  if (!plan.dispatchDockId?.trim()) {
+    throw new BadRequestException('Admin plan requires dispatchDockId.');
+  }
+  if (plan.requiresPacking !== false && !plan.packingLocationId?.trim()) {
+    throw new BadRequestException(
+      'Admin plan requires packingLocationId when packing is required.',
+    );
+  }
 }

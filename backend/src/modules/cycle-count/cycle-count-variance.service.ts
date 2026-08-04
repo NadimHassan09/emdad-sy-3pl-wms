@@ -19,6 +19,8 @@ import { CompanyAccessService } from '../../common/company-access/company-access
 import { InvalidStateException } from '../../common/errors/domain-exceptions';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AdjustmentsService } from '../adjustments/adjustments.service';
+import { RealtimeService } from '../realtime/realtime.service';
+import { adjustmentPayload } from '../realtime/realtime-ops.payload';
 import { TERMINAL_VARIANCE_STATUSES } from './cycle-count-variance.constants';
 import { ReviewVarianceDto, ListVariancesQueryDto } from './dto/variance.dto';
 
@@ -43,6 +45,7 @@ export class CycleCountVarianceService {
     private readonly companyAccess: CompanyAccessService,
     private readonly adjustments: AdjustmentsService,
     private readonly audit: AuditLogService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   listReasonCodes() {
@@ -283,6 +286,12 @@ export class CycleCountVarianceService {
           },
         },
       });
+    }).then((created) => {
+      this.realtime.emitAdjustmentCreated(
+        count.companyId,
+        adjustmentPayload(created as unknown as Record<string, unknown>),
+      );
+      return created;
     });
   }
 

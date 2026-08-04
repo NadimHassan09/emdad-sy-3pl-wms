@@ -6,6 +6,7 @@ import * as path from 'node:path';
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { BackupConfig } from './backup-config';
 import { BackupDriveIntegrationService } from './backup-drive-integration.service';
 import { BackupDriveService } from './backup-drive.service';
@@ -22,6 +23,7 @@ export class BackupRestoreRunnerService {
     string,
     { progressPercent: number; bytesWritten: number; status?: BackupJobStatus; errorMessage?: string }
   >();
+  private readonly lastEmittedProgress = new Map<string, number>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -34,6 +36,7 @@ export class BackupRestoreRunnerService {
     private readonly driveIntegration: BackupDriveIntegrationService,
     private readonly drive: BackupDriveService,
     private readonly fileEncryption: BackupFileEncryptionService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   enqueueRestore(
@@ -103,6 +106,12 @@ export class BackupRestoreRunnerService {
           startedAt: new Date(),
           progressPercent: 5,
         },
+      });
+      this.realtime.emitBackupJobProgress({
+        jobId: restoreJobId,
+        status: BackupJobStatus.running,
+        type: BackupJobType.restore,
+        progressPercent: 5,
       });
 
       if (createPreSnapshot || this.backupConfig.preSnapshotRequired) {
@@ -324,6 +333,18 @@ export class BackupRestoreRunnerService {
     } catch {
       // public schema may be dropped mid-restore
     }
+    const clamped = Math.max(0, Math.min(100, progressPercent));
+    const last = this.lastEmittedProgress.get(jobId) ?? -1;
+    if (clamped - last >= 5 || clamped >= 90) {
+      this.lastEmittedProgress.set(jobId, clamped);
+      this.realtime.emitBackupJobProgress({
+        jobId,
+        status: BackupJobStatus.running,
+        type: BackupJobType.restore,
+        progressPercent: clamped,
+        bytesWritten,
+      });
+    }
   }
 
   private setCachedProgress(jobId: string, progressPercent: number, bytesWritten: number): void {
@@ -358,7 +379,16 @@ export class BackupRestoreRunnerService {
         data: { id: jobId, startedAt: new Date(), ...data },
       });
     }
+    this.realtime.emitBackupJobProgress({
+      jobId,
+      status: BackupJobStatus.completed,
+      type: BackupJobType.restore,
+      progressPercent: 100,
+      bytesWritten: Number(data.bytesWritten),
+      label: data.label,
+    });
     this.progressCache.delete(jobId);
+    this.lastEmittedProgress.delete(jobId);
   }
 
   private async markFailed(jobId: string, errorMessage: string, triggeredByUserId: string): Promise<void> {
@@ -395,5 +425,12 @@ export class BackupRestoreRunnerService {
         // best effort
       }
     }
+    this.realtime.emitBackupJobProgress({
+      jobId,
+      status: BackupJobStatus.failed,
+      type: BackupJobType.restore,
+      errorMessage,
+    });
+    this.lastEmittedProgress.delete(jobId);
   }
 }

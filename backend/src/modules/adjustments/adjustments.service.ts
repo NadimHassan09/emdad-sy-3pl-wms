@@ -377,8 +377,6 @@ export class AdjustmentsService {
                 toLocationId: line.locationId,
                 movementType: 'adjustment_positive',
                 quantity: delta,
-                quantityBefore: meta.before,
-                quantityAfter: meta.after,
                 referenceType: ledgerRefType,
                 referenceId: ledgerRefId,
                 operatorId: user.id,
@@ -402,8 +400,6 @@ export class AdjustmentsService {
                 fromLocationId: line.locationId,
                 movementType: 'adjustment_negative',
                 quantity: take,
-                quantityBefore: meta.before,
-                quantityAfter: meta.after,
                 referenceType: ledgerRefType,
                 referenceId: ledgerRefId,
                 operatorId: user.id,
@@ -439,10 +435,23 @@ export class AdjustmentsService {
         approved.companyId,
         adjustmentPayload(approved as unknown as Record<string, unknown>),
       );
-      this.realtime.emitInventoryChanged(approved.companyId, {
-        source: 'adjustment',
-        productId: approved.lines[0]?.productId,
-      });
+      const productIds = [
+        ...new Set(
+          (approved.lines ?? [])
+            .map((line) => line.productId)
+            .filter((id): id is string => typeof id === 'string' && id.length > 0),
+        ),
+      ];
+      if (productIds.length === 0) {
+        this.realtime.emitInventoryChanged(approved.companyId, { source: 'adjustment' });
+      } else {
+        for (const productId of productIds) {
+          this.realtime.emitInventoryChanged(approved.companyId, {
+            source: 'adjustment',
+            productId,
+          });
+        }
+      }
       return approved;
     } catch (e) {
       if (

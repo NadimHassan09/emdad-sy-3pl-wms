@@ -29,6 +29,9 @@ let ClientReturnsController = class ClientReturnsController {
     list(client, query) {
         return this.returns.list(client, query);
     }
+    getOutboundQuota(client, outboundId) {
+        return this.returns.getOutboundQuota(client, outboundId);
+    }
     findOne(client, id) {
         return this.returns.findOne(client, id);
     }
@@ -45,6 +48,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, list_return_orders_query_dto_1.ListReturnOrdersQueryDto]),
     __metadata("design:returntype", void 0)
 ], ClientReturnsController.prototype, "list", null);
+__decorate([
+    (0, common_1.Get)('outbound-quota/:outboundId'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Param)('outboundId', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ClientReturnsController.prototype, "getOutboundQuota", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, client_user_decorator_1.ClientUser)()),

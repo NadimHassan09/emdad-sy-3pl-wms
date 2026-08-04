@@ -8,6 +8,7 @@ import { BillingCyclesService } from './billing-cycles.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
 import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
 import { BillingNotificationsService } from './billing-notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 /**
  * Processes billing cycle expiry, account restriction, and deferred renewals.
@@ -23,6 +24,7 @@ export class BillingCycleProcessorService {
     private readonly billingNotifications: BillingNotificationsService,
     private readonly billingAudit: BillingAuditService,
     private readonly cronLeader: CronLeaderService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   @Cron('*/15 * * * *')
@@ -138,6 +140,13 @@ export class BillingCycleProcessorService {
           invoiceNumber: issuedInvoice.invoiceNumber,
           billingCycleId: cycle.id,
         });
+        this.realtime.emitInvoiceUpdated(cycle.companyId, {
+          invoiceId: issuedInvoice.id,
+          companyId: cycle.companyId,
+          status: 'unpaid',
+          invoiceNumber: issuedInvoice.invoiceNumber,
+          action: 'invoice_issued',
+        });
       }
 
       if (renewedCompanyId && nextCycleId) {
@@ -148,6 +157,16 @@ export class BillingCycleProcessorService {
           nextCycleId,
         });
         void this.invoiceCalc.recalculateForCompany(renewedCompanyId, 'cycle_started');
+        this.realtime.emitBillingRestrictionChanged(cycle.companyId, {
+          companyId: cycle.companyId,
+          restricted: false,
+          status: 'active',
+        });
+        this.realtime.emitCompanyLifecycleChanged(cycle.companyId, {
+          companyId: cycle.companyId,
+          status: 'active',
+          action: 'billing_renewed',
+        });
       } else {
         void this.billingAudit.system({
           action: BILLING_AUDIT_ACTIONS.PLAN_SUSPENDED,
@@ -160,6 +179,16 @@ export class BillingCycleProcessorService {
           companyId: cycle.companyId,
           companyName,
           cycleId: cycle.id,
+        });
+        this.realtime.emitBillingRestrictionChanged(cycle.companyId, {
+          companyId: cycle.companyId,
+          restricted: true,
+          status: 'restricted',
+        });
+        this.realtime.emitCompanyLifecycleChanged(cycle.companyId, {
+          companyId: cycle.companyId,
+          status: 'restricted',
+          action: 'billing_restricted',
         });
       }
     }

@@ -135,15 +135,16 @@ export function BackupHistoryPage() {
     queryFn: () => BackupsApi.list(listParams),
     enabled: canRead,
     staleTime: 15_000,
-    refetchInterval: activeCreateJobId ? 3_000 : false,
+    // Slow safety net while create runs; realtime `backup.job.progress` is primary.
+    refetchInterval: activeCreateJobId ? 15_000 : false,
   });
 
   const createStatusQuery = useQuery({
     queryKey: QK.backups.status(activeCreateJobId ?? 'none'),
     queryFn: () => BackupsApi.status(activeCreateJobId!),
     enabled: !!activeCreateJobId,
-    refetchInterval: 2_000,
-    staleTime: 0,
+    refetchInterval: 15_000,
+    staleTime: 5_000,
   });
 
   const createMutation = useMutation({

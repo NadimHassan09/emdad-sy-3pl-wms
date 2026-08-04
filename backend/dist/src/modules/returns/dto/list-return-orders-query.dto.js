@@ -25,6 +25,7 @@ class ListReturnOrdersQueryDto extends pagination_dto_1.PaginationDto {
     createdFrom;
     createdTo;
     status;
+    source;
     static fullUuidPattern = FULL_UUID;
 }
 exports.ListReturnOrdersQueryDto = ListReturnOrdersQueryDto;
@@ -65,4 +66,10 @@ __decorate([
     (0, class_validator_1.IsIn)(STATUSES),
     __metadata("design:type", String)
 ], ListReturnOrdersQueryDto.prototype, "status", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['oms', 'outbound']),
+    __metadata("design:type", String)
+], ListReturnOrdersQueryDto.prototype, "source", void 0);
 //# sourceMappingURL=list-return-orders-query.dto.js.map

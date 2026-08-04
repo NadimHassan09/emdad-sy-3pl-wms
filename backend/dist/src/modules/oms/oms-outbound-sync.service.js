@@ -19,19 +19,23 @@ const prisma_service_1 = require("../../common/prisma/prisma.service");
 const realtime_service_1 = require("../realtime/realtime.service");
 const oms_order_mapper_1 = require("./oms-order.mapper");
 const oms_order_events_service_1 = require("./oms-order-events.service");
+const order_allocation_service_1 = require("./order-allocation.service");
 const TERMINAL_OMS = [
     client_1.OmsOrderStatus.rejected,
     client_1.OmsOrderStatus.cancelled,
     client_1.OmsOrderStatus.completed,
+    client_1.OmsOrderStatus.delivered,
     client_1.OmsOrderStatus.failed_delivery,
 ];
 let OmsOutboundSyncService = class OmsOutboundSyncService {
     prisma;
     events;
+    allocation;
     realtime;
-    constructor(prisma, events, realtime) {
+    constructor(prisma, events, allocation, realtime) {
         this.prisma = prisma;
         this.events = events;
+        this.allocation = allocation;
         this.realtime = realtime;
     }
     async syncFromOutbound(tx, outboundOrderId, actorUserId) {
@@ -46,9 +50,8 @@ let OmsOutboundSyncService = class OmsOutboundSyncService {
         });
         if (!oms)
             return;
-        if (TERMINAL_OMS.includes(oms.status) && oms.status !== client_1.OmsOrderStatus.delivered) {
+        if (TERMINAL_OMS.includes(oms.status))
             return;
-        }
         const outbound = await tx.outboundOrder.findUnique({
             where: { id: outboundOrderId },
             select: { id: true, status: true },
@@ -56,42 +59,36 @@ let OmsOutboundSyncService = class OmsOutboundSyncService {
         if (!outbound)
             return;
         const next = (0, oms_order_mapper_1.mapOutboundStatusToOms)(outbound.status);
-        if (next === oms.status)
+        if (next == null || next === oms.status)
             return;
         if (oms.status === client_1.OmsOrderStatus.pending_approval ||
-            oms.status === client_1.OmsOrderStatus.rejected) {
+            oms.status === client_1.OmsOrderStatus.rejected ||
+            oms.status === client_1.OmsOrderStatus.draft) {
             return;
         }
         const extra = {};
         if (next === client_1.OmsOrderStatus.out_for_delivery) {
             extra.outForDeliveryAt = new Date();
         }
-        if (next === client_1.OmsOrderStatus.delivered) {
-            extra.deliveredAt = new Date();
-        }
-        if (next === client_1.OmsOrderStatus.returned) {
-            extra.returnedAt = new Date();
-        }
-        if (next === client_1.OmsOrderStatus.allocated) {
-            extra.allocationStatus = 'allocated';
-            extra.allocatedAt = new Date();
-        }
         await tx.omsOrder.update({
             where: { id: oms.id },
             data: { status: next, ...extra },
         });
+        const eventType = next === client_1.OmsOrderStatus.out_for_delivery
+            ? 'oms.out_for_delivery'
+            : (0, oms_order_mapper_1.omsEventTypeForStatus)(next);
         await this.events.record(tx, {
             omsOrderId: oms.id,
             outboundOrderId,
             companyId: oms.companyId,
-            eventType: (0, oms_order_mapper_1.omsEventTypeForStatus)(next),
+            eventType,
             createdBy: actorUserId,
-            payload: { source: 'wms_sync', outboundStatus: outbound.status },
+            payload: { source: 'wms_sync', outboundStatus: outbound.status, omsStatus: next },
         });
         this.realtime?.emitOmsOrderEvent(oms.companyId, {
             orderId: oms.id,
             status: next,
-            event: (0, oms_order_mapper_1.omsEventTypeForStatus)(next),
+            event: eventType,
         });
     }
     async syncFromOutboundStandalone(outboundOrderId, actorUserId) {
@@ -109,7 +106,19 @@ let OmsOutboundSyncService = class OmsOutboundSyncService {
         if (!oms)
             throw new common_1.NotFoundException('OMS order not found.');
         if (oms.outboundOrderId) {
-            throw new common_1.BadRequestException('OMS order is already linked to an outbound order.');
+            const existing = await tx.outboundOrder.findUnique({
+                where: { id: oms.outboundOrderId },
+                select: { id: true, orderNumber: true },
+            });
+            if (existing) {
+                if (oms.status !== client_1.OmsOrderStatus.pending) {
+                    await tx.omsOrder.update({
+                        where: { id: oms.id },
+                        data: { status: client_1.OmsOrderStatus.pending },
+                    });
+                }
+                return { outboundOrderId: existing.id, orderNumber: existing.orderNumber };
+            }
         }
         if (oms.lines.length === 0) {
             throw new common_1.BadRequestException('OMS order has no lines.');
@@ -159,13 +168,27 @@ let OmsOutboundSyncService = class OmsOutboundSyncService {
                     })),
                 },
             },
-            select: { id: true, orderNumber: true },
+            include: { lines: true },
         });
+        if (this.allocation.isEnabled()) {
+            await this.allocation.allocateOrder(tx, {
+                outboundOrderId: created.id,
+                companyId: oms.companyId,
+                actorUserId: params.actorUserId,
+                previousStatus: created.status,
+                lines: created.lines.map((line) => ({
+                    outboundOrderLineId: line.id,
+                    productId: line.productId,
+                    requestedQty: line.requestedQuantity,
+                    specificLotId: line.specificLotId,
+                })),
+            });
+        }
         await tx.omsOrder.update({
             where: { id: oms.id },
             data: {
                 outboundOrderId: created.id,
-                status: client_1.OmsOrderStatus.approved,
+                status: client_1.OmsOrderStatus.pending,
                 approvedAt: new Date(),
                 approvedBy: params.actorUserId,
                 confirmedAt: new Date(),
@@ -175,7 +198,7 @@ let OmsOutboundSyncService = class OmsOutboundSyncService {
             omsOrderId: oms.id,
             outboundOrderId: created.id,
             companyId: oms.companyId,
-            eventType: 'order.approved',
+            eventType: 'oms.approved',
             createdBy: params.actorUserId,
             payload: { outboundOrderId: created.id, outboundOrderNumber: created.orderNumber },
         });
@@ -183,14 +206,14 @@ let OmsOutboundSyncService = class OmsOutboundSyncService {
             omsOrderId: oms.id,
             outboundOrderId: created.id,
             companyId: oms.companyId,
-            eventType: 'outbound.generated',
+            eventType: 'outbound.created',
             createdBy: params.actorUserId,
             payload: { outboundOrderId: created.id, outboundOrderNumber: created.orderNumber },
         });
         this.realtime?.emitOmsOrderEvent(oms.companyId, {
             orderId: oms.id,
-            status: client_1.OmsOrderStatus.approved,
-            event: 'order.approved',
+            status: client_1.OmsOrderStatus.pending,
+            event: 'oms.approved',
         });
         return { outboundOrderId: created.id, orderNumber: created.orderNumber };
     }
@@ -198,9 +221,10 @@ let OmsOutboundSyncService = class OmsOutboundSyncService {
 exports.OmsOutboundSyncService = OmsOutboundSyncService;
 exports.OmsOutboundSyncService = OmsOutboundSyncService = __decorate([
     (0, common_1.Injectable)(),
-    __param(2, (0, common_1.Optional)()),
+    __param(3, (0, common_1.Optional)()),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         oms_order_events_service_1.OmsOrderEventsService,
+        order_allocation_service_1.OrderAllocationService,
         realtime_service_1.RealtimeService])
 ], OmsOutboundSyncService);
 //# sourceMappingURL=oms-outbound-sync.service.js.map

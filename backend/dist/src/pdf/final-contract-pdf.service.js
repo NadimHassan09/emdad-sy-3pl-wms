@@ -15,6 +15,7 @@ const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../common/prisma/prisma.service");
+const realtime_service_1 = require("../modules/realtime/realtime.service");
 const branding_1 = require("./branding");
 const document_storage_service_1 = require("./document-storage.service");
 const documents_service_1 = require("./documents.service");
@@ -28,13 +29,15 @@ let FinalContractPdfService = FinalContractPdfService_1 = class FinalContractPdf
     pdf;
     storage;
     documents;
+    realtime;
     logger = new common_1.Logger(FinalContractPdfService_1.name);
     branding;
-    constructor(prisma, pdf, storage, documents, config) {
+    constructor(prisma, pdf, storage, documents, realtime, config) {
         this.prisma = prisma;
         this.pdf = pdf;
         this.storage = storage;
         this.documents = documents;
+        this.realtime = realtime;
         this.branding = (0, branding_1.resolveBranding)(config);
     }
     async generateForContract(contractId, lang, opts, generatedBy) {
@@ -119,7 +122,18 @@ let FinalContractPdfService = FinalContractPdfService_1 = class FinalContractPdf
             : await this.storage.write(client_1.DocumentType.final_contract, fileName, buffer);
         if (existing && opts?.force) {
             const doc = await this.documents.refreshFile(existing.id, stored);
-            return this.toResult(doc);
+            const result = this.toResult(doc);
+            this.realtime.emitDocumentGenerated(contract.companyId, {
+                documentId: result.id,
+                type: client_1.DocumentType.final_contract,
+                referenceType: 'final_contract',
+                referenceId: contract.id,
+                taskId: null,
+                documentNumber: result.documentNumber,
+                language: result.language,
+                pdfUrl: result.pdfUrl,
+            });
+            return result;
         }
         const doc = await this.documents.create({
             companyId: contract.companyId,
@@ -135,7 +149,18 @@ let FinalContractPdfService = FinalContractPdfService_1 = class FinalContractPdf
             fileSize: stored.fileSize,
             generatedBy: generatedBy ?? null,
         });
-        return this.toResult(doc);
+        const result = this.toResult(doc);
+        this.realtime.emitDocumentGenerated(contract.companyId, {
+            documentId: result.id,
+            type: client_1.DocumentType.final_contract,
+            referenceType: 'final_contract',
+            referenceId: contract.id,
+            taskId: null,
+            documentNumber: result.documentNumber,
+            language: result.language,
+            pdfUrl: result.pdfUrl,
+        });
+        return result;
     }
     toResult(doc) {
         return {
@@ -155,6 +180,7 @@ exports.FinalContractPdfService = FinalContractPdfService = FinalContractPdfServ
         pdf_service_1.PdfService,
         document_storage_service_1.DocumentStorageService,
         documents_service_1.DocumentsService,
+        realtime_service_1.RealtimeService,
         config_1.ConfigService])
 ], FinalContractPdfService);
 //# sourceMappingURL=final-contract-pdf.service.js.map

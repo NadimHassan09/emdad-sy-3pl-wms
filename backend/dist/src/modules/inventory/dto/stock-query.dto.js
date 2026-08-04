@@ -16,7 +16,14 @@ const pagination_dto_1 = require("../../../common/dto/pagination.dto");
 const query_transform_1 = require("../../../common/transformers/query-transform");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
 const MOVEMENT_TYPES = Object.values(client_1.MovementType);
-const MOVEMENT_FILTERS = [...MOVEMENT_TYPES, 'inbound', 'outbound', 'adjustment'];
+const MOVEMENT_FILTERS = [
+    ...MOVEMENT_TYPES,
+    'inbound',
+    'outbound',
+    'return',
+    'adjustment',
+    'transfer',
+];
 const REF_TYPES = Object.values(client_1.LedgerRefType);
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 class StockQueryDto extends pagination_dto_1.PaginationDto {
@@ -129,10 +136,17 @@ class LedgerQueryDto extends pagination_dto_1.PaginationDto {
     sku;
     productBarcode;
     movementType;
+    includeInternal;
     referenceType;
     referenceId;
     createdFrom;
     createdTo;
+    operatorId;
+    locationId;
+    lotId;
+    lotNumber;
+    operatorSearch;
+    referenceSearch;
 }
 exports.LedgerQueryDto = LedgerQueryDto;
 __decorate([
@@ -184,6 +198,12 @@ __decorate([
     __metadata("design:type", String)
 ], LedgerQueryDto.prototype, "movementType", void 0);
 __decorate([
+    (0, query_transform_1.QueryBoolOptional)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], LedgerQueryDto.prototype, "includeInternal", void 0);
+__decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsIn)(REF_TYPES),
@@ -207,4 +227,40 @@ __decorate([
     (0, class_validator_1.Matches)(DAY, { message: 'createdTo must be YYYY-MM-DD' }),
     __metadata("design:type", String)
 ], LedgerQueryDto.prototype, "createdTo", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, is_uuid_loose_1.IsUuidLoose)(),
+    __metadata("design:type", String)
+], LedgerQueryDto.prototype, "operatorId", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, is_uuid_loose_1.IsUuidLoose)(),
+    __metadata("design:type", String)
+], LedgerQueryDto.prototype, "locationId", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, is_uuid_loose_1.IsUuidLoose)(),
+    __metadata("design:type", String)
+], LedgerQueryDto.prototype, "lotId", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], LedgerQueryDto.prototype, "lotNumber", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], LedgerQueryDto.prototype, "operatorSearch", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], LedgerQueryDto.prototype, "referenceSearch", void 0);
 //# sourceMappingURL=stock-query.dto.js.map

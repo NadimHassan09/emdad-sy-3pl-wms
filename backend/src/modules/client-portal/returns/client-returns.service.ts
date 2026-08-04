@@ -21,6 +21,10 @@ export class ClientReturnsService {
     return this.returns.findById(id, clientAuthPrincipal(client));
   }
 
+  getOutboundQuota(client: ClientPrincipal, outboundId: string) {
+    return this.returns.getOutboundReturnQuota(clientAuthPrincipal(client), outboundId);
+  }
+
   create(client: ClientPrincipal, dto: CreateReturnOrderDto) {
     return this.returns.create(clientAuthPrincipal(client), {
       ...dto,

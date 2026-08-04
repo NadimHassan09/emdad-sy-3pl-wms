@@ -12,6 +12,7 @@ const audit_module_1 = require("../../common/audit/audit.module");
 const company_access_module_1 = require("../../common/company-access/company-access.module");
 const outbound_module_1 = require("../outbound/outbound.module");
 const realtime_module_1 = require("../realtime/realtime.module");
+const cod_module_1 = require("../cod/cod.module");
 const oms_controller_1 = require("./oms.controller");
 const oms_dashboard_service_1 = require("./oms-dashboard.service");
 const oms_order_events_service_1 = require("./oms-order-events.service");
@@ -25,7 +26,13 @@ let OmsModule = class OmsModule {
 exports.OmsModule = OmsModule;
 exports.OmsModule = OmsModule = __decorate([
     (0, common_1.Module)({
-        imports: [audit_module_1.AuditModule, company_access_module_1.CompanyAccessModule, realtime_module_1.RealtimeModule, (0, common_1.forwardRef)(() => outbound_module_1.OutboundModule)],
+        imports: [
+            audit_module_1.AuditModule,
+            company_access_module_1.CompanyAccessModule,
+            realtime_module_1.RealtimeModule,
+            (0, common_1.forwardRef)(() => outbound_module_1.OutboundModule),
+            (0, common_1.forwardRef)(() => cod_module_1.CodModule),
+        ],
         controllers: [oms_controller_1.OmsController, oms_webhooks_controller_1.OmsWebhooksController],
         providers: [
             order_allocation_service_1.OrderAllocationService,

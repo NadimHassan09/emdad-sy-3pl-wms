@@ -1,17 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { Alert, Card, ListPageHeader, Skeleton } from '@ds';
-import { OmsApi } from '../api/oms';
+import { CodApi, OmsApi, OmsReturnsApi } from '../api/oms';
 import { OmsOrderFormModal } from '../components/oms/OmsOrderFormModal';
+import { OmsStatusBadge } from '../components/oms/OmsStatusBadge';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Modal } from '../components/Modal';
-import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
+import { mapOmsCommercialDisplayStatus, omsCommercialStatusLabel } from '../lib/oms-commercial-status';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -31,6 +32,11 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+function fmtMoney(value: string | null | undefined, currency?: string | null): string {
+  if (!value) return '—';
+  return `${value}${currency ? ` ${currency}` : ''}`;
+}
+
 export function OmsOrderDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -41,8 +47,12 @@ export function OmsOrderDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
   const [approveShippingFee, setApproveShippingFee] = useState('');
   const [rejectReason, setRejectReason] = useState('');
+  const [returnReason, setReturnReason] = useState('');
+  const [returnQty, setReturnQty] = useState<Record<string, string>>({});
 
   const orderQuery = useQuery({
     queryKey: [...QK.omsOrders, id],
@@ -50,10 +60,24 @@ export function OmsOrderDetailPage() {
     enabled: !!id,
   });
 
+  const codQuery = useQuery({
+    queryKey: ['cod-by-order', id],
+    queryFn: () => CodApi.byOrder(id),
+    enabled: !!id,
+  });
+
+  const returnsQuery = useQuery({
+    queryKey: ['oms-returns', 'by-order', id],
+    queryFn: () => OmsReturnsApi.list({ omsOrderId: id, limit: 20 }),
+    enabled: !!id,
+  });
+
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: [...QK.omsOrders, id] });
     void qc.invalidateQueries({ queryKey: QK.omsOrders });
     void qc.invalidateQueries({ queryKey: QK.omsDashboard });
+    void qc.invalidateQueries({ queryKey: ['cod-by-order', id] });
+    void qc.invalidateQueries({ queryKey: ['oms-returns', 'by-order', id] });
   };
 
   const deleteMut = useMutation({
@@ -72,7 +96,7 @@ export function OmsOrderDetailPage() {
       return OmsApi.approve(id, fee ? Number(fee) : undefined);
     },
     onSuccess: () => {
-      toast.success('Order approved. Warehouse outbound created as draft.');
+      toast.success('Order approved.');
       setApproveOpen(false);
       invalidate();
     },
@@ -90,22 +114,74 @@ export function OmsOrderDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const actionMut = useMutation({
-    mutationFn: (action: 'delivered' | 'returned' | 'failedDelivery' | 'complete' | 'outForDelivery') => {
-      if (action === 'delivered') return OmsApi.delivered(id);
-      if (action === 'returned') return OmsApi.returned(id);
-      if (action === 'failedDelivery') return OmsApi.failedDelivery(id);
-      if (action === 'complete') return OmsApi.complete(id);
-      return OmsApi.outForDelivery(id);
+  const cancelMut = useMutation({
+    mutationFn: () => OmsApi.cancel(id),
+    onSuccess: () => {
+      toast.success('Order cancelled.');
+      setCancelOpen(false);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deliveredMut = useMutation({
+    mutationFn: () => OmsApi.delivered(id),
+    onSuccess: () => {
+      toast.success('Order marked delivered.');
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const retryCodMut = useMutation({
+    mutationFn: () => CodApi.retryGeneration(id),
+    onSuccess: () => {
+      toast.success('COD generation retried.');
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createReturnMut = useMutation({
+    mutationFn: () => {
+      const order = orderQuery.data!;
+      const lines = order.lines
+        .map((line) => {
+          const qty = Number(returnQty[line.id] ?? 0);
+          if (!Number.isFinite(qty) || qty <= 0) return null;
+          return {
+            productId: line.productId,
+            quantity: qty,
+            unitPrice: line.unitPrice != null ? Number(line.unitPrice) : undefined,
+          };
+        })
+        .filter(Boolean) as Array<{ productId: string; quantity: number; unitPrice?: number }>;
+      if (lines.length === 0) {
+        throw new Error('Enter a return quantity for at least one line.');
+      }
+      return OmsReturnsApi.create({
+        omsOrderId: id,
+        reason: returnReason.trim() || undefined,
+        lines,
+      });
     },
     onSuccess: () => {
-      toast.success('Status updated.');
+      toast.success('Return request created.');
+      setReturnOpen(false);
+      setReturnReason('');
+      setReturnQty({});
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const order = orderQuery.data;
+  const commercial = order ? mapOmsCommercialDisplayStatus(order.status) : null;
+
+  const defaultReturnQty = useMemo(() => {
+    if (!order) return {};
+    return Object.fromEntries(order.lines.map((l) => [l.id, l.requestedQuantity]));
+  }, [order]);
 
   if (orderQuery.isLoading) {
     return (
@@ -142,22 +218,15 @@ export function OmsOrderDetailPage() {
   }
 
   const total = order.total ?? order.subtotal ?? null;
-  const canApprove = order.status === 'pending_approval' || order.status === 'draft';
-  const canReject = order.status === 'pending_approval' || order.status === 'draft';
+  const outboundId = order.linkedOutboundOrder?.id ?? order.outboundOrderId;
+  const canApprove = commercial === 'pending_approval';
+  const canReject = commercial === 'pending_approval';
   const canEditCommercial =
-    order.status === 'draft' ||
-    order.status === 'pending_approval' ||
-    order.status === 'approved' ||
-    order.status === 'confirmed';
-  const canMarkOutForDelivery = ['ready_to_ship', 'packing', 'shipped', 'approved', 'allocated'].includes(
-    order.status,
-  );
-  const canMarkDelivered = ['out_for_delivery', 'shipped', 'ready_to_ship'].includes(order.status);
-  const canMarkFailed = ['out_for_delivery', 'shipped'].includes(order.status);
-  const canMarkReturned = ['delivered', 'failed_delivery', 'out_for_delivery', 'shipped'].includes(
-    order.status,
-  );
-  const canComplete = order.status === 'delivered';
+    commercial === 'pending_approval' || commercial === 'pending';
+  const canMarkDelivered = commercial === 'out_for_delivery';
+  const canCancel = commercial !== 'delivered' && commercial !== 'cancelled';
+  const canCreateReturn = commercial === 'delivered';
+  const canRetryCod = order.codGenerationStatus === 'failed';
 
   return (
     <div className="space-y-5 animate-enter">
@@ -190,54 +259,44 @@ export function OmsOrderDetailPage() {
                 Reject
               </Button>
             ) : null}
-            {canEditCommercial ? (
-              <Button variant="secondary" onClick={() => setEditOpen(true)}>
-                Edit
-              </Button>
-            ) : null}
-            {canMarkOutForDelivery ? (
-              <Button
-                variant="secondary"
-                loading={actionMut.isPending}
-                onClick={() => actionMut.mutate('outForDelivery')}
-              >
-                Out for delivery
-              </Button>
-            ) : null}
             {canMarkDelivered ? (
-              <Button
-                variant="secondary"
-                loading={actionMut.isPending}
-                onClick={() => actionMut.mutate('delivered')}
-              >
+              <Button loading={deliveredMut.isPending} onClick={() => deliveredMut.mutate()}>
                 Mark delivered
               </Button>
             ) : null}
-            {canMarkFailed ? (
-              <Button
-                variant="secondary"
-                loading={actionMut.isPending}
-                onClick={() => actionMut.mutate('failedDelivery')}
-              >
-                Failed delivery
+            {canCancel ? (
+              <Button variant="secondary" onClick={() => setCancelOpen(true)}>
+                Cancel order
               </Button>
             ) : null}
-            {canMarkReturned ? (
+            {canRetryCod ? (
               <Button
                 variant="secondary"
-                loading={actionMut.isPending}
-                onClick={() => actionMut.mutate('returned')}
+                loading={retryCodMut.isPending}
+                onClick={() => retryCodMut.mutate()}
               >
-                Mark returned
+                Retry COD
               </Button>
             ) : null}
-            {canComplete ? (
+            {canCreateReturn ? (
               <Button
                 variant="secondary"
-                loading={actionMut.isPending}
-                onClick={() => actionMut.mutate('complete')}
+                onClick={() => {
+                  setReturnQty(defaultReturnQty);
+                  setReturnOpen(true);
+                }}
               >
-                Complete
+                Create return
+              </Button>
+            ) : null}
+            {outboundId ? (
+              <Button variant="secondary" onClick={() => navigate(`/orders/outbound/${outboundId}`)}>
+                Open outbound
+              </Button>
+            ) : null}
+            {canEditCommercial ? (
+              <Button variant="secondary" onClick={() => setEditOpen(true)}>
+                Edit
               </Button>
             ) : null}
             <Button variant="danger" onClick={() => setDeleteOpen(true)}>
@@ -248,7 +307,7 @@ export function OmsOrderDetailPage() {
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge status={order.status} />
+        <OmsStatusBadge status={order.status} />
         {order.storeChannel ? (
           <span className="rounded-full bg-surface-card-muted px-2 py-0.5 text-xs font-medium text-text-body">
             {order.storeChannel}
@@ -261,60 +320,25 @@ export function OmsOrderDetailPage() {
         ) : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Section title="Overview">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Order number" value={order.orderNumber} />
-            <Field label="Status" value={order.status} />
-            <Field label="Client" value={order.company?.name ?? '—'} />
-            <Field label="Client reference" value={order.clientReference ?? '—'} />
-            <Field
-              label="Required ship date"
-              value={new Date(order.requiredShipDate).toLocaleDateString()}
-            />
-            <Field
-              label="Submitted"
-              value={order.submittedAt ? new Date(order.submittedAt).toLocaleString() : '—'}
-            />
-            <Field
-              label="Approved"
-              value={order.approvedAt ? new Date(order.approvedAt).toLocaleString() : '—'}
-            />
-            <Field
-              label="Rejected"
-              value={order.rejectedAt ? new Date(order.rejectedAt).toLocaleString() : '—'}
-            />
-          </div>
-        </Section>
-
-        <Section title="Customer">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Recipient" value={order.recipientName ?? '—'} />
-            <Field label="Phone" value={order.recipientPhone ?? '—'} />
-            <Field label="City" value={order.city ?? '—'} />
-            <Field label="District" value={order.district ?? '—'} />
-          </div>
-        </Section>
-
-        <Section title="Shipment">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Address" value={order.addressLine1 ?? order.destinationAddress} />
-            <Field label="Carrier" value={order.carrier ?? '—'} />
-            <Field label="Tracking" value={order.trackingNumber ?? '—'} />
-            <Field label="Instructions" value={order.deliveryInstructions ?? '—'} />
-          </div>
-        </Section>
-
-        <Section title="Payment">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Payment method" value={order.paymentMethod ?? '—'} />
-            <Field label="COD status" value={order.codStatus ?? '—'} />
-            <Field label="Shipping fee" value={order.shippingFee ?? '—'} />
-            <Field label="Subtotal" value={order.subtotal ?? total ?? '—'} />
-            <Field label="Currency" value={order.currency ?? '—'} />
-          </div>
-        </Section>
-      </div>
+      <Section title="Overview">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="Order number" value={order.orderNumber} />
+          <Field label="Status" value={omsCommercialStatusLabel(order.status)} />
+          <Field label="Client" value={order.company?.name ?? '—'} />
+          <Field label="Client reference" value={order.clientReference ?? '—'} />
+          <Field label="Sales channel" value={order.storeChannel ?? '—'} />
+          <Field
+            label="Required ship date"
+            value={new Date(order.requiredShipDate).toLocaleDateString()}
+          />
+          <Field label="Recipient" value={order.recipientName ?? '—'} />
+          <Field label="Phone" value={order.recipientPhone ?? '—'} />
+          <Field
+            label="Submitted"
+            value={order.submittedAt ? new Date(order.submittedAt).toLocaleString() : '—'}
+          />
+        </div>
+      </Section>
 
       <Section title="Products">
         <div className="overflow-x-auto">
@@ -345,6 +369,17 @@ export function OmsOrderDetailPage() {
         </div>
       </Section>
 
+      <Section title="Shipping">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Address" value={order.addressLine1 ?? order.destinationAddress} />
+          <Field label="City" value={order.city ?? '—'} />
+          <Field label="District" value={order.district ?? '—'} />
+          <Field label="Carrier" value={order.carrier ?? '—'} />
+          <Field label="Tracking" value={order.trackingNumber ?? '—'} />
+          <Field label="Instructions" value={order.deliveryInstructions ?? '—'} />
+        </div>
+      </Section>
+
       <Section title="Timeline">
         {order.timeline && order.timeline.length > 0 ? (
           <ol className="space-y-3">
@@ -363,31 +398,79 @@ export function OmsOrderDetailPage() {
         )}
       </Section>
 
-      <Section title="Warehouse (WMS)">
-        {order.linkedOutboundOrder ? (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label="Linked outbound"
-              value={
-                <Link
-                  to={`/orders/outbound/${order.linkedOutboundOrder.id}`}
-                  className="font-medium text-status-success-fg hover:underline"
-                >
-                  {order.linkedOutboundOrder.orderNumber}
-                </Link>
-              }
-            />
-            <Field
-              label="Warehouse status"
-              value={order.warehouseStatus ?? order.linkedOutboundOrder.status}
-            />
-            <Field label="Allocation" value={order.allocationStatus ?? 'none'} />
-          </div>
-        ) : (
-          <p className="text-sm text-text-body">
-            No outbound yet. Approve this order to generate a draft warehouse order.
+      <Section title="Returns">
+        {(returnsQuery.data?.items ?? []).length === 0 ? (
+          <p className="text-sm text-text-muted">
+            {canCreateReturn
+              ? 'No returns yet. Use Create return to open a return request.'
+              : 'No returns for this order.'}
           </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-border-subtle text-left text-xs uppercase text-text-muted">
+                  <th className="px-2 py-2">Return #</th>
+                  <th className="px-2 py-2">Status</th>
+                  <th className="px-2 py-2">Reason</th>
+                  <th className="px-2 py-2">Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(returnsQuery.data?.items ?? []).map((ret) => (
+                  <tr key={ret.id} className="border-b border-border-subtle">
+                    <td className="px-2 py-2">
+                      <Link to="/oms/returns" className="font-medium text-brand-700 hover:underline">
+                        {ret.returnNumber}
+                      </Link>
+                    </td>
+                    <td className="px-2 py-2">{ret.status.replace(/_/g, ' ')}</td>
+                    <td className="px-2 py-2">{ret.reason ?? '—'}</td>
+                    <td className="px-2 py-2">{new Date(ret.createdAt).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
+      </Section>
+
+      <Section title="Financial">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="Payment method" value={order.paymentMethod ?? '—'} />
+          <Field label="Subtotal" value={fmtMoney(order.subtotal ?? total, order.currency)} />
+          <Field label="Shipping fee" value={fmtMoney(order.shippingFee, order.currency)} />
+          <Field label="COD amount" value={fmtMoney(order.codAmount, order.currency)} />
+          <Field label="Legacy COD status" value={order.codStatus ?? '—'} />
+        </div>
+        {codQuery.data ? (
+          <div className="mt-4 rounded-lg border border-border-subtle bg-surface-sunken p-4">
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-muted">
+              COD record
+            </h3>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Field label="Status" value={codQuery.data.status.replace(/_/g, ' ')} />
+              <Field
+                label="Original amount"
+                value={fmtMoney(codQuery.data.originalAmount, codQuery.data.currency)}
+              />
+              <Field
+                label="Current amount"
+                value={fmtMoney(codQuery.data.currentAmount, codQuery.data.currency)}
+              />
+              <Field
+                label="Available at"
+                value={
+                  codQuery.data.availableAt
+                    ? new Date(codQuery.data.availableAt).toLocaleString()
+                    : '—'
+                }
+              />
+            </div>
+          </div>
+        ) : codQuery.isLoading ? (
+          <p className="mt-3 text-sm text-text-muted">Loading COD record…</p>
+        ) : null}
       </Section>
 
       <OmsOrderFormModal
@@ -409,14 +492,28 @@ export function OmsOrderDetailPage() {
         onConfirm={() => deleteMut.mutate()}
       >
         <p className="text-sm">
-          This removes only the OMS record. Any linked outbound order will not be deleted.
+          This removes only the OMS commercial record. It does <strong>not</strong> cancel or delete
+          any linked warehouse outbound.
         </p>
+      </ConfirmModal>
+
+      <ConfirmModal
+        open={cancelOpen}
+        title="Cancel this OMS order?"
+        confirmLabel="Cancel order"
+        cancelLabel="Keep order"
+        danger
+        loading={cancelMut.isPending}
+        onClose={() => !cancelMut.isPending && setCancelOpen(false)}
+        onConfirm={() => cancelMut.mutate()}
+      >
+        <p className="text-sm">The order will be marked cancelled in the commercial lifecycle.</p>
       </ConfirmModal>
 
       <Modal open={approveOpen} onClose={() => setApproveOpen(false)} title="Approve OMS order">
         <div className="space-y-4">
           <p className="text-sm text-text-body">
-            Approving validates stock and creates a draft outbound order for the warehouse.
+            Approving validates stock and creates a draft outbound order for fulfillment.
           </p>
           <TextField
             label="Shipping fee (optional)"
@@ -429,7 +526,7 @@ export function OmsOrderDetailPage() {
               Cancel
             </Button>
             <Button loading={approveMut.isPending} onClick={() => approveMut.mutate()}>
-              Approve & create outbound
+              Approve
             </Button>
           </div>
         </div>
@@ -448,6 +545,44 @@ export function OmsOrderDetailPage() {
             </Button>
             <Button loading={rejectMut.isPending} onClick={() => rejectMut.mutate()}>
               Reject order
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={returnOpen} onClose={() => setReturnOpen(false)} title="Create OMS return">
+        <div className="space-y-4">
+          <TextField
+            label="Reason (optional)"
+            value={returnReason}
+            onChange={(e) => setReturnReason(e.target.value)}
+          />
+          <div className="space-y-2">
+            <div className="text-xs font-semibold uppercase text-text-muted">Return quantities</div>
+            {order.lines.map((line) => (
+              <div key={line.id} className="flex items-center gap-3">
+                <span className="min-w-0 flex-1 truncate text-sm text-text-body">
+                  {line.product?.sku ?? line.productId}
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  max={Number(line.requestedQuantity)}
+                  value={returnQty[line.id] ?? ''}
+                  onChange={(e) =>
+                    setReturnQty((prev) => ({ ...prev, [line.id]: e.target.value }))
+                  }
+                  className="w-24 rounded-lg border border-border px-2 py-1 text-sm"
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="danger" onClick={() => setReturnOpen(false)}>
+              Cancel
+            </Button>
+            <Button loading={createReturnMut.isPending} onClick={() => createReturnMut.mutate()}>
+              Submit return
             </Button>
           </div>
         </div>

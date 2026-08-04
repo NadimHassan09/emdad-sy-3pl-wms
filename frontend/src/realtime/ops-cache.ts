@@ -175,5 +175,6 @@ export function patchTransferCompleted(qc: QueryClient, transfer: TransferRealti
 }
 
 export function patchTransferCreated(_qc: QueryClient, _transfer: TransferRealtimePayload): void {
-  // Atomic transfer — list UI updates on transfer.completed only.
+  // Intentional no-op (G-TR-01): internal transfer creates+completes atomically;
+  // list UI updates on transfer.completed via patchTransferCompleted.
 }

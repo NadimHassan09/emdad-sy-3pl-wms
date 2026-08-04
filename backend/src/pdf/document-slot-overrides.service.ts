@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../common/prisma/prisma.service';
+import { RealtimeService } from '../modules/realtime/realtime.service';
 import { UpdateDocumentSlotDto } from './dto/document-slot.dto';
 
 export type DocumentSlotFields = {
@@ -39,7 +40,10 @@ function display(value: string): string {
 
 @Injectable()
 export class DocumentSlotOverridesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   /** Resolved PDF field values (override wins, then order/task defaults). */
   async resolveForTask(taskId: string, type: 'grn' | 'delivery_note') {
@@ -84,6 +88,35 @@ export class DocumentSlotOverridesService {
       create: { taskId, ...data },
       update: data,
     });
+
+    const task = await this.prisma.warehouseTask.findUnique({
+      where: { id: taskId },
+      include: { workflowInstance: true },
+    });
+    const referenceId = task?.workflowInstance.referenceId;
+    let companyId: string | null = null;
+    if (task && referenceId) {
+      if (dto.type === 'grn') {
+        const order = await this.prisma.inboundOrder.findUnique({
+          where: { id: referenceId },
+          select: { companyId: true },
+        });
+        companyId = order?.companyId ?? null;
+      } else {
+        const order = await this.prisma.outboundOrder.findUnique({
+          where: { id: referenceId },
+          select: { companyId: true },
+        });
+        companyId = order?.companyId ?? null;
+      }
+    }
+    if (companyId) {
+      this.realtime.emitDocumentSlotOverrideChanged(companyId, {
+        taskId,
+        type: dto.type,
+        companyId,
+      });
+    }
 
     return this.getEditable(taskId, dto.type);
   }

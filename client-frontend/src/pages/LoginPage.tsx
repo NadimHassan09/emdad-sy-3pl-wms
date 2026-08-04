@@ -27,7 +27,7 @@ function setClientLanguage(next: 'EN' | 'AR'): void {
 }
 
 export function LoginPage(): ReactElement {
-  const { user, bootstrapped, login } = useAuth();
+  const { user, bootstrapped, login, resumeSession } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
@@ -57,13 +57,24 @@ export function LoginPage(): ReactElement {
     setError(null);
   }
 
-  function selectRememberedAccount() {
+  async function selectRememberedAccount(): Promise<void> {
     if (!remembered) return;
-    setEmail(remembered.email);
-    setRememberFor30Days(true);
-    window.setTimeout(() => {
-      document.getElementById('login-password')?.focus();
-    }, 0);
+    setError(null);
+    setSubmitting(true);
+    try {
+      await resumeSession();
+      navigate(from === '/login' ? '/dashboard' : from, { replace: true });
+    } catch {
+      // No live session (e.g. after logout) — fall through to password entry quietly.
+      setEmail(remembered.email);
+      setRememberFor30Days(true);
+      setError(null);
+      window.setTimeout(() => {
+        document.getElementById('login-password')?.focus();
+      }, 0);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function onSubmit(e: FormEvent): Promise<void> {
@@ -133,6 +144,7 @@ export function LoginPage(): ReactElement {
         rememberLabel={t('Remember me for 30 days', 'تذكرني لمدة 30 يومًا')}
         accountSectionLabel={t('Sign in to your account', 'تسجيل الدخول إلى حسابك')}
         clearRememberedAccountLabel={t('Remove remembered account', 'إزالة الحساب المحفوظ')}
+        continueLabel={t('Continue', 'متابعة')}
         orLabel={t('OR', 'أو')}
         email={email}
         password={password}
@@ -145,7 +157,7 @@ export function LoginPage(): ReactElement {
         onRememberChange={setRememberFor30Days}
         cornerSlot={languageToggle}
         rememberedAccount={rememberedForUi}
-        onSelectRememberedAccount={selectRememberedAccount}
+        onSelectRememberedAccount={() => void selectRememberedAccount()}
         onClearRememberedAccount={clearRemembered}
         bootSlot={
           !bootstrapped ? (

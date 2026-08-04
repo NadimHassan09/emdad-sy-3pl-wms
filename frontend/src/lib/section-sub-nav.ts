@@ -27,9 +27,11 @@ function tasksListTaskTypeMatch(pathname: string, search: string, taskType: stri
   return pathname === '/tasks' && taskTypeFromSearch(search) === taskType;
 }
 
-/** Inbound/outbound order detail — sub-nav tabs are list-only. */
+/** Inbound/outbound detail, create, and plan-edit — sub-nav tabs are list-only. */
 function isOrdersDetailPath(pathname: string): boolean {
-  return /^\/orders\/(inbound|outbound|oms)\/[^/]+$/.test(pathname);
+  if (/^\/orders\/(inbound|outbound)\/new$/.test(pathname)) return true;
+  if (/^\/orders\/(inbound|outbound)\/[^/]+(?:\/edit)?$/.test(pathname)) return true;
+  return /^\/orders\/oms\/[^/]+$/.test(pathname);
 }
 
 export type SectionSubNavConfig = {
@@ -46,12 +48,10 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
       {
         labelKey: 'Stock',
         to: '/inventory/stock',
-        match: (p) => p === '/inventory/stock' || p.startsWith('/inventory/product/'),
-      },
-      {
-        labelKey: 'Ledger',
-        to: '/inventory/ledger',
-        match: (p) => p.startsWith('/inventory/ledger'),
+        match: (p) =>
+          p === '/inventory/stock' ||
+          p.startsWith('/inventory/product/') ||
+          p.startsWith('/inventory/ledger'),
       },
       {
         labelKey: 'Adjustments',
@@ -63,8 +63,7 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
   {
     ariaLabelKey: 'Orders navigation',
     matchSection: (p) =>
-      (p.startsWith('/orders') && !isOrdersDetailPath(p) && !p.startsWith('/orders/oms')) ||
-      p.startsWith('/orders/directed-outbound'),
+      p.startsWith('/orders') && !isOrdersDetailPath(p) && !p.startsWith('/orders/oms'),
     items: [
       {
         labelKey: 'Inbound orders',
@@ -75,11 +74,6 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
         labelKey: 'Outbound orders',
         to: '/orders/outbound',
         match: (p) => p.startsWith('/orders/outbound'),
-      },
-      {
-        labelKey: 'Quick outbound',
-        to: '/orders/directed-outbound',
-        match: (p) => p === '/orders/directed-outbound',
       },
     ],
   },

@@ -14,6 +14,7 @@ const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const realtime_service_1 = require("../realtime/realtime.service");
 const billing_audit_service_1 = require("./billing-audit.service");
 const billing_invoice_calculation_service_1 = require("./billing-invoice-calculation.service");
 exports.INVOICE_SELECT = {
@@ -65,11 +66,22 @@ let BillingInvoicesService = class BillingInvoicesService {
     companyAccess;
     billingAudit;
     invoiceCalc;
-    constructor(prisma, companyAccess, billingAudit, invoiceCalc) {
+    realtime;
+    constructor(prisma, companyAccess, billingAudit, invoiceCalc, realtime) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.billingAudit = billingAudit;
         this.invoiceCalc = invoiceCalc;
+        this.realtime = realtime;
+    }
+    emitInvoice(invoice, action) {
+        this.realtime.emitInvoiceUpdated(invoice.companyId, {
+            invoiceId: invoice.id,
+            companyId: invoice.companyId,
+            status: invoice.status,
+            invoiceNumber: invoice.invoiceNumber ?? null,
+            action,
+        });
     }
     async updateStatus(user, id, status) {
         const invoice = await this.findById(user, id);
@@ -109,6 +121,7 @@ let BillingInvoicesService = class BillingInvoicesService {
             previousState: { status: from },
             newState: { status },
         });
+        this.emitInvoice(updated, action);
         return updated;
     }
     async issueInvoice(user, id) {
@@ -123,7 +136,7 @@ let BillingInvoicesService = class BillingInvoicesService {
                 d.setUTCDate(d.getUTCDate() + 30);
                 return d;
             })();
-        return this.prisma.invoice.update({
+        const updated = await this.prisma.invoice.update({
             where: { id },
             data: {
                 status: client_1.BillingInvoiceStatus.unpaid,
@@ -132,13 +145,15 @@ let BillingInvoicesService = class BillingInvoicesService {
             },
             select: exports.INVOICE_SELECT,
         });
+        this.emitInvoice(updated, 'invoice_issued');
+        return updated;
     }
     async createAdHoc(user, dto) {
         this.companyAccess.assertCompanyAccess(user, dto.companyId);
         if (!dto.lines?.length) {
             throw new common_1.BadRequestException('At least one invoice line is required.');
         }
-        return this.prisma.$transaction(async (tx) => {
+        const created = await this.prisma.$transaction(async (tx) => {
             const invoice = await tx.invoice.create({
                 data: {
                     companyId: dto.companyId,
@@ -157,6 +172,8 @@ let BillingInvoicesService = class BillingInvoicesService {
                 select: exports.INVOICE_SELECT,
             });
         });
+        this.emitInvoice(created, 'invoice_created');
+        return created;
     }
     async updateInvoice(user, id, dto) {
         const invoice = await this.findById(user, id);
@@ -181,11 +198,13 @@ let BillingInvoicesService = class BillingInvoicesService {
         if (dto.vatPercentage != null) {
             data.vatPercentage = new client_1.Prisma.Decimal(dto.vatPercentage);
         }
-        return this.prisma.$transaction(async (tx) => {
+        const updated = await this.prisma.$transaction(async (tx) => {
             await tx.invoice.update({ where: { id }, data });
             await this.invoiceCalc.applyInvoiceTotals(tx, id);
             return tx.invoice.findUniqueOrThrow({ where: { id }, select: exports.INVOICE_SELECT });
         });
+        this.emitInvoice(updated, 'invoice_updated');
+        return updated;
     }
     async listPage(user, query) {
         const where = this.buildInvoiceWhere(user, query);
@@ -383,6 +402,7 @@ exports.BillingInvoicesService = BillingInvoicesService = __decorate([
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         company_access_service_1.CompanyAccessService,
         billing_audit_service_1.BillingAuditService,
-        billing_invoice_calculation_service_1.BillingInvoiceCalculationService])
+        billing_invoice_calculation_service_1.BillingInvoiceCalculationService,
+        realtime_service_1.RealtimeService])
 ], BillingInvoicesService);
 //# sourceMappingURL=billing-invoices.service.js.map

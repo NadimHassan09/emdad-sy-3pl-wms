@@ -19,25 +19,39 @@ import {
   fetchClientOmsOrders,
   type ClientOmsOrderStatus,
 } from '../services/clientOmsOrdersService';
+import { fetchClientInvoicesPage } from '../services/clientBillingService';
 import { fetchClientProducts } from '../services/clientProductsService';
-import { fetchClientReturns } from '../services/clientReturnsService';
+import { fetchClientOmsReturns } from '../services/clientOmsReturnsService';
 import { fetchStockPage } from '../services/stockService';
 
-const SUPPORT_EMAIL = 'support@emdadsy.com';
-
-/** Status buckets matching the approved Emdad Order Summary row. */
-const UNPROCESSED = new Set<ClientOmsOrderStatus>(['draft', 'pending_approval', 'approved', 'confirmed']);
-const PROCESSING = new Set<ClientOmsOrderStatus>(['processing', 'allocated', 'picking', 'packing', 'ready_to_ship']);
-const OUT_FOR_DELIVERY = new Set<ClientOmsOrderStatus>(['out_for_delivery', 'shipped']);
+/** Commercial OMS lifecycle buckets (plus legacy WMS-mirrored statuses). */
+const WAITING = new Set<ClientOmsOrderStatus>(['draft', 'pending_approval']);
+/** In-fulfillment commercial Pending + historical warehouse-mirrored statuses. */
+const PENDING_FULFILLMENT = new Set<ClientOmsOrderStatus>([
+  'pending',
+  'approved',
+  'confirmed',
+  'processing',
+  'allocated',
+  'picking',
+  'packing',
+  'ready_to_ship',
+  'shipped',
+  'failed_delivery',
+]);
+const OUT_FOR_DELIVERY = new Set<ClientOmsOrderStatus>(['out_for_delivery']);
 const DELIVERED = new Set<ClientOmsOrderStatus>(['delivered', 'completed']);
 /** True returns only — do not mix cancelled / rejected / failed_delivery into “Returned”. */
 const RETURNED = new Set<ClientOmsOrderStatus>(['returned']);
-const CANCELLED_OR_FAILED = new Set<ClientOmsOrderStatus>(['cancelled', 'rejected', 'failed_delivery']);
-/** Orders that need merchant/ops attention (not a vanity “latest 8”). */
-const NEEDS_ATTENTION = new Set<ClientOmsOrderStatus>([
-  ...UNPROCESSED,
-  'failed_delivery',
+const CANCELLED_OR_FAILED = new Set<ClientOmsOrderStatus>(['cancelled', 'rejected']);
+/** Still in flight — not delivered, returned, or cancelled. */
+const OPEN_OMS = new Set<ClientOmsOrderStatus>([
+  ...WAITING,
+  ...PENDING_FULFILLMENT,
+  ...OUT_FOR_DELIVERY,
 ]);
+/** Orders that need merchant/ops attention. */
+const NEEDS_ATTENTION = new Set<ClientOmsOrderStatus>([...WAITING]);
 
 function toYmd(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -80,8 +94,13 @@ function tr(label: string, isArabic: boolean): string {
     'Welcome back': 'مرحبًا بعودتك',
     'New order': 'طلب جديد',
     'View COD': 'عرض التحصيل',
-    'Needs attention': 'تحتاج متابعة',
-    'Stuck or awaiting action': 'عالق أو بانتظار إجراء',
+    'Open OMS orders': 'الطلبات الإلكترونية المفتوحة',
+    'Not yet delivered or closed': 'لم تُسلَّم أو تُغلق بعد',
+    'Current obligation': 'الالتزام الحالي',
+    'Unpaid and draft invoices': 'فواتير غير مدفوعة',
+    'Unpaid invoices': 'فواتير غير مدفوعة',
+    'Awaiting payment': 'بانتظار الدفع',
+    'No outstanding invoices': 'لا توجد فواتير مستحقة',
     'Sellable stock': 'المخزون القابل للبيع',
     'Units available to sell': 'وحدات متاحة للبيع',
     'Low-stock SKUs': 'أصناف منخفضة المخزون',
@@ -94,6 +113,8 @@ function tr(label: string, isArabic: boolean): string {
     'Order summary': 'ملخص الطلبات',
     'Where are my orders?': 'أين طلباتي؟',
     Unprocessed: 'غير معالج',
+    Waiting: 'بانتظار الموافقة',
+    Pending: 'قيد الانتظار',
     Processing: 'قيد المعالجة',
     'Out for delivery': 'خارج للتسليم',
     Delivered: 'تم التسليم',
@@ -125,7 +146,6 @@ function tr(label: string, isArabic: boolean): string {
     'No inventory rows': 'لا توجد صفوف مخزون',
     'Ready for payout': 'جاهز للتحويل',
     'Available to withdraw': 'متاح للسحب',
-    'Request payout': 'طلب تحويل',
     'Still with carriers': 'ما زال لدى شركات الشحن',
     'Total COD': 'إجمالي الدفع عند الاستلام',
     'COD collected this period': 'المحصّل في هذه الفترة',
@@ -215,10 +235,14 @@ function StatusCell({
   colorClass: string;
 }): ReactElement {
   return (
-    <div className="flex-1 min-w-[6.5rem] text-center px-2 py-3">
-      <div className={`text-2xl font-bold tabular-nums ${colorClass}`}>{count.toLocaleString()}</div>
-      <div className="text-[11px] font-semibold text-text-muted mt-1">{label}</div>
-      <div className="text-[10px] text-text-faint mt-0.5">{pct(count, total)}</div>
+    <div className="min-w-0 text-center px-1.5 py-3 sm:px-2">
+      <div className={`text-xl font-bold tabular-nums sm:text-2xl ${colorClass}`}>
+        {count.toLocaleString()}
+      </div>
+      <div className="mt-1 text-[10px] font-semibold leading-snug text-text-muted sm:text-[11px]">
+        {label}
+      </div>
+      <div className="mt-0.5 text-[10px] text-text-faint">{pct(count, total)}</div>
     </div>
   );
 }
@@ -325,6 +349,16 @@ export function DashboardPage(): ReactElement {
     queryFn: () => fetchClientOmsOrders({ ...orderFilters, limit: 500, offset: 0 }),
   });
 
+  const openOmsQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'oms-open', storeChannel],
+    queryFn: () =>
+      fetchClientOmsOrders({
+        storeChannel: storeChannel.trim() || undefined,
+        limit: 500,
+        offset: 0,
+      }),
+  });
+
   const movementQuery = useQuery({
     queryKey: ['client', 'dashboard', 'oms-7d', last7From, last7To, storeChannel],
     queryFn: () =>
@@ -360,31 +394,50 @@ export function DashboardPage(): ReactElement {
     queryKey: ['client', 'dashboard', 'cod-remitted', codParams],
     queryFn: () => fetchClientCodReport({ ...codParams, codStatus: 'remitted', limit: 500, offset: 0 }),
   });
-  const codSettledQuery = useQuery({
-    queryKey: ['client', 'dashboard', 'cod-settled', codParams],
-    queryFn: () => fetchClientCodReport({ ...codParams, codStatus: 'settled', limit: 500, offset: 0 }),
-  });
 
   const returnsQuery = useQuery({
     queryKey: ['client', 'dashboard', 'returns'],
-    queryFn: () => fetchClientReturns({ limit: 6, offset: 0 }),
+    queryFn: () => fetchClientOmsReturns({ limit: 6, offset: 0 }),
   });
   const notificationsQuery = useQuery({
     queryKey: ['client', 'dashboard', 'notifications'],
     queryFn: () => fetchClientNotifications({ limit: 8, offset: 0 }),
   });
+  const invoicesQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'invoices-obligation'],
+    queryFn: () => fetchClientInvoicesPage({ limit: 200, offset: 0 }),
+  });
 
   const orders = ordersQuery.data?.items ?? [];
+  const openOmsCount = useMemo(
+    () => (openOmsQuery.data?.items ?? []).filter((o) => OPEN_OMS.has(o.status)).length,
+    [openOmsQuery.data],
+  );
+  const obligationInvoices = useMemo(
+    () =>
+      (invoicesQuery.data?.items ?? []).filter((inv) =>
+        inv.status === 'unpaid' ||
+        inv.status === 'open' ||
+        inv.status === 'overdue',
+      ),
+    [invoicesQuery.data],
+  );
+  const obligationAmount = useMemo(
+    () =>
+      obligationInvoices.reduce((sum, inv) => {
+        const raw = inv.grandTotal ?? inv.totalAmount;
+        const n = Number(raw);
+        return sum + (Number.isFinite(n) ? n : 0);
+      }, 0),
+    [obligationInvoices],
+  );
+  const obligationCount = obligationInvoices.length;
   const attentionOrders = useMemo(
     () =>
       orders
         .filter((o) => NEEDS_ATTENTION.has(o.status))
         .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
         .slice(0, 8),
-    [orders],
-  );
-  const attentionCount = useMemo(
-    () => orders.filter((o) => NEEDS_ATTENTION.has(o.status)).length,
     [orders],
   );
 
@@ -398,8 +451,8 @@ export function DashboardPage(): ReactElement {
       cancelled: 0,
     };
     for (const o of orders) {
-      if (UNPROCESSED.has(o.status)) counts.unprocessed += 1;
-      else if (PROCESSING.has(o.status)) counts.processing += 1;
+      if (WAITING.has(o.status)) counts.unprocessed += 1;
+      else if (PENDING_FULFILLMENT.has(o.status)) counts.processing += 1;
       else if (OUT_FOR_DELIVERY.has(o.status)) counts.out += 1;
       else if (DELIVERED.has(o.status)) counts.delivered += 1;
       else if (RETURNED.has(o.status)) counts.returned += 1;
@@ -418,16 +471,16 @@ export function DashboardPage(): ReactElement {
       cancelled: 0,
     };
     for (const o of movementQuery.data?.items ?? []) {
-      if (UNPROCESSED.has(o.status)) counts.unprocessed += 1;
-      else if (PROCESSING.has(o.status)) counts.processing += 1;
+      if (WAITING.has(o.status)) counts.unprocessed += 1;
+      else if (PENDING_FULFILLMENT.has(o.status)) counts.processing += 1;
       else if (OUT_FOR_DELIVERY.has(o.status)) counts.out += 1;
       else if (DELIVERED.has(o.status)) counts.delivered += 1;
       else if (RETURNED.has(o.status)) counts.returned += 1;
       else if (CANCELLED_OR_FAILED.has(o.status)) counts.cancelled += 1;
     }
     return [
-      { name: t('Unprocessed'), value: counts.unprocessed, fill: '#F59E0B' },
-      { name: t('Processing'), value: counts.processing, fill: '#3B82F6' },
+      { name: t('Waiting'), value: counts.unprocessed, fill: '#F59E0B' },
+      { name: t('Pending'), value: counts.processing, fill: '#3B82F6' },
       { name: t('Out for delivery'), value: counts.out, fill: '#8B5CF6' },
       { name: t('Delivered'), value: counts.delivered, fill: '#059669' },
       { name: t('Returned'), value: counts.returned, fill: '#EF4444' },
@@ -487,17 +540,9 @@ export function DashboardPage(): ReactElement {
 
   const pendingCod = sumAmounts(codPendingQuery.data?.items ?? []);
   const collectedCod = sumAmounts(codCollectedQuery.data?.items ?? []);
-  const remittedCod =
-    sumAmounts(codRemittedQuery.data?.items ?? []) + sumAmounts(codSettledQuery.data?.items ?? []);
+  // remitted and settled are the same portal status — do not sum both queries
+  const remittedCod = sumAmounts(codRemittedQuery.data?.items ?? []);
   const totalCod = pendingCod + collectedCod + remittedCod;
-
-  const payoutMailto = useMemo(() => {
-    const subject = encodeURIComponent('Request COD Payout — Emdad Client Portal');
-    const body = encodeURIComponent(
-      `Hello Emdad,\n\nI would like to request a COD payout.\n\nReady for payout: ${formatMoney(collectedCod, codCurrency, locale)}\nPeriod: ${dateFrom} → ${dateTo}\nAccount: ${displayName}\n\nThank you.`,
-    );
-    return `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
-  }, [collectedCod, codCurrency, locale, dateFrom, dateTo, displayName]);
 
   const activityItems = useMemo(() => {
     const items: Array<{
@@ -524,10 +569,10 @@ export function DashboardPage(): ReactElement {
       items.push({
         id: `r-${r.id}`,
         kind: t('Return'),
-        title: r.orderNumber,
+        title: r.returnNumber,
         subtitle: r.status,
         at: r.createdAt,
-        href: `/returns/${r.id}`,
+        href: `/ecommerce-orders/returns/${r.id}`,
         status: r.status,
       });
     }
@@ -546,6 +591,8 @@ export function DashboardPage(): ReactElement {
   }, [orders, returnsQuery.data, notificationsQuery.data, isArabic]);
 
   const loading = ordersQuery.isPending || productsQuery.isPending;
+  const loadingOpenOms = openOmsQuery.isPending;
+  const loadingObligation = invoicesQuery.isPending;
   const loadingCod =
     codPendingQuery.isPending || codCollectedQuery.isPending || codRemittedQuery.isPending;
 
@@ -597,15 +644,28 @@ export function DashboardPage(): ReactElement {
       ) : null}
 
       {/* Exception-first KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <TopKpi
-          label={t('Needs attention')}
-          value={attentionCount.toLocaleString(locale)}
-          hint={t('Stuck or awaiting action')}
-          icon="fa-triangle-exclamation"
-          tone="amber"
-          loading={loading}
+          label={t('Open OMS orders')}
+          value={openOmsCount.toLocaleString(locale)}
+          hint={t('Not yet delivered or closed')}
+          icon="fa-cart-shopping"
+          tone="slate"
+          loading={loadingOpenOms}
           to="/ecommerce-orders"
+        />
+        <TopKpi
+          label={t('Current obligation')}
+          value={formatMoney(obligationAmount, 'SYP', locale)}
+          hint={
+            obligationCount > 0
+              ? `${obligationCount.toLocaleString(locale)} · ${t('Awaiting payment')}`
+              : t('No outstanding invoices')
+          }
+          icon="fa-file-invoice-dollar"
+          tone={obligationAmount > 0 ? 'amber' : 'slate'}
+          loading={loadingObligation}
+          to="/invoices"
         />
         <TopKpi
           label={t('Sellable stock')}
@@ -629,7 +689,7 @@ export function DashboardPage(): ReactElement {
           loading={loadingCod}
           to="/my-profits"
         />
-              </div>
+      </div>
 
       {/* ✓ KEEP — Order movement pie + Order summary status row */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
@@ -726,10 +786,10 @@ export function DashboardPage(): ReactElement {
               </select>
             </div>
           </div>
-          <div className="flex flex-wrap divide-x divide-border-subtle rtl:divide-x-reverse rounded-xl border border-border-subtle bg-surface-card-muted">
+          <div className="grid grid-cols-7 divide-x divide-border-subtle rtl:divide-x-reverse rounded-xl border border-border-subtle bg-surface-card-muted">
             <StatusCell label={t('Total orders')} count={totalOrders} total={totalOrders || 1} colorClass="text-text-strong" />
-            <StatusCell label={t('Unprocessed')} count={statusCounts.unprocessed} total={totalOrders || 1} colorClass="text-amber-600 dark:text-amber-400" />
-            <StatusCell label={t('Processing')} count={statusCounts.processing} total={totalOrders || 1} colorClass="text-blue-600 dark:text-blue-400" />
+            <StatusCell label={t('Waiting')} count={statusCounts.unprocessed} total={totalOrders || 1} colorClass="text-amber-600 dark:text-amber-400" />
+            <StatusCell label={t('Pending')} count={statusCounts.processing} total={totalOrders || 1} colorClass="text-blue-600 dark:text-blue-400" />
             <StatusCell label={t('Out for delivery')} count={statusCounts.out} total={totalOrders || 1} colorClass="text-violet-600 dark:text-violet-400" />
             <StatusCell label={t('Delivered')} count={statusCounts.delivered} total={totalOrders || 1} colorClass="text-brand-600 dark:text-brand-400" />
             <StatusCell label={t('Returned')} count={statusCounts.returned} total={totalOrders || 1} colorClass="text-rose-600 dark:text-rose-400" />
@@ -887,14 +947,6 @@ export function DashboardPage(): ReactElement {
             emphasize
             loading={loadingCod}
             to="/my-profits"
-            action={
-              <a
-                href={payoutMailto}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cta px-3 py-2 text-xs font-bold text-white hover:bg-cta-hover no-underline"
-              >
-                {t('Request payout')}
-              </a>
-            }
           />
           <FinanceCard
             label={t('Total COD')}

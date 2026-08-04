@@ -6,6 +6,7 @@ export type OmsAllocationStatus = 'none' | 'allocated' | 'released' | 'fulfilled
 export type OmsOrderStatus =
   | 'draft'
   | 'pending_approval'
+  | 'pending'
   | 'rejected'
   | 'approved'
   | 'confirmed'
@@ -21,6 +22,106 @@ export type OmsOrderStatus =
   | 'completed'
   | 'returned'
   | 'cancelled';
+
+export type CodRecordStatus = 'pending' | 'available' | 'paid_out';
+export type CodGenerationStatus = 'none' | 'pending' | 'ok' | 'failed';
+
+export interface CodRecordAdjustment {
+  id: string;
+  amount: string;
+  reason: string | null;
+  omsReturnId: string | null;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface CodRecord {
+  id: string;
+  companyId: string;
+  company?: { id: string; name: string } | null;
+  omsOrderId: string;
+  omsOrder?: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    recipientName: string | null;
+    paymentMethod: string | null;
+  } | null;
+  originalAmount: string;
+  currentAmount: string;
+  currency: string;
+  status: CodRecordStatus;
+  notes: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  availableAt: string | null;
+  paidOutAt: string | null;
+  adjustments: CodRecordAdjustment[];
+}
+
+export type OmsReturnStatus = 'requested' | 'approved' | 'rejected' | 'completed' | 'cancelled';
+
+export interface OmsReturnLine {
+  id: string;
+  productId: string;
+  quantity: string;
+  unitPrice: string | null;
+  lineTotal: string | null;
+  lotId: string | null;
+  lineNumber: number;
+  product?: {
+    id: string;
+    sku: string;
+    name: string;
+    uom: string;
+    trackingType: string;
+  } | null;
+}
+
+export interface OmsReturn {
+  id: string;
+  companyId: string;
+  company?: { id: string; name: string } | null;
+  omsOrderId: string;
+  warehouseReturnId: string | null;
+  returnNumber: string;
+  status: OmsReturnStatus;
+  reason: string | null;
+  notes: string | null;
+  rejectionReason: string | null;
+  createdBy: string;
+  approvedBy: string | null;
+  rejectedBy: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  omsOrder?: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    outboundOrderId: string | null;
+  } | null;
+  warehouseReturn?: { id: string; orderNumber: string; status: string } | null;
+  lines: OmsReturnLine[];
+}
+
+export interface CreateOmsReturnLineInput {
+  productId: string;
+  quantity: number;
+  unitPrice?: number;
+  lotId?: string;
+}
+
+export interface CreateOmsReturnInput {
+  omsOrderId: string;
+  reason?: string;
+  notes?: string;
+  warehouseId?: string;
+  lines: CreateOmsReturnLineInput[];
+}
 
 export interface OmsOrderLine {
   id: string;
@@ -90,6 +191,7 @@ export interface OmsOrderDetail extends OmsOrderListItem {
   outForDeliveryAt?: string | null;
   deliveredAt?: string | null;
   returnedAt?: string | null;
+  codGenerationStatus?: CodGenerationStatus | null;
   submittedAt?: string | null;
   approvedAt?: string | null;
   approvedBy?: string | null;
@@ -125,6 +227,8 @@ export interface OmsDashboardSummary {
   ordersToday: number;
   pendingOrders: number;
   pendingApproval?: number;
+  /** Approved → out for delivery / shipped (awaiting completion). */
+  pendingFulfillment?: number;
   approved?: number;
   allocatedOrders: number;
   picking: number;
@@ -136,19 +240,48 @@ export interface OmsDashboardSummary {
   codPending: number;
   codCollected: number;
   codSettled: number;
+  codPendingAmount?: string;
+  codCollectedAmount?: string;
   todaysRevenue?: string;
+  trends?: {
+    ordersToday?: number | null;
+    pendingApproval?: number | null;
+    pendingFulfillment?: number | null;
+    deliveredToday?: number | null;
+    returns?: number | null;
+    todaysRevenue?: number | null;
+  };
   ordersByStatus?: Array<{ status: string; count: number }>;
   ordersByChannel?: Array<{ channel: string; count: number }>;
-  ordersPerDay?: Array<{ day: string; count: number }>;
+  ordersPerDay?: Array<{
+    day: string;
+    count: number;
+    revenue?: string;
+    codPending?: string;
+    codCollected?: string;
+  }>;
+  liveActivity?: Array<{
+    id: string;
+    eventType: string;
+    createdAt: string;
+    orderId?: string | null;
+    orderNumber?: string | null;
+    actorName?: string | null;
+    payload?: unknown;
+  }>;
+  alerts?: Array<{ kind: string; message: string; count: number }>;
   recentOrders?: Array<{
     id: string;
     orderNumber: string;
     status: string;
     recipientName?: string | null;
     storeChannel?: string | null;
+    paymentMethod?: string | null;
+    codAmount?: string | null;
     subtotal?: string | null;
     currency?: string | null;
     createdAt: string;
+    companyName?: string | null;
   }>;
 }
 
@@ -302,5 +435,71 @@ export const OmsApi = {
 
   settleCod(id: string) {
     return api.post<OmsOrderDetail>(`/oms/orders/${id}/cod/settle`).then((r) => r.data);
+  },
+
+  cancel(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/cancel`).then((r) => r.data);
+  },
+};
+
+export const CodApi = {
+  list(params: {
+    companyId?: string;
+    status?: CodRecordStatus;
+    omsOrderId?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<PageResult<CodRecord>> {
+    return api.get<PageResult<CodRecord>>('/cod/records', { params }).then((r) => r.data);
+  },
+
+  getRecord(id: string) {
+    return api.get<CodRecord>(`/cod/records/${id}`).then((r) => r.data);
+  },
+
+  byOrder(omsOrderId: string) {
+    return api.get<CodRecord | null>(`/cod/by-order/${omsOrderId}`).then((r) => r.data);
+  },
+
+  setStatus(id: string, status: CodRecordStatus) {
+    return api.patch<CodRecord>(`/cod/records/${id}/status`, { status }).then((r) => r.data);
+  },
+
+  addAdjustment(id: string, input: { amount: number; reason?: string }) {
+    return api.post<CodRecord>(`/cod/records/${id}/adjustments`, input).then((r) => r.data);
+  },
+
+  retryGeneration(omsOrderId: string) {
+    return api.post<CodRecord>(`/cod/orders/${omsOrderId}/retry`).then((r) => r.data);
+  },
+};
+
+export const OmsReturnsApi = {
+  list(params: {
+    companyId?: string;
+    omsOrderId?: string;
+    status?: OmsReturnStatus;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<PageResult<OmsReturn>> {
+    return api.get<PageResult<OmsReturn>>('/oms/returns', { params }).then((r) => r.data);
+  },
+
+  get(id: string) {
+    return api.get<OmsReturn>(`/oms/returns/${id}`).then((r) => r.data);
+  },
+
+  create(input: CreateOmsReturnInput) {
+    return api.post<OmsReturn>('/oms/returns', input).then((r) => r.data);
+  },
+
+  approve(id: string, warehouseId?: string) {
+    return api
+      .post<OmsReturn>(`/oms/returns/${id}/approve`, { warehouseId })
+      .then((r) => r.data);
+  },
+
+  reject(id: string, reason?: string) {
+    return api.post<OmsReturn>(`/oms/returns/${id}/reject`, { reason }).then((r) => r.data);
   },
 };

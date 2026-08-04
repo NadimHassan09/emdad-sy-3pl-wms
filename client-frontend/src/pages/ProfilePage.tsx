@@ -36,12 +36,13 @@ function t(label: string, isArabic: boolean): string {
     'Need help?': 'تحتاج مساعدة؟',
     'Contact your warehouse account manager for access changes or billing questions.':
       'تواصل مع مدير حساب المستودع لتغييرات الوصول أو أسئلة الفوترة.',
-    'Contact support': 'تواصل مع الدعم',
+    WhatsApp: 'واتساب',
   };
   return ar[label] ?? label;
 }
 
-const SUPPORT_EMAIL = 'support@emdadsy.com';
+const SUPPORT_WHATSAPP_E164 = '963983628071';
+const SUPPORT_WHATSAPP_DISPLAY = '+963 983 628 071';
 
 export function ProfilePage(): ReactElement {
   const { user, refreshUser } = useAuth();
@@ -221,11 +222,16 @@ export function ProfilePage(): ReactElement {
           {label('Contact your warehouse account manager for access changes or billing questions.')}
         </p>
         <a
-          href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('Client Portal support')}`}
-          className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-white/5 rounded-lg hover:bg-brand-100 dark:hover:bg-white/10 transition-colors no-underline"
+          href={`https://wa.me/${SUPPORT_WHATSAPP_E164}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-[#075E54] bg-[#DCF8C6] rounded-lg hover:bg-[#c8f0b0] transition-colors no-underline"
         >
-          <i className="fa-solid fa-envelope text-[10px]" aria-hidden="true" />
-          {label('Contact support')}
+          <i className="fa-brands fa-whatsapp text-sm" aria-hidden="true" />
+          {label('WhatsApp')}
+          <span className="text-[10px] font-normal opacity-80" dir="ltr">
+            {SUPPORT_WHATSAPP_DISPLAY}
+          </span>
         </a>
       </Card>
     </div>

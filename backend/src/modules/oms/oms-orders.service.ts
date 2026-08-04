@@ -6,7 +6,6 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import {
-  OmsCodStatus,
   OmsOrderStatus,
   OutboundOrderStatus,
   Prisma,
@@ -24,6 +23,7 @@ import { assertProductOrderableForOrders } from '../../common/utils/assert-produ
 import { RealtimeService } from '../realtime/realtime.service';
 import { adminOutboundListItem } from '../realtime/realtime-client.payload';
 import { OutboundService } from '../outbound/outbound.service';
+import { CodRecordsService } from '../cod/cod-records.service';
 import {
   AllocateOmsOrderDto,
   ApproveOmsOrderDto,
@@ -78,6 +78,8 @@ export class OmsOrdersService {
     private readonly events: OmsOrderEventsService,
     private readonly sync: OmsOutboundSyncService,
     private readonly realtime: RealtimeService,
+    @Inject(forwardRef(() => CodRecordsService))
+    private readonly cod: CodRecordsService,
   ) {}
 
   async list(user: AuthPrincipal, query: ListOmsOrdersQueryDto) {
@@ -133,9 +135,14 @@ export class OmsOrdersService {
     });
   }
 
-  async create(user: AuthPrincipal, dto: CreateOmsOrderDto) {
+  async create(
+    user: AuthPrincipal,
+    dto: CreateOmsOrderDto,
+    opts?: { provisionOutbound?: boolean },
+  ) {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
     assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
+    const provisionOutbound = !!opts?.provisionOutbound && !dto.outboundOrderId;
 
     if (dto.outboundOrderId) {
       await this.assertOutboundLinkable(user, dto.outboundOrderId, companyId);
@@ -207,7 +214,9 @@ export class OmsOrdersService {
     const now = new Date();
     const initialStatus = dto.outboundOrderId
       ? OmsOrderStatus.draft
-      : OmsOrderStatus.pending_approval;
+      : provisionOutbound
+        ? OmsOrderStatus.pending
+        : OmsOrderStatus.pending_approval;
 
     const order = await withTenantRls(this.prisma, user, async (tx) => {
       const created = await tx.omsOrder.create({
@@ -236,7 +245,14 @@ export class OmsOrdersService {
           codStatus: codStatus ?? undefined,
           storeChannel: dto.storeChannel,
           externalReference: dto.externalReference,
-          submittedAt: initialStatus === OmsOrderStatus.pending_approval ? now : undefined,
+          submittedAt:
+            initialStatus === OmsOrderStatus.pending_approval ||
+            initialStatus === OmsOrderStatus.pending
+              ? now
+              : undefined,
+          approvedAt: provisionOutbound ? now : undefined,
+          approvedBy: provisionOutbound ? user.id : undefined,
+          confirmedAt: provisionOutbound ? now : undefined,
           createdBy: user.id,
           lines: {
             create: linesWithTotals.map((l, idx) => ({
@@ -258,11 +274,12 @@ export class OmsOrdersService {
         omsOrderId: created.id,
         outboundOrderId: created.outboundOrderId ?? undefined,
         companyId: created.companyId,
-        eventType: 'order.created',
+        eventType: 'oms.created',
         createdBy: user.id,
         payload: {
           linkedOutbound: !!created.outboundOrderId,
           status: created.status,
+          provisionOutbound,
         },
       });
 
@@ -273,6 +290,14 @@ export class OmsOrdersService {
           eventType: 'order.pending_approval',
           createdBy: user.id,
         });
+      }
+
+      if (provisionOutbound) {
+        await this.sync.createOutboundFromOms(tx, {
+          omsOrderId: created.id,
+          actorUserId: user.id,
+        });
+        return tx.omsOrder.findUnique({ where: { id: created.id }, include: ORDER_INCLUDE });
       }
 
       if (
@@ -290,19 +315,31 @@ export class OmsOrdersService {
     });
 
     if (!order) throw new NotFoundException('Order not found.');
-    this.emitOms('order.created', order.companyId, order.id, order.status);
+    if (order.outboundOrderId && provisionOutbound) {
+      this.realtime.emitOutboundOrderCreated(order.companyId, {
+        orderId: order.outboundOrderId,
+        status: 'draft',
+      });
+    }
+    this.emitOms('oms.created', order.companyId, order.id, order.status);
     return serializeOmsOrder(order);
   }
 
   async approve(id: string, user: AuthPrincipal, dto: ApproveOmsOrderDto = {}) {
     const existing = await this.resolveOrder(id, user);
+
+    // Idempotent: already Pending with outbound linked.
+    if (
+      existing.status === OmsOrderStatus.pending &&
+      existing.outboundOrderId
+    ) {
+      return serializeOmsOrder(existing);
+    }
+
     if (existing.status !== OmsOrderStatus.pending_approval) {
       throw new InvalidStateException(
-        `Only pending_approval orders can be approved (current: ${existing.status}).`,
+        `Only Waiting for Approval orders can be approved (current: ${existing.status}).`,
       );
-    }
-    if (existing.outboundOrderId) {
-      throw new BadRequestException('Order already has a linked outbound order.');
     }
 
     const products = existing.lines.map((l) => ({
@@ -353,7 +390,7 @@ export class OmsOrdersService {
         status: 'draft',
       });
     }
-    this.emitOms('order.approved', order.companyId, order.id, order.status);
+    this.emitOms('oms.approved', order.companyId, order.id, order.status);
     return serializeOmsOrder(order);
   }
 
@@ -361,7 +398,7 @@ export class OmsOrdersService {
     const existing = await this.resolveOrder(id, user);
     if (existing.status !== OmsOrderStatus.pending_approval) {
       throw new InvalidStateException(
-        `Only pending_approval orders can be rejected (current: ${existing.status}).`,
+        `Only Waiting for Approval orders can be rejected (current: ${existing.status}).`,
       );
     }
 
@@ -369,9 +406,11 @@ export class OmsOrdersService {
       const row = await tx.omsOrder.update({
         where: { id: existing.id },
         data: {
-          status: OmsOrderStatus.rejected,
+          status: OmsOrderStatus.cancelled,
           rejectedAt: new Date(),
           rejectedBy: user.id,
+          cancelledAt: new Date(),
+          cancelledBy: user.id,
           rejectionReason: dto.reason?.trim() || null,
         },
         include: ORDER_INCLUDE,
@@ -379,14 +418,14 @@ export class OmsOrdersService {
       await this.events.record(tx, {
         omsOrderId: row.id,
         companyId: row.companyId,
-        eventType: 'order.rejected',
+        eventType: 'oms.cancelled',
         createdBy: user.id,
-        payload: { reason: dto.reason?.trim() || null },
+        payload: { reason: dto.reason?.trim() || null, via: 'reject' },
       });
       return row;
     });
 
-    this.emitOms('order.rejected', updated.companyId, updated.id, updated.status);
+    this.emitOms('oms.cancelled', updated.companyId, updated.id, updated.status);
     return serializeOmsOrder(updated);
   }
 
@@ -403,13 +442,10 @@ export class OmsOrdersService {
     });
   }
 
-  async markCompleted(id: string, user: AuthPrincipal) {
-    return this.transition(id, user, {
-      allowed: [OmsOrderStatus.delivered],
-      next: OmsOrderStatus.completed,
-      event: 'order.completed',
-      extra: {},
-    });
+  async markCompleted(_id: string, _user: AuthPrincipal) {
+    throw new BadRequestException(
+      'Delivered is the terminal success state. There is no separate Completed status.',
+    );
   }
 
   /** Rejects when summed line qty per product exceeds aggregate available stock. */
@@ -596,13 +632,15 @@ export class OmsOrdersService {
   }
 
   async cancel(id: string, user: AuthPrincipal) {
+    const existing = await this.resolveOrder(id, user);
+    if (existing.status === OmsOrderStatus.cancelled) {
+      return serializeOmsOrder(existing);
+    }
+    if (existing.status === OmsOrderStatus.delivered) {
+      throw new InvalidStateException('Delivered orders cannot be cancelled.');
+    }
+
     const updated = await withTenantRls(this.prisma, user, async (tx) => {
-      const cur = await tx.omsOrder.findUnique({ where: { id } });
-      if (!cur) throw new NotFoundException('Order not found.');
-      this.companyAccess.validateResourceOwnership(user, cur);
-      if (cur.status === OmsOrderStatus.cancelled) {
-        throw new InvalidStateException('Order is already cancelled.');
-      }
       const row = await tx.omsOrder.update({
         where: { id },
         data: {
@@ -612,16 +650,34 @@ export class OmsOrdersService {
         },
         include: ORDER_INCLUDE,
       });
+      if (row.outboundOrderId) {
+        const outbound = await tx.outboundOrder.findUnique({
+          where: { id: row.outboundOrderId },
+          select: { id: true, status: true, companyId: true },
+        });
+        if (
+          outbound &&
+          outbound.status !== OutboundOrderStatus.cancelled &&
+          outbound.status !== OutboundOrderStatus.shipped &&
+          outbound.status !== OutboundOrderStatus.delivered &&
+          outbound.status !== OutboundOrderStatus.out_for_delivery
+        ) {
+          await tx.outboundOrder.update({
+            where: { id: outbound.id },
+            data: { status: OutboundOrderStatus.cancelled },
+          });
+        }
+      }
       await this.events.record(tx, {
         omsOrderId: id,
         outboundOrderId: row.outboundOrderId ?? undefined,
         companyId: row.companyId,
-        eventType: 'order.cancelled',
+        eventType: 'oms.cancelled',
         createdBy: user.id,
       });
       return row;
     });
-    this.emitOms('order.cancelled', updated.companyId, updated.id, updated.status);
+    this.emitOms('oms.cancelled', updated.companyId, updated.id, updated.status);
     return serializeOmsOrder(updated);
   }
 
@@ -636,6 +692,10 @@ export class OmsOrdersService {
     const fresh = await this.resolveOrder(id, user);
     this.emitOms('order.allocated', fresh.companyId, fresh.id, fresh.status);
     this.emitOms('inventory.allocated', fresh.companyId, fresh.id, fresh.status);
+    this.realtime.emitInventoryChanged(fresh.companyId, {
+      source: 'oms_allocate',
+      orderId: fresh.id,
+    });
     return serializeOmsOrder(fresh);
   }
 
@@ -666,12 +726,17 @@ export class OmsOrdersService {
     });
     const fresh = await this.resolveOrder(id, user);
     this.emitOms('inventory.released', fresh.companyId, fresh.id, fresh.status);
+    this.realtime.emitInventoryChanged(fresh.companyId, {
+      source: 'oms_release_allocation',
+      orderId: fresh.id,
+    });
     return serializeOmsOrder(fresh);
   }
 
   async markOutForDelivery(id: string, user: AuthPrincipal) {
     return this.transition(id, user, {
       allowed: [
+        OmsOrderStatus.pending,
         OmsOrderStatus.ready_to_ship,
         OmsOrderStatus.shipped,
         OmsOrderStatus.allocated,
@@ -681,70 +746,44 @@ export class OmsOrdersService {
         OmsOrderStatus.approved,
       ],
       next: OmsOrderStatus.out_for_delivery,
-      event: 'order.out_for_delivery',
+      event: 'oms.out_for_delivery',
       extra: { outForDeliveryAt: new Date() },
-      outboundAllowed: [
-        OutboundOrderStatus.ready_to_ship,
-        OutboundOrderStatus.shipped,
-        OutboundOrderStatus.allocated,
-        OutboundOrderStatus.packing,
-        OutboundOrderStatus.picking,
-      ],
-      outboundNext: OutboundOrderStatus.out_for_delivery,
     });
   }
 
   async markDelivered(id: string, user: AuthPrincipal) {
-    return this.transition(id, user, {
-      allowed: [
-        OmsOrderStatus.out_for_delivery,
-        OmsOrderStatus.shipped,
-        OmsOrderStatus.ready_to_ship,
-        OmsOrderStatus.failed_delivery,
-      ],
-      next: OmsOrderStatus.delivered,
-      event: 'order.delivered',
-      extra: { deliveredAt: new Date() },
-      outboundAllowed: [
-        OutboundOrderStatus.out_for_delivery,
-        OutboundOrderStatus.shipped,
-        OutboundOrderStatus.ready_to_ship,
-      ],
-      outboundNext: OutboundOrderStatus.delivered,
-    });
-  }
+    const existing = await this.resolveOrder(id, user);
 
-  async markReturned(id: string, user: AuthPrincipal) {
-    return this.transition(id, user, {
-      allowed: [
-        OmsOrderStatus.delivered,
-        OmsOrderStatus.out_for_delivery,
-        OmsOrderStatus.shipped,
-        OmsOrderStatus.failed_delivery,
-      ],
-      next: OmsOrderStatus.returned,
-      event: 'order.returned',
-      extra: { returnedAt: new Date() },
-      outboundAllowed: [
-        OutboundOrderStatus.delivered,
-        OutboundOrderStatus.out_for_delivery,
-        OutboundOrderStatus.shipped,
-      ],
-      outboundNext: OutboundOrderStatus.returned,
-    });
-  }
-
-  async collectCod(id: string, user: AuthPrincipal) {
-    const order = await this.resolveOrder(id, user);
-    if (order.paymentMethod !== 'COD') {
-      throw new BadRequestException('Order is not COD.');
+    if (existing.status === OmsOrderStatus.delivered) {
+      if (
+        existing.paymentMethod === 'COD' &&
+        existing.codGenerationStatus !== 'ok'
+      ) {
+        await this.cod.generateForDeliveredOrder(user, existing.id);
+        const refreshed = await this.resolveOrder(id, user);
+        return serializeOmsOrder(refreshed);
+      }
+      return serializeOmsOrder(existing);
     }
+
+    const allowed: OmsOrderStatus[] = [
+      OmsOrderStatus.out_for_delivery,
+      OmsOrderStatus.shipped,
+    ];
+    if (!allowed.includes(existing.status)) {
+      throw new InvalidStateException(
+        `Only Out for Delivery orders can be marked Delivered (current: ${existing.status}).`,
+      );
+    }
+
     const updated = await withTenantRls(this.prisma, user, async (tx) => {
       const row = await tx.omsOrder.update({
         where: { id },
         data: {
-          codStatus: OmsCodStatus.collected,
-          codCollectedAt: new Date(),
+          status: OmsOrderStatus.delivered,
+          deliveredAt: new Date(),
+          codGenerationStatus:
+            existing.paymentMethod === 'COD' ? 'pending' : 'none',
         },
         include: ORDER_INCLUDE,
       });
@@ -752,41 +791,45 @@ export class OmsOrdersService {
         omsOrderId: id,
         outboundOrderId: row.outboundOrderId ?? undefined,
         companyId: row.companyId,
-        eventType: 'cod.collected',
+        eventType: 'oms.delivered',
         createdBy: user.id,
       });
       return row;
     });
-    this.emitOms('cod.collected', updated.companyId, updated.id, updated.status);
-    return serializeOmsOrder(updated);
+
+    this.emitOms('oms.delivered', updated.companyId, updated.id, updated.status);
+
+    if (updated.paymentMethod === 'COD') {
+      try {
+        await this.cod.generateForDeliveredOrder(user, updated.id);
+      } catch {
+        await this.prisma.omsOrder.update({
+          where: { id: updated.id },
+          data: { codGenerationStatus: 'failed' },
+        });
+      }
+    }
+
+    const fresh = await this.resolveOrder(id, user);
+    return serializeOmsOrder(fresh);
   }
 
-  async settleCod(id: string, user: AuthPrincipal) {
-    const order = await this.resolveOrder(id, user);
-    if (order.paymentMethod !== 'COD') {
-      throw new BadRequestException('Order is not COD.');
-    }
-    const updated = await withTenantRls(this.prisma, user, async (tx) => {
-      const row = await tx.omsOrder.update({
-        where: { id },
-        data: {
-          codStatus: OmsCodStatus.settled,
-          codRemittedAt: new Date(),
-        },
-        include: ORDER_INCLUDE,
-      });
-      await this.events.record(tx, {
-        omsOrderId: id,
-        outboundOrderId: row.outboundOrderId ?? undefined,
-        companyId: row.companyId,
-        eventType: 'cod.remitted',
-        createdBy: user.id,
-        payload: { settled: true },
-      });
-      return row;
-    });
-    this.emitOms('cod.remitted', updated.companyId, updated.id, updated.status);
-    return serializeOmsOrder(updated);
+  async markReturned(_id: string, _user: AuthPrincipal) {
+    throw new BadRequestException(
+      'Use OMS Returns to request a return after Delivered. Direct OMS returned status is deprecated.',
+    );
+  }
+
+  async collectCod(_id: string, _user: AuthPrincipal) {
+    throw new BadRequestException(
+      'Use COD module: PATCH /cod/records/:id/status. Legacy collect on OMS order is removed.',
+    );
+  }
+
+  async settleCod(_id: string, _user: AuthPrincipal) {
+    throw new BadRequestException(
+      'Use COD module: PATCH /cod/records/:id/status to paid_out. Legacy settle on OMS order is removed.',
+    );
   }
 
   async timeline(id: string, user: AuthPrincipal) {
@@ -868,7 +911,7 @@ export class OmsOrdersService {
         allocationStatus: o.allocationStatus as never,
         storeChannel: o.storeChannel,
         externalReference: o.externalReference,
-        status: mapOutboundStatusToOms(o.status),
+        status: mapOutboundStatusToOms(o.status) ?? OmsOrderStatus.pending,
         createdBy: o.createdBy,
         createdAt: o.createdAt,
         updatedAt: o.updatedAt,

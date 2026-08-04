@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, Badge, Button as DsButton } from '@ds';
+import { Alert, Button as DsButton } from '@ds';
 
 import { CompaniesApi } from '../api/companies';
 import {
@@ -34,12 +34,6 @@ import {
 } from '../hooks/useChunkedServerPagination';
 import { generateSku } from '../lib/identifiers';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
-import {
-  stockHealthLabel,
-  stockHealthProgress,
-  stockHealthStatus,
-  type StockHealthStatus,
-} from '../lib/stock-health';
 import { productUomLabel, PRODUCT_UOM_MESSAGES } from '../lib/ui-labels/products';
 import { useWmsTranslation } from '../lib/ui-i18n';
 
@@ -49,34 +43,6 @@ const menuItemClass =
   'block w-full px-3 py-2 text-start text-sm text-text-body transition hover:bg-surface-hover rtl:text-right';
 const menuItemDangerClass =
   'block w-full px-3 py-2 text-start text-sm text-status-danger-fg transition hover:bg-status-danger-bg rtl:text-right';
-
-function stockHealthTone(status: StockHealthStatus): 'success' | 'warning' | 'danger' | 'neutral' {
-  switch (status) {
-    case 'healthy':
-      return 'success';
-    case 'low_stock':
-      return 'warning';
-    case 'critical':
-    case 'out_of_stock':
-      return 'danger';
-    default:
-      return 'neutral';
-  }
-}
-
-function stockHealthBarDs2(status: StockHealthStatus): string {
-  switch (status) {
-    case 'healthy':
-      return 'bg-status-success-fg';
-    case 'low_stock':
-      return 'bg-status-warning-fg';
-    case 'critical':
-    case 'out_of_stock':
-      return 'bg-status-danger-fg';
-    default:
-      return 'bg-border-strong';
-  }
-}
 
 function parseOptionalCreateDim(s: string): number | undefined {
   const t = s.trim();
@@ -312,43 +278,6 @@ export function ProductsPage() {
       header: 'UOM',
       accessor: (p) => <span className="text-text-body">{productUomLabel(p.uom, t)}</span>,
       width: '110px',
-    },
-    {
-      header: t(['Stock', 'المخزون']),
-      accessor: (p) => {
-        const stock = Number(p.totalOnHand ?? 0);
-        const status = stockHealthStatus(stock, p.minStockThreshold);
-        const percent = stockHealthProgress(stock, p.minStockThreshold);
-        return (
-          <div className="flex items-center gap-2 min-w-0">
-            {percent != null ? (
-              <div className="h-1.5 w-14 overflow-hidden rounded-full bg-surface-sunken shrink-0">
-                <div
-                  className={`h-full rounded-full ${stockHealthBarDs2(status)}`}
-                  style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
-                />
-              </div>
-            ) : null}
-            <span className="font-mono text-xs tabular-nums text-text-strong">
-              {Number.isFinite(stock) ? stock.toLocaleString(undefined, { maximumFractionDigits: 4 }) : '—'}
-            </span>
-          </div>
-        );
-      },
-      width: '140px',
-    },
-    {
-      header: t(['Stock health', 'حالة المخزون']),
-      accessor: (p) => {
-        const status = stockHealthStatus(Number(p.totalOnHand ?? 0), p.minStockThreshold);
-        if (!status) return <span className="text-xs text-text-faint">—</span>;
-        return (
-          <Badge tone={stockHealthTone(status)} size="xs" dot>
-            {stockHealthLabel(status, isArabic)}
-          </Badge>
-        );
-      },
-      width: '120px',
     },
     {
       header: t(['Status', 'الحالة']),

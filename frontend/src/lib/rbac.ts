@@ -39,7 +39,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     labelKey: 'Outbound',
     iconKey: 'Orders',
     to: '/orders/outbound',
-    match: (p) => p.startsWith('/orders/outbound') || p.startsWith('/orders/directed-outbound'),
+    match: (p) => p.startsWith('/orders/outbound'),
     group: 'wms',
     roles: ['super_admin', 'wh_manager', 'finance'],
   },
@@ -267,6 +267,13 @@ export function canAccessPath(role: string | undefined, pathnameOrUrl: string): 
   const r = normalizeInternalRole(role);
   if (!r) return false;
   const pathname = pathnameOrUrl.split('?')[0]?.split('#')[0] ?? pathnameOrUrl;
+  if (
+    pathname === '/orders/directed-outbound' ||
+    pathname === '/directed-outbound' ||
+    pathname.startsWith('/orders/directed-outbound/')
+  ) {
+    return false;
+  }
   const group = routeGroup(pathname);
   const allowed = ROUTE_GROUP_ROLES[group] ?? ALL_ROLES;
   return allowed.includes(r);

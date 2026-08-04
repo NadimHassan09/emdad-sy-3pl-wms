@@ -76,8 +76,6 @@ let ReturnInventoryService = class ReturnInventoryService {
             toLocationId: location.id,
             movementType,
             quantity: qtyToPost,
-            quantityBefore: meta.before,
-            quantityAfter: meta.after,
             referenceType: client_1.LedgerRefType.return_order,
             referenceId: ctx.returnOrderId,
             operatorId: ctx.operatorId,

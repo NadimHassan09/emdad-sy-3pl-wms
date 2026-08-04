@@ -16,6 +16,25 @@ const company_read_scope_1 = require("../../common/auth/company-read-scope");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const tenant_rls_1 = require("../../common/prisma/tenant-rls");
+const PENDING_FULFILLMENT = [
+    client_1.OmsOrderStatus.pending,
+    client_1.OmsOrderStatus.approved,
+    client_1.OmsOrderStatus.confirmed,
+    client_1.OmsOrderStatus.processing,
+    client_1.OmsOrderStatus.allocated,
+    client_1.OmsOrderStatus.picking,
+    client_1.OmsOrderStatus.packing,
+    client_1.OmsOrderStatus.ready_to_ship,
+    client_1.OmsOrderStatus.shipped,
+];
+function startOfLocalDay(d = new Date()) {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
+}
+function dayKey(d) {
+    return d.toISOString().slice(0, 10);
+}
 let OmsDashboardService = class OmsDashboardService {
     prisma;
     companyAccess;
@@ -26,15 +45,22 @@ let OmsDashboardService = class OmsDashboardService {
     async summary(user, companyId) {
         const companyFilter = (0, company_read_scope_1.readCompanyIdCatalogFilter)(this.companyAccess, user, companyId);
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
-            const todayStart = new Date();
-            todayStart.setHours(0, 0, 0, 0);
+            const todayStart = startOfLocalDay();
+            const yesterdayStart = startOfLocalDay(new Date(Date.now() - 24 * 60 * 60 * 1000));
+            const weekStart = startOfLocalDay(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
             const whereBase = {
                 ...(companyFilter ? { companyId: companyFilter } : {}),
             };
-            const [totalOrders, ordersToday, pendingApproval, approved, picking, packing, outForDelivery, deliveredToday, cancelled, returns, codPending, codCollected, revenueToday, byStatus, byChannel, recentOrders, ordersPerDay,] = await Promise.all([
+            const [totalOrders, ordersToday, ordersYesterday, pendingApproval, pendingApprovalYesterday, pendingFulfillment, pendingFulfillmentYesterday, deliveredToday, deliveredYesterday, returns, returnsYesterday, codPendingCount, codCollectedCount, codPendingSum, codCollectedSum, revenueToday, revenueYesterday, byStatus, byChannel, recentOrders, weekOrders, liveEvents,] = await Promise.all([
                 tx.omsOrder.count({ where: whereBase }),
                 tx.omsOrder.count({
                     where: { ...whereBase, createdAt: { gte: todayStart } },
+                }),
+                tx.omsOrder.count({
+                    where: {
+                        ...whereBase,
+                        createdAt: { gte: yesterdayStart, lt: todayStart },
+                    },
                 }),
                 tx.omsOrder.count({
                     where: { ...whereBase, status: client_1.OmsOrderStatus.pending_approval },
@@ -42,23 +68,19 @@ let OmsDashboardService = class OmsDashboardService {
                 tx.omsOrder.count({
                     where: {
                         ...whereBase,
-                        status: {
-                            in: [
-                                client_1.OmsOrderStatus.approved,
-                                client_1.OmsOrderStatus.confirmed,
-                                client_1.OmsOrderStatus.allocated,
-                            ],
-                        },
+                        status: client_1.OmsOrderStatus.pending_approval,
+                        createdAt: { lt: todayStart },
                     },
                 }),
                 tx.omsOrder.count({
-                    where: { ...whereBase, status: client_1.OmsOrderStatus.picking },
+                    where: { ...whereBase, status: { in: PENDING_FULFILLMENT } },
                 }),
                 tx.omsOrder.count({
-                    where: { ...whereBase, status: client_1.OmsOrderStatus.packing },
-                }),
-                tx.omsOrder.count({
-                    where: { ...whereBase, status: client_1.OmsOrderStatus.out_for_delivery },
+                    where: {
+                        ...whereBase,
+                        status: { in: PENDING_FULFILLMENT },
+                        updatedAt: { lt: todayStart },
+                    },
                 }),
                 tx.omsOrder.count({
                     where: {
@@ -70,10 +92,23 @@ let OmsDashboardService = class OmsDashboardService {
                     },
                 }),
                 tx.omsOrder.count({
-                    where: { ...whereBase, status: client_1.OmsOrderStatus.cancelled },
+                    where: {
+                        ...whereBase,
+                        status: {
+                            in: [client_1.OmsOrderStatus.delivered, client_1.OmsOrderStatus.completed],
+                        },
+                        deliveredAt: { gte: yesterdayStart, lt: todayStart },
+                    },
                 }),
                 tx.omsOrder.count({
                     where: { ...whereBase, status: client_1.OmsOrderStatus.returned },
+                }),
+                tx.omsOrder.count({
+                    where: {
+                        ...whereBase,
+                        status: client_1.OmsOrderStatus.returned,
+                        updatedAt: { gte: yesterdayStart, lt: todayStart },
+                    },
                 }),
                 tx.omsOrder.count({
                     where: { ...whereBase, codStatus: 'pending' },
@@ -82,9 +117,21 @@ let OmsDashboardService = class OmsDashboardService {
                     where: { ...whereBase, codStatus: 'collected' },
                 }),
                 tx.omsOrder.aggregate({
+                    where: { ...whereBase, codStatus: 'pending' },
+                    _sum: { codAmount: true },
+                }),
+                tx.omsOrder.aggregate({
+                    where: { ...whereBase, codStatus: 'collected' },
+                    _sum: { codAmount: true },
+                }),
+                tx.omsOrder.aggregate({
+                    where: { ...whereBase, createdAt: { gte: todayStart } },
+                    _sum: { subtotal: true },
+                }),
+                tx.omsOrder.aggregate({
                     where: {
                         ...whereBase,
-                        createdAt: { gte: todayStart },
+                        createdAt: { gte: yesterdayStart, lt: todayStart },
                     },
                     _sum: { subtotal: true },
                 }),
@@ -108,41 +155,114 @@ let OmsDashboardService = class OmsDashboardService {
                         status: true,
                         recipientName: true,
                         storeChannel: true,
+                        paymentMethod: true,
+                        codAmount: true,
                         subtotal: true,
                         currency: true,
                         createdAt: true,
+                        company: { select: { id: true, name: true } },
                     },
                 }),
                 tx.omsOrder.findMany({
-                    where: {
-                        ...whereBase,
-                        createdAt: { gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000) },
+                    where: { ...whereBase, createdAt: { gte: weekStart } },
+                    select: {
+                        createdAt: true,
+                        subtotal: true,
+                        codAmount: true,
+                        codStatus: true,
                     },
-                    select: { createdAt: true },
+                }),
+                tx.omsOrderEvent.findMany({
+                    where: companyFilter ? { companyId: companyFilter } : {},
+                    orderBy: { createdAt: 'desc' },
+                    take: 20,
+                    include: {
+                        creator: { select: { id: true, fullName: true } },
+                        omsOrder: { select: { id: true, orderNumber: true } },
+                    },
                 }),
             ]);
-            const perDayMap = new Map();
-            for (const row of ordersPerDay) {
-                const day = row.createdAt.toISOString().slice(0, 10);
-                perDayMap.set(day, (perDayMap.get(day) ?? 0) + 1);
+            const pendingCommercial = byStatus.find((r) => r.status === client_1.OmsOrderStatus.pending)?._count.id ?? 0;
+            const pendingLegacy = byStatus
+                .filter((r) => [
+                client_1.OmsOrderStatus.approved,
+                client_1.OmsOrderStatus.confirmed,
+                client_1.OmsOrderStatus.processing,
+                client_1.OmsOrderStatus.allocated,
+                client_1.OmsOrderStatus.picking,
+                client_1.OmsOrderStatus.packing,
+                client_1.OmsOrderStatus.ready_to_ship,
+                client_1.OmsOrderStatus.shipped,
+                client_1.OmsOrderStatus.failed_delivery,
+            ].includes(r.status))
+                .reduce((s, r) => s + r._count.id, 0);
+            const pending = pendingCommercial + pendingLegacy;
+            const outForDelivery = byStatus.find((r) => r.status === client_1.OmsOrderStatus.out_for_delivery)?._count
+                .id ?? 0;
+            const cancelled = (byStatus.find((r) => r.status === client_1.OmsOrderStatus.cancelled)?._count.id ??
+                0) +
+                (byStatus.find((r) => r.status === client_1.OmsOrderStatus.rejected)?._count.id ??
+                    0);
+            const perDay = new Map();
+            for (let i = 6; i >= 0; i--) {
+                const d = startOfLocalDay(new Date(Date.now() - i * 24 * 60 * 60 * 1000));
+                perDay.set(dayKey(d), {
+                    orders: 0,
+                    revenue: 0,
+                    codPending: 0,
+                    codCollected: 0,
+                });
             }
+            for (const row of weekOrders) {
+                const key = dayKey(startOfLocalDay(row.createdAt));
+                const bucket = perDay.get(key);
+                if (!bucket)
+                    continue;
+                bucket.orders += 1;
+                bucket.revenue += Number(row.subtotal ?? 0);
+                if (row.codStatus === 'pending') {
+                    bucket.codPending += Number(row.codAmount ?? 0);
+                }
+                if (row.codStatus === 'collected') {
+                    bucket.codCollected += Number(row.codAmount ?? 0);
+                }
+            }
+            const pctChange = (today, yesterday) => {
+                if (yesterday === 0)
+                    return today === 0 ? 0 : null;
+                return Math.round(((today - yesterday) / yesterday) * 100);
+            };
+            const revToday = Number(revenueToday._sum.subtotal ?? 0);
+            const revYest = Number(revenueYesterday._sum.subtotal ?? 0);
             return {
                 totalOrders,
                 ordersToday,
                 pendingOrders: pendingApproval,
                 pendingApproval,
-                approved,
-                allocatedOrders: approved,
-                picking,
-                packing,
+                pendingFulfillment: pending,
+                pending,
+                approved: pending,
+                allocatedOrders: pending,
+                picking: 0,
+                packing: 0,
                 outForDelivery,
                 deliveredToday,
                 cancelled,
                 returns,
-                codPending,
-                codCollected,
+                codPending: codPendingCount,
+                codCollected: codCollectedCount,
                 codSettled: 0,
-                todaysRevenue: revenueToday._sum.subtotal?.toString() ?? '0',
+                codPendingAmount: (codPendingSum._sum.codAmount ?? 0).toString(),
+                codCollectedAmount: (codCollectedSum._sum.codAmount ?? 0).toString(),
+                todaysRevenue: (revenueToday._sum.subtotal ?? 0).toString(),
+                trends: {
+                    ordersToday: pctChange(ordersToday, ordersYesterday),
+                    pendingApproval: pctChange(pendingApproval, pendingApprovalYesterday),
+                    pendingFulfillment: pctChange(pendingFulfillment, pendingFulfillmentYesterday),
+                    deliveredToday: pctChange(deliveredToday, deliveredYesterday),
+                    returns: pctChange(returns, returnsYesterday),
+                    todaysRevenue: pctChange(revToday, revYest),
+                },
                 ordersByStatus: byStatus.map((r) => ({
                     status: r.status,
                     count: r._count.id,
@@ -151,13 +271,55 @@ let OmsDashboardService = class OmsDashboardService {
                     channel: r.storeChannel ?? '—',
                     count: r._count.id,
                 })),
-                ordersPerDay: Array.from(perDayMap.entries())
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([day, count]) => ({ day, count })),
-                recentOrders: recentOrders.map((o) => ({
-                    ...o,
-                    subtotal: o.subtotal?.toString() ?? null,
+                ordersPerDay: Array.from(perDay.entries()).map(([day, v]) => ({
+                    day,
+                    count: v.orders,
+                    revenue: String(v.revenue),
+                    codPending: String(v.codPending),
+                    codCollected: String(v.codCollected),
                 })),
+                liveActivity: liveEvents.map((ev) => ({
+                    id: ev.id,
+                    eventType: ev.eventType,
+                    createdAt: ev.createdAt,
+                    orderId: ev.omsOrder?.id ?? null,
+                    orderNumber: ev.omsOrder?.orderNumber ?? null,
+                    actorName: ev.creator?.fullName ?? null,
+                    payload: ev.payload,
+                })),
+                recentOrders: recentOrders.map((o) => ({
+                    id: o.id,
+                    orderNumber: o.orderNumber,
+                    status: o.status,
+                    recipientName: o.recipientName,
+                    storeChannel: o.storeChannel,
+                    paymentMethod: o.paymentMethod,
+                    codAmount: o.codAmount?.toString() ?? null,
+                    subtotal: o.subtotal?.toString() ?? null,
+                    currency: o.currency,
+                    createdAt: o.createdAt,
+                    companyName: o.company?.name ?? null,
+                })),
+                alerts: [
+                    ...(pendingApproval > 0
+                        ? [
+                            {
+                                kind: 'pending_approval',
+                                message: `${pendingApproval} order${pendingApproval === 1 ? '' : 's'} pending approval`,
+                                count: pendingApproval,
+                            },
+                        ]
+                        : []),
+                    ...(returns > 0
+                        ? [
+                            {
+                                kind: 'returns',
+                                message: `${returns} return${returns === 1 ? '' : 's'} on file`,
+                                count: returns,
+                            },
+                        ]
+                        : []),
+                ],
             };
         });
     }

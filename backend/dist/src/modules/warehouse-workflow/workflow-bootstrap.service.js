@@ -169,20 +169,26 @@ let WorkflowBootstrapService = class WorkflowBootstrapService {
         return this.getWorkflowInstanceGraph(user, wf.id);
     }
     async getWorkflowContextSettings(user, warehouseId) {
-        const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
         const flag = (0, feature_flags_1.taskOnlyFlows)(this.config);
         const defaults = {
             showAdvancedJson: false,
             confirmUnsavedDraft: true,
         };
-        const company = await this.prisma.company.findUnique({
-            where: { id: tenantCompanyId },
-            select: { workflowUxSettings: true },
-        });
+        const companyId = user.companyId;
+        if (!companyId && user.tenantScope !== 'all') {
+            throw new common_1.BadRequestException('An active client tenant is required for this operation.');
+        }
+        const company = companyId
+            ? await this.prisma.company.findUnique({
+                where: { id: companyId },
+                select: { workflowUxSettings: true },
+            })
+            : null;
+        const wid = (warehouseId ?? '').trim();
         let warehouse = null;
-        if (warehouseId) {
+        if (wid) {
             warehouse = await this.prisma.warehouse.findUnique({
-                where: { id: warehouseId },
+                where: { id: wid },
                 select: { workflowUxSettings: true },
             });
             if (!warehouse)
@@ -195,7 +201,6 @@ let WorkflowBootstrapService = class WorkflowBootstrapService {
             ...c,
             ...w,
         };
-        const wid = (warehouseId ?? '').trim();
         return {
             taskOnlyFlows: flag,
             warehouseId: wid,

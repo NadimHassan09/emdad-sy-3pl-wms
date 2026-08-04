@@ -12,6 +12,8 @@ type Props = {
   onChange: (value: string) => void;
   label?: string;
   disabled?: boolean;
+  /** Keep the list attached under the field (avoids portaled/fixed float gaps). */
+  dropdownInFlow?: boolean;
 };
 
 /** Receiving dock (`input` type) — at most 25 rows from typed lookup. */
@@ -21,6 +23,7 @@ export function ReceivingDockPicker({
   onChange,
   label,
   disabled,
+  dropdownInFlow = true,
 }: Props) {
   const { t } = useWmsTranslation();
   const resolvedLabel = label ?? t(['Receiving dock', 'رصيف الاستلام']);
@@ -43,6 +46,7 @@ export function ReceivingDockPicker({
       onChange={onChange}
       options={options}
       disabled={disabled || dockLookup.isLoading}
+      dropdownInFlow={dropdownInFlow}
       placeholder={
         dockLookup.isLoading
           ? t(['Loading docks…', 'جاري تحميل الأرصفة…'])

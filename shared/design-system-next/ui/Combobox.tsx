@@ -176,8 +176,13 @@ export function Combobox({
       const rect = el.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_PAD;
       const spaceAbove = rect.top - VIEWPORT_PAD;
-      const openUp = spaceBelow < 160 && spaceAbove > spaceBelow;
-      const maxHeight = Math.min(MENU_MAX_H, Math.max(120, openUp ? spaceAbove : spaceBelow));
+      // Prefer opening below the field; only flip up when below is unusable
+      // and there is clearly more room above (avoids covering fields above the input).
+      const openUp = spaceBelow < 96 && spaceAbove > spaceBelow + 40;
+      const maxHeight = Math.min(
+        MENU_MAX_H,
+        Math.max(openUp ? 120 : 96, openUp ? spaceAbove : spaceBelow),
+      );
       const top = openUp
         ? Math.max(VIEWPORT_PAD, rect.top - maxHeight - 4)
         : rect.bottom + 4;
@@ -266,9 +271,16 @@ export function Combobox({
   return (
     <label htmlFor={inputId} className={`block min-w-0 ${className}`}>
       {label ? (
-        <span className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>{label}</span>
+        <span className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+          {label}
+          {required ? (
+            <span aria-hidden="true" className="ms-0.5 text-danger-600">
+              *
+            </span>
+          ) : null}
+        </span>
       ) : null}
-      <div ref={wrapperRef} className={dropdownInFlow ? '' : 'relative'}>
+      <div ref={wrapperRef} className="relative">
         <input
           ref={inputRef}
           id={inputId}
@@ -300,19 +312,15 @@ export function Combobox({
               onSearchQueryChange?.('');
               inputRef.current?.focus();
             }}
-            className="absolute inset-y-0 right-1 flex w-6 items-center justify-center text-text-faint hover:text-text-muted"
+            className="absolute inset-y-0 end-1 z-10 flex w-6 items-center justify-center text-text-faint hover:text-text-muted"
             aria-label="Clear selection"
           >
             ×
           </button>
         )}
         {dropdownInFlow ? (
-          <div
-            className={`grid transition-[grid-template-rows,opacity,margin] duration-200 ease-in-out ${
-              open ? 'mt-1 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-            }`}
-          >
-            <div className="min-h-0">
+          open ? (
+            <div className="mt-1">
               <OptionsList
                 filtered={filtered}
                 value={value}
@@ -322,7 +330,7 @@ export function Combobox({
                 setActiveIdx={setActiveIdx}
               />
             </div>
-          </div>
+          ) : null
         ) : null}
         {portalList}
       </div>

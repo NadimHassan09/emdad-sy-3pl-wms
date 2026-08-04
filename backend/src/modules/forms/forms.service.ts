@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { RealtimeService } from '../realtime/realtime.service';
 import { CreateLeadFormDto } from './dto/create-lead-form.dto';
 import { ListLeadFormsQueryDto } from './dto/list-lead-forms-query.dto';
 
@@ -19,7 +20,10 @@ function endOfDay(iso: string): Date {
 export class FormsService {
   private readonly logger = new Logger(FormsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly realtime: RealtimeService,
+  ) {}
 
   /** Public: persist a landing-page lead submission. */
   async submit(dto: CreateLeadFormDto, meta?: { ip?: string; origin?: string }) {
@@ -31,12 +35,21 @@ export class FormsService {
         activityType: dto.activityType,
         message: dto.message?.trim() ? dto.message.trim() : null,
       },
-      select: { id: true, createdAt: true },
+      select: {
+        id: true,
+        fullName: true,
+        phone: true,
+        email: true,
+        activityType: true,
+        message: true,
+        createdAt: true,
+      },
     });
     this.logger.log(
       `lead submission received id=${submission.id} activity="${dto.activityType}" ` +
         `origin=${meta?.origin ?? 'n/a'} ip=${meta?.ip ?? 'n/a'}`,
     );
+    this.realtime.emitFormSubmitted({ submission });
     return { id: submission.id, createdAt: submission.createdAt, received: true };
   }
 

@@ -91,6 +91,56 @@ let RealtimeService = RealtimeService_1 = class RealtimeService {
         this.emit(companyId, realtime_events_1.RealtimeEvents.OMS_ORDER_EVENT, payload);
         this.scheduleDashboard('orders');
     }
+    emitOmsReturnEvent(companyId, payload) {
+        this.emit(companyId, realtime_events_1.RealtimeEvents.OMS_RETURN_EVENT, payload);
+        this.scheduleDashboard('orders');
+    }
+    emitCompanyLifecycleChanged(companyId, payload) {
+        this.emit(companyId, realtime_events_1.RealtimeEvents.COMPANY_LIFECYCLE_CHANGED, payload);
+        this.emitToRoom(realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM, realtime_events_1.RealtimeEvents.COMPANY_LIFECYCLE_CHANGED, payload);
+        this.scheduleDashboard('kpi');
+    }
+    emitBillingRestrictionChanged(companyId, payload) {
+        this.emit(companyId, realtime_events_1.RealtimeEvents.BILLING_RESTRICTION_CHANGED, payload);
+        this.scheduleDashboard('kpi');
+    }
+    emitCodUpdated(companyId, payload) {
+        this.emit(companyId, realtime_events_1.RealtimeEvents.COD_UPDATED, payload);
+        this.scheduleDashboard('orders');
+    }
+    emitDocumentGenerated(companyId, payload) {
+        this.emit(companyId, realtime_events_1.RealtimeEvents.DOCUMENT_GENERATED, payload);
+        this.emitToRoom(realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM, realtime_events_1.RealtimeEvents.DOCUMENT_GENERATED, {
+            ...payload,
+            companyId,
+        });
+    }
+    emitDocumentSlotOverrideChanged(companyId, payload) {
+        this.emit(companyId, realtime_events_1.RealtimeEvents.DOCUMENT_SLOT_OVERRIDE_CHANGED, payload);
+        this.emitToRoom(realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM, realtime_events_1.RealtimeEvents.DOCUMENT_SLOT_OVERRIDE_CHANGED, payload);
+    }
+    emitFinalContractChanged(companyId, payload) {
+        this.emitToRoom(realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM, realtime_events_1.RealtimeEvents.FINAL_CONTRACT_CHANGED, payload);
+        if (companyId) {
+            this.emit(companyId, realtime_events_1.RealtimeEvents.FINAL_CONTRACT_CHANGED, payload);
+        }
+    }
+    emitFormSubmitted(payload) {
+        this.emitToRoom(realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM, realtime_events_1.RealtimeEvents.FORM_SUBMITTED, payload);
+    }
+    emitInvoiceUpdated(companyId, payload) {
+        this.emit(companyId, realtime_events_1.RealtimeEvents.INVOICE_UPDATED, payload);
+        this.emitToRoom(realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM, realtime_events_1.RealtimeEvents.INVOICE_UPDATED, payload);
+        this.scheduleDashboard('kpi');
+    }
+    emitPlanUpdated(companyId, payload) {
+        this.emit(companyId, realtime_events_1.RealtimeEvents.PLAN_UPDATED, payload);
+        this.emitToRoom(realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM, realtime_events_1.RealtimeEvents.PLAN_UPDATED, payload);
+        this.scheduleDashboard('kpi');
+    }
+    emitBackupJobProgress(payload) {
+        this.emitToRoom(realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM, realtime_events_1.RealtimeEvents.BACKUP_JOB_PROGRESS, payload);
+    }
     emitTaskUpdated(companyId, payload) {
         this.emit(companyId, realtime_events_1.RealtimeEvents.TASK_UPDATED, payload);
         this.scheduleDashboard('tasks');

@@ -460,6 +460,13 @@ export class UsersService {
 
       const row = this.toListRow(u);
       this.realtime.emitUserUpdated(this.serializeUserForRealtime(row));
+      if (dto.status === UserStatus.inactive || dto.role !== undefined) {
+        this.realtime.emitAuthSessionChanged(id, {
+          type: 'forced_logout',
+          userId: id,
+          reason: dto.status === UserStatus.inactive ? 'user_deactivated' : 'role_changed',
+        });
+      }
       return row;
     });
   }
@@ -492,6 +499,11 @@ export class UsersService {
         await tx.user.delete({ where: { id } });
       });
       this.realtime.emitUserDeleted(id, u.companyId);
+      this.realtime.emitAuthSessionChanged(id, {
+        type: 'forced_logout',
+        userId: id,
+        reason: 'user_deleted',
+      });
       return { id, deleted: true as const };
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {

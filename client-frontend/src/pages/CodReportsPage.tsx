@@ -37,6 +37,7 @@ function labelText(label: string, isArabic: boolean): string {
     'To date': 'إلى تاريخ',
     'Order #': 'رقم الطلب',
     Recipient: 'المستلم',
+    Client: 'العميل',
     'COD amount': 'المبلغ',
     'COD status': 'الحالة',
     Created: 'تاريخ الإنشاء',
@@ -167,7 +168,7 @@ export function CodReportsPage(): ReactElement {
                 <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
                   <tr>
                     <th className="px-5 py-3 text-left">{t('Order #')}</th>
-                    <th className="px-5 py-3 text-left">{t('Recipient')}</th>
+                    <th className="px-5 py-3 text-left">{t('Client')}</th>
                     <th className="px-5 py-3 text-left">{t('COD amount')}</th>
                     <th className="px-5 py-3 text-left">{t('COD status')}</th>
                     <th className="px-5 py-3 text-right">{t('Created')}</th>

@@ -10,7 +10,7 @@ function isRecord(v) {
     return !!v && typeof v === 'object' && !Array.isArray(v);
 }
 function normalizeExecutionMode(raw) {
-    return raw === 'admin' ? 'admin' : 'workers';
+    return raw === 'workers' ? 'workers' : 'admin';
 }
 function parseInboundExecutionPlan(raw) {
     if (!isRecord(raw))
@@ -135,6 +135,12 @@ function assertOutboundAdminPlanComplete(plan) {
     }
     if (plan.lines.length === 0) {
         throw new common_1.BadRequestException('Admin plan requires at least one line.');
+    }
+    if (!plan.dispatchDockId?.trim()) {
+        throw new common_1.BadRequestException('Admin plan requires dispatchDockId.');
+    }
+    if (plan.requiresPacking !== false && !plan.packingLocationId?.trim()) {
+        throw new common_1.BadRequestException('Admin plan requires packingLocationId when packing is required.');
     }
 }
 //# sourceMappingURL=execution-plan.util.js.map

@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { BillingVolumeCapacityService } from './billing-access.service';
 import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
@@ -52,6 +53,7 @@ export class BillingPlansService {
     private readonly usage: BillingUsageService,
     private readonly invoiceCalc: BillingInvoiceCalculationService,
     private readonly billingAudit: BillingAuditService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async listPage(user: AuthPrincipal, query: ListBillingPlansQueryDto) {
@@ -166,6 +168,12 @@ export class BillingPlansService {
         newState: plan,
       });
       void this.invoiceCalc.recalculateForCompany(plan.companyId, 'cycle_started');
+      this.realtime.emitPlanUpdated(plan.companyId, {
+        planId: plan.id,
+        companyId: plan.companyId,
+        active: plan.active,
+        action: 'plan_created',
+      });
       return plan;
     });
   }
@@ -209,6 +217,13 @@ export class BillingPlansService {
       companyId: updated.companyId,
       previousState: previous,
       newState: updated,
+    });
+
+    this.realtime.emitPlanUpdated(updated.companyId, {
+      planId: updated.id,
+      companyId: updated.companyId,
+      active: updated.active,
+      action: 'plan_updated',
     });
 
     return updated;

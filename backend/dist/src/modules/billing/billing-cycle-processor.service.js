@@ -20,6 +20,7 @@ const billing_cycles_service_1 = require("./billing-cycles.service");
 const billing_invoice_calculation_service_1 = require("./billing-invoice-calculation.service");
 const billing_audit_service_1 = require("./billing-audit.service");
 const billing_notifications_service_1 = require("./billing-notifications.service");
+const realtime_service_1 = require("../realtime/realtime.service");
 let BillingCycleProcessorService = BillingCycleProcessorService_1 = class BillingCycleProcessorService {
     prisma;
     billingCycles;
@@ -27,14 +28,16 @@ let BillingCycleProcessorService = BillingCycleProcessorService_1 = class Billin
     billingNotifications;
     billingAudit;
     cronLeader;
+    realtime;
     log = new common_1.Logger(BillingCycleProcessorService_1.name);
-    constructor(prisma, billingCycles, invoiceCalc, billingNotifications, billingAudit, cronLeader) {
+    constructor(prisma, billingCycles, invoiceCalc, billingNotifications, billingAudit, cronLeader, realtime) {
         this.prisma = prisma;
         this.billingCycles = billingCycles;
         this.invoiceCalc = invoiceCalc;
         this.billingNotifications = billingNotifications;
         this.billingAudit = billingAudit;
         this.cronLeader = cronLeader;
+        this.realtime = realtime;
     }
     async tick() {
         await this.cronLeader.runExclusive('billing-cycle-processor', 960, () => this.runTick());
@@ -133,6 +136,13 @@ let BillingCycleProcessorService = BillingCycleProcessorService_1 = class Billin
                     invoiceNumber: issuedInvoice.invoiceNumber,
                     billingCycleId: cycle.id,
                 });
+                this.realtime.emitInvoiceUpdated(cycle.companyId, {
+                    invoiceId: issuedInvoice.id,
+                    companyId: cycle.companyId,
+                    status: 'unpaid',
+                    invoiceNumber: issuedInvoice.invoiceNumber,
+                    action: 'invoice_issued',
+                });
             }
             if (renewedCompanyId && nextCycleId) {
                 void this.billingNotifications.notifyAccountRenewed({
@@ -142,6 +152,16 @@ let BillingCycleProcessorService = BillingCycleProcessorService_1 = class Billin
                     nextCycleId,
                 });
                 void this.invoiceCalc.recalculateForCompany(renewedCompanyId, 'cycle_started');
+                this.realtime.emitBillingRestrictionChanged(cycle.companyId, {
+                    companyId: cycle.companyId,
+                    restricted: false,
+                    status: 'active',
+                });
+                this.realtime.emitCompanyLifecycleChanged(cycle.companyId, {
+                    companyId: cycle.companyId,
+                    status: 'active',
+                    action: 'billing_renewed',
+                });
             }
             else {
                 void this.billingAudit.system({
@@ -155,6 +175,16 @@ let BillingCycleProcessorService = BillingCycleProcessorService_1 = class Billin
                     companyId: cycle.companyId,
                     companyName,
                     cycleId: cycle.id,
+                });
+                this.realtime.emitBillingRestrictionChanged(cycle.companyId, {
+                    companyId: cycle.companyId,
+                    restricted: true,
+                    status: 'restricted',
+                });
+                this.realtime.emitCompanyLifecycleChanged(cycle.companyId, {
+                    companyId: cycle.companyId,
+                    status: 'restricted',
+                    action: 'billing_restricted',
                 });
             }
         }
@@ -175,6 +205,7 @@ exports.BillingCycleProcessorService = BillingCycleProcessorService = BillingCyc
         billing_invoice_calculation_service_1.BillingInvoiceCalculationService,
         billing_notifications_service_1.BillingNotificationsService,
         billing_audit_service_1.BillingAuditService,
-        cron_leader_service_1.CronLeaderService])
+        cron_leader_service_1.CronLeaderService,
+        realtime_service_1.RealtimeService])
 ], BillingCycleProcessorService);
 //# sourceMappingURL=billing-cycle-processor.service.js.map

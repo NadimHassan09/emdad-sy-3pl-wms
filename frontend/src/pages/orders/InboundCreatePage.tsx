@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { FormEvent, useEffect, useMemo, useState, type ReactElement } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
-import { Alert, AppPageHeader, Breadcrumb, Button, Card, Textarea } from '@ds';
+import { Alert, Button, Textarea } from '@ds';
 
 import { CompaniesApi } from '../../api/companies';
 import { CreateInboundOrderInput, InboundApi } from '../../api/inbound';
@@ -11,12 +11,12 @@ import { ProductsApi } from '../../api/products';
 import { Combobox } from '../../components/Combobox';
 import { ReceivingDockPicker } from '../../components/locations/ReceivingDockPicker';
 import { StorageLocationPicker } from '../../components/locations/StorageLocationPicker';
-import { ProductThumbWithFallback } from '../../components/products/ProductThumb';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useDefaultWarehouseId } from '../../hooks/useDefaultWarehouse';
 import type { InboundExecutionPlan, OrderExecutionMode } from '../../lib/execution-plan';
+import { inboundAdminPlanReadinessIssues } from '../../lib/execution-plan';
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../../lib/order-planning-dates';
 
 const DEFAULT_COMPANY_ID = (import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined) ?? '';
@@ -34,10 +34,11 @@ function tLabel(label: string, ar: boolean): string {
   if (!ar) return label;
   const map: Record<string, string> = {
     'Inbound orders': 'طلبات الوارد',
-    New: 'جديد',
     'New inbound order': 'طلب وارد جديد',
     'Edit inbound plan': 'تعديل خطة الوارد',
     'Plan everything before execution.': 'خطّط كل شيء قبل التنفيذ.',
+    'Create a warehouse receipt request': 'إنشاء طلب إيصال وارد للمستودع',
+    'Back to inbound orders': 'العودة إلى طلبات الوارد',
     'Save plan': 'حفظ الخطة',
     Cancel: 'إلغاء',
     'General information': 'معلومات عامة',
@@ -47,11 +48,12 @@ function tLabel(label: string, ar: boolean): string {
     'Add any notes about this inbound order…': 'أضف أي ملاحظات عن طلب الوارد…',
     Products: 'المنتجات',
     '+ Add line': '+ إضافة بند',
-    '+ Add product': '+ إضافة منتج',
     Product: 'المنتج',
-    SKU: 'رمز الصنف',
-    'Expected qty': 'الكمية المتوقعة',
-    Unit: 'الوحدة',
+    Quantity: 'الكمية',
+    'Enter Qty': 'أدخل الكمية',
+    'Select a product first': 'اختر منتجاً أولاً',
+    'Search and select a product...': 'ابحث واختر منتجاً...',
+    'Current quantity:': 'الكمية الحالية:',
     'Total items:': 'إجمالي القطع:',
     'Receiving dock': 'رصيف الاستلام',
     Warehouse: 'المستودع',
@@ -67,44 +69,42 @@ function tLabel(label: string, ar: boolean): string {
     'Execution mode': 'وضع التنفيذ',
     Recommended: 'موصى به',
     'Execute by Admin': 'تنفيذ بواسطة المسؤول',
-    'I will do everything myself. No tasks will be assigned to workers.':
-      'سأتولى كل شيء بنفسي. لن تُسند مهام إلى العمال.',
+    'Who performs physical work after you Confirm. Same planning screen either way.':
+      'من ينفّذ العمل الفعلي بعد التأكيد. شاشة التخطيط واحدة في الحالتين.',
+    'I will do the warehouse work myself, then Confirm order.':
+      'سأتولى عمل المستودع بنفسي ثم أؤكد الطلب.',
     'You will receive printable instructions': 'ستحصل على تعليمات قابلة للطباعة',
     'Confirm once after completing the work.': 'أكّد مرة واحدة بعد إنجاز العمل.',
     'Execute by Workers': 'تنفيذ بواسطة العمال',
-    'Tasks will be created and assigned to warehouse workers.':
-      'ستُنشأ مهام وتُسند إلى عمال المستودع.',
+    'Release to workers after the plan is ready. Workers execute Tasks.':
+      'أطلِق للعمل بعد جاهزية الخطة. ينفّذ العمال المهام.',
     'Workers will see tasks in their accounts': 'سيرى العمال المهام في حساباتهم',
-    'You can monitor progress in real time.': 'يمكنك متابعة التقدم في الوقت الفعلي.',
+    'You can monitor progress from the order page.': 'يمكنك متابعة التقدم من صفحة الطلب.',
     'Next steps': 'الخطوات التالية',
-    'Click Save plan to create a draft. You can print instructions and confirm the order after completing the work.':
-      'اضغط حفظ الخطة لإنشاء مسودة. يمكنك طباعة التعليمات وتأكيد الطلب بعد إنجاز العمل.',
+    'Click Save plan to create a draft. Print and Confirm (or Release) from the order page.':
+      'اضغط حفظ الخطة لإنشاء مسودة. اطبع وأكّد (أو أطلِق) من صفحة الطلب.',
     'Pick product…': 'اختر منتجاً…',
     Remove: 'إزالة',
     'All products are already on this order.': 'كل المنتجات مضافة مسبقاً إلى هذا الطلب.',
     'Each product can only appear once on the order.': 'لا يمكن تكرار نفس المنتج أكثر من مرة في الطلب.',
     'Add products above to plan putaway.': 'أضف منتجات أعلاه لتخطيط التخزين.',
+    Status: 'الحالة',
+    'Expected qty': 'الكمية المتوقعة',
   };
   return map[label] ?? label;
 }
 
-function SectionHeading({ n, children }: { n: number; children: ReactNode }) {
+function SectionHeading({ title }: { title: string }): ReactElement {
   return (
-    <div className="flex items-center gap-3">
-      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">
-        {n}
-      </span>
-      <h2 className="text-base font-semibold text-text-strong">{children}</h2>
-    </div>
+    <h2 className="text-[11px] font-bold uppercase tracking-[0.1em] text-brand-600 dark:text-brand-400">
+      {title}
+    </h2>
   );
 }
 
-function PlanCard({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return (
-    <Card padding="none" elevation="raised" className={`border-border ${className}`}>
-      <Card.Body className="space-y-5 px-6 py-6">{children}</Card.Body>
-    </Card>
-  );
+function formatOnHand(p: Product): string {
+  const n = Number(p.totalOnHand ?? 0);
+  return Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 4 }) : '0';
 }
 
 function AllocationBadge({
@@ -121,23 +121,80 @@ function AllocationBadge({
   return (
     <div
       className={[
-        'flex min-h-[5.5rem] min-w-[8.25rem] flex-col items-center justify-center gap-1.5 rounded-xl border px-3 py-3 text-center',
+        'inline-flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold tabular-nums',
         complete
-          ? 'border-brand-300 bg-brand-50 text-brand-800'
-          : 'border-status-warning-border bg-status-warning-bg text-status-warning-fg',
+          ? 'bg-brand-50 text-brand-800'
+          : 'bg-status-warning-bg text-status-warning-fg',
       ].join(' ')}
     >
       <i
-        className={`fa-solid text-base ${complete ? 'fa-check text-brand-600' : 'fa-triangle-exclamation'}`}
+        className={`fa-solid text-[10px] ${complete ? 'fa-check text-brand-600' : 'fa-triangle-exclamation'}`}
         aria-hidden
       />
-      <div className="text-[13px] font-semibold leading-snug tabular-nums">
-        {allocated.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-        {' / '}
-        {expected.toLocaleString(undefined, { maximumFractionDigits: 4 })}{' '}
-        {label}
-      </div>
+      {allocated.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+      {' / '}
+      {expected.toLocaleString(undefined, { maximumFractionDigits: 4 })} {label}
     </div>
+  );
+}
+
+function ModeOption({
+  selected,
+  onSelect,
+  icon,
+  title,
+  bullets,
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  icon: string;
+  title: string;
+  bullets: string[];
+}): ReactElement {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={[
+        'rounded-2xl border-2 p-5 text-start transition',
+        selected
+          ? 'border-brand-500 bg-brand-50 shadow-sm dark:bg-brand-950/40'
+          : 'border-border bg-surface-card hover:border-border-strong',
+      ].join(' ')}
+    >
+      <div className="flex items-start gap-3.5">
+        <span
+          className={[
+            'mt-1 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2',
+            selected ? 'border-brand-600' : 'border-border-strong',
+          ].join(' ')}
+          aria-hidden
+        >
+          {selected ? <span className="h-2.5 w-2.5 rounded-full bg-brand-600" /> : null}
+        </span>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span
+              className={[
+                'flex h-10 w-10 items-center justify-center rounded-full',
+                selected ? 'bg-brand-100 text-brand-700' : 'bg-surface-sunken text-text-muted',
+              ].join(' ')}
+            >
+              <i className={`fa-solid ${icon}`} aria-hidden />
+            </span>
+            <span className="text-[15px] font-semibold text-text-strong">{title}</span>
+          </div>
+          <ul className="space-y-2 text-sm text-text-body">
+            {bullets.map((b) => (
+              <li key={b} className="flex items-start gap-2">
+                <i className="fa-solid fa-check mt-0.5 text-brand-600" aria-hidden />
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -249,7 +306,7 @@ export function InboundCreatePage() {
     const current = lines.find((l) => l.key === lineKey)?.productId;
     return activeProducts
       .filter((p) => p.id === current || !usedProductIds.has(p.id))
-      .map((p) => ({ value: p.id, label: `${p.name} (${p.sku})` }));
+      .map((p) => ({ value: p.id, label: `${p.sku} — ${p.name}` }));
   };
 
   const canAddLine = activeProducts.some((p) => !usedProductIds.has(p.id));
@@ -294,18 +351,6 @@ export function InboundCreatePage() {
 
       let executionPlan: InboundExecutionPlan | undefined;
       if (mode === 'admin') {
-        if (!effectiveWarehouseId) throw new Error('Select a warehouse.');
-        if (!receivingDockId.trim()) throw new Error('Select a receiving dock.');
-        for (const l of validLines) {
-          const sum = l.putaway.reduce((a, r) => a + (Number(r.qty) || 0), 0);
-          if (Math.abs(sum - Number(l.expectedQuantity)) > 1e-6) {
-            const sku = productById.get(l.productId)?.sku ?? l.productId;
-            throw new Error(`Putaway qty for ${sku} must equal ${l.expectedQuantity}.`);
-          }
-          if (l.putaway.some((r) => !r.locationId.trim() || !(Number(r.qty) > 0))) {
-            throw new Error('Each putaway row needs a location and quantity.');
-          }
-        }
         executionPlan = {
           warehouseId: effectiveWarehouseId,
           receivingDockId: receivingDockId.trim(),
@@ -319,6 +364,14 @@ export function InboundCreatePage() {
           })),
           planUpdatedAt: new Date().toISOString(),
         };
+        const issues = inboundAdminPlanReadinessIssues(
+          executionPlan,
+          validLines.map((l) => ({
+            productId: l.productId,
+            expectedQuantity: l.expectedQuantity,
+          })),
+        );
+        if (issues.length) throw new Error(issues[0]!);
       }
 
       const payload: CreateInboundOrderInput = {
@@ -361,57 +414,80 @@ export function InboundCreatePage() {
   }
 
   const productLines = lines.filter((l) => l.productId);
-  const execStep = mode === 'admin' ? 5 : 3;
-  const uomLabel = (uom?: string) =>
-    uom ? uom.charAt(0).toUpperCase() + uom.slice(1) : '—';
+  const loading = saveMut.isPending;
 
   return (
-    <div className="w-full max-w-[1100px] space-y-4 animate-enter pb-10">
-      <Breadcrumb
-        items={[
-          { label: t('Inbound orders'), to: '/orders/inbound' },
-          { label: isEdit ? t('Edit inbound plan') : t('New') },
-        ]}
-      />
-      <AppPageHeader
-        className="!mb-1"
-        title={isEdit ? t('Edit inbound plan') : t('New inbound order')}
-        description={t('Plan everything before execution.')}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="secondary" onClick={() => navigate('/orders/inbound')}>
-              {t('Cancel')}
-            </Button>
-            <Button
-              type="submit"
-              form="inbound-plan-form"
-              variant="primary"
-              loading={saveMut.isPending}
-            >
-              {t('Save plan')}
-            </Button>
-          </div>
-        }
-      />
+    <div className="mx-auto max-w-4xl space-y-8 animate-enter pb-10">
+      <div className="space-y-3">
+        <nav aria-label="Breadcrumb">
+          <Link
+            to="/orders/inbound"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 no-underline hover:text-brand-800 hover:underline"
+          >
+            <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+            {t('Back to inbound orders')}
+          </Link>
+        </nav>
+        <header className="space-y-1">
+          <h1 className="text-2xl font-bold tracking-tight text-text-strong">
+            {isEdit ? t('Edit inbound plan') : t('New inbound order')}
+          </h1>
+          <p className="text-sm text-text-muted">
+            {isEdit ? t('Plan everything before execution.') : t('Create a warehouse receipt request')}
+          </p>
+        </header>
+      </div>
 
-      <form id="inbound-plan-form" onSubmit={onSubmit} className="space-y-4">
-        {/* ─── 1. General information ─── */}
-        <PlanCard>
-          <SectionHeading n={1}>{t('General information')}</SectionHeading>
+      <form id="inbound-plan-form" onSubmit={onSubmit} className="space-y-10">
+        <section className="space-y-3">
+          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">
+            {t('Execution mode')}
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <ModeOption
+              selected={mode === 'admin'}
+              onSelect={() => setMode('admin')}
+              icon="fa-user"
+              title={t('Execute by Admin')}
+              bullets={[
+                t('I will do the warehouse work myself, then Confirm order.'),
+                t('You will receive printable instructions'),
+                t('Confirm once after completing the work.'),
+              ]}
+            />
+            <ModeOption
+              selected={mode === 'workers'}
+              onSelect={() => setMode('workers')}
+              icon="fa-users"
+              title={t('Execute by Workers')}
+              bullets={[
+                t('Release to workers after the plan is ready. Workers execute Tasks.'),
+                t('Workers will see tasks in their accounts'),
+                t('You can monitor progress from the order page.'),
+              ]}
+            />
+          </div>
+        </section>
+
+        {/* General information */}
+        <section className="space-y-5">
+          <SectionHeading title={t('General information')} />
           <div className="grid gap-5 md:grid-cols-2">
             <Combobox
-              label={`${t('Client')} *`}
+              label={t('Client')}
               required
               value={companyId}
               onChange={setCompanyId}
               options={(companies.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
               disabled={isEdit}
               clearable={false}
+              dropdownInFlow
             />
             <TextField
-              label={`${t('Expected arrival')} *`}
+              label={t('Expected arrival')}
               type="date"
               required
+              min={localCalendarDateYmd()}
               value={arrival}
               onChange={(e) => setArrival(e.target.value)}
             />
@@ -429,144 +505,130 @@ export function InboundCreatePage() {
               {notes.length} / {NOTES_MAX}
             </p>
           </div>
-        </PlanCard>
+        </section>
 
-        {/* ─── 2. Products ─── */}
-        <PlanCard>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <SectionHeading n={2}>{t('Products')}</SectionHeading>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={addLine}
-              disabled={!canAddLine}
-              className="!border-brand-200 !text-brand-700 hover:!bg-brand-50"
-            >
-              {t('+ Add line')}
-            </Button>
-          </div>
+        {/* Products */}
+        <section className="space-y-4">
+          <SectionHeading title={t('Products')} />
 
-          <div className="overflow-visible rounded-xl border border-border">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-surface-sunken/60 text-start text-xs font-medium text-text-muted">
-                  <th className="w-10 px-4 py-3 font-medium">#</th>
-                  <th className="min-w-[280px] px-3 py-3 font-medium">{t('Product')}</th>
-                  <th className="w-40 px-3 py-3 font-medium">{t('SKU')}</th>
-                  <th className="w-36 px-3 py-3 font-medium">{t('Expected qty')}</th>
-                  <th className="w-28 px-3 py-3 font-medium">{t('Unit')}</th>
-                  <th className="w-12 px-3 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {lines.map((line, idx) => {
-                  const p = productById.get(line.productId);
-                  return (
-                    <tr key={line.key} className="border-b border-border last:border-b-0">
-                      <td className="px-4 py-3.5 align-middle text-text-muted tabular-nums">
-                        {idx + 1}
-                      </td>
-                      <td className="px-3 py-3.5 align-middle">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <ProductThumbWithFallback
-                            productId={line.productId || null}
-                            name={p?.name}
-                            size="md"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <Combobox
-                              value={line.productId}
-                              onChange={(id) =>
-                                setLines((prev) =>
-                                  prev.map((l) =>
-                                    l.key !== line.key
-                                      ? l
-                                      : {
-                                          ...l,
-                                          productId: id,
-                                          putaway:
-                                            l.putaway.length === 1
-                                              ? [{ ...l.putaway[0]!, qty: l.expectedQuantity }]
-                                              : l.putaway,
-                                        },
-                                  ),
-                                )
-                              }
-                              options={optionsForLine(line.key)}
-                              placeholder={t('Pick product…')}
-                              disabled={!companyId}
-                              clearable={false}
-                              emptyMessage={t('All products are already on this order.')}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3.5 align-middle">
-                        <div className="flex h-11 items-center rounded-lg border border-border bg-surface-sunken/40 px-3 font-mono text-xs text-text-muted">
-                          {p?.sku ?? '—'}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3.5 align-middle">
-                        <TextField
-                          type="number"
-                          min={0}
-                          step="1"
-                          value={line.expectedQuantity}
-                          onChange={(e) => {
-                            const qty = e.target.value;
-                            setLines((prev) =>
-                              prev.map((l) =>
-                                l.key !== line.key
-                                  ? l
-                                  : {
-                                      ...l,
-                                      expectedQuantity: qty,
-                                      putaway:
-                                        l.putaway.length === 1
-                                          ? [{ ...l.putaway[0]!, qty }]
-                                          : l.putaway,
-                                    },
-                              ),
-                            );
-                          }}
-                        />
-                      </td>
-                      <td className="px-3 py-3.5 align-middle">
-                        <div className="flex h-11 items-center rounded-lg border border-border bg-surface-sunken/40 px-3 text-text-body">
-                          {uomLabel(p?.uom)}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3.5 align-middle">
-                        <button
-                          type="button"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-danger-500 hover:bg-danger-50 disabled:opacity-40"
-                          disabled={lines.length <= 1}
-                          aria-label={t('Remove')}
-                          onClick={() =>
-                            setLines((prev) => prev.filter((l) => l.key !== line.key))
-                          }
-                        >
-                          <i className="fa-regular fa-trash-can text-sm" aria-hidden />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <div className="space-y-3">
+            <div className="hidden gap-3 px-0.5 sm:grid sm:grid-cols-[minmax(0,1fr)_140px_40px]">
+              <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">
+                {t('Product')}
+                <span aria-hidden="true" className="ms-0.5 text-danger-600">
+                  *
+                </span>
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-text-muted">
+                {t('Quantity')}
+                <span aria-hidden="true" className="ms-0.5 text-danger-600">
+                  *
+                </span>
+              </span>
+              <span className="sr-only">{t('Remove')}</span>
+            </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={addLine}
-              disabled={!canAddLine}
-            >
-              {t('+ Add product')}
-            </Button>
+            {lines.map((line) => {
+              const p = productById.get(line.productId);
+              return (
+                <div
+                  key={line.key}
+                  className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[minmax(0,1fr)_140px_40px]"
+                >
+                  <div className="min-w-0">
+                    <Combobox
+                      value={line.productId}
+                      onChange={(id) =>
+                        setLines((prev) =>
+                          prev.map((l) =>
+                            l.key !== line.key
+                              ? l
+                              : {
+                                  ...l,
+                                  productId: id,
+                                  putaway:
+                                    l.putaway.length === 1
+                                      ? [{ ...l.putaway[0]!, qty: l.expectedQuantity }]
+                                      : l.putaway,
+                                },
+                          ),
+                        )
+                      }
+                      options={optionsForLine(line.key)}
+                      placeholder={t('Search and select a product...')}
+                      disabled={!companyId}
+                      clearable={false}
+                      dropdownInFlow
+                      emptyMessage={t('All products are already on this order.')}
+                    />
+                    {p ? (
+                      <p className="mt-1.5 text-[11px] text-text-muted">
+                        {t('Current quantity:')}{' '}
+                        <span className="font-mono font-semibold text-text-strong">
+                          {formatOnHand(p)}
+                        </span>{' '}
+                        <span className="uppercase text-text-body">{p.uom}</span>
+                      </p>
+                    ) : null}
+                  </div>
+                  <TextField
+                    type="number"
+                    min={0}
+                    step="1"
+                    aria-label={t('Quantity')}
+                    value={line.expectedQuantity}
+                    onChange={(e) => {
+                      const qty = e.target.value;
+                      setLines((prev) =>
+                        prev.map((l) =>
+                          l.key !== line.key
+                            ? l
+                            : {
+                                ...l,
+                                expectedQuantity: qty,
+                                putaway:
+                                  l.putaway.length === 1
+                                    ? [{ ...l.putaway[0]!, qty }]
+                                    : l.putaway,
+                              },
+                        ),
+                      );
+                    }}
+                    disabled={!line.productId}
+                    placeholder={line.productId ? t('Enter Qty') : t('Select a product first')}
+                  />
+                  <button
+                    type="button"
+                    aria-label={t('Remove')}
+                    disabled={lines.length <= 1}
+                    onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+                    className="mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border-strong text-text-muted transition hover:border-status-danger-border hover:bg-status-danger-bg hover:text-status-danger-fg disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <i className="fa-solid fa-trash-can text-sm" aria-hidden />
+                  </button>
+                </div>
+              );
+            })}
+
+            <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[minmax(0,1fr)_140px_40px]">
+              <div className="hidden sm:block" />
+              <div className="hidden sm:block" />
+              <button
+                type="button"
+                aria-label={t('+ Add line')}
+                disabled={!canAddLine}
+                title={
+                  !canAddLine && activeProducts.length > 0
+                    ? t('All products are already on this order.')
+                    : t('+ Add line')
+                }
+                onClick={addLine}
+                className="inline-flex h-10 w-10 items-center justify-center justify-self-start rounded-lg border border-border-strong bg-surface-card text-text-muted transition hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-40 sm:justify-self-auto"
+              >
+                <i className="fa-solid fa-plus text-sm" aria-hidden />
+              </button>
+            </div>
+
             <p className="text-sm text-text-muted">
               {t('Total items:')}{' '}
               <span className="font-semibold tabular-nums text-text-strong">
@@ -574,13 +636,12 @@ export function InboundCreatePage() {
               </span>
             </p>
           </div>
-        </PlanCard>
+        </section>
 
         {mode === 'admin' ? (
           <>
-            {/* ─── 3. Receiving dock ─── */}
-            <PlanCard>
-              <SectionHeading n={3}>{t('Receiving dock')}</SectionHeading>
+            <section className="space-y-5">
+              <SectionHeading title={t('Receiving dock')} />
               {warehouses.length > 1 ? (
                 <Combobox
                   label={t('Warehouse')}
@@ -591,142 +652,84 @@ export function InboundCreatePage() {
                     .filter((w) => w.status === 'active')
                     .map((w) => ({ value: w.id, label: `${w.name} (${w.code})` }))}
                   clearable={false}
+                  dropdownInFlow
                 />
               ) : null}
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.85fr)] lg:items-start">
-                {effectiveWarehouseId ? (
-                  <ReceivingDockPicker
-                    warehouseId={effectiveWarehouseId}
-                    value={receivingDockId}
-                    onChange={setReceivingDockId}
-                    label={`${t('Receiving dock')} *`}
-                  />
-                ) : (
-                  <Alert variant="warning" title="Set a default warehouse first." />
+              {effectiveWarehouseId ? (
+                <ReceivingDockPicker
+                  warehouseId={effectiveWarehouseId}
+                  value={receivingDockId}
+                  onChange={setReceivingDockId}
+                  label={t('Receiving dock')}
+                  dropdownInFlow
+                />
+              ) : (
+                <Alert variant="warning" title="Set a default warehouse first." />
+              )}
+              <p className="text-sm text-text-muted">
+                {t(
+                  'This is where the shipment will arrive. All items will be received at this dock first.',
                 )}
-                <div className="flex gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-4 text-sm leading-relaxed text-brand-800">
-                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/70 text-brand-600">
-                    <i className="fa-solid fa-warehouse" aria-hidden />
-                  </span>
-                  <p>
-                    {t(
-                      'This is where the shipment will arrive. All items will be received at this dock first.',
-                    )}
-                  </p>
-                </div>
-              </div>
-            </PlanCard>
+              </p>
+            </section>
 
-            {/* ─── 4. Putaway plan ─── */}
-            <PlanCard>
-              <SectionHeading n={4}>{t('Putaway plan (where to store items)')}</SectionHeading>
-
-              <div className="flex gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
-                <i className="fa-solid fa-circle-info mt-0.5 shrink-0 text-brand-600" aria-hidden />
-                <p>
-                  {t(
-                    'Distribute quantities across one or more storage locations. Total allocated quantity must equal the expected quantity for each product.',
-                  )}
-                </p>
-              </div>
+            <section className="space-y-5">
+              <SectionHeading title={t('Putaway plan (where to store items)')} />
+              <p className="text-sm text-text-muted">
+                {t(
+                  'Distribute quantities across one or more storage locations. Total allocated quantity must equal the expected quantity for each product.',
+                )}
+              </p>
 
               {productLines.length === 0 ? (
-                <p className="text-sm text-text-muted">
-                  {t('Add products above to plan putaway.')}
-                </p>
+                <p className="text-sm text-text-muted">{t('Add products above to plan putaway.')}</p>
               ) : (
-                <div className="space-y-3">
-                  {/* Column headers */}
-                  <div className="hidden grid-cols-[minmax(200px,1.1fr)_5.5rem_minmax(180px,1.2fr)_6.5rem_2.5rem_8rem] gap-3 px-1 text-xs font-medium text-text-muted md:grid">
-                    <div>{t('Product')}</div>
-                    <div>{t('Expected qty')}</div>
-                    <div>{t('Storage location')}</div>
-                    <div>{t('Allocate qty')}</div>
-                    <div />
-                    <div className="text-center">Status</div>
-                  </div>
-
+                <div className="space-y-6">
                   {productLines.map((line) => {
                     const p = productById.get(line.productId);
                     const expected = Number(line.expectedQuantity) || 0;
-                    const allocated = line.putaway.reduce(
-                      (a, r) => a + (Number(r.qty) || 0),
-                      0,
-                    );
-                    const complete =
-                      expected > 0 && Math.abs(allocated - expected) < 1e-6;
+                    const allocated = line.putaway.reduce((a, r) => {
+                      if (!r.locationId.trim()) return a;
+                      return a + (Number(r.qty) || 0);
+                    }, 0);
+                    const complete = expected > 0 && Math.abs(allocated - expected) < 1e-6;
 
                     return (
-                      <div
-                        key={line.key}
-                        className="rounded-xl border border-border bg-surface-panel p-4"
-                      >
-                        <div className="grid gap-3 md:grid-cols-[minmax(200px,1.1fr)_5.5rem_minmax(0,1fr)_8rem] md:items-start">
-                          {/* Product */}
-                          <div className="flex items-start gap-3">
-                            <ProductThumbWithFallback
-                              productId={line.productId}
-                              name={p?.name}
-                              size="md"
-                            />
-                            <div className="min-w-0 pt-0.5">
-                              <div className="truncate font-semibold text-text-strong">
-                                {p?.name ?? '—'}
-                              </div>
-                              <div className="mt-0.5 font-mono text-xs text-text-muted">
-                                {p?.sku ?? '—'}
-                              </div>
+                      <div key={line.key} className="space-y-3 border-b border-border-subtle pb-6 last:border-b-0 last:pb-0">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-text-strong">
+                              {p ? `${p.sku} — ${p.name}` : '—'}
+                            </div>
+                            <div className="mt-0.5 text-xs text-text-muted">
+                              {t('Expected qty')}:{' '}
+                              <span className="font-mono font-semibold text-text-strong">
+                                {line.expectedQuantity || '—'}
+                              </span>
+                              {p?.uom ? (
+                                <span className="ms-1 uppercase text-text-body">{p.uom}</span>
+                              ) : null}
                             </div>
                           </div>
+                          <AllocationBadge
+                            allocated={allocated}
+                            expected={expected}
+                            complete={complete}
+                            label={t('Allocated')}
+                          />
+                        </div>
 
-                          {/* Expected */}
-                          <div className="pt-2.5 font-mono text-sm tabular-nums text-text-strong">
-                            <span className="mr-2 text-xs font-medium text-text-muted md:hidden">
-                              {t('Expected qty')}:
-                            </span>
-                            {line.expectedQuantity || '—'}
-                          </div>
-
-                          {/* Locations + qty + delete */}
-                          <div className="space-y-2.5">
-                            {line.putaway.map((row) => (
-                              <div
-                                key={row.key}
-                                className="grid grid-cols-[minmax(0,1fr)_6.5rem_2.5rem] items-start gap-2"
-                              >
-                                {effectiveWarehouseId ? (
-                                  <StorageLocationPicker
-                                    warehouseId={effectiveWarehouseId}
-                                    value={row.locationId}
-                                    onChange={(id) =>
-                                      setLines((prev) =>
-                                        prev.map((l) =>
-                                          l.key !== line.key
-                                            ? l
-                                            : {
-                                                ...l,
-                                                putaway: l.putaway.map((r) =>
-                                                  r.key === row.key
-                                                    ? { ...r, locationId: id }
-                                                    : r,
-                                                ),
-                                              },
-                                        ),
-                                      )
-                                    }
-                                    label=""
-                                    hint=""
-                                    placeholder={t('Storage location')}
-                                  />
-                                ) : (
-                                  <div />
-                                )}
-                                <TextField
-                                  type="number"
-                                  min={0}
-                                  step="0.0001"
-                                  value={row.qty}
-                                  onChange={(e) =>
+                        <div className="space-y-2.5">
+                          {line.putaway.map((row) => (
+                            <div
+                              key={row.key}
+                              className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[minmax(0,1fr)_140px_40px]"
+                            >
+                              {effectiveWarehouseId ? (
+                                <StorageLocationPicker
+                                  warehouseId={effectiveWarehouseId}
+                                  value={row.locationId}
+                                  onChange={(id) =>
                                     setLines((prev) =>
                                       prev.map((l) =>
                                         l.key !== line.key
@@ -734,44 +737,74 @@ export function InboundCreatePage() {
                                           : {
                                               ...l,
                                               putaway: l.putaway.map((r) =>
-                                                r.key === row.key
-                                                  ? { ...r, qty: e.target.value }
-                                                  : r,
+                                                r.key === row.key ? { ...r, locationId: id } : r,
                                               ),
                                             },
                                       ),
                                     )
                                   }
+                                  label=""
+                                  hint=""
+                                  placeholder={t('Storage location')}
+                                  dropdownInFlow
                                 />
-                                <button
-                                  type="button"
-                                  className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-lg text-danger-500 hover:bg-danger-50 disabled:opacity-40"
-                                  disabled={line.putaway.length <= 1}
-                                  aria-label={t('Remove')}
-                                  onClick={() =>
-                                    setLines((prev) =>
-                                      prev.map((l) =>
-                                        l.key !== line.key
-                                          ? l
-                                          : {
-                                              ...l,
-                                              putaway: l.putaway.filter(
-                                                (r) => r.key !== row.key,
-                                              ),
-                                            },
-                                      ),
-                                    )
-                                  }
-                                >
-                                  <i className="fa-regular fa-trash-can text-sm" aria-hidden />
-                                </button>
-                              </div>
-                            ))}
-                            <Button
+                              ) : (
+                                <div />
+                              )}
+                              <TextField
+                                type="number"
+                                min={0}
+                                step="0.0001"
+                                aria-label={t('Allocate qty')}
+                                value={row.qty}
+                                onChange={(e) =>
+                                  setLines((prev) =>
+                                    prev.map((l) =>
+                                      l.key !== line.key
+                                        ? l
+                                        : {
+                                            ...l,
+                                            putaway: l.putaway.map((r) =>
+                                              r.key === row.key
+                                                ? { ...r, qty: e.target.value }
+                                                : r,
+                                            ),
+                                          },
+                                    ),
+                                  )
+                                }
+                                placeholder={t('Enter Qty')}
+                              />
+                              <button
+                                type="button"
+                                className="mt-0.5 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border-strong text-text-muted transition hover:border-status-danger-border hover:bg-status-danger-bg hover:text-status-danger-fg disabled:cursor-not-allowed disabled:opacity-40"
+                                disabled={line.putaway.length <= 1}
+                                aria-label={t('Remove')}
+                                onClick={() =>
+                                  setLines((prev) =>
+                                    prev.map((l) =>
+                                      l.key !== line.key
+                                        ? l
+                                        : {
+                                            ...l,
+                                            putaway: l.putaway.filter((r) => r.key !== row.key),
+                                          },
+                                    ),
+                                  )
+                                }
+                              >
+                                <i className="fa-solid fa-trash-can text-sm" aria-hidden />
+                              </button>
+                            </div>
+                          ))}
+                          <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[minmax(0,1fr)_140px_40px]">
+                            <div className="hidden sm:block" aria-hidden />
+                            <div className="hidden sm:block" aria-hidden />
+                            <button
                               type="button"
-                              variant="secondary"
-                              size="sm"
-                              className="!border-brand-200 !text-brand-700 hover:!bg-brand-50"
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border-strong text-text-muted transition hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700"
+                              aria-label={t('Add location')}
+                              title={t('Add location')}
                               onClick={() =>
                                 setLines((prev) =>
                                   prev.map((l) =>
@@ -781,29 +814,15 @@ export function InboundCreatePage() {
                                           ...l,
                                           putaway: [
                                             ...l.putaway,
-                                            {
-                                              key: `${Date.now()}`,
-                                              locationId: '',
-                                              qty: '',
-                                            },
+                                            { key: `${Date.now()}`, locationId: '', qty: '' },
                                           ],
                                         },
                                   ),
                                 )
                               }
                             >
-                              + {t('Add location')}
-                            </Button>
-                          </div>
-
-                          {/* Allocation status */}
-                          <div className="flex justify-end md:justify-center">
-                            <AllocationBadge
-                              allocated={allocated}
-                              expected={expected}
-                              complete={complete}
-                              label={t('Allocated')}
-                            />
+                              <i className="fa-solid fa-plus text-sm" aria-hidden />
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -811,145 +830,29 @@ export function InboundCreatePage() {
                   })}
                 </div>
               )}
-            </PlanCard>
+            </section>
           </>
         ) : null}
 
-        {/* ─── 5. Execution mode ─── */}
-        <PlanCard>
-          <SectionHeading n={execStep}>{t('Execution mode')}</SectionHeading>
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Admin */}
-            <button
-              type="button"
-              onClick={() => setMode('admin')}
-              className={[
-                'rounded-2xl border-2 p-5 text-start transition',
-                mode === 'admin'
-                  ? 'border-brand-500 bg-brand-50 shadow-sm'
-                  : 'border-border bg-white hover:border-border-strong',
-              ].join(' ')}
-            >
-              <div className="flex items-start gap-3.5">
-                <span
-                  className={[
-                    'mt-1 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2',
-                    mode === 'admin' ? 'border-brand-600' : 'border-border-strong',
-                  ].join(' ')}
-                >
-                  {mode === 'admin' ? (
-                    <span className="h-2.5 w-2.5 rounded-full bg-brand-600" />
-                  ) : null}
-                </span>
+        <p className="text-sm text-text-muted">
+          <span className="font-semibold text-text-strong">{t('Next steps')}: </span>
+          {t(
+            'Click Save plan to create a draft. Print and Confirm (or Release) from the order page.',
+          )}
+        </p>
 
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-brand-700">
-                      <i className="fa-solid fa-user" aria-hidden />
-                    </span>
-                    <span className="text-[15px] font-semibold text-text-strong">
-                      {t('Execute by Admin')}
-                    </span>
-                    <span className="rounded-full border border-brand-200 bg-brand-100 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700">
-                      {t('Recommended')}
-                    </span>
-                  </div>
-                  <p className="text-sm leading-relaxed text-text-muted">
-                    {t('I will do everything myself. No tasks will be assigned to workers.')}
-                  </p>
-                  <ul className="space-y-2 text-sm text-text-body">
-                    <li className="flex items-start gap-2">
-                      <i
-                        className="fa-solid fa-check mt-0.5 text-brand-600"
-                        aria-hidden
-                      />
-                      <span>{t('You will receive printable instructions')}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <i
-                        className="fa-solid fa-check mt-0.5 text-brand-600"
-                        aria-hidden
-                      />
-                      <span>{t('Confirm once after completing the work.')}</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </button>
-
-            {/* Workers */}
-            <button
-              type="button"
-              onClick={() => setMode('workers')}
-              className={[
-                'rounded-2xl border-2 p-5 text-start transition',
-                mode === 'workers'
-                  ? 'border-brand-500 bg-brand-50 shadow-sm'
-                  : 'border-border bg-white hover:border-border-strong',
-              ].join(' ')}
-            >
-              <div className="flex items-start gap-3.5">
-                <span
-                  className={[
-                    'mt-1 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2',
-                    mode === 'workers' ? 'border-brand-600' : 'border-border-strong',
-                  ].join(' ')}
-                >
-                  {mode === 'workers' ? (
-                    <span className="h-2.5 w-2.5 rounded-full bg-brand-600" />
-                  ) : null}
-                </span>
-
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-sunken text-text-muted">
-                      <i className="fa-solid fa-users" aria-hidden />
-                    </span>
-                    <span className="text-[15px] font-semibold text-text-strong">
-                      {t('Execute by Workers')}
-                    </span>
-                  </div>
-                  <p className="text-sm leading-relaxed text-text-muted">
-                    {t('Tasks will be created and assigned to warehouse workers.')}
-                  </p>
-                  <ul className="space-y-2 text-sm text-text-body">
-                    <li className="flex items-start gap-2">
-                      <i
-                        className="fa-solid fa-check mt-0.5 text-brand-600"
-                        aria-hidden
-                      />
-                      <span>{t('Workers will see tasks in their accounts')}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <i
-                        className="fa-solid fa-check mt-0.5 text-brand-600"
-                        aria-hidden
-                      />
-                      <span>{t('You can monitor progress in real time.')}</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </button>
-          </div>
-        </PlanCard>
-
-        {/* ─── Next steps banner ─── */}
-        <div className="flex items-start gap-3.5 rounded-2xl border border-sky-200 bg-sky-50 px-5 py-4 text-sm text-sky-900">
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-600">
-            <i className="fa-solid fa-lightbulb" aria-hidden />
-          </span>
-          <div className="min-w-0 flex-1 leading-relaxed">
-            <div className="font-semibold text-sky-950">{t('Next steps')}</div>
-            <p className="mt-0.5 text-sky-800/90">
-              {t(
-                'Click Save plan to create a draft. You can print instructions and confirm the order after completing the work.',
-              )}
-            </p>
-          </div>
-          <span className="mt-0.5 hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100/80 text-sky-500 sm:flex">
-            <i className="fa-solid fa-print text-lg" aria-hidden />
-          </span>
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border-subtle pt-6">
+          <Button
+            type="button"
+            variant="danger"
+            disabled={loading}
+            onClick={() => navigate('/orders/inbound')}
+          >
+            {t('Cancel')}
+          </Button>
+          <Button type="submit" variant="primary" loading={loading}>
+            {t('Save plan')}
+          </Button>
         </div>
       </form>
     </div>

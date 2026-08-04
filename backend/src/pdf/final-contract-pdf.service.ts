@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentType } from '@prisma/client';
 
 import { PrismaService } from '../common/prisma/prisma.service';
+import { RealtimeService } from '../modules/realtime/realtime.service';
 import { DocumentBranding, resolveBranding } from './branding';
 import { DocumentStorageService } from './document-storage.service';
 import { DocumentsService } from './documents.service';
@@ -36,6 +37,7 @@ export class FinalContractPdfService {
     private readonly pdf: PdfService,
     private readonly storage: DocumentStorageService,
     private readonly documents: DocumentsService,
+    private readonly realtime: RealtimeService,
     config: ConfigService,
   ) {
     this.branding = resolveBranding(config);
@@ -144,7 +146,18 @@ export class FinalContractPdfService {
 
     if (existing && opts?.force) {
       const doc = await this.documents.refreshFile(existing.id, stored);
-      return this.toResult(doc);
+      const result = this.toResult(doc);
+      this.realtime.emitDocumentGenerated(contract.companyId, {
+        documentId: result.id,
+        type: DocumentType.final_contract,
+        referenceType: 'final_contract',
+        referenceId: contract.id,
+        taskId: null,
+        documentNumber: result.documentNumber,
+        language: result.language,
+        pdfUrl: result.pdfUrl,
+      });
+      return result;
     }
 
     const doc = await this.documents.create({
@@ -162,7 +175,18 @@ export class FinalContractPdfService {
       generatedBy: generatedBy ?? null,
     });
 
-    return this.toResult(doc);
+    const result = this.toResult(doc);
+    this.realtime.emitDocumentGenerated(contract.companyId, {
+      documentId: result.id,
+      type: DocumentType.final_contract,
+      referenceType: 'final_contract',
+      referenceId: contract.id,
+      taskId: null,
+      documentNumber: result.documentNumber,
+      language: result.language,
+      pdfUrl: result.pdfUrl,
+    });
+    return result;
   }
 
   private toResult(doc: {

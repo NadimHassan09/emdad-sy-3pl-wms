@@ -146,3 +146,70 @@ export function setRememberedAccount(account: RememberedAccount | null): void {
 export function clearRememberedAccount(): void {
   removeLocal(REMEMBERED_ACCOUNT_KEY);
 }
+
+const RETURN_TO_KEY = 'wms.return_to';
+const LOGGING_OUT_KEY = 'wms.logging_out';
+
+/** Internal path only — blocks open redirects. */
+export function isSafeReturnPath(path: string | null | undefined): path is string {
+  if (!path) return false;
+  if (!path.startsWith('/') || path.startsWith('//')) return false;
+  if (path === '/login' || path.startsWith('/login?') || path.startsWith('/login#')) return false;
+  return true;
+}
+
+export function beginLogoutFlow(): void {
+  try {
+    sessionStorage.setItem(LOGGING_OUT_KEY, '1');
+    sessionStorage.removeItem(RETURN_TO_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function endLogoutFlow(): void {
+  try {
+    sessionStorage.removeItem(LOGGING_OUT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+function isLogoutInProgress(): boolean {
+  try {
+    return sessionStorage.getItem(LOGGING_OUT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** Remember where the user was before being sent to login (session expiry / 401). */
+export function setPostLoginReturnTo(path: string): void {
+  if (isLogoutInProgress()) return;
+  if (!isSafeReturnPath(path)) return;
+  try {
+    sessionStorage.setItem(RETURN_TO_KEY, path);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Read and clear the saved return path. */
+export function consumePostLoginReturnTo(): string | null {
+  try {
+    const v = sessionStorage.getItem(RETURN_TO_KEY);
+    sessionStorage.removeItem(RETURN_TO_KEY);
+    return isSafeReturnPath(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Clear saved return path (e.g. intentional sign-out). */
+export function clearPostLoginReturnTo(): void {
+  try {
+    sessionStorage.removeItem(RETURN_TO_KEY);
+  } catch {
+    /* ignore */
+  }
+}

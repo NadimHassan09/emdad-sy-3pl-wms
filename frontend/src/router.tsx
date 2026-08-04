@@ -38,7 +38,6 @@ const LocationsPage           = lazyPage(() => import('./pages/LocationsPage'), 
 const WarehousesPage          = lazyPage(() => import('./pages/WarehousesPage'),          'WarehousesPage');
 const InventoryPage           = lazyPage(() => import('./pages/InventoryPage'),           'InventoryPage');
 const InventoryProductDetailPage = lazyPage(() => import('./pages/InventoryProductDetailPage'), 'InventoryProductDetailPage');
-const InventoryLedgerPage     = lazyPage(() => import('./pages/InventoryLedgerPage'),     'InventoryLedgerPage');
 const InventoryLedgerEntryPage = lazyPage(() => import('./pages/InventoryLedgerEntryPage'), 'InventoryLedgerEntryPage');
 const InventoryLedgerReferencePage = lazyPage(() => import('./pages/InventoryLedgerReferencePage'), 'InventoryLedgerReferencePage');
 const AdjustmentsPage         = lazyPage(() => import('./pages/AdjustmentsPage'),         'AdjustmentsPage');
@@ -49,6 +48,7 @@ const InboundDetailPage       = lazyPage(() => import('./pages/InboundDetailPage
 const OutboundListPage        = lazyPage(() => import('./pages/OutboundListPage'),        'OutboundListPage');
 const OutboundCreatePage      = lazyPage(() => import('./pages/orders/OutboundCreatePage'), 'OutboundCreatePage');
 const OmsOrdersListPage       = lazyPage(() => import('./pages/OmsOrdersListPage'),       'OmsOrdersListPage');
+const OmsOrderCreatePage      = lazyPage(() => import('./pages/OmsOrderCreatePage'),      'OmsOrderCreatePage');
 const OmsOrderDetailPage      = lazyPage(() => import('./pages/OmsOrderDetailPage'),      'OmsOrderDetailPage');
 const OmsDashboardPage        = lazyPage(() => import('./pages/OmsDashboardPage'),        'OmsDashboardPage');
 const OutboundDetailPage      = lazyPage(() => import('./pages/OutboundDetailPage'),      'OutboundDetailPage');
@@ -56,7 +56,6 @@ const TasksListPage           = lazyPage(() => import('./pages/TasksListPage'), 
 const TaskDetailPage          = lazyPage(() => import('./pages/TaskDetailPage'),          'TaskDetailPage');
 const TaskExecutePage         = lazyPage(() => import('./pages/TaskExecutePage'),         'TaskExecutePage');
 const InternalTransferPage    = lazyPage(() => import('./pages/InternalTransferPage'),    'InternalTransferPage');
-const QuickDirectedOutboundPage = lazyPage(() => import('./pages/QuickDirectedOutboundPage'), 'QuickDirectedOutboundPage');
 const ReportsLayout                 = lazyPage(() => import('./pages/reports/ReportsLayout'),                 'ReportsLayout');
 const WarehouseAnalysisReportPage = lazyPage(() => import('./pages/reports/WarehouseAnalysisReportPage'), 'WarehouseAnalysisReportPage');
 const InventoryReportPage           = lazyPage(() => import('./pages/reports/InventoryReportPage'),           'InventoryReportPage');
@@ -139,7 +138,7 @@ export const router = createBrowserRouter([
       { path: 'inventory', element: <Navigate to="/inventory/stock" replace /> },
       { path: 'inventory/ledger/line/:ledgerId/:createdAt', element: <InventoryLedgerEntryPage /> },
       { path: 'inventory/ledger/:referenceType/:referenceId', element: <InventoryLedgerReferencePage /> },
-      { path: 'inventory/ledger', element: <InventoryLedgerPage /> },
+      { path: 'inventory/ledger', element: <Navigate to="/inventory/stock" replace /> },
       { path: 'inventory/product/:productId', element: <InventoryProductDetailPage /> },
       { path: 'inventory/stock', element: <InventoryPage /> },
       { path: 'adjustments', element: <Navigate to="/inventory/adjustments" replace /> },
@@ -157,9 +156,10 @@ export const router = createBrowserRouter([
       { path: 'orders/outbound', element: <OutboundListPage /> },
       { path: 'orders/outbound/new', element: <OutboundCreatePage /> },
       { path: 'orders/outbound/:id/edit', element: <OutboundCreatePage /> },
-      { path: 'orders/directed-outbound', element: <QuickDirectedOutboundPage /> },
+      { path: 'orders/directed-outbound', element: <Navigate to="/orders/outbound" replace /> },
       { path: 'orders/outbound/:id', element: <OutboundDetailPage /> },
       { path: 'orders/oms', element: <OmsOrdersListPage /> },
+      { path: 'orders/oms/new', element: <OmsOrderCreatePage /> },
       { path: 'orders/oms/:id', element: <OmsOrderDetailPage /> },
       { path: 'oms', element: <Navigate to="/oms/dashboard" replace /> },
       { path: 'oms/dashboard', element: <OmsDashboardPage /> },
@@ -183,7 +183,7 @@ export const router = createBrowserRouter([
       { path: 'returns/:id/process', element: <ReturnProcessPage /> },
       { path: 'returns/:id', element: <ReturnDetailPage /> },
       { path: 'internal', element: <InternalTransferPage /> },
-      { path: 'directed-outbound', element: <Navigate to="/orders/directed-outbound" replace /> },
+      { path: 'directed-outbound', element: <Navigate to="/orders/outbound" replace /> },
       {
         path: 'reports',
         element: <ReportsLayout />,

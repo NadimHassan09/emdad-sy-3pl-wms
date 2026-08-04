@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
@@ -7,6 +17,7 @@ import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ListProductsQueryDto } from '../../products/dto/list-products-query.dto';
 import { ClientCreateProductDto } from './dto/client-create-product.dto';
+import { ClientUpdateProductDto } from './dto/client-update-product.dto';
 import { ClientProductsService } from './client-products.service';
 
 @Public()
@@ -31,5 +42,22 @@ export class ClientProductsController {
   @Post()
   create(@ClientUser() client: ClientPrincipal, @Body() dto: ClientCreateProductDto) {
     return this.products.create(client, dto);
+  }
+
+  @Patch(':id')
+  update(
+    @ClientUser() client: ClientPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: ClientUpdateProductDto,
+  ) {
+    return this.products.update(client, id, dto);
+  }
+
+  @Delete(':id')
+  remove(
+    @ClientUser() client: ClientPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.products.remove(client, id);
   }
 }

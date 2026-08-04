@@ -7,11 +7,10 @@ import { Column, DataTable } from '../components/DataTable';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import {
-  fmtLedgerQty,
   fmtSignedDelta,
   ledgerMovementCategory,
   ledgerMovementLabel,
-  ledgerQuantityDisplay,
+  ledgerSignedChange,
 } from '../lib/ledger-display';
 
 function locationCell(row: LedgerRow): string {
@@ -116,9 +115,9 @@ export function InventoryLedgerReferencePage() {
         width: '120px',
       },
       {
-        header: 'Δ Qty',
+        header: 'Quantity',
         accessor: (r) => {
-          const { delta } = ledgerQuantityDisplay(r);
+          const delta = ledgerSignedChange(r);
           const pos = delta > 0;
           const neg = delta < 0;
           return (
@@ -129,25 +128,7 @@ export function InventoryLedgerReferencePage() {
             </span>
           );
         },
-        width: '90px',
-        className: 'text-right',
-      },
-      {
-        header: 'Before',
-        accessor: (r) => {
-          const { before } = ledgerQuantityDisplay(r);
-          return <span className="font-mono text-text-body">{fmtLedgerQty(before)}</span>;
-        },
-        width: '90px',
-        className: 'text-right',
-      },
-      {
-        header: 'After',
-        accessor: (r) => {
-          const { after } = ledgerQuantityDisplay(r);
-          return <span className="font-mono text-text-body">{fmtLedgerQty(after)}</span>;
-        },
-        width: '90px',
+        width: '110px',
         className: 'text-right',
       },
       {

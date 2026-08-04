@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 
 import { Alert, Badge, Button, EmptyState, Skeleton } from '@ds';
 import {
@@ -9,9 +10,6 @@ import {
 
 import { useAuth } from '../auth/AuthContext';
 import { AnchoredDropdown } from '../components/AnchoredDropdown';
-import { ClientBarcodeImageModal } from '../components/ClientBarcodeImageModal';
-import { CreateClientProductModal } from '../components/CreateClientProductModal';
-import { ProductDetailsModal } from '../components/ProductDetailsModal';
 import { Card } from '../design-v2/Card';
 import { ListPageHeader } from '../design-v2/ListPageHeader';
 import { TableFooterPagination } from '../design-v2/TableFooterPagination';
@@ -20,11 +18,9 @@ import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess'
 import { isClientArabic } from '../lib/client-ui-language';
 import { isClientAdmin } from '../lib/rbac';
 import {
-  createClientProduct,
+  deleteClientProduct,
   fetchClientProducts,
-  uploadClientProductImage,
   type ClientProductRow,
-  type CreateClientProductInput,
 } from '../services/clientProductsService';
 import { clientMediaSrc } from '../lib/client-media';
 
@@ -34,7 +30,7 @@ function productsLabel(label: string, isArabic: boolean): string {
     Inventory: 'المخزون',
     'Sellable stock and catalog': 'المخزون القابل للبيع والكتالوج',
     'New product': 'منتج جديد',
-    'Search name, SKU, or barcode...': 'ابحث بالاسم أو رمز SKU أو الباركود...',
+    'Search name or SKU...': 'ابحث بالاسم أو رمز SKU...',
     Product: 'المنتج',
     SKU: 'رمز SKU',
     Available: 'المتاح',
@@ -42,16 +38,19 @@ function productsLabel(label: string, isArabic: boolean): string {
     'On hand': 'المتواجد',
     Status: 'الحالة',
     Actions: 'الإجراءات',
-    'View details': 'عرض التفاصيل',
-    'View barcode': 'عرض الباركود',
+    Edit: 'تعديل',
+    Delete: 'حذف',
     'Open actions': 'فتح الإجراءات',
+    'Permanently delete this product? This cannot be undone.':
+      'حذف هذا المنتج نهائياً؟ لا يمكن التراجع.',
+    'Product deleted.': 'تم حذف المنتج.',
+    'Could not delete product.': 'تعذر حذف المنتج.',
     'No products found.': 'لا توجد منتجات.',
     'No products match your search.': 'لا توجد منتجات مطابقة لبحثك.',
     'Add your first catalog product to track sellable stock.':
       'أضف أول منتج في الكتالوج لتتبع المخزون القابل للبيع.',
     'Create first product': 'إنشاء أول منتج',
     'Could not load products': 'تعذر تحميل المنتجات',
-    'Product created.': 'تم إنشاء المنتج.',
     Retry: 'إعادة المحاولة',
     'In stock': 'متوفر',
     'Low stock': 'مخزون منخفض',
@@ -80,17 +79,18 @@ const fmtQty = (s: string | null | undefined): string => {
 const menuItemClass =
   'flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-text-body transition hover:bg-surface-hover hover:text-brand-700 dark:hover:text-brand-400';
 
+const menuItemDangerClass =
+  'flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-status-danger-fg transition hover:bg-status-danger-bg';
+
 export function ProductsPage(): ReactElement {
   const { user } = useAuth();
-  const canCreateProducts = isClientAdmin(user?.role);
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const canManageProducts = isClientAdmin(user?.role);
   const [search, setSearch] = useState('');
-  const [barcodePreview, setBarcodePreview] = useState<{ value: string; name: string } | null>(null);
-  const [detailProduct, setDetailProduct] = useState<{ id: string; name: string } | null>(null);
   const [openActionId, setOpenActionId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const isArabic = isClientArabic();
   const t = (label: string) => productsLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
@@ -124,32 +124,19 @@ export function ProductsPage(): ReactElement {
     chunkQueryKeyPrefix: 'client-products-chunk',
   });
 
-  const createMut = useMutation({
-    mutationFn: async ({
-      input,
-      imageFile,
-    }: {
-      input: CreateClientProductInput;
-      imageFile: File | null;
-    }) => {
-      const created = await createClientProduct(input);
-      if (imageFile) {
-        try {
-          await uploadClientProductImage(created.id, imageFile);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : 'Image upload failed.';
-          throw new Error(`${t('Product created.')} ${msg}`);
-        }
-      }
-      return created;
-    },
-    onSuccess: (created) => {
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteClientProduct(id),
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['client', 'products'] });
-      setCreateOpen(false);
-      setCreateError(null);
-      setCreateSuccess(`${t('Product created.')} (${created.sku})`);
+      setActionError(null);
+      setActionSuccess(t('Product deleted.'));
+      setOpenActionId(null);
     },
-    onError: (err: Error) => setCreateError(err.message),
+    onError: (err: Error) => {
+      setActionSuccess(null);
+      setActionError(err.message || t('Could not delete product.'));
+      setOpenActionId(null);
+    },
   });
 
   return (
@@ -159,7 +146,7 @@ export function ProductsPage(): ReactElement {
         title={t('Inventory')}
         subtitle={t('Sellable stock and catalog')}
         actions={
-          canCreateProducts ? (
+          canManageProducts ? (
             <Button
               variant="primary"
               size="md"
@@ -169,10 +156,7 @@ export function ProductsPage(): ReactElement {
                   ? billingAccess.restriction.actionBlockedReason
                   : undefined
               }
-              onClick={() => {
-                setCreateError(null);
-                setCreateOpen(true);
-              }}
+              onClick={() => navigate('/products/new')}
               startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
             >
               {t('New product')}
@@ -181,8 +165,11 @@ export function ProductsPage(): ReactElement {
         }
       />
 
-      {createSuccess ? (
-        <Alert variant="success" title={createSuccess} onDismiss={() => setCreateSuccess(null)} />
+      {actionSuccess ? (
+        <Alert variant="success" title={actionSuccess} onDismiss={() => setActionSuccess(null)} />
+      ) : null}
+      {actionError ? (
+        <Alert variant="error" title={actionError} onDismiss={() => setActionError(null)} />
       ) : null}
 
       {pagination.isError ? (
@@ -204,7 +191,7 @@ export function ProductsPage(): ReactElement {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('Search name, SKU, or barcode...')}
+            placeholder={t('Search name or SKU...')}
             className="w-full pl-9 pr-4 py-2 bg-surface-sunken border border-border-strong text-text-strong placeholder:text-text-faint rounded-lg text-sm input-premium"
           />
         </div>
@@ -252,16 +239,13 @@ export function ProductsPage(): ReactElement {
                           : t('Add your first catalog product to track sellable stock.')
                       }
                       action={
-                        canCreateProducts &&
+                        canManageProducts &&
                         billingAccess.operationalAllowed &&
                         !debouncedSearch.trim() ? (
                           <Button
                             variant="primary"
                             size="sm"
-                            onClick={() => {
-                              setCreateError(null);
-                              setCreateOpen(true);
-                            }}
+                            onClick={() => navigate('/products/new')}
                             startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
                           >
                             {t('Create first product')}
@@ -288,10 +272,14 @@ export function ProductsPage(): ReactElement {
                       : health === 'low'
                         ? t('Low stock')
                         : t('In stock');
+                  const canDelete =
+                    canManageProducts &&
+                    billingAccess.operationalAllowed &&
+                    Boolean(p.deletable);
                   return (
                     <tr
                       key={p.id}
-                      onClick={() => setDetailProduct({ id: p.id, name: p.name })}
+                      onClick={() => navigate(`/products/${p.id}`)}
                       className="hover:bg-surface-hover transition-colors group cursor-pointer"
                     >
                       <td className="px-5 py-3.5">
@@ -313,23 +301,7 @@ export function ProductsPage(): ReactElement {
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-text-body font-mono text-xs">
-                        {p.barcode ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setBarcodePreview({ value: p.barcode!, name: p.name });
-                            }}
-                            className="underline decoration-border-strong underline-offset-2 hover:text-brand-700 dark:hover:text-brand-400"
-                            title={p.barcode}
-                          >
-                            {p.sku}
-                          </button>
-                        ) : (
-                          p.sku
-                        )}
-                      </td>
+                      <td className="px-5 py-3.5 text-text-body font-mono text-xs">{p.sku}</td>
                       <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-text-strong">
                         {fmtQty(p.totalAvailable ?? String(available))}
                       </td>
@@ -366,20 +338,7 @@ export function ProductsPage(): ReactElement {
                               </button>
                             }
                           >
-                            <button
-                              type="button"
-                              role="menuitem"
-                              data-product-action-menu-button="true"
-                              className={menuItemClass}
-                              onClick={() => {
-                                setOpenActionId(null);
-                                setDetailProduct({ id: p.id, name: p.name });
-                              }}
-                            >
-                              <i className="fa-solid fa-eye text-xs text-text-faint w-4" />
-                              {t('View details')}
-                            </button>
-                            {p.barcode ? (
+                            {canManageProducts ? (
                               <button
                                 type="button"
                                 role="menuitem"
@@ -387,11 +346,33 @@ export function ProductsPage(): ReactElement {
                                 className={menuItemClass}
                                 onClick={() => {
                                   setOpenActionId(null);
-                                  setBarcodePreview({ value: p.barcode!, name: p.name });
+                                  navigate(`/products/${p.id}/edit`);
                                 }}
                               >
-                                <i className="fa-solid fa-barcode text-xs text-text-faint w-4" />
-                                {t('View barcode')}
+                                <i className="fa-solid fa-pen text-xs text-text-faint w-4" />
+                                {t('Edit')}
+                              </button>
+                            ) : null}
+                            {canDelete ? (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                data-product-action-menu-button="true"
+                                className={menuItemDangerClass}
+                                disabled={deleteMut.isPending}
+                                onClick={() => {
+                                  if (
+                                    !window.confirm(
+                                      t('Permanently delete this product? This cannot be undone.'),
+                                    )
+                                  ) {
+                                    return;
+                                  }
+                                  deleteMut.mutate(p.id);
+                                }}
+                              >
+                                <i className="fa-solid fa-trash text-xs w-4" />
+                                {t('Delete')}
                               </button>
                             ) : null}
                           </AnchoredDropdown>
@@ -406,34 +387,6 @@ export function ProductsPage(): ReactElement {
         </div>
         <TableFooterPagination pagination={pagination.serverPagination} isArabic={isArabic} />
       </Card>
-
-      <CreateClientProductModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        loading={createMut.isPending}
-        submitError={createError}
-        isArabic={isArabic}
-        onSubmit={(input, imageFile) => {
-          setCreateError(null);
-          createMut.mutate({ input, imageFile });
-        }}
-      />
-
-      <ClientBarcodeImageModal
-        open={!!barcodePreview}
-        onClose={() => setBarcodePreview(null)}
-        value={barcodePreview?.value ?? ''}
-        productName={barcodePreview?.name ?? ''}
-        isArabic={isArabic}
-      />
-
-      <ProductDetailsModal
-        open={!!detailProduct}
-        productId={detailProduct?.id ?? null}
-        productName={detailProduct?.name}
-        onClose={() => setDetailProduct(null)}
-        isArabic={isArabic}
-      />
     </div>
   );
 }

@@ -5,7 +5,10 @@ import { LoginScreen, useUiTheme } from '@ds';
 import { useAuth } from '../auth/AuthContext';
 import {
   clearRememberedAccount,
+  consumePostLoginReturnTo,
+  endLogoutFlow,
   getRememberedAccount,
+  isSafeReturnPath,
   setRememberedAccount,
   type RememberedAccount,
 } from '../auth/authStorage';
@@ -39,11 +42,25 @@ function useIsArabic(): boolean {
   return isArabic;
 }
 
+function resolvePostLoginTarget(
+  role: string | undefined,
+  candidates: Array<string | null | undefined>,
+): string {
+  const home = defaultHomePath(role);
+  for (const candidate of candidates) {
+    if (isSafeReturnPath(candidate) && canAccessPath(role, candidate)) {
+      return candidate;
+    }
+  }
+  return home;
+}
+
 export function LoginPage() {
-  const { user, booting, login } = useAuth();
+  const { user, booting, login, resumeSession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const fromState = (location.state as { from?: string } | null)?.from;
+  const nextQuery = new URLSearchParams(location.search).get('next');
   const isArabic = useIsArabic();
   const t = (en: string, ar: string) => (isArabic ? ar : en);
 
@@ -56,6 +73,10 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useUiTheme({ storageKey: 'admin-ui-theme' });
+
+  useEffect(() => {
+    endLogoutFlow();
+  }, []);
 
   if (booting) {
     return (
@@ -80,8 +101,8 @@ export function LoginPage() {
   }
 
   if (user) {
-    const home = defaultHomePath(user.role);
-    const target = fromState && canAccessPath(user.role, fromState) ? fromState : home;
+    const stored = consumePostLoginReturnTo();
+    const target = resolvePostLoginTarget(user.role, [fromState, nextQuery, stored]);
     return <Navigate to={target} replace />;
   }
 
@@ -94,13 +115,26 @@ export function LoginPage() {
     setError(null);
   }
 
-  function selectRememberedAccount() {
+  async function selectRememberedAccount() {
     if (!remembered) return;
-    setEmail(remembered.email);
-    setRememberFor30Days(true);
-    window.setTimeout(() => {
-      document.getElementById('login-password')?.focus();
-    }, 0);
+    setError(null);
+    setSubmitting(true);
+    try {
+      const loggedIn = await resumeSession();
+      const stored = consumePostLoginReturnTo();
+      const target = resolvePostLoginTarget(loggedIn.role, [fromState, nextQuery, stored]);
+      navigate(target, { replace: true });
+    } catch {
+      // No live session (e.g. after logout) — fall through to password entry quietly.
+      setEmail(remembered.email);
+      setRememberFor30Days(true);
+      setError(null);
+      window.setTimeout(() => {
+        document.getElementById('login-password')?.focus();
+      }, 0);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function onSubmit(e: FormEvent) {
@@ -123,8 +157,8 @@ export function LoginPage() {
         clearRememberedAccount();
         setRemembered(null);
       }
-      const home = defaultHomePath(loggedIn.role);
-      const target = fromState && canAccessPath(loggedIn.role, fromState) ? fromState : home;
+      const stored = consumePostLoginReturnTo();
+      const target = resolvePostLoginTarget(loggedIn.role, [fromState, nextQuery, stored]);
       navigate(target, { replace: true });
     } catch (err: unknown) {
       setError(getLoginErrorMessage(err, isArabic));
@@ -161,6 +195,7 @@ export function LoginPage() {
         rememberLabel={t('Remember me for 30 days', 'تذكرني لمدة 30 يومًا')}
         accountSectionLabel={t('Sign in to your account', 'تسجيل الدخول إلى حسابك')}
         clearRememberedAccountLabel={t('Remove remembered account', 'إزالة الحساب المحفوظ')}
+        continueLabel={t('Continue', 'متابعة')}
         orLabel={t('OR', 'أو')}
         email={email}
         password={password}
@@ -173,7 +208,7 @@ export function LoginPage() {
         onRememberChange={setRememberFor30Days}
         cornerSlot={languageToggle}
         rememberedAccount={remembered}
-        onSelectRememberedAccount={selectRememberedAccount}
+        onSelectRememberedAccount={() => void selectRememberedAccount()}
         onClearRememberedAccount={clearRemembered}
       />
     </div>

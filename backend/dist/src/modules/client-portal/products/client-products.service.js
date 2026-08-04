@@ -17,6 +17,9 @@ const prisma_service_1 = require("../../../common/prisma/prisma.service");
 const inventory_service_1 = require("../../inventory/inventory.service");
 const notifications_service_1 = require("../../notifications/notifications.service");
 const products_service_1 = require("../../products/products.service");
+function productImageUrl(imagePath, productId) {
+    return imagePath ? `/media/products/${productId}` : null;
+}
 let ClientProductsService = class ClientProductsService {
     products;
     notifications;
@@ -29,10 +32,17 @@ let ClientProductsService = class ClientProductsService {
         this.prisma = prisma;
     }
     async list(client, query) {
-        return this.products.list((0, client_auth_principal_1.clientAuthPrincipal)(client), {
+        const page = await this.products.list((0, client_auth_principal_1.clientAuthPrincipal)(client), {
             ...query,
             companyId: client.companyId,
         });
+        return {
+            ...page,
+            items: page.items.map((item) => ({
+                ...item,
+                imageUrl: productImageUrl(item.imagePath ?? null, item.id),
+            })),
+        };
     }
     async findById(client, id) {
         const principal = (0, client_auth_principal_1.clientAuthPrincipal)(client);
@@ -73,6 +83,7 @@ let ClientProductsService = class ClientProductsService {
                     .div(1_000_000)
                     .toDecimalPlaces(6)
                 : null);
+        const imagePath = product.imagePath ?? null;
         return {
             id: product.id,
             name: product.name,
@@ -102,6 +113,8 @@ let ClientProductsService = class ClientProductsService {
             earliestExpiryDate: earliestExpiry?.lot?.expiryDate
                 ? earliestExpiry.lot.expiryDate.toISOString().slice(0, 10)
                 : null,
+            imagePath,
+            imageUrl: productImageUrl(imagePath, product.id),
         };
     }
     async create(client, dto) {
@@ -123,7 +136,30 @@ let ClientProductsService = class ClientProductsService {
         }
         catch {
         }
-        return product;
+        return {
+            ...product,
+            imagePath: product.imagePath ?? null,
+            imageUrl: productImageUrl(product.imagePath ?? null, product.id),
+        };
+    }
+    async update(client, id, dto) {
+        if (client.role === client_1.UserRole.client_staff) {
+            throw new common_1.ForbiddenException('Only client administrators can edit products.');
+        }
+        const updated = await this.products.update(id, {
+            ...(dto.name !== undefined ? { name: dto.name } : {}),
+            ...(dto.description !== undefined ? { description: dto.description } : {}),
+            ...(dto.minStockThreshold !== undefined
+                ? { minStockThreshold: dto.minStockThreshold }
+                : {}),
+        }, (0, client_auth_principal_1.clientAuthPrincipal)(client));
+        return this.findById(client, updated.id);
+    }
+    async remove(client, id) {
+        if (client.role === client_1.UserRole.client_staff) {
+            throw new common_1.ForbiddenException('Only client administrators can delete products.');
+        }
+        return this.products.removePermanentlyIfSafe(id, (0, client_auth_principal_1.clientAuthPrincipal)(client));
     }
 };
 exports.ClientProductsService = ClientProductsService;
