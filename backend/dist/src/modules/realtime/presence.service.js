@@ -34,9 +34,6 @@ let PresenceService = PresenceService_1 = class PresenceService {
         });
         if (!wasOnline) {
             this.realtime.emitPresenceOnline(this.toPresencePayload(principal, new Date()));
-            this.realtime.emitDashboardKpiUpdated({
-                counters: { activeUsers: this.getOnlineCount() },
-            });
             this.log.debug(`User online: ${userId}`);
         }
     }
@@ -56,9 +53,6 @@ let PresenceService = PresenceService_1 = class PresenceService {
             this.realtime.emitPresenceOffline({
                 ...this.toPresencePayload(meta.principal, meta.connectedAt),
                 disconnectedAt: disconnectedAt.toISOString(),
-            });
-            this.realtime.emitDashboardKpiUpdated({
-                counters: { activeUsers: this.getOnlineCount() },
             });
             this.log.debug(`User offline: ${userId}`);
         }

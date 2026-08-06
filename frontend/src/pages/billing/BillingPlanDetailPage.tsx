@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert, Card, ListPageHeader, Skeleton } from '@ds';
 import { BillingApi } from '../../api/billing';
@@ -7,6 +7,7 @@ import { VolumeAllocationPanel } from '../../components/billing/VolumeAllocation
 import { Button } from '../../components/Button';
 import { DataTable, type Column } from '../../components/DataTable';
 import { StatusBadge } from '../../components/StatusBadge';
+import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
 import {
@@ -19,7 +20,7 @@ import {
   formatDecimal,
 } from '../../lib/billing-plan-overview';
 
-const CURRENCY = 'SYP';
+const CURRENCY = 'USD';
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (
@@ -51,6 +52,8 @@ function pendingSummary(pending: Record<string, unknown> | null | undefined): st
 export function BillingPlanDetailPage() {
   const { clientId = '' } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
+  const qc = useQueryClient();
   const { user } = useAuth();
   const canMutate = user?.role === 'super_admin' || user?.role === 'wh_manager';
 
@@ -79,6 +82,31 @@ export function BillingPlanDetailPage() {
   const invoices = detailQuery.data?.invoices ?? [];
   const daysLeft = currentCycle ? daysRemainingFromEnd(currentCycle.endsAt) : null;
   const pendingLines = pendingSummary(plan?.pendingChanges as Record<string, unknown> | null);
+  const isRestricted = company?.status === 'restricted';
+  const canRenew =
+    !!plan &&
+    (isRestricted ||
+      currentCycle?.status === 'active' ||
+      !currentCycle ||
+      currentCycle.status === 'expired');
+
+  const renewMut = useMutation({
+    mutationFn: () => BillingApi.renewPlan(plan!.id),
+    onSuccess: (result) => {
+      toast.success(
+        result.mode === 'reactivated'
+          ? 'Billing plan renewed. Access restored and a new cycle started.'
+          : 'Billing cycle marked for renewal when it expires.',
+      );
+      void qc.invalidateQueries({ queryKey: QK.billing.planDetail(clientId) });
+      void qc.invalidateQueries({ queryKey: QK.billing.plans });
+      void qc.invalidateQueries({ queryKey: QK.billing.cycles });
+      void qc.invalidateQueries({ queryKey: QK.billing.suspendedAccounts });
+      void qc.invalidateQueries({ queryKey: QK.billing.overdueClients });
+      void qc.invalidateQueries({ queryKey: QK.companies });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   const cycleColumns: Column<(typeof cycles)[number]>[] = [
     { header: 'Start', accessor: (r) => formatDate(r.startsAt) },
@@ -133,9 +161,31 @@ export function BillingPlanDetailPage() {
                   Create plan
                 </Button>
               ) : (
-                <Button variant="secondary" onClick={() => navigate(`/billing/plans/${clientId}/edit`)}>
-                  Edit plan
-                </Button>
+                <>
+                  {canRenew ? (
+                    <Button
+                      variant="brand"
+                      disabled={renewMut.isPending}
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            isRestricted || !currentCycle || currentCycle.status === 'expired'
+                              ? 'Renew this billing plan? This restores access and starts a new billing cycle.'
+                              : 'Mark this billing cycle for renewal when it expires?',
+                          )
+                        ) {
+                          return;
+                        }
+                        renewMut.mutate();
+                      }}
+                    >
+                      Renew
+                    </Button>
+                  ) : null}
+                  <Button variant="secondary" onClick={() => navigate(`/billing/plans/${clientId}/edit`)}>
+                    Edit plan
+                  </Button>
+                </>
               )}
             </div>
           ) : undefined

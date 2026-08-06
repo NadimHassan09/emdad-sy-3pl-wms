@@ -152,7 +152,7 @@ let OmsOutboundSyncService = class OmsOutboundSyncService {
                 subtotal: oms.subtotal ?? undefined,
                 shippingFee: oms.shippingFee ?? undefined,
                 codAmount: oms.codAmount ?? undefined,
-                currency: oms.currency ?? 'SYP',
+                currency: oms.currency ?? 'USD',
                 codStatus: oms.codStatus ?? undefined,
                 storeChannel: oms.storeChannel,
                 externalReference: oms.externalReference,

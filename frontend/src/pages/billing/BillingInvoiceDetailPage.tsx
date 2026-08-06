@@ -23,7 +23,7 @@ import {
   systemLines,
 } from '../../lib/billing-invoice-display';
 
-const CURRENCY = 'SYP';
+const CURRENCY = 'USD';
 
 function DetailField({ label, value }: { label: string; value: string }) {
   return (

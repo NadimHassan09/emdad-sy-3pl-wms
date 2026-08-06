@@ -66,7 +66,6 @@ export const ADMIN_ROUTE_MODULE_MAP: ReadonlyArray<{ prefix: string; module: Adm
 export const ADMIN_ALWAYS_ACTIVE: readonly AdminAppModuleId[] = [
   'session',
   'notifications',
-  'presence',
 ];
 
 export function resolveAdminActiveModule(pathname: string): AdminAppModuleId | null {

@@ -9,7 +9,7 @@ import { QK } from '../../constants/query-keys';
 import { formatDate, formatDecimal } from '../../lib/billing-invoice-display';
 import { Alert, Card, Skeleton } from '@ds';
 
-const CURRENCY = 'SYP';
+const CURRENCY = 'USD';
 
 const CHART_COLORS = [
   'var(--color-brand-600)',

@@ -1530,7 +1530,7 @@ model OutboundOrder {
   subtotal             Decimal?            @db.Decimal(15, 4)
   shippingFee          Decimal?            @map("shipping_fee") @db.Decimal(15, 4)
   codAmount            Decimal?            @map("cod_amount") @db.Decimal(15, 4)
-  currency             String?             @default("SYP")
+  currency             String?             @default("USD")
   codCollectedAt       DateTime?           @map("cod_collected_at") @db.Timestamptz(6)
   codRemittedAt        DateTime?           @map("cod_remitted_at") @db.Timestamptz(6)
   codStatus            OmsCodStatus?       @map("cod_status")
@@ -1613,7 +1613,7 @@ model OmsOrder {
   subtotal             Decimal?            @db.Decimal(15, 4)
   shippingFee          Decimal?            @map("shipping_fee") @db.Decimal(15, 4)
   codAmount            Decimal?            @map("cod_amount") @db.Decimal(15, 4)
-  currency             String?             @default("SYP")
+  currency             String?             @default("USD")
   codCollectedAt       DateTime?           @map("cod_collected_at") @db.Timestamptz(6)
   codRemittedAt        DateTime?           @map("cod_remitted_at") @db.Timestamptz(6)
   codStatus            OmsCodStatus?       @map("cod_status")
@@ -1726,7 +1726,7 @@ model CodRecord {
   omsOrderId     String          @unique @map("oms_order_id") @db.Uuid
   /// Never mutated after create — Current Amount = original + sum(adjustments).
   originalAmount Decimal         @map("original_amount") @db.Decimal(15, 4)
-  currency       String          @default("SYP")
+  currency       String          @default("USD")
   status         CodRecordStatus @default(pending)
   notes          String?
   createdBy      String          @map("created_by") @db.Uuid

@@ -84,6 +84,7 @@ export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
     companyId: order.companyId,
     company: order.company ?? null,
     recipientName: order.recipientName,
+    recipientPhone: order.recipientPhone,
     storeChannel: order.storeChannel,
     total: computeTotal(order),
     currency: order.currency,

@@ -34,7 +34,7 @@ describe('OmsReportsRunner.codReport', () => {
         recipientName: 'Ali',
         codAmount: { toString: () => '50' },
         codStatus: 'pending',
-        currency: 'SYP',
+        currency: 'USD',
         codCollectedAt: null,
         codRemittedAt: null,
         status: 'allocated',

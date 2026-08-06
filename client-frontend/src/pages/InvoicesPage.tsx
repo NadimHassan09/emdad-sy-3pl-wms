@@ -31,7 +31,7 @@ const INVOICE_STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
-const CURRENCY = 'SYP';
+const CURRENCY = 'USD';
 
 function invoicesLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;

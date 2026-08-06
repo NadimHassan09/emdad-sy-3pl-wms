@@ -67,7 +67,7 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
             notes: dto.notes,
             storeChannel: dto.storeChannel,
             paymentMethod: dto.paymentMethod,
-            currency: dto.currency ?? 'SYP',
+            currency: dto.currency ?? 'USD',
             lines: dto.lines.map((l) => ({
                 productId: l.productId,
                 requestedQuantity: l.requestedQuantity,

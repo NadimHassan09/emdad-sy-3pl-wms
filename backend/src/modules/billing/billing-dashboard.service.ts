@@ -48,6 +48,11 @@ export class BillingDashboardService {
           take: 1,
           select: { id: true, endsAt: true },
         },
+        billingPlans: {
+          orderBy: [{ active: 'desc' }, { updatedAt: 'desc' }],
+          take: 1,
+          select: { id: true },
+        },
       },
     });
 
@@ -57,6 +62,7 @@ export class BillingDashboardService {
       status: c.status,
       lastCycleEndedAt: c.billingCycles[0]?.endsAt?.toISOString() ?? null,
       restrictedSince: c.updatedAt.toISOString(),
+      billingPlanId: c.billingPlans[0]?.id ?? null,
     }));
   }
 
@@ -218,6 +224,11 @@ export class BillingDashboardService {
         name: true,
         status: true,
         updatedAt: true,
+        billingPlans: {
+          orderBy: [{ active: 'desc' }, { updatedAt: 'desc' }],
+          take: 1,
+          select: { id: true },
+        },
       },
     });
 
@@ -226,6 +237,7 @@ export class BillingDashboardService {
       companyName: c.name,
       status: c.status,
       suspendedSince: c.updatedAt.toISOString(),
+      billingPlanId: c.billingPlans[0]?.id ?? null,
     }));
   }
 }

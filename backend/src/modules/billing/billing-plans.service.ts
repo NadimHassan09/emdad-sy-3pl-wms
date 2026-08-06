@@ -3,15 +3,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { CompanyStatus, Prisma } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { InvalidStateException } from '../../common/errors/domain-exceptions';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { BillingVolumeCapacityService } from './billing-access.service';
 import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
+import { BillingNotificationsService } from './billing-notifications.service';
 import { BillingUsageService } from './billing-usage.service';
 import { buildRateSnapshotFromPlan } from './billing-rate-snapshot.util';
 import {
@@ -53,6 +55,7 @@ export class BillingPlansService {
     private readonly usage: BillingUsageService,
     private readonly invoiceCalc: BillingInvoiceCalculationService,
     private readonly billingAudit: BillingAuditService,
+    private readonly billingNotifications: BillingNotificationsService,
     private readonly realtime: RealtimeService,
   ) {}
 
@@ -227,6 +230,171 @@ export class BillingPlansService {
     });
 
     return updated;
+  }
+
+  /**
+   * Renew a billing plan:
+   * - If there is a live **active** cycle → mark it for deferred renewal at expiry.
+   * - If the company is restricted / cycle expired / no live cycle → start a new
+   *   cycle immediately, reactivate the plan, and clear company restriction.
+   */
+  async renew(user: AuthPrincipal, planId: string) {
+    const plan = await this.findById(user, planId);
+    const company = await this.prisma.company.findUnique({
+      where: { id: plan.companyId },
+      select: { id: true, name: true, status: true },
+    });
+    if (!company) throw new NotFoundException('Company not found.');
+
+    const now = new Date();
+    const liveCycle = await this.prisma.billingCycle.findFirst({
+      where: {
+        companyId: plan.companyId,
+        billingPlanId: plan.id,
+        status: { in: ['active', 'renewed'] },
+        endsAt: { gt: now },
+      },
+      orderBy: { endsAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        startsAt: true,
+        endsAt: true,
+        companyId: true,
+        billingPlanId: true,
+      },
+    });
+
+    if (liveCycle?.status === 'renewed') {
+      throw new InvalidStateException(
+        'This billing cycle is already marked for renewal.',
+      );
+    }
+
+    if (liveCycle?.status === 'active') {
+      const updated = await this.prisma.billingCycle.update({
+        where: { id: liveCycle.id },
+        data: { status: 'renewed' },
+        select: {
+          id: true,
+          companyId: true,
+          billingPlanId: true,
+          startsAt: true,
+          endsAt: true,
+          status: true,
+          rateSnapshot: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      void this.billingAudit.fromUser(user, {
+        action: BILLING_AUDIT_ACTIONS.PLAN_RENEWED,
+        resourceType: 'billing_cycle',
+        resourceId: liveCycle.id,
+        companyId: plan.companyId,
+        previousState: { status: 'active' },
+        newState: { status: 'renewed', mode: 'deferred' },
+      });
+
+      return {
+        mode: 'deferred' as const,
+        plan,
+        cycle: updated,
+      };
+    }
+
+    const previousCycle = await this.prisma.billingCycle.findFirst({
+      where: { companyId: plan.companyId, billingPlanId: plan.id },
+      orderBy: { endsAt: 'desc' },
+      select: { id: true },
+    });
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updatedPlan = await tx.billingPlan.update({
+        where: { id: plan.id },
+        data: { active: true },
+        select: PLAN_SELECT,
+      });
+
+      const startsAt = now;
+      const endsAt = new Date(startsAt);
+      endsAt.setUTCDate(endsAt.getUTCDate() + updatedPlan.cycleLengthDays);
+
+      const nextCycle = await tx.billingCycle.create({
+        data: {
+          companyId: plan.companyId,
+          billingPlanId: plan.id,
+          startsAt,
+          endsAt,
+          status: 'active',
+          rateSnapshot: buildRateSnapshotFromPlan(updatedPlan),
+        },
+        select: {
+          id: true,
+          companyId: true,
+          billingPlanId: true,
+          startsAt: true,
+          endsAt: true,
+          status: true,
+          rateSnapshot: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+
+      await tx.company.update({
+        where: { id: plan.companyId },
+        data: { status: CompanyStatus.active },
+      });
+
+      return { plan: updatedPlan, cycle: nextCycle };
+    });
+
+    void this.billingAudit.fromUser(user, {
+      action: BILLING_AUDIT_ACTIONS.PLAN_RENEWED,
+      resourceType: 'billing_plan',
+      resourceId: plan.id,
+      companyId: plan.companyId,
+      previousState: { companyStatus: company.status, planActive: plan.active },
+      newState: {
+        mode: 'reactivated',
+        companyStatus: 'active',
+        cycleId: result.cycle.id,
+      },
+    });
+
+    void this.billingNotifications.notifyAccountRenewed({
+      companyId: plan.companyId,
+      companyName: company.name,
+      previousCycleId: previousCycle?.id ?? result.cycle.id,
+      nextCycleId: result.cycle.id,
+    });
+
+    void this.invoiceCalc.recalculateForCompany(plan.companyId, 'cycle_started');
+
+    this.realtime.emitBillingRestrictionChanged(plan.companyId, {
+      companyId: plan.companyId,
+      restricted: false,
+      status: 'active',
+    });
+    this.realtime.emitCompanyLifecycleChanged(plan.companyId, {
+      companyId: plan.companyId,
+      status: 'active',
+      action: 'billing_renewed',
+    });
+    this.realtime.emitPlanUpdated(plan.companyId, {
+      planId: plan.id,
+      companyId: plan.companyId,
+      active: true,
+      action: 'plan_renewed',
+    });
+
+    return {
+      mode: 'reactivated' as const,
+      plan: result.plan,
+      cycle: result.cycle,
+    };
   }
 
   async getCapacitySummary() {

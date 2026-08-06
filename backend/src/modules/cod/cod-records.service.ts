@@ -224,7 +224,7 @@ export class CodRecordsService {
             companyId: order.companyId,
             omsOrderId: order.id,
             originalAmount: amount,
-            currency: order.currency ?? 'SYP',
+            currency: order.currency ?? 'USD',
             status: CodRecordStatus.pending,
             createdBy: user.id,
           },

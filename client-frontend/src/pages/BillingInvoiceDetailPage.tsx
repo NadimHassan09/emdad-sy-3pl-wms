@@ -21,7 +21,7 @@ import {
 } from '../lib/billing-display';
 import { fetchClientInvoice } from '../services/clientBillingService';
 
-const CURRENCY = 'SYP';
+const CURRENCY = 'USD';
 
 function detailLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;

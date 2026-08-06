@@ -91,7 +91,7 @@ let OmsOrdersService = class OmsOrdersService {
             const orParts = [
                 { orderNumber: { contains: t, mode: 'insensitive' } },
                 { recipientName: { contains: t, mode: 'insensitive' } },
-                { clientReference: { contains: t, mode: 'insensitive' } },
+                { recipientPhone: { contains: t, mode: 'insensitive' } },
             ];
             if (FULL_UUID.test(t))
                 orParts.push({ id: t });
@@ -209,7 +209,7 @@ let OmsOrdersService = class OmsOrdersService {
                     subtotal,
                     shippingFee: dto.shippingFee != null ? shippingFee : undefined,
                     codAmount: derivedCod ?? undefined,
-                    currency: dto.currency ?? 'SYP',
+                    currency: dto.currency ?? 'USD',
                     codStatus: codStatus ?? undefined,
                     storeChannel: dto.storeChannel,
                     externalReference: dto.externalReference,
@@ -732,7 +732,7 @@ let OmsOrdersService = class OmsOrdersService {
                 subtotal: o.subtotal ?? undefined,
                 shippingFee: o.shippingFee ?? undefined,
                 codAmount: o.codAmount ?? undefined,
-                currency: o.currency ?? 'SYP',
+                currency: o.currency ?? 'USD',
                 codStatus: o.codStatus,
                 allocationStatus: o.allocationStatus,
                 storeChannel: o.storeChannel,

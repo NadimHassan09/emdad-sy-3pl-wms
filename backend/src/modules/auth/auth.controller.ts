@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 
 import { CurrentUser } from '../../common/auth/current-user.decorator';
@@ -23,6 +24,7 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Public()
+  @SkipThrottle()
   @Post('login')
   @HttpCode(200)
   login(
@@ -34,6 +36,7 @@ export class AuthController {
   }
 
   @Public()
+  @SkipThrottle()
   @Post('refresh')
   @HttpCode(200)
   refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {

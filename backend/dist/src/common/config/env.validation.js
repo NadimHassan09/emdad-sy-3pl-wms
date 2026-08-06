@@ -78,6 +78,12 @@ const envSchema = zod_1.z.object({
     DOC_BRAND_ADDRESS_EN: zod_1.z.string().min(1).optional(),
     DOC_BRAND_ADDRESS_AR: zod_1.z.string().min(1).optional(),
     ALLOCATE_ON_ORDER_CREATE: zod_1.z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+    REALTIME_SYNC_MODE: zod_1.z.enum(['legacy', 'dual', 'canonical']).optional(),
+    REALTIME_MERGE_WINDOW_MS: zod_1.z.coerce.number().int().min(0).max(5000).optional(),
+    REALTIME_EMIT_DEBOUNCE_MS: zod_1.z.coerce.number().int().min(0).max(5000).optional(),
+    LOGIN_BRUTE_FORCE_ENABLED: zod_1.z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+    LOGIN_BRUTE_FORCE_MAX_FAILURES: zod_1.z.coerce.number().int().min(1).max(100).optional(),
+    LOGIN_BRUTE_FORCE_WINDOW_MS: zod_1.z.coerce.number().int().min(1000).max(3_600_000).optional(),
 });
 function envBool(raw) {
     if (raw === undefined || raw === null || raw === '')

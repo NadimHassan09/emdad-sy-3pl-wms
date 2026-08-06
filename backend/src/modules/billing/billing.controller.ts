@@ -92,6 +92,15 @@ export class BillingController {
     return this.plans.update(user, id, dto);
   }
 
+  @Post('plans/:id/renew')
+  @UseGuards(InternalAdminGuard)
+  renewPlan(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.plans.renew(user, id);
+  }
+
   @Get('cycles')
   listCycles(@CurrentUser() user: AuthPrincipal, @Query('companyId') companyId?: string) {
     return this.cycles.list(user, companyId);

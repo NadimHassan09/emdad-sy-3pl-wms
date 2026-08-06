@@ -54,6 +54,11 @@ let BillingDashboardService = class BillingDashboardService {
                     take: 1,
                     select: { id: true, endsAt: true },
                 },
+                billingPlans: {
+                    orderBy: [{ active: 'desc' }, { updatedAt: 'desc' }],
+                    take: 1,
+                    select: { id: true },
+                },
             },
         });
         return companies.map((c) => ({
@@ -62,6 +67,7 @@ let BillingDashboardService = class BillingDashboardService {
             status: c.status,
             lastCycleEndedAt: c.billingCycles[0]?.endsAt?.toISOString() ?? null,
             restrictedSince: c.updatedAt.toISOString(),
+            billingPlanId: c.billingPlans[0]?.id ?? null,
         }));
     }
     async listRecentInvoices(user, limit = 5) {
@@ -206,6 +212,11 @@ let BillingDashboardService = class BillingDashboardService {
                 name: true,
                 status: true,
                 updatedAt: true,
+                billingPlans: {
+                    orderBy: [{ active: 'desc' }, { updatedAt: 'desc' }],
+                    take: 1,
+                    select: { id: true },
+                },
             },
         });
         return companies.map((c) => ({
@@ -213,6 +224,7 @@ let BillingDashboardService = class BillingDashboardService {
             companyName: c.name,
             status: c.status,
             suspendedSince: c.updatedAt.toISOString(),
+            billingPlanId: c.billingPlans[0]?.id ?? null,
         }));
     }
 };

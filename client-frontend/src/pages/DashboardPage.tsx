@@ -536,7 +536,7 @@ export function DashboardPage(): ReactElement {
   const codCurrency =
     codCollectedQuery.data?.items.find((i) => i.currency)?.currency ||
     codPendingQuery.data?.items.find((i) => i.currency)?.currency ||
-    'SYP';
+    'USD';
 
   const pendingCod = sumAmounts(codPendingQuery.data?.items ?? []);
   const collectedCod = sumAmounts(codCollectedQuery.data?.items ?? []);
@@ -656,7 +656,7 @@ export function DashboardPage(): ReactElement {
         />
         <TopKpi
           label={t('Current obligation')}
-          value={formatMoney(obligationAmount, 'SYP', locale)}
+          value={formatMoney(obligationAmount, 'USD', locale)}
           hint={
             obligationCount > 0
               ? `${obligationCount.toLocaleString(locale)} · ${t('Awaiting payment')}`

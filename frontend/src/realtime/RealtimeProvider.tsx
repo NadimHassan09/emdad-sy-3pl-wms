@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { type ReactElement, type ReactNode, useEffect, useState } from 'react';
+import { type ReactElement, type ReactNode, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 
 import { useAuth } from '../auth/AuthContext';
@@ -43,6 +43,7 @@ export function RealtimeProvider({ children }: Props): ReactElement {
   const qc = useQueryClient();
   const companyId = useTenantCompanyId();
   const [socket, setSocket] = useState<Socket | null>(null);
+  const hydrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const token = getAccessToken();
@@ -59,21 +60,24 @@ export function RealtimeProvider({ children }: Props): ReactElement {
         token,
         ...(companyId ? { companyId } : {}),
       },
+      // websocket first; polling fallback for proxies that block WS briefly
       transports: ['websocket', 'polling'],
+      upgrade: true,
       reconnection: true,
       reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 10_000,
+      reconnectionDelay: 1500,
+      reconnectionDelayMax: 15_000,
     });
     setSocket(next);
 
     const hydratePresence = (): void => {
-      void fetchOnlinePresenceIds().then((ids) => {
-        qc.setQueryData(QK.presenceOnlineUsers, ids);
-      });
-      window.dispatchEvent(
-        new CustomEvent('wms:session-changed', { detail: { type: 'revalidate' } }),
-      );
+      // Debounce: rapid reconnects must not spam /presence/online.
+      if (hydrateTimer.current) clearTimeout(hydrateTimer.current);
+      hydrateTimer.current = setTimeout(() => {
+        void fetchOnlinePresenceIds().then((ids) => {
+          qc.setQueryData(QK.presenceOnlineUsers, ids);
+        });
+      }, 400);
     };
 
     const onPresenceOnline = (payload: { presence?: PresenceUser }): void => {
@@ -102,12 +106,15 @@ export function RealtimeProvider({ children }: Props): ReactElement {
       }
     };
 
+    // Presence snapshot only — do NOT revalidate /auth/me on every socket connect
+    // (that caused request storms when the socket reconnects).
     next.on('connect', hydratePresence);
     next.on(RealtimeEvents.PRESENCE_ONLINE, onPresenceOnline);
     next.on(RealtimeEvents.PRESENCE_OFFLINE, onPresenceOffline);
     next.on(RealtimeEvents.AUTH_SESSION_CHANGED, onAuthSessionChanged);
 
     return () => {
+      if (hydrateTimer.current) clearTimeout(hydrateTimer.current);
       next.off('connect', hydratePresence);
       next.off(RealtimeEvents.PRESENCE_ONLINE, onPresenceOnline);
       next.off(RealtimeEvents.PRESENCE_OFFLINE, onPresenceOffline);

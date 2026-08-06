@@ -16,13 +16,13 @@ import {
   omsCommercialStatusLabel,
 } from '../lib/oms-commercial-status';
 
-function fmtMoney(value: string | number | null | undefined, currency = 'SYP'): string {
+function fmtMoney(value: string | number | null | undefined, currency = 'USD'): string {
   const n = Number(value ?? 0);
   if (!Number.isFinite(n)) return '—';
   try {
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
-      currency: currency.length === 3 ? currency : 'SYP',
+      currency: currency.length === 3 ? currency : 'USD',
       maximumFractionDigits: 0,
     }).format(n);
   } catch {
@@ -696,7 +696,7 @@ export function OmsDashboardPage() {
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-end tabular-nums text-text-body">
-                        {row.codAmount ? fmtMoney(row.codAmount, row.currency ?? 'SYP') : '—'}
+                        {row.codAmount ? fmtMoney(row.codAmount, row.currency ?? 'USD') : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-end text-xs text-text-muted">
                         {new Date(row.createdAt).toLocaleString()}

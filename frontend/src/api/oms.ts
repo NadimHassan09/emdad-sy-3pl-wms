@@ -156,6 +156,7 @@ export interface OmsOrderListItem {
   companyId: string;
   company?: { id: string; name: string } | null;
   recipientName?: string | null;
+  recipientPhone?: string | null;
   storeChannel?: string | null;
   total?: string | null;
   currency?: string | null;
@@ -173,7 +174,6 @@ export interface OmsOrderDetail extends OmsOrderListItem {
   clientReference?: string | null;
   notes?: string | null;
   requiresPacking: boolean;
-  recipientPhone?: string | null;
   city?: string | null;
   district?: string | null;
   addressLine1?: string | null;

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@ds';
 import { CompaniesApi } from '../api/companies';
@@ -32,7 +32,6 @@ type ListDraft = {
   orderSearch: string;
   companyId: string;
   status: string;
-  storeChannel: string;
   linkStatus: string;
   createdFrom: string;
   createdTo: string;
@@ -42,7 +41,6 @@ const INITIAL: ListDraft = {
   orderSearch: '',
   companyId: '',
   status: '',
-  storeChannel: '',
   linkStatus: '',
   createdFrom: '',
   createdTo: '',
@@ -75,7 +73,6 @@ export function OmsOrdersListPage() {
       companyId: appliedFilters.companyId || undefined,
       status: (appliedFilters.status.trim() || undefined) as OmsOrderStatus | undefined,
       orderSearch: appliedFilters.orderSearch.trim() || undefined,
-      storeChannel: appliedFilters.storeChannel.trim() || undefined,
       linkStatus: (appliedFilters.linkStatus || undefined) as 'linked' | 'unlinked' | undefined,
       createdFrom: appliedFilters.createdFrom.trim() || undefined,
       createdTo: appliedFilters.createdTo.trim() || undefined,
@@ -118,16 +115,16 @@ export function OmsOrdersListPage() {
       accessor: (row) => <span className="font-medium text-text-strong">{row.orderNumber}</span>,
     },
     {
+      header: 'Client',
+      accessor: (row) => row.company?.name?.trim() || '—',
+    },
+    {
       header: 'Customer',
-      accessor: (row) => row.company?.name ?? row.recipientName ?? '—',
+      accessor: (row) => row.recipientName?.trim() || '—',
     },
     {
-      header: 'Status',
-      accessor: (row) => <OmsStatusBadge status={row.status} isArabic={isArabic} />,
-    },
-    {
-      header: 'Sales Channel',
-      accessor: (row) => row.storeChannel ?? '—',
+      header: 'Phone',
+      accessor: (row) => row.recipientPhone?.trim() || '—',
     },
     {
       header: 'Total',
@@ -135,27 +132,8 @@ export function OmsOrdersListPage() {
         row.total ? `${row.total}${row.currency ? ` ${row.currency}` : ''}` : '—',
     },
     {
-      header: 'Linked Outbound Order',
-      accessor: (row) =>
-        row.linkedOutboundOrder ? (
-          <Link
-            to={`/orders/outbound/${row.linkedOutboundOrder.id}`}
-            className="text-status-success-fg hover:underline"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {row.linkedOutboundOrder.orderNumber}
-          </Link>
-        ) : (
-          <span className="text-text-muted">Not Linked</span>
-        ),
-    },
-    {
-      header: 'Created At',
-      accessor: (row) => new Date(row.createdAt).toLocaleString(),
-    },
-    {
-      header: 'Updated At',
-      accessor: (row) => new Date(row.updatedAt).toLocaleString(),
+      header: 'Status',
+      accessor: (row) => <OmsStatusBadge status={row.status} isArabic={isArabic} />,
     },
     {
       header: 'Actions',
@@ -205,7 +183,7 @@ export function OmsOrdersListPage() {
           label="Search"
           value={draftFilters.orderSearch}
           onChange={(e) => setDraft({ orderSearch: e.target.value })}
-          placeholder="Search order…"
+          placeholder="Order #, customer, phone…"
         />
         {isAdmin ? (
           <Combobox
@@ -225,11 +203,6 @@ export function OmsOrdersListPage() {
             { value: '', label: 'All statuses' },
             ...OMS_COMMERCIAL_FILTER_OPTIONS.filter((o) => o.value !== ''),
           ]}
-        />
-        <TextField
-          label="Sales channel"
-          value={draftFilters.storeChannel}
-          onChange={(e) => setDraft({ storeChannel: e.target.value })}
         />
         <SelectField
           label="Warehouse link"

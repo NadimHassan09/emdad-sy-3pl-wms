@@ -17,7 +17,7 @@ import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { Alert, AppPageHeader, Breadcrumb, Card } from '@ds';
 
-const CURRENCY = 'SYP';
+const CURRENCY = 'USD';
 const FORM_ID = 'billing-plan-create-form';
 
 function numField(v: string): number {

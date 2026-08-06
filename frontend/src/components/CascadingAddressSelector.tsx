@@ -30,7 +30,7 @@ export type CascadingAddressSelectorProps = {
 
 /**
  * Cascading City → District → Address Line 1 selectors.
- * Renders three Combobox fields (no wrapper) so it fits existing filter/form grids.
+ * Dropdown suggestions are optional — users may type any value freely.
  */
 export function CascadingAddressSelector({
   value,
@@ -39,22 +39,28 @@ export function CascadingAddressSelector({
   cityLabel = 'Governorate',
   districtLabel = 'City/Region',
   addressLine1Label = 'Town/Neighborhood',
-  cityPlaceholder = 'Select governorate…',
-  districtPlaceholder = 'Select city/region…',
-  addressLine1Placeholder = 'Select town/neighborhood…',
+  cityPlaceholder = 'Select or type governorate…',
+  districtPlaceholder = 'Select or type city/region…',
+  addressLine1Placeholder = 'Select or type town/neighborhood…',
   disabled = false,
   cityRequired = false,
   districtRequired = false,
   addressLine1Required = false,
 }: CascadingAddressSelectorProps): ReactElement {
-  const cityOptions = useMemo(
-    () => toComboboxOptions(listCities(data), value.city || undefined),
+  const cities = useMemo(() => listCities(data), [data]);
+  const districts = useMemo(
+    () => listDistricts(value.city, data),
     [data, value.city],
   );
 
+  const cityOptions = useMemo(
+    () => toComboboxOptions(cities, value.city || undefined),
+    [cities, value.city],
+  );
+
   const districtOptions = useMemo(
-    () => toComboboxOptions(listDistricts(value.city, data), value.district || undefined),
-    [data, value.city, value.district],
+    () => toComboboxOptions(districts, value.district || undefined),
+    [districts, value.district],
   );
 
   const addressOptions = useMemo(
@@ -66,49 +72,47 @@ export function CascadingAddressSelector({
     [data, value.city, value.district, value.addressLine1],
   );
 
-  const districtDisabled = disabled || !value.city;
-  const addressDisabled = disabled || !value.city || !value.district;
-
   return (
     <>
       <Combobox
         label={cityLabel}
         value={value.city}
-        onChange={(city) =>
+        onChange={(city) => {
+          const knownPick = city !== '' && cities.includes(city) && city !== value.city;
           onChange({
             city,
-            district: '',
-            addressLine1: '',
-          })
-        }
+            district: knownPick || city === '' ? '' : value.district,
+            addressLine1: knownPick || city === '' ? '' : value.addressLine1,
+          });
+        }}
         options={cityOptions}
         placeholder={cityPlaceholder}
         disabled={disabled}
         required={cityRequired}
         clearable={!cityRequired}
+        allowCustomValue
         emptyMessage={cityOptions.length === 0 ? 'No governorates available' : 'No matches'}
       />
       <Combobox
         label={districtLabel}
         value={value.district}
-        onChange={(district) =>
+        onChange={(district) => {
+          const knownPick =
+            district !== '' && districts.includes(district) && district !== value.district;
           onChange({
             city: value.city,
             district,
-            addressLine1: '',
-          })
-        }
+            addressLine1: knownPick || district === '' ? '' : value.addressLine1,
+          });
+        }}
         options={districtOptions}
         placeholder={districtPlaceholder}
-        disabled={districtDisabled}
+        disabled={disabled}
         required={districtRequired}
         clearable={!districtRequired}
+        allowCustomValue
         emptyMessage={
-          !value.city
-            ? 'Select a governorate first'
-            : districtOptions.length === 0
-              ? 'No cities/regions available'
-              : 'No matches'
+          districtOptions.length === 0 ? 'Type a city/region or pick a governorate for suggestions' : 'No matches'
         }
       />
       <Combobox
@@ -123,15 +127,14 @@ export function CascadingAddressSelector({
         }
         options={addressOptions}
         placeholder={addressLine1Placeholder}
-        disabled={addressDisabled}
+        disabled={disabled}
         required={addressLine1Required}
         clearable={!addressLine1Required}
+        allowCustomValue
         emptyMessage={
-          !value.district
-            ? 'Select a city/region first'
-            : addressOptions.length === 0
-              ? 'No towns/neighborhoods available'
-              : 'No matches'
+          addressOptions.length === 0
+            ? 'Type a town/neighborhood or pick a city/region for suggestions'
+            : 'No matches'
         }
       />
     </>

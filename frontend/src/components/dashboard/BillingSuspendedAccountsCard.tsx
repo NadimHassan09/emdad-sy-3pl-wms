@@ -1,7 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 
 import { BillingApi } from '../../api/billing';
+import { Button } from '../Button';
+import { useToast } from '../ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
 import { formatDate } from '../../lib/billing-invoice-display';
@@ -13,13 +15,29 @@ type Props = {
 
 export function BillingSuspendedAccountsCard({ translateLabel = (l) => l }: Props) {
   const { user } = useAuth();
+  const toast = useToast();
+  const qc = useQueryClient();
   const canSeeBilling =
     user?.role === 'super_admin' || user?.role === 'wh_manager' || user?.role === 'finance';
+  const canMutate = user?.role === 'super_admin' || user?.role === 'wh_manager';
 
   const query = useQuery({
     queryKey: QK.billing.suspendedAccounts,
     queryFn: () => BillingApi.listSuspendedAccounts(5),
     enabled: canSeeBilling,
+  });
+
+  const renewMut = useMutation({
+    mutationFn: (planId: string) => BillingApi.renewPlan(planId),
+    onSuccess: () => {
+      toast.success('Billing plan renewed. Access restored and a new cycle started.');
+      void qc.invalidateQueries({ queryKey: QK.billing.suspendedAccounts });
+      void qc.invalidateQueries({ queryKey: QK.billing.overdueClients });
+      void qc.invalidateQueries({ queryKey: QK.billing.plans });
+      void qc.invalidateQueries({ queryKey: QK.billing.cycles });
+      void qc.invalidateQueries({ queryKey: QK.companies });
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   if (!canSeeBilling) return null;
@@ -49,16 +67,41 @@ export function BillingSuspendedAccountsCard({ translateLabel = (l) => l }: Prop
       ) : (
         <ul className="divide-y divide-border-subtle">
           {rows.map((row) => (
-            <li key={row.companyId} className="py-3">
-              <Link
-                to={`/billing/plans/${row.companyId}`}
-                className="font-medium text-brand-700 hover:underline dark:text-brand-400"
-              >
-                {row.companyName}
-              </Link>
-              <p className="mt-0.5 text-xs text-status-danger-fg">
-                {translateLabel('Suspended since')} {formatDate(row.suspendedSince)}
-              </p>
+            <li
+              key={row.companyId}
+              className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <Link
+                  to={`/billing/plans/${row.companyId}`}
+                  className="font-medium text-brand-700 hover:underline dark:text-brand-400"
+                >
+                  {row.companyName}
+                </Link>
+                <p className="mt-0.5 text-xs text-status-danger-fg">
+                  {translateLabel('Suspended since')} {formatDate(row.suspendedSince)}
+                </p>
+              </div>
+              {canMutate && row.billingPlanId ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={renewMut.isPending}
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        `Renew billing plan for ${row.companyName}? This restores access and starts a new billing cycle.`,
+                      )
+                    ) {
+                      return;
+                    }
+                    renewMut.mutate(row.billingPlanId!);
+                  }}
+                >
+                  {translateLabel('Renew')}
+                </Button>
+              ) : null}
             </li>
           ))}
         </ul>

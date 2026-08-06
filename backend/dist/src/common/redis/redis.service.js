@@ -181,6 +181,44 @@ let RedisService = RedisService_1 = class RedisService {
         await this.setJson(key, fresh, ttlSec);
         return fresh;
     }
+    async incr(key) {
+        if (!this.client) {
+            return 0;
+        }
+        try {
+            await this.ensureConnected();
+            return await this.client.incr(this.k(key));
+        }
+        catch (e) {
+            this.log.debug(`Redis incr error for ${key}: ${e.message}`);
+            return 0;
+        }
+    }
+    async hincrby(key, field, amount = 1) {
+        if (!this.client) {
+            return 0;
+        }
+        try {
+            await this.ensureConnected();
+            return await this.client.hincrby(this.k(key), field, amount);
+        }
+        catch (e) {
+            this.log.debug(`Redis hincrby error for ${key}: ${e.message}`);
+            return 0;
+        }
+    }
+    async hgetall(key) {
+        if (!this.client)
+            return {};
+        try {
+            await this.ensureConnected();
+            return (await this.client.hgetall(this.k(key))) ?? {};
+        }
+        catch (e) {
+            this.log.debug(`Redis hgetall error for ${key}: ${e.message}`);
+            return {};
+        }
+    }
     async ensureConnected() {
         if (!this.client || this.disabled)
             return;

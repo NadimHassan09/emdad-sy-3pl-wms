@@ -227,8 +227,13 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       const body = (await res.json()) as { data?: { userIds?: string[] } };
       return new Set(body.data?.userIds ?? []);
     },
-    staleTime: 30_000,
-    initialData: () => new Set<string>(),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    // Prefer socket-hydrated cache; only fetch if empty/missing.
+    initialData: () => qc.getQueryData<Set<string>>(QK.presenceOnlineUsers),
+    initialDataUpdatedAt: () =>
+      qc.getQueryState(QK.presenceOnlineUsers)?.dataUpdatedAt,
   });
   const onlineUserIds = presenceQuery.data;
 

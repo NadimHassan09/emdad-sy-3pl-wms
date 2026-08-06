@@ -199,7 +199,7 @@ export function OmsOrderCreatePage(): ReactElement {
       paymentMethod: paymentMethod || undefined,
       subtotal: linesSum,
       codAmount: paymentMethod === 'COD' ? linesSum : undefined,
-      currency: 'SYP',
+      currency: 'USD',
       lines: payloadLines,
     });
   };
@@ -274,9 +274,9 @@ export function OmsOrderCreatePage(): ReactElement {
               cityLabel="Governorate"
               districtLabel="City/Region"
               addressLine1Label="Town/Neighborhood"
-              cityPlaceholder="Select governorate…"
-              districtPlaceholder="Select city/region…"
-              addressLine1Placeholder="Select town/neighborhood…"
+              cityPlaceholder="Select or type governorate…"
+              districtPlaceholder="Select or type city/region…"
+              addressLine1Placeholder="Select or type town/neighborhood…"
               disabled={loading}
             />
           </div>
@@ -456,7 +456,7 @@ export function OmsOrderCreatePage(): ReactElement {
               <span className="mx-2 text-border-strong">·</span>
               Subtotal:{' '}
               <span className="font-semibold tabular-nums text-text-strong">
-                {linesSum.toLocaleString(undefined, { maximumFractionDigits: 2 })} SYP
+                {linesSum.toLocaleString(undefined, { maximumFractionDigits: 2 })} USD
               </span>
             </p>
           </div>

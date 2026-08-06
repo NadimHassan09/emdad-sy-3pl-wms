@@ -29,7 +29,7 @@ import {
   type InvoiceStatusFilter,
 } from '../../lib/billing-invoice-display';
 
-const CURRENCY = 'SYP';
+const CURRENCY = 'USD';
 
 type ListFilters = {
   companyId: string;

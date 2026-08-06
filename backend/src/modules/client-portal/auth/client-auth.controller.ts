@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 
 import { Public } from '../../../common/auth/public.decorator';
@@ -20,6 +21,7 @@ export class ClientAuthController {
   constructor(private readonly auth: ClientAuthService) {}
 
   @Public()
+  @SkipThrottle()
   @Post('login')
   @HttpCode(200)
   login(

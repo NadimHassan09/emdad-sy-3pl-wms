@@ -66,7 +66,7 @@ export class ClientOmsOrdersService {
       notes: dto.notes,
       storeChannel: dto.storeChannel,
       paymentMethod: dto.paymentMethod,
-      currency: dto.currency ?? 'SYP',
+      currency: dto.currency ?? 'USD',
       // Clients must not set shipping fee — admin sets it before/at approval.
       lines: dto.lines.map((l) => ({
         productId: l.productId,

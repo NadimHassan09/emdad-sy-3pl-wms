@@ -8,7 +8,9 @@ module.exports = {
       cwd: '/var/www/emdad-sy-3pl-wms/backend',
       outFile: '/var/log/emdad-wms/backend-out.log',
       errorFile: '/var/log/emdad-wms/backend-err.log',
-      defaultInstances: 'max',
+      // Redis adapter is off — multi-instance breaks Socket.IO presence fan-out
+      // and causes online/offline flapping + reconnect request storms.
+      defaultInstances: 1,
     }),
   ],
 };

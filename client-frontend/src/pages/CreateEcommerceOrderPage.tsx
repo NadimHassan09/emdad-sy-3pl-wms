@@ -38,6 +38,9 @@ function label(text: string, isArabic: boolean): string {
     'Select governorate…': 'اختر المحافظة…',
     'Select city/region…': 'اختر المدينة / المنطقة…',
     'Select town/neighborhood…': 'اختر البلدة / الحي…',
+    'Select or type governorate…': 'اختر أو اكتب المحافظة…',
+    'Select or type city/region…': 'اختر أو اكتب المدينة / المنطقة…',
+    'Select or type town/neighborhood…': 'اختر أو اكتب البلدة / الحي…',
     'Sales channel': 'قناة البيع',
     'Payment method': 'طريقة الدفع',
     Notes: 'ملاحظات',
@@ -288,9 +291,9 @@ export function CreateEcommerceOrderPage(): ReactElement {
               cityLabel={t('Governorate')}
               districtLabel={t('City/Region')}
               addressLine1Label={t('Town/Neighborhood')}
-              cityPlaceholder={t('Select governorate…')}
-              districtPlaceholder={t('Select city/region…')}
-              addressLine1Placeholder={t('Select town/neighborhood…')}
+              cityPlaceholder={t('Select or type governorate…')}
+              districtPlaceholder={t('Select or type city/region…')}
+              addressLine1Placeholder={t('Select or type town/neighborhood…')}
               disabled={fieldsDisabled}
             />
           </div>

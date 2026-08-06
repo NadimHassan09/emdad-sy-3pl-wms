@@ -41,6 +41,11 @@ interface ComboboxProps {
   dropdownInFlow?: boolean;
   /** Show the × control to clear the current selection. */
   clearable?: boolean;
+  /**
+   * Allow values that are not in `options` (type freely; dropdown is optional help).
+   * Commits the typed text on each change, blur, and Enter when no list item is chosen.
+   */
+  allowCustomValue?: boolean;
 }
 
 const VIEWPORT_PAD = 8;
@@ -115,6 +120,7 @@ function OptionsList({
  *  - ↑/↓ to navigate, Enter to select, Esc to close.
  *  - Click outside closes the popup.
  *  - Overlay mode portals the list to `document.body` so overflow:hidden parents cannot clip it.
+ *  - `allowCustomValue`: keep typed text even when it is not in the options list.
  */
 export function Combobox({
   label,
@@ -131,6 +137,7 @@ export function Combobox({
   onSearchQueryChange,
   dropdownInFlow = false,
   clearable = true,
+  allowCustomValue = false,
 }: ComboboxProps) {
   const inputId = useId();
   const [open, setOpen] = useState(false);
@@ -147,6 +154,7 @@ export function Combobox({
   const listRef = useRef<HTMLUListElement>(null);
 
   const selected = options.find((o) => o.value === value);
+  const closedDisplay = selected?.label ?? (allowCustomValue ? value : '') ?? '';
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -163,6 +171,12 @@ export function Combobox({
     setOpen(false);
     setQuery('');
     onSearchQueryChange?.('');
+  };
+
+  const commitCustom = (raw: string) => {
+    if (!allowCustomValue) return;
+    const next = raw.trim();
+    if (next !== value) onChange(next);
   };
 
   useLayoutEffect(() => {
@@ -210,11 +224,17 @@ export function Combobox({
       const t = e.target as Node;
       if (wrapperRef.current?.contains(t)) return;
       if (listRef.current?.contains(t)) return;
+      if (allowCustomValue) commitCustom(query);
       setOpen(false);
+      if (allowCustomValue) {
+        setQuery('');
+        onSearchQueryChange?.('');
+      }
     }
     if (open) document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
-  }, [open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- commit uses latest query/value via closure when open
+  }, [open, allowCustomValue, query, value]);
 
   useEffect(() => {
     if (open) setActiveIdx(0);
@@ -230,8 +250,25 @@ export function Combobox({
       setActiveIdx((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      const opt = filtered[activeIdx];
-      if (opt) pick(opt.value);
+      const q = query.trim();
+      if (allowCustomValue) {
+        const exact = filtered.find(
+          (o) => o.value === q || o.label.toLowerCase() === q.toLowerCase(),
+        );
+        if (exact) {
+          pick(exact.value);
+        } else if (q) {
+          commitCustom(q);
+          setOpen(false);
+          setQuery('');
+          onSearchQueryChange?.('');
+        } else if (filtered[activeIdx]) {
+          pick(filtered[activeIdx].value);
+        }
+      } else {
+        const opt = filtered[activeIdx];
+        if (opt) pick(opt.value);
+      }
     } else if (e.key === 'Escape') {
       setOpen(false);
       setQuery('');
@@ -239,7 +276,7 @@ export function Combobox({
     }
   };
 
-  const display = open ? query : selected?.label ?? '';
+  const display = open ? query : closedDisplay;
 
   const portalList =
     !dropdownInFlow &&
@@ -288,15 +325,19 @@ export function Combobox({
           autoComplete="off"
           disabled={disabled}
           required={required && !value}
-          placeholder={selected ? '' : placeholder}
+          placeholder={closedDisplay ? '' : placeholder}
           value={display}
           onChange={(e) => {
             const v = e.target.value;
             setQuery(v);
             onSearchQueryChange?.(v);
             setOpen(true);
+            if (allowCustomValue) onChange(v);
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setQuery(closedDisplay);
+            setOpen(true);
+          }}
           onKeyDown={handleKeyDown}
           className={`${FILTER_FIELD_CONTROL_CLASS} ${
             clearable && value && !disabled ? 'pr-7' : ''

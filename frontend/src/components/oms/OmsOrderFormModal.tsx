@@ -55,7 +55,7 @@ export function OmsOrderFormModal({
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<OmsPaymentMethod | ''>('');
   const [shippingFee, setShippingFee] = useState('');
-  const [currency, setCurrency] = useState('SYP');
+  const [currency, setCurrency] = useState('USD');
   const [storeChannel, setStoreChannel] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
 
@@ -87,7 +87,7 @@ export function OmsOrderFormModal({
       setNotes(initial.notes ?? '');
       setPaymentMethod(initial.paymentMethod ?? '');
       setShippingFee(initial.shippingFee ?? '');
-      setCurrency(initial.currency ?? 'SYP');
+      setCurrency(initial.currency ?? 'USD');
       setStoreChannel(initial.storeChannel ?? '');
     } else if (mode === 'create') {
       setCompanyId(user?.tenantCompanyId ?? '');
@@ -101,7 +101,7 @@ export function OmsOrderFormModal({
       setNotes('');
       setPaymentMethod('');
       setShippingFee('');
-      setCurrency('SYP');
+      setCurrency('USD');
       setStoreChannel('');
       setLines([emptyLine()]);
     }
@@ -289,9 +289,9 @@ export function OmsOrderFormModal({
             cityLabel="Governorate"
             districtLabel="City/Region"
             addressLine1Label="Town/Neighborhood"
-            cityPlaceholder="Select governorate…"
-            districtPlaceholder="Select city/region…"
-            addressLine1Placeholder="Select town/neighborhood…"
+            cityPlaceholder="Select or type governorate…"
+            districtPlaceholder="Select or type city/region…"
+            addressLine1Placeholder="Select or type town/neighborhood…"
           />
           <TextField
             label="Required ship date"

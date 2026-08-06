@@ -12,12 +12,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BillingPlansService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const realtime_service_1 = require("../realtime/realtime.service");
 const billing_access_service_1 = require("./billing-access.service");
 const billing_audit_service_1 = require("./billing-audit.service");
 const billing_invoice_calculation_service_1 = require("./billing-invoice-calculation.service");
+const billing_notifications_service_1 = require("./billing-notifications.service");
 const billing_usage_service_1 = require("./billing-usage.service");
 const billing_rate_snapshot_util_1 = require("./billing-rate-snapshot.util");
 const billing_plans_list_query_1 = require("./billing-plans-list.query");
@@ -48,14 +50,16 @@ let BillingPlansService = class BillingPlansService {
     usage;
     invoiceCalc;
     billingAudit;
+    billingNotifications;
     realtime;
-    constructor(prisma, companyAccess, volumeCapacity, usage, invoiceCalc, billingAudit, realtime) {
+    constructor(prisma, companyAccess, volumeCapacity, usage, invoiceCalc, billingAudit, billingNotifications, realtime) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.volumeCapacity = volumeCapacity;
         this.usage = usage;
         this.invoiceCalc = invoiceCalc;
         this.billingAudit = billingAudit;
+        this.billingNotifications = billingNotifications;
         this.realtime = realtime;
     }
     async listPage(user, query) {
@@ -208,6 +212,147 @@ let BillingPlansService = class BillingPlansService {
         });
         return updated;
     }
+    async renew(user, planId) {
+        const plan = await this.findById(user, planId);
+        const company = await this.prisma.company.findUnique({
+            where: { id: plan.companyId },
+            select: { id: true, name: true, status: true },
+        });
+        if (!company)
+            throw new common_1.NotFoundException('Company not found.');
+        const now = new Date();
+        const liveCycle = await this.prisma.billingCycle.findFirst({
+            where: {
+                companyId: plan.companyId,
+                billingPlanId: plan.id,
+                status: { in: ['active', 'renewed'] },
+                endsAt: { gt: now },
+            },
+            orderBy: { endsAt: 'desc' },
+            select: {
+                id: true,
+                status: true,
+                startsAt: true,
+                endsAt: true,
+                companyId: true,
+                billingPlanId: true,
+            },
+        });
+        if (liveCycle?.status === 'renewed') {
+            throw new domain_exceptions_1.InvalidStateException('This billing cycle is already marked for renewal.');
+        }
+        if (liveCycle?.status === 'active') {
+            const updated = await this.prisma.billingCycle.update({
+                where: { id: liveCycle.id },
+                data: { status: 'renewed' },
+                select: {
+                    id: true,
+                    companyId: true,
+                    billingPlanId: true,
+                    startsAt: true,
+                    endsAt: true,
+                    status: true,
+                    rateSnapshot: true,
+                    createdAt: true,
+                    updatedAt: true,
+                },
+            });
+            void this.billingAudit.fromUser(user, {
+                action: billing_audit_service_1.BILLING_AUDIT_ACTIONS.PLAN_RENEWED,
+                resourceType: 'billing_cycle',
+                resourceId: liveCycle.id,
+                companyId: plan.companyId,
+                previousState: { status: 'active' },
+                newState: { status: 'renewed', mode: 'deferred' },
+            });
+            return {
+                mode: 'deferred',
+                plan,
+                cycle: updated,
+            };
+        }
+        const previousCycle = await this.prisma.billingCycle.findFirst({
+            where: { companyId: plan.companyId, billingPlanId: plan.id },
+            orderBy: { endsAt: 'desc' },
+            select: { id: true },
+        });
+        const result = await this.prisma.$transaction(async (tx) => {
+            const updatedPlan = await tx.billingPlan.update({
+                where: { id: plan.id },
+                data: { active: true },
+                select: PLAN_SELECT,
+            });
+            const startsAt = now;
+            const endsAt = new Date(startsAt);
+            endsAt.setUTCDate(endsAt.getUTCDate() + updatedPlan.cycleLengthDays);
+            const nextCycle = await tx.billingCycle.create({
+                data: {
+                    companyId: plan.companyId,
+                    billingPlanId: plan.id,
+                    startsAt,
+                    endsAt,
+                    status: 'active',
+                    rateSnapshot: (0, billing_rate_snapshot_util_1.buildRateSnapshotFromPlan)(updatedPlan),
+                },
+                select: {
+                    id: true,
+                    companyId: true,
+                    billingPlanId: true,
+                    startsAt: true,
+                    endsAt: true,
+                    status: true,
+                    rateSnapshot: true,
+                    createdAt: true,
+                    updatedAt: true,
+                },
+            });
+            await tx.company.update({
+                where: { id: plan.companyId },
+                data: { status: client_1.CompanyStatus.active },
+            });
+            return { plan: updatedPlan, cycle: nextCycle };
+        });
+        void this.billingAudit.fromUser(user, {
+            action: billing_audit_service_1.BILLING_AUDIT_ACTIONS.PLAN_RENEWED,
+            resourceType: 'billing_plan',
+            resourceId: plan.id,
+            companyId: plan.companyId,
+            previousState: { companyStatus: company.status, planActive: plan.active },
+            newState: {
+                mode: 'reactivated',
+                companyStatus: 'active',
+                cycleId: result.cycle.id,
+            },
+        });
+        void this.billingNotifications.notifyAccountRenewed({
+            companyId: plan.companyId,
+            companyName: company.name,
+            previousCycleId: previousCycle?.id ?? result.cycle.id,
+            nextCycleId: result.cycle.id,
+        });
+        void this.invoiceCalc.recalculateForCompany(plan.companyId, 'cycle_started');
+        this.realtime.emitBillingRestrictionChanged(plan.companyId, {
+            companyId: plan.companyId,
+            restricted: false,
+            status: 'active',
+        });
+        this.realtime.emitCompanyLifecycleChanged(plan.companyId, {
+            companyId: plan.companyId,
+            status: 'active',
+            action: 'billing_renewed',
+        });
+        this.realtime.emitPlanUpdated(plan.companyId, {
+            planId: plan.id,
+            companyId: plan.companyId,
+            active: true,
+            action: 'plan_renewed',
+        });
+        return {
+            mode: 'reactivated',
+            plan: result.plan,
+            cycle: result.cycle,
+        };
+    }
     async getCapacitySummary() {
         const [storage, totalWt, allocatedWt] = await Promise.all([
             this.usage.getSystemStorageSnapshot(),
@@ -255,6 +400,7 @@ exports.BillingPlansService = BillingPlansService = __decorate([
         billing_usage_service_1.BillingUsageService,
         billing_invoice_calculation_service_1.BillingInvoiceCalculationService,
         billing_audit_service_1.BillingAuditService,
+        billing_notifications_service_1.BillingNotificationsService,
         realtime_service_1.RealtimeService])
 ], BillingPlansService);
 function mapOverviewSqlRow(row) {

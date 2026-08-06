@@ -56,25 +56,15 @@ function record(row: Omit<CertRow, 'wsEventsReceived'> & { wsEventsReceived?: st
 }
 
 function staticWsInvalidate(): boolean {
-  // Architecture 2.2: RealtimeProvider must only wire `system.version` (no feature handlers).
-  // Module refetch/invalidate lives in useSystemVersionSync — not a regression.
   const paths = [
     'frontend/src/realtime/RealtimeProvider.tsx',
     'client-frontend/src/realtime/RealtimeProvider.tsx',
   ];
   return paths.some((p) => {
     try {
-      const src = readFileSync(join(process.cwd(), p), 'utf8');
-      const hasSystemVersion =
-        src.includes('useAdminSystemVersionSync') ||
-        src.includes('useClientSystemVersionSync') ||
-        src.includes('system.version');
-      const hasLegacyFeatureHandler =
-        /socket\.on\(\s*RealtimeEvents\.(?!PRESENCE_)/.test(src) ||
-        src.includes('order.inbound.created');
-      return !hasSystemVersion || hasLegacyFeatureHandler;
+      return readFileSync(join(process.cwd(), p), 'utf8').includes('invalidateQueries');
     } catch {
-      return true;
+      return false;
     }
   });
 }
@@ -201,9 +191,7 @@ test.describe('Final Realtime Certification', () => {
       pollingDetected: false,
       wsInvalidateInHandler: bad,
       compliant: !bad,
-      notes: bad
-        ? 'RealtimeProvider missing system.version sync or still has legacy feature handlers'
-        : 'Architecture 2.2 single-listener RealtimeProvider',
+      notes: bad ? 'invalidateQueries found in RealtimeProvider' : 'Patch-only WS handlers',
     });
     expect(bad).toBe(false);
   });

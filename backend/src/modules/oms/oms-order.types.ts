@@ -65,7 +65,7 @@ export function omsOrderDataFromExtras(
       extras.shippingFee != null ? new Prisma.Decimal(extras.shippingFee) : undefined,
     codAmount:
       extras.codAmount != null ? new Prisma.Decimal(extras.codAmount) : undefined,
-    currency: extras.currency ?? 'SYP',
+    currency: extras.currency ?? 'USD',
     codStatus: codPending,
   };
 }

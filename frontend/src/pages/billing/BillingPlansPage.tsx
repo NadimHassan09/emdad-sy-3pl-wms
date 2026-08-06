@@ -58,7 +58,7 @@ const INITIAL_FILTERS: ListFilters = {
   sort_dir: 'desc',
 };
 
-const CURRENCY = 'SYP';
+const CURRENCY = 'USD';
 
 function BillingLabel({
   text,
@@ -126,6 +126,24 @@ export function BillingPlansPage() {
       toast.success('Billing plan resumed. Subscription is active again.');
       void qc.invalidateQueries({ queryKey: QK.billing.plans });
       void qc.invalidateQueries({ queryKey: QK.billing.capacity });
+      void qc.invalidateQueries({ queryKey: QK.companies });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const renewMut = useMutation({
+    mutationFn: (planId: string) => BillingApi.renewPlan(planId),
+    onSuccess: (result) => {
+      toast.success(
+        result.mode === 'reactivated'
+          ? 'Billing plan renewed. Access restored and a new cycle started.'
+          : 'Billing cycle marked for renewal when it expires.',
+      );
+      void qc.invalidateQueries({ queryKey: QK.billing.plans });
+      void qc.invalidateQueries({ queryKey: QK.billing.cycles });
+      void qc.invalidateQueries({ queryKey: QK.billing.capacity });
+      void qc.invalidateQueries({ queryKey: QK.billing.suspendedAccounts });
+      void qc.invalidateQueries({ queryKey: QK.billing.overdueClients });
       void qc.invalidateQueries({ queryKey: QK.companies });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -275,6 +293,33 @@ export function BillingPlansPage() {
                 }}
               >
                 Edit
+              </button>
+            ) : null}
+            {canMutate &&
+            (r.billingStatus === 'restricted' ||
+              r.cycleStatus === 'active' ||
+              r.cycleStatus === 'expired' ||
+              r.cycleStatus === 'none') ? (
+              <button
+                type="button"
+                className="block w-full px-3 py-2 text-left text-sm text-status-success-fg hover:bg-status-success-bg"
+                disabled={renewMut.isPending}
+                onClick={() => {
+                  const restricted = r.billingStatus === 'restricted' || r.cycleStatus !== 'active';
+                  if (
+                    !window.confirm(
+                      restricted
+                        ? `Renew billing plan for ${r.companyName}? This restores access and starts a new billing cycle.`
+                        : `Mark billing cycle for ${r.companyName} for renewal when it expires?`,
+                    )
+                  ) {
+                    return;
+                  }
+                  setOpenActionId(null);
+                  renewMut.mutate(r.plan.id);
+                }}
+              >
+                Renew
               </button>
             ) : null}
             {canMutate && r.plan.active ? (

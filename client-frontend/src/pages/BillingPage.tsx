@@ -25,7 +25,7 @@ import { fetchClientReturns } from '../services/clientReturnsService';
 import { fetchStockPage } from '../services/stockService';
 
 const SALES_EMAIL = 'sales@emdadsy.com';
-const CURRENCY = 'SYP';
+const CURRENCY = 'USD';
 
 const INCLUDED_FEATURES = ['OMS', 'WMS'] as const;
 

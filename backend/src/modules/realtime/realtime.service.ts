@@ -598,13 +598,11 @@ export class RealtimeService {
   }
 
   emitPresenceOnline(presence: Record<string, unknown>): void {
-    this.notify('PresenceOnline');
-    // Presence is live UI state (not Module Versions sync) — always emit.
+    // Live UI indicator only — do not bump Module Versions (avoids sync storms).
     this.emitToRoomRaw(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.PRESENCE_ONLINE, { presence });
   }
 
   emitPresenceOffline(presence: Record<string, unknown>): void {
-    this.notify('PresenceOffline');
     this.emitToRoomRaw(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.PRESENCE_OFFLINE, { presence });
   }
 

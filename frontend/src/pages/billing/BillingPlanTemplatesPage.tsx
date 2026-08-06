@@ -20,7 +20,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { formatDecimal } from '../../lib/billing-plan-overview';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../../lib/modal-button-styles';
 
-const CURRENCY = 'SYP';
+const CURRENCY = 'USD';
 
 type TemplateForm = {
   name: string;

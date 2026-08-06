@@ -68,6 +68,9 @@ let BillingController = class BillingController {
     updatePlan(user, id, dto) {
         return this.plans.update(user, id, dto);
     }
+    renewPlan(user, id) {
+        return this.plans.renew(user, id);
+    }
     listCycles(user, companyId) {
         return this.cycles.list(user, companyId);
     }
@@ -202,6 +205,15 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, update_billing_plan_dto_1.UpdateBillingPlanDto]),
     __metadata("design:returntype", void 0)
 ], BillingController.prototype, "updatePlan", null);
+__decorate([
+    (0, common_1.Post)('plans/:id/renew'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], BillingController.prototype, "renewPlan", null);
 __decorate([
     (0, common_1.Get)('cycles'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

@@ -340,6 +340,7 @@ export type BillingOverdueClientRow = {
   status: string;
   lastCycleEndedAt: string | null;
   restrictedSince: string;
+  billingPlanId?: string | null;
 };
 
 export type BillingRecentInvoiceRow = {
@@ -357,6 +358,7 @@ export type BillingSuspendedAccountRow = {
   companyName: string;
   status: string;
   suspendedSince: string;
+  billingPlanId?: string | null;
 };
 
 export type BillingExpiringCycleRow = {
@@ -411,6 +413,19 @@ export const BillingApi = {
 
   async resumePlan(id: string): Promise<BillingPlanRow> {
     return BillingApi.updatePlan(id, { active: true });
+  },
+
+  async renewPlan(id: string): Promise<{
+    mode: 'deferred' | 'reactivated';
+    plan: BillingPlanRow;
+    cycle: BillingCycleRow;
+  }> {
+    const { data } = await api.post<{
+      mode: 'deferred' | 'reactivated';
+      plan: BillingPlanRow;
+      cycle: BillingCycleRow;
+    }>(`/billing/plans/${id}/renew`);
+    return data;
   },
 
   /**

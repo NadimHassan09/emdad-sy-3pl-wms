@@ -20,7 +20,7 @@ import { QK } from '../../constants/query-keys';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../../lib/modal-button-styles';
 import { Alert, AppPageHeader, Breadcrumb, Card, Skeleton } from '@ds';
 
-const CURRENCY = 'SYP';
+const CURRENCY = 'USD';
 const FORM_ID = 'billing-plan-edit-form';
 
 function numField(v: string): number {

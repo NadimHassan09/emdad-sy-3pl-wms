@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientAuthController = void 0;
 const common_1 = require("@nestjs/common");
+const throttler_1 = require("@nestjs/throttler");
 const public_decorator_1 = require("../../../common/auth/public.decorator");
 const client_user_decorator_1 = require("./client-user.decorator");
 const client_auth_service_1 = require("./client-auth.service");
@@ -41,6 +42,7 @@ let ClientAuthController = class ClientAuthController {
 exports.ClientAuthController = ClientAuthController;
 __decorate([
     (0, public_decorator_1.Public)(),
+    (0, throttler_1.SkipThrottle)(),
     (0, common_1.Post)('login'),
     (0, common_1.HttpCode)(200),
     __param(0, (0, common_1.Body)()),
