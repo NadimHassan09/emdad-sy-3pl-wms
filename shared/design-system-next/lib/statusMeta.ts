@@ -28,6 +28,7 @@ const KEY_TONE: Record<string, Tone> = {
   completed: 'success',
   cancelled: 'danger',
   shipped: 'info',
+  'externally fulfilled': 'violet',
   'in progress': 'warning',
   'partially received': 'orange',
   'pending approval': 'warning',
@@ -94,6 +95,7 @@ export function statusLabel(status: string, isArabic = false): string {
   const key = normalizeStatusKey(status);
   if (!isArabic) {
     if (key === 'ready to ship') return 'Ready for Shipping';
+    if (key === 'externally fulfilled') return 'Fulfilled outside warehouse';
     return key.replace(/\b\w/g, (c) => c.toUpperCase());
   }
   const ar: Record<string, string> = {
@@ -108,6 +110,7 @@ export function statusLabel(status: string, isArabic = false): string {
     packing: 'تغليف',
     completed: 'مكتمل',
     shipped: 'تم الشحن',
+    'externally fulfilled': 'مُنجز خارج المستودع',
     cancelled: 'ملغي',
     pending: 'قيد الانتظار',
     processing: 'قيد المعالجة',

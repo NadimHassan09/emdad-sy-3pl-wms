@@ -452,34 +452,6 @@ export class CodRecordsService {
         },
       });
 
-      const adjSum = cod.adjustments.reduce(
-        (s, a) => s.add(a.amount),
-        new Prisma.Decimal(0),
-      );
-      const current = cod.originalAmount.add(adjSum).add(signed);
-      if (current.lte(0) && cod.status !== CodRecordStatus.returned) {
-        await tx.codRecord.update({
-          where: { id: cod.id },
-          data: {
-            status: CodRecordStatus.returned,
-            availableAt: null,
-            paidOutAt: null,
-          },
-        });
-        await this.recordEvent(tx, {
-          omsOrderId: params.omsOrderId,
-          companyId: params.companyId,
-          eventType: 'cod.status_changed',
-          createdBy: params.user.id,
-          payload: {
-            from: cod.status,
-            to: CodRecordStatus.returned,
-            codRecordId: cod.id,
-            reason: 'return_balance_zero',
-          },
-        });
-      }
-
       return tx.codRecord.findUnique({ where: { id: cod.id }, include: INCLUDE });
     });
 
@@ -490,6 +462,10 @@ export class CodRecordsService {
         status: updated.status,
       });
     }
+
+    // After a return adjustment, sync COD only if OMS is already returned
+    // (or will be marked returned by maybeMarkOmsFullyReturned → markReturnedForOrder).
+    await this.syncReturnedStatusIfNeeded(params.omsOrderId, params.user);
 
     return serialize(updated!);
   }
@@ -513,15 +489,8 @@ export class CodRecordsService {
     });
     if (!cod || cod.status === CodRecordStatus.returned) return null;
 
-    const adjSum = cod.adjustments.reduce(
-      (s, a) => s.add(a.amount),
-      new Prisma.Decimal(0),
-    );
-    const current = cod.originalAmount.add(adjSum);
     const shouldReturn =
-      force ||
-      current.lte(0) ||
-      cod.omsOrder?.status === OmsOrderStatus.returned;
+      force || cod.omsOrder?.status === OmsOrderStatus.returned;
 
     if (!shouldReturn) return null;
 
@@ -544,7 +513,7 @@ export class CodRecordsService {
           from: cod.status,
           to: CodRecordStatus.returned,
           codRecordId: cod.id,
-          reason: force ? 'oms_order_returned' : 'return_balance_zero',
+          reason: force ? 'oms_order_returned' : 'oms_status_returned',
         },
       });
       return row;

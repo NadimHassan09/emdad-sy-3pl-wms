@@ -476,6 +476,12 @@ export const OmsApi = {
     return api.post<OmsOrderDetail>(`/oms/orders/${id}/out-for-delivery`).then((r) => r.data);
   },
 
+  recordExternalFulfillment(id: string) {
+    return api
+      .post<OmsOrderDetail>(`/oms/orders/${id}/external-fulfillment`)
+      .then((r) => r.data);
+  },
+
   delivered(id: string) {
     return api.post<OmsOrderDetail>(`/oms/orders/${id}/delivered`).then((r) => r.data);
   },

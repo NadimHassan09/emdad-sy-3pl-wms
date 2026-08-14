@@ -11,6 +11,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { outboundAllowsShippingDetailsSpawn } from '../oms/oms-warehouse-guards';
 import { readPickDraftPackingDestinationId } from './execution-state-location.util';
 import { defaultSlaMinutesForTaskType } from './task-sla-defaults';
 import type {
@@ -461,9 +462,12 @@ export class WorkflowOrchestrationService {
 
     const order = await tx.outboundOrder.findUnique({
       where: { id: orderId },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (!order) throw new BadRequestException('Outbound order missing for shipping_details spawn.');
+    if (!outboundAllowsShippingDetailsSpawn(order.status)) {
+      return;
+    }
 
     const seq = await this.nextNodeSequence(tx, instanceId);
     const node = await tx.workflowNode.create({

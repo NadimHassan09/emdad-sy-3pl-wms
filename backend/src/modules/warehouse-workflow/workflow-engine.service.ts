@@ -14,10 +14,12 @@ import {
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { InvalidStateException } from '../../common/errors/domain-exceptions';
+import { omsBlocksWarehouseExecution, outboundWarehouseClosed } from '../oms/oms-warehouse-guards';
 import { InboundReceivingPayload, OutboundPickPayload } from './workflow-payload.contracts';
 import { defaultSlaMinutesForTaskType } from './task-sla-defaults';
 import {
   findActiveWorkflowForReference,
+  findFinishedWorkflowForReference,
   isActiveWorkflowUniqueViolation,
   loadWorkflowBootstrapBundle,
   lockWorkflowReferenceOrder,
@@ -71,6 +73,17 @@ export class WorkflowEngineService {
     );
     if (existing) {
       return loadWorkflowBootstrapBundle(tx, existing.id);
+    }
+
+    const finishedInbound = await findFinishedWorkflowForReference(
+      tx,
+      WorkflowReferenceType.inbound_order,
+      orderId,
+    );
+    if (finishedInbound) {
+      throw new InvalidStateException(
+        'Cannot start a second inbound workflow: a completed workflow already exists for this inbound.',
+      );
     }
 
     const staging = stagingOverrides ?? {};
@@ -160,6 +173,11 @@ export class WorkflowEngineService {
     });
     if (!order) throw new NotFoundException('Outbound order not found.');
     this.companyAccess.validateResourceOwnership(user, order);
+    if (outboundWarehouseClosed(order.status)) {
+      throw new InvalidStateException(
+        `Cannot start warehouse workflow for outbound status ${order.status}.`,
+      );
+    }
     if (order.status !== 'picking' && order.status !== 'confirmed') {
       throw new InvalidStateException('Workflow requires confirmed / picking outbound order.');
     }
@@ -171,6 +189,27 @@ export class WorkflowEngineService {
     );
     if (existing) {
       return loadWorkflowBootstrapBundle(tx, existing.id);
+    }
+
+    const finished = await findFinishedWorkflowForReference(
+      tx,
+      WorkflowReferenceType.outbound_order,
+      orderId,
+    );
+    if (finished) {
+      throw new InvalidStateException(
+        'Cannot start a second warehouse workflow: a completed workflow already exists for this outbound.',
+      );
+    }
+
+    const linkedOms = await tx.omsOrder.findFirst({
+      where: { outboundOrderId: orderId },
+      select: { status: true },
+    });
+    if (linkedOms && omsBlocksWarehouseExecution(linkedOms.status)) {
+      throw new InvalidStateException(
+        `Cannot start warehouse workflow while OMS status is ${linkedOms.status}.`,
+      );
     }
 
     const pickPayload: OutboundPickPayload = {

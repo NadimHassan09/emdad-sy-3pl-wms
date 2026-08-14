@@ -162,6 +162,14 @@ export class OmsController {
     return this.orders.markOutForDelivery(id, user);
   }
 
+  @Post('orders/:id/external-fulfillment')
+  recordExternalFulfillment(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.orders.recordExternalFulfillment(id, user);
+  }
+
   @Post('orders/:id/delivered')
   delivered(
     @CurrentUser() user: AuthPrincipal,

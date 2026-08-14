@@ -251,7 +251,9 @@ export function AdminOutboundOrderSummary({ order }: Props) {
             ? 'Waiting for Shipping Details'
             : order.status === 'ready_to_ship'
               ? 'Waiting for Dispatch'
-              : null;
+              : order.status === 'externally_fulfilled'
+                ? 'Fulfilled outside warehouse'
+                : null;
 
   const openTasks = (timeline.data?.tasks ?? []).filter(
     (t) => t.status === 'pending' || t.status === 'assigned' || t.status === 'in_progress',

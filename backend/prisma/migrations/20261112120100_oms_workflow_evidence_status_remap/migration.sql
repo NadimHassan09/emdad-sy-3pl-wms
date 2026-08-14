@@ -57,17 +57,20 @@ WHERE o.outbound_order_id = oo.id
   AND o.status <> 'returned';
 
 -- Outbound prep complete (ready_to_ship), dispatch not done → ready_to_ship
+-- Do NOT pull OMS out_for_delivery / shipped into ready_to_ship (commercial regression).
 UPDATE oms_orders o
 SET status = 'ready_to_ship',
     updated_at = NOW()
 FROM outbound_orders oo
 WHERE o.outbound_order_id = oo.id
   AND oo.status = 'ready_to_ship'
-  AND o.status IN ('pending', 'processing', 'picking', 'packing', 'allocated', 'approved', 'confirmed', 'out_for_delivery')
+  AND o.status IN ('pending', 'processing', 'picking', 'packing', 'allocated', 'approved', 'confirmed')
   AND o.status <> 'shipped'
   AND o.status <> 'delivered';
 
 -- Outbound in warehouse prep (draft/allocated/picking/packing/confirmed/pending_*) → processing
+-- CRITICAL: do NOT include OMS out_for_delivery here (B7b commercial-only OFD + draft outbound).
+-- That bucket is handled by the externally_fulfilled canonicalization migration.
 UPDATE oms_orders o
 SET status = 'processing',
     updated_at = NOW()
@@ -79,5 +82,5 @@ WHERE o.outbound_order_id = oo.id
   )
   AND o.status IN (
     'pending', 'approved', 'confirmed', 'allocated', 'picking', 'packing',
-    'processing', 'out_for_delivery'
+    'processing'
   );

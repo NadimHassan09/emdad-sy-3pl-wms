@@ -142,6 +142,15 @@ export function OmsOrderDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const externalFulfillmentMut = useMutation({
+    mutationFn: () => OmsApi.recordExternalFulfillment(id),
+    onSuccess: () => {
+      toast.success('Recorded as fulfilled outside warehouse.');
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const confirmMut = useMutation({
     mutationFn: () => OmsApi.confirm(id),
     onSuccess: () => {
@@ -284,6 +293,12 @@ export function OmsOrderDetailPage() {
     commercial === 'confirmed_waiting_for_admin_approval' ||
     commercial === 'processing';
   const canMarkDelivered = commercial === 'shipped';
+  const canRecordExternalFulfillment =
+    commercial === 'processing' &&
+    !!outboundId &&
+    (order.linkedOutboundOrder?.status === 'draft' ||
+      order.linkedOutboundOrder?.status === 'allocated' ||
+      order.linkedOutboundOrder?.status === 'pending_approval');
   const canRevertDelivery = commercial === 'delivered';
   const canCancel =
     commercial === 'waiting_for_confirmation' ||
@@ -324,6 +339,24 @@ export function OmsOrderDetailPage() {
             {canApprove ? (
               <Button loading={approveMut.isPending} onClick={() => approveMut.mutate()}>
                 Approve
+              </Button>
+            ) : null}
+            {canRecordExternalFulfillment ? (
+              <Button
+                variant="secondary"
+                loading={externalFulfillmentMut.isPending}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      'Record this order as fulfilled outside the warehouse?\n\nNo picking, packing, carrier shipment, or inventory deduction will run.',
+                    )
+                  ) {
+                    return;
+                  }
+                  externalFulfillmentMut.mutate();
+                }}
+              >
+                Fulfilled outside warehouse
               </Button>
             ) : null}
             {canReject ? (

@@ -1123,6 +1123,91 @@ export class OmsOrdersService {
     });
   }
 
+  /**
+   * Record commercial fulfillment outside the warehouse.
+   * Same NEW path for future admins and for migrated B7b-style rows after normalization.
+   * Does not allocate, deduct, create tasks, or call carriers.
+   */
+  async recordExternalFulfillment(id: string, user: AuthPrincipal) {
+    const existing = await this.resolveOrder(id, user);
+
+    if (
+      existing.status === OmsOrderStatus.shipped &&
+      existing.outboundOrder?.status === OutboundOrderStatus.externally_fulfilled
+    ) {
+      return serializeOmsOrder(existing);
+    }
+
+    assertOmsTransition(existing.status, 'record_external_fulfillment', 'admin');
+
+    if (!existing.outboundOrderId) {
+      throw new InvalidStateException(
+        'External fulfillment requires a linked outbound order. Approve the order first.',
+      );
+    }
+
+    const updated = await withTenantRls(this.prisma, user, async (tx) => {
+      const outbound = await tx.outboundOrder.findUnique({
+        where: { id: existing.outboundOrderId! },
+        select: { id: true, status: true },
+      });
+      if (!outbound) {
+        throw new NotFoundException('Linked outbound order not found.');
+      }
+      if (
+        outbound.status !== OutboundOrderStatus.draft &&
+        outbound.status !== OutboundOrderStatus.allocated &&
+        outbound.status !== OutboundOrderStatus.pending_approval &&
+        outbound.status !== OutboundOrderStatus.externally_fulfilled
+      ) {
+        throw new InvalidStateException(
+          `External fulfillment is only allowed while outbound is draft/allocated (current: ${outbound.status}).`,
+        );
+      }
+
+      if (outbound.status !== OutboundOrderStatus.externally_fulfilled) {
+        await tx.outboundOrder.update({
+          where: { id: outbound.id },
+          data: { status: OutboundOrderStatus.externally_fulfilled },
+        });
+      }
+
+      const row = await tx.omsOrder.update({
+        where: { id },
+        data: {
+          status: OmsOrderStatus.shipped,
+          outForDeliveryAt: existing.outForDeliveryAt ?? new Date(),
+        },
+        include: ORDER_INCLUDE,
+      });
+
+      await this.events.record(tx, {
+        omsOrderId: id,
+        outboundOrderId: outbound.id,
+        companyId: row.companyId,
+        eventType: 'oms.externally_fulfilled',
+        createdBy: user.id,
+        payload: {
+          omsFrom: existing.status,
+          omsTo: OmsOrderStatus.shipped,
+          outboundFrom: outbound.status,
+          outboundTo: OutboundOrderStatus.externally_fulfilled,
+        },
+      });
+      return row;
+    });
+
+    this.emitOms('oms.externally_fulfilled', updated.companyId, updated.id, updated.status);
+    if (updated.outboundOrderId) {
+      this.realtime.emitOutboundOrderUpdated(updated.companyId, {
+        orderId: updated.outboundOrderId,
+        status: OutboundOrderStatus.externally_fulfilled,
+        reason: 'external_fulfillment',
+      });
+    }
+    return serializeOmsOrder(updated);
+  }
+
   async markDelivered(id: string, user: AuthPrincipal) {
     const existing = await this.resolveOrder(id, user);
 

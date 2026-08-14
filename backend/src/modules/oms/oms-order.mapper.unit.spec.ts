@@ -75,6 +75,10 @@ describe('mapOutboundStatusToOms', () => {
   it('maps cancelled outbound to cancelled', () => {
     expect(mapOutboundStatusToOms('cancelled')).toBe('cancelled');
   });
+
+  it('does not map externally_fulfilled to processing (commercial OMS owns shipped)', () => {
+    expect(mapOutboundStatusToOms('externally_fulfilled')).toBeNull();
+  });
 });
 
 describe('serializeOmsOrder', () => {

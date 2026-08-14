@@ -181,6 +181,9 @@ export function mapOutboundStatusToOms(status: string): OmsOrderStatus | null {
     case 'delivered':
       // Commercial delivered is controlled — do not auto-set from WMS.
       return null;
+    case 'externally_fulfilled':
+      // Commercial OMS owns shipped/delivered; warehouse-skip must not sync to processing.
+      return null;
     case 'cancelled':
       return 'cancelled';
     default:

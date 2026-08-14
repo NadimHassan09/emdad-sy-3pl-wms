@@ -207,6 +207,7 @@ export function OutboundListPage() {
       { value: 'waiting_for_shipping_details', label: t('Waiting for Shipping Details') },
       { value: 'ready_to_ship', label: t('Waiting for Dispatch') },
       { value: 'shipped', label: t('Shipped') },
+      { value: 'externally_fulfilled', label: t('Fulfilled outside warehouse') },
       { value: 'cancelled', label: t('Cancelled') },
     ],
     [isArabic],

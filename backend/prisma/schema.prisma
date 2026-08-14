@@ -305,6 +305,9 @@ enum OutboundOrderStatus {
   ready_to_ship
   out_for_delivery
   shipped
+  /// Warehouse will not run: commercial fulfillment recorded outside WMS.
+  /// Valid for new orders (recordExternalFulfillment) and historical commercial-only rows.
+  externally_fulfilled
   delivered
   returned
   cancelled

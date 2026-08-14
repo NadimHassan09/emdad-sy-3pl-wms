@@ -10,4 +10,8 @@ describe('outbound confirm lock (OMS allocated)', () => {
     expect(OUTBOUND_CONFIRMABLE).toContain(OutboundOrderStatus.allocated);
     expect(isOutboundConfirmable(OutboundOrderStatus.allocated)).toBe(true);
   });
+
+  it('does not treat externally_fulfilled as confirmable', () => {
+    expect(isOutboundConfirmable(OutboundOrderStatus.externally_fulfilled)).toBe(false);
+  });
 });

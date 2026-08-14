@@ -216,4 +216,50 @@ describe('ShippingService.ensureShipmentForOutbound', () => {
       }),
     );
   });
+
+  it('externally_fulfilled outbound: never calls carrier', async () => {
+    const { service, createShipment } = buildService({
+      order: {
+        id: 'out-1',
+        companyId: 'co-1',
+        status: 'externally_fulfilled',
+        shippingMethod: ShippingMethod.carrier,
+        shippingProviderCode: 'BABEL_EXPRESS',
+        trackingNumber: null,
+        omsOrder: {
+          id: 'oms-1',
+          orderNumber: 'OMS-1',
+          trackingNumber: null,
+          carrier: null,
+          status: 'shipped',
+        },
+        lines: [],
+      },
+    });
+    await service.ensureShipmentForOutbound('out-1');
+    expect(createShipment).not.toHaveBeenCalled();
+  });
+
+  it('OMS shipped + draft outbound: never calls carrier (B7b guard)', async () => {
+    const { service, createShipment } = buildService({
+      order: {
+        id: 'out-1',
+        companyId: 'co-1',
+        status: 'draft',
+        shippingMethod: ShippingMethod.carrier,
+        shippingProviderCode: 'BABEL_EXPRESS',
+        trackingNumber: null,
+        omsOrder: {
+          id: 'oms-1',
+          orderNumber: 'OMS-1',
+          trackingNumber: null,
+          carrier: null,
+          status: 'shipped',
+        },
+        lines: [],
+      },
+    });
+    await service.ensureShipmentForOutbound('out-1');
+    expect(createShipment).not.toHaveBeenCalled();
+  });
 });

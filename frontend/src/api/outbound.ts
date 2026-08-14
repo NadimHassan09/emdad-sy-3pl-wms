@@ -22,6 +22,7 @@ export type OutboundOrderStatus =
   | 'ready_to_ship'
   | 'out_for_delivery'
   | 'shipped'
+  | 'externally_fulfilled'
   | 'delivered'
   | 'returned'
   | 'cancelled';

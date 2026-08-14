@@ -33,6 +33,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { setTenantRlsContext, withTenantRls } from '../../common/prisma/tenant-rls';
 import { LedgerIdempotencyService } from '../inventory/ledger-idempotency.service';
 import { StockHelpers } from '../inventory/stock.helpers';
+import { omsBlocksWarehouseExecution } from '../oms/oms-warehouse-guards';
 import {
   claimOutboundConfirmableOrder,
   finalizeOutboundShipped,
@@ -1724,6 +1725,17 @@ export class OutboundService {
         `Only draft or pending-approval orders can be confirmed (current: ${order.status}).`,
       );
     }
+
+    const linkedOms = await tx.omsOrder.findFirst({
+      where: { outboundOrderId: orderId },
+      select: { id: true, status: true, orderNumber: true },
+    });
+    if (linkedOms && omsBlocksWarehouseExecution(linkedOms.status)) {
+      throw new InvalidStateException(
+        `Cannot confirm outbound while linked OMS order ${linkedOms.orderNumber} is ${linkedOms.status}.`,
+      );
+    }
+
     if (order.lines.length === 0) {
       throw new BadRequestException('Cannot confirm an order with no lines.');
     }
