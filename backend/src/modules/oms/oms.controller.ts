@@ -1,13 +1,22 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
+import type { Response } from 'express';
+import { memoryStorage } from 'multer';
 
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
@@ -21,6 +30,7 @@ import {
   UpdateOmsOrderDto,
 } from './dto/oms-order.dto';
 import { OmsDashboardService } from './oms-dashboard.service';
+import { OmsOrdersCsvService } from './oms-orders-csv.service';
 import { OmsOrdersService } from './oms-orders.service';
 import { ListOmsOrdersQueryDto } from './dto/list-oms-orders-query.dto';
 import { OmsDashboardOrderSummaryQueryDto } from './dto/oms-dashboard-order-summary-query.dto';
@@ -30,6 +40,7 @@ export class OmsController {
   constructor(
     private readonly orders: OmsOrdersService,
     private readonly dashboard: OmsDashboardService,
+    private readonly csv: OmsOrdersCsvService,
   ) {}
 
   @Get('dashboard')
@@ -52,6 +63,70 @@ export class OmsController {
   @Get('orders')
   list(@CurrentUser() user: AuthPrincipal, @Query() query: ListOmsOrdersQueryDto) {
     return this.orders.list(user, query);
+  }
+
+  /** Filtered CSV export — same filters as GET /oms/orders (must be before :id). */
+  @Get('orders/export')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Header('Cache-Control', 'no-store')
+  async exportOrders(
+    @CurrentUser() user: AuthPrincipal,
+    @Query() query: ListOmsOrdersQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.csv.exportCsv(user, query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('X-Export-Row-Count', String(result.rowCount));
+    res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+    return result.body;
+  }
+
+  @Get('orders/import/template')
+  @Header('Cache-Control', 'no-store')
+  importTemplate(@Res({ passthrough: true }) res: Response) {
+    const result = this.csv.getImportTemplate();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    return result.body;
+  }
+
+  @Post('orders/import/validate')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  async validateImport(
+    @CurrentUser() user: AuthPrincipal,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('CSV file is required.');
+    }
+    const result = await this.csv.validateImport(user, file.buffer);
+    const { _validPayloads: _, ...publicResult } = result;
+    return publicResult;
+  }
+
+  @Post('orders/import')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  async importOrders(
+    @CurrentUser() user: AuthPrincipal,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('CSV file is required.');
+    }
+    return this.csv.executeImport(user, file.buffer);
   }
 
   @Post('orders')

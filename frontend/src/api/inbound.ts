@@ -77,6 +77,32 @@ export interface ConfirmInboundBody {
   stagingByLineId?: Record<string, string>;
 }
 
+export type InboundImportRowError = {
+  rowNumber: number;
+  externalReference: string | null;
+  reason: string;
+};
+
+export type InboundImportValidateResult = {
+  batchId: string;
+  totalRows: number;
+  orderCount: number;
+  validOrders: number;
+  invalidOrders: number;
+  duplicateInFile: number;
+  duplicateInDb: number;
+  errors: InboundImportRowError[];
+};
+
+export type InboundImportExecuteResult = {
+  batchId: string;
+  imported: number;
+  failed: number;
+  skippedDuplicates: number;
+  createdOrderNumbers: string[];
+  errors: InboundImportRowError[];
+};
+
 export const InboundApi = {
   async list(params: {
     warehouseId?: string;
@@ -93,6 +119,59 @@ export const InboundApi = {
     });
     return data;
   },
+
+  /** Downloads CSV for the current inbound list filters (server-side filtered). */
+  async exportDownload(params: {
+    warehouseId?: string;
+    companyId?: string;
+    orderSearch?: string;
+    status?: InboundOrderStatus;
+    createdFrom?: string;
+    createdTo?: string;
+  } = {}): Promise<void> {
+    const response = await api.get<Blob>('/inbound-orders/export', {
+      params,
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? `inbound-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+
+  async downloadImportTemplate(): Promise<void> {
+    const response = await api.get<Blob>('/inbound-orders/import/template', {
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'inbound-orders-import-template.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+
+  validateImport(file: File): Promise<InboundImportValidateResult> {
+    const body = new FormData();
+    body.append('file', file);
+    return api
+      .post<InboundImportValidateResult>('/inbound-orders/import/validate', body)
+      .then((r) => r.data);
+  },
+
+  importOrders(file: File): Promise<InboundImportExecuteResult> {
+    const body = new FormData();
+    body.append('file', file);
+    return api
+      .post<InboundImportExecuteResult>('/inbound-orders/import', body)
+      .then((r) => r.data);
+  },
+
   async get(id: string): Promise<InboundOrder> {
     const { data } = await api.get<InboundOrder>(`/inbound-orders/${id}`);
     return data;

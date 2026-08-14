@@ -219,7 +219,12 @@ export class OutboundService {
   async create(
     user: AuthPrincipal,
     dto: CreateOutboundOrderDto,
-    opts?: { pendingClientApproval?: boolean; oms?: OmsOrderCreateExtras },
+    opts?: {
+      pendingClientApproval?: boolean;
+      oms?: OmsOrderCreateExtras;
+      /** CSV import: create draft without soft-hold allocation. */
+      skipAllocation?: boolean;
+    },
   ) {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
     await this.billingAccess.assertOperationalBilling(companyId);
@@ -327,6 +332,7 @@ export class OutboundService {
         carrier: dto.carrier,
         clientReference: dto.clientReference,
         notes: dto.notes,
+        externalReference: dto.externalReference,
         requiresPacking: dto.requiresPacking !== false,
         executionMode,
         executionPlan,
@@ -410,6 +416,7 @@ export class OutboundService {
 
     if (
       this.orderAllocation?.isEnabled() &&
+      !opts?.skipAllocation &&
       opts?.oms?.allocateAfterCreate !== false
     ) {
       const planWarehouse =
@@ -527,6 +534,55 @@ export class OutboundService {
   }
 
   async list(user: AuthPrincipal, query: ListOutboundQueryDto & { statusIn?: OutboundOrderStatus[] }) {
+    const where = await this.buildListWhere(user, query);
+
+    const listInclude = {
+      company: { select: { id: true, name: true, logoPath: true } },
+      _count: { select: { lines: true } },
+      ...(query.quickDirectedOnly
+        ? {
+            lines: {
+              take: 1,
+              orderBy: { lineNumber: 'asc' as const },
+              include: {
+                product: { select: { id: true, sku: true, name: true, barcode: true } },
+              },
+            },
+          }
+        : {}),
+    } satisfies Prisma.OutboundOrderInclude;
+
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const [items, total] = await Promise.all([
+        tx.outboundOrder.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          include: listInclude,
+          take: query.limit,
+          skip: query.offset,
+        }),
+        tx.outboundOrder.count({ where }),
+      ]);
+      return {
+        items: items.map((o) => ({
+          ...o,
+          company: {
+            id: o.company.id,
+            name: o.company.name,
+            logoUrl: toAvatarPublicUrl(o.company.logoPath),
+          },
+        })),
+        total,
+        limit: query.limit,
+        offset: query.offset,
+      };
+    });
+  }
+
+  private async buildListWhere(
+    user: AuthPrincipal,
+    query: ListOutboundQueryDto & { statusIn?: OutboundOrderStatus[] },
+  ): Promise<Prisma.OutboundOrderWhereInput> {
     const baseAnd: Prisma.OutboundOrderWhereInput[] = [];
     const where: Prisma.OutboundOrderWhereInput = {};
 
@@ -578,48 +634,142 @@ export class OutboundService {
     }
 
     if (baseAnd.length > 0) where.AND = baseAnd;
+    return where;
+  }
 
-    const listInclude = {
-      company: { select: { id: true, name: true, logoPath: true } },
-      _count: { select: { lines: true } },
-      ...(query.quickDirectedOnly
-        ? {
-            lines: {
-              take: 1,
-              orderBy: { lineNumber: 'asc' as const },
-              include: {
-                product: { select: { id: true, sku: true, name: true, barcode: true } },
-              },
-            },
-          }
-        : {}),
-    } satisfies Prisma.OutboundOrderInclude;
-
+  /** Same filters as list(), capped for CSV export (no pagination window). */
+  async listForExport(
+    user: AuthPrincipal,
+    query: ListOutboundQueryDto,
+    opts: { maxRows: number },
+  ) {
+    const where = await this.buildListWhere(user, query);
     return withTenantRls(this.prisma, user, async (tx) => {
-      const [items, total] = await Promise.all([
-        tx.outboundOrder.findMany({
-          where,
-          orderBy: { createdAt: 'desc' },
-          include: listInclude,
-          take: query.limit,
-          skip: query.offset,
-        }),
-        tx.outboundOrder.count({ where }),
-      ]);
-      return {
-        items: items.map((o) => ({
-          ...o,
-          company: {
-            id: o.company.id,
-            name: o.company.name,
-            logoUrl: toAvatarPublicUrl(o.company.logoPath),
+      const total = await tx.outboundOrder.count({ where });
+      const rows = await tx.outboundOrder.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          company: { select: { id: true, name: true } },
+          lines: {
+            select: { requestedQuantity: true },
           },
-        })),
+        },
+        take: opts.maxRows,
+      });
+      return {
+        items: rows,
         total,
-        limit: query.limit,
-        offset: query.offset,
+        truncated: total > rows.length,
       };
     });
+  }
+
+  resolveImportCompanyId(user: AuthPrincipal, companyId?: string): string {
+    return this.companyAccess.resolveWriteCompanyId(user, companyId);
+  }
+
+  async findByExternalReference(
+    user: AuthPrincipal,
+    companyId: string,
+    externalReference: string,
+  ) {
+    this.companyAccess.assertCompanyAccess(user, companyId);
+    return withTenantRls(this.prisma, user, async (tx) =>
+      tx.outboundOrder.findFirst({
+        where: {
+          companyId,
+          externalReference: { equals: externalReference, mode: 'insensitive' },
+        },
+        select: { id: true, orderNumber: true },
+      }),
+    );
+  }
+
+  async findProductsBySkus(companyId: string, skus: string[]) {
+    const upper = skus.map((s) => s.trim().toUpperCase()).filter(Boolean);
+    if (upper.length === 0) return [];
+    return this.prisma.product.findMany({
+      where: {
+        companyId,
+        OR: upper.map((sku) => ({ sku: { equals: sku, mode: 'insensitive' as const } })),
+      },
+      select: { id: true, sku: true, companyId: true, status: true, uom: true },
+    });
+  }
+
+  /**
+   * Reuse create-path business checks without writing (import validate phase).
+   */
+  async assertImportCreateReady(user: AuthPrincipal, dto: CreateOutboundOrderDto): Promise<void> {
+    const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
+    await this.billingAccess.assertOperationalBilling(companyId);
+    assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
+    const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: {
+        id: true,
+        companyId: true,
+        sku: true,
+        status: true,
+        uom: true,
+        weightKg: true,
+        volumeCbm: true,
+      },
+    });
+    if (products.length !== productIds.length) {
+      throw new NotFoundException('One or more products not found.');
+    }
+    const wrongCompany = products.find((p) => p.companyId !== companyId);
+    if (wrongCompany) {
+      throw new BadRequestException(
+        'All line products must belong to the same company as the order.',
+      );
+    }
+    for (const p of products) assertProductOrderableForOrders(p.status);
+    const productById = new Map(products.map((p) => [p.id, p]));
+    for (const l of dto.lines) {
+      const p = productById.get(l.productId)!;
+      assertDiscreteUomPositiveIntegerQuantity(p.uom, l.requestedQuantity, 'Requested quantity');
+    }
+    await this.assertSufficientStockForLines(companyId, dto.lines, products);
+    const shippingMethod = dto.shippingMethod ?? ShippingMethod.manual;
+    const weightByProductId = new Map(
+      products.map((p) => [p.id, p.weightKg?.toString() ?? null] as const),
+    );
+    const volumeByProductId = new Map(
+      products.map((p) => [p.id, p.volumeCbm?.toString() ?? null] as const),
+    );
+    const lineQty = dto.lines.map((l) => ({
+      productId: l.productId,
+      requestedQuantity: l.requestedQuantity,
+    }));
+    const shippingFields = {
+      shippingMethod,
+      shippingProviderCode: dto.shippingProviderCode,
+      shippingReceiverLat: dto.shippingReceiverLat,
+      shippingReceiverLng: dto.shippingReceiverLng,
+      shippingPackageType: dto.shippingPackageType,
+      shippingContents: dto.shippingContents,
+      shippingDeliveryType: dto.shippingDeliveryType,
+      shippingPickupType: dto.shippingPickupType,
+      shippingPayer: dto.shippingPayer,
+      shippingWeightKg: resolveShippingWeightKg({
+        method: shippingMethod,
+        explicit: dto.shippingWeightKg,
+        lines: lineQty,
+        weightByProductId,
+      }),
+      shippingVolumeCbm: resolveShippingVolumeCbm({
+        method: shippingMethod,
+        explicit: dto.shippingVolumeCbm,
+        lines: lineQty,
+        volumeByProductId,
+      }),
+      shippingPhoneCountry: dto.shippingPhoneCountry,
+    };
+    assertShippingIntentReady(shippingFields);
   }
 
   async findById(id: string, user: AuthPrincipal) {

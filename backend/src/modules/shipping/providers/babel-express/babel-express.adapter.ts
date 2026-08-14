@@ -34,12 +34,17 @@ export class BabelExpressAdapter implements ShippingProvider {
       await this.http.post('getCities', credentials, {});
       return { ok: true, message: 'Babel Express connection OK.' };
     } catch (err) {
-      const message =
+      let message =
         err instanceof BabelApiError
           ? err.message
           : err instanceof Error
             ? err.message
             : 'Connection test failed.';
+      // Babel returns a bare "Unauthorized" for bad Basic Auth — make it actionable in Admin UI.
+      if (/^unauthorized$/i.test(message.trim())) {
+        message =
+          'Babel Express rejected these credentials. Use the reseller username and password from Babel Express (not your WMS login).';
+      }
       return { ok: false, message };
     }
   }

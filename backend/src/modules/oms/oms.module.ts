@@ -9,6 +9,7 @@ import { ShippingModule } from '../shipping/shipping.module';
 import { OmsController } from './oms.controller';
 import { OmsDashboardService } from './oms-dashboard.service';
 import { OmsOrderEventsService } from './oms-order-events.service';
+import { OmsOrdersCsvService } from './oms-orders-csv.service';
 import { OmsOrdersService } from './oms-orders.service';
 import { OmsOutboundSyncService } from './oms-outbound-sync.service';
 import { OmsSalesChannelService } from './sales-channels/oms-sales-channel.service';
@@ -30,6 +31,7 @@ import { OrderAllocationService } from './order-allocation.service';
     OmsOrderEventsService,
     OmsOutboundSyncService,
     OmsOrdersService,
+    OmsOrdersCsvService,
     OmsDashboardService,
     OmsSalesChannelService,
   ],

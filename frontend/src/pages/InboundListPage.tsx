@@ -15,6 +15,7 @@ import { CompanyNameCell } from '../components/CompanyNameCell';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
+import { InboundOrdersImportModal } from '../components/inbound/InboundOrdersImportModal';
 import { RowActionsMenu, type RowAction } from '../components/RowActionsMenu';
 import { StatusBadge } from '../components/StatusBadge';
 import { useToast } from '../components/ToastProvider';
@@ -42,6 +43,8 @@ function inboundLabel(label: string, isArabic: boolean): string {
   const ar: Record<string, string> = {
     'Inbound orders': 'طلبات الوارد',
     '+ New inbound': '+ وارد جديد',
+    Import: 'استيراد',
+    'Export CSV': 'تصدير CSV',
     'Search order # or client…': 'ابحث برقم الطلب أو العميل…',
     Client: 'العميل',
     'Created from': 'تاريخ الإنشاء من',
@@ -96,6 +99,8 @@ export function InboundListPage() {
   const isAdmin = canAccessInternalTransfer(user?.role);
   const [toCancel, setToCancel] = useState<InboundOrder | null>(null);
   const [toDelete, setToDelete] = useState<InboundOrder | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const isArabic =
     typeof window !== 'undefined' &&
     (window.localStorage.getItem('wms-ui-language') === 'AR' ||
@@ -300,15 +305,48 @@ export function InboundListPage() {
     />
   );
 
+  const onExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await InboundApi.exportDownload(listParams);
+      toast.success(
+        isArabic ? 'تم تنزيل ملف CSV للطلبات المفلترة.' : 'Exported filtered inbound orders to CSV.',
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Export failed.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const newButton = (
-    <Button
-      variant="primary"
-      size="md"
-      onClick={openCreate}
-      className={FILTER_PRIMARY_BUTTON_CLASS}
-    >
-      {t('+ New inbound')}
-    </Button>
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <Button
+        variant="secondary"
+        size="md"
+        onClick={() => setImportOpen(true)}
+      >
+        {t('Import')}
+      </Button>
+      <Button
+        variant="secondary"
+        size="md"
+        loading={exporting}
+        disabled={exporting}
+        onClick={() => void onExport()}
+      >
+        {t('Export CSV')}
+      </Button>
+      <Button
+        variant="primary"
+        size="md"
+        onClick={openCreate}
+        className={FILTER_PRIMARY_BUTTON_CLASS}
+      >
+        {t('+ New inbound')}
+      </Button>
+    </div>
   );
 
   return (
@@ -427,6 +465,14 @@ export function InboundListPage() {
           {t('This permanently removes the order and its lines. This action cannot be undone.')}
         </p>
       </ConfirmModal>
+
+      <InboundOrdersImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          void qc.invalidateQueries({ queryKey: QK.inboundOrders });
+        }}
+      />
     </AdminListPageShell>
   );
 }

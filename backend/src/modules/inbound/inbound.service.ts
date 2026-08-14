@@ -271,7 +271,10 @@ export class InboundService {
     });
   }
 
-  async list(user: AuthPrincipal, query: ListInboundQueryDto & { statusIn?: InboundOrderStatus[] }) {
+  private async buildListWhere(
+    user: AuthPrincipal,
+    query: ListInboundQueryDto & { statusIn?: InboundOrderStatus[] },
+  ): Promise<Prisma.InboundOrderWhereInput> {
     const baseAnd: Prisma.InboundOrderWhereInput[] = [];
     const where: Prisma.InboundOrderWhereInput = {};
 
@@ -310,6 +313,101 @@ export class InboundService {
     }
 
     if (baseAnd.length > 0) where.AND = baseAnd;
+    return where;
+  }
+
+  /** Same filters as list(), capped for CSV export (no pagination window). */
+  async listForExport(
+    user: AuthPrincipal,
+    query: ListInboundQueryDto,
+    opts: { maxRows: number },
+  ) {
+    const where = await this.buildListWhere(user, query);
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const total = await tx.inboundOrder.count({ where });
+      const rows = await tx.inboundOrder.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          company: { select: { id: true, name: true } },
+          lines: {
+            select: { expectedQuantity: true },
+          },
+        },
+        take: opts.maxRows,
+      });
+      return {
+        items: rows,
+        total,
+        truncated: total > rows.length,
+      };
+    });
+  }
+
+  resolveImportCompanyId(user: AuthPrincipal, companyId?: string): string {
+    return this.companyAccess.resolveWriteCompanyId(user, companyId);
+  }
+
+  async findByExternalReference(
+    user: AuthPrincipal,
+    companyId: string,
+    externalReference: string,
+  ) {
+    this.companyAccess.assertCompanyAccess(user, companyId);
+    return withTenantRls(this.prisma, user, async (tx) =>
+      tx.inboundOrder.findFirst({
+        where: {
+          companyId,
+          externalReference: { equals: externalReference, mode: 'insensitive' },
+        },
+        select: { id: true, orderNumber: true },
+      }),
+    );
+  }
+
+  async findProductsBySkus(companyId: string, skus: string[]) {
+    const upper = skus.map((s) => s.trim().toUpperCase()).filter(Boolean);
+    if (upper.length === 0) return [];
+    return this.prisma.product.findMany({
+      where: {
+        companyId,
+        OR: upper.map((sku) => ({ sku: { equals: sku, mode: 'insensitive' as const } })),
+      },
+      select: { id: true, sku: true, companyId: true, status: true, uom: true },
+    });
+  }
+
+  /**
+   * Reuse create-path business checks without writing (import validate phase).
+   */
+  async assertImportCreateReady(user: AuthPrincipal, dto: CreateInboundOrderDto): Promise<void> {
+    const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
+    await this.billingAccess.assertOperationalBilling(companyId);
+    assertCalendarDateNotBeforeToday(dto.expectedArrivalDate, 'Expected arrival date');
+    const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, companyId: true, status: true, uom: true },
+    });
+    if (products.length !== productIds.length) {
+      throw new NotFoundException('One or more products not found.');
+    }
+    const wrongCompany = products.find((p) => p.companyId !== companyId);
+    if (wrongCompany) {
+      throw new BadRequestException(
+        'All line products must belong to the same company as the order.',
+      );
+    }
+    for (const p of products) assertProductOrderableForOrders(p.status);
+    const productById = new Map(products.map((p) => [p.id, p]));
+    for (const l of dto.lines) {
+      const p = productById.get(l.productId)!;
+      assertDiscreteUomPositiveIntegerQuantity(p.uom, l.expectedQuantity, 'Expected quantity');
+    }
+  }
+
+  async list(user: AuthPrincipal, query: ListInboundQueryDto & { statusIn?: InboundOrderStatus[] }) {
+    const where = await this.buildListWhere(user, query);
 
     return withTenantRls(this.prisma, user, async (tx) => {
       const [items, total] = await Promise.all([

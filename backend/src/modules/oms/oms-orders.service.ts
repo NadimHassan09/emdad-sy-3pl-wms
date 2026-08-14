@@ -100,7 +100,11 @@ export class OmsOrdersService {
     private readonly shipping: ShippingService,
   ) {}
 
-  async list(user: AuthPrincipal, query: ListOmsOrdersQueryDto) {
+  /** Shared list filter builder — export must use the exact same where clause. */
+  buildListWhere(
+    user: AuthPrincipal,
+    query: ListOmsOrdersQueryDto,
+  ): Prisma.OmsOrderWhereInput {
     const where: Prisma.OmsOrderWhereInput = {};
     const andParts: Prisma.OmsOrderWhereInput[] = [];
 
@@ -155,6 +159,8 @@ export class OmsOrdersService {
         { orderNumber: { contains: t, mode: 'insensitive' } },
         { recipientName: { contains: t, mode: 'insensitive' } },
         { recipientPhone: { contains: t, mode: 'insensitive' } },
+        { externalReference: { contains: t, mode: 'insensitive' } },
+        { clientReference: { contains: t, mode: 'insensitive' } },
       ];
       if (FULL_UUID.test(t)) orParts.push({ id: t });
       andParts.push({ OR: orParts });
@@ -168,6 +174,11 @@ export class OmsOrdersService {
     }
 
     if (andParts.length > 0) where.AND = andParts;
+    return where;
+  }
+
+  async list(user: AuthPrincipal, query: ListOmsOrdersQueryDto) {
+    const where = this.buildListWhere(user, query);
 
     return withTenantRls(this.prisma, user, async (tx) => {
       const [items, total] = await Promise.all([
@@ -189,14 +200,135 @@ export class OmsOrdersService {
     });
   }
 
+  /** Same filters as list(), capped for CSV export (no pagination window). */
+  async listForExport(
+    user: AuthPrincipal,
+    query: ListOmsOrdersQueryDto,
+    opts: { maxRows: number },
+  ) {
+    const where = this.buildListWhere(user, query);
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const total = await tx.omsOrder.count({ where });
+      const rows = await tx.omsOrder.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: ORDER_INCLUDE,
+        take: opts.maxRows,
+      });
+      return {
+        items: rows.map(serializeOmsOrder),
+        total,
+        truncated: total > rows.length,
+      };
+    });
+  }
+
+  resolveImportCompanyId(user: AuthPrincipal, companyId?: string): string {
+    return this.companyAccess.resolveWriteCompanyId(user, companyId);
+  }
+
+  async findExistingByExternalReference(
+    user: AuthPrincipal,
+    companyId: string,
+    externalReference: string,
+  ) {
+    this.companyAccess.assertCompanyAccess(user, companyId);
+    return withTenantRls(this.prisma, user, async (tx) =>
+      tx.omsOrder.findFirst({
+        where: {
+          companyId,
+          externalReference: { equals: externalReference, mode: 'insensitive' },
+        },
+        select: { id: true, orderNumber: true },
+      }),
+    );
+  }
+
+  async findProductsBySkus(companyId: string, skus: string[]) {
+    const upper = skus.map((s) => s.trim().toUpperCase()).filter(Boolean);
+    if (upper.length === 0) return [];
+    return this.prisma.product.findMany({
+      where: {
+        companyId,
+        OR: upper.map((sku) => ({ sku: { equals: sku, mode: 'insensitive' as const } })),
+      },
+      select: { id: true, sku: true, companyId: true, status: true, uom: true },
+    });
+  }
+
+  /**
+   * Reuse create-path business checks without writing (import validate phase).
+   * Throws the same BadRequest/NotFound as create would.
+   */
+  async assertImportCreateReady(user: AuthPrincipal, dto: CreateOmsOrderDto): Promise<void> {
+    const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
+    assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
+    const destination = composeDestinationAddress(dto);
+    if (!destination) {
+      throw new BadRequestException(
+        'Destination address is required (address line / city / destination).',
+      );
+    }
+    const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: {
+        id: true,
+        companyId: true,
+        status: true,
+        uom: true,
+        sku: true,
+        weightKg: true,
+        volumeCbm: true,
+      },
+    });
+    if (products.length !== productIds.length) {
+      throw new NotFoundException('One or more products not found.');
+    }
+    const wrongCompany = products.find((p) => p.companyId !== companyId);
+    if (wrongCompany) {
+      throw new BadRequestException(
+        'All line products must belong to the same company as the order.',
+      );
+    }
+    for (const p of products) assertProductOrderableForOrders(p.status);
+    const productById = new Map(products.map((p) => [p.id, p]));
+    for (const l of dto.lines) {
+      const p = productById.get(l.productId)!;
+      assertDiscreteUomPositiveIntegerQuantity(p.uom, l.requestedQuantity, 'Requested quantity');
+    }
+    const shippingMethod = dto.shippingMethod ?? ShippingMethod.manual;
+    const shippingFields = {
+      shippingMethod,
+      shippingProviderCode: dto.shippingProviderCode,
+      shippingReceiverLat: dto.shippingReceiverLat,
+      shippingReceiverLng: dto.shippingReceiverLng,
+      shippingPackageType: dto.shippingPackageType,
+      shippingContents: dto.shippingContents,
+      shippingDeliveryType: dto.shippingDeliveryType,
+      shippingPickupType: dto.shippingPickupType,
+      shippingPayer: dto.shippingPayer,
+      shippingWeightKg: dto.shippingWeightKg,
+      shippingVolumeCbm: dto.shippingVolumeCbm,
+      shippingPhoneCountry: dto.shippingPhoneCountry,
+    };
+    assertShippingIntentReady(shippingFields);
+    await this.assertSufficientStockForLines(companyId, dto.lines, products);
+  }
+
   async create(
     user: AuthPrincipal,
     dto: CreateOmsOrderDto,
-    opts?: { provisionOutbound?: boolean },
+    opts?: {
+      provisionOutbound?: boolean;
+      bulkImport?: { batchId: string; externalReference?: string };
+    },
   ) {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
     assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
-    const provisionOutbound = !!opts?.provisionOutbound && !dto.outboundOrderId;
+    const bulkImport = opts?.bulkImport;
+    const provisionOutbound =
+      !bulkImport && !!opts?.provisionOutbound && !dto.outboundOrderId;
 
     if (dto.outboundOrderId) {
       await this.assertOutboundLinkable(user, dto.outboundOrderId, companyId);
@@ -314,12 +446,28 @@ export class OmsOrdersService {
     // Backend-enforced create rules (not a frontend shortcut):
     // - Admin provisionOutbound → processing + outbound (exactly once, idempotent sync)
     // - Client / no provision → waiting_for_confirmation (no outbound)
+    // - Bulk CSV import → confirmed_waiting_for_admin_approval (no outbound; admin must approve)
     // - Explicit outbound link (legacy) → draft
     const initialStatus = dto.outboundOrderId
       ? OmsOrderStatus.draft
-      : provisionOutbound
-        ? OmsOrderStatus.processing
-        : OmsOrderStatus.waiting_for_confirmation;
+      : bulkImport
+        ? OmsOrderStatus.confirmed_waiting_for_admin_approval
+        : provisionOutbound
+          ? OmsOrderStatus.processing
+          : OmsOrderStatus.waiting_for_confirmation;
+
+    if (bulkImport && dto.externalReference?.trim()) {
+      const existing = await this.findExistingByExternalReference(
+        user,
+        companyId,
+        dto.externalReference.trim(),
+      );
+      if (existing) {
+        throw new BadRequestException(
+          `Order with external_reference "${dto.externalReference.trim()}" already exists (${existing.orderNumber}).`,
+        );
+      }
+    }
 
     const order = await withTenantRls(this.prisma, user, async (tx) => {
       const created = await tx.omsOrder.create({
@@ -351,12 +499,17 @@ export class OmsOrdersService {
           ...shippingPrismaData(shippingFields),
           submittedAt:
             initialStatus === OmsOrderStatus.waiting_for_confirmation ||
-            initialStatus === OmsOrderStatus.processing
+            initialStatus === OmsOrderStatus.processing ||
+            initialStatus === OmsOrderStatus.confirmed_waiting_for_admin_approval
+              ? now
+              : undefined,
+          confirmedAt:
+            provisionOutbound ||
+            initialStatus === OmsOrderStatus.confirmed_waiting_for_admin_approval
               ? now
               : undefined,
           approvedAt: provisionOutbound ? now : undefined,
           approvedBy: provisionOutbound ? user.id : undefined,
-          confirmedAt: provisionOutbound ? now : undefined,
           createdBy: user.id,
           lines: {
             create: linesWithTotals.map((l, idx) => ({
@@ -384,6 +537,8 @@ export class OmsOrdersService {
           linkedOutbound: !!created.outboundOrderId,
           status: created.status,
           provisionOutbound,
+          bulkImport: !!bulkImport,
+          importBatchId: bulkImport?.batchId,
         },
       });
 
@@ -393,6 +548,20 @@ export class OmsOrdersService {
           companyId: created.companyId,
           eventType: 'order.waiting_for_confirmation',
           createdBy: user.id,
+        });
+      }
+
+      if (bulkImport) {
+        await this.events.record(tx, {
+          omsOrderId: created.id,
+          companyId: created.companyId,
+          eventType: 'oms.bulk_imported',
+          createdBy: user.id,
+          payload: {
+            batchId: bulkImport.batchId,
+            externalReference: bulkImport.externalReference ?? dto.externalReference ?? null,
+            status: created.status,
+          },
         });
       }
 

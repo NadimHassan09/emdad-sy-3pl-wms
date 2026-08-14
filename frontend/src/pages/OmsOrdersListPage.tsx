@@ -7,6 +7,7 @@ import type { OmsOrderListItem, OmsOrderStatus } from '../api/oms';
 import { OmsApi } from '../api/oms';
 import { AdminListPageShell } from '../components/AdminListPageShell';
 import { OmsOrderFormModal } from '../components/oms/OmsOrderFormModal';
+import { OmsOrdersImportModal } from '../components/oms/OmsOrdersImportModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
@@ -37,6 +38,8 @@ export function OmsOrdersListPage() {
 
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const [deleteOrder, setDeleteOrder] = useState<OmsOrderListItem | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const editDetailQuery = useQuery({
     queryKey: [...QK.omsOrders, editOrderId],
@@ -81,6 +84,50 @@ export function OmsOrdersListPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const onExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await OmsApi.exportDownload(listParams);
+      toast.success(
+        isArabic ? 'تم تنزيل ملف CSV للطلبات المفلترة.' : 'Exported filtered OMS orders to CSV.',
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Export failed.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const navActions = (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <Button
+        variant="secondary"
+        size="md"
+        onClick={() => setImportOpen(true)}
+      >
+        {isArabic ? 'استيراد' : 'Import'}
+      </Button>
+      <Button
+        variant="secondary"
+        size="md"
+        loading={exporting}
+        disabled={exporting}
+        onClick={() => void onExport()}
+      >
+        {isArabic ? 'تصدير CSV' : 'Export CSV'}
+      </Button>
+      <Button
+        variant="primary"
+        size="md"
+        onClick={() => navigate('/orders/oms/new')}
+        className={FILTER_PRIMARY_BUTTON_CLASS}
+      >
+        {isArabic ? 'إنشاء طلب OMS' : 'Create OMS Order'}
+      </Button>
+    </div>
+  );
 
   const columns: Column<OmsOrderListItem>[] = [
     {
@@ -144,16 +191,7 @@ export function OmsOrdersListPage() {
       title="OMS Orders"
       subtitle="Manage ecommerce and OMS fulfillment orders."
       isArabic={isArabic}
-      actions={
-        <Button
-          variant="primary"
-          size="md"
-          onClick={() => navigate('/orders/oms/new')}
-          className={FILTER_PRIMARY_BUTTON_CLASS}
-        >
-          Create OMS Order
-        </Button>
-      }
+      navActions={navActions}
     >
       <Card padding="md" className="mb-4">
         <div className="flex max-w-3xl flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -211,6 +249,14 @@ export function OmsOrdersListPage() {
           }}
         />
       ) : null}
+
+      <OmsOrdersImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          void qc.invalidateQueries({ queryKey: QK.omsOrders });
+        }}
+      />
 
       <ConfirmModal
         open={!!deleteOrder}

@@ -29,6 +29,32 @@ export type OmsOrderStatus =
 export type CodRecordStatus = 'pending' | 'available' | 'paid_out' | 'returned';
 export type CodGenerationStatus = 'none' | 'pending' | 'ok' | 'failed';
 
+export type OmsImportRowError = {
+  rowNumber: number;
+  externalReference: string | null;
+  reason: string;
+};
+
+export type OmsImportValidateResult = {
+  batchId: string;
+  totalRows: number;
+  orderCount: number;
+  validOrders: number;
+  invalidOrders: number;
+  duplicateInFile: number;
+  duplicateInDb: number;
+  errors: OmsImportRowError[];
+};
+
+export type OmsImportExecuteResult = {
+  batchId: string;
+  imported: number;
+  failed: number;
+  skippedDuplicates: number;
+  createdOrderNumbers: string[];
+  errors: OmsImportRowError[];
+};
+
 export interface CodRecordAdjustment {
   id: string;
   amount: string;
@@ -423,6 +449,57 @@ export const OmsApi = {
     offset?: number;
   } = {}): Promise<PageResult<OmsOrderListItem>> {
     return api.get<PageResult<OmsOrderListItem>>('/oms/orders', { params }).then((r) => r.data);
+  },
+
+  /** Downloads CSV for the current OMS list filters (server-side filtered). */
+  async exportDownload(params: {
+    companyId?: string;
+    orderSearch?: string;
+    status?: OmsOrderStatus;
+    storeChannel?: string;
+    linkStatus?: 'linked' | 'unlinked';
+    createdFrom?: string;
+    createdTo?: string;
+  } = {}): Promise<void> {
+    const response = await api.get<Blob>('/oms/orders/export', {
+      params,
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? `oms-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+
+  async downloadImportTemplate(): Promise<void> {
+    const response = await api.get<Blob>('/oms/orders/import/template', {
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'oms-orders-import-template.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+
+  validateImport(file: File): Promise<OmsImportValidateResult> {
+    const body = new FormData();
+    body.append('file', file);
+    return api
+      .post<OmsImportValidateResult>('/oms/orders/import/validate', body)
+      .then((r) => r.data);
+  },
+
+  importOrders(file: File): Promise<OmsImportExecuteResult> {
+    const body = new FormData();
+    body.append('file', file);
+    return api.post<OmsImportExecuteResult>('/oms/orders/import', body).then((r) => r.data);
   },
 
   create(input: CreateOmsOrderInput) {

@@ -7,6 +7,7 @@ import { ShippingModule } from '../shipping/shipping.module';
 import { WarehouseWorkflowModule } from '../warehouse-workflow/warehouse-workflow.module';
 import { BillingModule } from '../billing/billing.module';
 import { OutboundController } from './outbound.controller';
+import { OutboundOrdersCsvService } from './outbound-orders-csv.service';
 import { OutboundService } from './outbound.service';
 
 @Module({
@@ -19,7 +20,7 @@ import { OutboundService } from './outbound.service';
     forwardRef(() => ShippingModule),
   ],
   controllers: [OutboundController],
-  providers: [OutboundService],
+  providers: [OutboundService, OutboundOrdersCsvService],
   exports: [OutboundService],
 })
 export class OutboundModule {}

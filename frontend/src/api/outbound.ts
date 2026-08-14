@@ -167,6 +167,32 @@ export interface QuickDirectedOutboundInput {
   reasonCode: QuickDirectedOutboundReasonCode;
 }
 
+export type OutboundImportRowError = {
+  rowNumber: number;
+  externalReference: string | null;
+  reason: string;
+};
+
+export type OutboundImportValidateResult = {
+  batchId: string;
+  totalRows: number;
+  orderCount: number;
+  validOrders: number;
+  invalidOrders: number;
+  duplicateInFile: number;
+  duplicateInDb: number;
+  errors: OutboundImportRowError[];
+};
+
+export type OutboundImportExecuteResult = {
+  batchId: string;
+  imported: number;
+  failed: number;
+  skippedDuplicates: number;
+  createdOrderNumbers: string[];
+  errors: OutboundImportRowError[];
+};
+
 export const OutboundApi = {
   async list(params: {
     warehouseId?: string;
@@ -184,6 +210,60 @@ export const OutboundApi = {
     });
     return data;
   },
+
+  /** Downloads CSV for the current outbound list filters (server-side filtered). */
+  async exportDownload(params: {
+    warehouseId?: string;
+    companyId?: string;
+    orderSearch?: string;
+    status?: OutboundOrderStatus;
+    createdFrom?: string;
+    createdTo?: string;
+    quickDirectedOnly?: boolean;
+  } = {}): Promise<void> {
+    const response = await api.get<Blob>('/outbound-orders/export', {
+      params,
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? `outbound-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+
+  async downloadImportTemplate(): Promise<void> {
+    const response = await api.get<Blob>('/outbound-orders/import/template', {
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'outbound-orders-import-template.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+
+  validateImport(file: File): Promise<OutboundImportValidateResult> {
+    const body = new FormData();
+    body.append('file', file);
+    return api
+      .post<OutboundImportValidateResult>('/outbound-orders/import/validate', body)
+      .then((r) => r.data);
+  },
+
+  importOrders(file: File): Promise<OutboundImportExecuteResult> {
+    const body = new FormData();
+    body.append('file', file);
+    return api
+      .post<OutboundImportExecuteResult>('/outbound-orders/import', body)
+      .then((r) => r.data);
+  },
+
   async get(id: string): Promise<OutboundOrder> {
     const { data } = await api.get<OutboundOrder>(`/outbound-orders/${id}`);
     return data;

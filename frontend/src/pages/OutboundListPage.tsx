@@ -11,6 +11,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
 import { RowActionsMenu, type RowAction } from '../components/RowActionsMenu';
+import { OutboundOrdersImportModal } from '../components/outbound/OutboundOrdersImportModal';
 import { BulkShippingProcessingModal } from '../components/shipping/BulkShippingProcessingModal';
 import { StatusBadge } from '../components/StatusBadge';
 import { useToast } from '../components/ToastProvider';
@@ -37,6 +38,8 @@ function outboundLabel(label: string, isArabic: boolean): string {
   const ar: Record<string, string> = {
     'Outbound orders': 'طلبات الصادر',
     '+ New outbound': '+ صادر جديد',
+    Import: 'استيراد',
+    'Export CSV': 'تصدير CSV',
     'Search order # or client…': 'ابحث برقم الطلب أو العميل…',
     Client: 'العميل',
     'Created from': 'تاريخ الإنشاء من',
@@ -102,6 +105,8 @@ export function OutboundListPage() {
   const [toDelete, setToDelete] = useState<OutboundOrder | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const isArabic =
     typeof window !== 'undefined' &&
     (window.localStorage.getItem('wms-ui-language') === 'AR' ||
@@ -342,6 +347,21 @@ export function OutboundListPage() {
     [isArabic, isAdmin, selectedIds, allPageEligibleSelected, pageEligibleIds],
   );
 
+  const onExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await OutboundApi.exportDownload(listParams);
+      toast.success(
+        isArabic ? 'تم تنزيل ملف CSV للطلبات المفلترة.' : 'Exported filtered outbound orders to CSV.',
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Export failed.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const newButton = (
     <div className="flex flex-wrap items-center gap-2">
       {isAdmin && (
@@ -360,6 +380,22 @@ export function OutboundListPage() {
           {selectedEligibleIds.length > 0 ? ` (${selectedEligibleIds.length})` : ''}
         </DsButton>
       )}
+      <DsButton
+        variant="secondary"
+        size="md"
+        onClick={() => setImportOpen(true)}
+      >
+        {t('Import')}
+      </DsButton>
+      <DsButton
+        variant="secondary"
+        size="md"
+        loading={exporting}
+        disabled={exporting}
+        onClick={() => void onExport()}
+      >
+        {t('Export CSV')}
+      </DsButton>
       <DsButton
         variant="primary"
         size="md"
@@ -508,6 +544,14 @@ export function OutboundListPage() {
           }}
         />
       )}
+
+      <OutboundOrdersImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          void qc.invalidateQueries({ queryKey: QK.outboundOrders });
+        }}
+      />
     </AdminListPageShell>
   );
 }

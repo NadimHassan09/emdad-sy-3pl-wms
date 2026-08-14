@@ -52,6 +52,10 @@ export class CreateOutboundOrderDto extends ShippingConfigDto {
   @IsString()
   notes?: string;
 
+  @IsOptional()
+  @IsString()
+  externalReference?: string;
+
   /** When false, pick drops to delivery area and dispatch follows pick (no pack task). */
   @IsOptional()
   @IsBoolean()
