@@ -33,6 +33,7 @@ const feature_flags_1 = require("../warehouse-workflow/feature-flags");
 const execution_plan_util_1 = require("../orders/execution-plan.util");
 const workflow_bootstrap_service_1 = require("../warehouse-workflow/workflow-bootstrap.service");
 const warehouse_tasks_service_1 = require("../warehouse-workflow/warehouse-tasks.service");
+const workflow_orchestration_service_1 = require("../warehouse-workflow/workflow-orchestration.service");
 const notifications_service_1 = require("../notifications/notifications.service");
 const realtime_service_1 = require("../realtime/realtime.service");
 const billing_access_service_1 = require("../billing/billing-access.service");
@@ -43,7 +44,12 @@ const oms_orders_service_1 = require("../oms/oms-orders.service");
 const oms_outbound_sync_service_1 = require("../oms/oms-outbound-sync.service");
 const order_allocation_service_1 = require("../oms/order-allocation.service");
 const oms_order_types_1 = require("../oms/oms-order.types");
+const shipping_config_util_1 = require("../shipping/shipping-config.util");
+const shipping_service_1 = require("../shipping/shipping.service");
+const avatar_url_1 = require("../media/avatar-url");
 const quick_directed_outbound_helper_1 = require("./quick-directed-outbound.helper");
+const outbound_admin_stages_1 = require("./outbound-admin-stages");
+const outbound_admin_task_helpers_1 = require("./outbound-admin-task.helpers");
 const task_allocation_helper_1 = require("../warehouse-workflow/task-allocation.helper");
 const quick_directed_outbound_constants_1 = require("./quick-directed-outbound.constants");
 const ORDER_INCLUDE = {
@@ -61,6 +67,8 @@ const ORDER_INCLUDE = {
                     trackingType: true,
                     uom: true,
                     imagePath: true,
+                    weightKg: true,
+                    volumeCbm: true,
                 },
             },
         },
@@ -73,6 +81,13 @@ const ORDER_INCLUDE = {
             location: { select: { id: true, fullPath: true, barcode: true } },
             lot: { select: { id: true, lotNumber: true } },
         },
+    },
+    carrierShipments: {
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+    },
+    omsOrder: {
+        select: { id: true, orderNumber: true },
     },
 };
 const FULL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -97,7 +112,9 @@ let OutboundService = class OutboundService {
     omsEvents;
     omsOrders;
     omsSync;
-    constructor(prisma, stock, ledger, config, workflowBootstrap, tasks, realtime, notifications, companyAccess, audit, billingAccess, billingInvoiceCalc, orderAllocation, omsEvents, omsOrders, omsSync) {
+    shipping;
+    orchestration;
+    constructor(prisma, stock, ledger, config, workflowBootstrap, tasks, realtime, notifications, companyAccess, audit, billingAccess, billingInvoiceCalc, orderAllocation, omsEvents, omsOrders, omsSync, shipping, orchestration) {
         this.prisma = prisma;
         this.stock = stock;
         this.ledger = ledger;
@@ -114,6 +131,8 @@ let OutboundService = class OutboundService {
         this.omsEvents = omsEvents;
         this.omsOrders = omsOrders;
         this.omsSync = omsSync;
+        this.shipping = shipping;
+        this.orchestration = orchestration;
     }
     async create(user, dto, opts) {
         const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
@@ -129,6 +148,8 @@ let OutboundService = class OutboundService {
                     name: true,
                     status: true,
                     uom: true,
+                    weightKg: true,
+                    volumeCbm: true,
                 },
             });
             if (products.length !== productIds.length) {
@@ -148,6 +169,40 @@ let OutboundService = class OutboundService {
                 (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(p.uom, l.requestedQuantity, 'Requested quantity');
             }
             await this.assertSufficientStockForLines(companyId, dto.lines, products);
+            const weightByProductId = new Map(products.map((p) => [p.id, p.weightKg?.toString() ?? null]));
+            const volumeByProductId = new Map(products.map((p) => [p.id, p.volumeCbm?.toString() ?? null]));
+            const shippingMethod = dto.shippingMethod ?? client_1.ShippingMethod.manual;
+            const lineQty = dto.lines.map((l) => ({
+                productId: l.productId,
+                requestedQuantity: l.requestedQuantity,
+            }));
+            const shippingWeightKg = (0, shipping_config_util_1.resolveShippingWeightKg)({
+                method: shippingMethod,
+                explicit: dto.shippingWeightKg,
+                lines: lineQty,
+                weightByProductId,
+            });
+            const shippingVolumeCbm = (0, shipping_config_util_1.resolveShippingVolumeCbm)({
+                method: shippingMethod,
+                explicit: dto.shippingVolumeCbm,
+                lines: lineQty,
+                volumeByProductId,
+            });
+            const shippingFields = {
+                shippingMethod,
+                shippingProviderCode: dto.shippingProviderCode,
+                shippingReceiverLat: dto.shippingReceiverLat,
+                shippingReceiverLng: dto.shippingReceiverLng,
+                shippingPackageType: dto.shippingPackageType,
+                shippingContents: dto.shippingContents,
+                shippingDeliveryType: dto.shippingDeliveryType,
+                shippingPickupType: dto.shippingPickupType,
+                shippingPayer: dto.shippingPayer,
+                shippingWeightKg,
+                shippingVolumeCbm,
+                shippingPhoneCountry: dto.shippingPhoneCountry,
+            };
+            (0, shipping_config_util_1.assertShippingIntentReady)(shippingFields);
             const clientSubmission = !!opts?.pendingClientApproval;
             const executionMode = clientSubmission
                 ? 'admin'
@@ -182,6 +237,7 @@ let OutboundService = class OutboundService {
                     executionPlan,
                     createdBy: user.id,
                     ...(0, oms_order_types_1.omsOrderDataFromExtras)(opts?.oms),
+                    ...(0, shipping_config_util_1.shippingPrismaData)(shippingFields),
                     lines: {
                         create: dto.lines.map((l, idx) => {
                             const extras = opts?.oms?.lineExtras?.[idx];
@@ -364,6 +420,7 @@ let OutboundService = class OutboundService {
             const t = query.orderSearch.trim();
             const orParts = [
                 { orderNumber: { contains: t, mode: 'insensitive' } },
+                { company: { name: { contains: t, mode: 'insensitive' } } },
             ];
             if (FULL_UUID.test(t))
                 orParts.push({ id: t });
@@ -399,7 +456,7 @@ let OutboundService = class OutboundService {
         if (baseAnd.length > 0)
             where.AND = baseAnd;
         const listInclude = {
-            company: { select: { id: true, name: true } },
+            company: { select: { id: true, name: true, logoPath: true } },
             _count: { select: { lines: true } },
             ...(query.quickDirectedOnly
                 ? {
@@ -424,7 +481,19 @@ let OutboundService = class OutboundService {
                 }),
                 tx.outboundOrder.count({ where }),
             ]);
-            return { items, total, limit: query.limit, offset: query.offset };
+            return {
+                items: items.map((o) => ({
+                    ...o,
+                    company: {
+                        id: o.company.id,
+                        name: o.company.name,
+                        logoUrl: (0, avatar_url_1.toAvatarPublicUrl)(o.company.logoPath),
+                    },
+                })),
+                total,
+                limit: query.limit,
+                offset: query.offset,
+            };
         });
     }
     async findById(id, user) {
@@ -441,8 +510,100 @@ let OutboundService = class OutboundService {
     }
     async updatePlan(user, id, dto) {
         const order = await this.findById(id, user);
-        if (!(0, outbound_confirm_lock_util_1.isOutboundConfirmable)(order.status)) {
+        const shippingOnly = (0, shipping_config_util_1.hasShippingConfigPatch)(dto) &&
+            dto.executionMode === undefined &&
+            dto.executionPlan === undefined &&
+            dto.requiredShipDate === undefined &&
+            dto.notes === undefined &&
+            dto.destinationAddress === undefined &&
+            dto.requiresPacking === undefined;
+        if (!shippingOnly && !(0, outbound_confirm_lock_util_1.isOutboundConfirmable)(order.status)) {
             throw new domain_exceptions_1.InvalidStateException(`Plan can only be updated while draft (current: ${order.status}).`);
+        }
+        if ((0, shipping_config_util_1.hasShippingConfigPatch)(dto)) {
+            (0, shipping_config_util_1.assertShippingConfigUnlocked)(order.status);
+            if (order.omsOrder) {
+                throw new common_1.BadRequestException('Shipping for OMS-linked outbound orders is managed on the OMS order. Edit the OMS order instead.');
+            }
+        }
+        const weightByProductId = new Map(order.lines.map((l) => [l.productId, l.product?.weightKg?.toString() ?? null]));
+        const volumeByProductId = new Map(order.lines.map((l) => [
+            l.productId,
+            l.product?.volumeCbm?.toString() ??
+                null,
+        ]));
+        const nextMethod = dto.shippingMethod ?? order.shippingMethod;
+        const lineQty = order.lines.map((l) => ({
+            productId: l.productId,
+            requestedQuantity: l.requestedQuantity.toString(),
+        }));
+        const shippingWeightKg = (0, shipping_config_util_1.hasShippingConfigPatch)(dto)
+            ? (0, shipping_config_util_1.resolveShippingWeightKg)({
+                method: nextMethod,
+                explicit: dto.shippingWeightKg !== undefined
+                    ? dto.shippingWeightKg
+                    : order.shippingWeightKg?.toString(),
+                lines: lineQty,
+                weightByProductId,
+            })
+            : undefined;
+        const shippingVolumeCbm = (0, shipping_config_util_1.hasShippingConfigPatch)(dto)
+            ? (0, shipping_config_util_1.resolveShippingVolumeCbm)({
+                method: nextMethod,
+                explicit: dto.shippingVolumeCbm !== undefined
+                    ? dto.shippingVolumeCbm
+                    : order.shippingVolumeCbm?.toString(),
+                lines: lineQty,
+                volumeByProductId,
+            })
+            : undefined;
+        const shippingPatch = (0, shipping_config_util_1.hasShippingConfigPatch)(dto)
+            ? {
+                shippingMethod: dto.shippingMethod,
+                shippingProviderCode: dto.shippingProviderCode,
+                shippingReceiverLat: dto.shippingReceiverLat,
+                shippingReceiverLng: dto.shippingReceiverLng,
+                shippingPackageType: dto.shippingPackageType,
+                shippingContents: dto.shippingContents,
+                shippingDeliveryType: dto.shippingDeliveryType,
+                shippingPickupType: dto.shippingPickupType,
+                shippingPayer: dto.shippingPayer,
+                shippingWeightKg: dto.shippingWeightKg !== undefined
+                    ? dto.shippingWeightKg
+                    : shippingWeightKg !== undefined
+                        ? shippingWeightKg
+                        : undefined,
+                shippingVolumeCbm: dto.shippingVolumeCbm !== undefined
+                    ? dto.shippingVolumeCbm
+                    : shippingVolumeCbm !== undefined
+                        ? shippingVolumeCbm
+                        : undefined,
+                shippingPhoneCountry: dto.shippingPhoneCountry,
+            }
+            : null;
+        if (shippingPatch) {
+            (0, shipping_config_util_1.assertShippingIntentReady)({
+                shippingMethod: nextMethod,
+                shippingProviderCode: dto.shippingProviderCode !== undefined
+                    ? dto.shippingProviderCode
+                    : order.shippingProviderCode,
+            });
+        }
+        if (shippingOnly) {
+            return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+                const updated = await tx.outboundOrder.update({
+                    where: { id },
+                    data: (0, shipping_config_util_1.shippingPrismaData)(shippingPatch),
+                    include: ORDER_INCLUDE,
+                });
+                this.realtime.emitOutboundOrderUpdated(updated.companyId, {
+                    orderId: updated.id,
+                    status: updated.status,
+                    reason: 'shipping_config_updated',
+                    listItem: (0, realtime_client_payload_1.adminOutboundListItem)(updated),
+                });
+                return updated;
+            });
         }
         const executionMode = (0, execution_plan_util_1.normalizeExecutionMode)(dto.executionMode ?? order.executionMode);
         let executionPlan;
@@ -494,6 +655,7 @@ let OutboundService = class OutboundService {
                     ...(dto.requiredShipDate
                         ? { requiredShipDate: new Date(dto.requiredShipDate) }
                         : {}),
+                    ...(shippingPatch ? (0, shipping_config_util_1.shippingPrismaData)(shippingPatch) : {}),
                 },
                 include: ORDER_INCLUDE,
             });
@@ -528,141 +690,366 @@ let OutboundService = class OutboundService {
             return updated;
         });
     }
-    async executeAdmin(user, orderId) {
+    async approveAdmin(user, orderId) {
         const order = await this.findById(orderId, user);
         if ((0, execution_plan_util_1.normalizeExecutionMode)(order.executionMode) !== 'admin') {
-            throw new common_1.BadRequestException('execute-admin requires executionMode=admin.');
+            throw new common_1.BadRequestException('Approve requires executionMode=admin.');
         }
-        if (!(0, outbound_confirm_lock_util_1.isOutboundConfirmable)(order.status)) {
-            throw new common_1.BadRequestException(`Admin execute requires draft order (current: ${order.status}).`);
+        if (!(0, feature_flags_1.taskOnlyFlows)(this.config)) {
+            throw new common_1.BadRequestException('Admin Approve requires TASK_ONLY_FLOWS=true so approval cannot deduct inventory or ship.');
         }
         const plan = (0, execution_plan_util_1.parseOutboundExecutionPlan)(order.executionPlan);
+        const requiresPacking = (0, outbound_admin_stages_1.outboundRequiresPacking)({
+            requiresPacking: order.requiresPacking,
+            planRequiresPacking: plan?.requiresPacking,
+        });
+        (0, outbound_admin_stages_1.assertOutboundAdminStageAction)(order.status, 'approve', requiresPacking);
         if (!plan)
-            throw new common_1.BadRequestException('Admin execute requires a saved executionPlan.');
+            throw new common_1.BadRequestException('Approve requires a saved executionPlan.');
         (0, execution_plan_util_1.assertOutboundAdminPlanComplete)(plan);
-        const wrap = (step, err) => {
-            const msg = err instanceof Error ? err.message : String(err);
-            return new common_1.BadRequestException(`Admin execute failed at ${step}: ${msg}`);
-        };
-        try {
-            await this.confirmAndDeduct(user, orderId, { warehouseId: plan.warehouseId });
+        return this.confirmAndDeduct(user, orderId, { warehouseId: plan.warehouseId });
+    }
+    async completePickingAdmin(user, orderId) {
+        const order = await this.findById(orderId, user);
+        if ((0, execution_plan_util_1.normalizeExecutionMode)(order.executionMode) !== 'admin') {
+            throw new common_1.BadRequestException('complete-picking requires executionMode=admin.');
         }
-        catch (err) {
-            throw wrap('confirm', err);
-        }
-        const waitTask = async (taskType) => {
-            for (let i = 0; i < 8; i++) {
-                const t = await this.prisma.warehouseTask.findFirst({
-                    where: {
-                        taskType,
-                        status: {
-                            in: [
-                                client_1.WarehouseTaskStatus.pending,
-                                client_1.WarehouseTaskStatus.assigned,
-                                client_1.WarehouseTaskStatus.in_progress,
-                            ],
-                        },
-                        workflowInstance: { referenceType: 'outbound_order', referenceId: orderId },
-                    },
-                    orderBy: { createdAt: 'desc' },
-                });
-                if (t)
-                    return t;
-                await new Promise((r) => setTimeout(r, 50 * (i + 1)));
-            }
-            throw new common_1.BadRequestException(`Admin execute failed: expected open ${taskType} task was not created.`);
-        };
-        const pick = await waitTask(client_1.WarehouseTaskType.pick);
+        const plan = (0, execution_plan_util_1.parseOutboundExecutionPlan)(order.executionPlan);
+        const requiresPacking = (0, outbound_admin_stages_1.outboundRequiresPacking)({
+            requiresPacking: order.requiresPacking,
+            planRequiresPacking: plan?.requiresPacking,
+        });
+        (0, outbound_admin_stages_1.assertOutboundAdminStageAction)(order.status, 'complete_picking', requiresPacking);
+        const pick = await (0, outbound_admin_task_helpers_1.waitForOpenWarehouseTask)(this.prisma, 'outbound_order', orderId, client_1.WarehouseTaskType.pick);
         try {
             await this.tasks.start(pick.id, user);
         }
         catch (err) {
-            throw wrap('pick_start', err);
+            const msg = err instanceof Error ? err.message : String(err);
+            throw new common_1.BadRequestException(`Picking start failed: ${msg}`);
         }
         const pickDetail = await this.prisma.warehouseTask.findUnique({ where: { id: pick.id } });
         if (!pickDetail)
             throw new common_1.NotFoundException('Pick task missing after start.');
-        const exec = pickDetail.executionState &&
-            typeof pickDetail.executionState === 'object' &&
-            !Array.isArray(pickDetail.executionState)
-            ? pickDetail.executionState
-            : {};
-        const reservations = Array.isArray(exec.reservations) ? exec.reservations : [];
-        if (reservations.length === 0) {
-            throw new common_1.BadRequestException('Admin execute failed at pick: no FEFO reservations (stock may be insufficient).');
-        }
-        const pickGroups = new Map();
-        for (const raw of reservations) {
-            if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-                continue;
-            const row = raw;
-            const lineId = typeof row.outboundOrderLineId === 'string'
-                ? row.outboundOrderLineId
-                : typeof row.outbound_order_line_id === 'string'
-                    ? row.outbound_order_line_id
-                    : null;
-            const locationId = typeof row.locationId === 'string'
-                ? row.locationId
-                : typeof row.location_id === 'string'
-                    ? row.location_id
-                    : null;
-            const qty = row.quantity != null
-                ? String(row.quantity)
-                : row.qty != null
-                    ? String(row.qty)
-                    : null;
-            if (!lineId || !locationId || !qty)
-                continue;
-            const lotRaw = row.lotId ?? row.lot_id;
-            const lotId = lotRaw == null || lotRaw === '' ? null : String(lotRaw);
-            const g = pickGroups.get(lineId) ?? [];
-            g.push({ location_id: locationId, lot_id: lotId, quantity: qty });
-            pickGroups.set(lineId, g);
-        }
         try {
-            await this.tasks.complete(pick.id, user, {
-                task_type: 'pick',
-                picks: [...pickGroups.entries()].map(([outbound_order_line_id, lines]) => ({
-                    outbound_order_line_id,
-                    lines,
+            await this.tasks.complete(pick.id, user, (0, outbound_admin_task_helpers_1.buildAdminPickCompleteBody)(pickDetail.executionState));
+        }
+        catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            throw new common_1.BadRequestException(`Picking complete failed: ${msg}`);
+        }
+        const updated = await this.findById(orderId, user);
+        this.realtime.emitOutboundOrderUpdated(updated.companyId, {
+            orderId: updated.id,
+            status: updated.status,
+            reason: 'admin_complete_picking',
+            listItem: (0, realtime_client_payload_1.adminOutboundListItem)(updated),
+        });
+        return updated;
+    }
+    async completePackingAdmin(user, orderId) {
+        const order = await this.findById(orderId, user);
+        if ((0, execution_plan_util_1.normalizeExecutionMode)(order.executionMode) !== 'admin') {
+            throw new common_1.BadRequestException('complete-packing requires executionMode=admin.');
+        }
+        const plan = (0, execution_plan_util_1.parseOutboundExecutionPlan)(order.executionPlan);
+        const requiresPacking = (0, outbound_admin_stages_1.outboundRequiresPacking)({
+            requiresPacking: order.requiresPacking,
+            planRequiresPacking: plan?.requiresPacking,
+        });
+        (0, outbound_admin_stages_1.assertOutboundAdminStageAction)(order.status, 'complete_packing', requiresPacking);
+        const pack = await (0, outbound_admin_task_helpers_1.waitForOpenWarehouseTask)(this.prisma, 'outbound_order', orderId, client_1.WarehouseTaskType.pack);
+        try {
+            await this.tasks.adminConfirm(pack.id, user, {
+                task_type: 'pack',
+                lines: order.lines.map((l) => ({
+                    outbound_order_line_id: l.id,
+                    packed_qty: String(l.pickedQuantity ?? l.requestedQuantity),
                 })),
             });
         }
         catch (err) {
-            throw wrap('pick', err);
+            const msg = err instanceof Error ? err.message : String(err);
+            throw new common_1.BadRequestException(`Packing complete failed: ${msg}`);
         }
-        const requiresPacking = order.requiresPacking !== false && plan.requiresPacking !== false;
-        if (requiresPacking) {
-            const pack = await waitTask(client_1.WarehouseTaskType.pack);
-            const refreshed = await this.findById(orderId, user);
-            try {
-                await this.tasks.adminConfirm(pack.id, user, {
-                    task_type: 'pack',
-                    lines: refreshed.lines.map((l) => ({
-                        outbound_order_line_id: l.id,
-                        packed_qty: String(l.pickedQuantity ?? l.requestedQuantity),
-                    })),
+        const updated = await this.findById(orderId, user);
+        this.realtime.emitOutboundOrderUpdated(updated.companyId, {
+            orderId: updated.id,
+            status: updated.status,
+            reason: 'admin_complete_packing',
+            listItem: (0, realtime_client_payload_1.adminOutboundListItem)(updated),
+        });
+        return updated;
+    }
+    async saveShippingDetails(user, orderId, dto) {
+        const order = await this.findById(orderId, user);
+        if (order.status !== client_1.OutboundOrderStatus.waiting_for_shipping_details) {
+            throw new common_1.BadRequestException(`Shipping details can only be saved while waiting_for_shipping_details (current: ${order.status}).`);
+        }
+        const createdShipment = (order.carrierShipments ?? []).find((s) => s.status === client_1.CarrierShipmentStatus.created);
+        if (createdShipment) {
+            throw new common_1.BadRequestException('Shipping details are locked after the carrier shipment was sent. Complete the stage or contact support.');
+        }
+        const updated = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const lineQty = order.lines.map((l) => ({
+                productId: l.productId,
+                requestedQuantity: l.requestedQuantity.toString(),
+            }));
+            const weightByProductId = new Map(order.lines.map((l) => [l.productId, l.product?.weightKg?.toString() ?? null]));
+            const volumeByProductId = new Map(order.lines.map((l) => [
+                l.productId,
+                l.product?.volumeCbm?.toString() ??
+                    null,
+            ]));
+            const resolvedWeight = dto.shippingWeightKg !== undefined && dto.shippingWeightKg !== null
+                ? dto.shippingWeightKg
+                : order.shippingWeightKg != null
+                    ? Number(order.shippingWeightKg)
+                    : (0, shipping_config_util_1.calculateOrderWeight)(lineQty, weightByProductId);
+            const resolvedVolume = dto.shippingVolumeCbm !== undefined && dto.shippingVolumeCbm !== null
+                ? dto.shippingVolumeCbm
+                : order.shippingVolumeCbm !=
+                    null
+                    ? Number(order.shippingVolumeCbm)
+                    : (0, shipping_config_util_1.calculateOrderVolume)(lineQty, volumeByProductId);
+            const row = await tx.outboundOrder.update({
+                where: { id: orderId },
+                data: {
+                    ...(0, shipping_config_util_1.shippingPrismaData)({
+                        shippingReceiverLat: dto.shippingReceiverLat,
+                        shippingReceiverLng: dto.shippingReceiverLng,
+                        shippingPackageType: dto.shippingPackageType,
+                        shippingContents: dto.shippingContents,
+                        shippingDeliveryType: dto.shippingDeliveryType,
+                        shippingPickupType: dto.shippingPickupType,
+                        shippingPayer: dto.shippingPayer,
+                        shippingWeightKg: dto.shippingWeightKg !== undefined ? dto.shippingWeightKg : resolvedWeight,
+                        shippingVolumeCbm: dto.shippingVolumeCbm !== undefined ? dto.shippingVolumeCbm : resolvedVolume,
+                        shippingPhoneCountry: dto.shippingPhoneCountry,
+                    }),
+                    ...(dto.carrier !== undefined ? { carrier: dto.carrier } : {}),
+                    ...(dto.trackingNumber !== undefined ? { trackingNumber: dto.trackingNumber } : {}),
+                },
+                include: ORDER_INCLUDE,
+            });
+            if (this.omsEvents && row.omsOrder) {
+                await this.omsEvents.record(tx, {
+                    omsOrderId: row.omsOrder.id,
+                    outboundOrderId: row.id,
+                    companyId: row.companyId,
+                    eventType: 'shipping.details.saved',
+                    createdBy: user.id,
                 });
             }
-            catch (err) {
-                throw wrap('pack', err);
+            return row;
+        });
+        this.realtime.emitOutboundOrderUpdated(updated.companyId, {
+            orderId: updated.id,
+            status: updated.status,
+            reason: 'shipping_details_saved',
+            listItem: (0, realtime_client_payload_1.adminOutboundListItem)(updated),
+        });
+        return updated;
+    }
+    async sendShippingDetails(user, orderId) {
+        const order = await this.findById(orderId, user);
+        if (order.status !== client_1.OutboundOrderStatus.waiting_for_shipping_details) {
+            throw new common_1.BadRequestException(`Send Shipment is only available while waiting_for_shipping_details (current: ${order.status}).`);
+        }
+        if (order.shippingMethod !== client_1.ShippingMethod.carrier) {
+            throw new common_1.BadRequestException('Send Shipment is only for carrier shipping. Use Mark Shipping Details Complete for manual.');
+        }
+        if (!this.shipping) {
+            throw new common_1.BadRequestException('Shipping service is unavailable.');
+        }
+        (0, shipping_config_util_1.assertCarrierShippingReady)({
+            shippingMethod: order.shippingMethod,
+            shippingProviderCode: order.shippingProviderCode,
+            shippingReceiverLat: order.shippingReceiverLat?.toString() ?? null,
+            shippingReceiverLng: order.shippingReceiverLng?.toString() ?? null,
+            shippingPackageType: order.shippingPackageType,
+            shippingContents: order.shippingContents,
+            shippingDeliveryType: order.shippingDeliveryType,
+            shippingPickupType: order.shippingPickupType,
+            shippingPayer: order.shippingPayer,
+            shippingWeightKg: order.shippingWeightKg?.toString() ?? null,
+        });
+        await this.shipping.assertLiveCarrierSelection({
+            fields: {
+                shippingMethod: order.shippingMethod,
+                shippingProviderCode: order.shippingProviderCode,
+                shippingReceiverLat: order.shippingReceiverLat?.toString() ?? null,
+                shippingReceiverLng: order.shippingReceiverLng?.toString() ?? null,
+                shippingPackageType: order.shippingPackageType,
+                shippingDeliveryType: order.shippingDeliveryType,
+                shippingPickupType: order.shippingPickupType,
+                shippingWeightKg: order.shippingWeightKg?.toString() ?? null,
+                shippingVolumeCbm: order.shippingVolumeCbm?.toString() ?? null,
+            },
+            governorate: order.city,
+            city: order.district,
+            neighborhood: order.addressLine1,
+            requireQuote: true,
+        });
+        await this.shipping.ensureShipmentForOutbound(orderId);
+        const updated = await this.findById(orderId, user);
+        const latest = updated.carrierShipments?.[0];
+        if (latest?.status === client_1.CarrierShipmentStatus.failed) {
+            throw new common_1.BadRequestException(latest.lastErrorSafe?.trim() || 'Carrier shipment submission failed.');
+        }
+        if (latest?.status !== client_1.CarrierShipmentStatus.created) {
+            throw new common_1.BadRequestException('Carrier shipment was not created. Check provider connection and retry.');
+        }
+        this.realtime.emitOutboundOrderUpdated(updated.companyId, {
+            orderId: updated.id,
+            status: updated.status,
+            reason: 'shipping_shipment_sent',
+            listItem: (0, realtime_client_payload_1.adminOutboundListItem)(updated),
+        });
+        return updated;
+    }
+    async completeShippingDetailsAdmin(user, orderId) {
+        const order = await this.findById(orderId, user);
+        const plan = (0, execution_plan_util_1.parseOutboundExecutionPlan)(order.executionPlan);
+        const requiresPacking = (0, outbound_admin_stages_1.outboundRequiresPacking)({
+            requiresPacking: order.requiresPacking,
+            planRequiresPacking: plan?.requiresPacking,
+        });
+        (0, outbound_admin_stages_1.assertOutboundAdminStageAction)(order.status, 'complete_shipping_details', requiresPacking);
+        if (order.shippingMethod === client_1.ShippingMethod.carrier) {
+            const created = (order.carrierShipments ?? []).find((s) => s.status === client_1.CarrierShipmentStatus.created);
+            if (!created) {
+                throw new common_1.BadRequestException('Send Shipment successfully before marking Shipping Details as Complete.');
             }
         }
-        const dispatch = await waitTask(client_1.WarehouseTaskType.dispatch);
-        const finalOrder = await this.findById(orderId, user);
+        const updated = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const row = await tx.outboundOrder.update({
+                where: { id: orderId },
+                data: { status: client_1.OutboundOrderStatus.ready_to_ship },
+                include: ORDER_INCLUDE,
+            });
+            await this.omsSync?.syncFromOutbound(tx, orderId, user.id);
+            const openTask = await tx.warehouseTask.findFirst({
+                where: {
+                    taskType: client_1.WarehouseTaskType.shipping_details,
+                    status: {
+                        in: [
+                            client_1.WarehouseTaskStatus.pending,
+                            client_1.WarehouseTaskStatus.assigned,
+                            client_1.WarehouseTaskStatus.in_progress,
+                        ],
+                    },
+                    workflowInstance: {
+                        referenceType: 'outbound_order',
+                        referenceId: orderId,
+                    },
+                },
+                orderBy: { createdAt: 'desc' },
+            });
+            if (openTask) {
+                await tx.warehouseTask.update({
+                    where: { id: openTask.id },
+                    data: {
+                        status: client_1.WarehouseTaskStatus.completed,
+                        completedAt: new Date(),
+                        completedById: user.id,
+                    },
+                });
+                if (openTask.workflowInstanceId && this.orchestration) {
+                    await this.orchestration.enqueueDispatchTaskIfNeeded(tx, openTask.workflowInstanceId, orderId);
+                }
+            }
+            else if (this.orchestration) {
+                const wf = await tx.workflowInstance.findFirst({
+                    where: { referenceType: 'outbound_order', referenceId: orderId },
+                    orderBy: { createdAt: 'desc' },
+                });
+                if (wf) {
+                    await this.orchestration.enqueueDispatchTaskIfNeeded(tx, wf.id, orderId);
+                }
+            }
+            if (this.omsEvents && row.omsOrder) {
+                await this.omsEvents.record(tx, {
+                    omsOrderId: row.omsOrder.id,
+                    outboundOrderId: row.id,
+                    companyId: row.companyId,
+                    eventType: 'shipping.details.completed',
+                    createdBy: user.id,
+                });
+            }
+            return row;
+        });
+        const fresh = await this.findById(orderId, user);
+        this.realtime.emitOutboundOrderUpdated(fresh.companyId, {
+            orderId: fresh.id,
+            status: fresh.status,
+            reason: 'admin_complete_shipping_details',
+            listItem: (0, realtime_client_payload_1.adminOutboundListItem)(fresh),
+        });
+        return fresh;
+    }
+    async completeDispatchAdmin(user, orderId) {
+        const order = await this.findById(orderId, user);
+        if ((0, execution_plan_util_1.normalizeExecutionMode)(order.executionMode) !== 'admin') {
+            throw new common_1.BadRequestException('complete-dispatch requires executionMode=admin.');
+        }
+        const plan = (0, execution_plan_util_1.parseOutboundExecutionPlan)(order.executionPlan);
+        const requiresPacking = (0, outbound_admin_stages_1.outboundRequiresPacking)({
+            requiresPacking: order.requiresPacking,
+            planRequiresPacking: plan?.requiresPacking,
+        });
+        (0, outbound_admin_stages_1.assertOutboundAdminStageAction)(order.status, 'complete_dispatch', requiresPacking);
+        const dispatch = await (0, outbound_admin_task_helpers_1.waitForOpenWarehouseTask)(this.prisma, 'outbound_order', orderId, client_1.WarehouseTaskType.dispatch);
         try {
             await this.tasks.adminConfirm(dispatch.id, user, {
                 task_type: 'dispatch',
-                lines: finalOrder.lines.map((l) => ({
+                lines: order.lines.map((l) => ({
                     outbound_order_line_id: l.id,
                     ship_qty: String(l.pickedQuantity ?? l.requestedQuantity),
                 })),
             });
         }
         catch (err) {
-            throw wrap('dispatch', err);
+            const msg = err instanceof Error ? err.message : String(err);
+            throw new common_1.BadRequestException(`Dispatch complete failed: ${msg}`);
         }
-        return this.findById(orderId, user);
+        const updated = await this.findById(orderId, user);
+        this.realtime.emitOutboundOrderUpdated(updated.companyId, {
+            orderId: updated.id,
+            status: updated.status,
+            reason: 'admin_complete_dispatch',
+            listItem: (0, realtime_client_payload_1.adminOutboundListItem)(updated),
+        });
+        return updated;
+    }
+    async executeAdmin(user, orderId) {
+        const order = await this.findById(orderId, user);
+        if ((0, execution_plan_util_1.normalizeExecutionMode)(order.executionMode) !== 'admin') {
+            throw new common_1.BadRequestException('execute-admin requires executionMode=admin.');
+        }
+        const plan = (0, execution_plan_util_1.parseOutboundExecutionPlan)(order.executionPlan);
+        const requiresPacking = (0, outbound_admin_stages_1.outboundRequiresPacking)({
+            requiresPacking: order.requiresPacking,
+            planRequiresPacking: plan?.requiresPacking,
+        });
+        const next = (0, outbound_admin_stages_1.nextOutboundAdminAction)(order.status, requiresPacking);
+        if (!next) {
+            throw new common_1.BadRequestException(`No Admin stage action available for status ${order.status}. Use stage endpoints.`);
+        }
+        switch (next) {
+            case 'approve':
+                return this.approveAdmin(user, orderId);
+            case 'complete_picking':
+                return this.completePickingAdmin(user, orderId);
+            case 'complete_packing':
+                return this.completePackingAdmin(user, orderId);
+            case 'complete_shipping_details':
+                return this.completeShippingDetailsAdmin(user, orderId);
+            case 'complete_dispatch':
+                return this.completeDispatchAdmin(user, orderId);
+            default:
+                throw new common_1.BadRequestException(`Unknown Admin stage action: ${next}`);
+        }
     }
     async cancel(id, user) {
         const order = await this.findById(id, user);
@@ -1399,6 +1786,9 @@ exports.OutboundService = OutboundService = __decorate([
     __param(14, (0, common_1.Inject)((0, common_1.forwardRef)(() => oms_orders_service_1.OmsOrdersService))),
     __param(15, (0, common_1.Optional)()),
     __param(15, (0, common_1.Inject)((0, common_1.forwardRef)(() => oms_outbound_sync_service_1.OmsOutboundSyncService))),
+    __param(16, (0, common_1.Optional)()),
+    __param(17, (0, common_1.Optional)()),
+    __param(17, (0, common_1.Inject)((0, common_1.forwardRef)(() => workflow_orchestration_service_1.WorkflowOrchestrationService))),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         stock_helpers_1.StockHelpers,
         ledger_idempotency_service_1.LedgerIdempotencyService,
@@ -1414,6 +1804,8 @@ exports.OutboundService = OutboundService = __decorate([
         order_allocation_service_1.OrderAllocationService,
         oms_order_events_service_1.OmsOrderEventsService,
         oms_orders_service_1.OmsOrdersService,
-        oms_outbound_sync_service_1.OmsOutboundSyncService])
+        oms_outbound_sync_service_1.OmsOutboundSyncService,
+        shipping_service_1.ShippingService,
+        workflow_orchestration_service_1.WorkflowOrchestrationService])
 ], OutboundService);
 //# sourceMappingURL=outbound.service.js.map

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, Button as DsButton } from '@ds';
+import { Alert, Button as DsButton, Card } from '@ds';
 
 import { CompaniesApi } from '../api/companies';
 import {
@@ -19,9 +19,11 @@ import { Column, DataTable } from '../components/DataTable';
 import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { BarcodeImageModal } from '../components/BarcodeImageModal';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
-import { FilterPanel, FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
+import { CompanyNameCell } from '../components/CompanyNameCell';
+import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
 import { FilterScanButton } from '../components/FilterScanButton';
 import { Modal } from '../components/Modal';
+import { ProductNameCell } from '../components/ProductNameCell';
 import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
@@ -36,6 +38,7 @@ import { generateSku } from '../lib/identifiers';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
 import { productUomLabel, PRODUCT_UOM_MESSAGES } from '../lib/ui-labels/products';
 import { useWmsTranslation } from '../lib/ui-i18n';
+import { useDebounced } from '../lib/useDebounced';
 
 const UOM_VALUES = Object.keys(PRODUCT_UOM_MESSAGES) as ProductUom[];
 
@@ -59,12 +62,8 @@ function parseDimUpdate(s: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-type ProductSearchCategory = 'name' | 'sku' | 'barcode';
-
 type ProductDraftFilters = {
-  companyId: string;
-  searchCategory: ProductSearchCategory;
-  searchQuery: string;
+  search: string;
 };
 
 function isProductsPageOneChunkKey(key: readonly unknown[]): boolean {
@@ -103,15 +102,12 @@ export function ProductsPage() {
   const { t, isArabic } = useWmsTranslation();
   const initialProductFilters = useMemo<ProductDraftFilters>(
     () => ({
-      companyId: '',
-      searchCategory: 'name',
-      searchQuery: '',
+      search: '',
     }),
     [],
   );
 
-  const { draftFilters, appliedFilters, setDraft, applyFilters, applyPatch, resetFilters } =
-    useFilters(initialProductFilters);
+  const { draftFilters, appliedFilters, setDraft, applyPatch } = useFilters(initialProductFilters);
 
   const [openCreate, setOpenCreate] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
@@ -137,23 +133,18 @@ export function ProductsPage() {
 
   const [scanOpen, setScanOpen] = useState(false);
 
-  const filters = useMemo(() => {
-    const base = {
-      companyId: appliedFilters.companyId.trim() || undefined,
-    };
-    const q = appliedFilters.searchQuery.trim();
-    if (!q) return base;
-    switch (appliedFilters.searchCategory) {
-      case 'name':
-        return { ...base, productName: q };
-      case 'sku':
-        return { ...base, sku: q };
-      case 'barcode':
-        return { ...base, productBarcode: q };
-      default:
-        return base;
-    }
-  }, [appliedFilters]);
+  const debouncedSearch = useDebounced(draftFilters.search, 300);
+  useEffect(() => {
+    if (debouncedSearch === appliedFilters.search) return;
+    applyPatch({ search: debouncedSearch });
+  }, [debouncedSearch, appliedFilters.search, applyPatch]);
+
+  const filters = useMemo(
+    () => ({
+      search: appliedFilters.search.trim() || undefined,
+    }),
+    [appliedFilters],
+  );
 
   const pagination = useChunkedServerPagination<Product>({
     chunkSize: CHUNK_SIZE_STANDARD,
@@ -162,13 +153,6 @@ export function ProductsPage() {
     rtQueryKeyPrefix: QK.products,
     chunkQueryKeyPrefix: 'products-chunk',
   });
-
-  const companies = useQuery({
-    queryKey: QK.companies,
-    queryFn: () => CompaniesApi.list(),
-    staleTime: 10 * 60_000,
-  });
-
   const createMut = useMutation({
     mutationFn: ProductsApi.create,
     onSuccess: (created) => {
@@ -244,35 +228,21 @@ export function ProductsPage() {
 
   const columns: Column<Product>[] = useMemo(
     () => [
-    { header: t(['Product Name', 'اسم المنتج']), accessor: (p) => p.name },
+    {
+      header: t(['Product Name', 'اسم المنتج']),
+      accessor: (p) => <ProductNameCell name={p.name} imageUrl={p.imageUrl} />,
+    },
     {
       header: t(['Client Name', 'اسم العميل']),
-      accessor: (p) => p.company?.name ?? '—',
+      accessor: (p) => (
+        <CompanyNameCell name={p.company?.name} logoUrl={p.company?.logoUrl} />
+      ),
       width: '200px',
     },
     {
       header: 'SKU',
       accessor: (p) => <span className="font-mono">{p.sku}</span>,
       width: '200px',
-    },
-    {
-      header: 'Barcode',
-      accessor: (p) =>
-        p.barcode ? (
-          <button
-            type="button"
-            className="font-mono text-left text-text-link underline decoration-border-strong underline-offset-2 hover:text-brand-700 dark:hover:text-brand-400"
-            onClick={(e) => {
-              e.stopPropagation();
-              setBarcodePreview({ value: p.barcode!, name: p.name });
-            }}
-          >
-            {p.barcode}
-          </button>
-        ) : (
-          <span className="font-mono text-text-faint">—</span>
-        ),
-      width: '220px',
     },
     {
       header: 'UOM',
@@ -331,6 +301,21 @@ export function ProductsPage() {
                   {t(['Edit', 'تعديل'])}
                 </button>
               ) : null}
+              <button
+                type="button"
+                className={menuItemClass}
+                data-product-action-menu-button="true"
+                onClick={() => {
+                  setOpenActionId(null);
+                  if (!p.barcode?.trim()) {
+                    toast.error(t(['This product has no barcode.', 'هذا المنتج بلا باركود.']));
+                    return;
+                  }
+                  setBarcodePreview({ value: p.barcode, name: p.name });
+                }}
+              >
+                {t(['Barcode', 'الباركود'])}
+              </button>
               {p.status === 'active' ? (
                 <button
                   type="button"
@@ -411,28 +396,7 @@ export function ProductsPage() {
       width: '140px',
     },
   ],
-    [t, isArabic, openActionId, suspendMut.isPending, unsuspendMut.isPending, hardDeleteMut.isPending, archiveMut.isPending, updateMut.isPending],
-  );
-
-  const searchByOptions = useMemo(
-    () => [
-      { value: 'name' as const, label: t(['Product name', 'اسم المنتج']) },
-      { value: 'sku' as const, label: 'SKU' },
-      { value: 'barcode' as const, label: 'Barcode' },
-    ],
-    [t],
-  );
-
-  const clientFilterOptions = useMemo(
-    () => [
-      { value: '', label: t(['All clients', 'كل العملاء']) },
-      ...(companies.data ?? []).map((c) => ({
-        value: c.id,
-        label: c.name,
-        hint: c.contactEmail,
-      })),
-    ],
-    [companies.data, t],
+    [t, isArabic, openActionId, suspendMut.isPending, unsuspendMut.isPending, hardDeleteMut.isPending, archiveMut.isPending, updateMut.isPending, toast],
   );
 
   return (
@@ -465,44 +429,33 @@ export function ProductsPage() {
         />
       ) : null}
 
-      <FilterPanel
-        title={t(['Product filters', 'فلاتر المنتجات'])}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-        applyLabel={t(['Apply filters', 'تطبيق الفلاتر'])}
-        resetLabel={t(['Reset', 'إعادة تعيين'])}
-      >
-        <TextField
-          label={t(['Search', 'بحث'])}
-          value={draftFilters.searchQuery}
-          onChange={(e) => setDraft({ searchQuery: e.target.value })}
-          placeholder={t(['Contains…', 'يحتوي…'])}
-          className={draftFilters.searchCategory !== 'name' ? 'font-mono' : undefined}
-        />
-        <SelectField
-          label={t(['Search by', 'البحث حسب'])}
-          name="productSearchCategory"
-          value={draftFilters.searchCategory}
-          onChange={(e) =>
-            setDraft({ searchCategory: e.target.value as ProductSearchCategory })
-          }
-          options={searchByOptions}
-        />
-        <FilterScanButton
-          label={t(['Barcode', 'الباركود'])}
-          onClick={() => setScanOpen(true)}
-          title={t(['Scan a barcode with the device camera', 'مسح Barcode بالكاميرا'])}
-          ariaLabel={t(['Scan barcode', 'مسح Barcode'])}
-        />
-        <Combobox
-          label={t(['Client', 'العميل'])}
-          value={draftFilters.companyId}
-          onChange={(v) => setDraft({ companyId: v })}
-          options={clientFilterOptions}
-          placeholder={t(['All clients', 'كل العملاء'])}
-        />
-      </FilterPanel>
+      <Card padding="md">
+        <div className="flex max-w-4xl flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="relative w-full sm:min-w-[16rem] sm:flex-1 sm:max-w-md">
+            <i
+              className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+              aria-hidden
+            />
+            <input
+              value={draftFilters.search}
+              onChange={(e) => setDraft({ search: e.target.value })}
+              placeholder={t([
+                'Search product, client, SKU, barcode…',
+                'بحث منتج، عميل، SKU، باركود…',
+              ])}
+              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+              aria-label={t(['Search', 'بحث'])}
+            />
+          </div>
+          <FilterScanButton
+            compact
+            label={t(['Scan barcode', 'مسح باركود'])}
+            onClick={() => setScanOpen(true)}
+            title={t(['Scan a barcode with the device camera', 'مسح باركود بالكاميرا'])}
+            ariaLabel={t(['Scan barcode', 'مسح باركود'])}
+          />
+        </div>
+      </Card>
 
       <DataTable
         columns={columns}
@@ -518,7 +471,6 @@ export function ProductsPage() {
         open={openCreate}
         onClose={() => setOpenCreate(false)}
         loading={createMut.isPending}
-        defaultCompanyId={draftFilters.companyId}
         onSubmit={(input) => createMut.mutate(input)}
       />
 
@@ -543,9 +495,11 @@ export function ProductsPage() {
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onScan={(text) => {
-          applyPatch({ searchCategory: 'barcode', searchQuery: text.trim() });
+          const scanned = text.trim();
+          setDraft({ search: scanned });
+          applyPatch({ search: scanned });
           toast.success(
-            t(['Barcode scanned — search updated.', 'تم مسح Barcode — تم تحديث البحث.']),
+            t(['Barcode scanned — search updated.', 'تم مسح الباركود — تم تحديث البحث.']),
           );
         }}
         onCameraError={(msg) => toast.error(msg)}
@@ -558,8 +512,6 @@ interface CreateProductModalProps {
   open: boolean;
   onClose: () => void;
   loading: boolean;
-  /** When empty, first company in the directory is pre-selected after open. */
-  defaultCompanyId?: string;
   onSubmit: (input: CreateProductInput) => void;
 }
 
@@ -567,7 +519,6 @@ function CreateProductModal({
   open,
   onClose,
   loading,
-  defaultCompanyId,
   onSubmit,
 }: CreateProductModalProps) {
   const { t } = useWmsTranslation();
@@ -575,7 +526,7 @@ function CreateProductModal({
     () => UOM_VALUES.map((value) => ({ value, label: productUomLabel(value, t) })),
     [t],
   );
-  const [companyId, setCompanyId] = useState(defaultCompanyId || '');
+  const [companyId, setCompanyId] = useState('');
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
   const [barcode, setBarcode] = useState('');
@@ -597,15 +548,12 @@ function CreateProductModal({
   useEffect(() => {
     if (!open) return;
     if (!companyId && companies.data?.length) {
-      const fallback = defaultCompanyId
-        ? companies.data.find((c) => c.id === defaultCompanyId) ?? companies.data[0]
-        : companies.data[0];
-      setCompanyId(fallback.id);
+      setCompanyId(companies.data[0].id);
     }
-  }, [open, companyId, companies.data, defaultCompanyId]);
+  }, [open, companyId, companies.data]);
 
   const reset = () => {
-    setCompanyId(defaultCompanyId ?? '');
+    setCompanyId('');
     setName('');
     setSku('');
     setBarcode('');

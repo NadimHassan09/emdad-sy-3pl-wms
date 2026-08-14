@@ -89,6 +89,14 @@ let CodRecordsService = class CodRecordsService {
             where.status = query.status;
         if (query.omsOrderId)
             where.omsOrderId = query.omsOrderId;
+        const search = query.search?.trim();
+        if (search) {
+            where.OR = [
+                { company: { name: { contains: search, mode: 'insensitive' } } },
+                { omsOrder: { orderNumber: { contains: search, mode: 'insensitive' } } },
+                { omsOrder: { recipientName: { contains: search, mode: 'insensitive' } } },
+            ];
+        }
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             const [items, total] = await Promise.all([
                 tx.codRecord.findMany({
@@ -225,21 +233,25 @@ let CodRecordsService = class CodRecordsService {
             });
             return serialize(full);
         }
-        const transitions = {
-            pending: ['available'],
-            available: ['paid_out'],
-            paid_out: [],
-        };
-        if (!transitions[existing.status].includes(status)) {
-            throw new domain_exceptions_1.InvalidStateException(`Cannot change COD status from ${existing.status} to ${status}.`);
-        }
+        const now = new Date();
+        const availableAt = status === 'pending' || status === 'returned'
+            ? null
+            : status === 'available'
+                ? existing.availableAt ?? now
+                : existing.availableAt ?? now;
+        const paidOutAt = status === 'paid_out' ? existing.paidOutAt ?? now : null;
+        const legacyCodStatus = status === 'pending' || status === 'returned'
+            ? 'pending'
+            : status === 'available'
+                ? 'collected'
+                : 'remitted';
         const updated = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             const row = await tx.codRecord.update({
                 where: { id },
                 data: {
                     status,
-                    availableAt: status === 'available' ? new Date() : undefined,
-                    paidOutAt: status === 'paid_out' ? new Date() : undefined,
+                    availableAt,
+                    paidOutAt,
                 },
                 include: INCLUDE,
             });
@@ -250,18 +262,21 @@ let CodRecordsService = class CodRecordsService {
                 createdBy: user.id,
                 payload: { from: existing.status, to: status, codRecordId: id },
             });
-            if (status === 'available') {
-                await tx.omsOrder.update({
-                    where: { id: row.omsOrderId },
-                    data: { codStatus: 'collected', codCollectedAt: new Date() },
-                });
-            }
-            if (status === 'paid_out') {
-                await tx.omsOrder.update({
-                    where: { id: row.omsOrderId },
-                    data: { codStatus: 'remitted', codRemittedAt: new Date() },
-                });
-            }
+            await tx.omsOrder.update({
+                where: { id: row.omsOrderId },
+                data: {
+                    codStatus: legacyCodStatus,
+                    ...(status === 'available'
+                        ? { codCollectedAt: existing.availableAt ?? now }
+                        : {}),
+                    ...(status === 'paid_out'
+                        ? { codRemittedAt: existing.paidOutAt ?? now }
+                        : {}),
+                    ...(status === 'pending' || status === 'returned'
+                        ? { codCollectedAt: null, codRemittedAt: null }
+                        : {}),
+                },
+            });
             return row;
         });
         this.realtime.emitCodUpdated(updated.companyId, {
@@ -278,6 +293,9 @@ let CodRecordsService = class CodRecordsService {
         this.companyAccess.validateResourceOwnership(user, existing);
         if (existing.status === client_1.CodRecordStatus.paid_out) {
             throw new domain_exceptions_1.InvalidStateException('Cannot adjust a paid-out COD record.');
+        }
+        if (existing.status === client_1.CodRecordStatus.returned) {
+            throw new domain_exceptions_1.InvalidStateException('Cannot adjust a returned COD record.');
         }
         const updated = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             await tx.codAdjustment.create({
@@ -304,6 +322,7 @@ let CodRecordsService = class CodRecordsService {
             where: { omsReturnId: params.omsReturnId },
         });
         if (existingAdj) {
+            await this.syncReturnedStatusIfNeeded(params.omsOrderId, params.user);
             const record = await this.prisma.codRecord.findUnique({
                 where: { id: existingAdj.codRecordId },
                 include: INCLUDE,
@@ -312,6 +331,7 @@ let CodRecordsService = class CodRecordsService {
         }
         const cod = await this.prisma.codRecord.findUnique({
             where: { omsOrderId: params.omsOrderId },
+            include: { adjustments: true },
         });
         if (!cod) {
             throw new common_1.BadRequestException('No COD record for this order; cannot create return adjustment.');
@@ -339,7 +359,86 @@ let CodRecordsService = class CodRecordsService {
                     amount: signed.toString(),
                 },
             });
+            const adjSum = cod.adjustments.reduce((s, a) => s.add(a.amount), new client_1.Prisma.Decimal(0));
+            const current = cod.originalAmount.add(adjSum).add(signed);
+            if (current.lte(0) && cod.status !== client_1.CodRecordStatus.returned) {
+                await tx.codRecord.update({
+                    where: { id: cod.id },
+                    data: {
+                        status: client_1.CodRecordStatus.returned,
+                        availableAt: null,
+                        paidOutAt: null,
+                    },
+                });
+                await this.recordEvent(tx, {
+                    omsOrderId: params.omsOrderId,
+                    companyId: params.companyId,
+                    eventType: 'cod.status_changed',
+                    createdBy: params.user.id,
+                    payload: {
+                        from: cod.status,
+                        to: client_1.CodRecordStatus.returned,
+                        codRecordId: cod.id,
+                        reason: 'return_balance_zero',
+                    },
+                });
+            }
             return tx.codRecord.findUnique({ where: { id: cod.id }, include: INCLUDE });
+        });
+        if (updated) {
+            this.realtime.emitCodUpdated(updated.companyId, {
+                orderId: updated.omsOrderId,
+                codRecordId: updated.id,
+                status: updated.status,
+            });
+        }
+        return serialize(updated);
+    }
+    async markReturnedForOrder(omsOrderId, user) {
+        return this.syncReturnedStatusIfNeeded(omsOrderId, user, true);
+    }
+    async syncReturnedStatusIfNeeded(omsOrderId, user, force = false) {
+        const cod = await this.prisma.codRecord.findUnique({
+            where: { omsOrderId },
+            include: { adjustments: true, omsOrder: { select: { status: true } } },
+        });
+        if (!cod || cod.status === client_1.CodRecordStatus.returned)
+            return null;
+        const adjSum = cod.adjustments.reduce((s, a) => s.add(a.amount), new client_1.Prisma.Decimal(0));
+        const current = cod.originalAmount.add(adjSum);
+        const shouldReturn = force ||
+            current.lte(0) ||
+            cod.omsOrder?.status === client_1.OmsOrderStatus.returned;
+        if (!shouldReturn)
+            return null;
+        const updated = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const row = await tx.codRecord.update({
+                where: { id: cod.id },
+                data: {
+                    status: client_1.CodRecordStatus.returned,
+                    availableAt: null,
+                    paidOutAt: null,
+                },
+                include: INCLUDE,
+            });
+            await this.recordEvent(tx, {
+                omsOrderId,
+                companyId: cod.companyId,
+                eventType: 'cod.status_changed',
+                createdBy: user.id,
+                payload: {
+                    from: cod.status,
+                    to: client_1.CodRecordStatus.returned,
+                    codRecordId: cod.id,
+                    reason: force ? 'oms_order_returned' : 'return_balance_zero',
+                },
+            });
+            return row;
+        });
+        this.realtime.emitCodUpdated(updated.companyId, {
+            orderId: updated.omsOrderId,
+            codRecordId: updated.id,
+            status: updated.status,
         });
         return serialize(updated);
     }

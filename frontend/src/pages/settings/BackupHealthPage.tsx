@@ -226,7 +226,7 @@ export function BackupHealthPage() {
           ])}
           actions={
             <Link
-              to="/settings/backups/google-drive"
+              to="/backups/google-drive"
               className="text-sm font-medium text-text-link hover:underline"
             >
               {t(['Open Google Drive settings', 'فتح إعدادات Google Drive'])}

@@ -1,10 +1,12 @@
 import { apiClient } from './apiClient';
 
-export type ClientOmsCodStatus = 'pending' | 'collected' | 'remitted' | 'settled';
+export type ClientOmsCodStatus = 'pending' | 'collected' | 'remitted' | 'settled' | 'returned';
 
 export type ClientOmsOrderStatus =
   | 'draft'
+  | 'waiting_for_confirmation'
   | 'pending_approval'
+  | 'confirmed_waiting_for_admin_approval'
   | 'pending'
   | 'rejected'
   | 'approved'
@@ -106,6 +108,7 @@ export interface ClientOmsOrderDetail {
   storeChannel?: string | null;
   requiredShipDate: string;
   createdAt: string;
+  confirmedAt?: string | null;
   outForDeliveryAt?: string | null;
   deliveredAt?: string | null;
   returnedAt?: string | null;
@@ -163,6 +166,23 @@ export async function fetchClientOmsOrders(params: {
   return data;
 }
 
+export type ClientOmsStatusSummary = {
+  total: number;
+  byStatus: Partial<Record<ClientOmsOrderStatus, number>>;
+  storeChannels: string[];
+};
+
+export async function fetchClientOmsStatusSummary(params: {
+  storeChannel?: string;
+  createdFrom?: string;
+  createdTo?: string;
+}): Promise<ClientOmsStatusSummary> {
+  const { data } = await apiClient.get<ClientOmsStatusSummary>('/oms/orders/status-summary', {
+    params,
+  });
+  return data;
+}
+
 export async function fetchClientOmsOrder(id: string): Promise<ClientOmsOrderDetail> {
   const { data } = await apiClient.get<ClientOmsOrderDetail>(`/oms/orders/${id}`);
   return data;
@@ -177,6 +197,16 @@ export async function createClientOmsOrder(
   input: CreateClientOmsOrderInput,
 ): Promise<ClientOmsOrderDetail> {
   const { data } = await apiClient.post<ClientOmsOrderDetail>('/oms/orders', input);
+  return data;
+}
+
+export async function confirmClientOmsOrder(id: string): Promise<ClientOmsOrderDetail> {
+  const { data } = await apiClient.post<ClientOmsOrderDetail>(`/oms/orders/${id}/confirm`);
+  return data;
+}
+
+export async function cancelClientOmsOrder(id: string): Promise<ClientOmsOrderDetail> {
+  const { data } = await apiClient.post<ClientOmsOrderDetail>(`/oms/orders/${id}/cancel`);
   return data;
 }
 

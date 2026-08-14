@@ -41,6 +41,7 @@ function labelText(label: string, isArabic: boolean): string {
     'Order #': 'رقم الطلب',
     Status: 'الحالة',
     Recipient: 'المستلم',
+    City: 'المدينة',
     Channel: 'القناة',
     Total: 'الإجمالي',
     Created: 'تاريخ الإنشاء',
@@ -197,6 +198,7 @@ export function EcommerceOrdersPage(): ReactElement {
                     <th className="px-5 py-3 text-left">{t('Order #')}</th>
                     <th className="px-5 py-3 text-left">{t('Status')}</th>
                     <th className="px-5 py-3 text-left">{t('Recipient')}</th>
+                    <th className="px-5 py-3 text-left">{t('City')}</th>
                     <th className="px-5 py-3 text-left">{t('Channel')}</th>
                     <th className="px-5 py-3 text-left">{t('Total')}</th>
                     <th className="px-5 py-3 text-right">{t('Created')}</th>
@@ -218,6 +220,7 @@ export function EcommerceOrdersPage(): ReactElement {
                         </StatusBadge>
                       </td>
                       <td className="px-5 py-3.5 text-text-body">{row.recipientName || '—'}</td>
+                      <td className="px-5 py-3.5 text-text-body">{row.city?.trim() || '—'}</td>
                       <td className="px-5 py-3.5 text-text-body">{row.storeChannel || '—'}</td>
                       <td className="px-5 py-3.5 font-medium text-text-strong">
                         {row.total == null

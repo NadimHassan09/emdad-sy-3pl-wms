@@ -671,7 +671,7 @@ let InventoryService = class InventoryService {
             throw e;
         }
     }
-    async availability(user, productId, companyIdParam) {
+    async availability(user, productId, companyIdParam, outboundOrderId) {
         const companyId = this.companyAccess.resolveWriteCompanyId(user, companyIdParam);
         const agg = await this.prisma.currentStock.aggregate({
             where: { companyId, productId, status: 'available' },
@@ -681,12 +681,41 @@ let InventoryService = class InventoryService {
                 quantityAvailable: true,
             },
         });
-        return {
+        const onHand = agg._sum.quantityOnHand ?? new client_1.Prisma.Decimal(0);
+        const reserved = agg._sum.quantityReserved ?? new client_1.Prisma.Decimal(0);
+        const available = agg._sum.quantityAvailable ?? new client_1.Prisma.Decimal(0);
+        const base = {
             productId,
             companyId,
-            onHand: (agg._sum.quantityOnHand ?? new client_1.Prisma.Decimal(0)).toString(),
-            reserved: (agg._sum.quantityReserved ?? new client_1.Prisma.Decimal(0)).toString(),
-            available: (agg._sum.quantityAvailable ?? new client_1.Prisma.Decimal(0)).toString(),
+            onHand: onHand.toString(),
+            reserved: reserved.toString(),
+            available: available.toString(),
+        };
+        if (!outboundOrderId)
+            return base;
+        const order = await this.prisma.outboundOrder.findFirst({
+            where: { id: outboundOrderId, companyId },
+            select: { id: true },
+        });
+        if (!order) {
+            throw new common_1.NotFoundException('Outbound order not found for availability credit.');
+        }
+        const ownAgg = await this.prisma.stockReservation.aggregate({
+            where: {
+                outboundOrderId,
+                productId,
+                companyId,
+                status: 'active',
+            },
+            _sum: { quantity: true },
+        });
+        const reservedByThisOrder = ownAgg._sum.quantity ?? new client_1.Prisma.Decimal(0);
+        const availableForOrder = available.plus(reservedByThisOrder);
+        return {
+            ...base,
+            available: availableForOrder.toString(),
+            reservedByThisOrder: reservedByThisOrder.toString(),
+            availableForOrder: availableForOrder.toString(),
         };
     }
 };

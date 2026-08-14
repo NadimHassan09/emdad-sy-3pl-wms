@@ -22,6 +22,8 @@ import { SlaAuditService } from './sla-audit.service';
 import { WorkflowRecoveryService } from './workflow-recovery.service';
 import { WorkflowEngineService } from './workflow-engine.service';
 import { PdfModule } from '../../pdf/pdf.module';
+import { ShippingHandoffHookService } from '../outbound/shipping-handoff-hook.service';
+import { ShippingModule } from '../shipping/shipping.module';
 
 @Module({
   imports: [
@@ -32,6 +34,7 @@ import { PdfModule } from '../../pdf/pdf.module';
     AuditModule,
     BillingModule,
     PdfModule,
+    ShippingModule,
     forwardRef(() => OmsModule),
   ],
   controllers: [
@@ -51,7 +54,13 @@ import { PdfModule } from '../../pdf/pdf.module';
     SlaAuditService,
     WorkflowRecoveryService,
     WorkflowExecutionGateGuard,
+    ShippingHandoffHookService,
   ],
-  exports: [WorkflowBootstrapService, WarehouseTasksService, WorkflowOrchestrationService],
+  exports: [
+    WorkflowBootstrapService,
+    WarehouseTasksService,
+    WorkflowOrchestrationService,
+    ShippingHandoffHookService,
+  ],
 })
 export class WarehouseWorkflowModule {}

@@ -5,6 +5,7 @@ import { CompanyAccessModule } from '../../common/company-access/company-access.
 import { OutboundModule } from '../outbound/outbound.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { CodModule } from '../cod/cod.module';
+import { ShippingModule } from '../shipping/shipping.module';
 import { OmsController } from './oms.controller';
 import { OmsDashboardService } from './oms-dashboard.service';
 import { OmsOrderEventsService } from './oms-order-events.service';
@@ -21,6 +22,7 @@ import { OrderAllocationService } from './order-allocation.service';
     RealtimeModule,
     forwardRef(() => OutboundModule),
     forwardRef(() => CodModule),
+    forwardRef(() => ShippingModule),
   ],
   controllers: [OmsController, OmsWebhooksController],
   providers: [

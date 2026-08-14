@@ -1,11 +1,14 @@
 import { PageResult, api } from './client';
+import type { ShippingConfigPayload, ShippingMethod, ShippingPackageType, ShippingDeliveryType, ShippingPickupType, ShippingPayer } from './shipping';
 
 export type OmsPaymentMethod = 'COD' | 'PREPAID' | 'CREDIT';
 export type OmsCodStatus = 'pending' | 'collected' | 'remitted' | 'settled';
 export type OmsAllocationStatus = 'none' | 'allocated' | 'released' | 'fulfilled';
 export type OmsOrderStatus =
   | 'draft'
+  | 'waiting_for_confirmation'
   | 'pending_approval'
+  | 'confirmed_waiting_for_admin_approval'
   | 'pending'
   | 'rejected'
   | 'approved'
@@ -23,7 +26,7 @@ export type OmsOrderStatus =
   | 'returned'
   | 'cancelled';
 
-export type CodRecordStatus = 'pending' | 'available' | 'paid_out';
+export type CodRecordStatus = 'pending' | 'available' | 'paid_out' | 'returned';
 export type CodGenerationStatus = 'none' | 'pending' | 'ok' | 'failed';
 
 export interface CodRecordAdjustment {
@@ -76,7 +79,24 @@ export interface OmsReturnLine {
     name: string;
     uom: string;
     trackingType: string;
+    imagePath?: string | null;
   } | null;
+}
+
+export type OmsReturnAdminAction =
+  | 'approve'
+  | 'complete_receiving'
+  | 'complete_putaway'
+  | null;
+
+export interface OmsReturnWarehouseLine {
+  id: string;
+  productId: string;
+  expectedQuantity: string;
+  receivedQuantity: string;
+  postedQuantity: string;
+  lineStatus: string;
+  targetLocationId: string | null;
 }
 
 export interface OmsReturn {
@@ -90,6 +110,9 @@ export interface OmsReturn {
   reason: string | null;
   notes: string | null;
   rejectionReason: string | null;
+  executionMode?: 'admin' | 'workers' | string | null;
+  executionPlan?: import('../lib/execution-plan').InboundExecutionPlan | null;
+  nextAdminAction?: OmsReturnAdminAction;
   createdBy: string;
   approvedBy: string | null;
   rejectedBy: string | null;
@@ -104,7 +127,13 @@ export interface OmsReturn {
     status: string;
     outboundOrderId: string | null;
   } | null;
-  warehouseReturn?: { id: string; orderNumber: string; status: string } | null;
+  warehouseReturn?: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    warehouseId?: string | null;
+    lines?: OmsReturnWarehouseLine[];
+  } | null;
   lines: OmsReturnLine[];
 }
 
@@ -157,6 +186,7 @@ export interface OmsOrderListItem {
   company?: { id: string; name: string } | null;
   recipientName?: string | null;
   recipientPhone?: string | null;
+  city?: string | null;
   storeChannel?: string | null;
   total?: string | null;
   currency?: string | null;
@@ -193,6 +223,7 @@ export interface OmsOrderDetail extends OmsOrderListItem {
   returnedAt?: string | null;
   codGenerationStatus?: CodGenerationStatus | null;
   submittedAt?: string | null;
+  confirmedAt?: string | null;
   approvedAt?: string | null;
   approvedBy?: string | null;
   rejectedAt?: string | null;
@@ -200,6 +231,18 @@ export interface OmsOrderDetail extends OmsOrderListItem {
   rejectionReason?: string | null;
   externalReference?: string | null;
   warehouseStatus?: string | null;
+  shippingMethod?: ShippingMethod | null;
+  shippingProviderCode?: string | null;
+  shippingReceiverLat?: string | number | null;
+  shippingReceiverLng?: string | number | null;
+  shippingPackageType?: ShippingPackageType | null;
+  shippingContents?: string | null;
+  shippingDeliveryType?: ShippingDeliveryType | null;
+  shippingPickupType?: ShippingPickupType | null;
+  shippingPayer?: ShippingPayer | null;
+  shippingWeightKg?: string | number | null;
+  shippingVolumeCbm?: string | number | null;
+  shippingPhoneCountry?: string | null;
   lines: OmsOrderLine[];
   timeline?: OmsOrderEvent[];
   reservations?: OmsStockReservation[];
@@ -294,7 +337,7 @@ export interface CreateOmsOrderLineInput {
   discountAmount?: number;
 }
 
-export interface CreateOmsOrderInput {
+export interface CreateOmsOrderInput extends ShippingConfigPayload {
   companyId?: string;
   destinationAddress?: string;
   requiredShipDate: string;
@@ -321,7 +364,7 @@ export interface CreateOmsOrderInput {
   lines: CreateOmsOrderLineInput[];
 }
 
-export interface UpdateOmsOrderInput {
+export interface UpdateOmsOrderInput extends ShippingConfigPayload {
   recipientName?: string;
   recipientPhone?: string;
   city?: string;
@@ -345,10 +388,26 @@ export interface UpdateOmsOrderInput {
   externalReference?: string;
 }
 
+export type OmsOrderStatusSummary = {
+  total: number;
+  byStatus: Record<string, number>;
+  ordersByStatus: Array<{ status: string; count: number }>;
+};
+
 export const OmsApi = {
   dashboard(companyId?: string) {
     return api
       .get<OmsDashboardSummary>('/oms/dashboard', { params: { companyId } })
+      .then((r) => r.data);
+  },
+
+  orderSummary(params: {
+    createdFrom?: string;
+    createdTo?: string;
+    companyId?: string;
+  } = {}) {
+    return api
+      .get<OmsOrderStatusSummary>('/oms/dashboard/order-summary', { params })
       .then((r) => r.data);
   },
 
@@ -389,6 +448,10 @@ export const OmsApi = {
       .then((r) => r.data);
   },
 
+  confirm(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/confirm`).then((r) => r.data);
+  },
+
   reject(id: string, reason?: string) {
     return api
       .post<OmsOrderDetail>(`/oms/orders/${id}/reject`, { reason })
@@ -415,6 +478,12 @@ export const OmsApi = {
 
   delivered(id: string) {
     return api.post<OmsOrderDetail>(`/oms/orders/${id}/delivered`).then((r) => r.data);
+  },
+
+  revertDelivery(id: string, reason: string) {
+    return api
+      .post<OmsOrderDetail>(`/oms/orders/${id}/delivery-revert`, { reason })
+      .then((r) => r.data);
   },
 
   returned(id: string) {
@@ -447,6 +516,7 @@ export const CodApi = {
     companyId?: string;
     status?: CodRecordStatus;
     omsOrderId?: string;
+    search?: string;
     limit?: number;
     offset?: number;
   } = {}): Promise<PageResult<CodRecord>> {
@@ -479,6 +549,7 @@ export const OmsReturnsApi = {
     companyId?: string;
     omsOrderId?: string;
     status?: OmsReturnStatus;
+    search?: string;
     limit?: number;
     offset?: number;
   } = {}): Promise<PageResult<OmsReturn>> {
@@ -496,6 +567,29 @@ export const OmsReturnsApi = {
   approve(id: string, warehouseId?: string) {
     return api
       .post<OmsReturn>(`/oms/returns/${id}/approve`, { warehouseId })
+      .then((r) => r.data);
+  },
+
+  updatePlan(
+    id: string,
+    input: {
+      executionMode?: 'admin' | 'workers';
+      executionPlan?: import('../lib/execution-plan').InboundExecutionPlan;
+      notes?: string;
+    },
+  ) {
+    return api.patch<OmsReturn>(`/oms/returns/${id}/plan`, input).then((r) => r.data);
+  },
+
+  completeReceiving(id: string) {
+    return api
+      .post<OmsReturn>(`/oms/returns/${id}/complete-receiving`)
+      .then((r) => r.data);
+  },
+
+  completePutaway(id: string) {
+    return api
+      .post<OmsReturn>(`/oms/returns/${id}/complete-putaway`)
       .then((r) => r.data);
   },
 

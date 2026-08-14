@@ -71,18 +71,19 @@ function tLabel(label: string, ar: boolean): string {
     'Execute by Admin': 'تنفيذ بواسطة المسؤول',
     'Who performs physical work after you Confirm. Same planning screen either way.':
       'من ينفّذ العمل الفعلي بعد التأكيد. شاشة التخطيط واحدة في الحالتين.',
-    'I will do the warehouse work myself, then Confirm order.':
-      'سأتولى عمل المستودع بنفسي ثم أؤكد الطلب.',
+    'I will do the warehouse work myself, then Approve and complete each stage.':
+      'سأتولى عمل المستودع بنفسي، ثم أوافق وأكمل كل مرحلة.',
     'You will receive printable instructions': 'ستحصل على تعليمات قابلة للطباعة',
-    'Confirm once after completing the work.': 'أكّد مرة واحدة بعد إنجاز العمل.',
+    'Saving the plan only configures the workflow — stages are completed on the order page.':
+      'حفظ الخطة يضبط سير العمل فقط — إكمال المراحل يتم من صفحة الطلب.',
     'Execute by Workers': 'تنفيذ بواسطة العمال',
     'Release to workers after the plan is ready. Workers execute Tasks.':
       'أطلِق للعمل بعد جاهزية الخطة. ينفّذ العمال المهام.',
     'Workers will see tasks in their accounts': 'سيرى العمال المهام في حساباتهم',
     'You can monitor progress from the order page.': 'يمكنك متابعة التقدم من صفحة الطلب.',
     'Next steps': 'الخطوات التالية',
-    'Click Save plan to create a draft. Print and Confirm (or Release) from the order page.':
-      'اضغط حفظ الخطة لإنشاء مسودة. اطبع وأكّد (أو أطلِق) من صفحة الطلب.',
+    'Click Save plan to create a draft. Print and Approve (or Release) from the order page.':
+      'اضغط حفظ الخطة لإنشاء مسودة. اطبع ووافق (أو أطلِق) من صفحة الطلب.',
     'Pick product…': 'اختر منتجاً…',
     Remove: 'إزالة',
     'All products are already on this order.': 'كل المنتجات مضافة مسبقاً إلى هذا الطلب.',
@@ -450,9 +451,9 @@ export function InboundCreatePage() {
               icon="fa-user"
               title={t('Execute by Admin')}
               bullets={[
-                t('I will do the warehouse work myself, then Confirm order.'),
+                t('I will do the warehouse work myself, then Approve and complete each stage.'),
                 t('You will receive printable instructions'),
-                t('Confirm once after completing the work.'),
+                t('Saving the plan only configures the workflow — stages are completed on the order page.'),
               ]}
             />
             <ModeOption
@@ -837,7 +838,7 @@ export function InboundCreatePage() {
         <p className="text-sm text-text-muted">
           <span className="font-semibold text-text-strong">{t('Next steps')}: </span>
           {t(
-            'Click Save plan to create a draft. Print and Confirm (or Release) from the order page.',
+            'Click Save plan to create a draft. Print and Approve (or Release) from the order page.',
           )}
         </p>
 

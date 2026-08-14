@@ -7,6 +7,7 @@ export function taskTypeIconClass(taskType: string): string {
     putaway_quarantine: 'fa-solid fa-triangle-exclamation',
     pick: 'fa-solid fa-cart-flatbed',
     pack: 'fa-solid fa-box-open',
+    shipping_details: 'fa-solid fa-file-invoice',
     dispatch: 'fa-solid fa-truck-fast',
     routing: 'fa-solid fa-route',
   };

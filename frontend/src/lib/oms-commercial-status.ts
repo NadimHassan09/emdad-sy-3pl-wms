@@ -1,87 +1,112 @@
 /** OMS commercial lifecycle — display labels and legacy status collapse. */
 
 export type OmsCommercialDisplayStatus =
-  | 'pending_approval'
-  | 'pending'
-  | 'out_for_delivery'
+  | 'waiting_for_confirmation'
+  | 'confirmed_waiting_for_admin_approval'
+  | 'processing'
+  | 'ready_to_ship'
+  | 'shipped'
   | 'delivered'
   | 'cancelled'
-  | 'returned_legacy';
-
-const PENDING_LEGACY = new Set([
-  'approved',
-  'confirmed',
-  'processing',
-  'allocated',
-  'picking',
-  'packing',
-  'ready_to_ship',
-  'shipped',
-  'failed_delivery',
-  'draft',
-]);
+  | 'failed_delivery'
+  | 'returned'
+  | 'legacy';
 
 const EN_LABELS: Record<OmsCommercialDisplayStatus, string> = {
-  pending_approval: 'Waiting for Approval',
-  pending: 'Pending',
-  out_for_delivery: 'Out for Delivery',
+  waiting_for_confirmation: 'Waiting for Confirmation',
+  confirmed_waiting_for_admin_approval: 'Confirmed — Waiting for Admin Approval',
+  processing: 'Processing',
+  ready_to_ship: 'Ready for Shipping',
+  shipped: 'Shipped',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
-  returned_legacy: 'Returned (legacy)',
+  failed_delivery: 'Failed Delivery',
+  returned: 'Returned',
+  legacy: 'Legacy',
 };
 
 const AR_LABELS: Record<OmsCommercialDisplayStatus, string> = {
-  pending_approval: 'بانتظار الموافقة',
-  pending: 'قيد الانتظار',
-  out_for_delivery: 'خارج للتسليم',
+  waiting_for_confirmation: 'بانتظار التأكيد',
+  confirmed_waiting_for_admin_approval: 'مؤكد — بانتظار موافقة الإدارة',
+  processing: 'قيد المعالجة',
+  ready_to_ship: 'جاهز للشحن',
+  shipped: 'تم الشحن',
   delivered: 'تم التسليم',
   cancelled: 'ملغي',
-  returned_legacy: 'مرتجع (قديم)',
+  failed_delivery: 'فشل التسليم',
+  returned: 'مرتجع',
+  legacy: 'قديم',
+};
+
+const LEGACY_TO_DISPLAY: Record<string, OmsCommercialDisplayStatus> = {
+  pending_approval: 'confirmed_waiting_for_admin_approval',
+  pending: 'processing',
+  approved: 'processing',
+  confirmed: 'processing',
+  allocated: 'processing',
+  picking: 'processing',
+  packing: 'processing',
+  out_for_delivery: 'shipped',
+  completed: 'delivered',
+  rejected: 'cancelled',
+  draft: 'legacy',
 };
 
 /** Map raw backend status to a commercial display bucket. */
 export function mapOmsCommercialDisplayStatus(status: string): OmsCommercialDisplayStatus {
   const s = status.trim().toLowerCase();
-  if (s === 'pending_approval') return 'pending_approval';
-  if (s === 'pending') return 'pending';
-  if (s === 'out_for_delivery') return 'out_for_delivery';
-  if (s === 'delivered' || s === 'completed') return 'delivered';
-  if (s === 'cancelled' || s === 'rejected') return 'cancelled';
-  if (s === 'returned') return 'returned_legacy';
-  if (PENDING_LEGACY.has(s)) return 'pending';
-  return 'pending';
+  if (s in EN_LABELS && s !== 'legacy') return s as OmsCommercialDisplayStatus;
+  if (LEGACY_TO_DISPLAY[s]) return LEGACY_TO_DISPLAY[s];
+  return 'legacy';
 }
 
 export function omsCommercialStatusLabel(status: string, isArabic = false): string {
   const mapped = mapOmsCommercialDisplayStatus(status);
+  if (mapped === 'legacy') {
+    const raw = status.trim() || 'unknown';
+    return isArabic ? `قديم: ${raw}` : `Legacy: ${raw}`;
+  }
   return isArabic ? AR_LABELS[mapped] : EN_LABELS[mapped];
 }
 
 /** Badge meta key for StatusBadge tone lookup (normalized display key). */
 export function omsCommercialStatusBadgeKey(status: string): string {
   const mapped = mapOmsCommercialDisplayStatus(status);
-  if (mapped === 'returned_legacy') return 'returned';
-  if (mapped === 'pending_approval') return 'pending approval';
-  if (mapped === 'out_for_delivery') return 'out for delivery';
+  if (mapped === 'waiting_for_confirmation') return 'pending approval';
+  if (mapped === 'confirmed_waiting_for_admin_approval') return 'pending approval';
+  if (mapped === 'ready_to_ship') return 'ready to ship';
+  if (mapped === 'failed_delivery') return 'failed delivery';
+  if (mapped === 'legacy') return 'pending';
   return mapped.replace(/_/g, ' ');
 }
 
 export const OMS_COMMERCIAL_FILTER_OPTIONS = [
   { value: '', label: 'All statuses' },
-  { value: 'pending_approval', label: 'Waiting for Approval' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'out_for_delivery', label: 'Out for Delivery' },
+  { value: 'waiting_for_confirmation', label: 'Waiting for Confirmation' },
+  {
+    value: 'confirmed_waiting_for_admin_approval',
+    label: 'Confirmed — Waiting for Admin Approval',
+  },
+  { value: 'processing', label: 'Processing' },
+  { value: 'ready_to_ship', label: 'Ready for Shipping' },
+  { value: 'shipped', label: 'Shipped' },
   { value: 'delivered', label: 'Delivered' },
+  { value: 'failed_delivery', label: 'Failed Delivery' },
+  { value: 'returned', label: 'Returned' },
   { value: 'cancelled', label: 'Cancelled' },
 ] as const;
 
 export const OMS_COMMERCIAL_STATUS_COLORS: Record<string, string> = {
-  pending_approval: '#f59e0b',
-  pending: '#3b82f6',
-  out_for_delivery: '#0891b2',
+  waiting_for_confirmation: '#f59e0b',
+  confirmed_waiting_for_admin_approval: '#f97316',
+  processing: '#3b82f6',
+  ready_to_ship: '#0ea5e9',
+  shipped: '#0891b2',
   delivered: '#15803d',
+  failed_delivery: '#dc2626',
+  returned: '#ef4444',
   cancelled: '#94a3b8',
-  returned_legacy: '#ef4444',
+  legacy: '#64748b',
 };
 
 /** Aggregate raw status counts into commercial buckets for charts. */
@@ -96,9 +121,9 @@ export function aggregateCommercialStatusCounts(
   return Array.from(totals.entries()).map(([status, count]) => ({ status, count }));
 }
 
-/** Sum counts for statuses that display as commercial Pending. */
+/** Sum counts for statuses that display as commercial Processing. */
 export function countCommercialPending(rows: Array<{ status: string; count: number }>): number {
   return rows
-    .filter((r) => mapOmsCommercialDisplayStatus(r.status) === 'pending')
+    .filter((r) => mapOmsCommercialDisplayStatus(r.status) === 'processing')
     .reduce((s, r) => s + r.count, 0);
 }

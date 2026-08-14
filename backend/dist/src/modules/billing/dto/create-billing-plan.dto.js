@@ -16,6 +16,7 @@ const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
 class CreateBillingPlanDto {
     companyId;
     active;
+    autoRenew;
     cycleLengthDays;
     fixedSubscriptionFee;
     inboundOrderFee;
@@ -41,6 +42,11 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CreateBillingPlanDto.prototype, "active", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], CreateBillingPlanDto.prototype, "autoRenew", void 0);
 __decorate([
     (0, class_validator_1.IsInt)(),
     (0, class_validator_1.Min)(1),

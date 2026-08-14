@@ -2,7 +2,9 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsIn,
   IsNumber,
+  IsObject,
   IsOptional,
   IsPositive,
   IsString,
@@ -67,4 +69,19 @@ export class ApproveOmsReturnDto {
   @IsOptional()
   @IsUuidLoose()
   warehouseId?: string;
+}
+
+export class UpdateOmsReturnPlanDto {
+  @IsOptional()
+  @IsIn(['admin', 'workers'])
+  executionMode?: 'admin' | 'workers';
+
+  @IsOptional()
+  @IsObject()
+  executionPlan?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  notes?: string;
 }

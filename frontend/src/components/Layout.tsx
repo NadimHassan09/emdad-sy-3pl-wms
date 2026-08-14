@@ -17,6 +17,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { RequireRouteAccess } from '../auth/RequireRouteAccess';
 import { useAuth } from '../auth/AuthContext';
 import { defaultHomePath, navItemsForRole } from '../lib/rbac';
+import { adminMediaSrc } from '../lib/admin-media';
 
 import { WorkflowUxProvider } from '../workflow/WorkflowUxContext';
 import { SectionSubNavCard } from './SectionSubNavCard';
@@ -78,6 +79,8 @@ function sidebarLabel(label: string, isArabic: boolean): string {
     'Audit logs': 'سجل التدقيق',
     Notifications: 'الإشعارات',
     Settings: 'الإعدادات',
+    Backups: 'النسخ الاحتياطي',
+    'Shipping Companies': 'شركات الشحن',
     Contracts: 'العقود',
     Billing: 'الفوترة',
     Profile: 'الملف الشخصي',
@@ -513,6 +516,7 @@ export function Layout() {
                       <TopbarUserMenu
                         name={displayName(user)}
                         role={friendlyRole(user.role)}
+                        avatarUrl={adminMediaSrc(user.avatarUrl)}
                         connected
                         language={language}
                         onLanguageChange={setLanguage}

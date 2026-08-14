@@ -14,6 +14,8 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CompaniesController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
+const multer_1 = require("multer");
 const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
 const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard");
 const super_admin_guard_1 = require("../../common/auth/super-admin.guard");
@@ -24,6 +26,16 @@ const create_company_dto_1 = require("./dto/create-company.dto");
 const lifecycle_dto_1 = require("./dto/lifecycle.dto");
 const list_companies_query_dto_1 = require("./dto/list-companies-query.dto");
 const update_company_dto_1 = require("./dto/update-company.dto");
+const MAX_LOGO_BYTES = 8 * 1024 * 1024;
+function assertUploadedImage(file) {
+    if (!file?.buffer?.length) {
+        throw new common_1.BadRequestException('Please choose an image file to upload.');
+    }
+    if (!file.mimetype?.startsWith('image/')) {
+        throw new common_1.BadRequestException('Only image files are allowed.');
+    }
+    return file;
+}
 let CompaniesController = class CompaniesController {
     companies;
     lifecycle;
@@ -45,6 +57,12 @@ let CompaniesController = class CompaniesController {
     }
     update(user, id, dto) {
         return this.companies.update(user, id, dto);
+    }
+    uploadLogo(user, id, file) {
+        return this.companies.uploadLogo(user, id, assertUploadedImage(file));
+    }
+    deleteLogo(user, id) {
+        return this.companies.deleteLogo(user, id);
     }
     suspend(user, id, dto) {
         return this.lifecycle.suspend(user, id, dto?.reason);
@@ -109,6 +127,30 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, update_company_dto_1.UpdateCompanyDto]),
     __metadata("design:returntype", void 0)
 ], CompaniesController.prototype, "update", null);
+__decorate([
+    (0, common_1.Post)(':id/logo'),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
+        storage: (0, multer_1.memoryStorage)(),
+        limits: { fileSize: MAX_LOGO_BYTES },
+    })),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.UploadedFile)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:returntype", void 0)
+], CompaniesController.prototype, "uploadLogo", null);
+__decorate([
+    (0, common_1.Delete)(':id/logo'),
+    (0, common_1.HttpCode)(204),
+    (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], CompaniesController.prototype, "deleteLogo", null);
 __decorate([
     (0, common_1.Post)(':id/suspend'),
     (0, common_1.UseGuards)(internal_admin_guard_1.InternalAdminGuard),

@@ -18,6 +18,9 @@ const password_service_1 = require("../../../common/crypto/password.service");
 const prisma_service_1 = require("../../../common/prisma/prisma.service");
 const login_brute_force_service_1 = require("../../../common/security/login-brute-force.service");
 const request_ip_util_1 = require("../../../common/security/request-ip.util");
+const image_processing_service_1 = require("../../media/image-processing.service");
+const media_storage_service_1 = require("../../media/media-storage.service");
+const avatar_url_1 = require("../../media/avatar-url");
 const CLIENT_ROLES = [client_1.UserRole.client_admin, client_1.UserRole.client_staff];
 let ClientAuthService = class ClientAuthService {
     prisma;
@@ -25,12 +28,16 @@ let ClientAuthService = class ClientAuthService {
     jwt;
     config;
     loginBruteForce;
-    constructor(prisma, password, jwt, config, loginBruteForce) {
+    images;
+    storage;
+    constructor(prisma, password, jwt, config, loginBruteForce, images, storage) {
         this.prisma = prisma;
         this.password = password;
         this.jwt = jwt;
         this.config = config;
         this.loginBruteForce = loginBruteForce;
+        this.images = images;
+        this.storage = storage;
     }
     async login(dto, req, res) {
         const ip = (0, request_ip_util_1.getClientIp)(req);
@@ -51,6 +58,7 @@ let ClientAuthService = class ClientAuthService {
                 status: true,
                 companyId: true,
                 fullName: true,
+                avatarPath: true,
             },
         });
         if (!user || user.status !== client_1.UserStatus.active) {
@@ -119,6 +127,7 @@ let ClientAuthService = class ClientAuthService {
                 role: user.role,
                 companyId: user.companyId,
                 companyName: company?.name ?? null,
+                avatarUrl: (0, avatar_url_1.toAvatarPublicUrl)(user.avatarPath),
             },
         };
     }
@@ -131,6 +140,7 @@ let ClientAuthService = class ClientAuthService {
                 fullName: true,
                 role: true,
                 companyId: true,
+                avatarPath: true,
                 company: { select: { name: true } },
             },
         });
@@ -144,7 +154,54 @@ let ClientAuthService = class ClientAuthService {
             role: row.role,
             companyId: row.companyId,
             companyName: row.company?.name ?? '',
+            avatarUrl: (0, avatar_url_1.toAvatarPublicUrl)(row.avatarPath),
         };
+    }
+    async uploadAvatar(user, file) {
+        const compressed = await this.images.compress(file.buffer, file.mimetype, 'avatar');
+        const existing = await this.prisma.user.findUnique({
+            where: { id: user.id },
+            select: { avatarPath: true },
+        });
+        const saved = await this.storage.write('avatars', user.id, compressed);
+        await this.storage.remove(existing?.avatarPath ?? null);
+        const updated = await this.prisma.user.update({
+            where: { id: user.id },
+            data: { avatarPath: saved.relativePath },
+            select: {
+                id: true,
+                email: true,
+                fullName: true,
+                role: true,
+                companyId: true,
+                avatarPath: true,
+                company: { select: { name: true } },
+            },
+        });
+        const mapped = {
+            id: updated.id,
+            email: updated.email,
+            fullName: updated.fullName,
+            role: updated.role,
+            companyId: updated.companyId,
+            companyName: updated.company?.name ?? '',
+            avatarUrl: (0, avatar_url_1.toAvatarPublicUrl)(updated.avatarPath),
+        };
+        return {
+            avatarUrl: mapped.avatarUrl,
+            user: mapped,
+        };
+    }
+    async deleteAvatar(user) {
+        const existing = await this.prisma.user.findUnique({
+            where: { id: user.id },
+            select: { avatarPath: true },
+        });
+        await this.storage.remove(existing?.avatarPath ?? null);
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: { avatarPath: null },
+        });
     }
     expiresInToMs(expiresIn) {
         const t = expiresIn.trim().toLowerCase();
@@ -164,6 +221,8 @@ exports.ClientAuthService = ClientAuthService = __decorate([
         password_service_1.PasswordService,
         jwt_1.JwtService,
         config_1.ConfigService,
-        login_brute_force_service_1.LoginBruteForceService])
+        login_brute_force_service_1.LoginBruteForceService,
+        image_processing_service_1.ImageProcessingService,
+        media_storage_service_1.MediaStorageService])
 ], ClientAuthService);
 //# sourceMappingURL=client-auth.service.js.map

@@ -32,8 +32,17 @@ let OmsReturnsController = class OmsReturnsController {
     findOne(user, id) {
         return this.returns.findById(id, user);
     }
+    updatePlan(user, id, dto) {
+        return this.returns.updatePlan(id, user, dto);
+    }
     approve(user, id, dto) {
         return this.returns.approve(id, user, dto);
+    }
+    completeReceiving(user, id) {
+        return this.returns.completeReceivingAdmin(id, user);
+    }
+    completePutaway(user, id) {
+        return this.returns.completePutawayAdmin(id, user);
     }
     reject(user, id, dto) {
         return this.returns.reject(id, user, dto);
@@ -65,6 +74,15 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], OmsReturnsController.prototype, "findOne", null);
 __decorate([
+    (0, common_1.Patch)(':id/plan'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, oms_return_dto_1.UpdateOmsReturnPlanDto]),
+    __metadata("design:returntype", void 0)
+], OmsReturnsController.prototype, "updatePlan", null);
+__decorate([
     (0, common_1.Post)(':id/approve'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
@@ -73,6 +91,22 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, oms_return_dto_1.ApproveOmsReturnDto]),
     __metadata("design:returntype", void 0)
 ], OmsReturnsController.prototype, "approve", null);
+__decorate([
+    (0, common_1.Post)(':id/complete-receiving'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OmsReturnsController.prototype, "completeReceiving", null);
+__decorate([
+    (0, common_1.Post)(':id/complete-putaway'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OmsReturnsController.prototype, "completePutaway", null);
 __decorate([
     (0, common_1.Post)(':id/reject'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

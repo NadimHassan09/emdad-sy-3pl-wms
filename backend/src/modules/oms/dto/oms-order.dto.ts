@@ -5,16 +5,19 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsPositive,
   IsString,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { OmsPaymentMethod } from '@prisma/client';
 
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
+import { ShippingConfigDto } from '../../shipping/dto/shipping-config.dto';
 
 /** Treat empty string / null as omitted so optional UUID fields do not fail validation. */
 function emptyToUndefined({ value }: { value: unknown }): unknown {
@@ -48,7 +51,7 @@ export class CreateOmsOrderLineDto {
   discountAmount?: number;
 }
 
-export class CreateOmsOrderDto {
+export class CreateOmsOrderDto extends ShippingConfigDto {
   @IsOptional()
   @IsUuidLoose()
   companyId?: string;
@@ -153,7 +156,7 @@ export class CreateOmsOrderDto {
   lines!: CreateOmsOrderLineDto[];
 }
 
-export class UpdateOmsOrderDto {
+export class UpdateOmsOrderDto extends ShippingConfigDto {
   @IsOptional()
   @IsString()
   recipientName?: string;
@@ -261,4 +264,11 @@ export class RejectOmsOrderDto {
   @IsOptional()
   @IsString()
   reason?: string;
+}
+
+export class RevertOmsDeliveryDto {
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(3)
+  reason!: string;
 }

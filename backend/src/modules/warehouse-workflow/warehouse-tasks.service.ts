@@ -1093,6 +1093,15 @@ export class WarehouseTasksService {
           await this.effects.applyPackRecord(tx, outboundId, body);
           break;
         }
+        case 'shipping_details': {
+          const pl = task.payload as { outbound_order_id?: string };
+          const outboundId = pl.outbound_order_id;
+          if (!outboundId) {
+            throw new BadRequestException('shipping_details task missing outbound_order_id.');
+          }
+          await this.effects.applyShippingDetailsTaskComplete(tx, outboundId, body, user.id);
+          break;
+        }
         case 'dispatch': {
           const { outbound_order_id: outboundId, pick_task_id: explicitPickTaskId } =
             parseDispatchTaskPayloadAllowLegacy(task.payload);

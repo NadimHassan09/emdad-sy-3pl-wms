@@ -46,7 +46,7 @@ export interface InboundOrder {
   executionMode?: OrderExecutionMode | null;
   executionPlan?: InboundExecutionPlan | null;
   lines: InboundOrderLine[];
-  company?: { id: string; name: string };
+  company?: { id: string; name: string; logoUrl?: string | null };
   _count?: { lines: number };
 }
 
@@ -114,6 +114,31 @@ export const InboundApi = {
     const { data } = await api.patch<InboundOrder>(`/inbound-orders/${id}/plan`, body);
     return data;
   },
+  async approve(id: string, companyIdOverride?: string): Promise<InboundOrder> {
+    const { data } = await api.post<InboundOrder>(
+      `/inbound-orders/${id}/approve`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async completeReceiving(id: string, companyIdOverride?: string): Promise<InboundOrder> {
+    const { data } = await api.post<InboundOrder>(
+      `/inbound-orders/${id}/complete-receiving`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async completePutaway(id: string, companyIdOverride?: string): Promise<InboundOrder> {
+    const { data } = await api.post<InboundOrder>(
+      `/inbound-orders/${id}/complete-putaway`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  /** @deprecated Prefer stage endpoints; backend advances one stage only. */
   async executeAdmin(id: string, companyIdOverride?: string): Promise<InboundOrder> {
     const { data } = await api.post<InboundOrder>(
       `/inbound-orders/${id}/execute-admin`,

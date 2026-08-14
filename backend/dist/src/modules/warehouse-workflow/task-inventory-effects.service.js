@@ -22,6 +22,7 @@ const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantit
 const ledger_idempotency_service_1 = require("../inventory/ledger-idempotency.service");
 const stock_helpers_1 = require("../inventory/stock.helpers");
 const oms_outbound_sync_service_1 = require("../oms/oms-outbound-sync.service");
+const shipping_handoff_hook_service_1 = require("../outbound/shipping-handoff-hook.service");
 const task_allocation_helper_1 = require("./task-allocation.helper");
 const pick_concurrency_util_1 = require("./pick-concurrency.util");
 function parseExpiryFromDiscrepancyNotes(notes) {
@@ -43,11 +44,15 @@ function resolveReceivingLotExpiry(product, line, taskLine) {
 let TaskInventoryEffectsService = class TaskInventoryEffectsService {
     stock;
     ledgerDedup;
+    shippingHandoff;
     omsSync;
-    constructor(stock, ledgerDedup, omsSync) {
+    constructor(stock, ledgerDedup, shippingHandoff, omsSync) {
         this.stock = stock;
         this.ledgerDedup = ledgerDedup;
+        this.shippingHandoff = shippingHandoff;
         this.omsSync = omsSync;
+    }
+    scheduleReadyForShippingHook(_orderId) {
     }
     async buildPickReservations(tx, companyId, warehouseId, lines, outboundOrderId) {
         if (outboundOrderId) {
@@ -349,11 +354,10 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
             where: { id: orderId },
             select: { requiresPacking: true },
         });
+        const nextStatus = order?.requiresPacking === false ? 'waiting_for_shipping_details' : 'packing';
         await tx.outboundOrder.update({
             where: { id: orderId },
-            data: {
-                status: order?.requiresPacking === false ? 'ready_to_ship' : 'packing',
-            },
+            data: { status: nextStatus },
         });
         await this.omsSync?.syncFromOutbound(tx, orderId);
     }
@@ -465,9 +469,66 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
         }
         await tx.outboundOrder.update({
             where: { id: outboundOrderId },
-            data: { status: 'ready_to_ship' },
+            data: { status: 'waiting_for_shipping_details' },
         });
         await this.omsSync?.syncFromOutbound(tx, outboundOrderId);
+    }
+    async applyShippingDetailsTaskComplete(tx, outboundOrderId, body, actorUserId) {
+        const order = await tx.outboundOrder.findUnique({
+            where: { id: outboundOrderId },
+            include: {
+                carrierShipments: {
+                    where: { status: 'created' },
+                    take: 1,
+                },
+            },
+        });
+        if (!order)
+            throw new common_1.BadRequestException('Outbound order not found.');
+        if (order.status !== 'waiting_for_shipping_details') {
+            throw new common_1.BadRequestException(`shipping_details complete requires waiting_for_shipping_details (current: ${order.status}).`);
+        }
+        const data = {};
+        if (body.shippingReceiverLat !== undefined) {
+            data.shippingReceiverLat =
+                body.shippingReceiverLat == null ? null : body.shippingReceiverLat;
+        }
+        if (body.shippingReceiverLng !== undefined) {
+            data.shippingReceiverLng =
+                body.shippingReceiverLng == null ? null : body.shippingReceiverLng;
+        }
+        if (body.shippingPackageType !== undefined) {
+            data.shippingPackageType = body.shippingPackageType;
+        }
+        if (body.shippingContents !== undefined)
+            data.shippingContents = body.shippingContents;
+        if (body.shippingDeliveryType !== undefined) {
+            data.shippingDeliveryType = body.shippingDeliveryType;
+        }
+        if (body.shippingPickupType !== undefined) {
+            data.shippingPickupType = body.shippingPickupType;
+        }
+        if (body.shippingPayer !== undefined)
+            data.shippingPayer = body.shippingPayer;
+        if (body.shippingWeightKg !== undefined) {
+            data.shippingWeightKg =
+                body.shippingWeightKg == null ? null : body.shippingWeightKg;
+        }
+        if (body.shippingPhoneCountry !== undefined) {
+            data.shippingPhoneCountry = body.shippingPhoneCountry;
+        }
+        const isCarrier = order.shippingMethod === 'carrier';
+        if (isCarrier && order.carrierShipments.length === 0) {
+            throw new common_1.BadRequestException('Carrier shipment must be sent by Admin before completing Shipping Details.');
+        }
+        await tx.outboundOrder.update({
+            where: { id: outboundOrderId },
+            data: {
+                ...data,
+                status: 'ready_to_ship',
+            },
+        });
+        await this.omsSync?.syncFromOutbound(tx, outboundOrderId, actorUserId);
     }
     async lockOutboundOrderRow(tx, outboundOrderId) {
         await tx.$executeRaw(client_1.Prisma.sql `SELECT id FROM outbound_orders WHERE id = ${outboundOrderId}::uuid FOR UPDATE`);
@@ -548,10 +609,11 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
 exports.TaskInventoryEffectsService = TaskInventoryEffectsService;
 exports.TaskInventoryEffectsService = TaskInventoryEffectsService = __decorate([
     (0, common_1.Injectable)(),
-    __param(2, (0, common_1.Optional)()),
-    __param(2, (0, common_1.Inject)((0, common_1.forwardRef)(() => oms_outbound_sync_service_1.OmsOutboundSyncService))),
+    __param(3, (0, common_1.Optional)()),
+    __param(3, (0, common_1.Inject)((0, common_1.forwardRef)(() => oms_outbound_sync_service_1.OmsOutboundSyncService))),
     __metadata("design:paramtypes", [stock_helpers_1.StockHelpers,
         ledger_idempotency_service_1.LedgerIdempotencyService,
+        shipping_handoff_hook_service_1.ShippingHandoffHookService,
         oms_outbound_sync_service_1.OmsOutboundSyncService])
 ], TaskInventoryEffectsService);
 //# sourceMappingURL=task-inventory-effects.service.js.map

@@ -16,27 +16,19 @@ const client_auth_principal_1 = require("../../../common/auth/client-auth-princi
 const prisma_service_1 = require("../../../common/prisma/prisma.service");
 const tenant_rls_1 = require("../../../common/prisma/tenant-rls");
 const oms_orders_service_1 = require("../../oms/oms-orders.service");
-function portalCodStatusFromRecord(status) {
-    switch (status) {
-        case client_1.CodRecordStatus.available:
-            return client_1.OmsCodStatus.collected;
-        case client_1.CodRecordStatus.paid_out:
-            return client_1.OmsCodStatus.remitted;
-        case client_1.CodRecordStatus.pending:
-        default:
-            return client_1.OmsCodStatus.pending;
-    }
-}
+const portal_cod_status_util_1 = require("./portal-cod-status.util");
 function matchesPortalCodFilter(portalStatus, filter) {
     if (!filter?.trim())
         return true;
     const f = filter.trim();
     if (f === 'settled')
-        return portalStatus === client_1.OmsCodStatus.remitted;
+        return portalStatus === 'remitted' || portalStatus === 'settled';
     if (f === 'available')
-        return portalStatus === client_1.OmsCodStatus.collected;
+        return portalStatus === 'collected';
     if (f === 'paid_out')
-        return portalStatus === client_1.OmsCodStatus.remitted;
+        return portalStatus === 'remitted';
+    if (f === 'returned')
+        return portalStatus === 'returned';
     return portalStatus === f;
 }
 let ClientOmsOrdersService = class ClientOmsOrdersService {
@@ -53,6 +45,70 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
             companyId: client.companyId,
         };
         return this.omsOrders.list(user, scoped);
+    }
+    async statusSummary(client, query) {
+        const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        const where = {
+            companyId: client.companyId,
+        };
+        if (query.storeChannel?.trim()) {
+            where.storeChannel = {
+                contains: query.storeChannel.trim(),
+                mode: 'insensitive',
+            };
+        }
+        if (query.createdFrom || query.createdTo) {
+            const createdAt = {};
+            if (query.createdFrom) {
+                createdAt.gte = new Date(`${query.createdFrom}T00:00:00.000Z`);
+            }
+            if (query.createdTo) {
+                createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
+            }
+            where.createdAt = createdAt;
+        }
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const [grouped, channelRows] = await Promise.all([
+                tx.omsOrder.groupBy({
+                    by: ['status'],
+                    where,
+                    _count: { _all: true },
+                }),
+                tx.omsOrder.findMany({
+                    where: {
+                        companyId: client.companyId,
+                        ...(query.createdFrom || query.createdTo
+                            ? {
+                                createdAt: {
+                                    ...(query.createdFrom
+                                        ? { gte: new Date(`${query.createdFrom}T00:00:00.000Z`) }
+                                        : {}),
+                                    ...(query.createdTo
+                                        ? { lte: new Date(`${query.createdTo}T23:59:59.999Z`) }
+                                        : {}),
+                                },
+                            }
+                            : {}),
+                        storeChannel: { not: null },
+                    },
+                    select: { storeChannel: true },
+                    distinct: ['storeChannel'],
+                    take: 200,
+                }),
+            ]);
+            const byStatus = {};
+            let total = 0;
+            for (const row of grouped) {
+                const n = row._count._all;
+                byStatus[row.status] = n;
+                total += n;
+            }
+            const storeChannels = channelRows
+                .map((r) => r.storeChannel?.trim())
+                .filter((c) => !!c)
+                .sort((a, b) => a.localeCompare(b));
+            return { total, byStatus, storeChannels };
+        });
     }
     async create(client, dto) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
@@ -76,6 +132,14 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
             })),
         };
         return this.omsOrders.create(user, payload);
+    }
+    async confirm(client, id) {
+        const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        return this.omsOrders.confirm(id, user);
+    }
+    async cancel(client, id) {
+        const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        return this.omsOrders.cancel(id, user);
     }
     async findOne(client, id) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
@@ -183,7 +247,7 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
             for (const rec of codRecords) {
                 const adjSum = rec.adjustments.reduce((s, a) => s.add(a.amount), new client_1.Prisma.Decimal(0));
                 const current = rec.originalAmount.add(adjSum);
-                const portalStatus = portalCodStatusFromRecord(rec.status);
+                const portalStatus = (0, portal_cod_status_util_1.portalCodStatusFromRecord)(rec.status);
                 rows.push({
                     id: rec.omsOrder.id,
                     orderNumber: rec.omsOrder.orderNumber,

@@ -21,6 +21,7 @@ const create_outbound_dto_1 = require("./dto/create-outbound.dto");
 const confirm_outbound_body_dto_1 = require("./dto/confirm-outbound-body.dto");
 const list_outbound_query_dto_1 = require("./dto/list-outbound-query.dto");
 const update_outbound_plan_dto_1 = require("./dto/update-outbound-plan.dto");
+const update_shipping_details_dto_1 = require("./dto/update-shipping-details.dto");
 const outbound_service_1 = require("./outbound.service");
 let OutboundController = class OutboundController {
     outbound;
@@ -41,6 +42,27 @@ let OutboundController = class OutboundController {
     }
     updatePlan(user, id, body) {
         return this.outbound.updatePlan(user, id, body);
+    }
+    approve(user, id) {
+        return this.outbound.approveAdmin(user, id);
+    }
+    completePicking(user, id) {
+        return this.outbound.completePickingAdmin(user, id);
+    }
+    completePacking(user, id) {
+        return this.outbound.completePackingAdmin(user, id);
+    }
+    saveShippingDetails(user, id, body) {
+        return this.outbound.saveShippingDetails(user, id, body);
+    }
+    sendShippingDetails(user, id) {
+        return this.outbound.sendShippingDetails(user, id);
+    }
+    completeShippingDetails(user, id) {
+        return this.outbound.completeShippingDetailsAdmin(user, id);
+    }
+    completeDispatch(user, id) {
+        return this.outbound.completeDispatchAdmin(user, id);
     }
     executeAdmin(user, id) {
         return this.outbound.executeAdmin(user, id);
@@ -95,6 +117,63 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, update_outbound_plan_dto_1.UpdateOutboundPlanDto]),
     __metadata("design:returntype", void 0)
 ], OutboundController.prototype, "updatePlan", null);
+__decorate([
+    (0, common_1.Post)(':id/approve'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "approve", null);
+__decorate([
+    (0, common_1.Post)(':id/complete-picking'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "completePicking", null);
+__decorate([
+    (0, common_1.Post)(':id/complete-packing'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "completePacking", null);
+__decorate([
+    (0, common_1.Patch)(':id/shipping-details'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, update_shipping_details_dto_1.UpdateShippingDetailsDto]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "saveShippingDetails", null);
+__decorate([
+    (0, common_1.Post)(':id/shipping-details/send'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "sendShippingDetails", null);
+__decorate([
+    (0, common_1.Post)(':id/complete-shipping-details'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "completeShippingDetails", null);
+__decorate([
+    (0, common_1.Post)(':id/complete-dispatch'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "completeDispatch", null);
 __decorate([
     (0, common_1.Post)(':id/execute-admin'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

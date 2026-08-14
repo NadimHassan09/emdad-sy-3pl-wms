@@ -1,0 +1,1 @@
+{"version":3,"file":"avatar-url.js","sourceRoot":"","sources":["../../../../src/modules/media/avatar-url.ts"],"names":[],"mappings":";;AACA,8CAIC;AAJD,SAAgB,iBAAiB,CAAC,UAAqC;IACrE,IAAI,CAAC,UAAU,EAAE,IAAI,EAAE;QAAE,OAAO,IAAI,CAAC;IACrC,MAAM,OAAO,GAAG,UAAU,CAAC,IAAI,EAAE,CAAC,OAAO,CAAC,MAAM,EAAE,EAAE,CAAC,CAAC;IACtD,OAAO,UAAU,OAAO,EAAE,CAAC;AAC7B,CAAC"}

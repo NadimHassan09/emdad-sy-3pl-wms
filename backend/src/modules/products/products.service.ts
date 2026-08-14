@@ -35,6 +35,7 @@ import {
   purgeRemovableOrderLinesForProduct,
 } from './product-delete-references.util';
 import { resolveProductVolumeCbmFromDims } from './product-volume.util';
+import { toAvatarPublicUrl } from '../media/avatar-url';
 
 const SKU_RETRY_LIMIT = 5;
 const BARCODE_RETRY_LIMIT = 8;
@@ -200,6 +201,7 @@ export class ProductsService {
           { name: { contains: q, mode: 'insensitive' } },
           { sku: { contains: q, mode: 'insensitive' } },
           { barcode: { contains: q, mode: 'insensitive' } },
+          { company: { name: { contains: q, mode: 'insensitive' } } },
         ],
       });
     }
@@ -229,7 +231,7 @@ export class ProductsService {
           orderBy: { createdAt: 'desc' },
           take: query.limit,
           skip: query.offset,
-          include: { company: { select: { id: true, name: true } } },
+          include: { company: { select: { id: true, name: true, logoPath: true } } },
         }),
         tx.product.count({ where }),
       ]);
@@ -295,8 +297,16 @@ export class ProductsService {
         const reserved = agg?.reserved ?? new Prisma.Decimal(0);
         const stockZero = onHand.equals(0) && reserved.equals(0);
         const hasReferences = referencedProductIds.has(p.id);
+        const { imagePath, company, ...rest } = p;
         return {
-          ...p,
+          ...rest,
+          imagePath,
+          imageUrl: toAvatarPublicUrl(imagePath),
+          company: {
+            id: company.id,
+            name: company.name,
+            logoUrl: toAvatarPublicUrl(company.logoPath),
+          },
           totalOnHand: onHand.toString(),
           totalReserved: reserved.toString(),
           /** True when hard-delete is allowed (zero stock and no historical references). */

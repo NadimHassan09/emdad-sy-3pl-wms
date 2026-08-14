@@ -97,7 +97,12 @@ let BillingCycleProcessorService = BillingCycleProcessorService_1 = class Billin
                     where: { id: cycle.id },
                     data: { status: 'expired' },
                 });
-                if (cycle.status === 'renewed') {
+                const plan = await tx.billingPlan.findUnique({
+                    where: { id: cycle.billingPlanId },
+                    select: { active: true, autoRenew: true },
+                });
+                const shouldAutoRenew = !!plan?.active && (cycle.status === 'renewed' || plan.autoRenew === true);
+                if (shouldAutoRenew) {
                     const next = await this.billingCycles.createNextCycleFromPlan(tx, cycle);
                     if (next) {
                         await tx.company.update({

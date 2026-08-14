@@ -260,10 +260,22 @@ export function BillingPlanDetailPage() {
                 value={`${formatDecimal(plan.reservedVolume, 2)} m³`}
               />
               <DetailField
-                label="Subscription price"
+                label="Fixed plan price"
                 value={`${formatDecimal(plan.fixedSubscriptionFee)} ${CURRENCY}`}
               />
+              <DetailField
+                label="Inbound order price"
+                value={`${formatDecimal(plan.inboundOrderFee)} ${CURRENCY}`}
+              />
+              <DetailField
+                label="Outbound order price"
+                value={`${formatDecimal(plan.outboundOrderFee)} ${CURRENCY}`}
+              />
               <DetailField label="Billing cycle" value={`${plan.cycleLengthDays} days`} />
+              <DetailField
+                label="Auto-renewal"
+                value={plan.autoRenew === false ? 'Off' : 'On'}
+              />
               <DetailField label="Created date" value={formatDate(plan.createdAt)} />
             </dl>
           </section>

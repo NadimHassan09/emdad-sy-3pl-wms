@@ -301,6 +301,7 @@ enum OutboundOrderStatus {
   allocated
   picking
   packing
+  waiting_for_shipping_details
   ready_to_ship
   out_for_delivery
   shipped
@@ -397,12 +398,17 @@ enum OmsAllocationStatus {
 
 enum OmsOrderStatus {
   draft
+  /// Client-created; awaiting client confirmation of the order.
+  waiting_for_confirmation
   pending_approval
-  /// Commercial in-fulfillment state (Waiting approved / admin-created). Not a WMS stage.
+  /// Client confirmed; awaiting warehouse/admin approval to start fulfillment.
+  confirmed_waiting_for_admin_approval
+  /// Legacy commercial in-fulfillment state (kept for history; new writes use processing).
   pending
   rejected
   approved
   confirmed
+  /// Primary commercial in-fulfillment state after admin approve / admin create.
   processing
   allocated
   picking
@@ -423,6 +429,7 @@ enum CodRecordStatus {
   pending
   available
   paid_out
+  returned
 
   @@map("cod_record_status")
 }
@@ -434,6 +441,78 @@ enum CodGenerationStatus {
   failed
 
   @@map("cod_generation_status")
+}
+
+enum ShippingMethod {
+  manual
+  carrier
+
+  @@map("shipping_method")
+}
+
+enum ShippingProviderConnectionStatus {
+  disconnected
+  connected
+
+  @@map("shipping_provider_connection_status")
+}
+
+enum CarrierShipmentStatus {
+  pending
+  created
+  failed
+
+  @@map("carrier_shipment_status")
+}
+
+enum BulkShippingJobStatus {
+  pending
+  processing
+  completed
+  completed_with_errors
+  failed
+  cancelled
+
+  @@map("bulk_shipping_job_status")
+}
+
+enum BulkShippingItemStatus {
+  pending
+  processing
+  succeeded
+  skipped
+  failed
+
+  @@map("bulk_shipping_item_status")
+}
+
+enum ShippingPackageType {
+  box
+  envelope
+
+  @@map("shipping_package_type")
+}
+
+enum ShippingDeliveryType {
+  address
+  hub
+
+  @@map("shipping_delivery_type")
+}
+
+enum ShippingPickupType {
+  address
+  hub
+
+  @@map("shipping_pickup_type")
+}
+
+enum ShippingPayer {
+  sender
+  receiver
+  reseller
+
+  @@map("shipping_payer")
 }
 
 enum OmsReturnStatus {
@@ -584,6 +663,7 @@ enum WorkflowStepKind {
   putaway
   pick
   pack
+  shipping_details
   dispatch
   routing
 
@@ -610,6 +690,7 @@ enum WarehouseTaskType {
   putaway_quarantine
   pick
   pack
+  shipping_details
   dispatch
   routing
 
@@ -634,6 +715,7 @@ model Company {
   paymentTermsDays Int              @default(30) @map("payment_terms_days")
   status           CompanyStatus    @default(active)
   notes            String?
+  logoPath         String?          @map("logo_path")
   workflowUxSettings Json?            @map("workflow_ux_settings") @db.JsonB
   suspendedAt       DateTime?        @map("suspended_at") @db.Timestamptz(6)
   suspendedBy       String?          @map("suspended_by") @db.Uuid
@@ -682,6 +764,8 @@ model BillingPlan {
   id                      String   @id @default(uuid()) @db.Uuid
   companyId               String   @map("company_id") @db.Uuid
   active                  Boolean  @default(true)
+  /// When true, expired active cycles automatically start the next cycle.
+  autoRenew               Boolean  @default(true) @map("auto_renew")
   cycleLengthDays         Int      @map("cycle_length_days")
   fixedSubscriptionFee    Decimal  @default(0) @map("fixed_subscription_fee") @db.Decimal(12, 2)
   inboundOrderFee         Decimal  @default(0) @map("inbound_order_fee") @db.Decimal(10, 4)
@@ -898,6 +982,11 @@ model User {
   phone         String?
   role          UserRole
   status        UserStatus @default(active)
+  avatarPath    String?    @map("avatar_path")
+  /// Stable Google account id (`sub`). Null until the user links Google Sign-In.
+  googleSub      String?    @unique @map("google_sub")
+  googleEmail    String?    @map("google_email")
+  googleLinkedAt DateTime?  @map("google_linked_at") @db.Timestamptz(6)
   tokenVersion  Int        @default(0) @map("token_version")
   lastLoginAt    DateTime?  @map("last_login_at") @db.Timestamptz(6)
   lastActivityAt DateTime? @map("last_activity_at") @db.Timestamptz(6)
@@ -939,6 +1028,8 @@ model User {
   omsReturnsOwned            OmsReturn[]              @relation("OmsReturnCreatedBy")
   omsReturnsApproved         OmsReturn[]              @relation("OmsReturnApprovedBy")
   omsReturnsRejected         OmsReturn[]              @relation("OmsReturnRejectedBy")
+  shippingProviderConnections ShippingProviderConnection[] @relation("ShippingProviderConnectedBy")
+  bulkShippingJobsTriggered   BulkShippingJob[]            @relation("BulkShippingTriggeredBy")
 
   @@map("users")
 }
@@ -1549,6 +1640,18 @@ model OutboundOrder {
   /// admin | workers — Admin Execution; Confirm runs full pick/pack/dispatch facade.
   executionMode        String?             @map("execution_mode") @db.VarChar(16)
   executionPlan        Json?               @map("execution_plan")
+  shippingMethod       ShippingMethod      @default(manual) @map("shipping_method")
+  shippingProviderCode String?             @map("shipping_provider_code")
+  shippingReceiverLat  Decimal?            @map("shipping_receiver_lat") @db.Decimal(12, 8)
+  shippingReceiverLng  Decimal?            @map("shipping_receiver_lng") @db.Decimal(12, 8)
+  shippingPackageType  ShippingPackageType? @map("shipping_package_type")
+  shippingContents     String?             @map("shipping_contents")
+  shippingDeliveryType ShippingDeliveryType? @map("shipping_delivery_type")
+  shippingPickupType   ShippingPickupType? @map("shipping_pickup_type")
+  shippingPayer        ShippingPayer?      @map("shipping_payer")
+  shippingWeightKg     Decimal?            @map("shipping_weight_kg") @db.Decimal(12, 4)
+  shippingVolumeCbm    Decimal?            @map("shipping_volume_cbm") @db.Decimal(12, 6)
+  shippingPhoneCountry String?             @map("shipping_phone_country")
   createdBy            String              @map("created_by") @db.Uuid
   createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1560,7 +1663,9 @@ model OutboundOrder {
   stockReservations StockReservation[]
   omsEvents         OmsOrderEvent[]
   integrationEvents OmsIntegrationEvent[]
-  omsOrder          OmsOrder?
+  omsOrder            OmsOrder?
+  carrierShipments    CarrierShipment[]
+  bulkShippingItems   BulkShippingJobItem[]
 
   @@map("outbound_orders")
 }
@@ -1634,6 +1739,18 @@ model OmsOrder {
   rejectedAt           DateTime?           @map("rejected_at") @db.Timestamptz(6)
   rejectedBy           String?             @map("rejected_by") @db.Uuid
   rejectionReason      String?             @map("rejection_reason")
+  shippingMethod       ShippingMethod      @default(manual) @map("shipping_method")
+  shippingProviderCode String?             @map("shipping_provider_code")
+  shippingReceiverLat  Decimal?            @map("shipping_receiver_lat") @db.Decimal(12, 8)
+  shippingReceiverLng  Decimal?            @map("shipping_receiver_lng") @db.Decimal(12, 8)
+  shippingPackageType  ShippingPackageType? @map("shipping_package_type")
+  shippingContents     String?             @map("shipping_contents")
+  shippingDeliveryType ShippingDeliveryType? @map("shipping_delivery_type")
+  shippingPickupType   ShippingPickupType? @map("shipping_pickup_type")
+  shippingPayer        ShippingPayer?      @map("shipping_payer")
+  shippingWeightKg     Decimal?            @map("shipping_weight_kg") @db.Decimal(12, 4)
+  shippingVolumeCbm    Decimal?            @map("shipping_volume_cbm") @db.Decimal(12, 6)
+  shippingPhoneCountry String?             @map("shipping_phone_country")
   createdBy            String              @map("created_by") @db.Uuid
   createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1767,12 +1884,16 @@ model OmsReturn {
   companyId         String          @map("company_id") @db.Uuid
   omsOrderId        String          @map("oms_order_id") @db.Uuid
   warehouseReturnId String?         @unique @map("warehouse_return_id") @db.Uuid
-  /// DEFAULT '' — populated by application on create
+  /// DEFAULT '' — populated by DB trigger fn_oms_return_number (next_seq_number('OR'))
   returnNumber      String          @unique @default("") @map("return_number")
   status            OmsReturnStatus @default(requested)
   reason            String?
   notes             String?
   rejectionReason   String?         @map("rejection_reason")
+  /// Admin Mode: 'admin' | 'workers' (defaults to admin when null)
+  executionMode     String?         @map("execution_mode") @db.VarChar(16)
+  /// Inbound-shaped plan: warehouseId, receivingDockId, putaway splits per line
+  executionPlan     Json?           @map("execution_plan")
   createdBy         String          @map("created_by") @db.Uuid
   approvedBy        String?         @map("approved_by") @db.Uuid
   rejectedBy        String?         @map("rejected_by") @db.Uuid
@@ -2176,4 +2297,114 @@ model LeadFormSubmission {
   @@index([createdAt(sort: Desc)], map: "idx_lead_form_submissions_created_at_desc")
   @@index([activityType], map: "idx_lead_form_submissions_activity_type")
   @@map("lead_form_submissions")
+}
+
+/// Catalog of shipping carriers (code-seeded; not Admin-created).
+model ShippingProvider {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique
+  name      String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  connection ShippingProviderConnection?
+  shipments  CarrierShipment[]
+
+  @@map("shipping_providers")
+}
+
+/// Encrypted reseller credentials for a shipping provider (one connection per provider).
+model ShippingProviderConnection {
+  id                String                           @id @default(uuid()) @db.Uuid
+  providerId        String                           @unique @map("provider_id") @db.Uuid
+  status            ShippingProviderConnectionStatus @default(disconnected)
+  encryptedUsername String?                          @map("encrypted_username") @db.Text
+  encryptedPassword String?                          @map("encrypted_password") @db.Text
+  connectedByUserId String?                          @map("connected_by_user_id") @db.Uuid
+  lastTestedAt      DateTime?                        @map("last_tested_at") @db.Timestamptz(6)
+  lastTestStatus    String?                          @map("last_test_status")
+  lastErrorSafe     String?                          @map("last_error_safe")
+  createdAt         DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  provider    ShippingProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  connectedBy User?            @relation("ShippingProviderConnectedBy", fields: [connectedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("shipping_provider_connections")
+}
+
+/// Idempotent carrier shipment records for outbound orders.
+model CarrierShipment {
+  id              String                @id @default(uuid()) @db.Uuid
+  outboundOrderId String                @map("outbound_order_id") @db.Uuid
+  providerId      String                @map("provider_id") @db.Uuid
+  providerCode    String                @map("provider_code")
+  externalAwb     String?               @map("external_awb")
+  trackingNumber  String?               @map("tracking_number")
+  status          CarrierShipmentStatus @default(pending)
+  shippingCost    Decimal?              @map("shipping_cost") @db.Decimal(15, 4)
+  currency        String?
+  lastErrorSafe   String?               @map("last_error_safe")
+  rawResultMeta   Json?                 @map("raw_result_meta") @db.JsonB
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  outboundOrder OutboundOrder    @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
+  provider      ShippingProvider @relation(fields: [providerId], references: [id])
+
+  @@index([outboundOrderId], map: "idx_carrier_shipments_outbound")
+  @@index([providerId, status], map: "idx_carrier_shipments_provider")
+  @@map("carrier_shipments")
+}
+
+/// Admin bulk shipping processing job (audit + progress).
+model BulkShippingJob {
+  id                String                @id @default(uuid()) @db.Uuid
+  status            BulkShippingJobStatus @default(pending)
+  triggeredByUserId String                @map("triggered_by_user_id") @db.Uuid
+  totalCount        Int                   @map("total_count")
+  successCount      Int                   @default(0) @map("success_count")
+  failedCount       Int                   @default(0) @map("failed_count")
+  skippedCount      Int                   @default(0) @map("skipped_count")
+  progressPercent   Int                   @default(0) @map("progress_percent") @db.SmallInt
+  estimatedTotalCost Decimal?             @map("estimated_total_cost") @db.Decimal(15, 4)
+  estimatedCurrency String?               @map("estimated_currency")
+  errorMessage      String?               @map("error_message")
+  startedAt         DateTime?             @map("started_at") @db.Timestamptz(6)
+  completedAt       DateTime?             @map("completed_at") @db.Timestamptz(6)
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  triggeredBy User                 @relation("BulkShippingTriggeredBy", fields: [triggeredByUserId], references: [id])
+  items       BulkShippingJobItem[]
+
+  @@index([status, createdAt(sort: Desc)], map: "idx_bulk_shipping_jobs_status_created")
+  @@index([triggeredByUserId, createdAt(sort: Desc)], map: "idx_bulk_shipping_jobs_triggered_by")
+  @@map("bulk_shipping_jobs")
+}
+
+model BulkShippingJobItem {
+  id                       String                 @id @default(uuid()) @db.Uuid
+  jobId                    String                 @map("job_id") @db.Uuid
+  outboundOrderId          String                 @map("outbound_order_id") @db.Uuid
+  status                   BulkShippingItemStatus @default(pending)
+  selectedProviderCode     String                 @map("selected_provider_code")
+  recommendedProviderCode  String?                @map("recommended_provider_code")
+  quotedPrice              Decimal?               @map("quoted_price") @db.Decimal(15, 4)
+  quotedCurrency           String?                @map("quoted_currency")
+  externalAwb              String?                @map("external_awb")
+  labelCapability          String?                @map("label_capability") @db.VarChar(32)
+  lastErrorSafe            String?                @map("last_error_safe")
+  processedAt              DateTime?              @map("processed_at") @db.Timestamptz(6)
+  createdAt                DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  job           BulkShippingJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  outboundOrder OutboundOrder   @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, outboundOrderId], map: "uq_bulk_shipping_job_item_order")
+  @@index([jobId, status], map: "idx_bulk_shipping_job_items_job_status")
+  @@index([outboundOrderId], map: "idx_bulk_shipping_job_items_outbound")
+  @@map("bulk_shipping_job_items")
 }

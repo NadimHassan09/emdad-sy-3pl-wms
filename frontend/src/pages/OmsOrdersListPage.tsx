@@ -1,22 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Button } from '@ds';
-import { CompaniesApi } from '../api/companies';
+import { Button, Card } from '@ds';
 import type { OmsOrderListItem, OmsOrderStatus } from '../api/oms';
 import { OmsApi } from '../api/oms';
-import { useAuth } from '../auth/AuthContext';
 import { AdminListPageShell } from '../components/AdminListPageShell';
 import { OmsOrderFormModal } from '../components/oms/OmsOrderFormModal';
-import { Combobox } from '../components/Combobox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
-import { FilterPanel, FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
+import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
 import { RowActionsMenu } from '../components/RowActionsMenu';
-import { SelectField } from '../components/SelectField';
 import { OmsStatusBadge } from '../components/oms/OmsStatusBadge';
-import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import {
@@ -24,34 +19,18 @@ import {
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
 import { useFilters } from '../hooks/useFilters';
-import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { OMS_COMMERCIAL_FILTER_OPTIONS } from '../lib/oms-commercial-status';
-import { canAccessInternalTransfer } from '../lib/rbac';
+import { useDebounced } from '../lib/useDebounced';
 
-type ListDraft = {
-  orderSearch: string;
-  companyId: string;
-  status: string;
-  linkStatus: string;
-  createdFrom: string;
-  createdTo: string;
-};
-
-const INITIAL: ListDraft = {
-  orderSearch: '',
-  companyId: '',
-  status: '',
-  linkStatus: '',
-  createdFrom: '',
-  createdTo: '',
-};
+const OMS_STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  ...OMS_COMMERCIAL_FILTER_OPTIONS.filter((o) => o.value !== ''),
+];
 
 export function OmsOrdersListPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
-  const { user } = useAuth();
-  const isAdmin = canAccessInternalTransfer(user?.role);
   const isArabic =
     typeof window !== 'undefined' &&
     (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
@@ -65,17 +44,22 @@ export function OmsOrdersListPage() {
     enabled: !!editOrderId,
   });
 
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(INITIAL);
+  const { draftFilters, appliedFilters, setDraft, applyPatch } = useFilters({
+    orderSearch: '',
+    status: '',
+  });
+
+  const debouncedSearch = useDebounced(draftFilters.orderSearch, 300);
+
+  useEffect(() => {
+    if ((debouncedSearch ?? '') === (appliedFilters.orderSearch ?? '')) return;
+    applyPatch({ orderSearch: debouncedSearch ?? '' });
+  }, [debouncedSearch, appliedFilters.orderSearch, applyPatch]);
 
   const listParams = useMemo(
     () => ({
-      companyId: appliedFilters.companyId || undefined,
       status: (appliedFilters.status.trim() || undefined) as OmsOrderStatus | undefined,
       orderSearch: appliedFilters.orderSearch.trim() || undefined,
-      linkStatus: (appliedFilters.linkStatus || undefined) as 'linked' | 'unlinked' | undefined,
-      createdFrom: appliedFilters.createdFrom.trim() || undefined,
-      createdTo: appliedFilters.createdTo.trim() || undefined,
     }),
     [appliedFilters],
   );
@@ -87,17 +71,6 @@ export function OmsOrdersListPage() {
     rtQueryKeyPrefix: QK.omsOrders,
     chunkQueryKeyPrefix: 'oms-orders-chunk',
   });
-
-  const companies = useQuery({
-    queryKey: QK.companies,
-    queryFn: () => CompaniesApi.list(),
-    staleTime: 10 * 60_000,
-  });
-
-  const clientFilterOptions = useMemo(
-    () => companyFilterComboboxOptions(companies.data, 'All clients'),
-    [companies.data],
-  );
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => OmsApi.delete(id),
@@ -127,6 +100,10 @@ export function OmsOrdersListPage() {
       accessor: (row) => row.recipientPhone?.trim() || '—',
     },
     {
+      header: 'City',
+      accessor: (row) => row.city?.trim() || '—',
+    },
+    {
       header: 'Total',
       accessor: (row) =>
         row.total ? `${row.total}${row.currency ? ` ${row.currency}` : ''}` : '—',
@@ -143,7 +120,7 @@ export function OmsOrdersListPage() {
             ariaLabel="Open actions"
             items={[
               { key: 'edit', label: 'Edit', onClick: () => setEditOrderId(row.id) },
-              ...(row.status === 'shipped' || row.status === 'completed'
+              ...(row.status === 'delivered' || row.status === 'completed'
                 ? [
                     {
                       key: 'shippingFee',
@@ -178,56 +155,39 @@ export function OmsOrdersListPage() {
         </Button>
       }
     >
-      <FilterPanel title="Order filters" onApply={applyFilters} onReset={resetFilters}>
-        <TextField
-          label="Search"
-          value={draftFilters.orderSearch}
-          onChange={(e) => setDraft({ orderSearch: e.target.value })}
-          placeholder="Order #, customer, phone…"
-        />
-        {isAdmin ? (
-          <Combobox
-            label="Client"
-            value={draftFilters.companyId}
-            onChange={(v) => setDraft({ companyId: v })}
-            options={clientFilterOptions}
-            placeholder="All clients"
-          />
-        ) : null}
-        <SelectField
-          label="Status"
-          name="omsStatusFilter"
-          value={draftFilters.status}
-          onChange={(e) => setDraft({ status: e.target.value })}
-          options={[
-            { value: '', label: 'All statuses' },
-            ...OMS_COMMERCIAL_FILTER_OPTIONS.filter((o) => o.value !== ''),
-          ]}
-        />
-        <SelectField
-          label="Warehouse link"
-          name="omsWarehouseLinkFilter"
-          value={draftFilters.linkStatus}
-          onChange={(e) => setDraft({ linkStatus: e.target.value })}
-          options={[
-            { value: '', label: 'All' },
-            { value: 'linked', label: 'Linked' },
-            { value: 'unlinked', label: 'Not linked' },
-          ]}
-        />
-        <TextField
-          label="Created from"
-          type="date"
-          value={draftFilters.createdFrom}
-          onChange={(e) => setDraft({ createdFrom: e.target.value })}
-        />
-        <TextField
-          label="Created to"
-          type="date"
-          value={draftFilters.createdTo}
-          onChange={(e) => setDraft({ createdTo: e.target.value })}
-        />
-      </FilterPanel>
+      <Card padding="md" className="mb-4">
+        <div className="flex max-w-3xl flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="relative w-full sm:w-72 sm:max-w-sm">
+            <i
+              className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+              aria-hidden
+            />
+            <input
+              value={draftFilters.orderSearch}
+              onChange={(e) => setDraft({ orderSearch: e.target.value })}
+              placeholder={
+                isArabic
+                  ? 'بحث: رقم الطلب، العميل، الهاتف…'
+                  : 'Search order #, customer, phone…'
+              }
+              aria-label={isArabic ? 'بحث' : 'Search'}
+              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+            />
+          </div>
+          <select
+            value={draftFilters.status}
+            onChange={(e) => applyPatch({ status: e.target.value })}
+            aria-label={isArabic ? 'الحالة' : 'Status'}
+            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+          >
+            {OMS_STATUS_FILTER_OPTIONS.map((opt) => (
+              <option key={opt.value || 'all'} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </Card>
 
       <DataTable
         columns={columns}
@@ -235,34 +195,37 @@ export function OmsOrdersListPage() {
         rowKey={(row) => row.id}
         serverPagination={pagination.serverPagination}
         loading={pagination.isInitialLoading}
+        empty="No OMS orders match the filters."
         onRowClick={(row) => navigate(`/orders/oms/${row.id}`)}
-        empty="No e-commerce orders match the filters."
       />
 
-      <OmsOrderFormModal
-        open={!!editOrderId}
-        mode="edit"
-        initial={editDetailQuery.data ?? null}
-        onClose={() => setEditOrderId(null)}
-        onSaved={() => {
-          setEditOrderId(null);
-          void qc.invalidateQueries({ queryKey: QK.omsOrders });
-        }}
-      />
+      {editOrderId ? (
+        <OmsOrderFormModal
+          open
+          mode="edit"
+          initial={editDetailQuery.data ?? null}
+          onClose={() => setEditOrderId(null)}
+          onSaved={() => {
+            setEditOrderId(null);
+            void qc.invalidateQueries({ queryKey: QK.omsOrders });
+          }}
+        />
+      ) : null}
 
       <ConfirmModal
         open={!!deleteOrder}
-        title="Delete this e-commerce order?"
+        title="Delete OMS order?"
         confirmLabel="Delete"
-        cancelLabel="Cancel"
         danger
         loading={deleteMut.isPending}
         onClose={() => !deleteMut.isPending && setDeleteOrder(null)}
-        onConfirm={() => deleteOrder && deleteMut.mutate(deleteOrder.id)}
+        onConfirm={() => {
+          if (deleteOrder) deleteMut.mutate(deleteOrder.id);
+        }}
       >
-        <p className="text-sm">
-          This removes only the OMS record. Any linked outbound order will not be deleted.
-        </p>
+        {deleteOrder
+          ? `Delete ${deleteOrder.orderNumber}? This cannot be undone.`
+          : null}
       </ConfirmModal>
     </AdminListPageShell>
   );

@@ -11,6 +11,7 @@ const common_1 = require("@nestjs/common");
 const audit_module_1 = require("../../common/audit/audit.module");
 const prisma_module_1 = require("../../common/prisma/prisma.module");
 const auth_module_1 = require("../auth/auth.module");
+const media_module_1 = require("../media/media.module");
 const companies_controller_1 = require("./companies.controller");
 const companies_service_1 = require("./companies.service");
 const customer_lifecycle_service_1 = require("./customer-lifecycle.service");
@@ -19,7 +20,7 @@ let CompaniesModule = class CompaniesModule {
 exports.CompaniesModule = CompaniesModule;
 exports.CompaniesModule = CompaniesModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, auth_module_1.AuthModule, audit_module_1.AuditModule],
+        imports: [prisma_module_1.PrismaModule, auth_module_1.AuthModule, audit_module_1.AuditModule, media_module_1.MediaModule],
         controllers: [companies_controller_1.CompaniesController],
         providers: [companies_service_1.CompaniesService, customer_lifecycle_service_1.CustomerLifecycleService],
         exports: [companies_service_1.CompaniesService, customer_lifecycle_service_1.CustomerLifecycleService],

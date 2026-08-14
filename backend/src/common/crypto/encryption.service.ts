@@ -40,16 +40,18 @@ export class EncryptionService {
   }
 
   private resolveKey(): Buffer {
-    const raw = this.config.get<string>('BACKUP_ENCRYPTION_KEY')?.trim();
+    const raw =
+      this.config.get<string>('CREDENTIALS_ENCRYPTION_KEY')?.trim() ||
+      this.config.get<string>('BACKUP_ENCRYPTION_KEY')?.trim();
     if (!raw) {
       throw new ServiceUnavailableException(
-        'BACKUP_ENCRYPTION_KEY is not configured (32-byte base64 key required).',
+        'Encryption key is not configured. Set BACKUP_ENCRYPTION_KEY (or CREDENTIALS_ENCRYPTION_KEY) to a 32-byte base64 value.',
       );
     }
     const key = Buffer.from(raw, 'base64');
     if (key.length !== 32) {
       throw new ServiceUnavailableException(
-        'BACKUP_ENCRYPTION_KEY must decode to exactly 32 bytes.',
+        'BACKUP_ENCRYPTION_KEY / CREDENTIALS_ENCRYPTION_KEY must decode to exactly 32 bytes.',
       );
     }
     return key;

@@ -23,10 +23,12 @@ const billing_notifications_service_1 = require("./billing-notifications.service
 const billing_usage_service_1 = require("./billing-usage.service");
 const billing_rate_snapshot_util_1 = require("./billing-rate-snapshot.util");
 const billing_plans_list_query_1 = require("./billing-plans-list.query");
+const avatar_url_1 = require("../media/avatar-url");
 const PLAN_SELECT = {
     id: true,
     companyId: true,
     active: true,
+    autoRenew: true,
     cycleLengthDays: true,
     fixedSubscriptionFee: true,
     inboundOrderFee: true,
@@ -119,6 +121,7 @@ let BillingPlansService = class BillingPlansService {
                 data: {
                     companyId,
                     active: dto.active ?? true,
+                    autoRenew: dto.autoRenew ?? true,
                     cycleLengthDays: dto.cycleLengthDays,
                     fixedSubscriptionFee: dto.fixedSubscriptionFee ?? 0,
                     inboundOrderFee: dto.inboundOrderFee ?? 0,
@@ -176,15 +179,27 @@ let BillingPlansService = class BillingPlansService {
         if (dto.reservedWeight != null) {
             await this.volumeCapacity.assertWeightAllocation(dto.reservedWeight, id);
         }
+        const applyMode = dto.applyMode ?? 'next_cycle';
+        const outboundOrderFee = dto.outboundOrderFee != null
+            ? dto.outboundOrderFee
+            : dto.outboundBaseFee != null
+                ? dto.outboundBaseFee
+                : undefined;
+        const outboundBaseFee = dto.outboundBaseFee != null
+            ? dto.outboundBaseFee
+            : dto.outboundOrderFee != null
+                ? dto.outboundOrderFee
+                : undefined;
         const updated = await this.prisma.billingPlan.update({
             where: { id },
             data: {
                 active: dto.active,
+                autoRenew: dto.autoRenew,
                 cycleLengthDays: dto.cycleLengthDays,
                 fixedSubscriptionFee: dto.fixedSubscriptionFee,
                 inboundOrderFee: dto.inboundOrderFee,
-                outboundOrderFee: dto.outboundOrderFee,
-                outboundBaseFee: dto.outboundBaseFee,
+                outboundOrderFee,
+                outboundBaseFee,
                 outboundIncludedItems: dto.outboundIncludedItems,
                 outboundAdditionalItemFee: dto.outboundAdditionalItemFee,
                 packagingFee: dto.packagingFee,
@@ -196,13 +211,34 @@ let BillingPlansService = class BillingPlansService {
             },
             select: PLAN_SELECT,
         });
+        if (applyMode === 'immediate') {
+            const now = new Date();
+            const liveCycle = await this.prisma.billingCycle.findFirst({
+                where: {
+                    companyId: updated.companyId,
+                    billingPlanId: updated.id,
+                    status: { in: ['active', 'renewed'] },
+                    startsAt: { lte: now },
+                    endsAt: { gt: now },
+                },
+                select: { id: true },
+                orderBy: { endsAt: 'desc' },
+            });
+            if (liveCycle) {
+                await this.prisma.billingCycle.update({
+                    where: { id: liveCycle.id },
+                    data: { rateSnapshot: (0, billing_rate_snapshot_util_1.buildRateSnapshotFromPlan)(updated) },
+                });
+                void this.invoiceCalc.recalculateForCompany(updated.companyId, 'plan_rates_updated');
+            }
+        }
         void this.billingAudit.fromUser(user, {
             action: billing_audit_service_1.BILLING_AUDIT_ACTIONS.PLAN_UPDATED,
             resourceType: 'billing_plan',
             resourceId: id,
             companyId: updated.companyId,
             previousState: previous,
-            newState: updated,
+            newState: { ...updated, applyMode },
         });
         this.realtime.emitPlanUpdated(updated.companyId, {
             planId: updated.id,
@@ -408,6 +444,7 @@ function mapOverviewSqlRow(row) {
         id: row.plan_id,
         companyId: row.company_id,
         active: row.active,
+        autoRenew: row.auto_renew,
         cycleLengthDays: row.cycle_length_days,
         fixedSubscriptionFee: row.fixed_subscription_fee.toString(),
         inboundOrderFee: row.inbound_order_fee.toString(),
@@ -441,6 +478,7 @@ function mapOverviewSqlRow(row) {
         companyId: row.company_id,
         companyName: row.company_name,
         companyStatus: row.company_status,
+        companyLogoUrl: (0, avatar_url_1.toAvatarPublicUrl)(row.company_logo_path),
         currentCycle,
         cycleStart: currentCycle?.startsAt ?? null,
         cycleEnd: currentCycle?.endsAt ?? null,

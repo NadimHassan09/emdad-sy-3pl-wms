@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { isAxiosError } from 'axios';
 import { Link, useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert, Card, Skeleton, StatusBadge } from '@ds';
 
@@ -9,9 +9,12 @@ import { ClientOrderTrackingPanel } from '../components/ClientOrderTrackingPanel
 import {
   clientOmsCommercialStatusBadgeKey,
   clientOmsCommercialStatusLabel,
+  mapClientOmsCommercialDisplayStatus,
 } from '../lib/client-oms-commercial-status';
 import { isClientArabic } from '../lib/client-ui-language';
 import {
+  cancelClientOmsOrder,
+  confirmClientOmsOrder,
   fetchClientOmsOrder,
   fetchClientOmsTimeline,
 } from '../services/clientOmsOrdersService';
@@ -67,6 +70,7 @@ export function EcommerceOrderDetailPage(): ReactElement {
   const { id = '' } = useParams<{ id: string }>();
   const isArabic = isClientArabic();
   const t = (label: string) => labelText(label, isArabic);
+  const qc = useQueryClient();
 
   const orderQuery = useQuery({
     queryKey: ['client', 'ecommerce-orders', id],
@@ -80,12 +84,39 @@ export function EcommerceOrderDetailPage(): ReactElement {
     enabled: !!id,
   });
 
+  const confirmMut = useMutation({
+    mutationFn: () => confirmClientOmsOrder(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['client', 'ecommerce-orders', id] });
+      void qc.invalidateQueries({ queryKey: ['client', 'ecommerce-orders'] });
+    },
+  });
+
+  const cancelMut = useMutation({
+    mutationFn: () => cancelClientOmsOrder(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['client', 'ecommerce-orders', id] });
+      void qc.invalidateQueries({ queryKey: ['client', 'ecommerce-orders'] });
+    },
+  });
+
   const data = orderQuery.data
     ? {
         ...orderQuery.data,
         timeline: timelineQuery.data ?? orderQuery.data.timeline,
       }
     : undefined;
+
+  const commercial = data ? mapClientOmsCommercialDisplayStatus(data.status) : null;
+  const rawStatus = data?.status ?? '';
+  // Client may cancel only before admin approval (confirm + waiting-for-admin stages).
+  // After admin approval (processing+), only warehouse/admin can cancel.
+  const canConfirm =
+    rawStatus === 'waiting_for_confirmation' || commercial === 'waiting_for_confirmation';
+  const canCancel =
+    rawStatus === 'waiting_for_confirmation' ||
+    rawStatus === 'confirmed_waiting_for_admin_approval' ||
+    rawStatus === 'pending_approval';
 
   const notFound =
     orderQuery.error &&
@@ -127,14 +158,51 @@ export function EcommerceOrderDetailPage(): ReactElement {
         </div>
       ) : data ? (
         <>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-xl font-bold tracking-tight text-text-strong font-mono">
-              {data.orderNumber || data.id.slice(0, 8)}
-            </h1>
-            <StatusBadge status={clientOmsCommercialStatusBadgeKey(data.status)} isArabic={isArabic}>
-              {clientOmsCommercialStatusLabel(data.status, isArabic)}
-            </StatusBadge>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <h1 className="text-xl font-bold tracking-tight text-text-strong font-mono">
+                {data.orderNumber || data.id.slice(0, 8)}
+              </h1>
+              <StatusBadge status={clientOmsCommercialStatusBadgeKey(data.status)} isArabic={isArabic}>
+                {clientOmsCommercialStatusLabel(data.status, isArabic)}
+              </StatusBadge>
+            </div>
+            {canConfirm || canCancel ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {canConfirm ? (
+                  <button
+                    type="button"
+                    disabled={confirmMut.isPending}
+                    onClick={() => confirmMut.mutate()}
+                    className="rounded-lg border border-success-600 bg-success-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:border-success-700 hover:bg-success-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isArabic ? 'تأكيد الطلب' : 'Confirm order'}
+                  </button>
+                ) : null}
+                {canCancel ? (
+                  <button
+                    type="button"
+                    disabled={cancelMut.isPending}
+                    onClick={() => cancelMut.mutate()}
+                    className="rounded-lg border border-danger-600 bg-danger-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:border-danger-700 hover:bg-danger-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isArabic ? 'إلغاء الطلب' : 'Cancel order'}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </div>
+
+          {confirmMut.isError || cancelMut.isError ? (
+            <Alert
+              variant="error"
+              title={
+                (confirmMut.error as Error | null)?.message ||
+                (cancelMut.error as Error | null)?.message ||
+                (isArabic ? 'تعذر تنفيذ الإجراء' : 'Action failed')
+              }
+            />
+          ) : null}
 
           {data.rejectionReason ? (
             <Alert variant="error" title={`${t('Rejected')}: ${data.rejectionReason}`} />

@@ -229,6 +229,14 @@ export async function mockBackupAdminApis(page: Page) {
             },
             healthStatus: 'healthy',
             alerts: [],
+            diskStorage: {
+              usedBytes: 0,
+              reservedBytes: 0,
+              availableBytes: 100 * 1024 * 1024 * 1024,
+              totalBytes: 100 * 1024 * 1024 * 1024,
+              mountPath: '/',
+              emdadPaths: [],
+            },
           },
         }),
       });

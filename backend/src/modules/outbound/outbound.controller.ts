@@ -19,6 +19,7 @@ import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
 import { ConfirmOutboundBodyDto } from './dto/confirm-outbound-body.dto';
 import { ListOutboundQueryDto } from './dto/list-outbound-query.dto';
 import { UpdateOutboundPlanDto } from './dto/update-outbound-plan.dto';
+import { UpdateShippingDetailsDto } from './dto/update-shipping-details.dto';
 import { OutboundService } from './outbound.service';
 
 @Controller('outbound-orders')
@@ -54,6 +55,61 @@ export class OutboundController {
     return this.outbound.updatePlan(user, id, body);
   }
 
+  @Post(':id/approve')
+  approve(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.outbound.approveAdmin(user, id);
+  }
+
+  @Post(':id/complete-picking')
+  completePicking(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.outbound.completePickingAdmin(user, id);
+  }
+
+  @Post(':id/complete-packing')
+  completePacking(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.outbound.completePackingAdmin(user, id);
+  }
+
+  @Patch(':id/shipping-details')
+  saveShippingDetails(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() body: UpdateShippingDetailsDto,
+  ) {
+    return this.outbound.saveShippingDetails(user, id, body);
+  }
+
+  @Post(':id/shipping-details/send')
+  sendShippingDetails(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.outbound.sendShippingDetails(user, id);
+  }
+
+  @Post(':id/complete-shipping-details')
+  completeShippingDetails(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.outbound.completeShippingDetailsAdmin(user, id);
+  }
+
+  @Post(':id/complete-dispatch')
+  completeDispatch(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.outbound.completeDispatchAdmin(user, id);
+  }
+
+  /** @deprecated Prefer stage endpoints; advances exactly one Admin stage. */
   @Post(':id/execute-admin')
   executeAdmin(
     @CurrentUser() user: AuthPrincipal,

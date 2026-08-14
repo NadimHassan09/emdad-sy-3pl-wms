@@ -64,6 +64,7 @@ export class FormsService {
           { fullName: { contains: q, mode: 'insensitive' } },
           { phone: { contains: q, mode: 'insensitive' } },
           { email: { contains: q, mode: 'insensitive' } },
+          { activityType: { contains: q, mode: 'insensitive' } },
         ],
       });
     }

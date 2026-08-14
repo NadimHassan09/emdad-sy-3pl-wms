@@ -17,6 +17,7 @@ exports.OUTBOUND_POST_CONFIRM = [
     client_1.OutboundOrderStatus.confirmed,
     client_1.OutboundOrderStatus.picking,
     client_1.OutboundOrderStatus.packing,
+    client_1.OutboundOrderStatus.waiting_for_shipping_details,
     client_1.OutboundOrderStatus.ready_to_ship,
     client_1.OutboundOrderStatus.shipped,
 ];

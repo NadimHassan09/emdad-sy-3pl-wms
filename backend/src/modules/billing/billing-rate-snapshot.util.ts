@@ -34,15 +34,16 @@ type PlanRateSource = {
 };
 
 export function buildRateSnapshotFromPlan(plan: PlanRateSource): BillingRateSnapshot {
-  const baseFee = plan.outboundBaseFee.gt(0)
+  const outboundOrderFee = plan.outboundOrderFee;
+  const outboundBaseFee = plan.outboundBaseFee.gt(0)
     ? plan.outboundBaseFee
-    : plan.outboundOrderFee;
+    : outboundOrderFee;
   return {
     billingPlanId: plan.id,
     fixedSubscriptionFee: plan.fixedSubscriptionFee.toString(),
     inboundOrderFee: plan.inboundOrderFee.toString(),
-    outboundOrderFee: baseFee.toString(),
-    outboundBaseFee: baseFee.toString(),
+    outboundOrderFee: outboundOrderFee.toString(),
+    outboundBaseFee: outboundBaseFee.toString(),
     outboundIncludedItems: plan.outboundIncludedItems,
     outboundAdditionalItemFee: plan.outboundAdditionalItemFee.toString(),
     packagingFee: plan.packagingFee.toString(),
@@ -101,11 +102,14 @@ export function parseRateSnapshot(raw: unknown): BillingRateSnapshot | null {
 }
 
 export function rateSnapshotToDecimals(snapshot: BillingRateSnapshot) {
-  const outboundBaseFee = new Prisma.Decimal(snapshot.outboundBaseFee || snapshot.outboundOrderFee);
+  const outboundOrderFee = new Prisma.Decimal(snapshot.outboundOrderFee);
+  const outboundBaseFee = new Prisma.Decimal(
+    snapshot.outboundBaseFee || snapshot.outboundOrderFee,
+  );
   return {
     fixedSubscriptionFee: new Prisma.Decimal(snapshot.fixedSubscriptionFee),
     inboundOrderFee: new Prisma.Decimal(snapshot.inboundOrderFee),
-    outboundOrderFee: outboundBaseFee,
+    outboundOrderFee,
     outboundBaseFee,
     outboundIncludedItems: snapshot.outboundIncludedItems ?? 0,
     outboundAdditionalItemFee: new Prisma.Decimal(snapshot.outboundAdditionalItemFee ?? '0'),

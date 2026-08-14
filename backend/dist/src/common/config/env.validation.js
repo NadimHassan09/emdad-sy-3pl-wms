@@ -84,6 +84,15 @@ const envSchema = zod_1.z.object({
     LOGIN_BRUTE_FORCE_ENABLED: zod_1.z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
     LOGIN_BRUTE_FORCE_MAX_FAILURES: zod_1.z.coerce.number().int().min(1).max(100).optional(),
     LOGIN_BRUTE_FORCE_WINDOW_MS: zod_1.z.coerce.number().int().min(1000).max(3_600_000).optional(),
+    GOOGLE_OAUTH_ENABLED: zod_1.z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+    GOOGLE_OAUTH_CLIENT_ID: zod_1.z.string().optional(),
+    GOOGLE_OAUTH_CLIENT_SECRET: zod_1.z.string().optional(),
+    GOOGLE_OAUTH_REDIRECT_URI: zod_1.z.string().optional(),
+    GOOGLE_OAUTH_STATE_SECRET: zod_1.z.string().optional(),
+    GOOGLE_OAUTH_FRONTEND_ORIGIN: zod_1.z.string().optional(),
+    GOOGLE_OAUTH_SUCCESS_URL: zod_1.z.string().optional(),
+    GOOGLE_OAUTH_FAILURE_URL: zod_1.z.string().optional(),
+    GOOGLE_OAUTH_LINK_SUCCESS_URL: zod_1.z.string().optional(),
 });
 function envBool(raw) {
     if (raw === undefined || raw === null || raw === '')

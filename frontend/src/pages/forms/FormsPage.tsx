@@ -1,32 +1,21 @@
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { Alert } from '@ds';
+import { Alert, Card, TableFooterPagination, useDebouncedValue } from '@ds';
 import { FormsApi, type LeadFormSubmission } from '../../api/forms';
 import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/ConfirmModal';
-import { Column, DataTable } from '../../components/DataTable';
-import { FilterPanel } from '../../components/FilterPanel';
 import { Modal } from '../../components/Modal';
-import { SelectField } from '../../components/SelectField';
-import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
-import { useFilters } from '../../hooks/useFilters';
+import { useCachedState } from '../../hooks/useCachedState';
 import {
   TASK_LIST_DEFAULT_PAGE_SIZE,
   useServerPagination,
 } from '../../hooks/useServerPagination';
 import { useWmsTranslation } from '../../lib/ui-i18n';
-
-type FormsFilters = {
-  search: string;
-  activityType: string;
-  createdFrom: string;
-  createdTo: string;
-};
 
 function formatDateTime(iso?: string | null): string {
   if (!iso) return '—';
@@ -44,27 +33,18 @@ export function FormsPage() {
   const [detail, setDetail] = useState<LeadFormSubmission | null>(null);
   const [toDelete, setToDelete] = useState<LeadFormSubmission | null>(null);
 
-  const initial = useMemo<FormsFilters>(
-    () => ({ search: '', activityType: '', createdFrom: '', createdTo: '' }),
-    [],
-  );
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(initial);
-
-  const activityTypesQuery = useQuery({
-    queryKey: QK.forms.activityTypes,
-    queryFn: () => FormsApi.activityTypes(),
-    staleTime: 5 * 60_000,
-  });
+  const [search, setSearch] = useCachedState('search', '');
+  const [createdFrom, setCreatedFrom] = useCachedState('createdFrom', '');
+  const [createdTo, setCreatedTo] = useCachedState('createdTo', '');
+  const debouncedSearch = useDebouncedValue(search, 300);
 
   const listParams = useMemo(
     () => ({
-      search: appliedFilters.search.trim() || undefined,
-      activityType: appliedFilters.activityType || undefined,
-      createdFrom: appliedFilters.createdFrom || undefined,
-      createdTo: appliedFilters.createdTo || undefined,
+      search: debouncedSearch.trim() || undefined,
+      createdFrom: createdFrom || undefined,
+      createdTo: createdTo || undefined,
     }),
-    [appliedFilters],
+    [debouncedSearch, createdFrom, createdTo],
   );
 
   const pagination = useServerPagination<LeadFormSubmission>({
@@ -84,69 +64,7 @@ export function FormsPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const activityTypeOptions = useMemo(
-    () => [
-      { value: '', label: t(['All activity types', 'كل أنواع النشاط']) },
-      ...(activityTypesQuery.data ?? []).map((a) => ({ value: a, label: a })),
-    ],
-    [activityTypesQuery.data, t],
-  );
-
-  const columns: Column<LeadFormSubmission>[] = [
-    {
-      header: t(['Full name', 'الاسم الكامل']),
-      accessor: (r) => <span className="font-medium text-text-strong">{r.fullName}</span>,
-      width: '170px',
-    },
-    {
-      header: t(['Phone', 'الهاتف']),
-      accessor: (r) => <span className="font-mono text-xs" dir="ltr">{r.phone}</span>,
-      width: '140px',
-    },
-    {
-      header: t(['Email', 'البريد الإلكتروني']),
-      accessor: (r) => <span className="text-xs" dir="ltr">{r.email}</span>,
-      width: '200px',
-    },
-    {
-      header: t(['Activity type', 'نوع النشاط']),
-      accessor: (r) => (
-        <span className="rounded bg-surface-card-muted px-2 py-0.5 text-xs text-text-body">
-          {r.activityType}
-        </span>
-      ),
-      width: '150px',
-    },
-    {
-      header: t(['Message', 'الرسالة']),
-      accessor: (r) => (
-        <span className="block max-w-[260px] truncate text-xs text-text-body" title={r.message ?? ''}>
-          {r.message?.trim() || '—'}
-        </span>
-      ),
-    },
-    {
-      header: t(['Submitted at', 'تاريخ الإرسال']),
-      accessor: (r) => <span className="text-xs text-text-body">{formatDateTime(r.createdAt)}</span>,
-      width: '170px',
-    },
-    {
-      header: t(['Actions', 'إجراءات']),
-      accessor: (r) => (
-        <div className="flex flex-wrap gap-1">
-          <Button size="sm" variant="secondary" onClick={() => setDetail(r)}>
-            {t(['View', 'عرض'])}
-          </Button>
-          {canDelete ? (
-            <Button size="sm" variant="danger" onClick={() => setToDelete(r)}>
-              {t(['Delete', 'حذف'])}
-            </Button>
-          ) : null}
-        </div>
-      ),
-      width: '160px',
-    },
-  ];
+  const colCount = canDelete ? 7 : 6;
 
   return (
     <AdminListPageShell
@@ -158,50 +76,40 @@ export function FormsPage() {
       ])}
       isArabic={isArabic}
     >
-      <FilterPanel
-        title={t(['Lead filters', 'فلاتر العملاء المحتملين'])}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-        applyLabel={t(['Apply filters', 'تطبيق الفلاتر'])}
-        resetLabel={t(['Reset filters', 'إعادة تعيين الفلاتر'])}
-        className="mb-4"
-      >
-          <TextField
-            label={t(['Search', 'بحث'])}
-            value={draftFilters.search}
-            onChange={(e) => setDraft({ search: e.target.value })}
-            placeholder={t(['Name, phone, or email', 'الاسم أو الهاتف أو البريد'])}
-          />
-          <SelectField
-            label={t(['Activity type', 'نوع النشاط'])}
-            value={draftFilters.activityType}
-            onChange={(e) => setDraft({ activityType: e.target.value })}
-            options={activityTypeOptions}
-          />
-          <TextField
-            label={t(['From date', 'من تاريخ'])}
-            type="date"
-            value={draftFilters.createdFrom}
-            onChange={(e) => setDraft({ createdFrom: e.target.value })}
-          />
-          <TextField
-            label={t(['To date', 'إلى تاريخ'])}
-            type="date"
-            value={draftFilters.createdTo}
-            onChange={(e) => setDraft({ createdTo: e.target.value })}
-          />
-      </FilterPanel>
-
-      <DataTable
-        columns={columns}
-        rows={pagination.rows}
-        rowKey={(r) => r.id}
-        loading={pagination.isInitialLoading}
-        onRowClick={(r) => setDetail(r)}
-        serverPagination={pagination.serverPagination}
-        empty={t(['No submissions match the filters.', 'لا توجد نماذج مطابقة للفلاتر.'])}
-      />
+      <Card className="mb-4">
+        <div className="flex flex-col sm:flex-row gap-3 sm:flex-wrap sm:items-center">
+          <div className="relative flex-1 max-w-sm">
+            <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-text-faint text-xs" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t([
+                'Name, phone, email, or activity type',
+                'الاسم أو الهاتف أو البريد أو نوع النشاط',
+              ])}
+              className="w-full pl-9 pr-4 py-2 bg-surface-sunken border border-border-strong text-text-strong placeholder:text-text-faint rounded-lg text-sm input-premium"
+            />
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 sm:flex-wrap">
+            <input
+              type="date"
+              value={createdFrom}
+              onChange={(e) => setCreatedFrom(e.target.value)}
+              aria-label={t(['From date', 'من تاريخ'])}
+              title={t(['From date', 'من تاريخ'])}
+              className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
+            />
+            <input
+              type="date"
+              value={createdTo}
+              onChange={(e) => setCreatedTo(e.target.value)}
+              aria-label={t(['To date', 'إلى تاريخ'])}
+              title={t(['To date', 'إلى تاريخ'])}
+              className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
+            />
+          </div>
+        </div>
+      </Card>
 
       {pagination.isError ? (
         <Alert
@@ -211,7 +119,7 @@ export function FormsPage() {
             'There was a problem retrieving lead submissions. Check your connection and try again.',
             'حدثت مشكلة في جلب النماذج. تحقق من اتصالك وأعد المحاولة.',
           ])}
-          className="mt-3"
+          className="mb-4"
         >
           <Alert.Action onClick={() => pagination.refetch()}>
             {t(['Retry', 'إعادة المحاولة'])}
@@ -219,13 +127,100 @@ export function FormsPage() {
         </Alert>
       ) : null}
 
+      <Card className="overflow-hidden" padding="none">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
+              <tr>
+                <th className="px-5 py-3 text-left">{t(['Full name', 'الاسم الكامل'])}</th>
+                <th className="px-5 py-3 text-left">{t(['Phone', 'الهاتف'])}</th>
+                <th className="px-5 py-3 text-left">{t(['Email', 'البريد الإلكتروني'])}</th>
+                <th className="px-5 py-3 text-left">{t(['Activity type', 'نوع النشاط'])}</th>
+                <th className="px-5 py-3 text-left">{t(['Message', 'الرسالة'])}</th>
+                <th className="px-5 py-3 text-right">{t(['Submitted at', 'تاريخ الإرسال'])}</th>
+                {canDelete ? (
+                  <th className="px-5 py-3 text-right">{t(['Actions', 'إجراءات'])}</th>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {pagination.isInitialLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={`sk-${i}`} className="animate-pulse">
+                    <td className="px-5 py-3.5" colSpan={colCount}>
+                      <div className="h-4 w-full max-w-xl rounded bg-skeleton-base" />
+                    </td>
+                  </tr>
+                ))
+              ) : pagination.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={colCount} className="px-5 py-10 text-center text-text-faint text-sm">
+                    {t(['No submissions match the filters.', 'لا توجد نماذج مطابقة للفلاتر.'])}
+                  </td>
+                </tr>
+              ) : (
+                pagination.rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    onClick={() => setDetail(row)}
+                    className="hover:bg-surface-hover transition-colors group cursor-pointer"
+                  >
+                    <td className="px-5 py-3.5 font-semibold text-text-strong">
+                      {row.fullName || '—'}
+                    </td>
+                    <td className="px-5 py-3.5 text-text-body font-mono text-xs" dir="ltr">
+                      {row.phone || '—'}
+                    </td>
+                    <td className="px-5 py-3.5 text-text-body text-xs" dir="ltr">
+                      {row.email || '—'}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span
+                        className="inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium text-text-strong"
+                        style={{ backgroundColor: '#fff5e3' }}
+                      >
+                        {row.activityType}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-text-body">
+                      <span
+                        className="block max-w-[260px] truncate text-xs"
+                        title={row.message ?? ''}
+                      >
+                        {row.message?.trim() || '—'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right text-text-muted text-xs">
+                      {formatDateTime(row.createdAt)}
+                    </td>
+                    {canDelete ? (
+                      <td
+                        className="px-5 py-3.5 text-right"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <Button size="sm" variant="danger" onClick={() => setToDelete(row)}>
+                          {t(['Delete', 'حذف'])}
+                        </Button>
+                      </td>
+                    ) : null}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <TableFooterPagination pagination={pagination.serverPagination} isArabic={isArabic} />
+      </Card>
+
       <Modal
         open={!!detail}
         onClose={() => setDetail(null)}
         title={t(['Submission details', 'تفاصيل النموذج'])}
+        widthClass="max-w-6xl w-full min-h-[70vh]"
       >
         {detail ? (
-          <dl className="space-y-3 text-sm">
+          <dl className="space-y-5 text-base">
             <DetailRow label={t(['Full name', 'الاسم الكامل'])} value={detail.fullName} />
             <DetailRow label={t(['Phone', 'الهاتف'])} value={detail.phone} ltr />
             <DetailRow label={t(['Email', 'البريد الإلكتروني'])} value={detail.email} ltr />
@@ -266,9 +261,9 @@ export function FormsPage() {
 
 function DetailRow({ label, value, ltr }: { label: string; value: string; ltr?: boolean }) {
   return (
-    <div className="flex flex-col gap-0.5 border-b border-border-subtle pb-2">
-      <dt className="text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</dt>
-      <dd className="whitespace-pre-wrap text-text-body" dir={ltr ? 'ltr' : undefined}>
+    <div className="flex flex-col gap-1 border-b border-border-subtle pb-3">
+      <dt className="text-sm font-semibold uppercase tracking-wide text-text-muted">{label}</dt>
+      <dd className="whitespace-pre-wrap text-lg text-text-strong" dir={ltr ? 'ltr' : undefined}>
         {value}
       </dd>
     </div>

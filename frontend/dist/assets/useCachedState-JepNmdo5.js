@@ -1,0 +1,1 @@
+import{r as e}from"./vendor-react-ESlAFUXX.js";import{r as f,w as n}from"./listUiCache-DUj24zG3.js";function d(s,a){const[r,i]=e.useState(()=>{const t=f(s);return t!==void 0?t:a});e.useEffect(()=>{n(s,r)},[s,r]);const u=e.useCallback(t=>{i(c=>{const o=typeof t=="function"?t(c):t;return n(s,o),o})},[s]);return[r,u]}export{d as u};

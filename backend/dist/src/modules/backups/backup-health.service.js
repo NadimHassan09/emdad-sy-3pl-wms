@@ -20,6 +20,7 @@ const backup_operations_service_1 = require("./backup-operations.service");
 const backup_retention_service_1 = require("./backup-retention.service");
 const backup_schedule_util_1 = require("./backup-schedule.util");
 const backup_storage_service_1 = require("./backup-storage.service");
+const backup_disk_storage_service_1 = require("./backup-disk-storage.service");
 const SUCCESSFUL_BACKUP_TYPES = [
     client_1.BackupJobType.manual,
     client_1.BackupJobType.scheduled,
@@ -36,14 +37,16 @@ let BackupHealthService = class BackupHealthService {
     prisma;
     backupConfig;
     storage;
+    diskStorage;
     operations;
     maintenance;
     retention;
     driveIntegration;
-    constructor(prisma, backupConfig, storage, operations, maintenance, retention, driveIntegration) {
+    constructor(prisma, backupConfig, storage, diskStorage, operations, maintenance, retention, driveIntegration) {
         this.prisma = prisma;
         this.backupConfig = backupConfig;
         this.storage = storage;
+        this.diskStorage = diskStorage;
         this.operations = operations;
         this.maintenance = maintenance;
         this.retention = retention;
@@ -51,7 +54,7 @@ let BackupHealthService = class BackupHealthService {
     }
     async getHealth() {
         const now = new Date();
-        const [lastSuccess, lastFailure, backupCount, oldestBackup, recentFailureCount, storageUsedBytes, schedules, retentionPreview, lastCleanup, runningJob,] = await Promise.all([
+        const [lastSuccess, lastFailure, backupCount, oldestBackup, recentFailureCount, storageUsedBytes, diskStorage, schedules, retentionPreview, lastCleanup, runningJob,] = await Promise.all([
             this.prisma.backupJob.findFirst({
                 where: {
                     status: client_1.BackupJobStatus.completed,
@@ -95,6 +98,7 @@ let BackupHealthService = class BackupHealthService {
                 },
             }),
             this.storage.sumStorageBytes(),
+            this.diskStorage.getOverview(),
             this.prisma.backupSchedule.findMany({ where: { enabled: true } }),
             this.retention.previewCleanup(),
             this.findLastRetentionCleanup(),
@@ -151,6 +155,7 @@ let BackupHealthService = class BackupHealthService {
             },
             healthStatus,
             alerts,
+            diskStorage,
         };
     }
     async buildDriveStatus(now) {
@@ -322,6 +327,7 @@ exports.BackupHealthService = BackupHealthService = __decorate([
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         backup_config_1.BackupConfig,
         backup_storage_service_1.BackupStorageService,
+        backup_disk_storage_service_1.BackupDiskStorageService,
         backup_operations_service_1.BackupOperationsService,
         backup_maintenance_service_1.BackupMaintenanceService,
         backup_retention_service_1.BackupRetentionService,

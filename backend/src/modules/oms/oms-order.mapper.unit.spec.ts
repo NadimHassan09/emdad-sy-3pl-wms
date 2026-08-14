@@ -40,17 +40,36 @@ describe('deriveCodStatus', () => {
 });
 
 describe('mapOutboundStatusToOms', () => {
-  it('maps terminal outbound to out_for_delivery only', () => {
-    expect(mapOutboundStatusToOms('shipped')).toBe('out_for_delivery');
-    expect(mapOutboundStatusToOms('out_for_delivery')).toBe('out_for_delivery');
-    expect(mapOutboundStatusToOms('delivered')).toBe('out_for_delivery');
+  it('maps prep outbound statuses to processing', () => {
+    expect(mapOutboundStatusToOms('draft')).toBe('processing');
+    expect(mapOutboundStatusToOms('picking')).toBe('processing');
+    expect(mapOutboundStatusToOms('packing')).toBe('processing');
+    expect(mapOutboundStatusToOms('waiting_for_shipping_details')).toBe('processing');
+    expect(mapOutboundStatusToOms('allocated')).toBe('processing');
   });
 
-  it('does not mirror warehouse stages onto OMS', () => {
-    expect(mapOutboundStatusToOms('picking')).toBeNull();
-    expect(mapOutboundStatusToOms('packing')).toBeNull();
-    expect(mapOutboundStatusToOms('allocated')).toBeNull();
-    expect(mapOutboundStatusToOms('ready_to_ship')).toBeNull();
+  it('maps ready_to_ship and shipped correctly; never auto-delivered', () => {
+    expect(mapOutboundStatusToOms('ready_to_ship')).toBe('ready_to_ship');
+    expect(mapOutboundStatusToOms('shipped')).toBe('shipped');
+    expect(mapOutboundStatusToOms('out_for_delivery')).toBe('shipped');
+    expect(mapOutboundStatusToOms('delivered')).toBeNull();
+  });
+
+  it('keeps OMS processing through shipping details; ready_to_ship only at Waiting for Dispatch', () => {
+    expect(mapOutboundStatusToOms('waiting_for_shipping_details')).toBe('processing');
+    expect(mapOutboundStatusToOms('waiting_for_shipping_details')).not.toBe('ready_to_ship');
+    expect(mapOutboundStatusToOms('waiting_for_shipping_details')).not.toBe('shipped');
+    expect(mapOutboundStatusToOms('picking')).not.toBe('ready_to_ship');
+    expect(mapOutboundStatusToOms('packing')).not.toBe('ready_to_ship');
+  });
+
+  it('never maps picking/packing to ready_to_ship or shipped (carrier boundary)', () => {
+    expect(mapOutboundStatusToOms('picking')).not.toBe('ready_to_ship');
+    expect(mapOutboundStatusToOms('picking')).not.toBe('shipped');
+    expect(mapOutboundStatusToOms('packing')).not.toBe('ready_to_ship');
+    expect(mapOutboundStatusToOms('packing')).not.toBe('shipped');
+    expect(mapOutboundStatusToOms('picking')).toBe('processing');
+    expect(mapOutboundStatusToOms('packing')).toBe('processing');
   });
 
   it('maps cancelled outbound to cancelled', () => {

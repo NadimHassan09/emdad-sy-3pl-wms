@@ -818,6 +818,15 @@ let WarehouseTasksService = class WarehouseTasksService {
                     await this.effects.applyPackRecord(tx, outboundId, body);
                     break;
                 }
+                case 'shipping_details': {
+                    const pl = task.payload;
+                    const outboundId = pl.outbound_order_id;
+                    if (!outboundId) {
+                        throw new common_1.BadRequestException('shipping_details task missing outbound_order_id.');
+                    }
+                    await this.effects.applyShippingDetailsTaskComplete(tx, outboundId, body, user.id);
+                    break;
+                }
                 case 'dispatch': {
                     const { outbound_order_id: outboundId, pick_task_id: explicitPickTaskId } = parseDispatchTaskPayloadAllowLegacy(task.payload);
                     await this.lockWorkflowInstance(tx, task.workflowInstanceId);

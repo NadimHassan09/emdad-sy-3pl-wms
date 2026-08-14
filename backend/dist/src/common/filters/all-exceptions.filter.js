@@ -227,6 +227,8 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
         const clean = this.redact(message);
         if (!isProd)
             return clean;
+        if (status === common_1.HttpStatus.SERVICE_UNAVAILABLE)
+            return clean;
         if (status >= 500)
             return 'Internal server error.';
         return clean;

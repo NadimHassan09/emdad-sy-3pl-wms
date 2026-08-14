@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { SectionContainer } from '@ds';
 
 import {
@@ -153,7 +153,7 @@ export function BackupGoogleDrivePage() {
   }
 
   if (!gdriveUiEnabled) {
-    return <Navigate to="/settings/backups" replace />;
+    return <Navigate to="/backups" replace />;
   }
 
   const drive = driveQuery.data;
@@ -293,21 +293,6 @@ export function BackupGoogleDrivePage() {
         ) : driveQuery.isError ? (
           <p className="text-sm text-status-danger-fg">{driveQuery.error.message}</p>
         ) : null}
-      </SectionContainer>
-
-      <SectionContainer
-        title={t(['Storage policy', 'سياسة التخزين'])}
-        description={t([
-          'Configure global and per-schedule backup storage routing on the Storage Policy page.',
-          'اضبط توجيه التخزين العام ولكل جدول في صفحة سياسة التخزين.',
-        ])}
-      >
-        <Link
-          to="/settings/backups/storage-policy"
-          className="inline-block text-sm font-medium text-text-link hover:underline"
-        >
-          {t(['Open storage policy', 'فتح سياسة التخزين'])}
-        </Link>
       </SectionContainer>
 
       <SectionContainer title={t(['Backup sync failures', 'فشل مزامنة النسخ'])}>

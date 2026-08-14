@@ -32,6 +32,7 @@ import { PutawayExecutionPanel } from './tasks/putaway/PutawayExecutionPanel';
 import type { PutawayLineRow } from './tasks/putaway/putaway-types';
 import { ReceivingExecutionPanel } from './tasks/receiving/ReceivingExecutionPanel';
 import type { ReceivingLineRow } from './tasks/receiving/receiving-types';
+import { ShippingDetailsExecutionPanel } from './tasks/shipping-details/ShippingDetailsExecutionPanel';
 import { taskTypeIconClass } from '../lib/task-type-icons';
 import { useWmsTranslation } from '../lib/ui-i18n';
 import { localizedTaskTypeTitle } from '../lib/ui-labels/task-execution';
@@ -147,7 +148,7 @@ export function TaskExecutionView() {
     enabled:
       !!referenceId &&
       wf?.referenceType === 'outbound_order' &&
-      ['pick', 'pack', 'dispatch'].includes(taskType),
+      ['pick', 'pack', 'shipping_details', 'dispatch'].includes(taskType),
   });
 
   const workers = useQuery({
@@ -418,6 +419,7 @@ export function TaskExecutionView() {
     'putaway_quarantine',
     'pick',
     'pack',
+    'shipping_details',
     'dispatch',
   ]);
   const usesStructuredPanel = structuredPanelTypes.has(taskType);
@@ -853,6 +855,19 @@ function defaultCompleteJsonBody(taskType: string): string {
       null,
       2,
     ),
+    shipping_details: JSON.stringify(
+      {
+        task_type: 'shipping_details',
+        shippingPackageType: 'box',
+        shippingWeightKg: '1',
+        shippingContents: 'Goods',
+        shippingDeliveryType: 'address',
+        shippingPickupType: 'address',
+        shippingPayer: 'sender',
+      },
+      null,
+      2,
+    ),
     dispatch: JSON.stringify(
       {
         task_type: 'dispatch',
@@ -1058,6 +1073,21 @@ function ExecuteFormSwitcher(props: {
         taskStatus={taskStatus}
         executionState={executionState}
         pickExecutionState={pickExecutionState}
+        submit={submit}
+        busy={busy}
+        readOnly={readOnly}
+      />
+    );
+  }
+
+  if (taskType === 'shipping_details' && outboundOrderId) {
+    return (
+      <ShippingDetailsExecutionPanel
+        key={`${taskId}-shipping-details`}
+        taskId={taskId}
+        outboundOrderId={outboundOrderId}
+        companyIdOverride={companyIdOverride}
+        taskStatus={taskStatus}
         submit={submit}
         busy={busy}
         readOnly={readOnly}

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import type { CompanyListRow } from '../../api/companies';
+import { adminMediaSrc } from '../../lib/admin-media';
 import { StatusBadge } from '../StatusBadge';
 
 function display(v: string | number | null | undefined): string {
@@ -41,12 +42,20 @@ export function CompanyDetailsCard({ company }: { company: CompanyListRow }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-card p-6 shadow-sm">
       <div className="flex items-start gap-4">
-        <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-50 to-surface-sunken ring-4 ring-surface-sunken dark:from-white/10"
-          aria-hidden="true"
-        >
-          <i className="fa-solid fa-building text-xl text-status-success-fg/80" />
-        </div>
+        {adminMediaSrc(company.logoUrl) ? (
+          <img
+            src={adminMediaSrc(company.logoUrl) ?? undefined}
+            alt=""
+            className="h-14 w-14 shrink-0 rounded-full object-cover ring-4 ring-surface-sunken"
+          />
+        ) : (
+          <div
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-50 to-surface-sunken ring-4 ring-surface-sunken dark:from-white/10"
+            aria-hidden="true"
+          >
+            <i className="fa-solid fa-building text-xl text-status-success-fg/80" />
+          </div>
+        )}
         <div className="min-w-0 flex-1 pt-0.5">
           <h2 className="text-lg font-semibold leading-tight text-text-strong">{company.name}</h2>
           <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-text-muted">

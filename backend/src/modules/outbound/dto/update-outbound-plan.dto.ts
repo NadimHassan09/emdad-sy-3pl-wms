@@ -1,6 +1,15 @@
-import { IsBoolean, IsDateString, IsIn, IsObject, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsIn,
+  IsObject,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
-export class UpdateOutboundPlanDto {
+import { ShippingConfigDto } from '../../shipping/dto/shipping-config.dto';
+
+export class UpdateOutboundPlanDto extends ShippingConfigDto {
   @IsOptional()
   @IsIn(['admin', 'workers'])
   executionMode?: 'admin' | 'workers';

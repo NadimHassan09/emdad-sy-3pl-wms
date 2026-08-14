@@ -6,7 +6,7 @@ import { isAbsolute, join, normalize, sep } from 'node:path';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-export type MediaKind = 'products' | 'avatars';
+export type MediaKind = 'products' | 'avatars' | 'company-logos';
 
 @Injectable()
 export class MediaStorageService {

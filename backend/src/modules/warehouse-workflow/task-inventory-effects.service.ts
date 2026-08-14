@@ -14,6 +14,7 @@ import {
 import { LedgerIdempotencyService } from '../inventory/ledger-idempotency.service';
 import { StockHelpers } from '../inventory/stock.helpers';
 import { OmsOutboundSyncService } from '../oms/oms-outbound-sync.service';
+import { ShippingHandoffHookService } from '../outbound/shipping-handoff-hook.service';
 import { OrderNotificationTarget } from '../notifications/notifications.service';
 import { TaskCompleteBody } from './task-payload.schema';
 import { findWarehouseStockFefo } from './task-allocation.helper';
@@ -56,10 +57,16 @@ export class TaskInventoryEffectsService {
   constructor(
     private readonly stock: StockHelpers,
     private readonly ledgerDedup: LedgerIdempotencyService,
+    private readonly shippingHandoff: ShippingHandoffHookService,
     @Optional()
     @Inject(forwardRef(() => OmsOutboundSyncService))
     private readonly omsSync?: OmsOutboundSyncService,
   ) {}
+
+  /** @deprecated Auto carrier send removed — Send Shipment is explicit in shipping-details stage. */
+  private scheduleReadyForShippingHook(_orderId: string): void {
+    // no-op: carrier API is only called via POST .../shipping-details/send
+  }
 
   async buildPickReservations(
     tx: Prisma.TransactionClient,
@@ -458,11 +465,11 @@ export class TaskInventoryEffectsService {
       select: { requiresPacking: true },
     });
 
+    const nextStatus =
+      order?.requiresPacking === false ? 'waiting_for_shipping_details' : 'packing';
     await tx.outboundOrder.update({
       where: { id: orderId },
-      data: {
-        status: order?.requiresPacking === false ? 'ready_to_ship' : 'packing',
-      },
+      data: { status: nextStatus },
     });
     await this.omsSync?.syncFromOutbound(tx, orderId);
   }
@@ -596,9 +603,81 @@ export class TaskInventoryEffectsService {
     }
     await tx.outboundOrder.update({
       where: { id: outboundOrderId },
-      data: { status: 'ready_to_ship' },
+      data: { status: 'waiting_for_shipping_details' },
     });
     await this.omsSync?.syncFromOutbound(tx, outboundOrderId);
+  }
+
+  /**
+   * Worker/admin completion of shipping_details task.
+   * Manual: may transition to ready_to_ship.
+   * Carrier: only if a created carrier shipment already exists (Admin Send first).
+   */
+  async applyShippingDetailsTaskComplete(
+    tx: Prisma.TransactionClient,
+    outboundOrderId: string,
+    body: Extract<TaskCompleteBody, { task_type: 'shipping_details' }>,
+    actorUserId: string,
+  ): Promise<void> {
+    const order = await tx.outboundOrder.findUnique({
+      where: { id: outboundOrderId },
+      include: {
+        carrierShipments: {
+          where: { status: 'created' },
+          take: 1,
+        },
+      },
+    });
+    if (!order) throw new BadRequestException('Outbound order not found.');
+    if (order.status !== 'waiting_for_shipping_details') {
+      throw new BadRequestException(
+        `shipping_details complete requires waiting_for_shipping_details (current: ${order.status}).`,
+      );
+    }
+
+    const data: Prisma.OutboundOrderUpdateInput = {};
+    if (body.shippingReceiverLat !== undefined) {
+      data.shippingReceiverLat =
+        body.shippingReceiverLat == null ? null : body.shippingReceiverLat;
+    }
+    if (body.shippingReceiverLng !== undefined) {
+      data.shippingReceiverLng =
+        body.shippingReceiverLng == null ? null : body.shippingReceiverLng;
+    }
+    if (body.shippingPackageType !== undefined) {
+      data.shippingPackageType = body.shippingPackageType;
+    }
+    if (body.shippingContents !== undefined) data.shippingContents = body.shippingContents;
+    if (body.shippingDeliveryType !== undefined) {
+      data.shippingDeliveryType = body.shippingDeliveryType;
+    }
+    if (body.shippingPickupType !== undefined) {
+      data.shippingPickupType = body.shippingPickupType;
+    }
+    if (body.shippingPayer !== undefined) data.shippingPayer = body.shippingPayer;
+    if (body.shippingWeightKg !== undefined) {
+      data.shippingWeightKg =
+        body.shippingWeightKg == null ? null : body.shippingWeightKg;
+    }
+    if (body.shippingPhoneCountry !== undefined) {
+      data.shippingPhoneCountry = body.shippingPhoneCountry;
+    }
+
+    const isCarrier = order.shippingMethod === 'carrier';
+    if (isCarrier && order.carrierShipments.length === 0) {
+      throw new BadRequestException(
+        'Carrier shipment must be sent by Admin before completing Shipping Details.',
+      );
+    }
+
+    await tx.outboundOrder.update({
+      where: { id: outboundOrderId },
+      data: {
+        ...data,
+        status: 'ready_to_ship',
+      },
+    });
+    await this.omsSync?.syncFromOutbound(tx, outboundOrderId, actorUserId);
   }
 
   /** Row lock on the outbound order for pick complete / dispatch ship (prevents concurrent order-line races). */

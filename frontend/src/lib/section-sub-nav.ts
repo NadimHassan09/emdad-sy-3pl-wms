@@ -150,6 +150,11 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
         match: (p, s) => tasksListTaskTypeMatch(p, s, 'pack'),
       },
       {
+        labelKey: 'Shipping details',
+        to: '/tasks?taskType=shipping_details',
+        match: (p, s) => tasksListTaskTypeMatch(p, s, 'shipping_details'),
+      },
+      {
         labelKey: 'Dispatch',
         to: '/tasks?taskType=dispatch',
         match: (p, s) => tasksListTaskTypeMatch(p, s, 'dispatch'),

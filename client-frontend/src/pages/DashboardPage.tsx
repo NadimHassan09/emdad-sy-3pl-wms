@@ -17,7 +17,9 @@ import {
 import {
   fetchClientCodReport,
   fetchClientOmsOrders,
+  fetchClientOmsStatusSummary,
   type ClientOmsOrderStatus,
+  type ClientOmsStatusSummary,
 } from '../services/clientOmsOrdersService';
 import { fetchClientInvoicesPage } from '../services/clientBillingService';
 import { fetchClientProducts } from '../services/clientProductsService';
@@ -25,8 +27,13 @@ import { fetchClientOmsReturns } from '../services/clientOmsReturnsService';
 import { fetchStockPage } from '../services/stockService';
 
 /** Commercial OMS lifecycle buckets (plus legacy WMS-mirrored statuses). */
-const WAITING = new Set<ClientOmsOrderStatus>(['draft', 'pending_approval']);
-/** In-fulfillment commercial Pending + historical warehouse-mirrored statuses. */
+const WAITING = new Set<ClientOmsOrderStatus>([
+  'draft',
+  'waiting_for_confirmation',
+  'confirmed_waiting_for_admin_approval',
+  'pending_approval',
+]);
+/** In-fulfillment commercial Processing + historical warehouse-mirrored statuses. */
 const PENDING_FULFILLMENT = new Set<ClientOmsOrderStatus>([
   'pending',
   'approved',
@@ -36,10 +43,9 @@ const PENDING_FULFILLMENT = new Set<ClientOmsOrderStatus>([
   'picking',
   'packing',
   'ready_to_ship',
-  'shipped',
   'failed_delivery',
 ]);
-const OUT_FOR_DELIVERY = new Set<ClientOmsOrderStatus>(['out_for_delivery']);
+const OUT_FOR_DELIVERY = new Set<ClientOmsOrderStatus>(['shipped', 'out_for_delivery']);
 const DELIVERED = new Set<ClientOmsOrderStatus>(['delivered', 'completed']);
 /** True returns only — do not mix cancelled / rejected / failed_delivery into “Returned”. */
 const RETURNED = new Set<ClientOmsOrderStatus>(['returned']);
@@ -51,7 +57,34 @@ const OPEN_OMS = new Set<ClientOmsOrderStatus>([
   ...OUT_FOR_DELIVERY,
 ]);
 /** Orders that need merchant/ops attention. */
-const NEEDS_ATTENTION = new Set<ClientOmsOrderStatus>([...WAITING]);
+const NEEDS_ATTENTION = new Set<ClientOmsOrderStatus>([
+  'waiting_for_confirmation',
+  'confirmed_waiting_for_admin_approval',
+  'pending_approval',
+]);
+
+function sumStatuses(
+  byStatus: Partial<Record<ClientOmsOrderStatus, number>> | undefined,
+  bucket: Set<ClientOmsOrderStatus>,
+): number {
+  let n = 0;
+  for (const status of bucket) {
+    n += byStatus?.[status] ?? 0;
+  }
+  return n;
+}
+
+function bucketStatusCounts(summary: ClientOmsStatusSummary | undefined) {
+  const byStatus = summary?.byStatus ?? {};
+  return {
+    unprocessed: sumStatuses(byStatus, WAITING),
+    processing: sumStatuses(byStatus, PENDING_FULFILLMENT),
+    out: sumStatuses(byStatus, OUT_FOR_DELIVERY),
+    delivered: sumStatuses(byStatus, DELIVERED),
+    returned: sumStatuses(byStatus, RETURNED),
+    cancelled: sumStatuses(byStatus, CANCELLED_OR_FAILED),
+  };
+}
 
 function toYmd(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -346,28 +379,29 @@ export function DashboardPage(): ReactElement {
 
   const ordersQuery = useQuery({
     queryKey: ['client', 'dashboard', 'oms', orderFilters],
-    queryFn: () => fetchClientOmsOrders({ ...orderFilters, limit: 500, offset: 0 }),
+    queryFn: () => fetchClientOmsOrders({ ...orderFilters, limit: 50, offset: 0 }),
   });
 
-  const openOmsQuery = useQuery({
-    queryKey: ['client', 'dashboard', 'oms-open', storeChannel],
+  const statusSummaryQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'oms-status-summary', orderFilters],
+    queryFn: () => fetchClientOmsStatusSummary(orderFilters),
+  });
+
+  const openOmsSummaryQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'oms-open-summary', storeChannel],
     queryFn: () =>
-      fetchClientOmsOrders({
+      fetchClientOmsStatusSummary({
         storeChannel: storeChannel.trim() || undefined,
-        limit: 500,
-        offset: 0,
       }),
   });
 
-  const movementQuery = useQuery({
-    queryKey: ['client', 'dashboard', 'oms-7d', last7From, last7To, storeChannel],
+  const movementSummaryQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'oms-7d-summary', last7From, last7To, storeChannel],
     queryFn: () =>
-      fetchClientOmsOrders({
+      fetchClientOmsStatusSummary({
         createdFrom: last7From,
         createdTo: last7To,
         storeChannel: storeChannel.trim() || undefined,
-        limit: 500,
-        offset: 0,
       }),
   });
 
@@ -410,8 +444,8 @@ export function DashboardPage(): ReactElement {
 
   const orders = ordersQuery.data?.items ?? [];
   const openOmsCount = useMemo(
-    () => (openOmsQuery.data?.items ?? []).filter((o) => OPEN_OMS.has(o.status)).length,
-    [openOmsQuery.data],
+    () => sumStatuses(openOmsSummaryQuery.data?.byStatus, OPEN_OMS),
+    [openOmsSummaryQuery.data],
   );
   const obligationInvoices = useMemo(
     () =>
@@ -441,43 +475,13 @@ export function DashboardPage(): ReactElement {
     [orders],
   );
 
-  const statusCounts = useMemo(() => {
-    const counts = {
-      unprocessed: 0,
-      processing: 0,
-      out: 0,
-      delivered: 0,
-      returned: 0,
-      cancelled: 0,
-    };
-    for (const o of orders) {
-      if (WAITING.has(o.status)) counts.unprocessed += 1;
-      else if (PENDING_FULFILLMENT.has(o.status)) counts.processing += 1;
-      else if (OUT_FOR_DELIVERY.has(o.status)) counts.out += 1;
-      else if (DELIVERED.has(o.status)) counts.delivered += 1;
-      else if (RETURNED.has(o.status)) counts.returned += 1;
-      else if (CANCELLED_OR_FAILED.has(o.status)) counts.cancelled += 1;
-    }
-    return counts;
-  }, [orders]);
+  const statusCounts = useMemo(
+    () => bucketStatusCounts(statusSummaryQuery.data),
+    [statusSummaryQuery.data],
+  );
 
   const pieData = useMemo(() => {
-    const counts = {
-      unprocessed: 0,
-      processing: 0,
-      out: 0,
-      delivered: 0,
-      returned: 0,
-      cancelled: 0,
-    };
-    for (const o of movementQuery.data?.items ?? []) {
-      if (WAITING.has(o.status)) counts.unprocessed += 1;
-      else if (PENDING_FULFILLMENT.has(o.status)) counts.processing += 1;
-      else if (OUT_FOR_DELIVERY.has(o.status)) counts.out += 1;
-      else if (DELIVERED.has(o.status)) counts.delivered += 1;
-      else if (RETURNED.has(o.status)) counts.returned += 1;
-      else if (CANCELLED_OR_FAILED.has(o.status)) counts.cancelled += 1;
-    }
+    const counts = bucketStatusCounts(movementSummaryQuery.data);
     return [
       { name: t('Waiting'), value: counts.unprocessed, fill: '#F59E0B' },
       { name: t('Pending'), value: counts.processing, fill: '#3B82F6' },
@@ -486,15 +490,12 @@ export function DashboardPage(): ReactElement {
       { name: t('Returned'), value: counts.returned, fill: '#EF4444' },
       { name: t('Cancelled / failed'), value: counts.cancelled, fill: '#94A3B8' },
     ].filter((d) => d.value > 0);
-  }, [movementQuery.data, isArabic]);
+  }, [movementSummaryQuery.data, isArabic]);
 
   const channelOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const o of orders) {
-      if (o.storeChannel?.trim()) set.add(o.storeChannel.trim());
-    }
-    return [{ value: '', label: t('All') }, ...[...set].sort().map((v) => ({ value: v, label: v }))];
-  }, [orders, isArabic]);
+    const channels = statusSummaryQuery.data?.storeChannels ?? [];
+    return [{ value: '', label: t('All') }, ...channels.map((v) => ({ value: v, label: v }))];
+  }, [statusSummaryQuery.data, isArabic]);
 
   const inventoryRows = useMemo(() => {
     const thresholdBySku = new Map<string, number>();
@@ -531,7 +532,7 @@ export function DashboardPage(): ReactElement {
     return n;
   }, [stockQuery.data, productsQuery.data]);
 
-  const totalOrders = orders.length;
+  const totalOrders = statusSummaryQuery.data?.total ?? 0;
 
   const codCurrency =
     codCollectedQuery.data?.items.find((i) => i.currency)?.currency ||
@@ -591,7 +592,7 @@ export function DashboardPage(): ReactElement {
   }, [orders, returnsQuery.data, notificationsQuery.data, isArabic]);
 
   const loading = ordersQuery.isPending || productsQuery.isPending;
-  const loadingOpenOms = openOmsQuery.isPending;
+  const loadingOpenOms = openOmsSummaryQuery.isPending;
   const loadingObligation = invoicesQuery.isPending;
   const loadingCod =
     codPendingQuery.isPending || codCollectedQuery.isPending || codRemittedQuery.isPending;
@@ -631,12 +632,18 @@ export function DashboardPage(): ReactElement {
         }
       />
 
-      {ordersQuery.isError ? (
+      {ordersQuery.isError || statusSummaryQuery.isError ? (
         <Alert
           variant="error"
           title={t('Could not load dashboard')}
           action={
-            <Alert.Action variant="error" onClick={() => void ordersQuery.refetch()}>
+            <Alert.Action
+              variant="error"
+              onClick={() => {
+                void ordersQuery.refetch();
+                void statusSummaryQuery.refetch();
+              }}
+            >
               {t('Retry')}
             </Alert.Action>
           }

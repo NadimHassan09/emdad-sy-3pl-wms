@@ -247,6 +247,19 @@ export type BackupDriveHealthStatus = {
   hoursSinceLastSync: number | null;
 };
 
+export type BackupDiskStorageOverview = {
+  /** Bytes used by the Emdad system. */
+  usedBytes: number;
+  /** Bytes occupied by OS and other apps on the VPS volume. */
+  reservedBytes: number;
+  /** Free bytes available on the VPS volume. */
+  availableBytes: number;
+  /** Total size of the VPS volume. */
+  totalBytes: number;
+  mountPath: string;
+  emdadPaths: string[];
+};
+
 export type BackupHealthResponse = {
   lastSuccessfulBackupAt: string | null;
   lastFailedBackupAt: string | null;
@@ -276,6 +289,8 @@ export type BackupHealthResponse = {
   metrics: BackupHealthMetrics;
   healthStatus: BackupHealthSeverity;
   alerts: BackupHealthAlert[];
+  /** Real VPS volume breakdown for Storage Overview. */
+  diskStorage: BackupDiskStorageOverview;
 };
 
 export type BackupStoragePolicySettings = {

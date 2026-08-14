@@ -13,6 +13,7 @@ export const OUTBOUND_POST_CONFIRM: OutboundOrderStatus[] = [
   OutboundOrderStatus.confirmed,
   OutboundOrderStatus.picking,
   OutboundOrderStatus.packing,
+  OutboundOrderStatus.waiting_for_shipping_details,
   OutboundOrderStatus.ready_to_ship,
   OutboundOrderStatus.shipped,
 ];

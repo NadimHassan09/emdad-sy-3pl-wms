@@ -4,9 +4,11 @@ import { Link } from 'react-router-dom';
 
 import type { OutboundOrder } from '../../api/outbound';
 import { OutboundApi } from '../../api/outbound';
+import { ShippingApi } from '../../api/shipping';
 import { WorkflowsApi } from '../../api/workflows';
 import { Alert, Button, Card } from '@ds';
 import { OrderDocumentsCard } from '../documents/OrderDocumentsCard';
+import { ShippingDetailsStageCard } from './ShippingDetailsStageCard';
 import { StatusBadge } from '../StatusBadge';
 import { useToast } from '../ToastProvider';
 import { QK } from '../../constants/query-keys';
@@ -134,20 +136,55 @@ export function AdminOutboundOrderSummary({ order }: Props) {
     enabled: !isPlannable,
   });
 
-  const confirmMut = useMutation({
+  type AdminStageAction =
+    | 'approve'
+    | 'complete_picking'
+    | 'complete_packing'
+    | 'complete_dispatch'
+    | 'release';
+
+  const adminStageAction: AdminStageAction | null = useMemo(() => {
+    if (!isAdminMode) {
+      return isPlannable ? 'release' : null;
+    }
+    if (isPlannable) return 'approve';
+    if (order.status === 'picking') return 'complete_picking';
+    if (order.status === 'packing') return 'complete_packing';
+    // Shipping details stage uses ShippingDetailsStageCard (Save / Send / Complete).
+    if (order.status === 'ready_to_ship') return 'complete_dispatch';
+    return null;
+  }, [isAdminMode, isPlannable, order.status]);
+
+  const stageMut = useMutation({
     mutationFn: async () => {
-      if (!planReady || !plan) throw new Error('Complete the warehouse plan first.');
-      if (isAdminMode) {
-        return OutboundApi.executeAdmin(order.id, order.companyId);
+      if (adminStageAction === 'release') {
+        if (!planReady || !plan) throw new Error('Complete the warehouse plan first.');
+        return OutboundApi.confirm(order.id, { warehouseId: plan.warehouseId }, order.companyId);
       }
-      return OutboundApi.confirm(order.id, { warehouseId: plan.warehouseId }, order.companyId);
+      if (adminStageAction === 'approve') {
+        if (!planReady || !plan) throw new Error('Complete the warehouse plan first.');
+        return OutboundApi.approve(order.id, order.companyId);
+      }
+      if (adminStageAction === 'complete_picking') {
+        return OutboundApi.completePicking(order.id, order.companyId);
+      }
+      if (adminStageAction === 'complete_packing') {
+        return OutboundApi.completePacking(order.id, order.companyId);
+      }
+      if (adminStageAction === 'complete_dispatch') {
+        return OutboundApi.completeDispatch(order.id, order.companyId);
+      }
+      throw new Error('No stage action available.');
     },
     onSuccess: () => {
-      toast.success(
-        isAdminMode
-          ? 'Order confirmed. Inventory updated.'
-          : 'Released to workers. Tasks are ready.',
-      );
+      const messages: Record<AdminStageAction, string> = {
+        approve: 'Order approved. Waiting for picking.',
+        complete_picking: 'Picking marked complete.',
+        complete_packing: 'Packing marked complete. Waiting for Shipping Details.',
+        complete_dispatch: 'Dispatch complete. Order shipped.',
+        release: 'Released to workers. Tasks are ready.',
+      };
+      if (adminStageAction) toast.success(messages[adminStageAction]);
       qc.invalidateQueries({ queryKey: [...QK.outboundOrders, order.id] });
       qc.invalidateQueries({ queryKey: QK.outboundOrders });
       invalidateWorkflowTasksInventory(qc, {
@@ -157,6 +194,64 @@ export function AdminOutboundOrderSummary({ order }: Props) {
     },
     onError: (err: Error) => toast.error(err.message),
   });
+
+  const latestCarrierShipment = order.carrierShipments?.[0] ?? null;
+  const carrierMethod = order.shippingMethod === 'carrier';
+  const canRetryCarrier =
+    carrierMethod &&
+    latestCarrierShipment?.status === 'failed' &&
+    (order.status === 'waiting_for_shipping_details' ||
+      order.status === 'ready_to_ship' ||
+      order.status === 'shipped');
+
+  const retryShipmentMut = useMutation({
+    mutationFn: () => ShippingApi.retryShipment(order.id),
+    onSuccess: () => {
+      toast.success('Carrier shipment retry started.');
+      qc.invalidateQueries({ queryKey: [...QK.outboundOrders, order.id] });
+      qc.invalidateQueries({ queryKey: QK.outboundOrders });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const stageCtaLabel =
+    adminStageAction === 'approve'
+      ? 'Approve'
+      : adminStageAction === 'complete_picking'
+        ? 'Mark Picking as Complete'
+        : adminStageAction === 'complete_packing'
+          ? 'Mark Packing as Complete'
+          : adminStageAction === 'complete_dispatch'
+            ? 'Mark Dispatch as Complete'
+            : adminStageAction === 'release'
+              ? 'Release to workers'
+              : null;
+
+  const runStageAction = () => {
+    if (adminStageAction === 'complete_dispatch') {
+      if (
+        !window.confirm(
+          'Mark Dispatch as Complete?\n\nThis will mark the outbound order as dispatched and update the linked OMS order to Shipped.',
+        )
+      ) {
+        return;
+      }
+    }
+    stageMut.mutate();
+  };
+
+  const statusDisplayLabel =
+    order.status === 'pending_approval'
+      ? 'Waiting for Approval'
+      : order.status === 'picking'
+        ? 'Waiting for Picking'
+        : order.status === 'packing'
+          ? 'Waiting for Packing'
+          : order.status === 'waiting_for_shipping_details'
+            ? 'Waiting for Shipping Details'
+            : order.status === 'ready_to_ship'
+              ? 'Waiting for Dispatch'
+              : null;
 
   const openTasks = (timeline.data?.tasks ?? []).filter(
     (t) => t.status === 'pending' || t.status === 'assigned' || t.status === 'in_progress',
@@ -181,7 +276,11 @@ export function AdminOutboundOrderSummary({ order }: Props) {
             </h1>
             {isPlannable ? (
               <span className="rounded-full bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-fg">
-                {order.status === 'pending_approval' ? 'Pending approval' : 'Planned'}
+                {order.status === 'pending_approval' ? 'Waiting for Approval' : 'Planned'}
+              </span>
+            ) : statusDisplayLabel ? (
+              <span className="rounded-full bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-fg">
+                {statusDisplayLabel}
               </span>
             ) : (
               <StatusBadge status={order.status} />
@@ -189,7 +288,7 @@ export function AdminOutboundOrderSummary({ order }: Props) {
           </div>
           <p className="mt-1 text-sm text-text-muted">
             {isAdminMode
-              ? 'Review plan, print instructions, execute physically, then confirm.'
+              ? 'Review plan, then complete each warehouse stage explicitly.'
               : 'Complete the plan, then release work to warehouse workers.'}
           </p>
         </div>
@@ -216,19 +315,23 @@ export function AdminOutboundOrderSummary({ order }: Props) {
           >
             Print instructions
           </Button>
-          {isPlannable ? (
+          {stageCtaLabel ? (
             <Button
               type="button"
               variant="primary"
               size="md"
-              loading={confirmMut.isPending}
-              disabled={!planReady}
-              title={
-                planReady ? undefined : 'Complete the warehouse plan before confirming.'
+              loading={stageMut.isPending}
+              disabled={
+                (adminStageAction === 'approve' || adminStageAction === 'release') && !planReady
               }
-              onClick={() => confirmMut.mutate()}
+              title={
+                (adminStageAction === 'approve' || adminStageAction === 'release') && !planReady
+                  ? 'Complete the warehouse plan first.'
+                  : undefined
+              }
+              onClick={runStageAction}
             >
-              {isAdminMode ? 'Confirm order' : 'Release to workers'}
+              {stageCtaLabel}
             </Button>
           ) : null}
         </div>
@@ -236,7 +339,7 @@ export function AdminOutboundOrderSummary({ order }: Props) {
 
       {isPlannable && !planReady ? (
         <Alert variant="warning" title="Warehouse plan incomplete">
-          Open Complete plan, then {isAdminMode ? 'Confirm' : 'Release'}.
+          Open Complete plan, then {isAdminMode ? 'Approve' : 'Release'}.
         </Alert>
       ) : null}
 
@@ -261,7 +364,31 @@ export function AdminOutboundOrderSummary({ order }: Props) {
               label="Execution"
               value={mode === 'admin' ? 'Admin' : 'Workers'}
             />
-            <DetailRow label="Carrier" value={order.carrier?.trim() || '—'} />
+            <DetailRow
+              label="Shipping method"
+              value={carrierMethod ? 'Shipping Company' : 'Manual'}
+            />
+            {carrierMethod ? (
+              <DetailRow
+                label="Shipping company"
+                value={order.shippingProviderCode?.trim() || order.carrier?.trim() || '—'}
+              />
+            ) : order.carrier?.trim() ? (
+              <DetailRow label="Carrier label" value={order.carrier.trim()} />
+            ) : null}
+            {order.omsOrder ? (
+              <DetailRow
+                label="Linked OMS"
+                value={
+                  <Link
+                    to={`/orders/oms/${order.omsOrder.id}`}
+                    className="font-medium text-brand-700 hover:underline"
+                  >
+                    {order.omsOrder.orderNumber}
+                  </Link>
+                }
+              />
+            ) : null}
             <DetailRow
               label="Packing"
               value={requiresPacking ? 'Required' : 'Skipped'}
@@ -287,6 +414,73 @@ export function AdminOutboundOrderSummary({ order }: Props) {
           </dl>
         </Card.Body>
       </Card>
+
+      {order.status === 'waiting_for_shipping_details' ? (
+        <ShippingDetailsStageCard order={order} />
+      ) : null}
+
+      {carrierMethod && order.status !== 'waiting_for_shipping_details' ? (
+        <Card padding="none">
+          <Card.Header>
+            <Card.Title>Carrier shipment</Card.Title>
+            {canRetryCarrier ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                loading={retryShipmentMut.isPending}
+                onClick={() => retryShipmentMut.mutate()}
+              >
+                Retry
+              </Button>
+            ) : null}
+          </Card.Header>
+          <Card.Body>
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+              <DetailRow
+                label="Status"
+                value={
+                  latestCarrierShipment?.status === 'created'
+                    ? 'Created'
+                    : latestCarrierShipment?.status === 'failed'
+                      ? 'Failed'
+                      : latestCarrierShipment?.status === 'pending'
+                        ? 'Pending'
+                        : '—'
+                }
+              />
+              <DetailRow
+                label="Provider"
+                value={latestCarrierShipment?.providerCode ?? order.shippingProviderCode ?? '—'}
+              />
+              <DetailRow
+                label="AWB"
+                value={
+                  latestCarrierShipment?.externalAwb?.trim() ||
+                  order.trackingNumber?.trim() ||
+                  '—'
+                }
+              />
+              <DetailRow
+                label="Tracking"
+                value={
+                  latestCarrierShipment?.trackingNumber?.trim() ||
+                  order.trackingNumber?.trim() ||
+                  '—'
+                }
+              />
+              {latestCarrierShipment?.lastErrorSafe ? (
+                <DetailRow
+                  label="Error"
+                  value={latestCarrierShipment.lastErrorSafe}
+                  className="sm:col-span-2"
+                  preWrap
+                />
+              ) : null}
+            </dl>
+          </Card.Body>
+        </Card>
+      ) : null}
 
       <Card padding="none" className="overflow-hidden">
         <Card.Header>
@@ -427,7 +621,11 @@ export function AdminOutboundOrderSummary({ order }: Props) {
       {!isPlannable && openTasks.length > 0 ? (
         <div className="rounded-xl border border-border bg-surface-card p-5 space-y-2">
           <h2 className="text-sm font-semibold text-text-strong">Open warehouse tasks</h2>
-          <p className="text-xs text-text-muted">Monitor only — Workers execute on the Tasks page.</p>
+          <p className="text-xs text-text-muted">
+            {isAdminMode
+              ? 'Stage actions above complete the current open task.'
+              : 'Monitor only — Workers execute on the Tasks page.'}
+          </p>
           <ul className="space-y-1 text-sm">
             {openTasks.map((t) => (
               <li key={t.id}>
@@ -451,9 +649,9 @@ export function AdminOutboundOrderSummary({ order }: Props) {
       />
 
       {isPlannable ? (
-        <Alert variant="info" title={isAdminMode ? 'After physical work' : 'After release'}>
+        <Alert variant="info" title={isAdminMode ? 'Staged Admin execution' : 'After release'}>
           {isAdminMode
-            ? 'Click Confirm order to complete pick/pack/dispatch and update inventory. You do not need the Tasks page.'
+            ? 'Approve starts picking only. Mark each stage complete after physical work. Dispatch complete sets OMS to Shipped.'
             : 'Release starts the workflow. Workers complete tasks on /tasks. Do not confirm stages here.'}
         </Alert>
       ) : null}

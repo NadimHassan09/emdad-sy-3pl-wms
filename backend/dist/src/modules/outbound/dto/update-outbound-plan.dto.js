@@ -11,7 +11,8 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UpdateOutboundPlanDto = void 0;
 const class_validator_1 = require("class-validator");
-class UpdateOutboundPlanDto {
+const shipping_config_dto_1 = require("../../shipping/dto/shipping-config.dto");
+class UpdateOutboundPlanDto extends shipping_config_dto_1.ShippingConfigDto {
     executionMode;
     executionPlan;
     requiredShipDate;

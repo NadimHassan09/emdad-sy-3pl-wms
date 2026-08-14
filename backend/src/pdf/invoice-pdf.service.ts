@@ -10,7 +10,7 @@ import { PdfService } from './pdf.service';
 const LINE_TYPE_LABELS: Record<string, string> = {
   subscription: 'Fixed subscription',
   inbound: 'Inbound orders',
-  outbound: 'Outbound orders (tiered)',
+  outbound: 'Outbound orders',
   packaging: 'Packaging',
   quality_check: 'Quality check',
   excess_volume: 'Excess volume',

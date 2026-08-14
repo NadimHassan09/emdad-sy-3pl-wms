@@ -1,19 +1,18 @@
 import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 
-import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { SystemMaintenanceScreen } from '../../components/backups/SystemMaintenanceScreen';
 import { SettingsNav } from '../../components/settings/SettingsNav';
+import { useClaimSectionNav } from '../../components/section-nav-ownership';
 import { useAuth } from '../../auth/AuthContext';
 import { BackupOperationProvider, useBackupOperationContext } from '../../context/BackupOperationContext';
 import { useBackupMaintenanceWatch } from '../../hooks/useBackupMaintenance';
-import { useWmsTranslation } from '../../lib/ui-i18n';
 
 function SettingsLayoutBody() {
-  const { t, isArabic } = useWmsTranslation();
   const { user } = useAuth();
   const { trackedJobId, setTrackedJobId } = useBackupOperationContext();
   const watchMaintenance = user?.role === 'super_admin';
+  useClaimSectionNav();
 
   const { activeOperation, jobStatus, maintenanceVisible } = useBackupMaintenanceWatch(
     watchMaintenance,
@@ -27,16 +26,7 @@ function SettingsLayoutBody() {
   }, [jobStatus?.status, setTrackedJobId]);
 
   return (
-    <AdminListPageShell
-      icon="fa-gear"
-      title={t(['Settings', 'الإعدادات'])}
-      subtitle={t([
-        'System configuration and backup administration.',
-        'إعدادات النظام وإدارة النسخ الاحتياطي.',
-      ])}
-      isArabic={isArabic}
-      showSectionNav={false}
-    >
+    <div className="space-y-5 animate-enter">
       <SettingsNav />
 
       <Outlet />
@@ -47,7 +37,7 @@ function SettingsLayoutBody() {
           jobStatus={jobStatus}
         />
       ) : null}
-    </AdminListPageShell>
+    </div>
   );
 }
 

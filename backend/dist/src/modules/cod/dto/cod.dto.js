@@ -19,6 +19,7 @@ class ListCodRecordsQueryDto extends pagination_dto_1.PaginationDto {
     companyId;
     status;
     omsOrderId;
+    search;
 }
 exports.ListCodRecordsQueryDto = ListCodRecordsQueryDto;
 __decorate([
@@ -39,6 +40,13 @@ __decorate([
     (0, is_uuid_loose_1.IsUuidLoose)(),
     __metadata("design:type", String)
 ], ListCodRecordsQueryDto.prototype, "omsOrderId", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], ListCodRecordsQueryDto.prototype, "search", void 0);
 class CreateCodAdjustmentDto {
     amount;
     reason;

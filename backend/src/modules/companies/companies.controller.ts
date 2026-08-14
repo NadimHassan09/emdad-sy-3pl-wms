@@ -1,14 +1,20 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
@@ -21,6 +27,18 @@ import { CreateCompanyDto } from './dto/create-company.dto';
 import { LifecycleActionDto } from './dto/lifecycle.dto';
 import { ListCompaniesQueryDto } from './dto/list-companies-query.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
+
+const MAX_LOGO_BYTES = 8 * 1024 * 1024;
+
+function assertUploadedImage(file?: Express.Multer.File): Express.Multer.File {
+  if (!file?.buffer?.length) {
+    throw new BadRequestException('Please choose an image file to upload.');
+  }
+  if (!file.mimetype?.startsWith('image/')) {
+    throw new BadRequestException('Only image files are allowed.');
+  }
+  return file;
+}
 
 @Controller('companies')
 export class CompaniesController {
@@ -63,6 +81,32 @@ export class CompaniesController {
     @Body() dto: UpdateCompanyDto,
   ) {
     return this.companies.update(user, id, dto);
+  }
+
+  @Post(':id/logo')
+  @UseGuards(InternalAdminGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_LOGO_BYTES },
+    }),
+  )
+  uploadLogo(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.companies.uploadLogo(user, id, assertUploadedImage(file));
+  }
+
+  @Delete(':id/logo')
+  @HttpCode(204)
+  @UseGuards(InternalAdminGuard)
+  deleteLogo(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.companies.deleteLogo(user, id);
   }
 
   @Post(':id/suspend')

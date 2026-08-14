@@ -23,6 +23,7 @@ export type CompanyListRow = {
   billingCycle: string;
   paymentTermsDays: number;
   notes: string | null;
+  logoUrl?: string | null;
   suspendedAt: string | null;
   suspensionReason: string | null;
   archivedAt: string | null;
@@ -129,6 +130,20 @@ export const CompaniesApi = {
   async update(id: string, payload: UpdateCompanyPayload): Promise<CompanyListRow> {
     const { data } = await api.patch<CompanyListRow>(`/companies/${id}`, payload);
     return data;
+  },
+
+  async uploadLogo(id: string, file: File): Promise<{ logoUrl: string; company: CompanyListRow }> {
+    const form = new FormData();
+    form.append('file', file);
+    const { data } = await api.post<{ logoUrl: string; company: CompanyListRow }>(
+      `/companies/${id}/logo`,
+      form,
+    );
+    return data;
+  },
+
+  async deleteLogo(id: string): Promise<void> {
+    await api.delete(`/companies/${id}/logo`);
   },
 
   async getLifecycle(id: string): Promise<CustomerLifecycleContext> {

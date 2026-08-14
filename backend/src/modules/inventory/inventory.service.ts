@@ -47,7 +47,15 @@ export interface AvailabilityResult {
   companyId: string;
   onHand: string;
   reserved: string;
+  /** Global free stock (on_hand - reserved). */
   available: string;
+  /**
+   * When outboundOrderId was provided: this order's active soft-hold for the product.
+   * Usable qty for the order = available + reservedByThisOrder.
+   */
+  reservedByThisOrder?: string;
+  /** When outboundOrderId was provided: available + reservedByThisOrder. */
+  availableForOrder?: string;
 }
 
 const UUID_LIKE =
@@ -856,11 +864,15 @@ export class InventoryService {
    * Aggregated stock availability for a single (company, product) tuple.
    * Used by the outbound creation modal to validate quantities client-side
    * before submitting (the backend create endpoint re-validates server-side).
+   *
+   * When `outboundOrderId` is set, credits that outbound's own active soft-holds
+   * so linked OMS→Outbound plans do not treat their own reservation as unavailable.
    */
   async availability(
     user: AuthPrincipal,
     productId: string,
     companyIdParam?: string,
+    outboundOrderId?: string,
   ): Promise<AvailabilityResult> {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, companyIdParam);
 
@@ -873,14 +885,46 @@ export class InventoryService {
       },
     });
 
-    return {
+    const onHand = agg._sum.quantityOnHand ?? new Prisma.Decimal(0);
+    const reserved = agg._sum.quantityReserved ?? new Prisma.Decimal(0);
+    const available = agg._sum.quantityAvailable ?? new Prisma.Decimal(0);
+
+    const base: AvailabilityResult = {
       productId,
       companyId,
-      onHand: (agg._sum.quantityOnHand ?? new Prisma.Decimal(0)).toString(),
-      reserved: (agg._sum.quantityReserved ?? new Prisma.Decimal(0)).toString(),
-      available: (
-        agg._sum.quantityAvailable ?? new Prisma.Decimal(0)
-      ).toString(),
+      onHand: onHand.toString(),
+      reserved: reserved.toString(),
+      available: available.toString(),
+    };
+
+    if (!outboundOrderId) return base;
+
+    const order = await this.prisma.outboundOrder.findFirst({
+      where: { id: outboundOrderId, companyId },
+      select: { id: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Outbound order not found for availability credit.');
+    }
+
+    const ownAgg = await this.prisma.stockReservation.aggregate({
+      where: {
+        outboundOrderId,
+        productId,
+        companyId,
+        status: 'active',
+      },
+      _sum: { quantity: true },
+    });
+    const reservedByThisOrder = ownAgg._sum.quantity ?? new Prisma.Decimal(0);
+    const availableForOrder = available.plus(reservedByThisOrder);
+
+    return {
+      ...base,
+      // Surface usable qty as `available` so existing clients credit own soft-holds.
+      available: availableForOrder.toString(),
+      reservedByThisOrder: reservedByThisOrder.toString(),
+      availableForOrder: availableForOrder.toString(),
     };
   }
 }

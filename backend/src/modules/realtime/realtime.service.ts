@@ -307,6 +307,19 @@ export class RealtimeService {
     this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.BACKUP_JOB_PROGRESS, payload);
   }
 
+  emitBulkShippingProgress(payload: {
+    jobId: string;
+    status: string;
+    progressPercent: number;
+    totalCount: number;
+    successCount: number;
+    failedCount: number;
+    skippedCount: number;
+  }): void {
+    this.notify('ShippingBulkProgress');
+    this.emitToRoom(INTERNAL_MASTER_DATA_ROOM, RealtimeEvents.SHIPPING_BULK_PROGRESS, payload);
+  }
+
   emitTaskUpdated(
     companyId: string,
     payload: {

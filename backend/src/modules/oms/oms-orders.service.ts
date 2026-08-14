@@ -9,6 +9,7 @@ import {
   OmsOrderStatus,
   OutboundOrderStatus,
   Prisma,
+  ShippingMethod,
 } from '@prisma/client';
 
 import { readCompanyIdCatalogFilter } from '../../common/auth/company-read-scope';
@@ -41,7 +42,20 @@ import {
   serializeOmsOrder,
   serializeOmsOrderListItem,
 } from './oms-order.mapper';
+import {
+  assertOmsTransition,
+  resolveOmsActorRole,
+} from './oms-order-transitions';
 import { OrderAllocationService } from './order-allocation.service';
+import { ShippingService } from '../shipping/shipping.service';
+import {
+  assertShippingIntentReady,
+  assertShippingConfigUnlocked,
+  hasShippingConfigPatch,
+  resolveShippingWeightKg,
+  resolveShippingVolumeCbm,
+  shippingPrismaData,
+} from '../shipping/shipping-config.util';
 
 const FULL_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -61,6 +75,8 @@ const ORDER_INCLUDE = {
           status: true,
           trackingType: true,
           uom: true,
+          weightKg: true,
+          volumeCbm: true,
         },
       },
     },
@@ -80,6 +96,8 @@ export class OmsOrdersService {
     private readonly realtime: RealtimeService,
     @Inject(forwardRef(() => CodRecordsService))
     private readonly cod: CodRecordsService,
+    @Inject(forwardRef(() => ShippingService))
+    private readonly shipping: ShippingService,
   ) {}
 
   async list(user: AuthPrincipal, query: ListOmsOrdersQueryDto) {
@@ -88,7 +106,43 @@ export class OmsOrdersService {
 
     const companyId = readCompanyIdCatalogFilter(this.companyAccess, user, query.companyId);
     if (companyId) where.companyId = companyId;
-    if (query.status) where.status = query.status;
+    if (query.status) {
+      // Expand commercial filter to include leftover legacy synonyms.
+      const expansions: Partial<Record<OmsOrderStatus, OmsOrderStatus[]>> = {
+        [OmsOrderStatus.waiting_for_confirmation]: [
+          OmsOrderStatus.waiting_for_confirmation,
+          OmsOrderStatus.draft,
+        ],
+        [OmsOrderStatus.confirmed_waiting_for_admin_approval]: [
+          OmsOrderStatus.confirmed_waiting_for_admin_approval,
+          OmsOrderStatus.pending_approval,
+        ],
+        [OmsOrderStatus.processing]: [
+          OmsOrderStatus.processing,
+          OmsOrderStatus.pending,
+          OmsOrderStatus.approved,
+          OmsOrderStatus.confirmed,
+          OmsOrderStatus.allocated,
+          OmsOrderStatus.picking,
+          OmsOrderStatus.packing,
+        ],
+        [OmsOrderStatus.shipped]: [
+          OmsOrderStatus.shipped,
+          OmsOrderStatus.out_for_delivery,
+        ],
+        [OmsOrderStatus.delivered]: [
+          OmsOrderStatus.delivered,
+          OmsOrderStatus.completed,
+        ],
+        [OmsOrderStatus.cancelled]: [
+          OmsOrderStatus.cancelled,
+          OmsOrderStatus.rejected,
+        ],
+      };
+      where.status = expansions[query.status]
+        ? { in: expansions[query.status] }
+        : query.status;
+    }
     if (query.storeChannel?.trim()) {
       where.storeChannel = { contains: query.storeChannel.trim(), mode: 'insensitive' };
     }
@@ -162,7 +216,7 @@ export class OmsOrdersService {
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
     const products = await this.prisma.product.findMany({
       where: { id: { in: productIds } },
-      select: { id: true, companyId: true, status: true, uom: true, sku: true },
+      select: { id: true, companyId: true, status: true, uom: true, sku: true, weightKg: true, volumeCbm: true },
     });
     if (products.length !== productIds.length) {
       throw new NotFoundException('One or more products not found.');
@@ -179,6 +233,51 @@ export class OmsOrdersService {
       const p = productById.get(l.productId)!;
       assertDiscreteUomPositiveIntegerQuantity(p.uom, l.requestedQuantity, 'Requested quantity');
     }
+
+    const weightByProductId = new Map(
+      products.map((p) => [p.id, p.weightKg?.toString() ?? null] as const),
+    );
+    const volumeByProductId = new Map(
+      products.map((p) => [p.id, p.volumeCbm?.toString() ?? null] as const),
+    );
+    const shippingMethod = dto.shippingMethod ?? ShippingMethod.manual;
+    const lineQty = dto.lines.map((l) => ({
+      productId: l.productId,
+      requestedQuantity: l.requestedQuantity,
+    }));
+    const shippingWeightKg = resolveShippingWeightKg({
+      method: shippingMethod,
+      explicit: dto.shippingWeightKg,
+      lines: lineQty,
+      weightByProductId,
+    });
+    const shippingVolumeCbm = resolveShippingVolumeCbm({
+      method: shippingMethod,
+      explicit: dto.shippingVolumeCbm,
+      lines: lineQty,
+      volumeByProductId,
+    });
+    const shippingFields = {
+      shippingMethod,
+      shippingProviderCode: dto.shippingProviderCode,
+      shippingReceiverLat: dto.shippingReceiverLat,
+      shippingReceiverLng: dto.shippingReceiverLng,
+      shippingPackageType: dto.shippingPackageType,
+      shippingContents: dto.shippingContents,
+      shippingDeliveryType: dto.shippingDeliveryType,
+      shippingPickupType: dto.shippingPickupType,
+      shippingPayer: dto.shippingPayer,
+      shippingWeightKg,
+      shippingVolumeCbm,
+      shippingPhoneCountry: dto.shippingPhoneCountry,
+    };
+    assertShippingIntentReady(shippingFields);
+    await this.shipping.assertLiveCarrierSelection({
+      fields: shippingFields,
+      governorate: dto.city,
+      city: dto.district,
+      neighborhood: dto.addressLine1,
+    });
 
     // Validate availability only — do not reserve until outbound is generated.
     await this.assertSufficientStockForLines(companyId, dto.lines, products);
@@ -212,11 +311,15 @@ export class OmsOrdersService {
 
     const codStatus = deriveCodStatus(dto.paymentMethod, derivedCod);
     const now = new Date();
+    // Backend-enforced create rules (not a frontend shortcut):
+    // - Admin provisionOutbound → processing + outbound (exactly once, idempotent sync)
+    // - Client / no provision → waiting_for_confirmation (no outbound)
+    // - Explicit outbound link (legacy) → draft
     const initialStatus = dto.outboundOrderId
       ? OmsOrderStatus.draft
       : provisionOutbound
-        ? OmsOrderStatus.pending
-        : OmsOrderStatus.pending_approval;
+        ? OmsOrderStatus.processing
+        : OmsOrderStatus.waiting_for_confirmation;
 
     const order = await withTenantRls(this.prisma, user, async (tx) => {
       const created = await tx.omsOrder.create({
@@ -245,9 +348,10 @@ export class OmsOrdersService {
           codStatus: codStatus ?? undefined,
           storeChannel: dto.storeChannel,
           externalReference: dto.externalReference,
+          ...shippingPrismaData(shippingFields),
           submittedAt:
-            initialStatus === OmsOrderStatus.pending_approval ||
-            initialStatus === OmsOrderStatus.pending
+            initialStatus === OmsOrderStatus.waiting_for_confirmation ||
+            initialStatus === OmsOrderStatus.processing
               ? now
               : undefined,
           approvedAt: provisionOutbound ? now : undefined,
@@ -283,11 +387,11 @@ export class OmsOrdersService {
         },
       });
 
-      if (created.status === OmsOrderStatus.pending_approval) {
+      if (created.status === OmsOrderStatus.waiting_for_confirmation) {
         await this.events.record(tx, {
           omsOrderId: created.id,
           companyId: created.companyId,
-          eventType: 'order.pending_approval',
+          eventType: 'order.waiting_for_confirmation',
           createdBy: user.id,
         });
       }
@@ -325,22 +429,103 @@ export class OmsOrdersService {
     return serializeOmsOrder(order);
   }
 
-  async approve(id: string, user: AuthPrincipal, dto: ApproveOmsOrderDto = {}) {
+  async confirm(id: string, user: AuthPrincipal) {
     const existing = await this.resolveOrder(id, user);
+    const actor = resolveOmsActorRole(user.role);
+    const action = actor === 'client' ? 'client_confirm' : 'admin_confirm';
 
-    // Idempotent: already Pending with outbound linked.
+    // Idempotent client confirm
     if (
-      existing.status === OmsOrderStatus.pending &&
+      actor === 'client' &&
+      existing.status === OmsOrderStatus.confirmed_waiting_for_admin_approval
+    ) {
+      return serializeOmsOrder(existing);
+    }
+    // Idempotent admin confirm / already processing with outbound
+    if (
+      actor === 'admin' &&
+      existing.status === OmsOrderStatus.processing &&
       existing.outboundOrderId
     ) {
       return serializeOmsOrder(existing);
     }
 
-    if (existing.status !== OmsOrderStatus.pending_approval) {
-      throw new InvalidStateException(
-        `Only Waiting for Approval orders can be approved (current: ${existing.status}).`,
+    const next = assertOmsTransition(existing.status, action, actor);
+
+    if (next === OmsOrderStatus.processing) {
+      const products = existing.lines.map((l) => ({
+        id: l.productId,
+        sku: l.product?.sku ?? l.productId,
+      }));
+      await this.assertSufficientStockForLines(
+        existing.companyId,
+        existing.lines.map((l) => ({
+          productId: l.productId,
+          requestedQuantity: Number(l.requestedQuantity),
+        })),
+        products,
       );
+
+      const order = await withTenantRls(this.prisma, user, async (tx) => {
+        await this.sync.createOutboundFromOms(tx, {
+          omsOrderId: existing.id,
+          actorUserId: user.id,
+        });
+        await this.events.record(tx, {
+          omsOrderId: existing.id,
+          companyId: existing.companyId,
+          eventType: 'oms.confirmed',
+          createdBy: user.id,
+          payload: { via: 'admin_confirm', omsStatus: OmsOrderStatus.processing },
+        });
+        return tx.omsOrder.findUnique({ where: { id: existing.id }, include: ORDER_INCLUDE });
+      });
+      if (!order) throw new NotFoundException('Order not found.');
+      if (order.outboundOrderId) {
+        this.realtime.emitOutboundOrderCreated(order.companyId, {
+          orderId: order.outboundOrderId,
+          status: 'draft',
+        });
+      }
+      this.emitOms('oms.confirmed', order.companyId, order.id, order.status);
+      return serializeOmsOrder(order);
     }
+
+    const updated = await withTenantRls(this.prisma, user, async (tx) => {
+      const row = await tx.omsOrder.update({
+        where: { id: existing.id },
+        data: {
+          status: next,
+          confirmedAt: new Date(),
+        },
+        include: ORDER_INCLUDE,
+      });
+      await this.events.record(tx, {
+        omsOrderId: row.id,
+        companyId: row.companyId,
+        eventType: 'oms.confirmed',
+        createdBy: user.id,
+        payload: { via: 'client_confirm', omsStatus: next },
+      });
+      return row;
+    });
+    this.emitOms('oms.confirmed', updated.companyId, updated.id, updated.status);
+    return serializeOmsOrder(updated);
+  }
+
+  async approve(id: string, user: AuthPrincipal, dto: ApproveOmsOrderDto = {}) {
+    const existing = await this.resolveOrder(id, user);
+
+    // Idempotent: already processing with outbound linked.
+    if (
+      (existing.status === OmsOrderStatus.processing ||
+        existing.status === OmsOrderStatus.pending) &&
+      existing.outboundOrderId
+    ) {
+      return serializeOmsOrder(existing);
+    }
+
+    assertOmsTransition(existing.status, 'admin_approve', 'admin');
 
     const products = existing.lines.map((l) => ({
       id: l.productId,
@@ -396,11 +581,7 @@ export class OmsOrdersService {
 
   async reject(id: string, user: AuthPrincipal, dto: RejectOmsOrderDto = {}) {
     const existing = await this.resolveOrder(id, user);
-    if (existing.status !== OmsOrderStatus.pending_approval) {
-      throw new InvalidStateException(
-        `Only Waiting for Approval orders can be rejected (current: ${existing.status}).`,
-      );
-    }
+    assertOmsTransition(existing.status, 'reject', 'admin');
 
     const updated = await withTenantRls(this.prisma, user, async (tx) => {
       const row = await tx.omsOrder.update({
@@ -430,13 +611,11 @@ export class OmsOrdersService {
   }
 
   async markFailedDelivery(id: string, user: AuthPrincipal) {
+    const existing = await this.resolveOrder(id, user);
+    const next = assertOmsTransition(existing.status, 'failed_delivery', 'admin');
     return this.transition(id, user, {
-      allowed: [
-        OmsOrderStatus.out_for_delivery,
-        OmsOrderStatus.shipped,
-        OmsOrderStatus.ready_to_ship,
-      ],
-      next: OmsOrderStatus.failed_delivery,
+      allowed: [existing.status],
+      next,
       event: 'order.failed_delivery',
       extra: {},
     });
@@ -534,6 +713,138 @@ export class OmsOrdersService {
       await this.assertOutboundLinkable(user, dto.outboundOrderId, existing.companyId, existing.id);
     }
 
+    if (hasShippingConfigPatch(dto)) {
+      assertShippingConfigUnlocked(existing.outboundOrder?.status);
+    }
+
+    const weightByProductId = new Map(
+      existing.lines.map((l) => [
+        l.productId,
+        (l as { product?: { weightKg?: { toString(): string } | null } }).product?.weightKg?.toString() ??
+          null,
+      ]),
+    );
+    const volumeByProductId = new Map(
+      existing.lines.map((l) => [
+        l.productId,
+        (l as { product?: { volumeCbm?: { toString(): string } | null } }).product?.volumeCbm?.toString() ??
+          null,
+      ]),
+    );
+    // Prefer product weights/volumes from DB when not already on include.
+    if (
+      ([...weightByProductId.values()].every((v) => v == null) ||
+        [...volumeByProductId.values()].every((v) => v == null)) &&
+      existing.lines.length > 0
+    ) {
+      const products = await this.prisma.product.findMany({
+        where: { id: { in: existing.lines.map((l) => l.productId) } },
+        select: { id: true, weightKg: true, volumeCbm: true },
+      });
+      for (const p of products) {
+        weightByProductId.set(p.id, p.weightKg?.toString() ?? null);
+        volumeByProductId.set(p.id, p.volumeCbm?.toString() ?? null);
+      }
+    }
+
+    const nextMethod = dto.shippingMethod ?? existing.shippingMethod;
+    const lineQty = existing.lines.map((l) => ({
+      productId: l.productId,
+      requestedQuantity: l.requestedQuantity.toString(),
+    }));
+    const shippingWeightKg = hasShippingConfigPatch(dto)
+      ? resolveShippingWeightKg({
+          method: nextMethod,
+          explicit: dto.shippingWeightKg !== undefined ? dto.shippingWeightKg : existing.shippingWeightKg?.toString(),
+          lines: lineQty,
+          weightByProductId,
+        })
+      : undefined;
+    const shippingVolumeCbm = hasShippingConfigPatch(dto)
+      ? resolveShippingVolumeCbm({
+          method: nextMethod,
+          explicit:
+            dto.shippingVolumeCbm !== undefined
+              ? dto.shippingVolumeCbm
+              : (existing as { shippingVolumeCbm?: { toString(): string } | null }).shippingVolumeCbm?.toString(),
+          lines: lineQty,
+          volumeByProductId,
+        })
+      : undefined;
+
+    const shippingPatch = hasShippingConfigPatch(dto)
+      ? {
+          shippingMethod: dto.shippingMethod,
+          shippingProviderCode: dto.shippingProviderCode,
+          shippingReceiverLat: dto.shippingReceiverLat,
+          shippingReceiverLng: dto.shippingReceiverLng,
+          shippingPackageType: dto.shippingPackageType,
+          shippingContents: dto.shippingContents,
+          shippingDeliveryType: dto.shippingDeliveryType,
+          shippingPickupType: dto.shippingPickupType,
+          shippingPayer: dto.shippingPayer,
+          shippingWeightKg:
+            dto.shippingWeightKg !== undefined
+              ? dto.shippingWeightKg
+              : shippingWeightKg !== undefined
+                ? shippingWeightKg
+                : undefined,
+          shippingVolumeCbm:
+            dto.shippingVolumeCbm !== undefined
+              ? dto.shippingVolumeCbm
+              : shippingVolumeCbm !== undefined
+                ? shippingVolumeCbm
+                : undefined,
+          shippingPhoneCountry: dto.shippingPhoneCountry,
+        }
+      : null;
+
+    if (shippingPatch) {
+      const nextFields = {
+        shippingMethod: nextMethod,
+        shippingProviderCode:
+          dto.shippingProviderCode !== undefined
+            ? dto.shippingProviderCode
+            : existing.shippingProviderCode,
+        shippingReceiverLat:
+          dto.shippingReceiverLat !== undefined
+            ? dto.shippingReceiverLat
+            : (existing.shippingReceiverLat?.toString() ?? null),
+        shippingReceiverLng:
+          dto.shippingReceiverLng !== undefined
+            ? dto.shippingReceiverLng
+            : (existing.shippingReceiverLng?.toString() ?? null),
+        shippingPackageType:
+          dto.shippingPackageType !== undefined
+            ? dto.shippingPackageType
+            : existing.shippingPackageType,
+        shippingDeliveryType:
+          dto.shippingDeliveryType !== undefined
+            ? dto.shippingDeliveryType
+            : existing.shippingDeliveryType,
+        shippingPickupType:
+          dto.shippingPickupType !== undefined
+            ? dto.shippingPickupType
+            : existing.shippingPickupType,
+        shippingWeightKg:
+          dto.shippingWeightKg !== undefined
+            ? dto.shippingWeightKg
+            : (existing.shippingWeightKg?.toString() ?? null),
+        shippingVolumeCbm:
+          dto.shippingVolumeCbm !== undefined
+            ? dto.shippingVolumeCbm
+            : ((existing as { shippingVolumeCbm?: { toString(): string } | null })
+                .shippingVolumeCbm?.toString() ?? null),
+      };
+      assertShippingIntentReady(nextFields);
+      await this.shipping.assertLiveCarrierSelection({
+        fields: nextFields,
+        governorate: dto.city ?? existing.city,
+        city: dto.district ?? existing.district,
+        neighborhood: dto.addressLine1 ?? existing.addressLine1,
+      });
+    }
+
     const updated = await withTenantRls(this.prisma, user, async (tx) => {
       const nextPayment = dto.paymentMethod ?? existing.paymentMethod;
       const nextShipping =
@@ -601,9 +912,35 @@ export class OmsOrdersService {
           ...(dto.outboundOrderId !== undefined
             ? { outboundOrderId: dto.outboundOrderId }
             : {}),
+          ...(shippingPatch ? shippingPrismaData(shippingPatch) : {}),
         },
         include: ORDER_INCLUDE,
       });
+
+      if (shippingPatch && row.outboundOrderId) {
+        await tx.outboundOrder.update({
+          where: { id: row.outboundOrderId },
+          data: {
+            ...shippingPrismaData({
+              shippingMethod: row.shippingMethod,
+              shippingProviderCode: row.shippingProviderCode,
+              shippingReceiverLat: row.shippingReceiverLat?.toString() ?? null,
+              shippingReceiverLng: row.shippingReceiverLng?.toString() ?? null,
+              shippingPackageType: row.shippingPackageType,
+              shippingContents: row.shippingContents,
+              shippingDeliveryType: row.shippingDeliveryType,
+              shippingPickupType: row.shippingPickupType,
+              shippingPayer: row.shippingPayer,
+              shippingWeightKg: row.shippingWeightKg?.toString() ?? null,
+              shippingVolumeCbm: row.shippingVolumeCbm?.toString() ?? null,
+              shippingPhoneCountry: row.shippingPhoneCountry,
+            }),
+            // Keep legacy carrier label in sync when OMS still carries one (display/cache).
+            ...(dto.carrier !== undefined ? { carrier: dto.carrier } : {}),
+          },
+        });
+      }
+
       await this.events.record(tx, {
         omsOrderId: row.id,
         outboundOrderId: row.outboundOrderId ?? undefined,
@@ -639,6 +976,31 @@ export class OmsOrdersService {
     if (existing.status === OmsOrderStatus.delivered) {
       throw new InvalidStateException('Delivered orders cannot be cancelled.');
     }
+    if (
+      existing.status === OmsOrderStatus.shipped ||
+      existing.status === OmsOrderStatus.out_for_delivery
+    ) {
+      throw new InvalidStateException(
+        'Shipped orders cannot be cancelled. Use failed delivery or return flows.',
+      );
+    }
+
+    const actor = resolveOmsActorRole(user.role);
+    // Clients may cancel only while waiting for confirmation or admin approval.
+    // After admin approval (processing+), only admins can cancel.
+    if (actor === 'client') {
+      const clientCancellable: OmsOrderStatus[] = [
+        OmsOrderStatus.waiting_for_confirmation,
+        OmsOrderStatus.confirmed_waiting_for_admin_approval,
+        OmsOrderStatus.pending_approval,
+      ];
+      if (!clientCancellable.includes(existing.status)) {
+        throw new InvalidStateException(
+          'This order has already been approved. Only warehouse admin can cancel it now.',
+        );
+      }
+    }
+    assertOmsTransition(existing.status, 'cancel', actor);
 
     const updated = await withTenantRls(this.prisma, user, async (tx) => {
       const row = await tx.omsOrder.update({
@@ -666,6 +1028,15 @@ export class OmsOrdersService {
             where: { id: outbound.id },
             data: { status: OutboundOrderStatus.cancelled },
           });
+        } else if (
+          outbound &&
+          (outbound.status === OutboundOrderStatus.shipped ||
+            outbound.status === OutboundOrderStatus.delivered ||
+            outbound.status === OutboundOrderStatus.out_for_delivery)
+        ) {
+          throw new InvalidStateException(
+            'Cannot cancel OMS while outbound has already left the warehouse.',
+          );
         }
       }
       await this.events.record(tx, {
@@ -734,19 +1105,20 @@ export class OmsOrdersService {
   }
 
   async markOutForDelivery(id: string, user: AuthPrincipal) {
+    // Deprecated as a free commercial transition — WMS sync owns shipped.
+    // Kept for compatibility: only allow moving into shipped from prep states.
     return this.transition(id, user, {
       allowed: [
+        OmsOrderStatus.processing,
         OmsOrderStatus.pending,
         OmsOrderStatus.ready_to_ship,
-        OmsOrderStatus.shipped,
         OmsOrderStatus.allocated,
-        OmsOrderStatus.processing,
         OmsOrderStatus.picking,
         OmsOrderStatus.packing,
         OmsOrderStatus.approved,
       ],
-      next: OmsOrderStatus.out_for_delivery,
-      event: 'oms.out_for_delivery',
+      next: OmsOrderStatus.shipped,
+      event: 'oms.shipped',
       extra: { outForDeliveryAt: new Date() },
     });
   }
@@ -766,15 +1138,7 @@ export class OmsOrdersService {
       return serializeOmsOrder(existing);
     }
 
-    const allowed: OmsOrderStatus[] = [
-      OmsOrderStatus.out_for_delivery,
-      OmsOrderStatus.shipped,
-    ];
-    if (!allowed.includes(existing.status)) {
-      throw new InvalidStateException(
-        `Only Out for Delivery orders can be marked Delivered (current: ${existing.status}).`,
-      );
-    }
+    assertOmsTransition(existing.status, 'mark_delivered', 'admin');
 
     const updated = await withTenantRls(this.prisma, user, async (tx) => {
       const row = await tx.omsOrder.update({
@@ -812,6 +1176,43 @@ export class OmsOrdersService {
 
     const fresh = await this.resolveOrder(id, user);
     return serializeOmsOrder(fresh);
+  }
+
+  async revertDelivery(
+    id: string,
+    user: AuthPrincipal,
+    dto: { reason: string },
+  ) {
+    const reason = dto.reason?.trim();
+    if (!reason) {
+      throw new BadRequestException('A reason is required to revert delivery.');
+    }
+
+    const existing = await this.resolveOrder(id, user);
+    assertOmsTransition(existing.status, 'delivery_revert', 'admin');
+
+    const updated = await withTenantRls(this.prisma, user, async (tx) => {
+      const row = await tx.omsOrder.update({
+        where: { id },
+        data: {
+          status: OmsOrderStatus.shipped,
+          deliveredAt: null,
+        },
+        include: ORDER_INCLUDE,
+      });
+      await this.events.record(tx, {
+        omsOrderId: id,
+        outboundOrderId: row.outboundOrderId ?? undefined,
+        companyId: row.companyId,
+        eventType: 'oms.delivery_reverted',
+        createdBy: user.id,
+        payload: { reason, previousStatus: OmsOrderStatus.delivered },
+      });
+      return row;
+    });
+
+    this.emitOms('oms.delivery_reverted', updated.companyId, updated.id, updated.status);
+    return serializeOmsOrder(updated);
   }
 
   async markReturned(_id: string, _user: AuthPrincipal) {
@@ -911,7 +1312,7 @@ export class OmsOrdersService {
         allocationStatus: o.allocationStatus as never,
         storeChannel: o.storeChannel,
         externalReference: o.externalReference,
-        status: mapOutboundStatusToOms(o.status) ?? OmsOrderStatus.pending,
+        status: mapOutboundStatusToOms(o.status) ?? OmsOrderStatus.processing,
         createdBy: o.createdBy,
         createdAt: o.createdAt,
         updatedAt: o.updatedAt,
@@ -1011,12 +1412,22 @@ export class OmsOrdersService {
       })),
     });
 
+    const currentOms = await tx.omsOrder.findUnique({
+      where: { id: omsOrderId },
+      select: { status: true },
+    });
+    const keepCommercial =
+      currentOms?.status === OmsOrderStatus.processing ||
+      currentOms?.status === OmsOrderStatus.ready_to_ship ||
+      currentOms?.status === OmsOrderStatus.shipped ||
+      currentOms?.status === OmsOrderStatus.out_for_delivery;
+
     await tx.omsOrder.update({
       where: { id: omsOrderId },
       data: {
         allocationStatus: 'allocated',
         allocatedAt: new Date(),
-        status: OmsOrderStatus.allocated,
+        ...(keepCommercial ? {} : { status: OmsOrderStatus.processing }),
       },
     });
     await this.events.record(tx, {

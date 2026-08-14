@@ -333,8 +333,16 @@ export function BillingInvoiceDetailPage() {
                     value={`${formatDecimal(snapshot.reservedVolume, 2)} m³`}
                   />
                   <DetailField
-                    label="Plan price"
+                    label="Fixed plan price"
                     value={`${formatDecimal(snapshot.fixedSubscriptionFee)} ${CURRENCY}`}
+                  />
+                  <DetailField
+                    label="Inbound order price"
+                    value={`${formatDecimal(snapshot.inboundOrderFee)} ${CURRENCY}`}
+                  />
+                  <DetailField
+                    label="Outbound order price"
+                    value={`${formatDecimal(snapshot.outboundOrderFee)} ${CURRENCY}`}
                   />
                 </>
               ) : null}

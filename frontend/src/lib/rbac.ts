@@ -189,10 +189,17 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     roles: ALL_ROLES,
   },
   {
-    labelKey: 'Settings',
-    iconKey: 'Settings',
-    to: '/settings/backups',
-    match: (p) => p.startsWith('/settings'),
+    labelKey: 'Backups',
+    iconKey: 'Backups',
+    to: '/backups',
+    match: (p) => p.startsWith('/backups') || p.startsWith('/settings'),
+    roles: ['super_admin', 'wh_manager'],
+  },
+  {
+    labelKey: 'Shipping Companies',
+    iconKey: 'Shipping',
+    to: '/shipping/companies',
+    match: (p) => p.startsWith('/shipping'),
     roles: ['super_admin', 'wh_manager'],
   },
 ];
@@ -219,7 +226,8 @@ function routeGroup(pathname: string): string {
   if (p.startsWith('/users')) return 'users';
   if (p.startsWith('/audit-logs')) return 'audit-logs';
   if (p.startsWith('/notifications')) return 'notifications';
-  if (p.startsWith('/settings')) return 'settings';
+  if (p.startsWith('/backups') || p.startsWith('/settings')) return 'backups';
+  if (p.startsWith('/shipping')) return 'shipping';
   if (p.startsWith('/profile')) return 'profile';
   return 'other';
 }
@@ -245,6 +253,8 @@ const ROUTE_GROUP_ROLES: Record<string, InternalRole[]> = {
   'audit-logs': ['super_admin', 'wh_manager', 'finance'],
   notifications: ALL_ROLES,
   settings: ['super_admin', 'wh_manager'],
+  backups: ['super_admin', 'wh_manager'],
+  shipping: ['super_admin', 'wh_manager'],
   profile: ALL_ROLES,
   other: ALL_ROLES,
 };

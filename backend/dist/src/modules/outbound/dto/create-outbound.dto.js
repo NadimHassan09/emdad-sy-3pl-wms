@@ -13,6 +13,7 @@ exports.CreateOutboundOrderDto = exports.CreateOutboundOrderLineDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
+const shipping_config_dto_1 = require("../../shipping/dto/shipping-config.dto");
 class CreateOutboundOrderLineDto {
     productId;
     requestedQuantity;
@@ -33,7 +34,7 @@ __decorate([
     (0, is_uuid_loose_1.IsUuidLoose)(),
     __metadata("design:type", String)
 ], CreateOutboundOrderLineDto.prototype, "specificLotId", void 0);
-class CreateOutboundOrderDto {
+class CreateOutboundOrderDto extends shipping_config_dto_1.ShippingConfigDto {
     companyId;
     destinationAddress;
     requiredShipDate;

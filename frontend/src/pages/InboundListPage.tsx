@@ -1,10 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import { Alert, Button, EmptyState } from '@ds';
+import { Alert, Button, Card, EmptyState } from '@ds';
 
-import { CompaniesApi } from '../api/companies';
 import {
   InboundApi,
   InboundOrder,
@@ -12,18 +11,12 @@ import {
 } from '../api/inbound';
 import { useAuth } from '../auth/AuthContext';
 import { AdminListPageShell } from '../components/AdminListPageShell';
-import { Combobox } from '../components/Combobox';
+import { CompanyNameCell } from '../components/CompanyNameCell';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
-import {
-  FILTER_PRIMARY_BUTTON_CLASS,
-  FILTER_RESET_BUTTON_CLASS,
-  FilterPanel,
-} from '../components/FilterPanel';
+import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
 import { RowActionsMenu, type RowAction } from '../components/RowActionsMenu';
-import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
-import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
@@ -32,14 +25,13 @@ import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
-import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { inboundHasQuantityShortfall } from '../lib/inbound-shortfall';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
 import { canAccessInternalTransfer } from '../lib/rbac';
+import { useDebounced } from '../lib/useDebounced';
 
 type ListDraft = {
   orderSearch: string;
-  companyId: string;
   status: string;
   createdFrom: string;
   createdTo: string;
@@ -50,16 +42,12 @@ function inboundLabel(label: string, isArabic: boolean): string {
   const ar: Record<string, string> = {
     'Inbound orders': 'طلبات الوارد',
     '+ New inbound': '+ وارد جديد',
-    'Search order...': 'ابحث عن الطلب...',
+    'Search order # or client…': 'ابحث برقم الطلب أو العميل…',
     Client: 'العميل',
     'Created from': 'تاريخ الإنشاء من',
     'Created to': 'تاريخ الإنشاء إلى',
-    'Order filters': 'فلاتر الطلبات',
-    'Apply filters': 'تطبيق الفلاتر',
-    'Reset filters': 'إعادة تعيين الفلاتر',
     'No inbound orders match the filters.': 'لا توجد طلبات وارد مطابقة للفلاتر.',
     'No inbound orders yet': 'لا توجد طلبات وارد بعد',
-    'No inbound orders yet.': 'لا توجد طلبات وارد بعد.',
     'Create your first inbound order to start receiving stock.':
       'أنشئ أول طلب وارد لبدء استلام المخزون.',
     'Warehouse not resolved yet.': 'لم يتم تحديد المستودع بعد.',
@@ -74,23 +62,6 @@ function inboundLabel(label: string, isArabic: boolean): string {
     Previous: 'السابق',
     Next: 'التالي',
     'Rows per page': 'عدد الصفوف لكل صفحة',
-    'New inbound order': 'طلب وارد جديد',
-    'Expected arrival date': 'تاريخ الوصول المتوقع',
-    Notes: 'ملاحظات',
-    Barcode: 'الباركود',
-    'Scan or type…': 'امسح أو اكتب…',
-    'Add by barcode': 'إضافة بالباركود',
-    'Scan barcode': 'مسح الباركود',
-    '+ Add line': '+ إضافة بند',
-    'No lines yet — add a product below.': 'لا توجد بنود بعد — أضف منتجاً بالأسفل.',
-    Remove: 'إزالة',
-    Product: 'المنتج',
-    'Pick product…': 'اختر المنتج…',
-    Quantity: 'الكمية',
-    Cancel: 'إلغاء',
-    Back: 'رجوع',
-    Create: 'إنشاء',
-    'All clients': 'كل العملاء',
     'All statuses': 'كل الحالات',
     Draft: 'مسودة',
     'Pending approval': 'بانتظار الموافقة',
@@ -113,8 +84,6 @@ function inboundLabel(label: string, isArabic: boolean): string {
     'Keep order': 'الاحتفاظ بالطلب',
     'Order cancelled.': 'تم إلغاء الطلب.',
     'Order deleted.': 'تم حذف الطلب.',
-    'Expected arrival date cannot be before today.':
-      'لا يمكن أن يكون تاريخ الوصول المتوقع قبل اليوم.',
   };
   return ar[label] ?? label;
 }
@@ -128,7 +97,9 @@ export function InboundListPage() {
   const [toCancel, setToCancel] = useState<InboundOrder | null>(null);
   const [toDelete, setToDelete] = useState<InboundOrder | null>(null);
   const isArabic =
-    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+    typeof window !== 'undefined' &&
+    (window.localStorage.getItem('wms-ui-language') === 'AR' ||
+      document.documentElement.dir === 'rtl');
   const t = (label: string) => inboundLabel(label, isArabic);
   const openCreate = () => {
     navigate('/orders/inbound/new');
@@ -138,7 +109,6 @@ export function InboundListPage() {
   const initialList = useMemo<ListDraft>(
     () => ({
       orderSearch: '',
-      companyId: '',
       status: '',
       createdFrom: '',
       createdTo: '',
@@ -146,13 +116,25 @@ export function InboundListPage() {
     [],
   );
 
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters, applyPatch } =
-    useFilters(initialList);
+  const { draftFilters, appliedFilters, setDraft, applyPatch } = useFilters(initialList);
+  const [searchParams] = useSearchParams();
+  const debouncedSearch = useDebounced(draftFilters.orderSearch, 300);
+
+  useEffect(() => {
+    const status = searchParams.get('status') ?? '';
+    if (status && status !== appliedFilters.status) {
+      applyPatch({ status });
+    }
+  }, [searchParams, appliedFilters.status, applyPatch]);
+
+  useEffect(() => {
+    if (debouncedSearch === appliedFilters.orderSearch) return;
+    applyPatch({ orderSearch: debouncedSearch });
+  }, [debouncedSearch, appliedFilters.orderSearch, applyPatch]);
 
   const listParams = useMemo(
     () => ({
       warehouseId: wid || undefined,
-      companyId: appliedFilters.companyId || undefined,
       status: (appliedFilters.status.trim() || undefined) as InboundOrderStatus | undefined,
       orderSearch: appliedFilters.orderSearch.trim() || undefined,
       createdFrom: appliedFilters.createdFrom.trim() || undefined,
@@ -169,17 +151,6 @@ export function InboundListPage() {
     chunkQueryKeyPrefix: 'inbound-orders-chunk',
     enabled: !!wid,
   });
-
-  const companies = useQuery({
-    queryKey: QK.companies,
-    queryFn: () => CompaniesApi.list(),
-    staleTime: 10 * 60_000,
-  });
-
-  const clientFilterOptions = useMemo(
-    () => companyFilterComboboxOptions(companies.data, t('All clients')),
-    [companies.data, isArabic],
-  );
 
   const statusFilterOptions = useMemo(
     () => [
@@ -231,10 +202,20 @@ export function InboundListPage() {
       });
     }
     if (o.status !== 'completed' && o.status !== 'cancelled') {
-      actions.push({ key: 'cancel', label: t('Cancel order'), danger: true, onClick: () => setToCancel(o) });
+      actions.push({
+        key: 'cancel',
+        label: t('Cancel order'),
+        danger: true,
+        onClick: () => setToCancel(o),
+      });
     }
     if (isAdmin && o.status === 'cancelled') {
-      actions.push({ key: 'delete', label: t('Delete'), danger: true, onClick: () => setToDelete(o) });
+      actions.push({
+        key: 'delete',
+        label: t('Delete'),
+        danger: true,
+        onClick: () => setToDelete(o),
+      });
     }
     return actions;
   };
@@ -248,16 +229,21 @@ export function InboundListPage() {
       },
       {
         header: t('Client'),
-        accessor: (o) => o.company?.name ?? '—',
-        width: '200px',
+        accessor: (o) => (
+          <CompanyNameCell name={o.company?.name} logoUrl={o.company?.logoUrl} />
+        ),
+        width: '220px',
       },
       {
         header: t('Status'),
         accessor: (o) => (
           <div className="flex w-fit flex-col gap-0.5">
             <StatusBadge status={o.status} />
-            {inboundHasQuantityShortfall(o) && (o.status === 'completed' || o.status === 'partially_received') ? (
-              <span className="text-[10px] leading-tight text-status-warning-fg">Missing quantities</span>
+            {inboundHasQuantityShortfall(o) &&
+            (o.status === 'completed' || o.status === 'partially_received') ? (
+              <span className="text-[10px] leading-tight text-status-warning-fg">
+                Missing quantities
+              </span>
             ) : null}
           </div>
         ),
@@ -275,7 +261,9 @@ export function InboundListPage() {
       },
       {
         header: t('Actions'),
-        accessor: (o) => <RowActionsMenu items={rowActions(o)} ariaLabel={t('Open actions')} />,
+        accessor: (o) => (
+          <RowActionsMenu items={rowActions(o)} ariaLabel={t('Open actions')} />
+        ),
         className: 'w-1 whitespace-nowrap text-center',
         width: '90px',
       },
@@ -286,7 +274,6 @@ export function InboundListPage() {
 
   const hasActiveFilters = Boolean(
     appliedFilters.orderSearch.trim() ||
-      appliedFilters.companyId ||
       appliedFilters.status.trim() ||
       appliedFilters.createdFrom.trim() ||
       appliedFilters.createdTo.trim(),
@@ -313,22 +300,19 @@ export function InboundListPage() {
     />
   );
 
-  return (
-    <AdminListPageShell
-      icon="fa-arrow-down"
-      title={t('Inbound orders')}
-      isArabic={isArabic}
-      actions={
-        <Button
-          variant="primary"
-          size="md"
-          onClick={openCreate}
-          className={FILTER_PRIMARY_BUTTON_CLASS}
-        >
-          {t('+ New inbound')}
-        </Button>
-      }
+  const newButton = (
+    <Button
+      variant="primary"
+      size="md"
+      onClick={openCreate}
+      className={FILTER_PRIMARY_BUTTON_CLASS}
     >
+      {t('+ New inbound')}
+    </Button>
+  );
+
+  return (
+    <AdminListPageShell icon="fa-arrow-down" title={t('Inbound orders')} isArabic={isArabic} navActions={newButton}>
       {!wid && (
         <Alert
           variant="warning"
@@ -351,89 +335,48 @@ export function InboundListPage() {
         />
       )}
 
-      <FilterPanel
-        title={t('Order filters')}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-        applyLabel={t('Apply filters')}
-        resetLabel={t('Reset filters')}
-        chips={[
-          appliedFilters.orderSearch.trim()
-            ? {
-                key: 'orderSearch',
-                label: `${t('Order #')}: ${appliedFilters.orderSearch.trim()}`,
-                onClear: () => applyPatch({ orderSearch: '' }),
-              }
-            : null,
-          appliedFilters.companyId
-            ? {
-                key: 'companyId',
-                label: `${t('Client')}: ${
-                  companies.data?.find((c) => c.id === appliedFilters.companyId)?.name ??
-                  appliedFilters.companyId.slice(0, 8)
-                }`,
-                onClear: () => applyPatch({ companyId: '' }),
-              }
-            : null,
-          appliedFilters.status.trim()
-            ? {
-                key: 'status',
-                label: `${t('Status')}: ${appliedFilters.status}`,
-                onClear: () => applyPatch({ status: '' }),
-              }
-            : null,
-          appliedFilters.createdFrom.trim()
-            ? {
-                key: 'createdFrom',
-                label: `${t('Created from')}: ${appliedFilters.createdFrom}`,
-                onClear: () => applyPatch({ createdFrom: '' }),
-              }
-            : null,
-          appliedFilters.createdTo.trim()
-            ? {
-                key: 'createdTo',
-                label: `${t('Created to')}: ${appliedFilters.createdTo}`,
-                onClear: () => applyPatch({ createdTo: '' }),
-              }
-            : null,
-        ].filter(Boolean) as Array<{ key: string; label: string; onClear: () => void }>}
-        onClearAllChips={hasActiveFilters ? resetFilters : undefined}
-      >
-        <TextField
-          label={t('Order #')}
-          value={draftFilters.orderSearch}
-          onChange={(e) => setDraft({ orderSearch: e.target.value })}
-          placeholder={t('Search order...')}
-          className="font-mono"
-        />
-        <Combobox
-          label={t('Client')}
-          value={draftFilters.companyId}
-          onChange={(v) => setDraft({ companyId: v })}
-          options={clientFilterOptions}
-          placeholder={t('All clients')}
-        />
-        <SelectField
-          label={t('Status')}
-          name="inboundStatusFilter"
-          value={draftFilters.status}
-          onChange={(e) => setDraft({ status: e.target.value })}
-          options={statusFilterOptions}
-        />
-        <TextField
-          label={t('Created from')}
-          type="date"
-          value={draftFilters.createdFrom}
-          onChange={(e) => setDraft({ createdFrom: e.target.value })}
-        />
-        <TextField
-          label={t('Created to')}
-          type="date"
-          value={draftFilters.createdTo}
-          onChange={(e) => setDraft({ createdTo: e.target.value })}
-        />
-      </FilterPanel>
+      <Card padding="md">
+        <div className="flex max-w-4xl flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="relative w-full sm:min-w-[16rem] sm:flex-1 sm:max-w-sm">
+            <i
+              className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+              aria-hidden
+            />
+            <input
+              value={draftFilters.orderSearch}
+              onChange={(e) => setDraft({ orderSearch: e.target.value })}
+              placeholder={t('Search order # or client…')}
+              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+            />
+          </div>
+          <select
+            value={draftFilters.status}
+            onChange={(e) => applyPatch({ status: e.target.value })}
+            aria-label={t('Status')}
+            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+          >
+            {statusFilterOptions.map((opt) => (
+              <option key={opt.value || 'all'} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={draftFilters.createdFrom}
+            onChange={(e) => applyPatch({ createdFrom: e.target.value })}
+            aria-label={t('Created from')}
+            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+          />
+          <input
+            type="date"
+            value={draftFilters.createdTo}
+            onChange={(e) => applyPatch({ createdTo: e.target.value })}
+            aria-label={t('Created to')}
+            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+          />
+        </div>
+      </Card>
 
       <DataTable
         columns={columns}

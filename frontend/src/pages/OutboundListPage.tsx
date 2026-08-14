@@ -1,25 +1,18 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import { CompaniesApi } from '../api/companies';
 import { OutboundApi, OutboundOrder, OutboundOrderStatus } from '../api/outbound';
 import { useAuth } from '../auth/AuthContext';
-import { Alert, Button as DsButton } from '@ds';
+import { Alert, Button as DsButton, Card } from '@ds';
 import { AdminListPageShell } from '../components/AdminListPageShell';
-import { Button } from '../components/Button';
-import { Combobox } from '../components/Combobox';
+import { CompanyNameCell } from '../components/CompanyNameCell';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
-import {
-  FILTER_PRIMARY_BUTTON_CLASS,
-  FILTER_RESET_BUTTON_CLASS,
-  FilterPanel,
-} from '../components/FilterPanel';
+import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
 import { RowActionsMenu, type RowAction } from '../components/RowActionsMenu';
-import { SelectField } from '../components/SelectField';
+import { BulkShippingProcessingModal } from '../components/shipping/BulkShippingProcessingModal';
 import { StatusBadge } from '../components/StatusBadge';
-import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
@@ -28,13 +21,12 @@ import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
-import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
 import { canAccessInternalTransfer } from '../lib/rbac';
+import { useDebounced } from '../lib/useDebounced';
 
 type OutListDraft = {
   orderSearch: string;
-  companyId: string;
   status: string;
   createdFrom: string;
   createdTo: string;
@@ -45,13 +37,10 @@ function outboundLabel(label: string, isArabic: boolean): string {
   const ar: Record<string, string> = {
     'Outbound orders': 'طلبات الصادر',
     '+ New outbound': '+ صادر جديد',
-    'Search order...': 'ابحث عن الطلب...',
+    'Search order # or client…': 'ابحث برقم الطلب أو العميل…',
     Client: 'العميل',
     'Created from': 'تاريخ الإنشاء من',
     'Created to': 'تاريخ الإنشاء إلى',
-    'Order filters': 'فلاتر الطلبات',
-    'Apply filters': 'تطبيق الفلاتر',
-    'Reset filters': 'إعادة تعيين الفلاتر',
     'Order #': 'رقم الطلب #',
     Status: 'الحالة',
     'Required ship': 'الشحن المطلوب',
@@ -63,26 +52,6 @@ function outboundLabel(label: string, isArabic: boolean): string {
     Previous: 'السابق',
     Next: 'التالي',
     'Rows per page': 'عدد الصفوف لكل صفحة',
-    'New outbound order': 'طلب صادر جديد',
-    Cancel: 'إلغاء',
-    Create: 'إنشاء',
-    Back: 'رجوع',
-    'Required ship date': 'تاريخ الشحن المطلوب',
-    Carrier: 'الناقل',
-    Notes: 'ملاحظات',
-    'Destination address': 'عنوان الوجهة',
-    'Required ship date cannot be before today.': 'لا يمكن أن يكون تاريخ الشحن المطلوب قبل اليوم.',
-    'Pick a client.': 'اختر عميلاً.',
-    'Enter a destination address.': 'أدخل عنوان الوجهة.',
-    'Pick a client…': 'اختر عميلاً…',
-    Product: 'المنتج',
-    Quantity: 'الكمية',
-    Remove: 'إزالة',
-    'Pick product…': 'اختر منتجاً…',
-    'No lines yet — add a product below.': 'لا توجد بنود بعد — أضف منتجاً أدناه.',
-    '+ Add line': '+ إضافة بند',
-    'Pick a client first': 'اختر عميلاً أولاً',
-    'All clients': 'كل العملاء',
     'All statuses': 'كل الحالات',
     Draft: 'مسودة',
     'Pending approval': 'بانتظار الموافقة',
@@ -90,7 +59,8 @@ function outboundLabel(label: string, isArabic: boolean): string {
     Confirmed: 'مؤكد',
     Picking: 'التقاط',
     Packing: 'تغليف',
-    'Ready to ship': 'جاهز للشحن',
+    'Waiting for Shipping Details': 'بانتظار تفاصيل الشحن',
+    'Waiting for Dispatch': 'بانتظار الإرسال',
     Shipped: 'تم الشحن',
     Cancelled: 'ملغي',
     Actions: 'الإجراءات',
@@ -107,8 +77,19 @@ function outboundLabel(label: string, isArabic: boolean): string {
     'Keep order': 'الاحتفاظ بالطلب',
     'Order cancelled.': 'تم إلغاء الطلب.',
     'Order deleted.': 'تم حذف الطلب.',
+    'Bulk Shipping Processing': 'معالجة الشحن الجماعي',
+    'Select Waiting for Dispatch orders without an existing carrier shipment.':
+      'اختر طلبات بانتظار الإرسال دون شحنة ناقلة قائمة.',
   };
   return ar[label] ?? label;
+}
+
+
+function isBulkShippingCandidate(o: OutboundOrder): boolean {
+  if (o.status !== 'ready_to_ship') return false;
+  if (o.trackingNumber?.trim()) return false;
+  const created = (o.carrierShipments ?? []).some((s) => s.status === 'created');
+  return !created;
 }
 
 export function OutboundListPage() {
@@ -119,8 +100,12 @@ export function OutboundListPage() {
   const isAdmin = canAccessInternalTransfer(user?.role);
   const [toCancel, setToCancel] = useState<OutboundOrder | null>(null);
   const [toDelete, setToDelete] = useState<OutboundOrder | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
   const isArabic =
-    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+    typeof window !== 'undefined' &&
+    (window.localStorage.getItem('wms-ui-language') === 'AR' ||
+      document.documentElement.dir === 'rtl');
   const t = (label: string) => outboundLabel(label, isArabic);
   const openCreate = () => {
     navigate('/orders/outbound/new');
@@ -130,7 +115,6 @@ export function OutboundListPage() {
   const initialList = useMemo<OutListDraft>(
     () => ({
       orderSearch: '',
-      companyId: '',
       status: '',
       createdFrom: '',
       createdTo: '',
@@ -138,13 +122,25 @@ export function OutboundListPage() {
     [],
   );
 
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(initialList);
+  const { draftFilters, appliedFilters, setDraft, applyPatch } = useFilters(initialList);
+  const [searchParams] = useSearchParams();
+  const debouncedSearch = useDebounced(draftFilters.orderSearch, 300);
+
+  useEffect(() => {
+    const status = searchParams.get('status') ?? '';
+    if (status && status !== appliedFilters.status) {
+      applyPatch({ status });
+    }
+  }, [searchParams, appliedFilters.status, applyPatch]);
+
+  useEffect(() => {
+    if (debouncedSearch === appliedFilters.orderSearch) return;
+    applyPatch({ orderSearch: debouncedSearch });
+  }, [debouncedSearch, appliedFilters.orderSearch, applyPatch]);
 
   const listParams = useMemo(
     () => ({
       warehouseId: wid || undefined,
-      companyId: appliedFilters.companyId || undefined,
       status: (appliedFilters.status.trim() || undefined) as OutboundOrderStatus | undefined,
       orderSearch: appliedFilters.orderSearch.trim() || undefined,
       createdFrom: appliedFilters.createdFrom.trim() || undefined,
@@ -163,16 +159,41 @@ export function OutboundListPage() {
     enabled: !!wid,
   });
 
-  const companies = useQuery({
-    queryKey: QK.companies,
-    queryFn: () => CompaniesApi.list(),
-    staleTime: 10 * 60_000,
-  });
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [listParams]);
 
-  const clientFilterOptions = useMemo(
-    () => companyFilterComboboxOptions(companies.data, t('All clients')),
-    [companies.data, isArabic],
+  const pageEligibleIds = useMemo(
+    () => pagination.rows.filter(isBulkShippingCandidate).map((o) => o.id),
+    [pagination.rows],
   );
+
+  const selectedEligibleIds = useMemo(() => [...selectedIds], [selectedIds]);
+
+  const allPageEligibleSelected =
+    pageEligibleIds.length > 0 && pageEligibleIds.every((id) => selectedIds.has(id));
+
+  const toggleOne = (id: string, eligible: boolean) => {
+    if (!eligible) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllPageEligible = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allPageEligibleSelected) {
+        for (const id of pageEligibleIds) next.delete(id);
+      } else {
+        for (const id of pageEligibleIds) next.add(id);
+      }
+      return next;
+    });
+  };
 
   const statusFilterOptions = useMemo(
     () => [
@@ -183,7 +204,8 @@ export function OutboundListPage() {
       { value: 'confirmed', label: t('Confirmed') },
       { value: 'picking', label: t('Picking') },
       { value: 'packing', label: t('Packing') },
-      { value: 'ready_to_ship', label: t('Ready to ship') },
+      { value: 'waiting_for_shipping_details', label: t('Waiting for Shipping Details') },
+      { value: 'ready_to_ship', label: t('Waiting for Dispatch') },
       { value: 'shipped', label: t('Shipped') },
       { value: 'cancelled', label: t('Cancelled') },
     ],
@@ -196,7 +218,10 @@ export function OutboundListPage() {
       toast.success(t('Order cancelled.'));
       setToCancel(null);
       qc.invalidateQueries({ queryKey: QK.outboundOrders });
-      invalidateWorkflowTasksInventory(qc, { referenceId: orderId, referenceType: 'outbound_order' });
+      invalidateWorkflowTasksInventory(qc, {
+        referenceId: orderId,
+        referenceType: 'outbound_order',
+      });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -214,25 +239,83 @@ export function OutboundListPage() {
   const rowActions = (o: OutboundOrder): RowAction[] => {
     const actions: RowAction[] = [];
     if (o.status === 'draft' || o.status === 'pending_approval') {
-      actions.push({ key: 'edit', label: t('Edit'), onClick: () => navigate(`/orders/outbound/${o.id}`) });
+      actions.push({
+        key: 'edit',
+        label: t('Edit'),
+        onClick: () => navigate(`/orders/outbound/${o.id}`),
+      });
     }
     if (o.status !== 'shipped' && o.status !== 'cancelled') {
-      actions.push({ key: 'cancel', label: t('Cancel order'), danger: true, onClick: () => setToCancel(o) });
+      actions.push({
+        key: 'cancel',
+        label: t('Cancel order'),
+        danger: true,
+        onClick: () => setToCancel(o),
+      });
     }
     if (isAdmin && o.status === 'cancelled') {
-      actions.push({ key: 'delete', label: t('Delete'), danger: true, onClick: () => setToDelete(o) });
+      actions.push({
+        key: 'delete',
+        label: t('Delete'),
+        danger: true,
+        onClick: () => setToDelete(o),
+      });
     }
     return actions;
   };
 
   const columns: Column<OutboundOrder>[] = useMemo(
     () => [
+      ...(isAdmin
+        ? [
+            {
+              header: (
+                <input
+                  type="checkbox"
+                  aria-label="Select all eligible on page"
+                  checked={allPageEligibleSelected}
+                  disabled={pageEligibleIds.length === 0}
+                  onChange={toggleAllPageEligible}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ),
+              accessor: (o: OutboundOrder) => {
+                const eligible = isBulkShippingCandidate(o);
+                return (
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${o.orderNumber}`}
+                    checked={selectedIds.has(o.id)}
+                    disabled={!eligible}
+                    title={
+                      eligible
+                        ? undefined
+                        : t(
+                            'Select Waiting for Dispatch orders without an existing carrier shipment.',
+                          )
+                    }
+                    onChange={() => toggleOne(o.id, eligible)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                );
+              },
+              width: '44px',
+              className: 'w-1',
+            } as Column<OutboundOrder>,
+          ]
+        : []),
       {
         header: t('Order #'),
         accessor: (o) => <span className="font-mono">{o.orderNumber || '—'}</span>,
         width: '170px',
       },
-      { header: t('Client'), accessor: (o) => o.company?.name ?? '—', width: '200px' },
+      {
+        header: t('Client'),
+        accessor: (o) => (
+          <CompanyNameCell name={o.company?.name} logoUrl={o.company?.logoUrl} />
+        ),
+        width: '220px',
+      },
       {
         header: t('Status'),
         accessor: (o) => <StatusBadge status={o.status} />,
@@ -247,13 +330,44 @@ export function OutboundListPage() {
       { header: t('Destination'), accessor: (o) => o.destinationAddress },
       {
         header: t('Actions'),
-        accessor: (o) => <RowActionsMenu items={rowActions(o)} ariaLabel={t('Open actions')} />,
+        accessor: (o) => (
+          <RowActionsMenu items={rowActions(o)} ariaLabel={t('Open actions')} />
+        ),
         className: 'w-1 whitespace-nowrap text-center',
         width: '90px',
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isArabic, isAdmin],
+    [isArabic, isAdmin, selectedIds, allPageEligibleSelected, pageEligibleIds],
+  );
+
+  const newButton = (
+    <div className="flex flex-wrap items-center gap-2">
+      {isAdmin && (
+        <DsButton
+          variant="secondary"
+          size="md"
+          disabled={selectedEligibleIds.length === 0}
+          onClick={() => setBulkOpen(true)}
+          title={
+            selectedEligibleIds.length === 0
+              ? t('Select Waiting for Dispatch orders without an existing carrier shipment.')
+              : undefined
+          }
+        >
+          {t('Bulk Shipping Processing')}
+          {selectedEligibleIds.length > 0 ? ` (${selectedEligibleIds.length})` : ''}
+        </DsButton>
+      )}
+      <DsButton
+        variant="primary"
+        size="md"
+        onClick={openCreate}
+        className={FILTER_PRIMARY_BUTTON_CLASS}
+      >
+        {t('+ New outbound')}
+      </DsButton>
+    </div>
   );
 
   return (
@@ -261,16 +375,7 @@ export function OutboundListPage() {
       icon="fa-arrow-up"
       title={t('Outbound orders')}
       isArabic={isArabic}
-      actions={
-        <DsButton
-          variant="primary"
-          size="md"
-          onClick={openCreate}
-          className={FILTER_PRIMARY_BUTTON_CLASS}
-        >
-          {t('+ New outbound')}
-        </DsButton>
-      }
+      navActions={newButton}
     >
       {!wid && (
         <Alert
@@ -293,48 +398,54 @@ export function OutboundListPage() {
         </Alert>
       )}
 
-      <FilterPanel
-        title={t('Order filters')}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-        applyLabel={t('Apply filters')}
-        resetLabel={t('Reset filters')}
-      >
-        <TextField
-          label={t('Order #')}
-          value={draftFilters.orderSearch}
-          onChange={(e) => setDraft({ orderSearch: e.target.value })}
-          placeholder={t('Search order...')}
-          className="font-mono"
-        />
-        <Combobox
-          label={t('Client')}
-          value={draftFilters.companyId}
-          onChange={(v) => setDraft({ companyId: v })}
-          options={clientFilterOptions}
-          placeholder={t('All clients')}
-        />
-        <SelectField
-          label={t('Status')}
-          name="outboundStatusFilter"
-          value={draftFilters.status}
-          onChange={(e) => setDraft({ status: e.target.value })}
-          options={statusFilterOptions}
-        />
-        <TextField
-          label={t('Created from')}
-          type="date"
-          value={draftFilters.createdFrom}
-          onChange={(e) => setDraft({ createdFrom: e.target.value })}
-        />
-        <TextField
-          label={t('Created to')}
-          type="date"
-          value={draftFilters.createdTo}
-          onChange={(e) => setDraft({ createdTo: e.target.value })}
-        />
-      </FilterPanel>
+      <Card padding="md">
+        <div className="flex max-w-4xl flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="relative w-full sm:min-w-[16rem] sm:flex-1 sm:max-w-sm">
+            <i
+              className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+              aria-hidden
+            />
+            <input
+              value={draftFilters.orderSearch}
+              onChange={(e) => setDraft({ orderSearch: e.target.value })}
+              placeholder={t('Search order # or client…')}
+              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+            />
+          </div>
+          <select
+            value={draftFilters.status}
+            onChange={(e) => applyPatch({ status: e.target.value })}
+            aria-label={t('Status')}
+            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+          >
+            {statusFilterOptions.map((opt) => (
+              <option key={opt.value || 'all'} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            value={draftFilters.createdFrom}
+            onChange={(e) => applyPatch({ createdFrom: e.target.value })}
+            aria-label={t('Created from')}
+            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+          />
+          <input
+            type="date"
+            value={draftFilters.createdTo}
+            onChange={(e) => applyPatch({ createdTo: e.target.value })}
+            aria-label={t('Created to')}
+            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+          />
+        </div>
+        {isAdmin && selectedEligibleIds.length > 0 && (
+          <p className="mt-3 text-xs text-text-muted">
+            {selectedEligibleIds.length} eligible order(s) selected for {t('Bulk Shipping Processing')}.
+            Tip: filter status to Waiting for Dispatch.
+          </p>
+        )}
+      </Card>
 
       <DataTable
         columns={columns}
@@ -385,6 +496,18 @@ export function OutboundListPage() {
           {t('This permanently removes the order and its lines. This action cannot be undone.')}
         </p>
       </ConfirmModal>
+      {isAdmin && (
+        <BulkShippingProcessingModal
+          open={bulkOpen}
+          outboundOrderIds={selectedEligibleIds}
+          onClose={() => {
+            setBulkOpen(false);
+            setSelectedIds(new Set());
+            qc.invalidateQueries({ queryKey: QK.outboundOrders });
+          }}
+        />
+      )}
     </AdminListPageShell>
   );
 }
+

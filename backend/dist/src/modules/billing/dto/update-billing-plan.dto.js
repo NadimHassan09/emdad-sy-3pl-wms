@@ -13,7 +13,9 @@ exports.UpdateBillingPlanDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class UpdateBillingPlanDto {
+    applyMode;
     active;
+    autoRenew;
     cycleLengthDays;
     fixedSubscriptionFee;
     inboundOrderFee;
@@ -31,9 +33,19 @@ class UpdateBillingPlanDto {
 exports.UpdateBillingPlanDto = UpdateBillingPlanDto;
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['immediate', 'next_cycle']),
+    __metadata("design:type", String)
+], UpdateBillingPlanDto.prototype, "applyMode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpdateBillingPlanDto.prototype, "active", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateBillingPlanDto.prototype, "autoRenew", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsInt)(),

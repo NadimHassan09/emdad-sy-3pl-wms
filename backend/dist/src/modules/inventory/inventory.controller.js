@@ -50,7 +50,7 @@ let InventoryController = class InventoryController {
         return this.inventory.ledger(user, query);
     }
     availability(user, query) {
-        return this.inventory.availability(user, query.productId, query.companyId);
+        return this.inventory.availability(user, query.productId, query.companyId, query.outboundOrderId);
     }
     validateConsistency(user, query) {
         return this.consistency.validateForUser(user, {

@@ -155,6 +155,7 @@ export function TasksListPage() {
     { value: 'putaway_quarantine', label: t(['Putaway (quarantine)', 'تخزين (حجر صحي)']) },
     { value: 'pick', label: t(['Pick', 'التقاط']) },
     { value: 'pack', label: t(['Pack', 'تغليف']) },
+    { value: 'shipping_details', label: t(['Shipping details', 'تفاصيل الشحن']) },
     { value: 'dispatch', label: t(['Dispatch', 'إرسال']) },
     { value: 'routing', label: t(['Routing', 'توجيه']) },
   ];

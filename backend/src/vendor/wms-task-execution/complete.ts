@@ -86,6 +86,20 @@ export const completeDispatchSchema = z.object({
   tracking: z.string().optional(),
 });
 
+/** Shipping details stage — optional draft fields; completion rules enforced in service. */
+export const completeShippingDetailsSchema = z.object({
+  task_type: z.literal('shipping_details'),
+  shippingReceiverLat: z.union([z.number(), z.string()]).optional().nullable(),
+  shippingReceiverLng: z.union([z.number(), z.string()]).optional().nullable(),
+  shippingPackageType: z.enum(['box', 'envelope']).optional().nullable(),
+  shippingContents: z.string().optional().nullable(),
+  shippingDeliveryType: z.enum(['address', 'hub']).optional().nullable(),
+  shippingPickupType: z.enum(['address', 'hub']).optional().nullable(),
+  shippingPayer: z.enum(['sender', 'receiver', 'reseller']).optional().nullable(),
+  shippingWeightKg: z.union([z.number(), z.string()]).optional().nullable(),
+  shippingPhoneCountry: z.string().optional().nullable(),
+});
+
 export const completeRoutingSchema = z.object({
   task_type: z.literal('routing'),
   destination_location_id: z.string().uuid(),
@@ -102,6 +116,7 @@ export const taskCompleteBodySchema = z.discriminatedUnion('task_type', [
   completePutawayQuarantineSchema,
   completePickSchema,
   completePackSchema,
+  completeShippingDetailsSchema,
   completeDispatchSchema,
   completeRoutingSchema,
 ]);

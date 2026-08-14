@@ -1,18 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { Alert } from '@ds';
+import { Alert, Card } from '@ds';
 import { BillingApi, type BillingPlanOverviewItem } from '../../api/billing';
-import { CompaniesApi } from '../../api/companies';
 import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { AnchoredDropdown } from '../../components/AnchoredDropdown';
 import { Button } from '../../components/Button';
-import { Combobox } from '../../components/Combobox';
 import { DataTable, type Column } from '../../components/DataTable';
-import { FilterPanel } from '../../components/FilterPanel';
-import { SelectField } from '../../components/SelectField';
-import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
@@ -21,41 +16,29 @@ import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../../hooks/useChunkedServerPagination';
-import { companyFilterComboboxOptions } from '../../lib/company-filter-options';
+import { useDebounced } from '../../lib/useDebounced';
+import { adminMediaSrc } from '../../lib/admin-media';
 import {
   formatDate,
   formatDecimal,
-  type BillingStatusDisplay,
-  type BillingStatusFilter,
-  type BillingCycleStatusDisplay,
-  type CycleStatusFilter,
-  type DaysRemainingFilter,
 } from '../../lib/billing-plan-overview';
 
 type ListFilters = {
-  companyId: string;
   search: string;
-  cycleStatus: CycleStatusFilter;
-  daysRemaining: DaysRemainingFilter;
-  billingStatus: BillingStatusFilter;
-  planType: '' | 'custom' | 'template';
-  expiryFrom: string;
-  expiryTo: string;
-  sort_by: 'companyName' | 'cycleEnd' | 'daysRemaining' | 'createdAt';
-  sort_dir: 'asc' | 'desc';
+  planStatus: '' | 'active' | 'inactive';
+  cycleStartFrom: string;
+  cycleStartTo: string;
+  cycleEndFrom: string;
+  cycleEndTo: string;
 };
 
 const INITIAL_FILTERS: ListFilters = {
-  companyId: '',
   search: '',
-  cycleStatus: '',
-  daysRemaining: '',
-  billingStatus: '',
-  planType: '',
-  expiryFrom: '',
-  expiryTo: '',
-  sort_by: 'createdAt',
-  sort_dir: 'desc',
+  planStatus: '',
+  cycleStartFrom: '',
+  cycleStartTo: '',
+  cycleEndFrom: '',
+  cycleEndTo: '',
 };
 
 const CURRENCY = 'USD';
@@ -76,27 +59,6 @@ function BillingLabel({
   return <span className={`badge w-fit ${cls}`}>{text}</span>;
 }
 
-function cycleStatusBadge(status: BillingCycleStatusDisplay) {
-  const map = {
-    active: { label: 'Active', variant: 'success' as const },
-    renewed: { label: 'Renewed', variant: 'warning' as const },
-    expired: { label: 'Expired', variant: 'warning' as const },
-    none: { label: 'No cycle', variant: 'neutral' as const },
-  };
-  const m = map[status];
-  return <BillingLabel text={m.label} variant={m.variant} />;
-}
-
-function billingStatusBadge(status: BillingStatusDisplay) {
-  const map = {
-    operational: { label: 'Operational', variant: 'success' as const },
-    restricted: { label: 'Restricted', variant: 'danger' as const },
-    inactive: { label: 'Inactive', variant: 'neutral' as const },
-  };
-  const m = map[status];
-  return <BillingLabel text={m.label} variant={m.variant} />;
-}
-
 export function BillingPlansPage() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -104,8 +66,14 @@ export function BillingPlansPage() {
   const { user } = useAuth();
   const canMutate = user?.role === 'super_admin' || user?.role === 'wh_manager';
 
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
+  const { draftFilters, appliedFilters, setDraft, applyPatch } =
     useFilters<ListFilters>(INITIAL_FILTERS);
+  const debouncedSearch = useDebounced(draftFilters.search, 300);
+
+  useEffect(() => {
+    if (debouncedSearch === appliedFilters.search) return;
+    applyPatch({ search: debouncedSearch });
+  }, [debouncedSearch, appliedFilters.search, applyPatch]);
 
   const [openActionId, setOpenActionId] = useState<string | null>(null);
 
@@ -168,23 +136,16 @@ export function BillingPlansPage() {
     return () => window.removeEventListener('pointerdown', onPointerDown);
   }, [openActionId]);
 
-  const companiesQuery = useQuery({
-    queryKey: QK.companies,
-    queryFn: () => CompaniesApi.list({ includeAll: true }),
-  });
-
   const serverFilters = useMemo(
     () => ({
-      companyId: appliedFilters.companyId.trim() || undefined,
       search: appliedFilters.search.trim() || undefined,
-      cycleStatus: appliedFilters.cycleStatus || undefined,
-      daysRemaining: appliedFilters.daysRemaining || undefined,
-      billingStatus: appliedFilters.billingStatus || undefined,
-      planType: appliedFilters.planType || undefined,
-      expiryFrom: appliedFilters.expiryFrom || undefined,
-      expiryTo: appliedFilters.expiryTo || undefined,
-      sort_by: appliedFilters.sort_by,
-      sort_dir: appliedFilters.sort_dir,
+      planStatus: appliedFilters.planStatus || undefined,
+      cycleStartFrom: appliedFilters.cycleStartFrom || undefined,
+      cycleStartTo: appliedFilters.cycleStartTo || undefined,
+      expiryFrom: appliedFilters.cycleEndFrom || undefined,
+      expiryTo: appliedFilters.cycleEndTo || undefined,
+      sort_by: 'createdAt' as const,
+      sort_dir: 'desc' as const,
     }),
     [appliedFilters],
   );
@@ -201,7 +162,25 @@ export function BillingPlansPage() {
   const columns: Column<BillingPlanOverviewItem>[] = [
     {
       header: 'Client',
-      accessor: (r) => <span className="font-medium text-text-strong">{r.companyName}</span>,
+      accessor: (r) => {
+        const logoSrc = adminMediaSrc(r.companyLogoUrl);
+        return (
+          <div className="flex items-center gap-3">
+            {logoSrc ? (
+              <img
+                src={logoSrc}
+                alt=""
+                className="h-9 w-9 shrink-0 rounded-lg border border-border object-cover"
+              />
+            ) : (
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-text-faint">
+                <i className="fa-solid fa-building text-xs" aria-hidden="true" />
+              </div>
+            )}
+            <span className="min-w-0 truncate font-medium text-text-strong">{r.companyName}</span>
+          </div>
+        );
+      },
     },
     {
       header: 'Plan type',
@@ -239,15 +218,12 @@ export function BillingPlansPage() {
     },
     {
       header: 'Status',
-      accessor: (r) => (
-        <div className="flex flex-col gap-1">
-          {cycleStatusBadge(r.cycleStatus)}
-          {billingStatusBadge(r.billingStatus)}
-          {r.plan.pendingChanges ? (
-            <BillingLabel text="Pending changes" variant="warning" />
-          ) : null}
-        </div>
-      ),
+      accessor: (r) =>
+        r.plan.active ? (
+          <BillingLabel text="Active" variant="success" />
+        ) : (
+          <BillingLabel text="Inactive" variant="neutral" />
+        ),
     },
     {
       header: 'Actions',
@@ -376,7 +352,11 @@ export function BillingPlansPage() {
       actions={
         canMutate ? (
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => navigate('/billing/templates')}>
+            <Button
+              variant="secondary"
+              className="!border-brand-600 !bg-white !text-brand-700 hover:!bg-brand-50 hover:!text-brand-800"
+              onClick={() => navigate('/billing/templates')}
+            >
               Create plan template
             </Button>
             <Button variant="brand" onClick={() => navigate('/billing/plans/new')}>
@@ -386,112 +366,84 @@ export function BillingPlansPage() {
         ) : undefined
       }
     >
-      <FilterPanel
-        title="Billing plan filters"
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-        applyLabel="Apply filters"
-        resetLabel="Reset filters"
-      >
-        <TextField
-          label="Search client"
-          value={draftFilters.search}
-          onChange={(e) => setDraft({ search: e.target.value })}
-          placeholder="Client name"
-        />
-        <Combobox
-          label="Client"
-          value={draftFilters.companyId}
-          onChange={(v) => setDraft({ companyId: v })}
-          options={companyFilterComboboxOptions(companiesQuery.data, 'All clients')}
-          placeholder="All clients"
-        />
-        <SelectField
-          label="Plan type"
-          value={draftFilters.planType}
-          onChange={(e) => setDraft({ planType: e.target.value as ListFilters['planType'] })}
-          options={[
-            { value: '', label: 'All types' },
-            { value: 'custom', label: 'Custom' },
-            { value: 'template', label: 'Template' },
-          ]}
-        />
-        <SelectField
-          label="Cycle status"
-          value={draftFilters.cycleStatus}
-          onChange={(e) => setDraft({ cycleStatus: e.target.value as CycleStatusFilter })}
-          options={[
-            { value: '', label: 'All statuses' },
-            { value: 'active', label: 'Active' },
-            { value: 'renewed', label: 'Renewed' },
-            { value: 'expired', label: 'Expired' },
-            { value: 'none', label: 'No cycle' },
-          ]}
-        />
-        <SelectField
-          label="Days remaining"
-          value={draftFilters.daysRemaining}
-          onChange={(e) => setDraft({ daysRemaining: e.target.value as DaysRemainingFilter })}
-          options={[
-            { value: '', label: 'All' },
-            { value: 'critical', label: '≤ 7 days' },
-            { value: 'warning', label: '8–30 days' },
-            { value: 'healthy', label: '> 30 days' },
-            { value: 'expired', label: 'Expired' },
-            { value: 'none', label: 'No cycle' },
-          ]}
-        />
-        <SelectField
-          label="Billing status"
-          value={draftFilters.billingStatus}
-          onChange={(e) => setDraft({ billingStatus: e.target.value as BillingStatusFilter })}
-          options={[
-            { value: '', label: 'All statuses' },
-            { value: 'operational', label: 'Operational' },
-            { value: 'restricted', label: 'Restricted' },
-            { value: 'inactive', label: 'Inactive' },
-          ]}
-        />
-        <TextField
-          label="Expiry from"
-          type="date"
-          value={draftFilters.expiryFrom}
-          onChange={(e) => setDraft({ expiryFrom: e.target.value })}
-        />
-        <TextField
-          label="Expiry to"
-          type="date"
-          value={draftFilters.expiryTo}
-          onChange={(e) => setDraft({ expiryTo: e.target.value })}
-        />
-        <SelectField
-          label="Sort by"
-          value={draftFilters.sort_by}
-          onChange={(e) => setDraft({ sort_by: e.target.value as ListFilters['sort_by'] })}
-          options={[
-            { value: 'createdAt', label: 'Created' },
-            { value: 'companyName', label: 'Client name' },
-            { value: 'cycleEnd', label: 'Cycle end' },
-            { value: 'daysRemaining', label: 'Days remaining' },
-          ]}
-        />
-        <SelectField
-          label="Sort direction"
-          value={draftFilters.sort_dir}
-          onChange={(e) => setDraft({ sort_dir: e.target.value as 'asc' | 'desc' })}
-          options={[
-            { value: 'desc', label: 'Descending' },
-            { value: 'asc', label: 'Ascending' },
-          ]}
-        />
-      </FilterPanel>
+      <Card padding="md">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="relative min-w-[12rem] flex-1">
+            <i
+              className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+              aria-hidden
+            />
+            <input
+              value={draftFilters.search}
+              onChange={(e) => setDraft({ search: e.target.value })}
+              placeholder="Search client…"
+              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+            />
+          </div>
+          <label className="flex min-w-[9rem] flex-col gap-1 text-xs font-semibold text-text-muted">
+            Status
+            <select
+              value={draftFilters.planStatus}
+              onChange={(e) =>
+                applyPatch({ planStatus: e.target.value as ListFilters['planStatus'] })
+              }
+              aria-label="Status"
+              className="input-premium rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm font-normal text-text-body"
+            >
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
+          <label className="flex min-w-[9.5rem] flex-col gap-1 text-xs font-semibold text-text-muted">
+            Cycle start from
+            <input
+              type="date"
+              value={draftFilters.cycleStartFrom}
+              onChange={(e) => applyPatch({ cycleStartFrom: e.target.value })}
+              className="input-premium rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm font-normal text-text-body"
+            />
+          </label>
+          <label className="flex min-w-[9.5rem] flex-col gap-1 text-xs font-semibold text-text-muted">
+            Cycle start to
+            <input
+              type="date"
+              value={draftFilters.cycleStartTo}
+              onChange={(e) => applyPatch({ cycleStartTo: e.target.value })}
+              className="input-premium rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm font-normal text-text-body"
+            />
+          </label>
+          <label className="flex min-w-[9.5rem] flex-col gap-1 text-xs font-semibold text-text-muted">
+            Cycle end from
+            <input
+              type="date"
+              value={draftFilters.cycleEndFrom}
+              onChange={(e) => applyPatch({ cycleEndFrom: e.target.value })}
+              className="input-premium rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm font-normal text-text-body"
+            />
+          </label>
+          <label className="flex min-w-[9.5rem] flex-col gap-1 text-xs font-semibold text-text-muted">
+            Cycle end to
+            <input
+              type="date"
+              value={draftFilters.cycleEndTo}
+              onChange={(e) => applyPatch({ cycleEndTo: e.target.value })}
+              className="input-premium rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm font-normal text-text-body"
+            />
+          </label>
+        </div>
+      </Card>
 
       <DataTable
         columns={columns}
         rows={pagination.rows}
         rowKey={(r) => r.plan.id}
         onRowClick={(r) => navigate(`/billing/plans/${r.companyId}`)}
+        getRowClassName={(r) =>
+          r.daysRemaining != null && r.daysRemaining >= 0 && r.daysRemaining <= 3
+            ? 'bg-red-50/80 dark:bg-red-950/25'
+            : undefined
+        }
         loading={pagination.isInitialLoading}
         empty="No billing plans match your filters."
         serverPagination={pagination.serverPagination}

@@ -8,6 +8,8 @@ const ACCESS_TOKEN_KEY = 'wms.access_token';
 const PERSIST_KEY = 'wms.persist_session';
 const PERSIST_UNTIL_KEY = 'wms.persist_until';
 const REMEMBERED_ACCOUNT_KEY = 'wms.remembered_account.v1';
+/** Set when a remember-me refresh cookie was issued; Continue requires this. */
+const CAN_CONTINUE_KEY = 'wms.can_continue_session';
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type RememberedAccount = {
@@ -67,10 +69,20 @@ function isPersistExpired(): boolean {
   return Number.isFinite(ts) && Date.now() > ts;
 }
 
+/** Whether the user opted into "Remember me for 30 days" on this device. */
+export function isPersistSessionEnabled(): boolean {
+  try {
+    if (isPersistExpired()) return false;
+    return readLocal(PERSIST_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function getAccessToken(): string | null {
   try {
     if (isPersistExpired()) {
-      clearAccessToken();
+      clearAccessToken({ keepPersist: false });
       return sessionStorage.getItem(ACCESS_TOKEN_KEY);
     }
     return localStorage.getItem(ACCESS_TOKEN_KEY) ?? sessionStorage.getItem(ACCESS_TOKEN_KEY);
@@ -83,30 +95,71 @@ export function setAccessToken(token: string | null, persist = false): void {
   try {
     sessionStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(ACCESS_TOKEN_KEY);
-    removeLocal(PERSIST_KEY);
-    removeLocal(PERSIST_UNTIL_KEY);
-    if (!token) return;
+    if (!token) {
+      if (!persist) {
+        removeLocal(PERSIST_KEY);
+        removeLocal(PERSIST_UNTIL_KEY);
+        removeLocal(CAN_CONTINUE_KEY);
+      }
+      return;
+    }
     if (persist) {
       localStorage.setItem(ACCESS_TOKEN_KEY, token);
       writeLocal(PERSIST_KEY, '1');
-      writeLocal(PERSIST_UNTIL_KEY, String(Date.now() + THIRTY_DAYS_MS));
+      writeLocal(CAN_CONTINUE_KEY, '1');
+      // Absolute 30-day window from first remember-me login — do not slide on refresh.
+      if (!readLocal(PERSIST_UNTIL_KEY) || isPersistExpired()) {
+        writeLocal(PERSIST_UNTIL_KEY, String(Date.now() + THIRTY_DAYS_MS));
+      }
     } else {
       sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+      removeLocal(PERSIST_KEY);
+      removeLocal(PERSIST_UNTIL_KEY);
+      removeLocal(CAN_CONTINUE_KEY);
     }
   } catch {
     if (token) sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
   }
 }
 
-export function clearAccessToken(): void {
+/**
+ * Drop the bearer access token.
+ * By default also clears the remember-me persist flag.
+ * Pass `{ keepPersist: true }` when only the short-lived access JWT expired and
+ * a refresh cookie may still restore the session.
+ */
+export function clearAccessToken(options?: { keepPersist?: boolean }): void {
   try {
     sessionStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(ACCESS_TOKEN_KEY);
-    removeLocal(PERSIST_KEY);
-    removeLocal(PERSIST_UNTIL_KEY);
+    if (!options?.keepPersist) {
+      removeLocal(PERSIST_KEY);
+      removeLocal(PERSIST_UNTIL_KEY);
+      removeLocal(CAN_CONTINUE_KEY);
+    }
   } catch {
     /* ignore */
   }
+}
+
+/** True when Continue should attempt cookie refresh (remember-me session issued). */
+export function canContinueSession(): boolean {
+  try {
+    if (isPersistExpired()) return false;
+    // Only the explicit flag — not persist alone — so a stale remember chip
+    // without a live refresh cookie does not offer Continue.
+    return readLocal(CAN_CONTINUE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function markContinueSessionAvailable(): void {
+  writeLocal(CAN_CONTINUE_KEY, '1');
+}
+
+export function clearContinueSession(): void {
+  removeLocal(CAN_CONTINUE_KEY);
 }
 
 export function getRememberedAccount(): RememberedAccount | null {

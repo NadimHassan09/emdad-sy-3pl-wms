@@ -55,7 +55,12 @@ export class InventoryController {
     @CurrentUser() user: AuthPrincipal,
     @Query() query: AvailabilityQueryDto,
   ) {
-    return this.inventory.availability(user, query.productId, query.companyId);
+    return this.inventory.availability(
+      user,
+      query.productId,
+      query.companyId,
+      query.outboundOrderId,
+    );
   }
 
   @Get('consistency/validate')

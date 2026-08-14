@@ -18,7 +18,7 @@ let ImageProcessingService = class ImageProcessingService {
         if (!ALLOWED_MIME.has(mimeType)) {
             throw new common_1.BadRequestException('Only JPEG, PNG, WebP, or GIF images are allowed.');
         }
-        const maxEdge = kind === 'avatar' ? 512 : 1200;
+        const maxEdge = kind === 'avatar' ? 512 : kind === 'company-logo' ? 800 : 1200;
         const quality = kind === 'avatar' ? 82 : 78;
         try {
             return await (0, sharp_1.default)(buffer, { failOn: 'truncated' })

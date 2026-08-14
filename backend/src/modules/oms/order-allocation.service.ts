@@ -63,6 +63,10 @@ export class OrderAllocationService {
   /**
    * Allocate stock for an outbound order using stock_reservations (trigger-synced reserved qty).
    * No-op when feature flag is off.
+   *
+   * Idempotent reuse: existing active reservations for this outbound are credited toward
+   * each line's requested qty. Only the shortfall (if any) is newly reserved.
+   * Linked OMS → Outbound share the same outbound_order_id soft-hold — never double-book.
    */
   async allocateOrder(
     tx: Tx,
@@ -77,11 +81,35 @@ export class OrderAllocationService {
   ): Promise<void> {
     if (!this.isEnabled()) return;
 
-    const existing = await this.hasActiveReservations(tx, params.outboundOrderId);
-    if (existing) return;
+    const existingRows = await tx.stockReservation.findMany({
+      where: {
+        outboundOrderId: params.outboundOrderId,
+        status: ReservationStatus.active,
+      },
+      select: {
+        outboundOrderLineId: true,
+        productId: true,
+        quantity: true,
+      },
+    });
+
+    const reservedByLineId = new Map<string, Prisma.Decimal>();
+    for (const row of existingRows) {
+      const key = row.outboundOrderLineId ?? `product:${row.productId}`;
+      const prev = reservedByLineId.get(key) ?? new Prisma.Decimal(0);
+      reservedByLineId.set(key, prev.plus(row.quantity));
+    }
+
+    let createdAny = false;
 
     for (const line of params.lines) {
-      let remaining = new Prisma.Decimal(line.requestedQty.toString());
+      const already =
+        reservedByLineId.get(line.outboundOrderLineId) ??
+        reservedByLineId.get(`product:${line.productId}`) ??
+        new Prisma.Decimal(0);
+      let remaining = new Prisma.Decimal(line.requestedQty.toString()).minus(already);
+      if (remaining.lessThanOrEqualTo(0)) continue;
+
       const candidates = params.warehouseId
         ? await findWarehouseStockFefo(
             tx,
@@ -114,12 +142,18 @@ export class OrderAllocationService {
             status: ReservationStatus.active,
           },
         });
+        createdAny = true;
         remaining = remaining.minus(take);
       }
 
       if (remaining.greaterThan(0)) {
         throw new InsufficientStockException();
       }
+    }
+
+    // Fully covered by existing soft-holds — idempotent success (OMS→Outbound reuse).
+    if (!createdAny && existingRows.length > 0) {
+      return;
     }
 
     const allocatableStatuses: OutboundOrderStatus[] = [
@@ -141,13 +175,35 @@ export class OrderAllocationService {
       },
     });
 
-    await this.events.record(tx, {
-      outboundOrderId: params.outboundOrderId,
-      companyId: params.companyId,
-      eventType: 'order.allocated',
-      createdBy: params.actorUserId,
-      payload: { lineCount: params.lines.length },
+    if (createdAny || existingRows.length === 0) {
+      await this.events.record(tx, {
+        outboundOrderId: params.outboundOrderId,
+        companyId: params.companyId,
+        eventType: 'order.allocated',
+        createdBy: params.actorUserId,
+        payload: {
+          lineCount: params.lines.length,
+          reusedExisting: existingRows.length > 0,
+        },
+      });
+    }
+  }
+
+  /** Sum active soft-hold qty for one outbound + product (credits own reservation). */
+  async sumActiveReservedForProduct(
+    tx: Tx,
+    outboundOrderId: string,
+    productId: string,
+  ): Promise<Prisma.Decimal> {
+    const agg = await tx.stockReservation.aggregate({
+      where: {
+        outboundOrderId,
+        productId,
+        status: ReservationStatus.active,
+      },
+      _sum: { quantity: true },
     });
+    return agg._sum.quantity ?? new Prisma.Decimal(0);
   }
 
   /** Release all active reservations for an order (cancel / manual release). */

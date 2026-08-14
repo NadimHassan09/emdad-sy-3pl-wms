@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ApproveOmsReturnDto = exports.RejectOmsReturnDto = exports.CreateOmsReturnDto = exports.CreateOmsReturnLineDto = void 0;
+exports.UpdateOmsReturnPlanDto = exports.ApproveOmsReturnDto = exports.RejectOmsReturnDto = exports.CreateOmsReturnDto = exports.CreateOmsReturnLineDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
@@ -95,4 +95,26 @@ __decorate([
     (0, is_uuid_loose_1.IsUuidLoose)(),
     __metadata("design:type", String)
 ], ApproveOmsReturnDto.prototype, "warehouseId", void 0);
+class UpdateOmsReturnPlanDto {
+    executionMode;
+    executionPlan;
+    notes;
+}
+exports.UpdateOmsReturnPlanDto = UpdateOmsReturnPlanDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['admin', 'workers']),
+    __metadata("design:type", String)
+], UpdateOmsReturnPlanDto.prototype, "executionMode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], UpdateOmsReturnPlanDto.prototype, "executionPlan", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(1000),
+    __metadata("design:type", String)
+], UpdateOmsReturnPlanDto.prototype, "notes", void 0);
 //# sourceMappingURL=oms-return.dto.js.map

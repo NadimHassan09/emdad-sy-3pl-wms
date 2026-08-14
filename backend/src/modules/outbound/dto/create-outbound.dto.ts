@@ -14,6 +14,7 @@ import {
 } from 'class-validator';
 
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
+import { ShippingConfigDto } from '../../shipping/dto/shipping-config.dto';
 
 export class CreateOutboundOrderLineDto {
   @IsUuidLoose()
@@ -28,7 +29,7 @@ export class CreateOutboundOrderLineDto {
   specificLotId?: string;
 }
 
-export class CreateOutboundOrderDto {
+export class CreateOutboundOrderDto extends ShippingConfigDto {
   @IsOptional()
   @IsUuidLoose()
   companyId?: string;

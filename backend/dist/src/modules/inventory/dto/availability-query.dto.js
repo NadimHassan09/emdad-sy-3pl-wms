@@ -15,6 +15,7 @@ const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
 class AvailabilityQueryDto {
     productId;
     companyId;
+    outboundOrderId;
 }
 exports.AvailabilityQueryDto = AvailabilityQueryDto;
 __decorate([
@@ -26,4 +27,9 @@ __decorate([
     (0, is_uuid_loose_1.IsUuidLoose)(),
     __metadata("design:type", String)
 ], AvailabilityQueryDto.prototype, "companyId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, is_uuid_loose_1.IsUuidLoose)(),
+    __metadata("design:type", String)
+], AvailabilityQueryDto.prototype, "outboundOrderId", void 0);
 //# sourceMappingURL=availability-query.dto.js.map

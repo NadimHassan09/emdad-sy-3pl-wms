@@ -14,6 +14,9 @@ const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const image_processing_service_1 = require("../media/image-processing.service");
+const media_storage_service_1 = require("../media/media-storage.service");
+const avatar_url_1 = require("../media/avatar-url");
 const COMPANY_LIST_SELECT = {
     id: true,
     name: true,
@@ -27,6 +30,7 @@ const COMPANY_LIST_SELECT = {
     billingCycle: true,
     paymentTermsDays: true,
     notes: true,
+    logoPath: true,
     suspendedAt: true,
     suspensionReason: true,
     archivedAt: true,
@@ -35,14 +39,25 @@ const COMPANY_LIST_SELECT = {
     createdAt: true,
     updatedAt: true,
 };
+function mapCompany(row) {
+    const { logoPath, ...rest } = row;
+    return {
+        ...rest,
+        logoUrl: (0, avatar_url_1.toAvatarPublicUrl)(logoPath),
+    };
+}
 let CompaniesService = class CompaniesService {
     prisma;
     companyAccess;
-    constructor(prisma, companyAccess) {
+    images;
+    storage;
+    constructor(prisma, companyAccess, images, storage) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
+        this.images = images;
+        this.storage = storage;
     }
-    list(user, query) {
+    async list(user, query) {
         const where = {};
         if (user.tenantScope === 'restricted') {
             where.id = { in: user.authorizedCompanyIds };
@@ -59,13 +74,17 @@ let CompaniesService = class CompaniesService {
                 { name: { contains: t, mode: 'insensitive' } },
                 { tradeName: { contains: t, mode: 'insensitive' } },
                 { contactEmail: { contains: t, mode: 'insensitive' } },
+                { contactPhone: { contains: t, mode: 'insensitive' } },
+                { city: { contains: t, mode: 'insensitive' } },
+                { country: { contains: t, mode: 'insensitive' } },
             ];
         }
-        return this.prisma.company.findMany({
+        const rows = await this.prisma.company.findMany({
             where,
             orderBy: { name: 'asc' },
             select: COMPANY_LIST_SELECT,
         });
+        return rows.map(mapCompany);
     }
     async findById(user, id) {
         this.companyAccess.assertCompanyAccess(user, id);
@@ -75,10 +94,10 @@ let CompaniesService = class CompaniesService {
         });
         if (!company)
             throw new common_1.NotFoundException('Company not found.');
-        return company;
+        return mapCompany(company);
     }
     async create(dto) {
-        return this.prisma.company.create({
+        const company = await this.prisma.company.create({
             data: {
                 name: dto.name.trim(),
                 tradeName: dto.tradeName?.trim() || null,
@@ -92,6 +111,7 @@ let CompaniesService = class CompaniesService {
             },
             select: COMPANY_LIST_SELECT,
         });
+        return mapCompany(company);
     }
     async update(user, id, dto) {
         this.companyAccess.assertCompanyAccess(user, id);
@@ -115,10 +135,46 @@ let CompaniesService = class CompaniesService {
             data.notes = dto.notes?.trim() || null;
         if (dto.status !== undefined)
             data.status = dto.status;
-        return this.prisma.company.update({
+        const company = await this.prisma.company.update({
             where: { id },
             data,
             select: COMPANY_LIST_SELECT,
+        });
+        return mapCompany(company);
+    }
+    async uploadLogo(user, id, file) {
+        this.companyAccess.assertCompanyAccess(user, id);
+        const existing = await this.prisma.company.findUnique({
+            where: { id },
+            select: { logoPath: true },
+        });
+        if (!existing)
+            throw new common_1.NotFoundException('Company not found.');
+        const compressed = await this.images.compress(file.buffer, file.mimetype, 'company-logo');
+        const saved = await this.storage.write('company-logos', id, compressed);
+        await this.storage.remove(existing.logoPath ?? null);
+        const company = await this.prisma.company.update({
+            where: { id },
+            data: { logoPath: saved.relativePath },
+            select: COMPANY_LIST_SELECT,
+        });
+        return {
+            logoUrl: (0, avatar_url_1.toAvatarPublicUrl)(company.logoPath),
+            company: mapCompany(company),
+        };
+    }
+    async deleteLogo(user, id) {
+        this.companyAccess.assertCompanyAccess(user, id);
+        const existing = await this.prisma.company.findUnique({
+            where: { id },
+            select: { logoPath: true },
+        });
+        if (!existing)
+            throw new common_1.NotFoundException('Company not found.');
+        await this.storage.remove(existing.logoPath ?? null);
+        await this.prisma.company.update({
+            where: { id },
+            data: { logoPath: null },
         });
     }
     async suspend(user, id) {
@@ -151,6 +207,8 @@ exports.CompaniesService = CompaniesService;
 exports.CompaniesService = CompaniesService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        company_access_service_1.CompanyAccessService])
+        company_access_service_1.CompanyAccessService,
+        image_processing_service_1.ImageProcessingService,
+        media_storage_service_1.MediaStorageService])
 ], CompaniesService);
 //# sourceMappingURL=companies.service.js.map

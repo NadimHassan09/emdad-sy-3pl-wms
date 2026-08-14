@@ -5,6 +5,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Alert, Card, ListPageHeader, Skeleton } from '@ds';
 import { CodApi, OmsApi, OmsReturnsApi } from '../api/oms';
 import { OmsOrderFormModal } from '../components/oms/OmsOrderFormModal';
+import { OmsOrderTrackingPanel } from '../components/oms/OmsOrderTrackingPanel';
 import { OmsStatusBadge } from '../components/oms/OmsStatusBadge';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -12,21 +13,12 @@ import { Modal } from '../components/Modal';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
-import { mapOmsCommercialDisplayStatus, omsCommercialStatusLabel } from '../lib/oms-commercial-status';
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="rounded-xl border border-border-subtle bg-surface-card p-5 shadow-sm">
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-muted">{title}</h2>
-      {children}
-    </section>
-  );
-}
+import { mapOmsCommercialDisplayStatus } from '../lib/oms-commercial-status';
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-wide text-text-muted">{label}</div>
+      <div className="text-xs font-medium text-text-muted">{label}</div>
       <div className="mt-0.5 text-sm text-text-strong">{value}</div>
     </div>
   );
@@ -46,14 +38,14 @@ export function OmsOrderDetailPage() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [shippingFeeAfterOpen, setShippingFeeAfterOpen] = useState(false);
-  const [approveShippingFee, setApproveShippingFee] = useState('');
+  const [revertOpen, setRevertOpen] = useState(false);
   const [shippingFeeAfter, setShippingFeeAfter] = useState('');
   const [rejectReason, setRejectReason] = useState('');
+  const [revertReason, setRevertReason] = useState('');
   const [returnReason, setReturnReason] = useState('');
   const [returnQty, setReturnQty] = useState<Record<string, string>>({});
 
@@ -97,13 +89,9 @@ export function OmsOrderDetailPage() {
   });
 
   const approveMut = useMutation({
-    mutationFn: () => {
-      const fee = approveShippingFee.trim();
-      return OmsApi.approve(id, fee ? Number(fee) : undefined);
-    },
+    mutationFn: () => OmsApi.approve(id),
     onSuccess: () => {
       toast.success('Order approved.');
-      setApproveOpen(false);
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -112,7 +100,8 @@ export function OmsOrderDetailPage() {
   const setShippingFeeAfterMut = useMutation({
     mutationFn: () => {
       const fee = shippingFeeAfter.trim();
-      return OmsApi.update(id, { shippingFee: fee ? Number(fee) : undefined });
+      if (!fee) throw new Error('Enter a shipping fee.');
+      return OmsApi.update(id, { shippingFee: Number(fee) });
     },
     onSuccess: () => {
       toast.success('Shipping fee updated.');
@@ -148,6 +137,26 @@ export function OmsOrderDetailPage() {
     mutationFn: () => OmsApi.delivered(id),
     onSuccess: () => {
       toast.success('Order marked delivered.');
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const confirmMut = useMutation({
+    mutationFn: () => OmsApi.confirm(id),
+    onSuccess: () => {
+      toast.success('Order confirmed and fulfillment started.');
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const revertDeliveryMut = useMutation({
+    mutationFn: () => OmsApi.revertDelivery(id, revertReason.trim()),
+    onSuccess: () => {
+      toast.success('Delivery reverted to shipped.');
+      setRevertOpen(false);
+      setRevertReason('');
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -203,13 +212,25 @@ export function OmsOrderDetailPage() {
     return Object.fromEntries(order.lines.map((l) => [l.id, l.requestedQuantity]));
   }, [order]);
 
+  // Already-returned qty by product for return form hints (must be before early returns).
+  const alreadyReturnedByProduct = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of returnsQuery.data?.items ?? []) {
+      if (r.status === 'rejected' || r.status === 'cancelled') continue;
+      for (const line of r.lines) {
+        map.set(line.productId, (map.get(line.productId) ?? 0) + Number(line.quantity));
+      }
+    }
+    return map;
+  }, [returnsQuery.data]);
+
   // Auto-open the "Specify shipping fee" modal when coming from the /orders/oms row actions.
   // Must be declared before any early-return (loading/error) paths to keep React hook order stable.
   useEffect(() => {
     if (!openShippingFeeRequested) return;
     if (autoOpenedShippingFeeModalRef.current) return;
     if (!order) return;
-    if (order.status !== 'shipped' && order.status !== 'completed') return;
+    if (order.status !== 'delivered' && order.status !== 'completed') return;
     setShippingFeeAfter(order.shippingFee ?? '');
     setShippingFeeAfterOpen(true);
     autoOpenedShippingFeeModalRef.current = true;
@@ -251,15 +272,32 @@ export function OmsOrderDetailPage() {
 
   const total = order.total ?? order.subtotal ?? null;
   const outboundId = order.linkedOutboundOrder?.id ?? order.outboundOrderId;
-  const canApprove = commercial === 'pending_approval';
-  const canReject = commercial === 'pending_approval';
+  const canConfirm =
+    commercial === 'waiting_for_confirmation';
+  const canApprove =
+    commercial === 'confirmed_waiting_for_admin_approval';
+  const canReject =
+    commercial === 'confirmed_waiting_for_admin_approval' ||
+    commercial === 'waiting_for_confirmation';
   const canEditCommercial =
-    commercial === 'pending_approval' || commercial === 'pending';
-  const canMarkDelivered = commercial === 'out_for_delivery';
-  const canCancel = commercial !== 'delivered' && commercial !== 'cancelled';
+    commercial === 'waiting_for_confirmation' ||
+    commercial === 'confirmed_waiting_for_admin_approval' ||
+    commercial === 'processing';
+  const canMarkDelivered = commercial === 'shipped';
+  const canRevertDelivery = commercial === 'delivered';
+  const canCancel =
+    commercial === 'waiting_for_confirmation' ||
+    commercial === 'confirmed_waiting_for_admin_approval' ||
+    commercial === 'processing' ||
+    commercial === 'ready_to_ship' ||
+    commercial === 'legacy' ||
+    order.status === 'pending_approval' ||
+    order.status === 'pending';
   const canCreateReturn = commercial === 'delivered';
-  const canSpecifyShippingFeeAfterFulfillment =
-    order.status === 'shipped' || order.status === 'completed';
+  const canSpecifyShippingFeeAfterDelivery =
+    commercial === 'delivered' ||
+    order.status === 'delivered' ||
+    order.status === 'completed';
   const canRetryCod = order.codGenerationStatus === 'failed';
 
   return (
@@ -278,13 +316,13 @@ export function OmsOrderDetailPage() {
         subtitle={order.company?.name ?? undefined}
         actions={
           <div className="flex flex-wrap gap-2">
+            {canConfirm ? (
+              <Button loading={confirmMut.isPending} onClick={() => confirmMut.mutate()}>
+                Confirm & start fulfillment
+              </Button>
+            ) : null}
             {canApprove ? (
-              <Button
-                onClick={() => {
-                  setApproveShippingFee(order.shippingFee ?? '');
-                  setApproveOpen(true);
-                }}
-              >
+              <Button loading={approveMut.isPending} onClick={() => approveMut.mutate()}>
                 Approve
               </Button>
             ) : null}
@@ -298,12 +336,20 @@ export function OmsOrderDetailPage() {
                 Mark delivered
               </Button>
             ) : null}
+            {canRevertDelivery ? (
+              <Button variant="secondary" onClick={() => setRevertOpen(true)}>
+                Revert delivery
+              </Button>
+            ) : null}
             {canCancel ? (
-              <Button variant="secondary" onClick={() => setCancelOpen(true)}>
+              <Button
+                className="!border-danger-600 !bg-danger-600 !text-white hover:!border-danger-700 hover:!bg-danger-700"
+                onClick={() => setCancelOpen(true)}
+              >
                 Cancel order
               </Button>
             ) : null}
-            {canSpecifyShippingFeeAfterFulfillment ? (
+            {canSpecifyShippingFeeAfterDelivery ? (
               <Button
                 variant="secondary"
                 onClick={() => {
@@ -365,158 +411,235 @@ export function OmsOrderDetailPage() {
         ) : null}
       </div>
 
-      <Section title="Overview">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Order number" value={order.orderNumber} />
-          <Field label="Status" value={omsCommercialStatusLabel(order.status)} />
-          <Field label="Client" value={order.company?.name ?? '—'} />
-          <Field label="Client reference" value={order.clientReference ?? '—'} />
-          <Field label="Sales channel" value={order.storeChannel ?? '—'} />
-          <Field
-            label="Required ship date"
-            value={new Date(order.requiredShipDate).toLocaleDateString()}
-          />
-          <Field label="Recipient" value={order.recipientName ?? '—'} />
-          <Field label="Phone" value={order.recipientPhone ?? '—'} />
-          <Field
-            label="Submitted"
-            value={order.submittedAt ? new Date(order.submittedAt).toLocaleString() : '—'}
-          />
-        </div>
-      </Section>
-
-      <Section title="Products">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b border-border-subtle text-left text-xs uppercase text-text-muted">
-                <th className="px-2 py-2">#</th>
-                <th className="px-2 py-2">Product</th>
-                <th className="px-2 py-2">Qty</th>
-                <th className="px-2 py-2">Price</th>
-                <th className="px-2 py-2">Line total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {order.lines.map((line) => (
-                <tr key={line.id} className="border-b border-border-subtle">
-                  <td className="px-2 py-2">{line.lineNumber}</td>
-                  <td className="px-2 py-2">
-                    {line.product ? `${line.product.sku} — ${line.product.name}` : line.productId}
-                  </td>
-                  <td className="px-2 py-2">{line.requestedQuantity}</td>
-                  <td className="px-2 py-2">{line.unitPrice ?? '—'}</td>
-                  <td className="px-2 py-2">{line.lineTotal ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Section>
-
-      <Section title="Shipping">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Address" value={order.addressLine1 ?? order.destinationAddress} />
-          <Field label="City" value={order.city ?? '—'} />
-          <Field label="District" value={order.district ?? '—'} />
-          <Field label="Carrier" value={order.carrier ?? '—'} />
-          <Field label="Tracking" value={order.trackingNumber ?? '—'} />
-          <Field label="Instructions" value={order.deliveryInstructions ?? '—'} />
-        </div>
-      </Section>
-
-      <Section title="Timeline">
-        {order.timeline && order.timeline.length > 0 ? (
-          <ol className="space-y-3">
-            {order.timeline.map((ev) => (
-              <li key={ev.id} className="border-l-2 border-brand-200 dark:border-brand-500/40 pl-3">
-                <div className="text-sm font-medium text-text-strong">{ev.eventType}</div>
-                <div className="text-xs text-text-muted">
-                  {new Date(ev.createdAt).toLocaleString()}
-                  {ev.creator?.fullName ? ` · ${ev.creator.fullName}` : ''}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="space-y-5 lg:col-span-2">
+          <Card padding="none">
+            <Card.Header>
+              <Card.Title>Recipient & shipping</Card.Title>
+            </Card.Header>
+            <Card.Body className="px-4 py-4 sm:px-5">
+              <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+                <Field label="Recipient" value={order.recipientName ?? '—'} />
+                <Field label="Phone" value={order.recipientPhone ?? '—'} />
+                <div className="sm:col-span-2">
+                  <Field
+                    label="Address"
+                    value={order.addressLine1 ?? order.destinationAddress ?? '—'}
+                  />
                 </div>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="text-sm text-text-muted">No timeline events yet.</p>
-        )}
-      </Section>
+                <Field label="City" value={order.city ?? '—'} />
+                <Field label="District" value={order.district ?? '—'} />
+                <Field label="Carrier" value={order.carrier ?? '—'} />
+                <Field label="Tracking" value={order.trackingNumber ?? '—'} />
+                {order.deliveryInstructions ? (
+                  <div className="sm:col-span-2">
+                    <Field label="Instructions" value={order.deliveryInstructions} />
+                  </div>
+                ) : null}
+              </div>
+            </Card.Body>
+          </Card>
 
-      <Section title="Returns">
-        {(returnsQuery.data?.items ?? []).length === 0 ? (
-          <p className="text-sm text-text-muted">
-            {canCreateReturn
-              ? 'No returns yet. Use Create return to open a return request.'
-              : 'No returns for this order.'}
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b border-border-subtle text-left text-xs uppercase text-text-muted">
-                  <th className="px-2 py-2">Return #</th>
-                  <th className="px-2 py-2">Status</th>
-                  <th className="px-2 py-2">Reason</th>
-                  <th className="px-2 py-2">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(returnsQuery.data?.items ?? []).map((ret) => (
-                  <tr key={ret.id} className="border-b border-border-subtle">
-                    <td className="px-2 py-2">
-                      <Link to="/oms/returns" className="font-medium text-brand-700 hover:underline">
-                        {ret.returnNumber}
-                      </Link>
-                    </td>
-                    <td className="px-2 py-2">{ret.status.replace(/_/g, ' ')}</td>
-                    <td className="px-2 py-2">{ret.reason ?? '—'}</td>
-                    <td className="px-2 py-2">{new Date(ret.createdAt).toLocaleString()}</td>
+          <Card padding="none" className="overflow-hidden">
+            <Card.Header>
+              <Card.Title>Line items</Card.Title>
+              <span className="text-xs font-medium text-text-muted">
+                {order.lines.length} {order.lines.length === 1 ? 'item' : 'items'}
+              </span>
+            </Card.Header>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-surface-card-muted text-xs font-semibold uppercase text-text-muted">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left">#</th>
+                    <th className="px-4 py-2.5 text-left">SKU</th>
+                    <th className="px-4 py-2.5 text-left">Product</th>
+                    <th className="px-4 py-2.5 text-right">Qty</th>
+                    <th className="px-4 py-2.5 text-right">Price</th>
+                    <th className="px-4 py-2.5 text-right">Line total</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Section>
-
-      <Section title="Financial">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Payment method" value={order.paymentMethod ?? '—'} />
-          <Field label="Subtotal" value={fmtMoney(order.subtotal ?? total, order.currency)} />
-          <Field label="Shipping fee" value={fmtMoney(order.shippingFee, order.currency)} />
-          <Field label="COD amount" value={fmtMoney(order.codAmount, order.currency)} />
-          <Field label="Legacy COD status" value={order.codStatus ?? '—'} />
-        </div>
-        {codQuery.data ? (
-          <div className="mt-4 rounded-lg border border-border-subtle bg-surface-sunken p-4">
-            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-muted">
-              COD record
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="Status" value={codQuery.data.status.replace(/_/g, ' ')} />
-              <Field
-                label="Original amount"
-                value={fmtMoney(codQuery.data.originalAmount, codQuery.data.currency)}
-              />
-              <Field
-                label="Current amount"
-                value={fmtMoney(codQuery.data.currentAmount, codQuery.data.currency)}
-              />
-              <Field
-                label="Available at"
-                value={
-                  codQuery.data.availableAt
-                    ? new Date(codQuery.data.availableAt).toLocaleString()
-                    : '—'
-                }
-              />
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {order.lines.map((line) => (
+                    <tr key={line.id}>
+                      <td className="px-4 py-2.5 text-text-muted">{line.lineNumber}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-text-muted">
+                        {line.product?.sku ?? '—'}
+                      </td>
+                      <td className="px-4 py-2.5 font-medium text-text-strong">
+                        {line.product?.name ?? line.productId}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-text-body">
+                        {line.requestedQuantity}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-text-body">
+                        {line.unitPrice ?? '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-text-strong">
+                        {line.lineTotal ?? '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-        ) : codQuery.isLoading ? (
-          <p className="mt-3 text-sm text-text-muted">Loading COD record…</p>
-        ) : null}
-      </Section>
+          </Card>
+
+          {order.notes ? (
+            <Card padding="none">
+              <Card.Header>
+                <Card.Title>Notes</Card.Title>
+              </Card.Header>
+              <Card.Body className="px-4 py-4 sm:px-5">
+                <p className="whitespace-pre-wrap text-sm text-text-body">{order.notes}</p>
+              </Card.Body>
+            </Card>
+          ) : null}
+
+          <Card padding="none">
+            <Card.Header>
+              <Card.Title>Returns</Card.Title>
+            </Card.Header>
+            <Card.Body className="px-4 py-4 sm:px-5">
+              {(returnsQuery.data?.items ?? []).length === 0 ? (
+                <p className="text-sm text-text-muted">
+                  {canCreateReturn
+                    ? 'No returns yet. Use Create return to open a return request.'
+                    : 'No returns for this order.'}
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border-subtle text-left text-xs uppercase text-text-muted">
+                        <th className="px-2 py-2">Return #</th>
+                        <th className="px-2 py-2">Status</th>
+                        <th className="px-2 py-2">Reason</th>
+                        <th className="px-2 py-2">Created</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(returnsQuery.data?.items ?? []).map((ret) => (
+                        <tr key={ret.id} className="border-b border-border-subtle">
+                          <td className="px-2 py-2">
+                            <Link
+                              to={`/oms/returns/${ret.id}`}
+                              className="font-medium text-brand-700 hover:underline"
+                            >
+                              {ret.returnNumber}
+                            </Link>
+                          </td>
+                          <td className="px-2 py-2">{ret.status.replace(/_/g, ' ')}</td>
+                          <td className="px-2 py-2">{ret.reason ?? '—'}</td>
+                          <td className="px-2 py-2">
+                            {new Date(ret.createdAt).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card.Body>
+          </Card>
+        </div>
+
+        <div className="space-y-5">
+          <Card padding="none">
+            <Card.Header>
+              <Card.Title>Order details</Card.Title>
+            </Card.Header>
+            <Card.Body className="px-4 py-4 sm:px-5">
+              <div className="space-y-3">
+                <Field label="Order #" value={order.orderNumber} />
+                <Field label="Client" value={order.company?.name ?? '—'} />
+                <Field label="Client reference" value={order.clientReference ?? '—'} />
+                <Field label="Sales channel" value={order.storeChannel ?? '—'} />
+                <Field
+                  label="Required ship"
+                  value={new Date(order.requiredShipDate).toLocaleDateString()}
+                />
+                <Field
+                  label="Submitted"
+                  value={
+                    order.submittedAt ? new Date(order.submittedAt).toLocaleString() : '—'
+                  }
+                />
+                <Field
+                  label="Created"
+                  value={new Date(order.createdAt).toLocaleString()}
+                />
+                {order.warehouseStatus ? (
+                  <Field label="Warehouse status" value={order.warehouseStatus} />
+                ) : null}
+              </div>
+            </Card.Body>
+          </Card>
+
+          <Card padding="none">
+            <Card.Header>
+              <Card.Title>Pricing & COD</Card.Title>
+            </Card.Header>
+            <Card.Body className="px-4 py-4 sm:px-5">
+              <div className="space-y-3">
+                <Field label="Payment" value={order.paymentMethod ?? '—'} />
+                <Field
+                  label="Shipping fee"
+                  value={fmtMoney(order.shippingFee, order.currency)}
+                />
+                <Field
+                  label="Subtotal"
+                  value={
+                    <span className="font-semibold">
+                      {fmtMoney(order.subtotal ?? total, order.currency)}
+                    </span>
+                  }
+                />
+                <Field label="COD amount" value={fmtMoney(order.codAmount, order.currency)} />
+                <Field label="Legacy COD status" value={order.codStatus ?? '—'} />
+              </div>
+              {codQuery.data ? (
+                <div className="mt-4 rounded-lg border border-border-subtle bg-surface-sunken p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                      COD record
+                    </h3>
+                    <Link
+                      to={`/oms/cod/${codQuery.data.id}`}
+                      className="text-xs font-medium text-brand-700 hover:underline"
+                    >
+                      View details
+                    </Link>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Status" value={codQuery.data.status.replace(/_/g, ' ')} />
+                    <Field
+                      label="Original amount"
+                      value={fmtMoney(codQuery.data.originalAmount, codQuery.data.currency)}
+                    />
+                    <Field
+                      label="Current amount"
+                      value={fmtMoney(codQuery.data.currentAmount, codQuery.data.currency)}
+                    />
+                    <Field
+                      label="Available at"
+                      value={
+                        codQuery.data.availableAt
+                          ? new Date(codQuery.data.availableAt).toLocaleString()
+                          : '—'
+                      }
+                    />
+                  </div>
+                </div>
+              ) : codQuery.isLoading ? (
+                <p className="mt-3 text-sm text-text-muted">Loading COD record…</p>
+              ) : null}
+            </Card.Body>
+          </Card>
+        </div>
+      </div>
+
+      <OmsOrderTrackingPanel order={order} />
 
       <OmsOrderFormModal
         open={editOpen}
@@ -555,28 +678,6 @@ export function OmsOrderDetailPage() {
         <p className="text-sm">The order will be marked cancelled in the commercial lifecycle.</p>
       </ConfirmModal>
 
-      <Modal open={approveOpen} onClose={() => setApproveOpen(false)} title="Approve OMS order">
-        <div className="space-y-4">
-          <p className="text-sm text-text-body">
-            Approving validates stock and creates a draft outbound order for fulfillment.
-          </p>
-          <TextField
-            label="Shipping fee (optional)"
-            value={approveShippingFee}
-            onChange={(e) => setApproveShippingFee(e.target.value)}
-            placeholder={order.shippingFee ?? '0'}
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="danger" onClick={() => setApproveOpen(false)}>
-              Cancel
-            </Button>
-            <Button loading={approveMut.isPending} onClick={() => approveMut.mutate()}>
-              Approve
-            </Button>
-          </div>
-        </div>
-      </Modal>
-
       <Modal
         open={shippingFeeAfterOpen}
         onClose={() => setShippingFeeAfterOpen(false)}
@@ -584,7 +685,7 @@ export function OmsOrderDetailPage() {
       >
         <div className="space-y-4">
           <p className="text-sm text-text-body">
-            Update the shipping fee after this OMS order is already shipped/completed.
+            Set or update the shipping fee after this OMS order has been delivered.
           </p>
           <TextField
             label="Shipping fee"
@@ -621,6 +722,31 @@ export function OmsOrderDetailPage() {
         </div>
       </Modal>
 
+      <Modal open={revertOpen} onClose={() => setRevertOpen(false)} title="Revert delivery">
+        <div className="space-y-4">
+          <p className="text-sm text-text-body">
+            This moves the order from Delivered back to Shipped. A reason is required for audit.
+          </p>
+          <TextField
+            label="Reason (required)"
+            value={revertReason}
+            onChange={(e) => setRevertReason(e.target.value)}
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="danger" onClick={() => setRevertOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              loading={revertDeliveryMut.isPending}
+              disabled={!revertReason.trim()}
+              onClick={() => revertDeliveryMut.mutate()}
+            >
+              Revert to shipped
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <Modal open={returnOpen} onClose={() => setReturnOpen(false)} title="Create OMS return">
         <div className="space-y-4">
           <TextField
@@ -630,23 +756,31 @@ export function OmsOrderDetailPage() {
           />
           <div className="space-y-2">
             <div className="text-xs font-semibold uppercase text-text-muted">Return quantities</div>
-            {order.lines.map((line) => (
-              <div key={line.id} className="flex items-center gap-3">
-                <span className="min-w-0 flex-1 truncate text-sm text-text-body">
-                  {line.product?.sku ?? line.productId}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  max={Number(line.requestedQuantity)}
-                  value={returnQty[line.id] ?? ''}
-                  onChange={(e) =>
-                    setReturnQty((prev) => ({ ...prev, [line.id]: e.target.value }))
-                  }
-                  className="w-24 rounded-lg border border-border px-2 py-1 text-sm"
-                />
-              </div>
-            ))}
+            {order.lines.map((line) => {
+              const ordered = Number(line.requestedQuantity);
+              const already = alreadyReturnedByProduct.get(line.productId) ?? 0;
+              const available = Math.max(0, ordered - already);
+              return (
+                <div key={line.id} className="flex flex-wrap items-center gap-3">
+                  <span className="min-w-0 flex-1 truncate text-sm text-text-body">
+                    {line.product?.sku ?? line.productId}
+                    <span className="ml-2 text-xs text-text-muted">
+                      Ordered {ordered} · Returned {already} · Available {available}
+                    </span>
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={available}
+                    value={returnQty[line.id] ?? ''}
+                    onChange={(e) =>
+                      setReturnQty((prev) => ({ ...prev, [line.id]: e.target.value }))
+                    }
+                    className="w-24 rounded-lg border border-border px-2 py-1 text-sm"
+                  />
+                </div>
+              );
+            })}
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="danger" onClick={() => setReturnOpen(false)}>

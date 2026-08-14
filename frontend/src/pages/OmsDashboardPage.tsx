@@ -1,9 +1,20 @@
+import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 import { Alert, Card, Skeleton } from '@ds';
 
+import { CompaniesApi } from '../api/companies';
 import type { OmsDashboardSummary } from '../api/oms';
 import { OmsApi } from '../api/oms';
 import { AdminListPageShell } from '../components/AdminListPageShell';
@@ -11,10 +22,43 @@ import { OmsStatusBadge } from '../components/oms/OmsStatusBadge';
 import { QK } from '../constants/query-keys';
 import {
   aggregateCommercialStatusCounts,
-  countCommercialPending,
   OMS_COMMERCIAL_STATUS_COLORS,
   omsCommercialStatusLabel,
 } from '../lib/oms-commercial-status';
+
+type DateRangePreset = 'this_month' | 'last_7_days' | 'last_month' | 'custom';
+
+function toYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function endOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+}
+
+function datesForPreset(preset: Exclude<DateRangePreset, 'custom'>): {
+  from: string;
+  to: string;
+} {
+  const now = new Date();
+  if (preset === 'last_7_days') {
+    const from = new Date(now);
+    from.setDate(from.getDate() - 6);
+    return { from: toYmd(from), to: toYmd(now) };
+  }
+  if (preset === 'last_month') {
+    const base = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return { from: toYmd(startOfMonth(base)), to: toYmd(endOfMonth(base)) };
+  }
+  return { from: toYmd(startOfMonth(now)), to: toYmd(endOfMonth(now)) };
+}
 
 function fmtMoney(value: string | number | null | undefined, currency = 'USD'): string {
   const n = Number(value ?? 0);
@@ -85,6 +129,45 @@ const STATUS_COLORS = OMS_COMMERCIAL_STATUS_COLORS;
 
 function statusLabel(status: string): string {
   return omsCommercialStatusLabel(status);
+}
+
+/** Mirror client dashboard commercial buckets from raw status counts. */
+const WAITING = new Set([
+  'draft',
+  'waiting_for_confirmation',
+  'confirmed_waiting_for_admin_approval',
+  'pending_approval',
+]);
+const PENDING_FULFILLMENT = new Set([
+  'pending',
+  'approved',
+  'confirmed',
+  'processing',
+  'allocated',
+  'picking',
+  'packing',
+  'ready_to_ship',
+  'failed_delivery',
+]);
+const OUT_FOR_DELIVERY = new Set(['shipped', 'out_for_delivery']);
+const DELIVERED = new Set(['delivered', 'completed']);
+const RETURNED = new Set(['returned']);
+const CANCELLED_OR_FAILED = new Set(['cancelled', 'rejected']);
+
+function sumBucket(
+  rows: Array<{ status: string; count: number }> | undefined,
+  bucket: Set<string>,
+): number {
+  let n = 0;
+  for (const row of rows ?? []) {
+    if (bucket.has(row.status)) n += row.count;
+  }
+  return n;
+}
+
+function pct(count: number, total: number): string {
+  if (total <= 0) return '0%';
+  return `${((count / total) * 100).toFixed(1)}%`;
 }
 
 type DonutSlice = { label: string; count: number; color: string };
@@ -172,7 +255,7 @@ function DonutChart({
         ) : (
           <ul className="w-full min-w-0 space-y-1.5">
             {slices.map((sl) => {
-              const pct = Math.round((sl.count / total) * 100);
+              const share = Math.round((sl.count / total) * 100);
               return (
                 <li key={sl.label} className="flex items-center gap-2 text-xs">
                   <span
@@ -181,7 +264,7 @@ function DonutChart({
                   />
                   <span className="min-w-0 flex-1 truncate text-text-body">{sl.label}</span>
                   <span className="shrink-0 font-semibold tabular-nums text-text-strong">
-                    {pct}%
+                    {share}%
                   </span>
                 </li>
               );
@@ -193,194 +276,211 @@ function DonutChart({
   );
 }
 
-function Sparkline({
-  values,
-  stroke = '#16a34a',
-}: {
-  values: number[];
-  stroke?: string;
-}) {
-  const w = 140;
-  const h = 40;
-  if (values.length < 2) {
-    return <div className="h-10 w-[8.75rem]" />;
-  }
-  const max = Math.max(...values, 1);
-  const min = Math.min(...values, 0);
-  const span = max - min || 1;
-  const pts = values
-    .map((v, i) => {
-      const x = (i / (values.length - 1)) * w;
-      const y = h - ((v - min) / span) * (h - 6) - 3;
-      return `${x},${y}`;
-    })
-    .join(' ');
-  return (
-    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="max-w-full overflow-visible" aria-hidden>
-      <polyline
-        fill="none"
-        stroke={stroke}
-        strokeWidth="2.25"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        points={pts}
-      />
-    </svg>
-  );
-}
+type KpiTone = 'emerald' | 'amber' | 'sky' | 'violet' | 'teal' | 'slate' | 'rose';
 
-function DualLineChart({
-  days,
-}: {
-  days: Array<{ day: string; count: number; revenue: number }>;
-}) {
-  const w = 520;
-  const h = 220;
-  const pad = { t: 16, r: 48, b: 32, l: 36 };
-  const innerW = w - pad.l - pad.r;
-  const innerH = h - pad.t - pad.b;
-  if (days.length === 0) {
-    return <p className="py-10 text-center text-sm text-text-muted">No trend data yet.</p>;
-  }
-  const maxOrders = Math.max(...days.map((d) => d.count), 1);
-  const maxRev = Math.max(...days.map((d) => d.revenue), 1);
-  const xAt = (i: number) =>
-    pad.l + (days.length === 1 ? innerW / 2 : (i / (days.length - 1)) * innerW);
-  const yOrders = (v: number) => pad.t + innerH - (v / maxOrders) * innerH;
-  const yRev = (v: number) => pad.t + innerH - (v / maxRev) * innerH;
-  const ordersPts = days.map((d, i) => `${xAt(i)},${yOrders(d.count)}`).join(' ');
-  const revPts = days.map((d, i) => `${xAt(i)},${yRev(d.revenue)}`).join(' ');
-
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-auto w-full max-w-full" role="img" aria-label="Orders trend">
-      {[0, 0.25, 0.5, 0.75, 1].map((f) => {
-        const y = pad.t + innerH * (1 - f);
-        return (
-          <line
-            key={f}
-            x1={pad.l}
-            x2={w - pad.r}
-            y1={y}
-            y2={y}
-            stroke="#e2e8f0"
-            strokeWidth="1"
-          />
-        );
-      })}
-      <polyline fill="none" stroke="#3b82f6" strokeWidth="2.5" points={revPts} />
-      <polyline fill="none" stroke="#16a34a" strokeWidth="2.5" points={ordersPts} />
-      {days.map((d, i) => (
-        <g key={d.day}>
-          <circle cx={xAt(i)} cy={yOrders(d.count)} r="3.5" fill="#16a34a" />
-          <circle cx={xAt(i)} cy={yRev(d.revenue)} r="3.5" fill="#3b82f6" />
-          <text x={xAt(i)} y={h - 10} textAnchor="middle" fill="#64748b" style={{ fontSize: 10 }}>
-            {d.day.slice(5)}
-          </text>
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-function KpiCard({
-  icon,
-  iconTone,
-  cardTone,
+function TopKpi({
   label,
   value,
-  trend,
+  hint,
+  icon,
+  tone,
+  to,
 }: {
-  icon: string;
-  iconTone: string;
-  cardTone: string;
   label: string;
   value: ReactNode;
-  trend?: number | null;
-}) {
-  const t = fmtPct(trend);
-  return (
-    <div
-      className={`min-w-0 overflow-hidden rounded-xl border border-transparent p-4 shadow-sm ${cardTone}`}
-    >
-      <div className="flex items-start gap-3">
-        <span
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${iconTone}`}
+  hint: string;
+  icon: string;
+  tone: KpiTone;
+  to?: string;
+}): ReactElement {
+  const tones: Record<
+    KpiTone,
+    { card: string; bg: string; text: string; value: string }
+  > = {
+    emerald: {
+      card: 'border-emerald-200',
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-600',
+      value: 'text-emerald-700',
+    },
+    amber: {
+      card: 'border-amber-200',
+      bg: 'bg-amber-50',
+      text: 'text-amber-600',
+      value: 'text-amber-700',
+    },
+    sky: {
+      card: 'border-sky-200',
+      bg: 'bg-sky-50',
+      text: 'text-sky-600',
+      value: 'text-sky-700',
+    },
+    violet: {
+      card: 'border-violet-200',
+      bg: 'bg-violet-50',
+      text: 'text-violet-600',
+      value: 'text-violet-700',
+    },
+    teal: {
+      card: 'border-teal-200',
+      bg: 'bg-teal-50',
+      text: 'text-teal-600',
+      value: 'text-teal-700',
+    },
+    slate: {
+      card: 'border-border',
+      bg: 'bg-surface-sunken',
+      text: 'text-text-muted',
+      value: 'text-text-strong',
+    },
+    rose: {
+      card: 'border-rose-200',
+      bg: 'bg-rose-50',
+      text: 'text-rose-600',
+      value: 'text-rose-700',
+    },
+  };
+  const t = tones[tone];
+  const body = (
+    <Card className={`h-full border p-5 ${t.card}`} interactive>
+      <div className="flex items-center gap-4">
+        <div
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${t.bg}`}
         >
-          <i className={`fa-solid ${icon} text-sm`} aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold text-slate-600 dark:text-text-muted">{label}</div>
-          <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-text-strong">
-            {value}
-          </div>
-          <div
-            className={`mt-1 text-xs font-semibold ${
-              t.up === true
-                ? 'text-emerald-600'
-                : t.up === false
-                  ? 'text-rose-600'
-                  : 'text-slate-500'
-            }`}
-          >
-            {t.text}
-          </div>
+          <i className={`fa-solid ${icon} text-lg ${t.text}`} aria-hidden />
+        </div>
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-text-muted">{label}</div>
+          <div className={`mt-1 text-3xl font-bold tabular-nums ${t.value}`}>{value}</div>
+          <div className="mt-1 text-[11px] text-text-faint">{hint}</div>
         </div>
       </div>
+    </Card>
+  );
+  if (to) {
+    return (
+      <Link to={to} className="block h-full no-underline">
+        {body}
+      </Link>
+    );
+  }
+  return body;
+}
+
+function StatusCell({
+  label,
+  count,
+  total,
+  colorClass,
+}: {
+  label: string;
+  count: number;
+  total: number;
+  colorClass: string;
+}): ReactElement {
+  return (
+    <div className="min-w-0 px-1.5 py-3 text-center sm:px-2">
+      <div className={`text-xl font-bold tabular-nums sm:text-2xl ${colorClass}`}>
+        {count.toLocaleString()}
+      </div>
+      <div className="mt-1 text-[10px] font-semibold leading-snug text-text-muted sm:text-[11px]">
+        {label}
+      </div>
+      <div className="mt-0.5 text-[10px] text-text-faint">{pct(count, total)}</div>
     </div>
   );
 }
 
-function FinanceCard({
-  icon,
-  iconTone,
-  cardTone,
-  label,
-  value,
-  trend,
-  spark,
-  stroke,
+function OrdersTrendChart({
+  days,
 }: {
-  icon: string;
-  iconTone: string;
-  cardTone: string;
-  label: string;
-  value: string;
-  trend?: number | null;
-  spark: number[];
-  stroke: string;
-}) {
-  const t = fmtPct(trend);
+  days: Array<{ day: string; count: number; revenue: number }>;
+}): ReactElement {
+  if (days.length === 0) {
+    return <p className="py-10 text-center text-sm text-text-muted">No trend data yet.</p>;
+  }
+
+  const data = days.map((d) => ({
+    ...d,
+    label: d.day.slice(5),
+  }));
+
   return (
-    <div
-      className={`min-w-0 overflow-hidden rounded-xl border border-transparent p-4 shadow-sm ${cardTone}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <span
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${iconTone}`}
-          >
-            <i className={`fa-solid ${icon} text-sm`} aria-hidden />
-          </span>
-          <div className="min-w-0">
-            <div className="text-xs font-semibold text-slate-600 dark:text-text-muted">{label}</div>
-            <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-text-strong">
-              {value}
-            </div>
-            <div
-              className={`mt-1 text-xs font-semibold ${
-                t.up === true
-                  ? 'text-emerald-600'
-                  : t.up === false
-                    ? 'text-rose-600'
-                    : 'text-slate-500'
-              }`}
-            >
-              {t.text}
-            </div>
-          </div>
-        </div>
-        <Sparkline values={spark} stroke={stroke} />
-      </div>
+    <div className="h-56 w-full min-w-0">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle, #e2e8f0)" />
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 11, fill: '#64748b' }}
+            tickLine={false}
+            axisLine={{ stroke: '#e2e8f0' }}
+          />
+          <YAxis
+            yAxisId="orders"
+            tick={{ fontSize: 11, fill: '#64748b' }}
+            tickLine={false}
+            axisLine={false}
+            allowDecimals={false}
+            width={36}
+          />
+          <YAxis
+            yAxisId="revenue"
+            orientation="right"
+            tick={{ fontSize: 11, fill: '#64748b' }}
+            tickLine={false}
+            axisLine={false}
+            width={48}
+          />
+          <Tooltip
+            cursor={{ stroke: '#94a3b8', strokeDasharray: '4 4' }}
+            contentStyle={{
+              borderRadius: 10,
+              border: '1px solid var(--border-default, #e2e8f0)',
+              background: 'var(--surface-panel, #fff)',
+              color: 'var(--text-strong, #0f172a)',
+              fontSize: 12,
+              boxShadow: '0 8px 24px rgba(15, 23, 42, 0.08)',
+            }}
+            formatter={(value, name) => {
+              const n = typeof value === 'number' ? value : Number(value);
+              const label = name === 'count' ? 'Orders' : 'Revenue';
+              if (name === 'revenue') {
+                return [fmtMoney(n), label];
+              }
+              return [Number.isFinite(n) ? n.toLocaleString() : '—', label];
+            }}
+            labelFormatter={(label, payload) => {
+              const day = payload?.[0]?.payload?.day;
+              return day ? `Day ${day}` : String(label);
+            }}
+          />
+          <Legend
+            formatter={(value) => (value === 'count' ? 'Orders' : 'Revenue')}
+            wrapperStyle={{ fontSize: 12 }}
+          />
+          <Line
+            yAxisId="orders"
+            type="monotone"
+            dataKey="count"
+            name="count"
+            stroke="#16a34a"
+            strokeWidth={2.5}
+            dot={{ r: 4, fill: '#16a34a', strokeWidth: 0 }}
+            activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
+          />
+          <Line
+            yAxisId="revenue"
+            type="monotone"
+            dataKey="revenue"
+            name="revenue"
+            stroke="#3b82f6"
+            strokeWidth={2.5}
+            dot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }}
+            activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff' }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -399,9 +499,41 @@ const AVATAR_TONES = [
 ];
 
 export function OmsDashboardPage() {
+  const initialRange = datesForPreset('this_month');
+  const [rangePreset, setRangePreset] = useState<DateRangePreset>('this_month');
+  const [createdFrom, setCreatedFrom] = useState(initialRange.from);
+  const [createdTo, setCreatedTo] = useState(initialRange.to);
+  const [summaryCompanyId, setSummaryCompanyId] = useState('');
+
+  const applyPreset = (preset: Exclude<DateRangePreset, 'custom'>) => {
+    setRangePreset(preset);
+    const { from, to } = datesForPreset(preset);
+    setCreatedFrom(from);
+    setCreatedTo(to);
+  };
+
+  const summaryFilters = useMemo(
+    () => ({
+      createdFrom: createdFrom || undefined,
+      createdTo: createdTo || undefined,
+      companyId: summaryCompanyId.trim() || undefined,
+    }),
+    [createdFrom, createdTo, summaryCompanyId],
+  );
+
   const dash = useQuery({
     queryKey: QK.omsDashboard,
     queryFn: () => OmsApi.dashboard(),
+  });
+
+  const companiesQuery = useQuery({
+    queryKey: QK.companies,
+    queryFn: () => CompaniesApi.list(),
+  });
+
+  const orderSummaryQuery = useQuery({
+    queryKey: QK.omsOrderSummary(summaryFilters),
+    queryFn: () => OmsApi.orderSummary(summaryFilters),
   });
 
   const headerActions = (
@@ -421,12 +553,18 @@ export function OmsDashboardPage() {
       </Link>
       <button
         type="button"
-        onClick={() => void dash.refetch()}
+        onClick={() => {
+          void dash.refetch();
+          void orderSummaryQuery.refetch();
+        }}
         className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-lg border border-border bg-white text-text-muted hover:bg-surface-sunken hover:text-text-strong dark:bg-surface-card"
         title="Refresh"
         aria-label="Refresh dashboard"
       >
-        <i className={`fa-solid fa-rotate ${dash.isFetching ? 'fa-spin' : ''}`} aria-hidden />
+        <i
+          className={`fa-solid fa-rotate ${dash.isFetching || orderSummaryQuery.isFetching ? 'fa-spin' : ''}`}
+          aria-hidden
+        />
       </button>
     </div>
   );
@@ -439,8 +577,6 @@ export function OmsDashboardPage() {
       day: row.day,
       count: row.count,
       revenue: Number(row.revenue ?? 0),
-      codPending: Number(row.codPending ?? 0),
-      codCollected: Number(row.codCollected ?? 0),
     }));
   }, [d?.ordersPerDay]);
 
@@ -456,16 +592,19 @@ export function OmsDashboardPage() {
       }));
   }, [d?.ordersByStatus]);
 
-  const codSlices: DonutSlice[] = useMemo(() => {
-    const pending = Number(d?.codPendingAmount ?? 0);
-    const collected = Number(d?.codCollectedAmount ?? 0);
-    const pendingFallback = pending > 0 ? pending : d?.codPending || 0;
-    const collectedFallback = collected > 0 ? collected : d?.codCollected || 0;
-    return [
-      { label: 'Collected', count: collectedFallback, color: '#16a34a' },
-      { label: 'Pending', count: pendingFallback, color: '#f59e0b' },
-    ].filter((s) => s.count > 0);
-  }, [d]);
+  const orderSummary = useMemo(() => {
+    const rows = orderSummaryQuery.data?.ordersByStatus ?? [];
+    const waiting = sumBucket(rows, WAITING);
+    const pending = sumBucket(rows, PENDING_FULFILLMENT);
+    const out = sumBucket(rows, OUT_FOR_DELIVERY);
+    const delivered = sumBucket(rows, DELIVERED);
+    const returned = sumBucket(rows, RETURNED);
+    const cancelled = sumBucket(rows, CANCELLED_OR_FAILED);
+    const total =
+      orderSummaryQuery.data?.total ??
+      waiting + pending + out + delivered + returned + cancelled;
+    return { total, waiting, pending, out, delivered, returned, cancelled };
+  }, [orderSummaryQuery.data]);
 
   if (dash.isLoading) {
     return (
@@ -476,10 +615,10 @@ export function OmsDashboardPage() {
         actions={headerActions}
         showSectionNav
       >
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Card key={i} padding="md">
-              <Skeleton height={72} />
+        <div className="grid auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <Card key={i} padding="md" className="h-full">
+              <Skeleton height={88} />
             </Card>
           ))}
         </div>
@@ -505,6 +644,11 @@ export function OmsDashboardPage() {
     );
   }
 
+  const todayTrend = fmtPct(trends?.ordersToday);
+  const pendingTrend = fmtPct(trends?.pendingApproval);
+  const deliveredTrend = fmtPct(trends?.deliveredToday);
+  const revenueTrend = fmtPct(trends?.todaysRevenue);
+
   return (
     <AdminListPageShell
       icon="fa-gauge-high"
@@ -513,117 +657,221 @@ export function OmsDashboardPage() {
       actions={headerActions}
       showSectionNav
     >
-      {/* KPI row — tinted cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <KpiCard
-          icon="fa-cart-shopping"
-          iconTone="bg-emerald-500 text-white"
-          cardTone="bg-emerald-50 dark:bg-emerald-950/30"
+      {/* KPI row — equal-size cards in one grid */}
+      <div className="grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <TopKpi
           label="Today's orders"
-          value={d.ordersToday}
-          trend={trends?.ordersToday}
+          value={d.ordersToday.toLocaleString()}
+          hint={todayTrend.text}
+          icon="fa-cart-shopping"
+          tone="emerald"
+          to="/orders/oms"
         />
-        <KpiCard
-          icon="fa-clock"
-          iconTone="bg-amber-500 text-white"
-          cardTone="bg-amber-50 dark:bg-amber-950/30"
+        <TopKpi
           label="Waiting for approval"
-          value={d.pendingApproval ?? d.pendingOrders}
-          trend={trends?.pendingApproval}
+          value={(d.pendingApproval ?? d.pendingOrders).toLocaleString()}
+          hint={pendingTrend.text}
+          icon="fa-clock"
+          tone="amber"
+          to="/orders/oms"
         />
-        <KpiCard
-          icon="fa-hourglass-half"
-          iconTone="bg-sky-500 text-white"
-          cardTone="bg-sky-50 dark:bg-sky-950/30"
-          label="Pending"
-          value={countCommercialPending(d.ordersByStatus ?? [])}
-        />
-        <KpiCard
-          icon="fa-truck"
-          iconTone="bg-violet-500 text-white"
-          cardTone="bg-violet-50 dark:bg-violet-950/30"
+        <TopKpi
           label="Out for delivery"
-          value={d.outForDelivery}
+          value={d.outForDelivery.toLocaleString()}
+          hint="In transit to customers"
+          icon="fa-truck"
+          tone="violet"
+          to="/orders/oms"
         />
-        <KpiCard
-          icon="fa-circle-check"
-          iconTone="bg-teal-600 text-white"
-          cardTone="bg-teal-50 dark:bg-teal-950/30"
+        <TopKpi
           label="Delivered today"
-          value={d.deliveredToday}
-          trend={trends?.deliveredToday}
+          value={d.deliveredToday.toLocaleString()}
+          hint={deliveredTrend.text}
+          icon="fa-circle-check"
+          tone="teal"
+          to="/orders/oms"
         />
-        <KpiCard
-          icon="fa-ban"
-          iconTone="bg-slate-500 text-white"
-          cardTone="bg-slate-50 dark:bg-slate-950/30"
-          label="Cancelled"
-          value={d.cancelled ?? 0}
-        />
-      </div>
-
-      {/* Finance row */}
-      <div className="grid gap-3 md:grid-cols-3">
-        <FinanceCard
-          icon="fa-sack-dollar"
-          iconTone="bg-emerald-500 text-white"
-          cardTone="bg-white dark:bg-surface-card"
+        <TopKpi
           label="Today's revenue"
           value={fmtMoney(d.todaysRevenue)}
-          trend={trends?.todaysRevenue}
-          spark={trendDays.map((x) => x.revenue)}
-          stroke="#16a34a"
+          hint={revenueTrend.text}
+          icon="fa-sack-dollar"
+          tone="emerald"
         />
-        <FinanceCard
-          icon="fa-wallet"
-          iconTone="bg-amber-500 text-white"
-          cardTone="bg-white dark:bg-surface-card"
+        <TopKpi
           label="COD pending"
           value={fmtMoney(d.codPendingAmount ?? d.codPending)}
-          spark={trendDays.map((x) => x.codPending)}
-          stroke="#f59e0b"
+          hint="Awaiting collection"
+          icon="fa-wallet"
+          tone="amber"
+          to="/oms/cod"
         />
-        <FinanceCard
-          icon="fa-hand-holding-dollar"
-          iconTone="bg-sky-500 text-white"
-          cardTone="bg-white dark:bg-surface-card"
+        <TopKpi
           label="COD collected"
           value={fmtMoney(d.codCollectedAmount ?? d.codCollected)}
-          spark={trendDays.map((x) => x.codCollected)}
-          stroke="#3b82f6"
+          hint="Ready for remittance"
+          icon="fa-hand-holding-dollar"
+          tone="sky"
+          to="/oms/cod"
         />
       </div>
 
-      {/* Charts row */}
-      <div className="grid min-w-0 gap-4 xl:grid-cols-12">
-        <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-white p-4 shadow-sm dark:bg-surface-card xl:col-span-6">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className="flex items-center gap-2 text-sm font-semibold text-text-strong">
-              <i className="fa-solid fa-chart-line text-xs text-brand-600" aria-hidden />
-              Orders trend
-            </h2>
-            <span className="rounded-md border border-border bg-surface-sunken px-2 py-0.5 text-xs text-text-muted">
-              Last 7 days
-            </span>
-          </div>
-          <div className="mb-2 flex flex-wrap gap-3 text-xs">
-            <span className="inline-flex items-center gap-1.5 text-text-body">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" /> Orders
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-text-body">
-              <span className="h-2 w-2 rounded-full bg-sky-500" /> Revenue
-            </span>
-          </div>
-          <DualLineChart days={trendDays} />
-        </div>
-
-        <div className="min-w-0 xl:col-span-3">
+      {/* Order movement + Order summary */}
+      <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-12">
+        <div className="min-w-0 xl:col-span-4">
           <DonutChart title="Orders by status" slices={statusSlices} />
         </div>
-        <div className="min-w-0 xl:col-span-3">
-          <DonutChart title="COD breakdown" slices={codSlices} emptyHint="No COD amounts yet." />
-        </div>
+
+        <Card className="min-w-0 border border-border p-5 xl:col-span-8">
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-base font-bold text-text-strong">Order summary</h2>
+              <p className="mt-0.5 text-xs text-text-muted">Where are my orders?</p>
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex min-w-[8.5rem] flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                  Range
+                </span>
+                <select
+                  value={rangePreset === 'custom' ? 'custom' : rangePreset}
+                  onChange={(e) => {
+                    const v = e.target.value as DateRangePreset;
+                    if (v === 'custom') {
+                      setRangePreset('custom');
+                      return;
+                    }
+                    applyPreset(v);
+                  }}
+                  className="h-9 rounded-lg border border-border bg-white px-3 text-sm text-text-body dark:bg-surface-card"
+                  aria-label="Date range preset"
+                >
+                  <option value="this_month">This month</option>
+                  <option value="last_7_days">Last 7 days</option>
+                  <option value="last_month">Last month</option>
+                  {rangePreset === 'custom' ? (
+                    <option value="custom">Custom</option>
+                  ) : null}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                  Created from
+                </span>
+                <input
+                  type="date"
+                  value={createdFrom}
+                  onChange={(e) => {
+                    setRangePreset('custom');
+                    setCreatedFrom(e.target.value);
+                  }}
+                  className="h-9 rounded-lg border border-border bg-white px-2 text-sm text-text-body dark:bg-surface-card"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                  Created to
+                </span>
+                <input
+                  type="date"
+                  value={createdTo}
+                  onChange={(e) => {
+                    setRangePreset('custom');
+                    setCreatedTo(e.target.value);
+                  }}
+                  className="h-9 rounded-lg border border-border bg-white px-2 text-sm text-text-body dark:bg-surface-card"
+                />
+              </label>
+              <label className="flex min-w-[10rem] flex-col gap-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                  Client
+                </span>
+                <select
+                  value={summaryCompanyId}
+                  onChange={(e) => setSummaryCompanyId(e.target.value)}
+                  className="h-9 rounded-lg border border-border bg-white px-3 text-sm text-text-body dark:bg-surface-card"
+                  aria-label="Client company"
+                >
+                  <option value="">All clients</option>
+                  {(companiesQuery.data ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.tradeName?.trim() || c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+          {orderSummaryQuery.isError ? (
+            <Alert
+              variant="error"
+              title="Could not load order summary"
+              description="Check filters and try again."
+            />
+          ) : orderSummaryQuery.isLoading ? (
+            <Skeleton height={96} />
+          ) : (
+            <div className="grid grid-cols-2 divide-y divide-border-subtle rounded-xl border border-border-subtle bg-surface-card-muted sm:grid-cols-4 sm:divide-x sm:divide-y-0 lg:grid-cols-7">
+              <StatusCell
+                label="Total orders"
+                count={orderSummary.total}
+                total={orderSummary.total || 1}
+                colorClass="text-text-strong"
+              />
+              <StatusCell
+                label="Waiting"
+                count={orderSummary.waiting}
+                total={orderSummary.total || 1}
+                colorClass="text-amber-600 dark:text-amber-400"
+              />
+              <StatusCell
+                label="Pending"
+                count={orderSummary.pending}
+                total={orderSummary.total || 1}
+                colorClass="text-blue-600 dark:text-blue-400"
+              />
+              <StatusCell
+                label="Out for delivery"
+                count={orderSummary.out}
+                total={orderSummary.total || 1}
+                colorClass="text-violet-600 dark:text-violet-400"
+              />
+              <StatusCell
+                label="Delivered"
+                count={orderSummary.delivered}
+                total={orderSummary.total || 1}
+                colorClass="text-brand-600 dark:text-brand-400"
+              />
+              <StatusCell
+                label="Returned"
+                count={orderSummary.returned}
+                total={orderSummary.total || 1}
+                colorClass="text-rose-600 dark:text-rose-400"
+              />
+              <StatusCell
+                label="Cancelled / failed"
+                count={orderSummary.cancelled}
+                total={orderSummary.total || 1}
+                colorClass="text-text-muted"
+              />
+            </div>
+          )}
+        </Card>
       </div>
+
+      {/* Orders trend — interactive Recharts tooltips */}
+      <Card className="min-w-0 overflow-hidden border border-border p-4">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-text-strong">
+            <i className="fa-solid fa-chart-line text-xs text-brand-600" aria-hidden />
+            Orders trend
+          </h2>
+          <span className="rounded-md border border-border bg-surface-sunken px-2 py-0.5 text-xs text-text-muted">
+            Last 7 days · hover a point for values
+          </span>
+        </div>
+        <OrdersTrendChart days={trendDays} />
+      </Card>
 
       {/* Recent orders + live activity */}
       <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -654,7 +902,10 @@ export function OmsDashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
                   {(d.recentOrders ?? []).map((row, i) => (
-                    <tr key={row.id} className="hover:bg-emerald-50/40 dark:hover:bg-surface-sunken/60">
+                    <tr
+                      key={row.id}
+                      className="hover:bg-emerald-50/40 dark:hover:bg-surface-sunken/60"
+                    >
                       <td className="px-4 py-2.5">
                         <Link
                           to={`/orders/oms/${row.id}`}

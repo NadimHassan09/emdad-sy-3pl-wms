@@ -25,7 +25,11 @@ const PENDING_FULFILLMENT = [
     client_1.OmsOrderStatus.picking,
     client_1.OmsOrderStatus.packing,
     client_1.OmsOrderStatus.ready_to_ship,
-    client_1.OmsOrderStatus.shipped,
+];
+const AWAITING_APPROVAL = [
+    client_1.OmsOrderStatus.waiting_for_confirmation,
+    client_1.OmsOrderStatus.confirmed_waiting_for_admin_approval,
+    client_1.OmsOrderStatus.pending_approval,
 ];
 function startOfLocalDay(d = new Date()) {
     const x = new Date(d);
@@ -63,12 +67,12 @@ let OmsDashboardService = class OmsDashboardService {
                     },
                 }),
                 tx.omsOrder.count({
-                    where: { ...whereBase, status: client_1.OmsOrderStatus.pending_approval },
+                    where: { ...whereBase, status: { in: AWAITING_APPROVAL } },
                 }),
                 tx.omsOrder.count({
                     where: {
                         ...whereBase,
-                        status: client_1.OmsOrderStatus.pending_approval,
+                        status: { in: AWAITING_APPROVAL },
                         createdAt: { lt: todayStart },
                     },
                 }),
@@ -320,6 +324,44 @@ let OmsDashboardService = class OmsDashboardService {
                         ]
                         : []),
                 ],
+            };
+        });
+    }
+    async orderSummary(user, query) {
+        const companyFilter = (0, company_read_scope_1.readCompanyIdCatalogFilter)(this.companyAccess, user, query.companyId);
+        const where = {
+            ...(companyFilter ? { companyId: companyFilter } : {}),
+        };
+        if (query.createdFrom || query.createdTo) {
+            const createdAt = {};
+            if (query.createdFrom) {
+                createdAt.gte = new Date(`${query.createdFrom}T00:00:00.000Z`);
+            }
+            if (query.createdTo) {
+                createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
+            }
+            where.createdAt = createdAt;
+        }
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const grouped = await tx.omsOrder.groupBy({
+                by: ['status'],
+                where,
+                _count: { _all: true },
+            });
+            const byStatus = {};
+            let total = 0;
+            for (const row of grouped) {
+                const n = row._count._all;
+                byStatus[row.status] = n;
+                total += n;
+            }
+            return {
+                total,
+                byStatus,
+                ordersByStatus: grouped.map((r) => ({
+                    status: r.status,
+                    count: r._count._all,
+                })),
             };
         });
     }

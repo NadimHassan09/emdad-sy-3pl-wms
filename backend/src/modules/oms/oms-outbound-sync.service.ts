@@ -4,7 +4,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { OmsOrderStatus, OutboundOrderStatus, Prisma } from '@prisma/client';
+import { OmsAllocationStatus, OmsOrderStatus, OutboundOrderStatus, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -14,18 +14,11 @@ import {
   omsEventTypeForStatus,
 } from './oms-order.mapper';
 import { OmsOrderEventsService } from './oms-order-events.service';
+import { OMS_PRE_FULFILLMENT, OMS_TERMINAL_STATUSES } from './oms-order-transitions';
 import { OrderAllocationService } from './order-allocation.service';
+import { copyShippingFieldsFromOms } from '../shipping/shipping-config.util';
 
 type Tx = Prisma.TransactionClient;
-
-/** Terminal commercial OMS states — warehouse sync must not overwrite. */
-const TERMINAL_OMS: OmsOrderStatus[] = [
-  OmsOrderStatus.rejected,
-  OmsOrderStatus.cancelled,
-  OmsOrderStatus.completed,
-  OmsOrderStatus.delivered,
-  OmsOrderStatus.failed_delivery,
-];
 
 @Injectable()
 export class OmsOutboundSyncService {
@@ -37,8 +30,8 @@ export class OmsOutboundSyncService {
   ) {}
 
   /**
-   * Sync OMS from linked outbound. Only terminal outbound → Out for Delivery
-   * (or cancel). No picking/packing/shipped mirroring onto OMS.
+   * Sync OMS commercial status from linked outbound + packing-optional prep state.
+   * Never auto-sets OMS delivered from outbound delivered.
    */
   async syncFromOutbound(
     tx: Tx,
@@ -55,27 +48,35 @@ export class OmsOutboundSyncService {
       },
     });
     if (!oms) return;
-    if (TERMINAL_OMS.includes(oms.status)) return;
+    if (OMS_TERMINAL_STATUSES.has(oms.status)) return;
+    if (OMS_PRE_FULFILLMENT.has(oms.status)) return;
 
     const outbound = await tx.outboundOrder.findUnique({
       where: { id: outboundOrderId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, requiresPacking: true },
     });
     if (!outbound) return;
 
     const next = mapOutboundStatusToOms(outbound.status);
     if (next == null || next === oms.status) return;
 
-    if (
-      oms.status === OmsOrderStatus.pending_approval ||
-      oms.status === OmsOrderStatus.rejected ||
-      oms.status === OmsOrderStatus.draft
-    ) {
-      return;
-    }
+    // Do not regress commercial lifecycle (e.g. shipped → processing).
+    const rank: Partial<Record<OmsOrderStatus, number>> = {
+      [OmsOrderStatus.processing]: 1,
+      [OmsOrderStatus.pending]: 1,
+      [OmsOrderStatus.allocated]: 1,
+      [OmsOrderStatus.picking]: 1,
+      [OmsOrderStatus.packing]: 1,
+      [OmsOrderStatus.ready_to_ship]: 2,
+      [OmsOrderStatus.shipped]: 3,
+      [OmsOrderStatus.out_for_delivery]: 3,
+    };
+    const fromRank = rank[oms.status] ?? 0;
+    const toRank = rank[next] ?? 0;
+    if (toRank < fromRank) return;
 
     const extra: Prisma.OmsOrderUpdateInput = {};
-    if (next === OmsOrderStatus.out_for_delivery) {
+    if (next === OmsOrderStatus.shipped) {
       extra.outForDeliveryAt = new Date();
     }
 
@@ -85,9 +86,13 @@ export class OmsOutboundSyncService {
     });
 
     const eventType =
-      next === OmsOrderStatus.out_for_delivery
-        ? 'oms.out_for_delivery'
-        : omsEventTypeForStatus(next);
+      next === OmsOrderStatus.shipped
+        ? 'oms.shipped'
+        : next === OmsOrderStatus.ready_to_ship
+          ? 'oms.ready_to_ship'
+          : next === OmsOrderStatus.processing
+            ? 'oms.processing'
+            : omsEventTypeForStatus(next);
 
     await this.events.record(tx, {
       omsOrderId: oms.id,
@@ -95,7 +100,12 @@ export class OmsOutboundSyncService {
       companyId: oms.companyId,
       eventType,
       createdBy: actorUserId,
-      payload: { source: 'wms_sync', outboundStatus: outbound.status, omsStatus: next },
+      payload: {
+        source: 'wms_sync',
+        outboundStatus: outbound.status,
+        omsStatus: next,
+        requiresPacking: outbound.requiresPacking,
+      },
     });
 
     this.realtime?.emitOmsOrderEvent(oms.companyId, {
@@ -115,7 +125,7 @@ export class OmsOutboundSyncService {
   }
 
   /**
-   * Create draft outbound from OMS and set commercial status to Pending.
+   * Create draft outbound from OMS and set commercial status to processing.
    * Idempotent when outbound already linked.
    */
   async createOutboundFromOms(
@@ -138,10 +148,15 @@ export class OmsOutboundSyncService {
         select: { id: true, orderNumber: true },
       });
       if (existing) {
-        if (oms.status !== OmsOrderStatus.pending) {
+        if (oms.status !== OmsOrderStatus.processing) {
           await tx.omsOrder.update({
             where: { id: oms.id },
-            data: { status: OmsOrderStatus.pending },
+            data: {
+              status: OmsOrderStatus.processing,
+              approvedAt: oms.approvedAt ?? new Date(),
+              approvedBy: oms.approvedBy ?? params.actorUserId,
+              confirmedAt: oms.confirmedAt ?? new Date(),
+            },
           });
         }
         return { outboundOrderId: existing.id, orderNumber: existing.orderNumber };
@@ -158,7 +173,9 @@ export class OmsOutboundSyncService {
         addressLine2: oms.addressLine2 ?? undefined,
         district: oms.district ?? undefined,
         city: oms.city ?? undefined,
-      }) || oms.destinationAddress || 'OMS order';
+      }) ||
+      oms.destinationAddress ||
+      'OMS order';
 
     const created = await tx.outboundOrder.create({
       data: {
@@ -186,6 +203,7 @@ export class OmsOutboundSyncService {
         codStatus: oms.codStatus ?? undefined,
         storeChannel: oms.storeChannel,
         externalReference: oms.externalReference,
+        ...copyShippingFieldsFromOms(oms),
         lines: {
           create: oms.lines.map((l) => ({
             productId: l.productId,
@@ -220,10 +238,16 @@ export class OmsOutboundSyncService {
       where: { id: oms.id },
       data: {
         outboundOrderId: created.id,
-        status: OmsOrderStatus.pending,
+        status: OmsOrderStatus.processing,
         approvedAt: new Date(),
         approvedBy: params.actorUserId,
         confirmedAt: new Date(),
+        ...(this.allocation.isEnabled()
+          ? {
+              allocationStatus: OmsAllocationStatus.allocated,
+              allocatedAt: new Date(),
+            }
+          : {}),
       },
     });
 
@@ -233,7 +257,11 @@ export class OmsOutboundSyncService {
       companyId: oms.companyId,
       eventType: 'oms.approved',
       createdBy: params.actorUserId,
-      payload: { outboundOrderId: created.id, outboundOrderNumber: created.orderNumber },
+      payload: {
+        outboundOrderId: created.id,
+        outboundOrderNumber: created.orderNumber,
+        omsStatus: OmsOrderStatus.processing,
+      },
     });
 
     await this.events.record(tx, {
@@ -247,7 +275,7 @@ export class OmsOutboundSyncService {
 
     this.realtime?.emitOmsOrderEvent(oms.companyId, {
       orderId: oms.id,
-      status: OmsOrderStatus.pending,
+      status: OmsOrderStatus.processing,
       event: 'oms.approved',
     });
 

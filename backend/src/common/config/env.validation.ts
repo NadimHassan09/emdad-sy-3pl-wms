@@ -89,6 +89,16 @@ const envSchema = z.object({
   LOGIN_BRUTE_FORCE_ENABLED: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
   LOGIN_BRUTE_FORCE_MAX_FAILURES: z.coerce.number().int().min(1).max(100).optional(),
   LOGIN_BRUTE_FORCE_WINDOW_MS: z.coerce.number().int().min(1000).max(3_600_000).optional(),
+  // Google Sign-In (linked accounts only — never auto-provisions users).
+  GOOGLE_OAUTH_ENABLED: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+  GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_OAUTH_REDIRECT_URI: z.string().optional(),
+  GOOGLE_OAUTH_STATE_SECRET: z.string().optional(),
+  GOOGLE_OAUTH_FRONTEND_ORIGIN: z.string().optional(),
+  GOOGLE_OAUTH_SUCCESS_URL: z.string().optional(),
+  GOOGLE_OAUTH_FAILURE_URL: z.string().optional(),
+  GOOGLE_OAUTH_LINK_SUCCESS_URL: z.string().optional(),
 });
 
 function envBool(raw: unknown): boolean {

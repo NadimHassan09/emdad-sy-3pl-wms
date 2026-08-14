@@ -51,6 +51,7 @@ exports.RealtimeEvents = {
     INVOICE_UPDATED: 'invoice.updated',
     PLAN_UPDATED: 'plan.updated',
     BACKUP_JOB_PROGRESS: 'backup.job.progress',
+    SHIPPING_BULK_PROGRESS: 'shipping.bulk.progress',
     PRESENCE_ONLINE: 'presence.online',
     PRESENCE_OFFLINE: 'presence.offline',
     AUTH_SESSION_CHANGED: 'auth.session.changed',

@@ -92,6 +92,8 @@ function prettyTaskType(taskType: string): string {
       return 'Pick';
     case 'pack':
       return 'Pack';
+    case 'shipping_details':
+      return 'Shipping details';
     case 'dispatch':
       return 'Dispatch';
     case 'qc':
@@ -118,7 +120,7 @@ function isActiveStatus(status: string): boolean {
 function taskSequence(referenceType: 'inbound_order' | 'outbound_order') {
   return referenceType === 'inbound_order'
     ? ['receiving', 'qc', 'putaway', 'putaway_quarantine', 'routing', 'dispatch']
-    : ['pick', 'pack', 'dispatch', 'routing'];
+    : ['pick', 'pack', 'shipping_details', 'dispatch', 'routing'];
 }
 
 function workflowState(task: WorkflowTimelineTask): 'completed' | 'active' | 'pending' {

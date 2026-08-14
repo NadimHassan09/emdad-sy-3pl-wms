@@ -9,9 +9,17 @@ import { InventoryApi } from '../../api/inventory';
 import { CreateOutboundOrderInput, OutboundApi } from '../../api/outbound';
 import type { Product } from '../../api/products';
 import { ProductsApi } from '../../api/products';
+import {
+  emptyOrderShippingFields,
+  isShippingConfigLocked,
+  orderShippingFieldsFromApi,
+  orderShippingIntentToPayload,
+  type OrderShippingFieldsValue,
+} from '../../api/shipping';
 import { Combobox } from '../../components/Combobox';
 import { DispatchDockPicker } from '../../components/locations/DispatchDockPicker';
 import { PackingLocationPicker } from '../../components/locations/PackingLocationPicker';
+import { OrderShippingIntentFields } from '../../components/shipping/OrderShippingIntentFields';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
@@ -22,15 +30,6 @@ import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../../lib/order-
 
 const DEFAULT_COMPANY_ID = (import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined) ?? '';
 const NOTES_MAX = 500;
-
-const CARRIER_OPTIONS = [
-  { value: 'Aramex', label: 'Aramex' },
-  { value: 'DHL', label: 'DHL' },
-  { value: 'FedEx', label: 'FedEx' },
-  { value: 'UPS', label: 'UPS' },
-  { value: 'Local courier', label: 'Local courier' },
-  { value: 'Customer pickup', label: 'Customer pickup' },
-];
 
 type DraftLine = {
   key: string;
@@ -52,11 +51,13 @@ function tLabel(label: string, ar: boolean): string {
     'General information': 'معلومات عامة',
     Client: 'العميل',
     'Required ship date': 'تاريخ الشحن المطلوب',
-    Carrier: 'الناقل',
-    'Select carrier (optional)': 'اختر الناقل (اختياري)',
     Notes: 'ملاحظات',
     'Add any notes about this outbound order…': 'أضف أي ملاحظات عن طلب الصادر…',
     'Destination address': 'عنوان الوجهة',
+    'Inherited from OMS': 'موروث من طلب OMS',
+    'Shipping is managed on the linked OMS order. Edit the OMS order to change carrier settings.':
+      'إعدادات الشحن تُدار من طلب OMS المرتبط. عدّل طلب OMS لتغيير إعدادات الناقل.',
+    'Linked OMS order': 'طلب OMS المرتبط',
     'Packing & dispatch': 'التغليف والإرسال',
     'Packing required': 'التغليف مطلوب',
     'Each product will be packed before dispatch.': 'سيُغلَّف كل منتج قبل الإرسال.',
@@ -70,13 +71,14 @@ function tLabel(label: string, ar: boolean): string {
     'Set a default warehouse first.': 'عيّن مستودعاً افتراضياً أولاً.',
     'Select a packing location.': 'اختر موقع التغليف.',
     'Select a dispatch dock.': 'اختر رصيف الإرسال.',
+    Shipping: 'الشحن',
     'Execution mode': 'وضع التنفيذ',
     'Execute by Admin': 'تنفيذ بواسطة المسؤول',
-    'I will do the warehouse work myself, then Confirm order.':
-      'سأتولى عمل المستودع بنفسي، ثم أؤكّد الطلب.',
+    'I will do the warehouse work myself, then Approve and complete each stage.':
+      'سأتولى عمل المستودع بنفسي، ثم أوافق وأكمل كل مرحلة.',
     'Pick, pack (if required) and dispatch': 'التقاط وتغليف (إن لزم) وإرسال',
-    'Confirm once from the order page — no stage tabs.':
-      'تأكيد واحد من صفحة الطلب — بدون تبويبات مراحل.',
+    'Saving the plan only configures the workflow — stages are completed on the order page.':
+      'حفظ الخطة يضبط سير العمل فقط — إكمال المراحل يتم من صفحة الطلب.',
     'Execute by Workers': 'تنفيذ بواسطة العمال',
     'Release to workers after the plan is ready. Workers execute Tasks.':
       'أطلق للعمال بعد جاهزية الخطة. العمال ينفّذون المهام.',
@@ -93,8 +95,8 @@ function tLabel(label: string, ar: boolean): string {
     Available: 'المتاح',
     'Total items:': 'إجمالي القطع:',
     'Next steps': 'الخطوات التالية',
-    'Click Save plan to create a draft. Print and Confirm (or Release) from the order page.':
-      'اضغط حفظ الخطة لإنشاء مسودة. اطبع وأكّد (أو أطلِق) من صفحة الطلب.',
+    'Click Save plan to create a draft. Print and Approve (or Release) from the order page.':
+      'اضغط حفظ الخطة لإنشاء مسودة. اطبع ووافق (أو أطلِق) من صفحة الطلب.',
     'Pick a client.': 'اختر عميلاً.',
     'Enter a destination address.': 'أدخل عنوان الوجهة.',
     'Required ship date cannot be before today.': 'لا يمكن أن يكون تاريخ الشحن المطلوب قبل اليوم.',
@@ -193,7 +195,6 @@ export function OutboundCreatePage() {
   const [companyId, setCompanyId] = useState(DEFAULT_COMPANY_ID);
   const [shipDate, setShipDate] = useState(() => localCalendarDateYmd());
   const [destination, setDestination] = useState('');
-  const [carrier, setCarrier] = useState('');
   const [notes, setNotes] = useState('');
   const [requiresPacking, setRequiresPacking] = useState(true);
   const [executionMode, setExecutionMode] = useState<OrderExecutionMode>('admin');
@@ -208,6 +209,7 @@ export function OutboundCreatePage() {
   const [lines, setLines] = useState<DraftLine[]>([
     { key: '1', productId: '', requestedQuantity: '' },
   ]);
+  const [shipping, setShipping] = useState<OrderShippingFieldsValue>(emptyOrderShippingFields);
 
   const existing = useQuery({
     queryKey: [...QK.outboundOrders, editId],
@@ -222,7 +224,6 @@ export function OutboundCreatePage() {
     setCompanyId(o.companyId);
     setShipDate(o.requiredShipDate.slice(0, 10));
     setDestination(o.destinationAddress ?? '');
-    setCarrier(o.carrier ?? '');
     setNotes(o.notes ?? '');
     setRequiresPacking(o.requiresPacking !== false);
     setExecutionMode(o.executionMode === 'workers' ? 'workers' : 'admin');
@@ -236,6 +237,7 @@ export function OutboundCreatePage() {
         requestedQuantity: String(l.requestedQuantity),
       })),
     );
+    setShipping(orderShippingFieldsFromApi(o));
   }, [existing.data]);
 
   const companies = useQuery({
@@ -296,8 +298,9 @@ export function OutboundCreatePage() {
 
   const availabilityResults = useQueries({
     queries: distinctProductIds.map((pid) => ({
-      queryKey: QK.availability(pid, companyId),
-      queryFn: () => InventoryApi.availability(pid, companyId),
+      queryKey: QK.availability(pid, companyId, isEdit ? editId : undefined),
+      queryFn: () =>
+        InventoryApi.availability(pid, companyId, isEdit ? editId : undefined),
       enabled: !!pid && !!companyId,
       staleTime: 10_000,
     })),
@@ -343,12 +346,14 @@ export function OutboundCreatePage() {
     [lines],
   );
 
-  const carrierOptions = useMemo(() => {
-    if (carrier && !CARRIER_OPTIONS.some((c) => c.value === carrier)) {
-      return [{ value: carrier, label: carrier }, ...CARRIER_OPTIONS];
-    }
-    return CARRIER_OPTIONS;
-  }, [carrier]);
+  const linkedOms = existing.data?.omsOrder ?? null;
+  const shippingLocked =
+    (isEdit && isShippingConfigLocked(existing.data?.status)) || !!linkedOms;
+  const shippingLockMessage = linkedOms
+    ? t(
+        'Shipping is managed on the linked OMS order. Edit the OMS order to change carrier settings.',
+      )
+    : undefined;
 
   const saveMut = useMutation({
     mutationFn: async () => {
@@ -398,6 +403,8 @@ export function OutboundCreatePage() {
         if (issues.length) throw new Error(issues[0]!);
       }
 
+      const shippingPayload = shippingLocked ? {} : orderShippingIntentToPayload(shipping);
+
       if (isEdit) {
         return OutboundApi.updatePlan(editId!, {
           executionMode,
@@ -406,6 +413,7 @@ export function OutboundCreatePage() {
           notes: notes.trim() || undefined,
           destinationAddress: destination.trim(),
           requiresPacking,
+          ...shippingPayload,
         });
       }
 
@@ -413,7 +421,6 @@ export function OutboundCreatePage() {
         companyId,
         destinationAddress: destination.trim(),
         requiredShipDate: shipDate,
-        carrier: carrier.trim() || undefined,
         notes: notes.trim() || undefined,
         requiresPacking,
         executionMode,
@@ -422,6 +429,7 @@ export function OutboundCreatePage() {
           productId: l.productId,
           requestedQuantity: Number(l.requestedQuantity),
         })),
+        ...shippingPayload,
       };
       return OutboundApi.create(input);
     },
@@ -480,9 +488,9 @@ export function OutboundCreatePage() {
               icon="fa-user"
               title={t('Execute by Admin')}
               bullets={[
-                t('I will do the warehouse work myself, then Confirm order.'),
+                t('I will do the warehouse work myself, then Approve and complete each stage.'),
                 t('Pick, pack (if required) and dispatch'),
-                t('Confirm once from the order page — no stage tabs.'),
+                t('Saving the plan only configures the workflow — stages are completed on the order page.'),
               ]}
             />
             <ModeOption
@@ -520,21 +528,14 @@ export function OutboundCreatePage() {
               value={shipDate}
               onChange={(e) => setShipDate(e.target.value)}
             />
-            <Combobox
-              label={t('Carrier')}
-              value={carrier}
-              onChange={setCarrier}
-              options={carrierOptions}
-              placeholder={t('Select carrier (optional)')}
-              clearable
-              dropdownInFlow
-            />
-            <TextField
-              label={t('Destination address')}
-              required
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-            />
+            <div className="md:col-span-2">
+              <TextField
+                label={t('Destination address')}
+                required
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+              />
+            </div>
           </div>
           <div>
             <Textarea
@@ -703,6 +704,41 @@ export function OutboundCreatePage() {
         </section>
 
         <section className="space-y-5">
+          <SectionHeading title={t('Shipping plan')} />
+          {linkedOms ? (
+            <p className="rounded-lg border border-border-subtle bg-surface-sunken px-3 py-2 text-xs text-text-body">
+              {t('Inherited from OMS')}
+              {': '}
+              <Link
+                to={`/orders/oms/${linkedOms.id}`}
+                className="font-semibold text-brand-700 hover:underline"
+              >
+                {linkedOms.orderNumber}
+              </Link>
+              {' — '}
+              {t(
+                'Shipping is managed on the linked OMS order. Edit the OMS order to change carrier settings.',
+              )}
+            </p>
+          ) : null}
+          <OrderShippingIntentFields
+            value={shipping}
+            onChange={(next) =>
+              setShipping((prev) => ({
+                ...prev,
+                shippingMethod: next.shippingMethod,
+                shippingProviderCode: next.shippingProviderCode,
+              }))
+            }
+            locked={shippingLocked}
+            lockMessage={shippingLockMessage}
+            showTitle={false}
+            disabled={loading}
+            available={shippingLocked || totalItems > 0}
+          />
+        </section>
+
+        <section className="space-y-5">
           <SectionHeading title={t('Packing & dispatch')} />
           <label className="flex cursor-pointer items-start gap-3">
             <input
@@ -785,7 +821,7 @@ export function OutboundCreatePage() {
         <p className="text-sm text-text-muted">
           <span className="font-semibold text-text-strong">{t('Next steps')}: </span>
           {t(
-            'Click Save plan to create a draft. Print and Confirm (or Release) from the order page.',
+            'Click Save plan to create a draft. Print and Approve (or Release) from the order page.',
           )}
         </p>
 

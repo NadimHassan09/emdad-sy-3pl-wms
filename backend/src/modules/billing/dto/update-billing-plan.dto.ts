@@ -1,10 +1,31 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsNumber, IsOptional, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  Min,
+} from 'class-validator';
+
+export type BillingPlanApplyMode = 'immediate' | 'next_cycle';
 
 export class UpdateBillingPlanDto {
+  /**
+   * immediate — refresh the live cycle rate snapshot and recalculate the draft invoice.
+   * next_cycle — update the plan only; active cycle keeps its existing snapshot (default).
+   */
+  @IsOptional()
+  @IsIn(['immediate', 'next_cycle'])
+  applyMode?: BillingPlanApplyMode;
+
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  autoRenew?: boolean;
 
   @IsOptional()
   @IsInt()

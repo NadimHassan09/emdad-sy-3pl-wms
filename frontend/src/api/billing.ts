@@ -10,6 +10,8 @@ export type BillingPlanRow = {
   id: string;
   companyId: string;
   active: boolean;
+  /** When true, expired cycles automatically start the next billing cycle. */
+  autoRenew?: boolean;
   cycleLengthDays: number;
   fixedSubscriptionFee: string;
   inboundOrderFee: string;
@@ -139,6 +141,7 @@ export type BillingCyclePreview = {
 export type CreateBillingPlanPayload = {
   companyId: string;
   active?: boolean;
+  autoRenew?: boolean;
   cycleLengthDays: number;
   fixedSubscriptionFee?: number;
   inboundOrderFee?: number;
@@ -153,6 +156,8 @@ export type CreateBillingPlanPayload = {
   reservedVolume?: number;
   reservedWeight?: number;
   cycleStartsAt?: string;
+  planType?: BillingPlanType;
+  templateId?: string | null;
 };
 
 export type UpdateBillingPlanPayload = Partial<
@@ -288,6 +293,7 @@ export type BillingPlanOverviewItem = {
   companyId: string;
   companyName: string;
   companyStatus: string;
+  companyLogoUrl?: string | null;
   currentCycle: BillingCycleRow | null;
   cycleStart: string | null;
   cycleEnd: string | null;
@@ -303,7 +309,10 @@ export type ListBillingPlansParams = {
   cycleStatus?: '' | 'active' | 'renewed' | 'expired' | 'none';
   daysRemaining?: '' | 'critical' | 'warning' | 'healthy' | 'expired' | 'none';
   billingStatus?: '' | 'operational' | 'restricted' | 'inactive';
+  planStatus?: '' | 'active' | 'inactive';
   planType?: '' | 'custom' | 'template';
+  cycleStartFrom?: string;
+  cycleStartTo?: string;
   expiryFrom?: string;
   expiryTo?: string;
   sort_by?:

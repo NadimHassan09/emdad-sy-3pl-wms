@@ -23,6 +23,8 @@ export const QK = {
   outboundOrders: ['outbound-orders'] as const,
   omsOrders: ['oms-orders'] as const,
   omsDashboard: ['oms-dashboard'] as const,
+  omsOrderSummary: (params: Record<string, unknown>) =>
+    ['oms-dashboard', 'order-summary', params] as const,
   contracts: ['contracts'] as const,
   contractsGrn: ['contracts', 'grn'] as const,
   contractsDn: ['contracts', 'dn'] as const,
@@ -33,6 +35,10 @@ export const QK = {
   },
   dashboardOverview: ['dashboard', 'overview'] as const,
   dashboardOpenOrdersCharts: ['dashboard', 'open-orders-charts'] as const,
+  dashboardOrderSeries: (params: Record<string, unknown>) =>
+    ['dashboard', 'order-series', params] as const,
+  dashboardTopProducts: (params: Record<string, unknown>) =>
+    ['dashboard', 'top-products', params] as const,
   presenceOnlineUsers: ['presence', 'online-users'] as const,
   reports: {
     all: ['reports'] as const,
@@ -40,8 +46,8 @@ export const QK = {
       ['reports', reportId, params] as const,
   },
   adjustments: ['adjustments'] as const,
-  availability: (productId: string, companyId: string) =>
-    ['availability', productId, companyId] as const,
+  availability: (productId: string, companyId: string, outboundOrderId?: string) =>
+    ['availability', productId, companyId, outboundOrderId ?? null] as const,
   locations: {
     all: ['locations'] as const,
     children: (
@@ -118,6 +124,13 @@ export const QK = {
     healthAudit: ['backups', 'audit', 'health'] as const,
     storagePolicy: ['backups', 'storage-policy'] as const,
     googleDrive: ['integrations', 'google-drive'] as const,
+  },
+  shipping: {
+    all: ['shipping'] as const,
+    providers: ['shipping', 'providers'] as const,
+    boundary: (governorate: string, city: string, neighborhood: string) =>
+      ['shipping', 'geo', 'boundary', governorate, city, neighborhood] as const,
+    rates: (params: Record<string, unknown>) => ['shipping', 'rates', params] as const,
   },
   cycleCount: {
     all: ['cycle-count'] as const,

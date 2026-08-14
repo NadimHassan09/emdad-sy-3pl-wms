@@ -10,6 +10,7 @@ exports.DEFAULT_SLA_MINUTES_BY_TASK_TYPE = {
     [client_1.WarehouseTaskType.putaway_quarantine]: 2880,
     [client_1.WarehouseTaskType.pick]: 480,
     [client_1.WarehouseTaskType.pack]: 240,
+    [client_1.WarehouseTaskType.shipping_details]: 480,
     [client_1.WarehouseTaskType.dispatch]: 360,
 };
 function defaultSlaMinutesForTaskType(taskType) {

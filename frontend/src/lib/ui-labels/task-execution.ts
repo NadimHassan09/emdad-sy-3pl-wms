@@ -17,6 +17,7 @@ export function localizedTaskTypeTitle(taskType: string, t: TFn): string {
     pick: ['Pick', 'التقاط'],
     pack: ['Pack', 'تغليف'],
     dispatch: ['Dispatch', 'إرسال'],
+    shipping_details: ['Shipping details', 'تفاصيل الشحن'],
     routing: ['Routing', 'توجيه'],
   };
   const msg = m[taskType];

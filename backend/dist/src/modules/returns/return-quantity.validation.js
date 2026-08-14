@@ -128,10 +128,28 @@ let ReturnQuantityValidation = class ReturnQuantityValidation {
             const alreadyReturned = await this.sumActiveReturnQuantity(originalOutboundOrderId, key, excludeReturnOrderId, tx);
             const total = alreadyReturned.add(add);
             if (total.gt(max)) {
-                throw new common_1.BadRequestException(`Return quantity exceeds shipped quantity for ${key.replace(/^line:|^product:/, '')} ` +
+                const label = await this.bucketLabel(key, outbound, tx);
+                throw new common_1.BadRequestException(`Return quantity exceeds shipped quantity for ${label} ` +
                     `(shipped ${max.toString()}, already returned ${alreadyReturned.toString()}, requested ${add.toString()}).`);
             }
         }
+    }
+    async bucketLabel(bucketKey, outbound, tx) {
+        let productId;
+        if (bucketKey.startsWith('line:')) {
+            const lineId = bucketKey.slice(5);
+            productId = outbound.lines.find((l) => l.id === lineId)?.productId;
+        }
+        else if (bucketKey.startsWith('product:')) {
+            productId = bucketKey.split(':')[1];
+        }
+        if (!productId)
+            return bucketKey.replace(/^line:|^product:/, '');
+        const product = await this.client(tx).product.findUnique({
+            where: { id: productId },
+            select: { sku: true },
+        });
+        return product?.sku ?? productId;
     }
     async sumActiveReturnQuantity(outboundOrderId, bucketKey, excludeReturnOrderId, tx) {
         const isLineBucket = bucketKey.startsWith('line:');

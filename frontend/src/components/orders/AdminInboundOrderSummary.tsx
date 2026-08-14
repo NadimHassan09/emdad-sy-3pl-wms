@@ -83,10 +83,10 @@ export function AdminInboundOrderSummary({ order }: Props) {
   const mode = normalizeExecutionMode(order.executionMode);
   const isAdminMode = isAdminExecutionMode(order.executionMode);
   const hasReceived = order.lines.some((l) => Number(l.receivedQuantity) > 0);
-  const isPlannable =
-    order.status === 'draft' ||
-    order.status === 'pending_approval' ||
-    ((order.status === 'confirmed' || order.status === 'in_progress') && !hasReceived);
+  /** Plan edit / Approve|Release only before warehouse execution starts. */
+  const isWaitingApproval =
+    order.status === 'draft' || order.status === 'pending_approval';
+  const isPlannable = isWaitingApproval;
   const plan = order.executionPlan;
   const [printedAt, setPrintedAt] = useState<string | null>(null);
 
@@ -120,31 +120,79 @@ export function AdminInboundOrderSummary({ order }: Props) {
   const timeline = useQuery({
     queryKey: QK.workflows.timeline('inbound_order', order.id),
     queryFn: () => WorkflowsApi.getTimeline('inbound_order', order.id, order.companyId),
-    enabled: !isPlannable,
+    enabled: !isWaitingApproval,
   });
 
-  const confirmMut = useMutation({
+  const openTasks = (timeline.data?.tasks ?? []).filter(
+    (t) => t.status === 'pending' || t.status === 'assigned' || t.status === 'in_progress',
+  );
+  const hasOpenReceiving = openTasks.some((t) => t.taskType === 'receiving');
+  const hasOpenPutaway = openTasks.some(
+    (t) => t.taskType === 'putaway' || t.taskType === 'putaway_quarantine',
+  );
+
+  type AdminStageAction =
+    | 'approve'
+    | 'complete_receiving'
+    | 'complete_putaway'
+    | 'release';
+
+  const adminStageAction: AdminStageAction | null = useMemo(() => {
+    if (order.status === 'completed' || order.status === 'cancelled') return null;
+    if (!isAdminMode) {
+      return isWaitingApproval ? 'release' : null;
+    }
+    if (isWaitingApproval) return 'approve';
+    if (hasOpenReceiving || (!hasReceived && (order.status === 'in_progress' || order.status === 'confirmed'))) {
+      return 'complete_receiving';
+    }
+    if (hasOpenPutaway || hasReceived) {
+      return 'complete_putaway';
+    }
+    return null;
+  }, [
+    hasOpenPutaway,
+    hasOpenReceiving,
+    hasReceived,
+    isAdminMode,
+    isWaitingApproval,
+    order.status,
+  ]);
+
+  const stageMut = useMutation({
     mutationFn: async () => {
-      if (!planReady || !plan) throw new Error('Complete the warehouse plan first.');
-      if (isAdminMode) {
-        return InboundApi.executeAdmin(order.id, order.companyId);
+      if (adminStageAction === 'release') {
+        if (!planReady || !plan) throw new Error('Complete the warehouse plan first.');
+        const stagingByLineId: Record<string, string> = {};
+        for (const line of order.lines) {
+          stagingByLineId[line.id] = plan.receivingDockId;
+        }
+        return InboundApi.confirm(
+          order.id,
+          { warehouseId: plan.warehouseId, stagingByLineId },
+          order.companyId,
+        );
       }
-      const stagingByLineId: Record<string, string> = {};
-      for (const line of order.lines) {
-        stagingByLineId[line.id] = plan.receivingDockId;
+      if (adminStageAction === 'approve') {
+        if (!planReady || !plan) throw new Error('Complete the warehouse plan first.');
+        return InboundApi.approve(order.id, order.companyId);
       }
-      return InboundApi.confirm(
-        order.id,
-        { warehouseId: plan.warehouseId, stagingByLineId },
-        order.companyId,
-      );
+      if (adminStageAction === 'complete_receiving') {
+        return InboundApi.completeReceiving(order.id, order.companyId);
+      }
+      if (adminStageAction === 'complete_putaway') {
+        return InboundApi.completePutaway(order.id, order.companyId);
+      }
+      throw new Error('No stage action available.');
     },
     onSuccess: () => {
-      toast.success(
-        isAdminMode
-          ? 'Order confirmed. Inventory updated.'
-          : 'Released to workers. Tasks are ready.',
-      );
+      const messages: Record<AdminStageAction, string> = {
+        approve: 'Order approved. Waiting for receiving.',
+        complete_receiving: 'Receiving marked complete.',
+        complete_putaway: 'Putaway marked complete.',
+        release: 'Released to workers. Tasks are ready.',
+      };
+      if (adminStageAction) toast.success(messages[adminStageAction]);
       qc.invalidateQueries({ queryKey: [...QK.inboundOrders, order.id] });
       qc.invalidateQueries({ queryKey: QK.inboundOrders });
       invalidateWorkflowTasksInventory(qc, {
@@ -155,9 +203,25 @@ export function AdminInboundOrderSummary({ order }: Props) {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  const openTasks = (timeline.data?.tasks ?? []).filter(
-    (t) => t.status === 'pending' || t.status === 'assigned' || t.status === 'in_progress',
-  );
+  const stageCtaLabel =
+    adminStageAction === 'approve'
+      ? 'Approve'
+      : adminStageAction === 'complete_receiving'
+        ? 'Mark Receiving as Complete'
+        : adminStageAction === 'complete_putaway'
+          ? 'Mark Putaway as Complete'
+          : adminStageAction === 'release'
+            ? 'Release to workers'
+            : null;
+
+  const statusDisplayLabel =
+    order.status === 'pending_approval'
+      ? 'Waiting for Approval'
+      : adminStageAction === 'complete_receiving'
+        ? 'Waiting for Receiving'
+        : adminStageAction === 'complete_putaway'
+          ? 'Waiting for Putaway'
+          : null;
 
   return (
     <div className="space-y-5 animate-enter">
@@ -174,9 +238,13 @@ export function AdminInboundOrderSummary({ order }: Props) {
             <h1 className="text-xl font-semibold text-text-strong font-mono">
               {order.orderNumber || order.id}
             </h1>
-            {order.status === 'draft' || order.status === 'pending_approval' ? (
+            {isWaitingApproval ? (
               <span className="rounded-full bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-fg">
-                {order.status === 'pending_approval' ? 'Pending approval' : 'Planned'}
+                {order.status === 'pending_approval' ? 'Waiting for Approval' : 'Planned'}
+              </span>
+            ) : statusDisplayLabel ? (
+              <span className="rounded-full bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning-fg">
+                {statusDisplayLabel}
               </span>
             ) : (
               <StatusBadge status={order.status} />
@@ -184,7 +252,7 @@ export function AdminInboundOrderSummary({ order }: Props) {
           </div>
           <p className="mt-1 text-sm text-text-muted">
             {isAdminMode
-              ? 'Review plan, print instructions, execute physically, then confirm.'
+              ? 'Review plan, then complete receiving and putaway explicitly.'
               : 'Complete the plan, then release work to warehouse workers.'}
           </p>
         </div>
@@ -211,21 +279,23 @@ export function AdminInboundOrderSummary({ order }: Props) {
           >
             Print instructions
           </Button>
-          {isPlannable ? (
+          {stageCtaLabel ? (
             <Button
               type="button"
               variant="primary"
               size="md"
-              loading={confirmMut.isPending}
-              disabled={!planReady}
-              title={
-                planReady
-                  ? undefined
-                  : 'Complete the warehouse plan (dock + putaway) before confirming.'
+              loading={stageMut.isPending}
+              disabled={
+                (adminStageAction === 'approve' || adminStageAction === 'release') && !planReady
               }
-              onClick={() => confirmMut.mutate()}
+              title={
+                (adminStageAction === 'approve' || adminStageAction === 'release') && !planReady
+                  ? 'Complete the warehouse plan (dock + putaway) first.'
+                  : undefined
+              }
+              onClick={() => stageMut.mutate()}
             >
-              {isAdminMode ? 'Confirm order' : 'Release to workers'}
+              {stageCtaLabel}
             </Button>
           ) : null}
         </div>
@@ -233,7 +303,7 @@ export function AdminInboundOrderSummary({ order }: Props) {
 
       {isPlannable && !planReady ? (
         <Alert variant="warning" title="Warehouse plan incomplete">
-          Open Complete plan, then {isAdminMode ? 'Confirm' : 'Release'}.
+          Open Complete plan, then {isAdminMode ? 'Approve' : 'Release'}.
         </Alert>
       ) : null}
 
@@ -397,7 +467,11 @@ export function AdminInboundOrderSummary({ order }: Props) {
       {!isPlannable && openTasks.length > 0 ? (
         <div className="rounded-xl border border-border bg-surface-card p-5 space-y-2">
           <h2 className="text-sm font-semibold text-text-strong">Open warehouse tasks</h2>
-          <p className="text-xs text-text-muted">Monitor only — Workers execute on the Tasks page.</p>
+          <p className="text-xs text-text-muted">
+            {isAdminMode
+              ? 'Stage actions above complete the current open task.'
+              : 'Monitor only — Workers execute on the Tasks page.'}
+          </p>
           <ul className="space-y-1 text-sm">
             {openTasks.map((t) => (
               <li key={t.id}>
@@ -421,9 +495,9 @@ export function AdminInboundOrderSummary({ order }: Props) {
       />
 
       {isPlannable ? (
-        <Alert variant="info" title={isAdminMode ? 'After physical work' : 'After release'}>
+        <Alert variant="info" title={isAdminMode ? 'Staged Admin execution' : 'After release'}>
           {isAdminMode
-            ? 'Click Confirm order to complete receiving and putaway and update inventory. You do not need the Tasks page.'
+            ? 'Approve starts receiving only. Mark receiving complete, then mark putaway complete — each stage separately.'
             : 'Release starts the workflow. Workers complete tasks on /tasks. Do not confirm stages here.'}
         </Alert>
       ) : null}

@@ -21,6 +21,9 @@ class ListBillingPlansQueryDto extends pagination_dto_1.PaginationDto {
     cycleStatus;
     daysRemaining;
     billingStatus;
+    planStatus;
+    cycleStartFrom;
+    cycleStartTo;
     expiryFrom;
     expiryTo;
     sort_by;
@@ -58,6 +61,24 @@ __decorate([
     (0, class_validator_1.IsIn)(['operational', 'restricted', 'inactive']),
     __metadata("design:type", String)
 ], ListBillingPlansQueryDto.prototype, "billingStatus", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['active', 'inactive']),
+    __metadata("design:type", String)
+], ListBillingPlansQueryDto.prototype, "planStatus", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(DAY, { message: 'cycleStartFrom must be YYYY-MM-DD' }),
+    __metadata("design:type", String)
+], ListBillingPlansQueryDto.prototype, "cycleStartFrom", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(DAY, { message: 'cycleStartTo must be YYYY-MM-DD' }),
+    __metadata("design:type", String)
+], ListBillingPlansQueryDto.prototype, "cycleStartTo", void 0);
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),

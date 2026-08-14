@@ -20,20 +20,27 @@ import {
 import { computeInvoiceTotals, sumLineTotals } from './billing-totals.util';
 
 /** System lines still generated on each recalculation. */
-const SYSTEM_LINE_TYPES: BillingInvoiceLineType[] = ['subscription'];
-
-/**
- * Former usage-based system charges. Invoices are fixed-subscription only;
- * these types are deleted on recalc so totals match the plan price.
- */
-const RETIRED_USAGE_LINE_TYPES: BillingInvoiceLineType[] = [
+const SYSTEM_LINE_TYPES: BillingInvoiceLineType[] = [
+  'subscription',
   'inbound',
   'outbound',
+];
+
+/**
+ * Former usage-based system charges kept retired (packaging / QC / storage).
+ * Deleted on recalc so they cannot linger on draft invoices.
+ */
+const RETIRED_USAGE_LINE_TYPES: BillingInvoiceLineType[] = [
   'packaging',
   'quality_check',
   'excess_volume',
   'excess_weight',
 ];
+
+type CycleOrderMetrics = {
+  inboundCount: number;
+  outboundCount: number;
+};
 
 const PLAN_RATE_SELECT = {
   id: true,
@@ -168,7 +175,12 @@ export class BillingInvoiceCalculationService {
     if (!rates) return null;
 
     const windowEnd = cycle.endsAt < now ? cycle.endsAt : now;
-    const lines = this.computeLines(rates);
+    const metrics = await this.collectCycleMetrics(
+      companyId,
+      cycle.startsAt,
+      windowEnd,
+    );
+    const lines = this.computeLines(rates, metrics);
 
     const result = await this.prisma.$transaction(async (tx) => {
       const invoice = await this.getOrCreateDraftInvoice(tx, companyId, cycle.id);
@@ -242,7 +254,7 @@ export class BillingInvoiceCalculationService {
     });
     if (!plan) return null;
 
-    const baseFee = plan.outboundBaseFee.gt(0)
+    const outboundBaseFee = plan.outboundBaseFee.gt(0)
       ? plan.outboundBaseFee
       : plan.outboundOrderFee;
 
@@ -250,8 +262,8 @@ export class BillingInvoiceCalculationService {
       billingPlanId: plan.id,
       fixedSubscriptionFee: plan.fixedSubscriptionFee.toString(),
       inboundOrderFee: plan.inboundOrderFee.toString(),
-      outboundOrderFee: baseFee.toString(),
-      outboundBaseFee: baseFee.toString(),
+      outboundOrderFee: plan.outboundOrderFee.toString(),
+      outboundBaseFee: outboundBaseFee.toString(),
       outboundIncludedItems: plan.outboundIncludedItems,
       outboundAdditionalItemFee: plan.outboundAdditionalItemFee.toString(),
       packagingFee: plan.packagingFee.toString(),
@@ -264,20 +276,69 @@ export class BillingInvoiceCalculationService {
     });
   }
 
-  private computeLines(
+  private async collectCycleMetrics(
+    companyId: string,
+    windowStart: Date,
+    windowEnd: Date,
+  ): Promise<CycleOrderMetrics> {
+    const [inboundCount, outboundCount] = await Promise.all([
+      this.prisma.inboundOrder.count({
+        where: {
+          companyId,
+          status: 'completed',
+          completedAt: { gte: windowStart, lte: windowEnd },
+        },
+      }),
+      this.prisma.outboundOrder.count({
+        where: {
+          companyId,
+          status: 'shipped',
+          shippedAt: { gte: windowStart, lte: windowEnd },
+        },
+      }),
+    ]);
+    return { inboundCount, outboundCount };
+  }
+
+  /** Exported for unit tests — keeps line math pure and free of Prisma. */
+  static computeSystemLines(
     rates: ReturnType<typeof rateSnapshotToDecimals>,
+    metrics: CycleOrderMetrics,
   ): BillingLineComputation[] {
-    return SYSTEM_LINE_TYPES.map((type) => {
-      const quantity = new Prisma.Decimal(1);
-      const unitPrice = rates.fixedSubscriptionFee;
+    const lines: BillingLineComputation[] = [];
+
+    for (const type of SYSTEM_LINE_TYPES) {
+      let quantity: Prisma.Decimal;
+      let unitPrice: Prisma.Decimal;
+
+      if (type === 'subscription') {
+        quantity = new Prisma.Decimal(1);
+        unitPrice = rates.fixedSubscriptionFee;
+      } else if (type === 'inbound') {
+        quantity = new Prisma.Decimal(metrics.inboundCount);
+        unitPrice = rates.inboundOrderFee;
+      } else {
+        quantity = new Prisma.Decimal(metrics.outboundCount);
+        unitPrice = rates.outboundOrderFee;
+      }
+
       const totalPrice = quantity.mul(unitPrice).toDecimalPlaces(2);
-      return {
+      lines.push({
         type,
         quantity: quantity.toFixed(4),
         unitPrice: unitPrice.toFixed(4),
         totalPrice: totalPrice.toFixed(2),
-      };
-    });
+      });
+    }
+
+    return lines;
+  }
+
+  private computeLines(
+    rates: ReturnType<typeof rateSnapshotToDecimals>,
+    metrics: CycleOrderMetrics,
+  ): BillingLineComputation[] {
+    return BillingInvoiceCalculationService.computeSystemLines(rates, metrics);
   }
 
   private async syncOrderChargeLines(

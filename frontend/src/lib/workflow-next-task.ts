@@ -5,7 +5,7 @@ export type WorkflowReferenceType = 'inbound_order' | 'outbound_order';
 export function workflowTaskSequence(referenceType: WorkflowReferenceType): string[] {
   return referenceType === 'inbound_order'
     ? ['receiving', 'qc', 'putaway', 'putaway_quarantine', 'routing', 'dispatch']
-    : ['pick', 'pack', 'dispatch', 'routing'];
+    : ['pick', 'pack', 'shipping_details', 'dispatch', 'routing'];
 }
 
 export function sortWorkflowTimelineTasks(
@@ -66,6 +66,8 @@ export function prettyWorkflowTaskType(
       return t(['Pick', 'التقاط']);
     case 'pack':
       return t(['Pack', 'تغليف']);
+    case 'shipping_details':
+      return t(['Shipping details', 'تفاصيل الشحن']);
     case 'dispatch':
       return t(['Dispatch', 'إرسال']);
     case 'routing':

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CodRecordStatus, OmsCodStatus, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
@@ -10,30 +10,20 @@ import { CreateOmsOrderDto } from '../../oms/dto/oms-order.dto';
 import { OmsOrdersService } from '../../oms/oms-orders.service';
 import { CreateClientOmsOrderDto } from './dto/create-client-oms-order.dto';
 import { ClientCodReportQueryDto } from './dto/client-cod-report-query.dto';
+import { ClientOmsStatusSummaryQueryDto } from './dto/client-oms-status-summary-query.dto';
 import { ListClientOmsOrdersQueryDto } from './dto/list-client-oms-orders-query.dto';
-
-/** Map CodRecord status → legacy portal COD labels. */
-function portalCodStatusFromRecord(status: CodRecordStatus): OmsCodStatus {
-  switch (status) {
-    case CodRecordStatus.available:
-      return OmsCodStatus.collected;
-    case CodRecordStatus.paid_out:
-      return OmsCodStatus.remitted;
-    case CodRecordStatus.pending:
-    default:
-      return OmsCodStatus.pending;
-  }
-}
+import { portalCodStatusFromRecord } from './portal-cod-status.util';
 
 function matchesPortalCodFilter(
-  portalStatus: OmsCodStatus | null | undefined,
+  portalStatus: string | null | undefined,
   filter?: string,
 ): boolean {
   if (!filter?.trim()) return true;
   const f = filter.trim();
-  if (f === 'settled') return portalStatus === OmsCodStatus.remitted;
-  if (f === 'available') return portalStatus === OmsCodStatus.collected;
-  if (f === 'paid_out') return portalStatus === OmsCodStatus.remitted;
+  if (f === 'settled') return portalStatus === 'remitted' || portalStatus === 'settled';
+  if (f === 'available') return portalStatus === 'collected';
+  if (f === 'paid_out') return portalStatus === 'remitted';
+  if (f === 'returned') return portalStatus === 'returned';
   return portalStatus === f;
 }
 
@@ -51,6 +41,84 @@ export class ClientOmsOrdersService {
       companyId: client.companyId,
     };
     return this.omsOrders.list(user, scoped);
+  }
+
+  /**
+   * Full-set status counts for dashboard Order summary / pie charts.
+   * Avoids the client-side limit:500 truncation bug.
+   */
+  async statusSummary(
+    client: ClientPrincipal,
+    query: ClientOmsStatusSummaryQueryDto,
+  ) {
+    const user = clientAuthPrincipal(client);
+    const where: Prisma.OmsOrderWhereInput = {
+      companyId: client.companyId,
+    };
+
+    if (query.storeChannel?.trim()) {
+      where.storeChannel = {
+        contains: query.storeChannel.trim(),
+        mode: 'insensitive',
+      };
+    }
+
+    if (query.createdFrom || query.createdTo) {
+      const createdAt: Prisma.DateTimeFilter = {};
+      if (query.createdFrom) {
+        createdAt.gte = new Date(`${query.createdFrom}T00:00:00.000Z`);
+      }
+      if (query.createdTo) {
+        createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
+      }
+      where.createdAt = createdAt;
+    }
+
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const [grouped, channelRows] = await Promise.all([
+        tx.omsOrder.groupBy({
+          by: ['status'],
+          where,
+          _count: { _all: true },
+        }),
+        tx.omsOrder.findMany({
+          where: {
+            companyId: client.companyId,
+            ...(query.createdFrom || query.createdTo
+              ? {
+                  createdAt: {
+                    ...(query.createdFrom
+                      ? { gte: new Date(`${query.createdFrom}T00:00:00.000Z`) }
+                      : {}),
+                    ...(query.createdTo
+                      ? { lte: new Date(`${query.createdTo}T23:59:59.999Z`) }
+                      : {}),
+                  },
+                }
+              : {}),
+            storeChannel: { not: null },
+          },
+          select: { storeChannel: true },
+          distinct: ['storeChannel'],
+          take: 200,
+        }),
+      ]);
+
+      const byStatus: Record<string, number> = {};
+      let total = 0;
+      for (const row of grouped) {
+        const n = row._count._all;
+        byStatus[row.status] = n;
+        total += n;
+      }
+
+      const storeChannels = channelRows
+        .map((r) => r.storeChannel?.trim())
+        .filter((c): c is string => !!c)
+        .sort((a, b) => a.localeCompare(b));
+
+      return { total, byStatus, storeChannels };
+    });
   }
 
   async create(client: ClientPrincipal, dto: CreateClientOmsOrderDto) {
@@ -77,6 +145,16 @@ export class ClientOmsOrdersService {
       })),
     };
     return this.omsOrders.create(user, payload);
+  }
+
+  async confirm(client: ClientPrincipal, id: string) {
+    const user = clientAuthPrincipal(client);
+    return this.omsOrders.confirm(id, user);
+  }
+
+  async cancel(client: ClientPrincipal, id: string) {
+    const user = clientAuthPrincipal(client);
+    return this.omsOrders.cancel(id, user);
   }
 
   async findOne(client: ClientPrincipal, id: string) {
@@ -197,7 +275,7 @@ export class ClientOmsOrdersService {
         status: string;
         recipientName: string | null;
         codAmount: string | null;
-        codStatus: OmsCodStatus | null;
+        codStatus: string | null;
         codCollectedAt: Date | null;
         codRemittedAt: Date | null;
         currency: string | null;

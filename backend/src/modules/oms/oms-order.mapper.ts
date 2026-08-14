@@ -85,6 +85,7 @@ export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
     company: order.company ?? null,
     recipientName: order.recipientName,
     recipientPhone: order.recipientPhone,
+    city: order.city,
     storeChannel: order.storeChannel,
     total: computeTotal(order),
     currency: order.currency,
@@ -109,6 +110,9 @@ export function serializeOmsOrder(order: OmsOrderWithRelations) {
     subtotal,
     shippingFee: dec(order.shippingFee),
     codAmount: dec(order.codAmount),
+    shippingReceiverLat: dec(order.shippingReceiverLat),
+    shippingReceiverLng: dec(order.shippingReceiverLng),
+    shippingWeightKg: dec(order.shippingWeightKg),
     total: computeTotal(order),
     linkedOutboundOrder: order.outboundOrder
       ? {
@@ -148,16 +152,35 @@ export function deriveCodStatus(
 }
 
 /** Map warehouse outbound status → OMS commercial status.
- * Returns null when OMS status must not change (no WMS stage mirroring).
- * Terminal outbound (left warehouse) → Out for Delivery only.
- * Delivered is admin-only — never set from warehouse sync.
+ * Returns null when OMS status must not change.
+ * Delivered is admin-only — never set from warehouse sync (even if outbound is delivered).
+ *
+ * Hard boundary (Shipping Details workflow):
+ * - picking / packing / waiting_for_shipping_details → processing
+ * - ready_to_ship → ready_to_ship (Waiting for Dispatch only — after Mark Shipping Details Complete)
+ * - shipped → shipped (ONLY after dispatch complete)
+ *
+ * Carrier Send does NOT map to OMS ready_to_ship; that happens only at Waiting for Dispatch.
  */
 export function mapOutboundStatusToOms(status: string): OmsOrderStatus | null {
   switch (status) {
+    case 'draft':
+    case 'pending_approval':
+    case 'pending_stock':
+    case 'confirmed':
+    case 'allocated':
+    case 'picking':
+    case 'packing':
+    case 'waiting_for_shipping_details':
+      return 'processing';
+    case 'ready_to_ship':
+      return 'ready_to_ship';
     case 'shipped':
     case 'out_for_delivery':
+      return 'shipped';
     case 'delivered':
-      return 'out_for_delivery';
+      // Commercial delivered is controlled — do not auto-set from WMS.
+      return null;
     case 'cancelled':
       return 'cancelled';
     default:

@@ -283,6 +283,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private sanitizeMessage(message: string, isProd: boolean, status: number): string {
     const clean = this.redact(message);
     if (!isProd) return clean;
+    // 503 is an intentional operational signal (missing config / dependency down).
+    if (status === HttpStatus.SERVICE_UNAVAILABLE) return clean;
     if (status >= 500) return 'Internal server error.';
     return clean;
   }

@@ -16,6 +16,7 @@ const internal_rbac_1 = require("../../common/auth/internal-rbac");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const password_service_1 = require("../../common/crypto/password.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const avatar_url_1 = require("../media/avatar-url");
 const realtime_service_1 = require("../realtime/realtime.service");
 const realtime_master_data_payload_1 = require("../realtime/realtime-master-data.payload");
 const user_worker_profile_util_1 = require("./user-worker-profile.util");
@@ -27,6 +28,7 @@ const USER_LIST_SELECT = {
     role: true,
     status: true,
     companyId: true,
+    avatarPath: true,
     createdAt: true,
     updatedAt: true,
     lastLoginAt: true,
@@ -578,6 +580,7 @@ let UsersService = class UsersService {
             companyId: u.companyId,
             companyName: u.company?.name ?? null,
             kind: u.companyId ? 'client' : 'system',
+            avatarUrl: (0, avatar_url_1.toAvatarPublicUrl)(u.avatarPath),
             workerProfile: (0, user_worker_profile_util_1.toWorkerProfileSummary)(u.worker),
             createdAt: u.createdAt,
             updatedAt: u.updatedAt,

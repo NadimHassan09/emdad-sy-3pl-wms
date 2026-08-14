@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert } from '@ds';
+import { Alert, Card } from '@ds';
 
 import { CompaniesApi } from '../api/companies';
 import {
@@ -18,7 +18,6 @@ import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { DataTable, type Column } from '../components/DataTable';
-import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
@@ -28,12 +27,13 @@ import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
 import { useServerPagination } from '../hooks/useServerPagination';
 import { WorkerProfilePanel } from '../components/users/WorkerProfilePanel';
+import { adminMediaSrc } from '../lib/admin-media';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
+import { useDebounced } from '../lib/useDebounced';
 import { workerProfileStatusText } from '../lib/worker-profile';
 
 type UserListFilters = {
   search: string;
-  role: string;
 };
 
 export type UsersPageVariant = 'warehouse' | 'client';
@@ -174,9 +174,14 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
   const [editRole, setEditRole] = useState<UserRole>('wh_operator');
   const [editStatus, setEditStatus] = useState<UserStatus>('active');
   const [editCompanyId, setEditCompanyId] = useState('');
-  const initialUserFilters = useMemo<UserListFilters>(() => ({ search: '', role: '' }), []);
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(initialUserFilters);
+  const initialUserFilters = useMemo<UserListFilters>(() => ({ search: '' }), []);
+  const { draftFilters, appliedFilters, setDraft, applyPatch } = useFilters(initialUserFilters);
+  const debouncedSearch = useDebounced(draftFilters.search, 300);
+
+  useEffect(() => {
+    if (debouncedSearch === appliedFilters.search) return;
+    applyPatch({ search: debouncedSearch });
+  }, [debouncedSearch, appliedFilters.search, applyPatch]);
 
   useEffect(() => {
     if (!openActionId) return;
@@ -199,9 +204,8 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     () => ({
       kind: apiKind,
       search: appliedFilters.search.trim() || undefined,
-      role: (appliedFilters.role as UserRole) || undefined,
     }),
-    [apiKind, appliedFilters.search, appliedFilters.role],
+    [apiKind, appliedFilters.search],
   );
 
   const pagination = useServerPagination<UserListRow>({
@@ -326,8 +330,31 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
 
   const { systemColumns, clientColumns } = useMemo(() => {
     const lead: Column<UserListRow>[] = [
-      { header: t('Email', 'البريد الإلكتروني'), accessor: (u) => <span className="text-text-strong">{u.email}</span> },
-      { header: t('Name', 'الاسم'), accessor: (u) => <span className="text-text-body">{u.fullName}</span> },
+      {
+        header: t('Name', 'الاسم'),
+        accessor: (u) => {
+          const avatarSrc = adminMediaSrc(u.avatarUrl);
+          return (
+            <div className="flex items-center gap-3">
+              {avatarSrc ? (
+                <img
+                  src={avatarSrc}
+                  alt=""
+                  className="h-9 w-9 shrink-0 rounded-lg border border-border object-cover"
+                />
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-text-faint">
+                  <i className="fa-solid fa-user text-xs" aria-hidden="true" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="truncate font-semibold text-text-strong">{u.fullName}</div>
+                <div className="truncate text-xs text-text-muted">{u.email}</div>
+              </div>
+            </div>
+          );
+        },
+      },
       { header: t('Phone', 'الهاتف'), accessor: (u) => <span className="text-text-body">{u.phone ?? '—'}</span> },
       {
         header: t('Role', 'الدور'),
@@ -466,10 +493,6 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     variant === 'warehouse'
       ? t('Warehouse users', 'مستخدمو المستودع')
       : t('Client users', 'مستخدمو العملاء');
-  const filterTitle =
-    variant === 'warehouse'
-      ? t('Warehouse user filters', 'فلاتر مستخدمي المستودع')
-      : t('Client user filters', 'فلاتر مستخدمي العملاء');
   const emptyMessage =
     variant === 'warehouse'
       ? t('No warehouse users yet.', 'لا يوجد مستخدمو مستودع بعد.')
@@ -550,33 +573,20 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     >
       {errMsg ? <Alert variant="error" title={errMsg} className="mb-4" /> : null}
 
-      <FilterPanel
-        title={filterTitle}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
-        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
-      >
-          <TextField
-            label={t('Search', 'بحث')}
+      <Card padding="md">
+        <div className="relative w-full">
+          <i
+            className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+            aria-hidden
+          />
+          <input
             value={draftFilters.search}
             onChange={(e) => setDraft({ search: e.target.value })}
-            placeholder={t('Search by name or email', 'ابحث بالاسم أو البريد الإلكتروني')}
+            placeholder={t('Search by name or email…', 'ابحث بالاسم أو البريد الإلكتروني…')}
+            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
           />
-          <SelectField
-              label={t('Role', 'الدور')}
-              name="roleFilter"
-              value={draftFilters.role}
-              onChange={(e) => setDraft({ role: e.target.value })}
-              options={[
-                { value: '', label: t('All roles', 'كل الأدوار') },
-                ...(variant === 'warehouse'
-                  ? SYSTEM_ROLE_EDIT.map((r) => ({ value: r.value, label: r.label }))
-                  : CLIENT_ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label }))),
-              ]}
-            />
-      </FilterPanel>
+        </div>
+      </Card>
 
       <DataTable
         columns={tableColumns}

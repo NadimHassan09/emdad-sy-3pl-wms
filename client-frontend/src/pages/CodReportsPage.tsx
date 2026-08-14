@@ -23,6 +23,7 @@ const COD_STATUS_OPTIONS = [
   { value: 'collected', label: 'Collected' },
   { value: 'remitted', label: 'Remitted' },
   { value: 'settled', label: 'Settled' },
+  { value: 'returned', label: 'Returned' },
 ];
 
 function labelText(label: string, isArabic: boolean): string {
@@ -34,6 +35,11 @@ function labelText(label: string, isArabic: boolean): string {
     'Total COD amount': 'إجمالي مبالغ التحصيل',
     'Matching filters': 'مطابق للفلاتر',
     'All COD statuses': 'كل حالات التحصيل',
+    Pending: 'قيد الانتظار',
+    Collected: 'محصّل',
+    Remitted: 'محوّل',
+    Settled: 'مسوّى',
+    Returned: 'مرتجع',
     'From date': 'من تاريخ',
     'To date': 'إلى تاريخ',
     'Order #': 'رقم الطلب',
@@ -130,7 +136,7 @@ export function CodReportsPage(): ReactElement {
           >
             {COD_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.value === '' ? t('All COD statuses') : o.label}
+                {t(o.label)}
               </option>
             ))}
           </select>

@@ -53,11 +53,31 @@ let OrderAllocationService = class OrderAllocationService {
     async allocateOrder(tx, params) {
         if (!this.isEnabled())
             return;
-        const existing = await this.hasActiveReservations(tx, params.outboundOrderId);
-        if (existing)
-            return;
+        const existingRows = await tx.stockReservation.findMany({
+            where: {
+                outboundOrderId: params.outboundOrderId,
+                status: client_1.ReservationStatus.active,
+            },
+            select: {
+                outboundOrderLineId: true,
+                productId: true,
+                quantity: true,
+            },
+        });
+        const reservedByLineId = new Map();
+        for (const row of existingRows) {
+            const key = row.outboundOrderLineId ?? `product:${row.productId}`;
+            const prev = reservedByLineId.get(key) ?? new client_1.Prisma.Decimal(0);
+            reservedByLineId.set(key, prev.plus(row.quantity));
+        }
+        let createdAny = false;
         for (const line of params.lines) {
-            let remaining = new client_1.Prisma.Decimal(line.requestedQty.toString());
+            const already = reservedByLineId.get(line.outboundOrderLineId) ??
+                reservedByLineId.get(`product:${line.productId}`) ??
+                new client_1.Prisma.Decimal(0);
+            let remaining = new client_1.Prisma.Decimal(line.requestedQty.toString()).minus(already);
+            if (remaining.lessThanOrEqualTo(0))
+                continue;
             const candidates = params.warehouseId
                 ? await (0, task_allocation_helper_1.findWarehouseStockFefo)(tx, params.companyId, params.warehouseId, line.productId, line.specificLotId)
                 : await (0, task_allocation_helper_1.findCompanyStockFefo)(tx, params.companyId, line.productId, line.specificLotId);
@@ -79,11 +99,15 @@ let OrderAllocationService = class OrderAllocationService {
                         status: client_1.ReservationStatus.active,
                     },
                 });
+                createdAny = true;
                 remaining = remaining.minus(take);
             }
             if (remaining.greaterThan(0)) {
                 throw new domain_exceptions_1.InsufficientStockException();
             }
+        }
+        if (!createdAny && existingRows.length > 0) {
+            return;
         }
         const allocatableStatuses = [
             client_1.OutboundOrderStatus.draft,
@@ -99,13 +123,29 @@ let OrderAllocationService = class OrderAllocationService {
                 ...(canSetAllocated ? { status: client_1.OutboundOrderStatus.allocated } : {}),
             },
         });
-        await this.events.record(tx, {
-            outboundOrderId: params.outboundOrderId,
-            companyId: params.companyId,
-            eventType: 'order.allocated',
-            createdBy: params.actorUserId,
-            payload: { lineCount: params.lines.length },
+        if (createdAny || existingRows.length === 0) {
+            await this.events.record(tx, {
+                outboundOrderId: params.outboundOrderId,
+                companyId: params.companyId,
+                eventType: 'order.allocated',
+                createdBy: params.actorUserId,
+                payload: {
+                    lineCount: params.lines.length,
+                    reusedExisting: existingRows.length > 0,
+                },
+            });
+        }
+    }
+    async sumActiveReservedForProduct(tx, outboundOrderId, productId) {
+        const agg = await tx.stockReservation.aggregate({
+            where: {
+                outboundOrderId,
+                productId,
+                status: client_1.ReservationStatus.active,
+            },
+            _sum: { quantity: true },
         });
+        return agg._sum.quantity ?? new client_1.Prisma.Decimal(0);
     }
     async releaseAllocation(tx, params) {
         const active = await tx.stockReservation.findMany({

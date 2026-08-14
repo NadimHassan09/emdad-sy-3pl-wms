@@ -6,12 +6,22 @@ import type { CreateOmsOrderInput, OmsOrderDetail, OmsPaymentMethod } from '../.
 import { OmsApi } from '../../api/oms';
 import type { Product } from '../../api/products';
 import { ProductsApi } from '../../api/products';
+import {
+  calculateOrderVolume,
+  calculateOrderWeight,
+  emptyOrderShippingFields,
+  isShippingConfigLocked,
+  orderShippingFieldsFromApi,
+  orderShippingFieldsToPayload,
+  type OrderShippingFieldsValue,
+} from '../../api/shipping';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../Button';
 import { CascadingAddressSelector } from '../CascadingAddressSelector';
 import { Combobox } from '../Combobox';
 import { Modal } from '../Modal';
 import { SelectField } from '../SelectField';
+import { OrderShippingFields } from '../shipping/OrderShippingFields';
 import { TextField } from '../TextField';
 import { useToast } from '../ToastProvider';
 import { QK } from '../../constants/query-keys';
@@ -42,7 +52,7 @@ export function OmsOrderFormModal({
   const linesFrozen =
     mode === 'edit' &&
     !!initial &&
-    !['draft', 'pending_approval'].includes(initial.status);
+    !['draft', 'waiting_for_confirmation', 'confirmed_waiting_for_admin_approval', 'pending_approval'].includes(initial.status);
 
   const [companyId, setCompanyId] = useState('');
   const [requiredShipDate, setRequiredShipDate] = useState(localCalendarDateYmd());
@@ -51,13 +61,13 @@ export function OmsOrderFormModal({
   const [city, setCity] = useState('');
   const [district, setDistrict] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
-  const [carrier, setCarrier] = useState('');
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<OmsPaymentMethod | ''>('');
   const [shippingFee, setShippingFee] = useState('');
   const [currency, setCurrency] = useState('USD');
   const [storeChannel, setStoreChannel] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
+  const [shipping, setShipping] = useState<OrderShippingFieldsValue>(emptyOrderShippingFields);
 
   const companies = useQuery({
     queryKey: QK.companies,
@@ -83,12 +93,12 @@ export function OmsOrderFormModal({
       setCity(initial.city ?? '');
       setDistrict(initial.district ?? '');
       setAddressLine1(initial.addressLine1 ?? '');
-      setCarrier(initial.carrier ?? '');
       setNotes(initial.notes ?? '');
       setPaymentMethod(initial.paymentMethod ?? '');
       setShippingFee(initial.shippingFee ?? '');
       setCurrency(initial.currency ?? 'USD');
       setStoreChannel(initial.storeChannel ?? '');
+      setShipping(orderShippingFieldsFromApi(initial));
     } else if (mode === 'create') {
       setCompanyId(user?.tenantCompanyId ?? '');
       setRequiredShipDate(localCalendarDateYmd());
@@ -97,13 +107,13 @@ export function OmsOrderFormModal({
       setCity('');
       setDistrict('');
       setAddressLine1('');
-      setCarrier('');
       setNotes('');
       setPaymentMethod('');
       setShippingFee('');
       setCurrency('USD');
       setStoreChannel('');
       setLines([emptyLine()]);
+      setShipping(emptyOrderShippingFields());
     }
   }, [open, mode, initial, user?.tenantCompanyId]);
 
@@ -133,6 +143,9 @@ export function OmsOrderFormModal({
   }, [lines]);
 
   const shipAmount = shippingFee ? Number(shippingFee) || 0 : 0;
+
+  const shippingLocked =
+    mode === 'edit' && isShippingConfigLocked(initial?.warehouseStatus ?? initial?.status);
 
   /** Subtotal = shipping fee + sum(price × qty) for each line. */
   const calculatedSubtotal = useMemo(() => {
@@ -181,7 +194,6 @@ export function OmsOrderFormModal({
           city: city || undefined,
           district: district || undefined,
           addressLine1: addressLine1 || undefined,
-          carrier: carrier || undefined,
           notes: notes || undefined,
           paymentMethod: paymentMethod || undefined,
           subtotal: calculatedSubtotal,
@@ -190,11 +202,13 @@ export function OmsOrderFormModal({
           currency: currency || undefined,
           storeChannel: storeChannel || undefined,
           lines: parsedLines,
+          ...orderShippingFieldsToPayload(shipping),
         };
         return OmsApi.create(payload);
       }
 
       if (!initial) throw new Error('Order not loaded.');
+      const shippingPatch = shippingLocked ? {} : orderShippingFieldsToPayload(shipping);
       if (linesFrozen) {
         return OmsApi.update(initial.id, {
           recipientName,
@@ -203,7 +217,6 @@ export function OmsOrderFormModal({
           district,
           addressLine1,
           requiredShipDate,
-          carrier,
           notes,
           paymentMethod: paymentMethod || undefined,
           subtotal: calculatedSubtotal,
@@ -211,6 +224,7 @@ export function OmsOrderFormModal({
           codAmount: paymentMethod === 'COD' ? calculatedSubtotal : undefined,
           currency,
           storeChannel,
+          ...shippingPatch,
         });
       }
       return OmsApi.update(initial.id, {
@@ -220,7 +234,6 @@ export function OmsOrderFormModal({
         district,
         addressLine1,
         requiredShipDate,
-        carrier,
         notes,
         paymentMethod: paymentMethod || undefined,
         subtotal: calculatedSubtotal,
@@ -228,6 +241,7 @@ export function OmsOrderFormModal({
         codAmount: paymentMethod === 'COD' ? calculatedSubtotal : undefined,
         currency,
         storeChannel,
+        ...shippingPatch,
       });
     },
     onSuccess: (order) => {
@@ -299,7 +313,6 @@ export function OmsOrderFormModal({
             value={requiredShipDate}
             onChange={(e) => setRequiredShipDate(e.target.value)}
           />
-          <TextField label="Carrier" value={carrier} onChange={(e) => setCarrier(e.target.value)} />
           <TextField
             label="Sales channel"
             value={storeChannel}
@@ -396,6 +409,60 @@ export function OmsOrderFormModal({
               + Add line
             </Button>
           </div>
+        ) : null}
+
+        {isAdmin ? (
+          mode === 'edit' ||
+          lines.some((l) => l.productId && Number(l.requestedQuantity) > 0) ? (
+            <OrderShippingFields
+              value={shipping}
+              onChange={setShipping}
+              locked={shippingLocked}
+              disabled={saveMut.isPending}
+              destination={{
+                governorate: city,
+                city: district,
+                neighborhood: addressLine1,
+              }}
+              codAmount={paymentMethod === 'COD' ? calculatedSubtotal : null}
+              suggestedWeightKg={
+                calculateOrderWeight(
+                  lines.map((l) => ({
+                    productId: l.productId,
+                    requestedQuantity: l.requestedQuantity,
+                  })),
+                  (products.data?.items ?? []).map((p) => ({ id: p.id, weightKg: p.weightKg })),
+                )
+              }
+              suggestedVolumeCbm={
+                calculateOrderVolume(
+                  lines.map((l) => ({
+                    productId: l.productId,
+                    requestedQuantity: l.requestedQuantity,
+                  })),
+                  (products.data?.items ?? []).map((p) => {
+                    const len = Number(p.lengthCm);
+                    const w = Number(p.widthCm);
+                    const h = Number(p.heightCm);
+                    const volumeCbm =
+                      Number.isFinite(len) &&
+                      Number.isFinite(w) &&
+                      Number.isFinite(h) &&
+                      len > 0 &&
+                      w > 0 &&
+                      h > 0
+                        ? Math.round(((len * w * h) / 1_000_000) * 1_000_000) / 1_000_000
+                        : null;
+                    return { id: p.id, volumeCbm };
+                  }),
+                )
+              }
+            />
+          ) : (
+            <p className="rounded-lg border border-border-subtle bg-surface-sunken px-3 py-2 text-xs text-text-body">
+              Add products and quantities first to fill the shipping company form.
+            </p>
+          )
         ) : null}
 
         <div className="flex justify-end gap-2 border-t border-border-subtle pt-4">

@@ -1,3 +1,4 @@
+import type { Tone } from '@ds';
 import type { BackupJobStatus, BackupJobType, BackupManifest, BackupStoragePolicyValue, BackupSummary } from '../api/backups';
 
 export function formatBackupTimestamp(value: string | null | undefined): string {
@@ -55,8 +56,30 @@ export function formatBackupStorage(manifest: BackupManifest | null | undefined)
   return env ? `VPS (${env})` : 'VPS (local)';
 }
 
-export function backupCreatedByLabel(row: Pick<BackupSummary, 'triggeredBy'>): string {
+export function backupCreatedByLabel(
+  row: Pick<BackupSummary, 'triggeredBy' | 'type'>,
+): string {
+  if (row.type === 'scheduled') return 'system';
   return row.triggeredBy.fullName?.trim() || row.triggeredBy.email || row.triggeredBy.id;
+}
+
+export function backupTypeTone(type: BackupJobType): Tone {
+  switch (type) {
+    case 'manual':
+      return 'brand';
+    case 'scheduled':
+      return 'info';
+    case 'upload':
+      return 'accent';
+    case 'pre_snapshot':
+      return 'warning';
+    case 'restore':
+      return 'success';
+    case 'factory_reset':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
 }
 
 export function isBackupRunning(status: BackupJobStatus): boolean {

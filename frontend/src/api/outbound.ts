@@ -1,5 +1,14 @@
 import { PageResult, api } from './client';
 import type { OrderExecutionMode, OutboundExecutionPlan } from '../lib/execution-plan';
+import type {
+  CarrierShipment,
+  ShippingConfigPayload,
+  ShippingDeliveryType,
+  ShippingMethod,
+  ShippingPackageType,
+  ShippingPayer,
+  ShippingPickupType,
+} from './shipping';
 
 export type OutboundOrderStatus =
   | 'draft'
@@ -9,6 +18,7 @@ export type OutboundOrderStatus =
   | 'allocated'
   | 'picking'
   | 'packing'
+  | 'waiting_for_shipping_details'
   | 'ready_to_ship'
   | 'out_for_delivery'
   | 'shipped'
@@ -33,6 +43,8 @@ export interface OutboundOrderLine {
     trackingType: 'none' | 'lot' | 'package';
     uom: string;
     imagePath?: string | null;
+    weightKg?: string | number | null;
+    volumeCbm?: string | number | null;
   };
 }
 
@@ -55,6 +67,9 @@ export interface OutboundOrder {
   orderNumber: string;
   status: OutboundOrderStatus;
   destinationAddress: string;
+  city?: string | null;
+  district?: string | null;
+  addressLine1?: string | null;
   requiredShipDate: string;
   carrier: string | null;
   trackingNumber: string | null;
@@ -67,13 +82,29 @@ export interface OutboundOrder {
   createdAt: string;
   executionMode?: OrderExecutionMode | null;
   executionPlan?: OutboundExecutionPlan | null;
+  /** Present when this outbound is the warehouse execution for an OMS order. */
+  omsOrder?: { id: string; orderNumber: string } | null;
+  shippingMethod?: ShippingMethod | null;
+  shippingProviderCode?: string | null;
+  shippingReceiverLat?: string | number | null;
+  shippingReceiverLng?: string | number | null;
+  shippingPackageType?: ShippingPackageType | null;
+  shippingContents?: string | null;
+  shippingDeliveryType?: ShippingDeliveryType | null;
+  shippingPickupType?: ShippingPickupType | null;
+  shippingPayer?: ShippingPayer | null;
+  shippingWeightKg?: string | number | null;
+  shippingVolumeCbm?: string | number | null;
+  shippingPhoneCountry?: string | null;
+  codAmount?: string | number | null;
+  carrierShipments?: CarrierShipment[];
   lines?: OutboundOrderLine[];
   stockReservations?: OutboundStockReservation[];
-  company?: { id: string; name: string };
+  company?: { id: string; name: string; logoUrl?: string | null };
   _count?: { lines: number };
 }
 
-export interface CreateOutboundOrderInput {
+export interface CreateOutboundOrderInput extends ShippingConfigPayload {
   companyId?: string;
   destinationAddress: string;
   requiredShipDate: string;
@@ -163,7 +194,7 @@ export const OutboundApi = {
   },
   async updatePlan(
     id: string,
-    body: {
+    body: ShippingConfigPayload & {
       executionMode?: OrderExecutionMode;
       executionPlan?: OutboundExecutionPlan;
       requiredShipDate?: string;
@@ -175,6 +206,70 @@ export const OutboundApi = {
     const { data } = await api.patch<OutboundOrder>(`/outbound-orders/${id}/plan`, body);
     return data;
   },
+  async approve(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/approve`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async completePicking(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/complete-picking`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async completePacking(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/complete-packing`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async completeDispatch(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/complete-dispatch`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async saveShippingDetails(
+    id: string,
+    body: Omit<ShippingConfigPayload, 'shippingMethod' | 'shippingProviderCode'> & {
+      carrier?: string | null;
+      trackingNumber?: string | null;
+    },
+    companyIdOverride?: string,
+  ): Promise<OutboundOrder> {
+    const { data } = await api.patch<OutboundOrder>(
+      `/outbound-orders/${id}/shipping-details`,
+      body,
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async sendShippingDetails(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/shipping-details/send`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async completeShippingDetails(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/complete-shipping-details`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  /** @deprecated Prefer stage endpoints; backend advances one stage only. */
   async executeAdmin(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
     const { data } = await api.post<OutboundOrder>(
       `/outbound-orders/${id}/execute-admin`,

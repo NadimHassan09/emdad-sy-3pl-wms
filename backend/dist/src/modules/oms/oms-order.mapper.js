@@ -65,6 +65,7 @@ function serializeOmsOrderListItem(order) {
         company: order.company ?? null,
         recipientName: order.recipientName,
         recipientPhone: order.recipientPhone,
+        city: order.city,
         storeChannel: order.storeChannel,
         total: computeTotal(order),
         currency: order.currency,
@@ -88,6 +89,9 @@ function serializeOmsOrder(order) {
         subtotal,
         shippingFee: dec(order.shippingFee),
         codAmount: dec(order.codAmount),
+        shippingReceiverLat: dec(order.shippingReceiverLat),
+        shippingReceiverLng: dec(order.shippingReceiverLng),
+        shippingWeightKg: dec(order.shippingWeightKg),
         total: computeTotal(order),
         linkedOutboundOrder: order.outboundOrder
             ? {
@@ -116,10 +120,22 @@ function deriveCodStatus(paymentMethod, codAmount) {
 }
 function mapOutboundStatusToOms(status) {
     switch (status) {
+        case 'draft':
+        case 'pending_approval':
+        case 'pending_stock':
+        case 'confirmed':
+        case 'allocated':
+        case 'picking':
+        case 'packing':
+        case 'waiting_for_shipping_details':
+            return 'processing';
+        case 'ready_to_ship':
+            return 'ready_to_ship';
         case 'shipped':
         case 'out_for_delivery':
+            return 'shipped';
         case 'delivered':
-            return 'out_for_delivery';
+            return null;
         case 'cancelled':
             return 'cancelled';
         default:

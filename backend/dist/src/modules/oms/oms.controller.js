@@ -20,6 +20,7 @@ const oms_order_dto_1 = require("./dto/oms-order.dto");
 const oms_dashboard_service_1 = require("./oms-dashboard.service");
 const oms_orders_service_1 = require("./oms-orders.service");
 const list_oms_orders_query_dto_1 = require("./dto/list-oms-orders-query.dto");
+const oms_dashboard_order_summary_query_dto_1 = require("./dto/oms-dashboard-order-summary-query.dto");
 let OmsController = class OmsController {
     orders;
     dashboard;
@@ -29,6 +30,9 @@ let OmsController = class OmsController {
     }
     dashboardSummary(user, companyId) {
         return this.dashboard.summary(user, companyId);
+    }
+    orderSummary(user, query) {
+        return this.dashboard.orderSummary(user, query);
     }
     list(user, query) {
         return this.orders.list(user, query);
@@ -44,6 +48,9 @@ let OmsController = class OmsController {
     }
     delete(user, id) {
         return this.orders.delete(id, user);
+    }
+    confirm(user, id) {
+        return this.orders.confirm(id, user);
     }
     approve(user, id, dto) {
         return this.orders.approve(id, user, dto);
@@ -72,6 +79,9 @@ let OmsController = class OmsController {
     delivered(user, id) {
         return this.orders.markDelivered(id, user);
     }
+    deliveryRevert(user, id, dto) {
+        return this.orders.revertDelivery(id, user, dto);
+    }
     returned(user, id) {
         return this.orders.markReturned(id, user);
     }
@@ -94,6 +104,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], OmsController.prototype, "dashboardSummary", null);
+__decorate([
+    (0, common_1.Get)('dashboard/order-summary'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, oms_dashboard_order_summary_query_dto_1.OmsDashboardOrderSummaryQueryDto]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "orderSummary", null);
 __decorate([
     (0, common_1.Get)('orders'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
@@ -135,6 +153,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], OmsController.prototype, "delete", null);
+__decorate([
+    (0, common_1.Post)('orders/:id/confirm'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "confirm", null);
 __decorate([
     (0, common_1.Post)('orders/:id/approve'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
@@ -210,6 +236,15 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], OmsController.prototype, "delivered", null);
+__decorate([
+    (0, common_1.Post)('orders/:id/delivery-revert'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, oms_order_dto_1.RevertOmsDeliveryDto]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "deliveryRevert", null);
 __decorate([
     (0, common_1.Post)('orders/:id/returned'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

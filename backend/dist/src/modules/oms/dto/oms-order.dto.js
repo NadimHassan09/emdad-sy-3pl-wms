@@ -9,11 +9,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RejectOmsOrderDto = exports.ApproveOmsOrderDto = exports.AllocateOmsOrderDto = exports.UpdateOmsOrderDto = exports.CreateOmsOrderDto = exports.CreateOmsOrderLineDto = void 0;
+exports.RevertOmsDeliveryDto = exports.RejectOmsOrderDto = exports.ApproveOmsOrderDto = exports.AllocateOmsOrderDto = exports.UpdateOmsOrderDto = exports.CreateOmsOrderDto = exports.CreateOmsOrderLineDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const client_1 = require("@prisma/client");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
+const shipping_config_dto_1 = require("../../shipping/dto/shipping-config.dto");
 function emptyToUndefined({ value }) {
     return value === '' || value === null ? undefined : value;
 }
@@ -58,7 +59,7 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], CreateOmsOrderLineDto.prototype, "discountAmount", void 0);
-class CreateOmsOrderDto {
+class CreateOmsOrderDto extends shipping_config_dto_1.ShippingConfigDto {
     companyId;
     destinationAddress;
     requiredShipDate;
@@ -211,7 +212,7 @@ __decorate([
     (0, class_transformer_1.Type)(() => CreateOmsOrderLineDto),
     __metadata("design:type", Array)
 ], CreateOmsOrderDto.prototype, "lines", void 0);
-class UpdateOmsOrderDto {
+class UpdateOmsOrderDto extends shipping_config_dto_1.ShippingConfigDto {
     recipientName;
     recipientPhone;
     city;
@@ -372,4 +373,14 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], RejectOmsOrderDto.prototype, "reason", void 0);
+class RevertOmsDeliveryDto {
+    reason;
+}
+exports.RevertOmsDeliveryDto = RevertOmsDeliveryDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.MinLength)(3),
+    __metadata("design:type", String)
+], RevertOmsDeliveryDto.prototype, "reason", void 0);
 //# sourceMappingURL=oms-order.dto.js.map

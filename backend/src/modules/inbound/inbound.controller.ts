@@ -49,6 +49,28 @@ export class InboundController {
     return this.inbound.updatePlan(user, id, body);
   }
 
+  @Post(':id/approve')
+  approve(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.inbound.approveAdmin(user, id);
+  }
+
+  @Post(':id/complete-receiving')
+  completeReceiving(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.inbound.completeReceivingAdmin(user, id);
+  }
+
+  @Post(':id/complete-putaway')
+  completePutaway(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.inbound.completePutawayAdmin(user, id);
+  }
+
+  /** @deprecated Prefer stage endpoints; advances exactly one Admin stage. */
   @Post(':id/execute-admin')
   executeAdmin(
     @CurrentUser() user: AuthPrincipal,

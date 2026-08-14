@@ -1,25 +1,39 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState, type FormEvent, type ReactElement } from 'react';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { Button, Textarea } from '@ds';
 
 import { CompaniesApi } from '../api/companies';
+import { InventoryApi } from '../api/inventory';
 import type { CreateOmsOrderInput, OmsPaymentMethod } from '../api/oms';
 import { OmsApi } from '../api/oms';
 import type { Product } from '../api/products';
 import { ProductsApi } from '../api/products';
+import {
+  calculateOrderVolume,
+  calculateOrderWeight,
+  emptyOrderShippingFields,
+  orderShippingFieldsToPayload,
+  type OrderShippingFieldsValue,
+} from '../api/shipping';
 import { useAuth } from '../auth/AuthContext';
 import { CascadingAddressSelector } from '../components/CascadingAddressSelector';
 import { Combobox } from '../components/Combobox';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
 import { SelectField } from '../components/SelectField';
+import { OrderShippingFields } from '../components/shipping/OrderShippingFields';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../lib/order-planning-dates';
 import { canAccessInternalTransfer } from '../lib/rbac';
+import {
+  clearListUiCache,
+  readListUiCache,
+  writeListUiCache,
+} from '../../../shared/design-system-next/hooks/listUiCache';
 
 type DraftLine = {
   key: string;
@@ -27,6 +41,27 @@ type DraftLine = {
   requestedQuantity: string;
   unitPrice: string;
 };
+
+type OmsCreateDraft = {
+  companyId: string;
+  shipDate: string;
+  recipientName: string;
+  recipientPhone: string;
+  city: string;
+  district: string;
+  addressLine1: string;
+  storeChannel: string;
+  paymentMethod: OmsPaymentMethod | '';
+  notes: string;
+  lines: DraftLine[];
+  shipping: OrderShippingFieldsValue;
+};
+
+const OMS_CREATE_DRAFT_KEY = 'form:/orders/oms/new';
+
+function readOmsCreateDraft(): OmsCreateDraft | undefined {
+  return readListUiCache<OmsCreateDraft>(OMS_CREATE_DRAFT_KEY);
+}
 
 const emptyLine = (): DraftLine => ({
   key: `n-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -43,9 +78,9 @@ function SectionHeading({ title }: { title: string }): ReactElement {
   );
 }
 
-function formatOnHand(p: Product): string {
-  const n = Number(p.totalOnHand ?? 0);
-  return Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 4 }) : '0';
+function formatAvailable(n: number | undefined): string {
+  if (n === undefined || !Number.isFinite(n)) return '…';
+  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
 }
 
 export function OmsOrderCreatePage(): ReactElement {
@@ -54,18 +89,30 @@ export function OmsOrderCreatePage(): ReactElement {
   const toast = useToast();
   const { user } = useAuth();
   const isAdmin = canAccessInternalTransfer(user?.role);
+  const savedDraft = readOmsCreateDraft();
 
-  const [companyId, setCompanyId] = useState(user?.tenantCompanyId ?? '');
-  const [shipDate, setShipDate] = useState(() => localCalendarDateYmd());
-  const [recipientName, setRecipientName] = useState('');
-  const [recipientPhone, setRecipientPhone] = useState('');
-  const [city, setCity] = useState('');
-  const [district, setDistrict] = useState('');
-  const [addressLine1, setAddressLine1] = useState('');
-  const [storeChannel, setStoreChannel] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<OmsPaymentMethod | ''>('');
-  const [notes, setNotes] = useState('');
-  const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
+  const [companyId, setCompanyId] = useState(
+    savedDraft?.companyId || user?.tenantCompanyId || '',
+  );
+  const [shipDate, setShipDate] = useState(
+    () => savedDraft?.shipDate || localCalendarDateYmd(),
+  );
+  const [recipientName, setRecipientName] = useState(savedDraft?.recipientName ?? '');
+  const [recipientPhone, setRecipientPhone] = useState(savedDraft?.recipientPhone ?? '');
+  const [city, setCity] = useState(savedDraft?.city ?? '');
+  const [district, setDistrict] = useState(savedDraft?.district ?? '');
+  const [addressLine1, setAddressLine1] = useState(savedDraft?.addressLine1 ?? '');
+  const [storeChannel, setStoreChannel] = useState(savedDraft?.storeChannel ?? '');
+  const [paymentMethod, setPaymentMethod] = useState<OmsPaymentMethod | ''>(
+    savedDraft?.paymentMethod ?? '',
+  );
+  const [notes, setNotes] = useState(savedDraft?.notes ?? '');
+  const [lines, setLines] = useState<DraftLine[]>(
+    savedDraft?.lines?.length ? savedDraft.lines : [emptyLine()],
+  );
+  const [shipping, setShipping] = useState<OrderShippingFieldsValue>(
+    savedDraft?.shipping ?? emptyOrderShippingFields(),
+  );
   const [error, setError] = useState<string | null>(null);
 
   const effectiveCompanyId = companyId || user?.tenantCompanyId || '';
@@ -84,7 +131,8 @@ export function OmsOrderCreatePage(): ReactElement {
   });
 
   const clientOptions = useMemo(
-    () => companyFilterComboboxOptions(companies.data, 'Select client…'),
+    () =>
+      companyFilterComboboxOptions(companies.data, 'Select client…').filter((o) => o.value !== ''),
     [companies.data],
   );
 
@@ -116,6 +164,80 @@ export function OmsOrderCreatePage(): ReactElement {
 
   const canAddLine = activeProducts.some((p) => !usedProductIds.has(p.id));
 
+  const distinctProductIds = useMemo(
+    () => Array.from(new Set(lines.map((l) => l.productId).filter(Boolean))),
+    [lines],
+  );
+
+  const availabilityResults = useQueries({
+    queries: distinctProductIds.map((pid) => ({
+      queryKey: QK.availability(pid, effectiveCompanyId),
+      queryFn: () => InventoryApi.availability(pid, effectiveCompanyId),
+      enabled: !!pid && !!effectiveCompanyId,
+      staleTime: 10_000,
+    })),
+  });
+
+  const availabilityByProduct = useMemo(() => {
+    const m = new Map<string, number>();
+    distinctProductIds.forEach((pid, i) => {
+      const r = availabilityResults[i]?.data;
+      if (r) m.set(pid, Number(r.available));
+    });
+    return m;
+  }, [availabilityResults, distinctProductIds]);
+
+  const requestedByProduct = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const l of lines) {
+      if (!l.productId) continue;
+      const n = Number(l.requestedQuantity);
+      if (!Number.isFinite(n) || n <= 0) continue;
+      m.set(l.productId, (m.get(l.productId) ?? 0) + n);
+    }
+    return m;
+  }, [lines]);
+
+  const shortages = useMemo(() => {
+    const out: { productId: string; requested: number; available: number }[] = [];
+    requestedByProduct.forEach((qty, pid) => {
+      const avail = availabilityByProduct.get(pid);
+      if (avail !== undefined && qty > avail) {
+        out.push({ productId: pid, requested: qty, available: avail });
+      }
+    });
+    return out;
+  }, [availabilityByProduct, requestedByProduct]);
+
+  const clampQtyToAvailable = (productId: string, raw: string): string => {
+    if (!productId || raw === '') return raw;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return raw;
+    const avail = availabilityByProduct.get(productId);
+    if (avail !== undefined && n > avail) return String(avail);
+    if (n < 0) return '0';
+    return raw;
+  };
+
+  // Cap quantities once availability arrives (e.g. user typed before the query resolved).
+  useEffect(() => {
+    if (availabilityByProduct.size === 0) return;
+    setLines((prev) => {
+      let changed = false;
+      const next = prev.map((l) => {
+        if (!l.productId || !l.requestedQuantity) return l;
+        const clamped = clampQtyToAvailable(l.productId, l.requestedQuantity);
+        if (clamped !== l.requestedQuantity) {
+          changed = true;
+          return { ...l, requestedQuantity: clamped };
+        }
+        return l;
+      });
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- clamp when availability map updates
+  }, [availabilityByProduct]);
+
   const linesSum = useMemo(() => {
     return lines.reduce((sum, l) => {
       const qty = Number(l.requestedQuantity);
@@ -133,6 +255,54 @@ export function OmsOrderCreatePage(): ReactElement {
     }, 0);
   }, [lines]);
 
+  const hasProductQuantities = totalItems > 0;
+
+  const calculatedWeightKg = useMemo(
+    () =>
+      calculateOrderWeight(
+        lines.map((l) => ({ productId: l.productId, requestedQuantity: l.requestedQuantity })),
+        activeProducts.map((p) => ({ id: p.id, weightKg: p.weightKg })),
+      ),
+    [lines, activeProducts],
+  );
+
+  const calculatedVolumeCbm = useMemo(
+    () =>
+      calculateOrderVolume(
+        lines.map((l) => ({ productId: l.productId, requestedQuantity: l.requestedQuantity })),
+        activeProducts.map((p) => {
+          const l = Number(p.lengthCm);
+          const w = Number(p.widthCm);
+          const h = Number(p.heightCm);
+          const volumeCbm =
+            Number.isFinite(l) && Number.isFinite(w) && Number.isFinite(h) && l > 0 && w > 0 && h > 0
+              ? Math.round(((l * w * h) / 1_000_000) * 1_000_000) / 1_000_000
+              : null;
+          return { id: p.id, volumeCbm };
+        }),
+      ),
+    [lines, activeProducts],
+  );
+
+  const suggestedContents = useMemo(() => {
+    const names = lines
+      .filter((l) => l.productId && Number(l.requestedQuantity) > 0)
+      .map((l) => productById.get(l.productId)?.name)
+      .filter((n): n is string => Boolean(n));
+    return names.length ? names.join(', ') : '';
+  }, [lines, productById]);
+
+  useEffect(() => {
+    if (!suggestedContents) return;
+    setShipping((prev) => {
+      if (prev.shippingContents.trim() && prev.shippingContents !== suggestedContents) {
+        return prev;
+      }
+      if (prev.shippingContents === suggestedContents) return prev;
+      return { ...prev, shippingContents: suggestedContents };
+    });
+  }, [suggestedContents]);
+
   const addLine = () => {
     if (!canAddLine) {
       toast.error('All products are already on this order.');
@@ -144,6 +314,7 @@ export function OmsOrderCreatePage(): ReactElement {
   const createMut = useMutation({
     mutationFn: (payload: CreateOmsOrderInput) => OmsApi.create(payload),
     onSuccess: (order) => {
+      clearListUiCache(OMS_CREATE_DRAFT_KEY);
       toast.success('OMS order created.');
       void qc.invalidateQueries({ queryKey: QK.omsOrders });
       void qc.invalidateQueries({ queryKey: QK.omsDashboard });
@@ -151,6 +322,36 @@ export function OmsOrderCreatePage(): ReactElement {
     },
     onError: (err: Error) => setError(err.message || 'Could not submit order.'),
   });
+
+  useEffect(() => {
+    writeListUiCache<OmsCreateDraft>(OMS_CREATE_DRAFT_KEY, {
+      companyId,
+      shipDate,
+      recipientName,
+      recipientPhone,
+      city,
+      district,
+      addressLine1,
+      storeChannel,
+      paymentMethod,
+      notes,
+      lines,
+      shipping,
+    });
+  }, [
+    companyId,
+    shipDate,
+    recipientName,
+    recipientPhone,
+    city,
+    district,
+    addressLine1,
+    storeChannel,
+    paymentMethod,
+    notes,
+    lines,
+    shipping,
+  ]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -160,6 +361,10 @@ export function OmsOrderCreatePage(): ReactElement {
     }
     if (!isYmdOnOrAfterLocalToday(shipDate)) {
       setError('Required ship date cannot be before today.');
+      return;
+    }
+    if (shortages.length > 0) {
+      setError('Quantity cannot exceed available stock for one or more products.');
       return;
     }
 
@@ -173,6 +378,11 @@ export function OmsOrderCreatePage(): ReactElement {
         setError('Each product line needs a valid price.');
         return;
       }
+      const avail = availabilityByProduct.get(l.productId);
+      if (avail !== undefined && qty > avail) {
+        setError('Quantity cannot exceed available stock.');
+        return;
+      }
       payloadLines.push({
         productId: l.productId,
         requestedQuantity: qty,
@@ -183,6 +393,16 @@ export function OmsOrderCreatePage(): ReactElement {
     if (payloadLines.length === 0) {
       setError('Add at least one line with quantity and price.');
       return;
+    }
+    if (isAdmin && shipping.shippingMethod === 'carrier') {
+      if (!shipping.shippingReceiverLat.trim() || !shipping.shippingReceiverLng.trim()) {
+        setError('Place the receiver pin inside the highlighted delivery area.');
+        return;
+      }
+      if (!shipping.shippingProviderCode.trim()) {
+        setError('Select an available shipping company.');
+        return;
+      }
     }
 
     setError(null);
@@ -201,6 +421,7 @@ export function OmsOrderCreatePage(): ReactElement {
       codAmount: paymentMethod === 'COD' ? linesSum : undefined,
       currency: 'USD',
       lines: payloadLines,
+      ...(isAdmin ? orderShippingFieldsToPayload(shipping) : {}),
     });
   };
 
@@ -350,6 +571,14 @@ export function OmsOrderCreatePage(): ReactElement {
 
             {lines.map((line) => {
               const p = productById.get(line.productId);
+              const avail = line.productId
+                ? availabilityByProduct.get(line.productId)
+                : undefined;
+              const summed = line.productId
+                ? requestedByProduct.get(line.productId) ?? 0
+                : 0;
+              const isShort = avail !== undefined && summed > avail;
+
               return (
                 <div
                   key={line.key}
@@ -360,7 +589,18 @@ export function OmsOrderCreatePage(): ReactElement {
                       value={line.productId}
                       onChange={(id) =>
                         setLines((prev) =>
-                          prev.map((l) => (l.key === line.key ? { ...l, productId: id } : l)),
+                          prev.map((l) =>
+                            l.key === line.key
+                              ? {
+                                  ...l,
+                                  productId: id,
+                                  requestedQuantity: clampQtyToAvailable(
+                                    id,
+                                    l.requestedQuantity,
+                                  ),
+                                }
+                              : l,
+                          ),
                         )
                       }
                       options={optionsForLine(line.key)}
@@ -373,28 +613,38 @@ export function OmsOrderCreatePage(): ReactElement {
                     {p ? (
                       <p className="mt-1.5 text-[11px] text-text-muted">
                         Current quantity:{' '}
-                        <span className="font-mono font-semibold text-text-strong">
-                          {formatOnHand(p)}
+                        <span
+                          className={[
+                            'font-mono font-semibold',
+                            isShort ? 'text-status-error-fg' : 'text-text-strong',
+                          ].join(' ')}
+                        >
+                          {formatAvailable(avail)}
                         </span>{' '}
                         <span className="uppercase text-text-body">{p.uom}</span>
+                      </p>
+                    ) : null}
+                    {isShort ? (
+                      <p className="mt-1 text-[11px] font-medium text-status-error-fg">
+                        Exceeds available stock
                       </p>
                     ) : null}
                   </div>
                   <TextField
                     type="number"
                     min={0}
+                    max={avail !== undefined ? avail : undefined}
                     step="1"
                     aria-label="Quantity"
                     value={line.requestedQuantity}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const next = clampQtyToAvailable(line.productId, e.target.value);
                       setLines((prev) =>
                         prev.map((l) =>
-                          l.key === line.key
-                            ? { ...l, requestedQuantity: e.target.value }
-                            : l,
+                          l.key === line.key ? { ...l, requestedQuantity: next } : l,
                         ),
-                      )
-                    }
+                      );
+                    }}
                     disabled={loading || !line.productId}
                     placeholder={line.productId ? 'Enter Qty' : 'Select a product first'}
                   />
@@ -462,6 +712,33 @@ export function OmsOrderCreatePage(): ReactElement {
           </div>
         </section>
 
+        {isAdmin ? (
+          <section className="space-y-5">
+            <SectionHeading title="Shipping" />
+            {!hasProductQuantities ? (
+              <p className="rounded-lg border border-border-subtle bg-surface-sunken px-3 py-2 text-sm text-text-body">
+                Add products and their quantities first. The shipping company form (weight,
+                volume, package type, contents, etc.) appears here after that.
+              </p>
+            ) : (
+              <OrderShippingFields
+                value={shipping}
+                onChange={setShipping}
+                showTitle={false}
+                disabled={loading}
+                suggestedWeightKg={calculatedWeightKg}
+                suggestedVolumeCbm={calculatedVolumeCbm}
+                destination={{
+                  governorate: city,
+                  city: district,
+                  neighborhood: addressLine1,
+                }}
+                codAmount={paymentMethod === 'COD' ? linesSum : null}
+              />
+            )}
+          </section>
+        ) : null}
+
         <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border-subtle pt-6">
           <Button
             type="button"
@@ -474,7 +751,7 @@ export function OmsOrderCreatePage(): ReactElement {
           <button
             type="submit"
             form="create-admin-oms"
-            disabled={loading}
+            disabled={loading || shortages.length > 0}
             className={FILTER_PRIMARY_BUTTON_CLASS}
           >
             {loading ? (

@@ -24,6 +24,7 @@ type Props = {
 const emptyCreate = (companyId = ''): CreateBillingPlanPayload => ({
   companyId,
   cycleLengthDays: 30,
+  autoRenew: true,
   fixedSubscriptionFee: 0,
   inboundOrderFee: 0,
   outboundOrderFee: 0,
@@ -69,6 +70,7 @@ export function BillingPlanFormModal({
     setForm({
       companyId: plan.companyId,
       active: plan.active,
+      autoRenew: plan.autoRenew !== false,
       planType: plan.planType ?? 'custom',
       templateId: plan.templateId ?? undefined,
       cycleLengthDays: plan.cycleLengthDays,
@@ -248,6 +250,21 @@ export function BillingPlanFormModal({
             <span className="text-sm text-text-body">Plan active</span>
           </label>
         ) : null}
+
+        <label className="flex items-start gap-2 sm:col-span-2">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={form.autoRenew ?? true}
+            onChange={(e) => setForm((f) => ({ ...f, autoRenew: e.target.checked }))}
+          />
+          <span className="text-sm text-text-body">
+            Auto-renewal
+            <span className="mt-0.5 block text-xs text-text-muted">
+              Automatically start the next cycle when the current one ends.
+            </span>
+          </span>
+        </label>
 
         {mode === 'edit' ? (
           <p className="sm:col-span-2 text-xs text-text-muted">

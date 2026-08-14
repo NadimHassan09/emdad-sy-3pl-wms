@@ -17,11 +17,13 @@ import {
   ApproveOmsOrderDto,
   CreateOmsOrderDto,
   RejectOmsOrderDto,
+  RevertOmsDeliveryDto,
   UpdateOmsOrderDto,
 } from './dto/oms-order.dto';
 import { OmsDashboardService } from './oms-dashboard.service';
 import { OmsOrdersService } from './oms-orders.service';
 import { ListOmsOrdersQueryDto } from './dto/list-oms-orders-query.dto';
+import { OmsDashboardOrderSummaryQueryDto } from './dto/oms-dashboard-order-summary-query.dto';
 
 @Controller('oms')
 export class OmsController {
@@ -38,6 +40,15 @@ export class OmsController {
     return this.dashboard.summary(user, companyId);
   }
 
+  /** Must be registered before any `dashboard/:id`-style routes. */
+  @Get('dashboard/order-summary')
+  orderSummary(
+    @CurrentUser() user: AuthPrincipal,
+    @Query() query: OmsDashboardOrderSummaryQueryDto,
+  ) {
+    return this.dashboard.orderSummary(user, query);
+  }
+
   @Get('orders')
   list(@CurrentUser() user: AuthPrincipal, @Query() query: ListOmsOrdersQueryDto) {
     return this.orders.list(user, query);
@@ -45,6 +56,7 @@ export class OmsController {
 
   @Post('orders')
   create(@CurrentUser() user: AuthPrincipal, @Body() dto: CreateOmsOrderDto) {
+    // Backend enforces: admin create → processing + outbound (idempotent).
     return this.orders.create(user, dto, { provisionOutbound: !dto.outboundOrderId });
   }
 
@@ -62,6 +74,7 @@ export class OmsController {
     @Param('id', ParseUuidLoosePipe) id: string,
     @Body() dto: UpdateOmsOrderDto,
   ) {
+    // Field updates only — status is never accepted on PATCH (see UpdateOmsOrderDto).
     return this.orders.update(id, user, dto);
   }
 
@@ -71,6 +84,14 @@ export class OmsController {
     @Param('id', ParseUuidLoosePipe) id: string,
   ) {
     return this.orders.delete(id, user);
+  }
+
+  @Post('orders/:id/confirm')
+  confirm(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.orders.confirm(id, user);
   }
 
   @Post('orders/:id/approve')
@@ -137,6 +158,7 @@ export class OmsController {
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
   ) {
+    // Deprecated: prefer WMS sync → shipped. Kept for compatibility.
     return this.orders.markOutForDelivery(id, user);
   }
 
@@ -146,6 +168,15 @@ export class OmsController {
     @Param('id', ParseUuidLoosePipe) id: string,
   ) {
     return this.orders.markDelivered(id, user);
+  }
+
+  @Post('orders/:id/delivery-revert')
+  deliveryRevert(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: RevertOmsDeliveryDto,
+  ) {
+    return this.orders.revertDelivery(id, user, dto);
   }
 
   @Post('orders/:id/returned')

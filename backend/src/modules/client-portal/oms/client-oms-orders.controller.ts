@@ -8,6 +8,7 @@ import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ClientOmsOrdersService } from './client-oms-orders.service';
 import { CreateClientOmsOrderDto } from './dto/create-client-oms-order.dto';
 import { ClientCodReportQueryDto } from './dto/client-cod-report-query.dto';
+import { ClientOmsStatusSummaryQueryDto } from './dto/client-oms-status-summary-query.dto';
 import { ListClientOmsOrdersQueryDto } from './dto/list-client-oms-orders-query.dto';
 
 @Public()
@@ -21,9 +22,28 @@ export class ClientOmsOrdersController {
     return this.oms.list(client, query);
   }
 
+  /** Must be registered before `orders/:id` so "status-summary" is not parsed as an id. */
+  @Get('orders/status-summary')
+  statusSummary(
+    @ClientUser() client: ClientPrincipal,
+    @Query() query: ClientOmsStatusSummaryQueryDto,
+  ) {
+    return this.oms.statusSummary(client, query);
+  }
+
   @Post('orders')
   create(@ClientUser() client: ClientPrincipal, @Body() dto: CreateClientOmsOrderDto) {
     return this.oms.create(client, dto);
+  }
+
+  @Post('orders/:id/confirm')
+  confirm(@ClientUser() client: ClientPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.oms.confirm(client, id);
+  }
+
+  @Post('orders/:id/cancel')
+  cancel(@ClientUser() client: ClientPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.oms.cancel(client, id);
   }
 
   @Get('orders/:id')

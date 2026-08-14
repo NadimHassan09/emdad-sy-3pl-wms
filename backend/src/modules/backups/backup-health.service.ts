@@ -14,6 +14,7 @@ import { BackupOperationsService } from './backup-operations.service';
 import { BackupRetentionService } from './backup-retention.service';
 import { getNextBackupScheduleRun } from './backup-schedule.util';
 import { BackupStorageService } from './backup-storage.service';
+import { BackupDiskStorageService } from './backup-disk-storage.service';
 import {
   BackupHealthAlert,
   BackupHealthResponse,
@@ -41,6 +42,7 @@ export class BackupHealthService {
     private readonly prisma: PrismaService,
     private readonly backupConfig: BackupConfig,
     private readonly storage: BackupStorageService,
+    private readonly diskStorage: BackupDiskStorageService,
     private readonly operations: BackupOperationsService,
     private readonly maintenance: BackupMaintenanceService,
     private readonly retention: BackupRetentionService,
@@ -57,6 +59,7 @@ export class BackupHealthService {
       oldestBackup,
       recentFailureCount,
       storageUsedBytes,
+      diskStorage,
       schedules,
       retentionPreview,
       lastCleanup,
@@ -105,6 +108,7 @@ export class BackupHealthService {
         },
       }),
       this.storage.sumStorageBytes(),
+      this.diskStorage.getOverview(),
       this.prisma.backupSchedule.findMany({ where: { enabled: true } }),
       this.retention.previewCleanup(),
       this.findLastRetentionCleanup(),
@@ -170,6 +174,7 @@ export class BackupHealthService {
       },
       healthStatus,
       alerts,
+      diskStorage,
     };
   }
 

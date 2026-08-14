@@ -40,6 +40,7 @@ import { FinalContractsModule } from './modules/final-contracts/final-contracts.
 import { OmsModule } from './modules/oms/oms.module';
 import { CodModule } from './modules/cod/cod.module';
 import { OmsReturnsModule } from './modules/oms-returns/oms-returns.module';
+import { ShippingModule } from './modules/shipping/shipping.module';
 import { PdfModule } from './pdf/pdf.module';
 
 @Module({
@@ -93,6 +94,7 @@ import { PdfModule } from './pdf/pdf.module';
     OmsModule,
     CodModule,
     OmsReturnsModule,
+    ShippingModule,
     PdfModule,
   ],
   providers: [

@@ -27,6 +27,13 @@ export class ListCodRecordsQueryDto extends PaginationDto {
   @IsOptional()
   @IsUuidLoose()
   omsOrderId?: string;
+
+  /** Matches order number, client name, or recipient name. */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  search?: string;
 }
 
 export class CreateCodAdjustmentDto {

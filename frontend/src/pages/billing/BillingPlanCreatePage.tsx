@@ -66,7 +66,10 @@ export function BillingPlanCreatePage() {
   const [templateId, setTemplateId] = useState('');
   const [reservedVolume, setReservedVolume] = useState('0');
   const [fixedSubscriptionFee, setFixedSubscriptionFee] = useState('0');
+  const [inboundOrderFee, setInboundOrderFee] = useState('0');
+  const [outboundOrderFee, setOutboundOrderFee] = useState('0');
   const [cycleLengthDays, setCycleLengthDays] = useState('30');
+  const [autoRenew, setAutoRenew] = useState(true);
 
   const companiesQuery = useQuery({
     queryKey: [...QK.billing.companiesWithoutPlan, clientSearch],
@@ -123,6 +126,10 @@ export function BillingPlanCreatePage() {
       cycleLengthDays: cycleDays,
       reservedVolume: numField(reservedVolume),
       fixedSubscriptionFee: numField(fixedSubscriptionFee),
+      inboundOrderFee: numField(inboundOrderFee),
+      outboundOrderFee: numField(outboundOrderFee),
+      outboundBaseFee: numField(outboundOrderFee),
+      autoRenew,
     };
     if (planType === 'template') {
       payload.templateId = templateId;
@@ -241,8 +248,8 @@ export function BillingPlanCreatePage() {
               title="Billing terms"
               description={
                 planType === 'template'
-                  ? 'Template fields are read-only. Switch to Custom to edit volume, price, or cycle length.'
-                  : 'Set reserved storage volume, subscription price, and billing cycle length.'
+                  ? 'Template fields are read-only. Switch to Custom to edit volume, prices, or cycle length.'
+                  : 'Set reserved storage, fixed subscription, per-order fees, and billing cycle length.'
               }
               bordered={false}
             >
@@ -257,7 +264,7 @@ export function BillingPlanCreatePage() {
                 required
               />
               <TextField
-                label={`Subscription price (${CURRENCY})`}
+                label={`Fixed plan price (${CURRENCY})`}
                 type="number"
                 min={0}
                 step="0.01"
@@ -265,6 +272,24 @@ export function BillingPlanCreatePage() {
                 onChange={(e) => setFixedSubscriptionFee(e.target.value)}
                 disabled={fieldsReadOnly}
                 required
+              />
+              <TextField
+                label={`Inbound order price (${CURRENCY})`}
+                type="number"
+                min={0}
+                step="0.01"
+                value={inboundOrderFee}
+                onChange={(e) => setInboundOrderFee(e.target.value)}
+                disabled={fieldsReadOnly}
+              />
+              <TextField
+                label={`Outbound order price (${CURRENCY})`}
+                type="number"
+                min={0}
+                step="0.01"
+                value={outboundOrderFee}
+                onChange={(e) => setOutboundOrderFee(e.target.value)}
+                disabled={fieldsReadOnly}
               />
               <TextField
                 label="Billing cycle (days)"
@@ -276,6 +301,21 @@ export function BillingPlanCreatePage() {
                 disabled={fieldsReadOnly}
                 required
               />
+              <label className="flex items-start gap-2.5 sm:col-span-2">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-border-strong text-brand-600 focus:ring-brand-500"
+                  checked={autoRenew}
+                  onChange={(e) => setAutoRenew(e.target.checked)}
+                />
+                <span>
+                  <span className="block text-sm font-medium text-text-strong">Auto-renewal</span>
+                  <span className="mt-0.5 block text-xs text-text-muted">
+                    When enabled, a new billing cycle starts automatically when the current one
+                    ends. When disabled, the client is restricted until renewed manually.
+                  </span>
+                </span>
+              </label>
             </FormSection>
           </Card.Body>
         </Card>

@@ -7,10 +7,9 @@ import { CompanyAccessService } from '../../common/company-access/company-access
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { withTenantRls } from '../../common/prisma/tenant-rls';
 
-/** Commercial in-fulfillment (Pending) — not WMS stages. */
+/** Commercial in-fulfillment — warehouse prep / ready (not yet shipped commercially). */
 const PENDING_FULFILLMENT: OmsOrderStatus[] = [
   OmsOrderStatus.pending,
-  // legacy until WP5 remap fully drained
   OmsOrderStatus.approved,
   OmsOrderStatus.confirmed,
   OmsOrderStatus.processing,
@@ -18,7 +17,13 @@ const PENDING_FULFILLMENT: OmsOrderStatus[] = [
   OmsOrderStatus.picking,
   OmsOrderStatus.packing,
   OmsOrderStatus.ready_to_ship,
-  OmsOrderStatus.shipped,
+];
+
+/** Awaiting client confirm or admin approval. */
+const AWAITING_APPROVAL: OmsOrderStatus[] = [
+  OmsOrderStatus.waiting_for_confirmation,
+  OmsOrderStatus.confirmed_waiting_for_admin_approval,
+  OmsOrderStatus.pending_approval,
 ];
 
 function startOfLocalDay(d = new Date()): Date {
@@ -89,12 +94,12 @@ export class OmsDashboardService {
           },
         }),
         tx.omsOrder.count({
-          where: { ...whereBase, status: OmsOrderStatus.pending_approval },
+          where: { ...whereBase, status: { in: AWAITING_APPROVAL } },
         }),
         tx.omsOrder.count({
           where: {
             ...whereBase,
-            status: OmsOrderStatus.pending_approval,
+            status: { in: AWAITING_APPROVAL },
             createdAt: { lt: todayStart },
           },
         }),
@@ -362,6 +367,64 @@ export class OmsDashboardService {
               ]
             : []),
         ],
+      };
+    });
+  }
+
+  /**
+   * Filtered status counts for the Order summary card (date range + optional company).
+   */
+  async orderSummary(
+    user: AuthPrincipal,
+    query: {
+      createdFrom?: string;
+      createdTo?: string;
+      companyId?: string;
+    },
+  ) {
+    const companyFilter = readCompanyIdCatalogFilter(
+      this.companyAccess,
+      user,
+      query.companyId,
+    );
+
+    const where: Prisma.OmsOrderWhereInput = {
+      ...(companyFilter ? { companyId: companyFilter } : {}),
+    };
+
+    if (query.createdFrom || query.createdTo) {
+      const createdAt: Prisma.DateTimeFilter = {};
+      if (query.createdFrom) {
+        createdAt.gte = new Date(`${query.createdFrom}T00:00:00.000Z`);
+      }
+      if (query.createdTo) {
+        createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
+      }
+      where.createdAt = createdAt;
+    }
+
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const grouped = await tx.omsOrder.groupBy({
+        by: ['status'],
+        where,
+        _count: { _all: true },
+      });
+
+      const byStatus: Record<string, number> = {};
+      let total = 0;
+      for (const row of grouped) {
+        const n = row._count._all;
+        byStatus[row.status] = n;
+        total += n;
+      }
+
+      return {
+        total,
+        byStatus,
+        ordersByStatus: grouped.map((r) => ({
+          status: r.status,
+          count: r._count._all,
+        })),
       };
     });
   }

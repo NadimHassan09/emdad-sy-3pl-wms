@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.taskCompleteBodySchema = exports.completeRoutingSchema = exports.completeDispatchSchema = exports.completePackSchema = exports.completePickSchema = exports.completePutawayQuarantineSchema = exports.completePutawaySchema = exports.completeQcSchema = exports.completeReceivingSchema = void 0;
+exports.taskCompleteBodySchema = exports.completeRoutingSchema = exports.completeShippingDetailsSchema = exports.completeDispatchSchema = exports.completePackSchema = exports.completePickSchema = exports.completePutawayQuarantineSchema = exports.completePutawaySchema = exports.completeQcSchema = exports.completeReceivingSchema = void 0;
 const zod_1 = require("zod");
 const decimalish = zod_1.z.union([zod_1.z.number(), zod_1.z.string()]).transform((v) => String(v));
 exports.completeReceivingSchema = zod_1.z.object({
@@ -67,6 +67,18 @@ exports.completeDispatchSchema = zod_1.z.object({
     carrier: zod_1.z.string().optional(),
     tracking: zod_1.z.string().optional(),
 });
+exports.completeShippingDetailsSchema = zod_1.z.object({
+    task_type: zod_1.z.literal('shipping_details'),
+    shippingReceiverLat: zod_1.z.union([zod_1.z.number(), zod_1.z.string()]).optional().nullable(),
+    shippingReceiverLng: zod_1.z.union([zod_1.z.number(), zod_1.z.string()]).optional().nullable(),
+    shippingPackageType: zod_1.z.enum(['box', 'envelope']).optional().nullable(),
+    shippingContents: zod_1.z.string().optional().nullable(),
+    shippingDeliveryType: zod_1.z.enum(['address', 'hub']).optional().nullable(),
+    shippingPickupType: zod_1.z.enum(['address', 'hub']).optional().nullable(),
+    shippingPayer: zod_1.z.enum(['sender', 'receiver', 'reseller']).optional().nullable(),
+    shippingWeightKg: zod_1.z.union([zod_1.z.number(), zod_1.z.string()]).optional().nullable(),
+    shippingPhoneCountry: zod_1.z.string().optional().nullable(),
+});
 exports.completeRoutingSchema = zod_1.z.object({
     task_type: zod_1.z.literal('routing'),
     destination_location_id: zod_1.z.string().uuid(),
@@ -81,6 +93,7 @@ exports.taskCompleteBodySchema = zod_1.z.discriminatedUnion('task_type', [
     exports.completePutawayQuarantineSchema,
     exports.completePickSchema,
     exports.completePackSchema,
+    exports.completeShippingDetailsSchema,
     exports.completeDispatchSchema,
     exports.completeRoutingSchema,
 ]);

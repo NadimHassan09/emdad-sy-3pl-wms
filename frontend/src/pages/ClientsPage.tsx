@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import { Alert } from '@ds';
+import { Alert, Card } from '@ds';
 
 import {
   CompaniesApi,
@@ -16,7 +16,7 @@ import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { Button } from '../components/Button';
 import { CustomerLifecycleModal } from '../components/clients/CustomerLifecycleModal';
 import { DataTable, type Column } from '../components/DataTable';
-import { FilterPanel } from '../components/FilterPanel';
+import { ImageUploadField } from '../components/ImageUploadField';
 import { Modal } from '../components/Modal';
 import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
@@ -25,20 +25,17 @@ import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useAuth } from '../auth/AuthContext';
 import { useFilters } from '../hooks/useFilters';
+import { adminMediaSrc } from '../lib/admin-media';
 import {
   sanitizeCompanyPayload,
   validateCompanyForm,
   type CompanyFormErrors,
 } from '../lib/company-form-validation';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
-
-type ClientSearchCategory = 'name' | 'tradeName' | 'email' | 'phone' | 'city' | 'country';
-type ClientStatusFilter = 'all' | 'active' | 'suspended' | 'archived';
+import { useDebounced } from '../lib/useDebounced';
 
 type ClientListFilters = {
   search: string;
-  searchCategory: ClientSearchCategory;
-  status: ClientStatusFilter;
 };
 
 const TEXTAREA_CLASS =
@@ -107,21 +104,35 @@ export function ClientsPage() {
   const toast = useToast();
   const { user } = useAuth();
   const isSuperAdmin = user?.role === 'super_admin';
-  const [createOpen, setCreateOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [createOpen, setCreateOpen] = useState(() => searchParams.get('create') === '1');
   const [editRow, setEditRow] = useState<CompanyListRow | null>(null);
   const [lifecycleRow, setLifecycleRow] = useState<CompanyListRow | null>(null);
   const [openActionId, setOpenActionId] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState<CreateCompanyPayload>(emptyCreate);
   const [createErrors, setCreateErrors] = useState<CompanyFormErrors>({});
   const [editErrors, setEditErrors] = useState<CompanyFormErrors>({});
+  const [createLogoFile, setCreateLogoFile] = useState<File | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [editLogoVersion, setEditLogoVersion] = useState(() => Date.now());
 
-  const initialClientFilters = useMemo<ClientListFilters>(
-    () => ({ search: '', searchCategory: 'name', status: 'all' }),
-    [],
-  );
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(initialClientFilters);
+  const initialClientFilters = useMemo<ClientListFilters>(() => ({ search: '' }), []);
+  const { draftFilters, appliedFilters, setDraft, applyPatch } = useFilters(initialClientFilters);
+  const debouncedSearch = useDebounced(draftFilters.search, 300);
   const [editForm, setEditForm] = useState<UpdateCompanyPayload>({});
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1') return;
+    setCreateOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('create');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (debouncedSearch === appliedFilters.search) return;
+    applyPatch({ search: debouncedSearch });
+  }, [debouncedSearch, appliedFilters.search, applyPatch]);
 
   useEffect(() => {
     if (!openActionId) return;
@@ -142,7 +153,7 @@ export function ClientsPage() {
 
   const companiesKey = QK.companies;
 
-  const { data: rows = [], isLoading, isFetching, error } = useQuery({
+  const { data: rows = [], isLoading, error } = useQuery({
     queryKey: companiesKey,
     queryFn: () => CompaniesApi.list({ includeAll: true }),
   });
@@ -150,11 +161,18 @@ export function ClientsPage() {
   const invalidate = () => qc.invalidateQueries({ queryKey: companiesKey });
 
   const createMut = useMutation({
-    mutationFn: (payload: CreateCompanyPayload) => CompaniesApi.create(payload),
+    mutationFn: async (payload: CreateCompanyPayload) => {
+      const company = await CompaniesApi.create(payload);
+      if (createLogoFile) {
+        await CompaniesApi.uploadLogo(company.id, createLogoFile);
+      }
+      return company;
+    },
     onSuccess: () => {
       toast.success('Company created.');
       setCreateOpen(false);
       setCreateForm(emptyCreate);
+      setCreateLogoFile(null);
       setCreateErrors({});
       setOpenActionId(null);
       invalidate();
@@ -179,6 +197,7 @@ export function ClientsPage() {
   const openEdit = (r: CompanyListRow) => {
     setEditRow(r);
     setEditErrors({});
+    setEditLogoVersion(Date.now());
     setEditForm({
       name: r.name,
       tradeName: r.tradeName ?? '',
@@ -195,6 +214,7 @@ export function ClientsPage() {
   const closeCreate = () => {
     if (!createMut.isPending) {
       setCreateForm(emptyCreate);
+      setCreateLogoFile(null);
       setCreateErrors({});
       setCreateOpen(false);
     }
@@ -277,7 +297,31 @@ export function ClientsPage() {
 
   const columns: Column<CompanyListRow>[] = useMemo(
     () => [
-      { header: t('Name', 'الاسم'), accessor: (r) => <span className="text-text-strong">{r.name}</span> },
+      {
+        header: t('Name', 'الاسم'),
+        accessor: (r) => {
+          const logoSrc = adminMediaSrc(r.logoUrl);
+          return (
+            <div className="flex items-center gap-3">
+              {logoSrc ? (
+                <img
+                  src={logoSrc}
+                  alt=""
+                  className="h-9 w-9 shrink-0 rounded-lg border border-border object-cover"
+                />
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-text-faint">
+                  <i className="fa-solid fa-building text-xs" aria-hidden="true" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="truncate font-semibold text-text-strong">{r.name}</div>
+                <div className="truncate text-xs text-text-muted">{r.tradeName || '—'}</div>
+              </div>
+            </div>
+          );
+        },
+      },
       { header: t('Trade name', 'الاسم التجاري'), accessor: (r) => <span className="text-text-body">{r.tradeName ?? '—'}</span> },
       { header: t('Email', 'البريد الإلكتروني'), accessor: (r) => <span className="text-text-body">{r.contactEmail}</span> },
       { header: t('Phone', 'الهاتف'), accessor: (r) => <span className="text-text-body">{r.contactPhone ?? '—'}</span> },
@@ -359,30 +403,22 @@ export function ClientsPage() {
   const errMsg = error instanceof Error ? error.message : null;
   const filteredRows = useMemo(() => {
     const q = appliedFilters.search.trim().toLowerCase();
-    const statusFilter = appliedFilters.status;
+    if (!q) return rows;
     return rows.filter((r) => {
-      if (statusFilter !== 'all' && r.status !== statusFilter) return false;
-      if (!q) return true;
-      const value = (() => {
-        switch (appliedFilters.searchCategory) {
-          case 'tradeName':
-            return r.tradeName ?? '';
-          case 'email':
-            return r.contactEmail ?? '';
-          case 'phone':
-            return r.contactPhone ?? '';
-          case 'city':
-            return r.city ?? '';
-          case 'country':
-            return r.country ?? '';
-          case 'name':
-          default:
-            return r.name ?? '';
-        }
-      })();
-      return value.toLowerCase().includes(q);
+      const haystack = [
+        r.name,
+        r.tradeName,
+        r.contactEmail,
+        r.contactPhone,
+        r.city,
+        r.country,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
     });
-  }, [rows, appliedFilters.search, appliedFilters.searchCategory, appliedFilters.status]);
+  }, [rows, appliedFilters.search]);
 
   return (
     <AdminListPageShell
@@ -398,49 +434,23 @@ export function ClientsPage() {
     >
       {errMsg ? <Alert variant="error" title={errMsg} className="mb-4" /> : null}
 
-      <FilterPanel
-        title={t('Client filters', 'فلاتر العملاء')}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={isFetching}
-        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
-        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
-      >
-          <TextField
-            label={t('Search', 'بحث')}
+      <Card padding="md">
+        <div className="relative w-full">
+          <i
+            className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+            aria-hidden
+          />
+          <input
             value={draftFilters.search}
             onChange={(e) => setDraft({ search: e.target.value })}
-            placeholder={t('Search client...', 'ابحث عن عميل...')}
+            placeholder={t(
+              'Search name, email, phone, city…',
+              'ابحث بالاسم أو البريد أو الهاتف أو المدينة…',
+            )}
+            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
           />
-          <SelectField
-            label={t('Search by', 'البحث حسب')}
-            name="clientSearchCategory"
-            value={draftFilters.searchCategory}
-            onChange={(e) =>
-              setDraft({ searchCategory: e.target.value as ClientSearchCategory })
-            }
-            options={[
-              { value: 'name', label: t('Company name', 'اسم الشركة') },
-              { value: 'tradeName', label: t('Trade name', 'الاسم التجاري') },
-              { value: 'email', label: t('Email', 'البريد الإلكتروني') },
-              { value: 'phone', label: t('Phone', 'الهاتف') },
-              { value: 'city', label: t('City', 'المدينة') },
-              { value: 'country', label: t('Country', 'الدولة') },
-            ]}
-          />
-          <SelectField
-            label={t('Status', 'الحالة')}
-            name="clientStatusFilter"
-            value={draftFilters.status}
-            onChange={(e) => setDraft({ status: e.target.value as ClientStatusFilter })}
-            options={[
-              { value: 'all', label: t('All', 'الكل') },
-              { value: 'active', label: t('Active', 'نشط') },
-              { value: 'suspended', label: t('Suspended', 'موقوف') },
-              { value: 'archived', label: t('Archived', 'مؤرشف') },
-            ]}
-          />
-      </FilterPanel>
+        </div>
+      </Card>
 
       <DataTable
         columns={columns}
@@ -487,6 +497,16 @@ export function ClientsPage() {
         }
       >
         <form id="create-company" onSubmit={submitCreate} className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1" noValidate>
+          <ImageUploadField
+            label={t('Company logo', 'شعار الشركة')}
+            hint={t('Optional. Images are compressed before saving.', 'اختياري. يتم ضغط الصور قبل الحفظ.')}
+            file={createLogoFile}
+            onFileChange={setCreateLogoFile}
+            rounded="xl"
+            size="sm"
+            isArabic={isArabic}
+            disabled={createMut.isPending}
+          />
           <TextField
             label={t('Name', 'الاسم')}
             required
@@ -607,6 +627,44 @@ export function ClientsPage() {
         }
       >
         <form id="edit-company" onSubmit={submitEdit} className="space-y-3" noValidate>
+          <ImageUploadField
+            label={t('Company logo', 'شعار الشركة')}
+            hint={t('Images are compressed before saving.', 'يتم ضغط الصور قبل الحفظ.')}
+            previewUrl={adminMediaSrc(editRow?.logoUrl, editLogoVersion)}
+            rounded="xl"
+            size="sm"
+            uploading={logoUploading}
+            isArabic={isArabic}
+            disabled={updateMut.isPending}
+            onUpload={async (file) => {
+              if (!editRow) return;
+              setLogoUploading(true);
+              try {
+                const res = await CompaniesApi.uploadLogo(editRow.id, file);
+                setEditRow(res.company);
+                setEditLogoVersion(Date.now());
+                invalidate();
+              } finally {
+                setLogoUploading(false);
+              }
+            }}
+            onRemove={
+              editRow?.logoUrl
+                ? async () => {
+                    if (!editRow) return;
+                    setLogoUploading(true);
+                    try {
+                      await CompaniesApi.deleteLogo(editRow.id);
+                      setEditRow({ ...editRow, logoUrl: null });
+                      setEditLogoVersion(Date.now());
+                      invalidate();
+                    } finally {
+                      setLogoUploading(false);
+                    }
+                  }
+                : undefined
+            }
+          />
           <SelectField
             label={t('Status', 'الحالة')}
             name="status"

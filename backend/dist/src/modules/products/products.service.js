@@ -25,6 +25,7 @@ const product_audit_util_1 = require("./product-audit.util");
 const product_barcode_util_1 = require("./product-barcode.util");
 const product_delete_references_util_1 = require("./product-delete-references.util");
 const product_volume_util_1 = require("./product-volume.util");
+const avatar_url_1 = require("../media/avatar-url");
 const SKU_RETRY_LIMIT = 5;
 const BARCODE_RETRY_LIMIT = 8;
 const INTERNAL_ROLES = new Set([
@@ -159,6 +160,7 @@ let ProductsService = class ProductsService {
                     { name: { contains: q, mode: 'insensitive' } },
                     { sku: { contains: q, mode: 'insensitive' } },
                     { barcode: { contains: q, mode: 'insensitive' } },
+                    { company: { name: { contains: q, mode: 'insensitive' } } },
                 ],
             });
         }
@@ -188,7 +190,7 @@ let ProductsService = class ProductsService {
                     orderBy: { createdAt: 'desc' },
                     take: query.limit,
                     skip: query.offset,
-                    include: { company: { select: { id: true, name: true } } },
+                    include: { company: { select: { id: true, name: true, logoPath: true } } },
                 }),
                 tx.product.count({ where }),
             ]);
@@ -247,8 +249,16 @@ let ProductsService = class ProductsService {
                 const reserved = agg?.reserved ?? new client_1.Prisma.Decimal(0);
                 const stockZero = onHand.equals(0) && reserved.equals(0);
                 const hasReferences = referencedProductIds.has(p.id);
+                const { imagePath, company, ...rest } = p;
                 return {
-                    ...p,
+                    ...rest,
+                    imagePath,
+                    imageUrl: (0, avatar_url_1.toAvatarPublicUrl)(imagePath),
+                    company: {
+                        id: company.id,
+                        name: company.name,
+                        logoUrl: (0, avatar_url_1.toAvatarPublicUrl)(company.logoPath),
+                    },
                     totalOnHand: onHand.toString(),
                     totalReserved: reserved.toString(),
                     deletable: stockZero && !hasReferences && p.status !== 'archived',

@@ -180,6 +180,10 @@ let RealtimeService = RealtimeService_1 = class RealtimeService {
         this.notify('BackupJobProgress');
         this.emitToRoom(realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM, realtime_events_1.RealtimeEvents.BACKUP_JOB_PROGRESS, payload);
     }
+    emitBulkShippingProgress(payload) {
+        this.notify('ShippingBulkProgress');
+        this.emitToRoom(realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM, realtime_events_1.RealtimeEvents.SHIPPING_BULK_PROGRESS, payload);
+    }
     emitTaskUpdated(companyId, payload) {
         this.notify('TaskUpdated', companyId);
         this.emit(companyId, realtime_events_1.RealtimeEvents.TASK_UPDATED, payload);

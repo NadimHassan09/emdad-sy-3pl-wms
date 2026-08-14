@@ -68,7 +68,10 @@ export function BillingPlanEditPage() {
   const [templateId, setTemplateId] = useState('');
   const [reservedVolume, setReservedVolume] = useState('0');
   const [fixedSubscriptionFee, setFixedSubscriptionFee] = useState('0');
+  const [inboundOrderFee, setInboundOrderFee] = useState('0');
+  const [outboundOrderFee, setOutboundOrderFee] = useState('0');
   const [cycleLengthDays, setCycleLengthDays] = useState('30');
+  const [autoRenew, setAutoRenew] = useState(true);
   const [applyModalOpen, setApplyModalOpen] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<UpdateBillingPlanPayload | null>(null);
 
@@ -93,7 +96,10 @@ export function BillingPlanEditPage() {
     setTemplateId(plan.templateId ?? '');
     setReservedVolume(plan.reservedVolume);
     setFixedSubscriptionFee(plan.fixedSubscriptionFee);
+    setInboundOrderFee(plan.inboundOrderFee);
+    setOutboundOrderFee(plan.outboundOrderFee);
     setCycleLengthDays(String(plan.cycleLengthDays));
+    setAutoRenew(plan.autoRenew !== false);
   }, [plan]);
 
   const selectedTemplate = useMemo(
@@ -142,7 +148,11 @@ export function BillingPlanEditPage() {
       templateId: planType === 'template' ? templateId : null,
       reservedVolume: numField(reservedVolume),
       fixedSubscriptionFee: numField(fixedSubscriptionFee),
+      inboundOrderFee: numField(inboundOrderFee),
+      outboundOrderFee: numField(outboundOrderFee),
+      outboundBaseFee: numField(outboundOrderFee),
       cycleLengthDays: Math.max(1, Math.floor(numField(cycleLengthDays)) || 30),
+      autoRenew,
     };
     setPendingPayload(payload);
     setApplyModalOpen(true);
@@ -184,7 +194,7 @@ export function BillingPlanEditPage() {
         />
         <AppPageHeader
           title={pageTitle}
-          description="Update reserved volume, subscription price, and billing cycle."
+          description="Update reserved volume, subscription and per-order prices, and billing cycle."
           actions={
             plan ? (
               <>
@@ -277,8 +287,8 @@ export function BillingPlanEditPage() {
                 title="Billing terms"
                 description={
                   planType === 'template'
-                    ? 'Template fields are read-only. Switch to Custom to override volume, price, or cycle.'
-                    : 'Set reserved storage volume, subscription price, and billing cycle length.'
+                    ? 'Template fields are read-only. Switch to Custom to override volume, prices, or cycle.'
+                    : 'Set reserved storage, fixed subscription, per-order fees, and billing cycle length.'
                 }
                 bordered={false}
               >
@@ -293,7 +303,7 @@ export function BillingPlanEditPage() {
                   required
                 />
                 <TextField
-                  label={`Subscription price (${CURRENCY})`}
+                  label={`Fixed plan price (${CURRENCY})`}
                   type="number"
                   min={0}
                   step="0.01"
@@ -301,6 +311,24 @@ export function BillingPlanEditPage() {
                   onChange={(e) => setFixedSubscriptionFee(e.target.value)}
                   disabled={fieldsReadOnly}
                   required
+                />
+                <TextField
+                  label={`Inbound order price (${CURRENCY})`}
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={inboundOrderFee}
+                  onChange={(e) => setInboundOrderFee(e.target.value)}
+                  disabled={fieldsReadOnly}
+                />
+                <TextField
+                  label={`Outbound order price (${CURRENCY})`}
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={outboundOrderFee}
+                  onChange={(e) => setOutboundOrderFee(e.target.value)}
+                  disabled={fieldsReadOnly}
                 />
                 <TextField
                   label="Billing cycle (days)"
@@ -312,6 +340,21 @@ export function BillingPlanEditPage() {
                   disabled={fieldsReadOnly}
                   required
                 />
+                <label className="flex items-start gap-2.5 sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-border-strong text-brand-600 focus:ring-brand-500"
+                    checked={autoRenew}
+                    onChange={(e) => setAutoRenew(e.target.checked)}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-text-strong">Auto-renewal</span>
+                    <span className="mt-0.5 block text-xs text-text-muted">
+                      When enabled, a new billing cycle starts automatically when the current one
+                      ends. When disabled, the client is restricted until renewed manually.
+                    </span>
+                  </span>
+                </label>
               </FormSection>
             </Card.Body>
           </Card>
@@ -361,8 +404,9 @@ export function BillingPlanEditPage() {
         }
       >
         <p className="text-sm text-text-body">
-          Immediate changes update the active plan (and may affect the current cycle invoice). Next-cycle
-          changes are stored as pending and applied when the billing cycle renews.
+          <strong>Apply immediately</strong> refreshes the active cycle rate card and recalculates
+          the current draft invoice. <strong>Apply starting next cycle</strong> updates the plan
+          only — the current draft keeps its existing rates. Finalized invoices are never changed.
         </p>
       </Modal>
     </div>

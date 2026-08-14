@@ -40,6 +40,15 @@ let InboundController = class InboundController {
     updatePlan(user, id, body) {
         return this.inbound.updatePlan(user, id, body);
     }
+    approve(user, id) {
+        return this.inbound.approveAdmin(user, id);
+    }
+    completeReceiving(user, id) {
+        return this.inbound.completeReceivingAdmin(user, id);
+    }
+    completePutaway(user, id) {
+        return this.inbound.completePutawayAdmin(user, id);
+    }
     executeAdmin(user, id) {
         return this.inbound.executeAdmin(user, id);
     }
@@ -90,6 +99,30 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, update_inbound_plan_dto_1.UpdateInboundPlanDto]),
     __metadata("design:returntype", void 0)
 ], InboundController.prototype, "updatePlan", null);
+__decorate([
+    (0, common_1.Post)(':id/approve'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], InboundController.prototype, "approve", null);
+__decorate([
+    (0, common_1.Post)(':id/complete-receiving'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], InboundController.prototype, "completeReceiving", null);
+__decorate([
+    (0, common_1.Post)(':id/complete-putaway'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], InboundController.prototype, "completePutaway", null);
 __decorate([
     (0, common_1.Post)(':id/execute-admin'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

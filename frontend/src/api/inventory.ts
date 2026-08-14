@@ -73,7 +73,10 @@ export interface AvailabilityResult {
   companyId: string;
   onHand: string;
   reserved: string;
+  /** Usable qty; when outboundOrderId is passed, includes that order's own soft-holds. */
   available: string;
+  reservedByThisOrder?: string;
+  availableForOrder?: string;
 }
 
 export interface LedgerRow {
@@ -218,9 +221,17 @@ export const InventoryApi = {
     return data;
   },
 
-  async availability(productId: string, companyIdOverride?: string): Promise<AvailabilityResult> {
+  async availability(
+    productId: string,
+    companyIdOverride?: string,
+    outboundOrderId?: string,
+  ): Promise<AvailabilityResult> {
     const { data } = await api.get<AvailabilityResult>('/inventory/availability', {
-      params: { productId, ...(companyIdOverride ? { companyId: companyIdOverride } : {}) },
+      params: {
+        productId,
+        ...(companyIdOverride ? { companyId: companyIdOverride } : {}),
+        ...(outboundOrderId ? { outboundOrderId } : {}),
+      },
       ...(companyHeaders(companyIdOverride) ?? {}),
     });
     return data;

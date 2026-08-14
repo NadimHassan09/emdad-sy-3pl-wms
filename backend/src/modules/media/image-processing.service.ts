@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import sharp from 'sharp';
 
-export type ImageKind = 'product' | 'avatar';
+export type ImageKind = 'product' | 'avatar' | 'company-logo';
 
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
@@ -12,7 +12,7 @@ export class ImageProcessingService {
       throw new BadRequestException('Only JPEG, PNG, WebP, or GIF images are allowed.');
     }
 
-    const maxEdge = kind === 'avatar' ? 512 : 1200;
+    const maxEdge = kind === 'avatar' ? 512 : kind === 'company-logo' ? 800 : 1200;
     const quality = kind === 'avatar' ? 82 : 78;
 
     try {

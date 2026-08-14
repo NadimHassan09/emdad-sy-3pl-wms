@@ -224,14 +224,8 @@ export function OutboundOmsPanel({
       )}
 
       <div className="mt-4 flex flex-wrap gap-2 border-t border-border-subtle pt-4">
-        <Button size="sm" variant="secondary" loading={mut.isPending} onClick={() => mut.mutate('out')}>
-          Out for delivery
-        </Button>
         <Button size="sm" variant="secondary" loading={mut.isPending} onClick={() => mut.mutate('delivered')}>
           Mark delivered
-        </Button>
-        <Button size="sm" variant="danger" loading={mut.isPending} onClick={() => mut.mutate('returned')}>
-          Mark returned
         </Button>
       </div>
     </div>

@@ -65,14 +65,21 @@ describe('OrderAllocationService', () => {
     expect(tx.stockReservation.create).not.toHaveBeenCalled();
   });
 
-  it('allocateOrder skips when active reservations already exist', async () => {
+  it('allocateOrder reuses existing soft-holds without creating duplicates (OMS→Outbound)', async () => {
     const { service, events } = buildService({ flagOn: true });
     const tx = {
       stockReservation: {
-        count: jest.fn().mockResolvedValue(2),
+        count: jest.fn(),
         create: jest.fn(),
         updateMany: jest.fn(),
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            outboundOrderLineId: 'line-1',
+            productId: 'prod-1',
+            quantity: dec(5),
+          },
+        ]),
+        aggregate: jest.fn(),
       },
       outboundOrder: { update: jest.fn() },
     };
@@ -92,6 +99,51 @@ describe('OrderAllocationService', () => {
 
     expect(tx.stockReservation.create).not.toHaveBeenCalled();
     expect(events.record).not.toHaveBeenCalled();
+    expect(tx.outboundOrder.update).not.toHaveBeenCalled();
+  });
+
+  it('allocateOrder tops up only the shortfall when partially reserved', async () => {
+    jest.spyOn(allocationHelper, 'findCompanyStockFefo').mockResolvedValue([
+      {
+        locationId: 'loc-1',
+        lotId: null,
+        quantityAvailable: dec(10),
+      } as never,
+    ]);
+
+    const { service, tx, events } = buildService({ flagOn: true });
+    tx.stockReservation.findMany = jest.fn().mockResolvedValue([
+      {
+        outboundOrderLineId: 'line-1',
+        productId: 'prod-1',
+        quantity: dec(3),
+      },
+    ]);
+
+    await service.allocateOrder(tx as never, {
+      outboundOrderId: 'ord-1',
+      companyId: 'co-1',
+      lines: [
+        {
+          outboundOrderLineId: 'line-1',
+          productId: 'prod-1',
+          requestedQty: dec(5),
+          specificLotId: null,
+        },
+      ],
+    });
+
+    expect(tx.stockReservation.create).toHaveBeenCalledTimes(1);
+    expect(tx.stockReservation.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          quantity: dec(2),
+          outboundOrderId: 'ord-1',
+          outboundOrderLineId: 'line-1',
+        }),
+      }),
+    );
+    expect(events.record).toHaveBeenCalled();
   });
 
   it('throws InsufficientStockException when FEFO stock is short', async () => {

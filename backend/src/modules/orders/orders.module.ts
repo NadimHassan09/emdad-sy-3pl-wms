@@ -6,8 +6,8 @@ import { WarehouseWorkflowModule } from '../warehouse-workflow/warehouse-workflo
 
 /**
  * Shared order helpers live under `execution-plan.util.ts`.
- * Admin execute-admin facade is implemented on InboundService / OutboundService
- * (duplicate AdminOrderExecutionService removed — Unified Order Execution).
+ * Admin execute-admin facade is deprecated (single-stage wrapper only).
+ * Prefer outbound/inbound Approve + stage completion endpoints.
  */
 @Module({
   imports: [

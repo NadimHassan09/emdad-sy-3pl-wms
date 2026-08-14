@@ -19,6 +19,7 @@ import { BackupFileEncryptionService } from './backup-file-encryption.service';
 import { BackupDownloadTokenService } from './backup-download-token.service';
 import { BackupGdriveStartupService } from './backup-gdrive-startup.service';
 import { BackupHealthAlertService } from './backup-health-alert.service';
+import { BackupDiskStorageService } from './backup-disk-storage.service';
 import { BackupHealthService } from './backup-health.service';
 import { BackupFactoryResetService } from './backup-factory-reset.service';
 import { BackupMaintenanceMiddleware } from './backup-maintenance.middleware';
@@ -68,6 +69,7 @@ import { BackupsService } from './backups.service';
     BackupSchedulerService,
     BackupRetentionService,
     BackupRetentionCleanupService,
+    BackupDiskStorageService,
     BackupHealthService,
     BackupHealthAlertService,
     BackupGdriveStartupService,

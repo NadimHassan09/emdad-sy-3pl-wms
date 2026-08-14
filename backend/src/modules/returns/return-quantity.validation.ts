@@ -188,12 +188,35 @@ export class ReturnQuantityValidation {
       );
       const total = alreadyReturned.add(add);
       if (total.gt(max)) {
+        const label = await this.bucketLabel(key, outbound, tx);
         throw new BadRequestException(
-          `Return quantity exceeds shipped quantity for ${key.replace(/^line:|^product:/, '')} ` +
+          `Return quantity exceeds shipped quantity for ${label} ` +
             `(shipped ${max.toString()}, already returned ${alreadyReturned.toString()}, requested ${add.toString()}).`,
         );
       }
     }
+  }
+
+  private async bucketLabel(
+    bucketKey: string,
+    outbound: {
+      lines: Array<{ id: string; productId: string }>;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<string> {
+    let productId: string | undefined;
+    if (bucketKey.startsWith('line:')) {
+      const lineId = bucketKey.slice(5);
+      productId = outbound.lines.find((l) => l.id === lineId)?.productId;
+    } else if (bucketKey.startsWith('product:')) {
+      productId = bucketKey.split(':')[1];
+    }
+    if (!productId) return bucketKey.replace(/^line:|^product:/, '');
+    const product = await this.client(tx).product.findUnique({
+      where: { id: productId },
+      select: { sku: true },
+    });
+    return product?.sku ?? productId;
   }
 
   private async sumActiveReturnQuantity(

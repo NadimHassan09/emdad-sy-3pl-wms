@@ -9,6 +9,9 @@ import { PasswordService } from '../../../common/crypto/password.service';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { LoginBruteForceService } from '../../../common/security/login-brute-force.service';
 import { getClientIp } from '../../../common/security/request-ip.util';
+import { ImageProcessingService } from '../../media/image-processing.service';
+import { MediaStorageService } from '../../media/media-storage.service';
+import { toAvatarPublicUrl } from '../../media/avatar-url';
 import { ClientLoginDto } from './dto/client-login.dto';
 import type { JwtClientAccessPayload } from './strategies/jwt-client.strategy';
 
@@ -22,6 +25,8 @@ export class ClientAuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly loginBruteForce: LoginBruteForceService,
+    private readonly images: ImageProcessingService,
+    private readonly storage: MediaStorageService,
   ) {}
 
   async login(dto: ClientLoginDto, req?: Request, res?: Response) {
@@ -44,6 +49,7 @@ export class ClientAuthService {
         status: true,
         companyId: true,
         fullName: true,
+        avatarPath: true,
       },
     });
 
@@ -126,11 +132,12 @@ export class ClientAuthService {
         role: user.role,
         companyId: user.companyId,
         companyName: company?.name ?? null,
+        avatarUrl: toAvatarPublicUrl(user.avatarPath),
       },
     };
   }
 
-  async getMe(user: ClientPrincipal): Promise<ClientPrincipal> {
+  async getMe(user: ClientPrincipal): Promise<ClientPrincipal & { avatarUrl: string | null }> {
     const row = await this.prisma.user.findUnique({
       where: { id: user.id },
       select: {
@@ -139,6 +146,7 @@ export class ClientAuthService {
         fullName: true,
         role: true,
         companyId: true,
+        avatarPath: true,
         company: { select: { name: true } },
       },
     });
@@ -152,7 +160,56 @@ export class ClientAuthService {
       role: row.role as ClientPrincipal['role'],
       companyId: row.companyId,
       companyName: row.company?.name ?? '',
+      avatarUrl: toAvatarPublicUrl(row.avatarPath),
     };
+  }
+
+  async uploadAvatar(user: ClientPrincipal, file: Express.Multer.File) {
+    const compressed = await this.images.compress(file.buffer, file.mimetype, 'avatar');
+    const existing = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { avatarPath: true },
+    });
+    const saved = await this.storage.write('avatars', user.id, compressed);
+    await this.storage.remove(existing?.avatarPath ?? null);
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { avatarPath: saved.relativePath },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        companyId: true,
+        avatarPath: true,
+        company: { select: { name: true } },
+      },
+    });
+    const mapped = {
+      id: updated.id,
+      email: updated.email,
+      fullName: updated.fullName,
+      role: updated.role as ClientPrincipal['role'],
+      companyId: updated.companyId!,
+      companyName: updated.company?.name ?? '',
+      avatarUrl: toAvatarPublicUrl(updated.avatarPath),
+    };
+    return {
+      avatarUrl: mapped.avatarUrl!,
+      user: mapped,
+    };
+  }
+
+  async deleteAvatar(user: ClientPrincipal): Promise<void> {
+    const existing = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { avatarPath: true },
+    });
+    await this.storage.remove(existing?.avatarPath ?? null);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { avatarPath: null },
+    });
   }
 
   private expiresInToMs(expiresIn: string): number {

@@ -11,33 +11,28 @@ async function loginAsSuperAdmin(page: import('@playwright/test').Page) {
   await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 20_000 });
 }
 
-function settingsTab(page: import('@playwright/test').Page, label: string | RegExp) {
-  return page
-    .getByRole('navigation', { name: /Settings navigation/i })
-    .locator('[role="listitem"]', { hasText: label });
-}
-
 test.describe('BACKUP-5B backup operations UI', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsSuperAdmin(page);
   });
 
-  test('settings shows backup operation tabs', async ({ page }) => {
-    await page.goto('/settings/backups');
-    await expect(page.getByRole('navigation', { name: /Settings navigation/i })).toBeVisible();
-    await expect(settingsTab(page, /^Upload$/i)).toBeVisible();
-    await expect(settingsTab(page, /Restore/i)).toBeVisible();
-    await expect(settingsTab(page, /Factory Reset/i)).toBeVisible();
+  test('overview shows restore, factory reset, and upload actions', async ({ page }) => {
+    await page.goto('/backups');
+    await expect(page.getByRole('navigation', { name: /Backups navigation/i })).toBeVisible();
+    await expect(page.getByTestId('restore-backup-btn')).toBeVisible();
+    await expect(page.getByTestId('factory-reset-btn')).toBeVisible();
+    await expect(page.getByTestId('upload-backup-btn')).toBeVisible();
   });
 
-  test('upload page shows drag-and-drop zone', async ({ page }) => {
-    await page.goto('/settings/backups/upload');
+  test('upload opens modal with drag-and-drop zone', async ({ page }) => {
+    await page.goto('/backups');
+    await page.getByTestId('upload-backup-btn').click();
     await expect(page.getByText(/Drag and drop a backup file/i)).toBeVisible();
-    await expect(page.getByText(/Recent backup audit events/i)).toBeVisible();
   });
 
   test('upload rejects non-dump files client-side', async ({ page }) => {
-    await page.goto('/settings/backups/upload');
+    await page.goto('/backups');
+    await page.getByTestId('upload-backup-btn').click();
     const input = page.locator('input[type="file"]');
     await input.setInputFiles({
       name: 'invalid.txt',
@@ -48,8 +43,9 @@ test.describe('BACKUP-5B backup operations UI', () => {
     await expect(page.getByText(/Only PostgreSQL/i)).toBeVisible();
   });
 
-  test('restore page requires RESTORE phrase and shows warnings', async ({ page }) => {
-    await page.goto('/settings/backups/restore');
+  test('restore modal requires RESTORE phrase and shows warnings', async ({ page }) => {
+    await page.goto('/backups');
+    await page.getByTestId('restore-backup-btn').click();
     await expect(page.getByText(/Warnings/i)).toBeVisible();
     await expect(page.getByText(/maintenance mode/i)).toBeVisible();
     await expect(page.getByLabel(/Type RESTORE/i)).toBeVisible();
@@ -66,9 +62,10 @@ test.describe('BACKUP-5B backup operations UI', () => {
     }
   });
 
-  test('factory reset danger zone requires FACTORY RESET phrase', async ({ page }) => {
-    await page.goto('/settings/backups/factory-reset');
-    await expect(page.getByRole('heading', { name: /Danger zone/i })).toBeVisible();
+  test('factory reset modal requires FACTORY RESET phrase', async ({ page }) => {
+    await page.goto('/backups');
+    await page.getByTestId('factory-reset-btn').click();
+    await expect(page.getByText(/Danger zone/i)).toBeVisible();
     await expect(page.getByLabel(/Type FACTORY RESET/i)).toBeVisible();
     const resetBtn = page.getByRole('button', { name: /Factory reset database/i });
     await expect(resetBtn).toBeDisabled();

@@ -46,11 +46,17 @@ import {
   normalizeExecutionMode,
   parseInboundExecutionPlan,
 } from '../orders/execution-plan.util';
+import {
+  assertInboundAdminStageAction,
+  nextInboundAdminAction,
+} from './inbound-admin-stages';
+import { waitForOpenWarehouseTask } from '../outbound/outbound-admin-task.helpers';
 import { ConfirmInboundBodyDto } from './dto/confirm-inbound-body.dto';
 import { CreateInboundOrderDto } from './dto/create-inbound.dto';
 import { ListInboundQueryDto } from './dto/list-inbound-query.dto';
 import { ReceiveLineDto } from './dto/receive-line.dto';
 import { UpdateInboundPlanDto } from './dto/update-inbound-plan.dto';
+import { toAvatarPublicUrl } from '../media/avatar-url';
 
 const ORDER_INCLUDE = {
   company: { select: { id: true, name: true } },
@@ -283,6 +289,7 @@ export class InboundService {
       const t = query.orderSearch.trim();
       const orParts: Prisma.InboundOrderWhereInput[] = [
         { orderNumber: { contains: t, mode: 'insensitive' } },
+        { company: { name: { contains: t, mode: 'insensitive' } } },
       ];
       if (FULL_UUID.test(t)) orParts.push({ id: t });
       baseAnd.push({ OR: orParts });
@@ -310,7 +317,7 @@ export class InboundService {
           where,
           orderBy: { createdAt: 'desc' },
           include: {
-            company: { select: { id: true, name: true } },
+            company: { select: { id: true, name: true, logoPath: true } },
             _count: { select: { lines: true } },
             lines: {
               select: { id: true, productId: true, expectedQuantity: true, receivedQuantity: true, lineNumber: true },
@@ -321,7 +328,19 @@ export class InboundService {
         }),
         tx.inboundOrder.count({ where }),
       ]);
-      return { items, total, limit: query.limit, offset: query.offset };
+      return {
+        items: items.map((o) => ({
+          ...o,
+          company: {
+            id: o.company.id,
+            name: o.company.name,
+            logoUrl: toAvatarPublicUrl(o.company.logoPath),
+          },
+        })),
+        total,
+        limit: query.limit,
+        offset: query.offset,
+      };
     });
   }
 
@@ -393,64 +412,49 @@ export class InboundService {
     });
   }
 
-  async executeAdmin(user: AuthPrincipal, orderId: string) {
+  /**
+   * Admin Approve — bootstrap only (Rule 1 / Rule 3).
+   * Starts receiving task; does NOT post receive or putaway.
+   * Requires TASK_ONLY_FLOWS so Approve cannot use legacy confirm-only shortcuts incorrectly.
+   */
+  async approveAdmin(user: AuthPrincipal, orderId: string) {
     const order = await this.findById(orderId, user);
     if (normalizeExecutionMode(order.executionMode) !== 'admin') {
-      throw new BadRequestException('execute-admin requires executionMode=admin.');
+      throw new BadRequestException('Approve requires executionMode=admin.');
     }
-    if (!isInboundConfirmable(order.status)) {
+    if (!taskOnlyFlows(this.config)) {
       throw new BadRequestException(
-        `Admin execute requires draft order (current: ${order.status}).`,
+        'Admin Approve requires TASK_ONLY_FLOWS=true so approval only starts receiving.',
       );
     }
+    assertInboundAdminStageAction(order.status, 'approve');
     const plan = parseInboundExecutionPlan(order.executionPlan);
-    if (!plan) throw new BadRequestException('Admin execute requires a saved executionPlan.');
+    if (!plan) throw new BadRequestException('Approve requires a saved executionPlan.');
     assertInboundAdminPlanComplete(plan);
 
     const stagingByLineId: Record<string, string> = {};
     for (const line of order.lines) {
       stagingByLineId[line.id] = plan.receivingDockId;
     }
+    return this.confirm(user, orderId, {
+      warehouseId: plan.warehouseId,
+      stagingByLineId,
+    });
+  }
 
-    const wrap = (step: string, err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      return new BadRequestException(`Admin execute failed at ${step}: ${msg}`);
-    };
-
-    try {
-      await this.confirm(user, orderId, {
-        warehouseId: plan.warehouseId,
-        stagingByLineId,
-      });
-    } catch (err) {
-      throw wrap('confirm', err);
+  async completeReceivingAdmin(user: AuthPrincipal, orderId: string) {
+    const order = await this.findById(orderId, user);
+    if (normalizeExecutionMode(order.executionMode) !== 'admin') {
+      throw new BadRequestException('complete-receiving requires executionMode=admin.');
     }
+    assertInboundAdminStageAction(order.status, 'complete_receiving');
 
-    const waitTask = async (taskType: WarehouseTaskType) => {
-      for (let i = 0; i < 8; i++) {
-        const t = await this.prisma.warehouseTask.findFirst({
-          where: {
-            taskType,
-            status: {
-              in: [
-                WarehouseTaskStatus.pending,
-                WarehouseTaskStatus.assigned,
-                WarehouseTaskStatus.in_progress,
-              ],
-            },
-            workflowInstance: { referenceType: 'inbound_order', referenceId: orderId },
-          },
-          orderBy: { createdAt: 'desc' },
-        });
-        if (t) return t;
-        await new Promise((r) => setTimeout(r, 50 * (i + 1)));
-      }
-      throw new BadRequestException(
-        `Admin execute failed: expected open ${taskType} task was not created.`,
-      );
-    };
-
-    const receiving = await waitTask(WarehouseTaskType.receiving);
+    const receiving = await waitForOpenWarehouseTask(
+      this.prisma,
+      'inbound_order',
+      orderId,
+      WarehouseTaskType.receiving,
+    );
     try {
       await this.tasks.adminConfirm(receiving.id, user, {
         task_type: 'receiving',
@@ -467,10 +471,35 @@ export class InboundService {
         }),
       });
     } catch (err) {
-      throw wrap('receiving', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new BadRequestException(`Receiving complete failed: ${msg}`);
     }
 
-    const putaway = await waitTask(WarehouseTaskType.putaway);
+    const updated = await this.findById(orderId, user);
+    this.realtime.emitInboundOrderUpdated(updated.companyId, {
+      orderId: updated.id,
+      status: updated.status,
+      reason: 'admin_complete_receiving',
+      listItem: adminInboundListItem(updated),
+    });
+    return updated;
+  }
+
+  async completePutawayAdmin(user: AuthPrincipal, orderId: string) {
+    const order = await this.findById(orderId, user);
+    if (normalizeExecutionMode(order.executionMode) !== 'admin') {
+      throw new BadRequestException('complete-putaway requires executionMode=admin.');
+    }
+    assertInboundAdminStageAction(order.status, 'complete_putaway');
+    const plan = parseInboundExecutionPlan(order.executionPlan);
+    if (!plan) throw new BadRequestException('Putaway requires a saved executionPlan.');
+
+    const putaway = await waitForOpenWarehouseTask(
+      this.prisma,
+      'inbound_order',
+      orderId,
+      WarehouseTaskType.putaway,
+    );
     const putawayLines: Array<{
       inbound_order_line_id: string;
       putaway_quantity: string;
@@ -489,7 +518,7 @@ export class InboundService {
       }
     }
     if (putawayLines.length === 0) {
-      throw new BadRequestException('Admin execute failed at putaway: no destination splits.');
+      throw new BadRequestException('Putaway complete failed: no destination splits in plan.');
     }
     try {
       await this.tasks.adminConfirm(putaway.id, user, {
@@ -497,10 +526,81 @@ export class InboundService {
         lines: putawayLines,
       });
     } catch (err) {
-      throw wrap('putaway', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new BadRequestException(`Putaway complete failed: ${msg}`);
     }
 
-    return this.findById(orderId, user);
+    const updated = await this.findById(orderId, user);
+    this.realtime.emitInboundOrderUpdated(updated.companyId, {
+      orderId: updated.id,
+      status: updated.status,
+      reason: 'admin_complete_putaway',
+      listItem: adminInboundListItem(updated),
+    });
+    return updated;
+  }
+
+  /**
+   * Deprecated full facade. Advances exactly one next Admin stage (Rule 4 interim).
+   */
+  async executeAdmin(user: AuthPrincipal, orderId: string) {
+    const order = await this.findById(orderId, user);
+    if (normalizeExecutionMode(order.executionMode) !== 'admin') {
+      throw new BadRequestException('execute-admin requires executionMode=admin.');
+    }
+
+    let openTask: 'receiving' | 'putaway' | null = null;
+    if (!isInboundConfirmable(order.status)) {
+      const receivingOpen = await this.prisma.warehouseTask.findFirst({
+        where: {
+          taskType: WarehouseTaskType.receiving,
+          status: {
+            in: [
+              WarehouseTaskStatus.pending,
+              WarehouseTaskStatus.assigned,
+              WarehouseTaskStatus.in_progress,
+            ],
+          },
+          workflowInstance: { referenceType: 'inbound_order', referenceId: orderId },
+        },
+        select: { id: true },
+      });
+      if (receivingOpen) openTask = 'receiving';
+      else {
+        const putawayOpen = await this.prisma.warehouseTask.findFirst({
+          where: {
+            taskType: WarehouseTaskType.putaway,
+            status: {
+              in: [
+                WarehouseTaskStatus.pending,
+                WarehouseTaskStatus.assigned,
+                WarehouseTaskStatus.in_progress,
+              ],
+            },
+            workflowInstance: { referenceType: 'inbound_order', referenceId: orderId },
+          },
+          select: { id: true },
+        });
+        if (putawayOpen) openTask = 'putaway';
+      }
+    }
+
+    const next = nextInboundAdminAction(order.status, openTask);
+    if (!next) {
+      throw new BadRequestException(
+        `No Admin stage action available for status ${order.status}. Use stage endpoints.`,
+      );
+    }
+    switch (next) {
+      case 'approve':
+        return this.approveAdmin(user, orderId);
+      case 'complete_receiving':
+        return this.completeReceivingAdmin(user, orderId);
+      case 'complete_putaway':
+        return this.completePutawayAdmin(user, orderId);
+      default:
+        throw new BadRequestException(`Unknown Admin stage action: ${next}`);
+    }
   }
 
   async confirm(user: AuthPrincipal, id: string, body?: ConfirmInboundBodyDto) {

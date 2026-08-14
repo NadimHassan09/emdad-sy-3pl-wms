@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
@@ -7,6 +7,7 @@ import {
   ApproveOmsReturnDto,
   CreateOmsReturnDto,
   RejectOmsReturnDto,
+  UpdateOmsReturnPlanDto,
 } from './dto/oms-return.dto';
 import {
   ListOmsReturnsQueryDto,
@@ -41,6 +42,15 @@ export class OmsReturnsController {
     return this.returns.findById(id, user);
   }
 
+  @Patch(':id/plan')
+  updatePlan(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() dto: UpdateOmsReturnPlanDto,
+  ) {
+    return this.returns.updatePlan(id, user, dto);
+  }
+
   @Post(':id/approve')
   approve(
     @CurrentUser() user: AuthPrincipal,
@@ -48,6 +58,22 @@ export class OmsReturnsController {
     @Body() dto: ApproveOmsReturnDto,
   ) {
     return this.returns.approve(id, user, dto);
+  }
+
+  @Post(':id/complete-receiving')
+  completeReceiving(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.returns.completeReceivingAdmin(id, user);
+  }
+
+  @Post(':id/complete-putaway')
+  completePutaway(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.returns.completePutawayAdmin(id, user);
   }
 
   @Post(':id/reject')

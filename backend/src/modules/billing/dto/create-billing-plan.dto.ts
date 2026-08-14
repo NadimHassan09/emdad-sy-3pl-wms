@@ -11,6 +11,10 @@ export class CreateBillingPlanDto {
   @IsBoolean()
   active?: boolean;
 
+  @IsOptional()
+  @IsBoolean()
+  autoRenew?: boolean;
+
   @IsInt()
   @Min(1)
   cycleLengthDays!: number;

@@ -77,7 +77,10 @@ const DeliveryReportPage            = lazyPage(() => import('./pages/reports/Oms
 const AllocationReportPage          = lazyPage(() => import('./pages/reports/OmsReportPages'),               'AllocationReportPage');
 const InventoryReservedReportPage   = lazyPage(() => import('./pages/reports/OmsReportPages'),               'InventoryReservedReportPage');
 const OmsCodPage                    = lazyPage(() => import('./pages/OmsCodReturnsPages'),                   'OmsCodPage');
+const OmsCodDetailPage              = lazyPage(() => import('./pages/OmsCodDetailPage'),                     'OmsCodDetailPage');
 const OmsReturnsPage                = lazyPage(() => import('./pages/OmsCodReturnsPages'),                   'OmsReturnsPage');
+const OmsReturnDetailPage           = lazyPage(() => import('./pages/OmsReturnDetailPage'),                  'OmsReturnDetailPage');
+const OmsReturnPlanEditPage         = lazyPage(() => import('./pages/oms/OmsReturnPlanEditPage'),            'OmsReturnPlanEditPage');
 const ClientsPage             = lazyPage(() => import('./pages/ClientsPage'),             'ClientsPage');
 const CompanyDetailPage       = lazyPage(() => import('./pages/CompanyDetailPage'),       'CompanyDetailPage');
 const WarehouseUsersPage      = lazyPage(() => import('./pages/UsersPage'),               'WarehouseUsersPage');
@@ -92,14 +95,11 @@ const FinalContractPage     = lazyPage(() => import('./pages/FinalContractPage')
 const ContractsPage           = lazyPage(() => import('./pages/ContractsPage'),           'ContractsPage');
 const SettingsLayout          = lazyPage(() => import('./pages/settings/SettingsLayout'), 'SettingsLayout');
 const BackupHistoryPage       = lazyPage(() => import('./pages/settings/BackupHistoryPage'), 'BackupHistoryPage');
-const BackupUploadPage        = lazyPage(() => import('./pages/settings/BackupUploadPage'), 'BackupUploadPage');
-const BackupRestorePage       = lazyPage(() => import('./pages/settings/BackupRestorePage'), 'BackupRestorePage');
-const BackupFactoryResetPage  = lazyPage(() => import('./pages/settings/BackupFactoryResetPage'), 'BackupFactoryResetPage');
 const BackupSchedulesPage     = lazyPage(() => import('./pages/settings/BackupSchedulesPage'), 'BackupSchedulesPage');
 const BackupRetentionPage     = lazyPage(() => import('./pages/settings/BackupRetentionPage'), 'BackupRetentionPage');
 const BackupHealthPage        = lazyPage(() => import('./pages/settings/BackupHealthPage'), 'BackupHealthPage');
-const BackupStoragePolicyPage = lazyPage(() => import('./pages/settings/BackupStoragePolicyPage'), 'BackupStoragePolicyPage');
 const BackupGoogleDrivePage   = lazyPage(() => import('./pages/settings/BackupGoogleDrivePage'), 'BackupGoogleDrivePage');
+const ShippingCompaniesPage   = lazyPage(() => import('./pages/shipping/ShippingCompaniesPage'), 'ShippingCompaniesPage');
 const CycleCountListPage      = lazyPage(() => import('./pages/cycle-count/CycleCountListPage'), 'CycleCountListPage');
 const CycleCountDetailPage    = lazyPage(() => import('./pages/cycle-count/CycleCountDetailPage'), 'CycleCountDetailPage');
 const CycleCountExecutePage   = lazyPage(() => import('./pages/cycle-count/CycleCountExecutePage'), 'CycleCountExecutePage');
@@ -164,7 +164,10 @@ export const router = createBrowserRouter([
       { path: 'oms', element: <Navigate to="/oms/dashboard" replace /> },
       { path: 'oms/dashboard', element: <OmsDashboardPage /> },
       { path: 'oms/cod', element: omsCodReturnsElement(<OmsCodPage />) },
+      { path: 'oms/cod/:id', element: omsCodReturnsElement(<OmsCodDetailPage />) },
       { path: 'oms/returns', element: omsCodReturnsElement(<OmsReturnsPage />) },
+      { path: 'oms/returns/:id/edit', element: omsCodReturnsElement(<OmsReturnPlanEditPage />) },
+      { path: 'oms/returns/:id', element: omsCodReturnsElement(<OmsReturnDetailPage />) },
       { path: 'oms/orders/:id', element: <OmsOrderDetailPage /> },
       { path: 'reports/oms/cod', element: omsCodReturnsRedirect('/oms/cod') },
       { path: 'reports/oms/returns', element: omsCodReturnsRedirect('/oms/returns') },
@@ -233,19 +236,36 @@ export const router = createBrowserRouter([
       { path: 'notifications', element: <NotificationsPage /> },
       { path: 'profile', element: <ProfilePage /> },
       {
-        path: 'settings',
+        path: 'backups',
         element: <SettingsLayout />,
         children: [
-          { index: true, element: <Navigate to="/settings/backups" replace /> },
-          { path: 'backups', element: <BackupHistoryPage /> },
-          { path: 'backups/upload', element: <BackupUploadPage /> },
-          { path: 'backups/restore', element: <BackupRestorePage /> },
-          { path: 'backups/factory-reset', element: <BackupFactoryResetPage /> },
-          { path: 'backups/schedules', element: <BackupSchedulesPage /> },
-          { path: 'backups/retention', element: <BackupRetentionPage /> },
-          { path: 'backups/health', element: <BackupHealthPage /> },
-          { path: 'backups/storage-policy', element: <BackupStoragePolicyPage /> },
-          { path: 'backups/google-drive', element: <BackupGoogleDrivePage /> },
+          { index: true, element: <BackupHistoryPage /> },
+          { path: 'upload', element: <Navigate to="/backups" replace /> },
+          { path: 'restore', element: <Navigate to="/backups" replace /> },
+          { path: 'factory-reset', element: <Navigate to="/backups" replace /> },
+          { path: 'schedules', element: <BackupSchedulesPage /> },
+          { path: 'retention', element: <BackupRetentionPage /> },
+          { path: 'health', element: <BackupHealthPage /> },
+          { path: 'storage-policy', element: <Navigate to="/backups" replace /> },
+          { path: 'google-drive', element: <BackupGoogleDrivePage /> },
+        ],
+      },
+      { path: 'shipping', element: <Navigate to="/shipping/companies" replace /> },
+      { path: 'shipping/companies', element: <ShippingCompaniesPage /> },
+      {
+        path: 'settings',
+        children: [
+          { index: true, element: <Navigate to="/backups" replace /> },
+          { path: 'backups', element: <Navigate to="/backups" replace /> },
+          { path: 'backups/upload', element: <Navigate to="/backups" replace /> },
+          { path: 'backups/restore', element: <Navigate to="/backups" replace /> },
+          { path: 'backups/factory-reset', element: <Navigate to="/backups" replace /> },
+          { path: 'backups/schedules', element: <Navigate to="/backups/schedules" replace /> },
+          { path: 'backups/retention', element: <Navigate to="/backups/retention" replace /> },
+          { path: 'backups/health', element: <Navigate to="/backups/health" replace /> },
+          { path: 'backups/storage-policy', element: <Navigate to="/backups" replace /> },
+          { path: 'backups/google-drive', element: <Navigate to="/backups/google-drive" replace /> },
+          { path: '*', element: <Navigate to="/backups" replace /> },
         ],
       },
       { path: '*', element: <RoleHomeRedirect /> },

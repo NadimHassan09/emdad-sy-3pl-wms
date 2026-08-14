@@ -24,11 +24,13 @@ import {
 import { CreateBillingPlanDto } from './dto/create-billing-plan.dto';
 import { ListBillingPlansQueryDto } from './dto/list-billing-plans-query.dto';
 import { UpdateBillingPlanDto } from './dto/update-billing-plan.dto';
+import { toAvatarPublicUrl } from '../media/avatar-url';
 
 const PLAN_SELECT = {
   id: true,
   companyId: true,
   active: true,
+  autoRenew: true,
   cycleLengthDays: true,
   fixedSubscriptionFee: true,
   inboundOrderFee: true,
@@ -129,6 +131,7 @@ export class BillingPlansService {
         data: {
           companyId,
           active: dto.active ?? true,
+          autoRenew: dto.autoRenew ?? true,
           cycleLengthDays: dto.cycleLengthDays,
           fixedSubscriptionFee: dto.fixedSubscriptionFee ?? 0,
           inboundOrderFee: dto.inboundOrderFee ?? 0,
@@ -191,16 +194,32 @@ export class BillingPlansService {
       await this.volumeCapacity.assertWeightAllocation(dto.reservedWeight, id);
     }
 
-    // Plan updates apply to future cycles only; active cycle invoices use rate_snapshot.
+    const applyMode = dto.applyMode ?? 'next_cycle';
+
+    // Keep simple per-order outbound fee and legacy base fee in sync when only one is sent.
+    const outboundOrderFee =
+      dto.outboundOrderFee != null
+        ? dto.outboundOrderFee
+        : dto.outboundBaseFee != null
+          ? dto.outboundBaseFee
+          : undefined;
+    const outboundBaseFee =
+      dto.outboundBaseFee != null
+        ? dto.outboundBaseFee
+        : dto.outboundOrderFee != null
+          ? dto.outboundOrderFee
+          : undefined;
+
     const updated = await this.prisma.billingPlan.update({
       where: { id },
       data: {
         active: dto.active,
+        autoRenew: dto.autoRenew,
         cycleLengthDays: dto.cycleLengthDays,
         fixedSubscriptionFee: dto.fixedSubscriptionFee,
         inboundOrderFee: dto.inboundOrderFee,
-        outboundOrderFee: dto.outboundOrderFee,
-        outboundBaseFee: dto.outboundBaseFee,
+        outboundOrderFee,
+        outboundBaseFee,
         outboundIncludedItems: dto.outboundIncludedItems,
         outboundAdditionalItemFee: dto.outboundAdditionalItemFee,
         packagingFee: dto.packagingFee,
@@ -213,13 +232,39 @@ export class BillingPlansService {
       select: PLAN_SELECT,
     });
 
+    if (applyMode === 'immediate') {
+      const now = new Date();
+      const liveCycle = await this.prisma.billingCycle.findFirst({
+        where: {
+          companyId: updated.companyId,
+          billingPlanId: updated.id,
+          status: { in: ['active', 'renewed'] },
+          startsAt: { lte: now },
+          endsAt: { gt: now },
+        },
+        select: { id: true },
+        orderBy: { endsAt: 'desc' },
+      });
+
+      if (liveCycle) {
+        await this.prisma.billingCycle.update({
+          where: { id: liveCycle.id },
+          data: { rateSnapshot: buildRateSnapshotFromPlan(updated) },
+        });
+        void this.invoiceCalc.recalculateForCompany(
+          updated.companyId,
+          'plan_rates_updated',
+        );
+      }
+    }
+
     void this.billingAudit.fromUser(user, {
       action: BILLING_AUDIT_ACTIONS.PLAN_UPDATED,
       resourceType: 'billing_plan',
       resourceId: id,
       companyId: updated.companyId,
       previousState: previous,
-      newState: updated,
+      newState: { ...updated, applyMode },
     });
 
     this.realtime.emitPlanUpdated(updated.companyId, {
@@ -447,6 +492,7 @@ function mapOverviewSqlRow(row: BillingPlanOverviewSqlRow) {
     id: row.plan_id,
     companyId: row.company_id,
     active: row.active,
+    autoRenew: row.auto_renew,
     cycleLengthDays: row.cycle_length_days,
     fixedSubscriptionFee: row.fixed_subscription_fee.toString(),
     inboundOrderFee: row.inbound_order_fee.toString(),
@@ -482,6 +528,7 @@ function mapOverviewSqlRow(row: BillingPlanOverviewSqlRow) {
     companyId: row.company_id,
     companyName: row.company_name,
     companyStatus: row.company_status,
+    companyLogoUrl: toAvatarPublicUrl(row.company_logo_path),
     currentCycle,
     cycleStart: currentCycle?.startsAt ?? null,
     cycleEnd: currentCycle?.endsAt ?? null,

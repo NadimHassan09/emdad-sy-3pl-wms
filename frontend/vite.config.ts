@@ -62,7 +62,25 @@ export default defineConfig(({ mode }) => {
           if (id.includes('socket.io') || id.includes('engine.io')) return 'vendor-realtime';
           if (id.includes('@tanstack/react-query')) return 'vendor-query';
           if (id.includes('react-router')) return 'vendor-router';
-          if (id.includes('/react/') || id.includes('/react-dom/')) return 'vendor-react';
+          // Keep React + its runtime deps in one chunk. Splitting `scheduler`
+          // into the catch-all vendor chunk creates a circular
+          // vendor <-> vendor-react import that leaves React undefined
+          // (forwardRef TypeError) when recharts loads.
+          if (
+            id.includes('/react/') ||
+            id.includes('/react-dom/') ||
+            id.includes('/scheduler/') ||
+            id.includes('/react-is/')
+          ) {
+            return 'vendor-react';
+          }
+          if (
+            id.includes('recharts') ||
+            id.includes('/d3-') ||
+            id.includes('victory-vendor')
+          ) {
+            return 'vendor-recharts';
+          }
           return 'vendor';
         },
       },
