@@ -217,12 +217,21 @@ export function BillingPlansPage() {
       accessor: (r) => `${r.plan.cycleLengthDays} days`,
     },
     {
-      header: 'Current cycle start',
-      accessor: (r) => formatDate(r.cycleStart),
-    },
-    {
-      header: 'Current cycle end',
-      accessor: (r) => formatDate(r.cycleEnd),
+      header: 'Current cycle',
+      accessor: (r) => {
+        const start = formatDate(r.cycleStart);
+        const end = formatDate(r.cycleEnd);
+        if (start === '—' && end === '—') {
+          return <span className="text-sm text-text-muted">—</span>;
+        }
+        return (
+          <span className="text-sm text-text-body">
+            {start}
+            <span className="mx-1 text-text-muted">→</span>
+            {end}
+          </span>
+        );
+      },
     },
     {
       header: 'Status',
