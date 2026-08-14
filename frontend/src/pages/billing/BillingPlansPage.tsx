@@ -183,18 +183,26 @@ export function BillingPlansPage() {
       },
     },
     {
-      header: 'Plan type',
-      accessor: (r) =>
-        r.plan.planType === 'template' ? (
-          <span className="text-sm text-text-body">
-            Template
-            {r.plan.templateName ? (
-              <span className="block text-xs text-text-muted">{r.plan.templateName}</span>
-            ) : null}
-          </span>
-        ) : (
-          <span className="text-sm text-text-body">Custom</span>
-        ),
+      header: 'Remaining days',
+      accessor: (r) => {
+        if (r.daysRemaining == null) {
+          return <span className="text-sm text-text-muted">—</span>;
+        }
+        if (r.daysRemaining < 0) {
+          return <BillingLabel text="Expired" variant="danger" />;
+        }
+        if (r.daysRemaining === 0) {
+          return <BillingLabel text="Last day" variant="warning" />;
+        }
+        const text = `${r.daysRemaining} day${r.daysRemaining === 1 ? '' : 's'}`;
+        if (r.daysRemaining <= 3) {
+          return <BillingLabel text={text} variant="danger" />;
+        }
+        if (r.daysRemaining <= 7) {
+          return <BillingLabel text={text} variant="warning" />;
+        }
+        return <span className="text-sm text-text-body">{text}</span>;
+      },
     },
     {
       header: 'Reserved volume',
@@ -223,6 +231,15 @@ export function BillingPlansPage() {
           <BillingLabel text="Active" variant="success" />
         ) : (
           <BillingLabel text="Inactive" variant="neutral" />
+        ),
+    },
+    {
+      header: 'Auto renewal',
+      accessor: (r) =>
+        r.plan.autoRenew === false ? (
+          <BillingLabel text="Off" variant="neutral" />
+        ) : (
+          <BillingLabel text="On" variant="success" />
         ),
     },
     {
