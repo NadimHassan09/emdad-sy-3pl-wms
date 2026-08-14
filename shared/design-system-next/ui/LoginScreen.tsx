@@ -55,8 +55,15 @@ export type LoginScreenProps = {
   clearRememberedAccountLabel?: string;
   /** Primary continue CTA under the remembered account (one-click resume). */
   continueLabel?: string;
+  /** Hide email/password when Continue can restore a remember-me session. */
+  hideCredentialForm?: boolean;
+  /** Reveal the password form (e.g. after Continue fails or user opts in). */
+  onShowCredentialForm?: () => void;
+  showCredentialFormLabel?: string;
   /** Optional background image URL (defaults to `/login-bg.jpg`). */
   backgroundSrc?: string;
+  /** Optional OAuth / alternate auth controls (e.g. Google Sign-In). */
+  oauthSlot?: ReactNode;
 };
 
 function LoginField({
@@ -180,7 +187,11 @@ export function LoginScreen({
   onUseDifferentAccount,
   clearRememberedAccountLabel = 'Remove remembered account',
   continueLabel = 'Continue',
+  hideCredentialForm = false,
+  onShowCredentialForm,
+  showCredentialFormLabel = 'Not you ?',
   backgroundSrc = '/login-bg.jpg',
+  oauthSlot,
 }: LoginScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [internalRemember, setInternalRemember] = useState(false);
@@ -286,10 +297,23 @@ export function LoginScreen({
                 {!loading ? <i className="fa-solid fa-arrow-right text-xs rtl:rotate-180" aria-hidden /> : null}
               </button>
             ) : null}
-            <DividerLabel>{orLabel}</DividerLabel>
+            {hideCredentialForm ? (
+              onShowCredentialForm ? (
+                <button
+                  type="button"
+                  onClick={onShowCredentialForm}
+                  className="w-full text-center text-sm font-medium text-text-muted transition hover:text-text-strong"
+                >
+                  {showCredentialFormLabel}
+                </button>
+              ) : null
+            ) : (
+              <DividerLabel>{orLabel}</DividerLabel>
+            )}
           </div>
         ) : null}
 
+        {!hideCredentialForm ? (
         <form className="space-y-4" onSubmit={onSubmit}>
           <div>
             <label htmlFor="login-email" className="mb-1.5 block text-sm font-semibold text-text-body">
@@ -387,7 +411,16 @@ export function LoginScreen({
           >
             {loading ? submittingLabel : submitLabel}
           </button>
+          {oauthSlot ? <div className="pt-2">{oauthSlot}</div> : null}
         </form>
+        ) : error ? (
+          <div
+            className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2.5 text-sm text-danger-800"
+            role="alert"
+          >
+            {error}
+          </div>
+        ) : null}
       </div>
     </div>
   );

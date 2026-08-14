@@ -22,6 +22,7 @@ function backendClusterApp({
     name,
     cwd,
     script: 'dist/src/main.js',
+    interpreter: '/usr/bin/node',
     instances: resolveInstances(defaultInstances),
     exec_mode: 'cluster',
     autorestart: true,

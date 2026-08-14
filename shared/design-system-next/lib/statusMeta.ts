@@ -92,7 +92,10 @@ export function normalizeStatusKey(status: string): string {
 
 export function statusLabel(status: string, isArabic = false): string {
   const key = normalizeStatusKey(status);
-  if (!isArabic) return key.replace(/\b\w/g, (c) => c.toUpperCase());
+  if (!isArabic) {
+    if (key === 'ready to ship') return 'Ready for Shipping';
+    return key.replace(/\b\w/g, (c) => c.toUpperCase());
+  }
   const ar: Record<string, string> = {
     draft: 'مسودة',
     'pending approval': 'بانتظار الموافقة',
@@ -100,9 +103,9 @@ export function statusLabel(status: string, isArabic = false): string {
     confirmed: 'مؤكد',
     'in progress': 'قيد التنفيذ',
     'partially received': 'مستلم جزئياً',
+    'ready to ship': 'جاهز للشحن',
     picking: 'التقاط',
     packing: 'تغليف',
-    'ready to ship': 'جاهز للشحن',
     completed: 'مكتمل',
     shipped: 'تم الشحن',
     cancelled: 'ملغي',

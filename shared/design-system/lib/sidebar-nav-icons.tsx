@@ -16,6 +16,8 @@ export const ADMIN_NAV_ICONS: Record<string, string> = {
     Users: 'fa-solid fa-user-gear',
   AuditLogs: 'fa-solid fa-clock-rotate-left',
   Settings: 'fa-solid fa-gear',
+  Backups: 'fa-solid fa-cloud-arrow-up',
+  Shipping: 'fa-solid fa-truck-fast',
 };
 
 /** Font Awesome class names for client portal sidebar (English label key). */

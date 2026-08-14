@@ -179,6 +179,8 @@ export function TopbarThemeToggle({
 export interface TopbarUserMenuProps {
   name: string;
   role?: string;
+  /** Profile photo URL — when set, replaces the default avatar icon. */
+  avatarUrl?: string | null;
   connected?: boolean;
   language?: 'EN' | 'AR';
   onLanguageChange?: (lang: 'EN' | 'AR') => void | Promise<void>;
@@ -191,27 +193,34 @@ export interface TopbarUserMenuProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-function UserAvatar({ connected }: { connected?: boolean }) {
+function UserAvatar({
+  connected,
+  avatarUrl,
+  name,
+}: {
+  connected?: boolean;
+  avatarUrl?: string | null;
+  name?: string;
+}) {
+  const initial = (name?.trim()?.charAt(0) || '?').toUpperCase();
   return (
     <div className="relative shrink-0">
       <div
-        className="flex h-9 w-9 items-center justify-center rounded-full"
+        className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full"
         style={{
-          background: 'linear-gradient(135deg, #10b981, #059669)',
+          background: avatarUrl
+            ? 'transparent'
+            : 'linear-gradient(135deg, #10b981, #059669)',
           color: '#fff',
           border: '1.5px solid rgba(16,185,129,0.25)',
         }}
         aria-hidden="true"
       >
-        <svg
-          viewBox="0 0 20 20"
-          className="h-4 w-4"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-        >
-          <path d="M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 16a6 6 0 0 1 12 0" />
-        </svg>
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <span className="text-xs font-bold leading-none">{initial}</span>
+        )}
       </div>
       {connected && (
         <span
@@ -374,6 +383,7 @@ function TopbarUserMenuDropdown({
 export function TopbarUserMenu({
   name,
   role,
+  avatarUrl,
   connected = true,
   language,
   onLanguageChange,
@@ -451,7 +461,7 @@ export function TopbarUserMenu({
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen(!open)}
       >
-        <UserAvatar connected={connected} />
+        <UserAvatar connected={connected} avatarUrl={avatarUrl} name={name} />
         <div className="hidden min-w-0 sm:flex sm:flex-col items-start text-start max-w-[160px]">
           <span
             className="truncate w-full text-sm font-medium leading-tight"
