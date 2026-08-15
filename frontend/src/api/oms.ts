@@ -440,6 +440,12 @@ export const OmsApi = {
   list(params: {
     companyId?: string;
     orderSearch?: string;
+    orderId?: string;
+    customer?: string;
+    phone?: string;
+    city?: string;
+    totalOp?: 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
+    totalValue?: string;
     status?: OmsOrderStatus;
     storeChannel?: string;
     linkStatus?: 'linked' | 'unlinked';
@@ -455,6 +461,12 @@ export const OmsApi = {
   async exportDownload(params: {
     companyId?: string;
     orderSearch?: string;
+    orderId?: string;
+    customer?: string;
+    phone?: string;
+    city?: string;
+    totalOp?: 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
+    totalValue?: string;
     status?: OmsOrderStatus;
     storeChannel?: string;
     linkStatus?: 'linked' | 'unlinked';

@@ -33,6 +33,7 @@ import {
   UpdateOmsOrderDto,
 } from './dto/oms-order.dto';
 import { ListOmsOrdersQueryDto } from './dto/list-oms-orders-query.dto';
+import { appendOmsOrderFieldFilters } from './oms-orders-list-filters.util';
 import { OmsOrderEventsService } from './oms-order-events.service';
 import { OmsOutboundSyncService } from './oms-outbound-sync.service';
 import {
@@ -56,9 +57,6 @@ import {
   resolveShippingVolumeCbm,
   shippingPrismaData,
 } from '../shipping/shipping-config.util';
-
-const FULL_UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const ORDER_INCLUDE = {
   company: { select: { id: true, name: true } },
@@ -153,18 +151,7 @@ export class OmsOrdersService {
     if (query.linkStatus === 'linked') where.outboundOrderId = { not: null };
     if (query.linkStatus === 'unlinked') where.outboundOrderId = null;
 
-    if (query.orderSearch?.trim()) {
-      const t = query.orderSearch.trim();
-      const orParts: Prisma.OmsOrderWhereInput[] = [
-        { orderNumber: { contains: t, mode: 'insensitive' } },
-        { recipientName: { contains: t, mode: 'insensitive' } },
-        { recipientPhone: { contains: t, mode: 'insensitive' } },
-        { externalReference: { contains: t, mode: 'insensitive' } },
-        { clientReference: { contains: t, mode: 'insensitive' } },
-      ];
-      if (FULL_UUID.test(t)) orParts.push({ id: t });
-      andParts.push({ OR: orParts });
-    }
+    appendOmsOrderFieldFilters(query, where, andParts);
 
     if (query.createdFrom || query.createdTo) {
       const createdAt: Prisma.DateTimeFilter = {};

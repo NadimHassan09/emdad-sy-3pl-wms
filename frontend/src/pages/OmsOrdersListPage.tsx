@@ -3,14 +3,27 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Button, Card } from '@ds';
-import type { OmsOrderListItem, OmsOrderStatus } from '../api/oms';
+import { CompaniesApi } from '../api/companies';
+import type { OmsOrderListItem } from '../api/oms';
 import { OmsApi } from '../api/oms';
 import { AdminListPageShell } from '../components/AdminListPageShell';
+import { Combobox } from '../components/Combobox';
 import { OmsOrderFormModal } from '../components/oms/OmsOrderFormModal';
 import { OmsOrdersImportModal } from '../components/oms/OmsOrdersImportModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
-import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
+import {
+  FILTER_APPLY_BUTTON_CLASS,
+  FILTER_PRIMARY_BUTTON_CLASS,
+  FILTER_RESET_BUTTON_CLASS,
+} from '../components/FilterPanel';
+import {
+  FILTER_ACTION_BUTTON_SIZE_CLASS,
+  FILTER_FIELD_CONTROL_CLASS,
+  FILTER_FIELD_LABEL_CLASS,
+  FILTER_FIELD_LABEL_GAP_CLASS,
+  FILTER_OVERFLOW_TRANSITION_CLASS,
+} from '../components/filter-panel-styles';
 import { RowActionsMenu } from '../components/RowActionsMenu';
 import { OmsStatusBadge } from '../components/oms/OmsStatusBadge';
 import { useToast } from '../components/ToastProvider';
@@ -20,13 +33,35 @@ import {
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
 import { useFilters } from '../hooks/useFilters';
+import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { OMS_COMMERCIAL_FILTER_OPTIONS } from '../lib/oms-commercial-status';
+import {
+  buildOmsAppliedFilterSummary,
+  buildOmsOrdersListParams,
+  countAppliedOmsAdvancedFilters,
+  OMS_ORDERS_FILTER_DEFAULTS,
+  OMS_TOTAL_OPERATOR_OPTIONS,
+  type OmsOrdersListFilters,
+  type OmsTotalOperator,
+} from '../lib/oms-orders-list-filters';
 import { useDebounced } from '../lib/useDebounced';
+import { useCachedState } from '../hooks/useCachedState';
 
 const OMS_STATUS_FILTER_OPTIONS = [
   { value: '', label: 'All statuses' },
   ...OMS_COMMERCIAL_FILTER_OPTIONS.filter((o) => o.value !== ''),
 ];
+
+const ADVANCED_GRID_CLASS =
+  'grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3';
+
+function FilterFieldLabel({ children }: { children: string }) {
+  return (
+    <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+      {children}
+    </label>
+  );
+}
 
 export function OmsOrdersListPage() {
   const navigate = useNavigate();
@@ -40,6 +75,10 @@ export function OmsOrdersListPage() {
   const [deleteOrder, setDeleteOrder] = useState<OmsOrderListItem | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useCachedState(
+    'oms-orders:advanced-filters-open',
+    false,
+  );
 
   const editDetailQuery = useQuery({
     queryKey: [...QK.omsOrders, editOrderId],
@@ -47,23 +86,40 @@ export function OmsOrdersListPage() {
     enabled: !!editOrderId,
   });
 
-  const { draftFilters, appliedFilters, setDraft, applyPatch } = useFilters({
-    orderSearch: '',
-    status: '',
+  const companiesQuery = useQuery({
+    queryKey: QK.companies,
+    queryFn: () => CompaniesApi.list(),
+    staleTime: 10 * 60_000,
   });
+
+  const clientOptions = useMemo(
+    () =>
+      companyFilterComboboxOptions(
+        companiesQuery.data,
+        isArabic ? 'كل العملاء' : 'All clients',
+      ),
+    [companiesQuery.data, isArabic],
+  );
+
+  const { draftFilters, appliedFilters, setDraft, applyPatch, resetFilters } =
+    useFilters<OmsOrdersListFilters>(OMS_ORDERS_FILTER_DEFAULTS);
 
   const debouncedSearch = useDebounced(draftFilters.orderSearch, 300);
 
+  // Quick search: debounce-apply only while advanced panel is collapsed.
   useEffect(() => {
+    if (advancedOpen) return;
     if ((debouncedSearch ?? '') === (appliedFilters.orderSearch ?? '')) return;
     applyPatch({ orderSearch: debouncedSearch ?? '' });
-  }, [debouncedSearch, appliedFilters.orderSearch, applyPatch]);
+  }, [
+    advancedOpen,
+    debouncedSearch,
+    appliedFilters.orderSearch,
+    applyPatch,
+  ]);
 
   const listParams = useMemo(
-    () => ({
-      status: (appliedFilters.status.trim() || undefined) as OmsOrderStatus | undefined,
-      orderSearch: appliedFilters.orderSearch.trim() || undefined,
-    }),
+    () => buildOmsOrdersListParams(appliedFilters),
     [appliedFilters],
   );
 
@@ -74,6 +130,34 @@ export function OmsOrdersListPage() {
     rtQueryKeyPrefix: QK.omsOrders,
     chunkQueryKeyPrefix: 'oms-orders-chunk',
   });
+
+  const advancedActiveCount = countAppliedOmsAdvancedFilters(appliedFilters);
+  const statusLabel =
+    OMS_STATUS_FILTER_OPTIONS.find((o) => o.value === appliedFilters.status)?.label ?? null;
+  const clientName =
+    companiesQuery.data?.find((c) => c.id === appliedFilters.companyId)?.name ?? null;
+  const appliedSummary = useMemo(
+    () =>
+      buildOmsAppliedFilterSummary(appliedFilters, {
+        clientName,
+        statusLabel,
+        isArabic,
+      }),
+    [appliedFilters, clientName, statusLabel, isArabic],
+  );
+
+  const onApplyAdvanced = () => {
+    // Commit draft → applied. Clear quick search so dedicated fields own the query.
+    applyPatch({
+      ...draftFilters,
+      orderSearch: '',
+    });
+  };
+
+  const onResetFilters = () => {
+    resetFilters();
+    setAdvancedOpen(false);
+  };
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => OmsApi.delete(id),
@@ -102,11 +186,7 @@ export function OmsOrdersListPage() {
 
   const navActions = (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <Button
-        variant="secondary"
-        size="md"
-        onClick={() => setImportOpen(true)}
-      >
+      <Button variant="secondary" size="md" onClick={() => setImportOpen(true)}>
         {isArabic ? 'استيراد' : 'Import'}
       </Button>
       <Button
@@ -193,39 +273,223 @@ export function OmsOrdersListPage() {
       isArabic={isArabic}
       navActions={navActions}
     >
-      <Card padding="md" className="mb-4">
-        <div className="flex max-w-3xl flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="relative w-full sm:w-72 sm:max-w-sm">
-            <i
-              className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
-              aria-hidden
-            />
-            <input
-              value={draftFilters.orderSearch}
-              onChange={(e) => setDraft({ orderSearch: e.target.value })}
-              placeholder={
-                isArabic
-                  ? 'بحث: رقم الطلب، العميل، الهاتف…'
-                  : 'Search order #, customer, phone…'
-              }
-              aria-label={isArabic ? 'بحث' : 'Search'}
-              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
-            />
+      <Card padding="md" className="mb-4 overflow-hidden">
+        {!advancedOpen ? (
+          <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+            <div className="relative min-w-0 flex-1 sm:max-w-md">
+              <i
+                className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+                aria-hidden
+              />
+              <input
+                value={draftFilters.orderSearch}
+                onChange={(e) => setDraft({ orderSearch: e.target.value })}
+                placeholder={
+                  isArabic
+                    ? 'بحث: رقم الطلب، العملاء، الزبائن، الهاتف…'
+                    : 'Search orders, clients, customers, phone...'
+                }
+                aria-label={isArabic ? 'بحث سريع' : 'Quick search'}
+                className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+              />
+            </div>
+            <select
+              value={draftFilters.status}
+              onChange={(e) => applyPatch({ status: e.target.value })}
+              aria-label={isArabic ? 'الحالة' : 'Status'}
+              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-52"
+            >
+              {OMS_STATUS_FILTER_OPTIONS.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              aria-expanded={false}
+              onClick={() => setAdvancedOpen(true)}
+              className="inline-flex items-center gap-2"
+            >
+              <i className="fa-solid fa-sliders text-xs" aria-hidden />
+              {isArabic ? 'تصفية متقدمة' : 'Advanced Filtering'}
+              {advancedActiveCount > 0 ? (
+                <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">
+                  {advancedActiveCount}
+                </span>
+              ) : null}
+            </Button>
           </div>
-          <select
-            value={draftFilters.status}
-            onChange={(e) => applyPatch({ status: e.target.value })}
-            aria-label={isArabic ? 'الحالة' : 'Status'}
-            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
-          >
-            {OMS_STATUS_FILTER_OPTIONS.map((opt) => (
-              <option key={opt.value || 'all'} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+        ) : (
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-text-strong">
+              <i className="fa-solid fa-sliders text-brand-700" aria-hidden />
+              {isArabic ? 'تصفية متقدمة' : 'Advanced Filtering'}
+              {advancedActiveCount > 0 ? (
+                <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">
+                  {advancedActiveCount}
+                </span>
+              ) : null}
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              aria-expanded
+              onClick={() => setAdvancedOpen(false)}
+            >
+              {isArabic ? 'إخفاء' : 'Collapse'}
+            </Button>
+          </div>
+        )}
+
+        <div
+          className={`${FILTER_OVERFLOW_TRANSITION_CLASS} ${
+            advancedOpen ? 'grid-rows-[1fr] mt-4' : 'grid-rows-[0fr]'
+          }`}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                onApplyAdvanced();
+              }}
+            >
+              <div className={ADVANCED_GRID_CLASS}>
+                <div className="min-w-0">
+                  <FilterFieldLabel>{isArabic ? 'رقم الطلب' : 'Order ID'}</FilterFieldLabel>
+                  <input
+                    value={draftFilters.orderId}
+                    onChange={(e) => setDraft({ orderId: e.target.value })}
+                    placeholder={isArabic ? 'رقم الطلب أو المرجع…' : 'Order # or reference…'}
+                    className={FILTER_FIELD_CONTROL_CLASS}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <Combobox
+                    label={isArabic ? 'العميل' : 'Client'}
+                    value={draftFilters.companyId}
+                    onChange={(value) => setDraft({ companyId: value })}
+                    options={clientOptions}
+                    placeholder={isArabic ? 'ابحث عن عميل…' : 'Search client…'}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <FilterFieldLabel>{isArabic ? 'الزبون' : 'Customer'}</FilterFieldLabel>
+                  <input
+                    value={draftFilters.customer}
+                    onChange={(e) => setDraft({ customer: e.target.value })}
+                    placeholder={isArabic ? 'اسم الزبون…' : 'Customer name…'}
+                    className={FILTER_FIELD_CONTROL_CLASS}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <FilterFieldLabel>{isArabic ? 'الهاتف' : 'Phone'}</FilterFieldLabel>
+                  <input
+                    value={draftFilters.phone}
+                    onChange={(e) => setDraft({ phone: e.target.value })}
+                    placeholder={isArabic ? 'رقم الهاتف…' : 'Phone…'}
+                    className={FILTER_FIELD_CONTROL_CLASS}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <FilterFieldLabel>{isArabic ? 'المدينة' : 'City'}</FilterFieldLabel>
+                  <input
+                    value={draftFilters.city}
+                    onChange={(e) => setDraft({ city: e.target.value })}
+                    placeholder={isArabic ? 'المدينة…' : 'City…'}
+                    className={FILTER_FIELD_CONTROL_CLASS}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <FilterFieldLabel>{isArabic ? 'الإجمالي / التكلفة' : 'Total / Cost'}</FilterFieldLabel>
+                  <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] gap-2">
+                    <select
+                      value={draftFilters.totalOp || 'gte'}
+                      onChange={(e) =>
+                        setDraft({ totalOp: e.target.value as OmsTotalOperator })
+                      }
+                      aria-label={isArabic ? 'عامل الإجمالي' : 'Total operator'}
+                      className={FILTER_FIELD_CONTROL_CLASS}
+                    >
+                      {OMS_TOTAL_OPERATOR_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      inputMode="decimal"
+                      value={draftFilters.totalValue}
+                      onChange={(e) => setDraft({ totalValue: e.target.value })}
+                      placeholder="0"
+                      aria-label={isArabic ? 'قيمة الإجمالي' : 'Total value'}
+                      className={FILTER_FIELD_CONTROL_CLASS}
+                    />
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <FilterFieldLabel>{isArabic ? 'الحالة' : 'Status'}</FilterFieldLabel>
+                  <select
+                    value={draftFilters.status}
+                    onChange={(e) => setDraft({ status: e.target.value })}
+                    className={FILTER_FIELD_CONTROL_CLASS}
+                  >
+                    {OMS_STATUS_FILTER_OPTIONS.map((opt) => (
+                      <option key={opt.value || 'all'} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex min-w-0 items-end justify-end gap-3 sm:col-span-2 lg:col-span-2">
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="md"
+                    onClick={onResetFilters}
+                    disabled={pagination.isInitialLoading}
+                    className={`${FILTER_RESET_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
+                  >
+                    {isArabic ? 'إعادة تعيين' : 'Reset Filters'}
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="md"
+                    loading={pagination.isFetching}
+                    disabled={pagination.isFetching}
+                    className={`${FILTER_APPLY_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
+                  >
+                    {isArabic ? 'تطبيق التصفية' : 'Apply Filters'}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </div>
         </div>
+
+        {!advancedOpen && appliedSummary ? (
+          <p className="mt-3 truncate text-xs text-text-muted" title={appliedSummary}>
+            {isArabic ? ' عوامل التصفية: ' : 'Filters: '}
+            {appliedSummary}
+          </p>
+        ) : null}
       </Card>
+
+      {pagination.isError ? (
+        <Card padding="md" className="mb-4 border-status-error-border bg-status-error-bg">
+          <p className="text-sm text-status-error-fg">
+            {(pagination.error as Error)?.message ||
+              (isArabic ? 'تعذر تحميل الطلبات.' : 'Failed to load orders.')}
+          </p>
+        </Card>
+      ) : null}
 
       <DataTable
         columns={columns}
