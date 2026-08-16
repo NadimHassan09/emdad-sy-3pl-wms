@@ -39,6 +39,7 @@ import {
   buildOmsAppliedFilterSummary,
   buildOmsOrdersListParams,
   countAppliedOmsAdvancedFilters,
+  normalizeOmsOrdersListFilters,
   OMS_ORDERS_FILTER_DEFAULTS,
   OMS_TOTAL_OPERATOR_OPTIONS,
   type OmsOrdersListFilters,
@@ -101,8 +102,23 @@ export function OmsOrdersListPage() {
     [companiesQuery.data, isArabic],
   );
 
-  const { draftFilters, appliedFilters, setDraft, applyPatch, resetFilters } =
-    useFilters<OmsOrdersListFilters>(OMS_ORDERS_FILTER_DEFAULTS);
+  const {
+    draftFilters: draftFiltersRaw,
+    appliedFilters: appliedFiltersRaw,
+    setDraft,
+    applyPatch,
+    resetFilters,
+  } = useFilters<OmsOrdersListFilters>(OMS_ORDERS_FILTER_DEFAULTS);
+
+  // Older cached filter entries only had orderSearch/status — fill missing keys.
+  const draftFilters = useMemo(
+    () => normalizeOmsOrdersListFilters(draftFiltersRaw),
+    [draftFiltersRaw],
+  );
+  const appliedFilters = useMemo(
+    () => normalizeOmsOrdersListFilters(appliedFiltersRaw),
+    [appliedFiltersRaw],
+  );
 
   const debouncedSearch = useDebounced(draftFilters.orderSearch, 300);
 
