@@ -22,12 +22,21 @@ export {
 export { FILTER_APPLY_BUTTON_CLASS as FILTER_PRIMARY_BUTTON_CLASS } from './filter-button-styles';
 
 export {
+  FILTER_CARD_CLASS,
   FILTER_FIELD_LABEL_CLASS,
   FILTER_FIELD_LABEL_GAP_CLASS,
   FILTER_FIELD_CONTROL_CLASS,
   FILTER_FIELD_CONTROL_ERROR_CLASS,
   FILTER_GRID_CLASS,
+  FILTER_ADVANCED_GRID_CLASS,
+  FILTER_COMPACT_SEARCH_CLASS,
+  FILTER_COMPACT_SELECT_CLASS,
   FILTER_ACTION_BUTTON_SIZE_CLASS,
+  FILTER_ADVANCED_TOGGLE_CLASS,
+  FILTER_ACTIONS_ROW_CLASS,
+  FILTER_ACTIONS_INLINE_CLASS,
+  FILTER_TOOLBAR_ROW_CLASS,
+  FILTER_TOGGLE_ROW_CLASS,
   FILTER_OVERFLOW_TRANSITION_CLASS,
 } from './filter-panel-styles';
 
@@ -170,6 +179,9 @@ export {
 
 export { AdvancedFilterSection } from './AdvancedFilterSection';
 export type { AdvancedFilterSectionProps } from './AdvancedFilterSection';
+
+export { FilterAdvancedToggle } from './FilterAdvancedToggle';
+export type { FilterAdvancedToggleProps } from './FilterAdvancedToggle';
 
 export {
   countNonEmptyFilters,

@@ -274,7 +274,7 @@ export function LocationsPage() {
         }
         activeCount={[appliedFilters.name, appliedFilters.barcode, appliedFilters.locationType].filter((v) => String(v).trim()).length}
         advancedLabel={t(['Advanced Filtering', 'تصفية متقدمة'])}
-        collapseLabel={t(['Collapse', 'إخفاء'])}
+        collapseLabel={t(['Collapsed', 'إخفاء'])}
       >
           <TextField
             label={t(['Location name', 'اسم الموقع'])}

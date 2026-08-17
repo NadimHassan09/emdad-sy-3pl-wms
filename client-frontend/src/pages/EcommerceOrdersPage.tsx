@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
@@ -10,7 +10,9 @@ import {
   Skeleton,
   StatusBadge,
   countNonEmptyFilters,
-  useDebouncedValue,
+  FILTER_COMPACT_SEARCH_CLASS,
+  FILTER_COMPACT_SELECT_CLASS,
+  FILTER_FIELD_CONTROL_CLASS,
 } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
@@ -70,19 +72,12 @@ const ECOMMERCE_LIST_FILTERS = { search: '', status: '' };
 
 export function EcommerceOrdersPage(): ReactElement {
   const navigate = useNavigate();
-  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters(ECOMMERCE_LIST_FILTERS);
   const [advancedOpen, setAdvancedOpen] = useCachedState('advanced-filters-open', false);
   const isArabic = isClientArabic();
   const t = (label: string) => labelText(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
-  const debouncedSearch = useDebouncedValue(draftFilters.search, 300);
-
-  useEffect(() => {
-    if (advancedOpen) return;
-    if (debouncedSearch === appliedFilters.search) return;
-    applyPatch({ search: debouncedSearch });
-  }, [advancedOpen, debouncedSearch, appliedFilters.search, applyPatch]);
 
   const filterKey = useMemo(
     () => ({
@@ -153,13 +148,13 @@ export function EcommerceOrdersPage(): ReactElement {
                 value={draftFilters.search}
                 onChange={(e) => setDraft({ search: e.target.value })}
                 placeholder={t('Search order number...')}
-                className="w-full pl-9 pr-4 py-2 bg-surface-panel border border-border-strong text-text-strong placeholder:text-text-faint rounded-lg text-sm input-premium focus-visible:outline-none focus-visible:shadow-focus"
+                className={FILTER_COMPACT_SEARCH_CLASS}
               />
             </div>
             <select
               value={draftFilters.status}
-              onChange={(e) => applyPatch({ status: e.target.value })}
-              className="px-3 py-2 bg-surface-panel border border-border-strong rounded-lg text-sm text-text-body input-premium focus-visible:outline-none focus-visible:shadow-focus"
+              onChange={(e) => setDraft({ status: e.target.value })}
+              className={FILTER_COMPACT_SELECT_CLASS}
             >
               {STATUS_OPTIONS.map((o) => (
                 <option key={o.value || 'all'} value={o.value}>
@@ -171,11 +166,20 @@ export function EcommerceOrdersPage(): ReactElement {
         }
       >
         <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Order #')}</label>
+          <input
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder={t('Search order number...')}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
           <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Status')}</label>
           <select
             value={draftFilters.status}
             onChange={(e) => setDraft({ status: e.target.value })}
-            className="w-full px-3 py-2 bg-surface-panel border border-border-strong rounded-lg text-sm text-text-body input-premium"
+            className={FILTER_FIELD_CONTROL_CLASS}
           >
             {STATUS_OPTIONS.map((o) => (
               <option key={o.value || 'all'} value={o.value}>

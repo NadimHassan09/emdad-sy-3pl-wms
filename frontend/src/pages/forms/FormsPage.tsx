@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -13,9 +13,9 @@ import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
 import { useCachedState } from '../../hooks/useCachedState';
 import { useFilters } from '../../hooks/useFilters';
-import { useDebounced } from '../../lib/useDebounced';
 import { readListUiCache } from '../../../../shared/design-system-next/hooks/listUiCache';
 import {
+  FILTER_COMPACT_SEARCH_CLASS,
   FILTER_FIELD_CONTROL_CLASS,
   FILTER_FIELD_LABEL_CLASS,
   FILTER_FIELD_LABEL_GAP_CLASS,
@@ -53,15 +53,8 @@ export function FormsPage() {
     [pathname],
   );
 
-  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters(initialFilters);
-  const debouncedSearch = useDebounced(draftFilters.search, 300);
-
-  useEffect(() => {
-    if (advancedOpen) return;
-    if (debouncedSearch === appliedFilters.search) return;
-    applyPatch({ search: debouncedSearch });
-  }, [advancedOpen, debouncedSearch, appliedFilters.search, applyPatch]);
 
   const listParams = useMemo(
     () => ({
@@ -106,7 +99,7 @@ export function FormsPage() {
         onAdvancedOpenChange={setAdvancedOpen}
         isArabic={isArabic}
         loading={pagination.isFetching}
-        activeCount={countNonEmptyFilters(appliedFilters, ['createdFrom', 'createdTo'])}
+        activeCount={countNonEmptyFilters(appliedFilters, ['search', 'createdFrom', 'createdTo'])}
         onApply={applyFilters}
         onReset={() => {
           resetFilters();
@@ -125,11 +118,25 @@ export function FormsPage() {
                 'Name, phone, email, or activity type',
                 'الاسم أو الهاتف أو البريد أو نوع النشاط',
               ])}
-              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+              className={FILTER_COMPACT_SEARCH_CLASS}
             />
           </div>
         }
       >
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t(['Search', 'بحث'])}
+          </label>
+          <input
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder={t([
+              'Name, phone, email, or activity type',
+              'الاسم أو الهاتف أو البريد أو نوع النشاط',
+            ])}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
         <div className="min-w-0">
           <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
             {t(['From date', 'من تاريخ'])}

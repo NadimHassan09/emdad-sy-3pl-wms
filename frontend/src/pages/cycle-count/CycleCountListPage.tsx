@@ -342,7 +342,7 @@ export function CycleCountListPage() {
         }
         activeCount={[appliedFilters.status, appliedFilters.overdueOnly, appliedFilters.assignedWorkerId, appliedFilters.discrepancyOnly, appliedFilters.dateFrom, appliedFilters.dateTo].filter((v) => String(v).trim() && String(v) !== 'no').length}
         advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
-        collapseLabel={t('Collapse', 'إخفاء')}
+        collapseLabel={t('Collapsed', 'إخفاء')}
       >
         {tab === 'sessions' ? (
           <SelectField

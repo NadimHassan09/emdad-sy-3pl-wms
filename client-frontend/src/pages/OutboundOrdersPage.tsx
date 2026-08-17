@@ -1,7 +1,14 @@
-import { useEffect, useMemo, type ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, AdvancedFilterSection, countNonEmptyFilters, useDebouncedValue } from '@ds';
+import {
+  Alert,
+  AdvancedFilterSection,
+  countNonEmptyFilters,
+  FILTER_COMPACT_SEARCH_CLASS,
+  FILTER_COMPACT_SELECT_CLASS,
+  FILTER_FIELD_CONTROL_CLASS,
+} from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
@@ -58,19 +65,12 @@ const OUTBOUND_LIST_FILTERS = { search: '', status: '' };
 
 export function OutboundOrdersPage(): ReactElement {
   const navigate = useNavigate();
-  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters(OUTBOUND_LIST_FILTERS);
   const [advancedOpen, setAdvancedOpen] = useCachedState('advanced-filters-open', false);
   const isArabic = isClientArabic();
   const t = (label: string) => outboundLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
-  const debouncedSearch = useDebouncedValue(draftFilters.search, 300);
-
-  useEffect(() => {
-    if (advancedOpen) return;
-    if (debouncedSearch === appliedFilters.search) return;
-    applyPatch({ search: debouncedSearch });
-  }, [advancedOpen, debouncedSearch, appliedFilters.search, applyPatch]);
 
   const filterKey = useMemo(
     () => ({
@@ -135,14 +135,14 @@ export function OutboundOrdersPage(): ReactElement {
                 value={draftFilters.search}
                 onChange={(e) => setDraft({ search: e.target.value })}
                 placeholder={t('Search order number...')}
-                className="w-full pl-9 pr-4 py-2 bg-surface-sunken border border-border-strong text-text-strong placeholder:text-text-faint rounded-lg text-sm input-premium"
+                className={FILTER_COMPACT_SEARCH_CLASS}
               />
             </div>
             <select
               value={draftFilters.status}
-              onChange={(e) => applyPatch({ status: e.target.value })}
+              onChange={(e) => setDraft({ status: e.target.value })}
               aria-label={t('All statuses')}
-              className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
+              className={FILTER_COMPACT_SELECT_CLASS}
             >
               {OUTBOUND_STATUS_OPTIONS.map((o) => (
                 <option key={o.value || 'all'} value={o.value}>
@@ -154,11 +154,20 @@ export function OutboundOrdersPage(): ReactElement {
         }
       >
         <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Order #')}</label>
+          <input
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder={t('Search order number...')}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
           <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Status')}</label>
           <select
             value={draftFilters.status}
             onChange={(e) => setDraft({ status: e.target.value })}
-            className="w-full px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
+            className={FILTER_FIELD_CONTROL_CLASS}
           >
             {OUTBOUND_STATUS_OPTIONS.map((o) => (
               <option key={o.value || 'all'} value={o.value}>

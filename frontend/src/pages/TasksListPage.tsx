@@ -301,7 +301,7 @@ export function TasksListPage() {
         }
         activeCount={[appliedFilters.taskType, appliedFilters.status, appliedFilters.search].filter((v) => String(v).trim()).length}
         advancedLabel={t(['Advanced Filtering', 'تصفية متقدمة'])}
-        collapseLabel={t(['Collapse', 'إخفاء'])}
+        collapseLabel={t(['Collapsed', 'إخفاء'])}
       >
         <SelectField
           label={t(['Task type', 'نوع المهمة'])}

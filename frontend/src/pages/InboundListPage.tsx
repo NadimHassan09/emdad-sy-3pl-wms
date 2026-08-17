@@ -1,9 +1,10 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import { AdvancedFilterSection, Alert, Button, EmptyState, countNonEmptyFilters } from '@ds';
+import { AdvancedFilterSection, Alert, Button, Combobox, EmptyState, countNonEmptyFilters } from '@ds';
 
+import { CompaniesApi } from '../api/companies';
 import { InboundApi, InboundOrder } from '../api/inbound';
 import { useAuth } from '../auth/AuthContext';
 import { AdminListPageShell } from '../components/AdminListPageShell';
@@ -12,6 +13,8 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
 import {
+  FILTER_COMPACT_SEARCH_CLASS,
+  FILTER_COMPACT_SELECT_CLASS,
   FILTER_FIELD_CONTROL_CLASS,
   FILTER_FIELD_LABEL_CLASS,
   FILTER_FIELD_LABEL_GAP_CLASS,
@@ -30,8 +33,8 @@ import {
 import { buildInboundListParams } from '../lib/inbound-list-params';
 import { inboundHasQuantityShortfall } from '../lib/inbound-shortfall';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
+import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { canAccessInternalTransfer } from '../lib/rbac';
-import { useDebounced } from '../lib/useDebounced';
 import { useCachedState } from '../hooks/useCachedState';
 
 type ListDraft = {
@@ -39,6 +42,7 @@ type ListDraft = {
   status: string;
   createdFrom: string;
   createdTo: string;
+  companyId: string;
 };
 
 function inboundLabel(label: string, isArabic: boolean): string {
@@ -120,6 +124,7 @@ export function InboundListPage() {
       status: '',
       createdFrom: '',
       createdTo: '',
+      companyId: '',
     }),
     [],
   );
@@ -128,7 +133,17 @@ export function InboundListPage() {
     useFilters(initialList);
   const [advancedOpen, setAdvancedOpen] = useCachedState('inbound-orders:advanced-filters-open', false);
   const [searchParams] = useSearchParams();
-  const debouncedSearch = useDebounced(draftFilters.orderSearch, 300);
+
+  const companiesQuery = useQuery({
+    queryKey: QK.companies,
+    queryFn: () => CompaniesApi.list(),
+    staleTime: 10 * 60_000,
+  });
+
+  const clientOptions = useMemo(
+    () => companyFilterComboboxOptions(companiesQuery.data, t('All clients')),
+    [companiesQuery.data, isArabic],
+  );
 
   useEffect(() => {
     const status = searchParams.get('status') ?? '';
@@ -136,12 +151,6 @@ export function InboundListPage() {
       applyPatch({ status });
     }
   }, [searchParams, appliedFilters.status, applyPatch]);
-
-  useEffect(() => {
-    if (advancedOpen) return;
-    if (debouncedSearch === appliedFilters.orderSearch) return;
-    applyPatch({ orderSearch: debouncedSearch });
-  }, [advancedOpen, debouncedSearch, appliedFilters.orderSearch, applyPatch]);
 
   const listParams = useMemo(
     () => buildInboundListParams(appliedFilters, wid),
@@ -378,7 +387,12 @@ export function InboundListPage() {
         onAdvancedOpenChange={setAdvancedOpen}
         isArabic={isArabic}
         loading={pagination.isFetching}
-        activeCount={countNonEmptyFilters(appliedFilters, ['status', 'createdFrom', 'createdTo'])}
+        activeCount={countNonEmptyFilters(appliedFilters, [
+          'status',
+          'createdFrom',
+          'createdTo',
+          'companyId',
+        ])}
         onApply={applyFilters}
         onReset={() => {
           resetFilters();
@@ -395,14 +409,14 @@ export function InboundListPage() {
                 value={draftFilters.orderSearch}
                 onChange={(e) => setDraft({ orderSearch: e.target.value })}
                 placeholder={t('Search order # or client…')}
-                className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+                className={FILTER_COMPACT_SEARCH_CLASS}
               />
             </div>
             <select
               value={draftFilters.status}
-              onChange={(e) => applyPatch({ status: e.target.value })}
+              onChange={(e) => setDraft({ status: e.target.value })}
               aria-label={t('Status')}
-              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+              className={FILTER_COMPACT_SELECT_CLASS}
             >
               {statusFilterOptions.map((opt) => (
                 <option key={opt.value || 'all'} value={opt.value}>
@@ -413,6 +427,42 @@ export function InboundListPage() {
           </div>
         }
       >
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t('Order #')}
+          </label>
+          <input
+            value={draftFilters.orderSearch}
+            onChange={(e) => setDraft({ orderSearch: e.target.value })}
+            placeholder={t('Search order # or client…')}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <Combobox
+            label={t('Client')}
+            value={draftFilters.companyId}
+            onChange={(value) => setDraft({ companyId: value })}
+            options={clientOptions}
+            placeholder={t('All clients')}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t('Status')}
+          </label>
+          <select
+            value={draftFilters.status}
+            onChange={(e) => setDraft({ status: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          >
+            {statusFilterOptions.map((opt) => (
+              <option key={opt.value || 'all'} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="min-w-0">
           <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
             {t('Created from')}
@@ -434,22 +484,6 @@ export function InboundListPage() {
             onChange={(e) => setDraft({ createdTo: e.target.value })}
             className={FILTER_FIELD_CONTROL_CLASS}
           />
-        </div>
-        <div className="min-w-0">
-          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
-            {t('Status')}
-          </label>
-          <select
-            value={draftFilters.status}
-            onChange={(e) => setDraft({ status: e.target.value })}
-            className={FILTER_FIELD_CONTROL_CLASS}
-          >
-            {statusFilterOptions.map((opt) => (
-              <option key={opt.value || 'all'} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
         </div>
       </AdvancedFilterSection>
 

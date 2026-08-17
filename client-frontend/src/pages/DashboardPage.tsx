@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
-import { Alert, AdvancedFilterSection, Button, ListPageHeader, Skeleton, countNonEmptyFilters } from '@ds';
+import { Alert, AdvancedFilterSection, Button, ListPageHeader, Skeleton, countNonEmptyFilters, FILTER_COMPACT_SELECT_CLASS, FILTER_FIELD_CONTROL_CLASS } from '@ds';
 
 import { useAuth } from '../auth/AuthContext';
 import { Badge } from '../design-v2/Badge';
@@ -361,22 +361,19 @@ export function DashboardPage(): ReactElement {
   const [appliedOrderFilters, setAppliedOrderFilters] = useState(defaultOrderFilters);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  const applyMonth = (preset: 'this' | 'last') => {
+  const applyMonthDraft = (preset: 'this' | 'last') => {
     const base = preset === 'this' ? now : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-    const next = {
-      ...appliedOrderFilters,
+    setDraftOrderFilters((prev) => ({
+      ...prev,
       monthPreset: preset,
       dateFrom: toYmd(startOfMonth(base)),
       dateTo: toYmd(endOfMonth(base)),
-    };
-    setDraftOrderFilters(next);
-    setAppliedOrderFilters(next);
+    }));
   };
 
   const dateFrom = appliedOrderFilters.dateFrom;
   const dateTo = appliedOrderFilters.dateTo;
   const storeChannel = appliedOrderFilters.storeChannel;
-  const monthPreset = appliedOrderFilters.monthPreset;
 
   const orderFilters = useMemo(
     () => ({
@@ -797,21 +794,19 @@ export function DashboardPage(): ReactElement {
               compact={
                 <div className="flex flex-wrap items-end gap-2">
                   <select
-                    value={monthPreset}
-                    onChange={(e) => applyMonth(e.target.value as 'this' | 'last')}
-                    className="h-9 rounded-lg border border-border-strong bg-surface-panel px-3 text-sm text-text-body"
+                    value={draftOrderFilters.monthPreset}
+                    onChange={(e) => applyMonthDraft(e.target.value as 'this' | 'last')}
+                    className={FILTER_COMPACT_SELECT_CLASS}
                   >
                     <option value="this">{t('This month')}</option>
                     <option value="last">{t('Last month')}</option>
                   </select>
                   <select
-                    value={storeChannel}
-                    onChange={(e) => {
-                      const next = { ...appliedOrderFilters, storeChannel: e.target.value };
-                      setDraftOrderFilters(next);
-                      setAppliedOrderFilters(next);
-                    }}
-                    className="h-9 rounded-lg border border-border-strong bg-surface-panel px-3 text-sm text-text-body min-w-[9rem]"
+                    value={draftOrderFilters.storeChannel}
+                    onChange={(e) =>
+                      setDraftOrderFilters((prev) => ({ ...prev, storeChannel: e.target.value }))
+                    }
+                    className={FILTER_COMPACT_SELECT_CLASS}
                     aria-label={t('Sales channel')}
                   >
                     {channelOptions.map((o) => (
@@ -831,7 +826,7 @@ export function DashboardPage(): ReactElement {
                   onChange={(e) =>
                     setDraftOrderFilters((prev) => ({ ...prev, dateFrom: e.target.value }))
                   }
-                  className="h-9 w-full rounded-lg border border-border-strong bg-surface-panel px-2 text-sm text-text-body"
+                  className={FILTER_FIELD_CONTROL_CLASS}
                 />
               </div>
               <div className="min-w-0">
@@ -842,7 +837,7 @@ export function DashboardPage(): ReactElement {
                   onChange={(e) =>
                     setDraftOrderFilters((prev) => ({ ...prev, dateTo: e.target.value }))
                   }
-                  className="h-9 w-full rounded-lg border border-border-strong bg-surface-panel px-2 text-sm text-text-body"
+                  className={FILTER_FIELD_CONTROL_CLASS}
                 />
               </div>
               <div className="min-w-0">
@@ -852,7 +847,7 @@ export function DashboardPage(): ReactElement {
                   onChange={(e) =>
                     setDraftOrderFilters((prev) => ({ ...prev, storeChannel: e.target.value }))
                   }
-                  className="h-9 w-full rounded-lg border border-border-strong bg-surface-panel px-3 text-sm text-text-body"
+                  className={FILTER_FIELD_CONTROL_CLASS}
                 >
                   {channelOptions.map((o) => (
                     <option key={o.value || 'all'} value={o.value}>

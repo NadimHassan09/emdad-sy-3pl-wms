@@ -123,7 +123,7 @@ export function ReportFiltersPanel({
       }
       activeCount={[draft.warehouseId, draft.companyId, draft.status, draft.sku, draft.taskType, draft.groupBy, draft.employeeId, draft.dateFrom, draft.dateTo].filter((v) => String(v ?? '').trim()).length}
       advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
-      collapseLabel={t('Collapse', 'إخفاء')}
+      collapseLabel={t('Collapsed', 'إخفاء')}
       >
         {report.filterKeys.includes('warehouse') && (
           <SelectField
@@ -148,6 +148,22 @@ export function ReportFiltersPanel({
             value={draft.status}
             onChange={(e) => onChange({ status: e.target.value })}
             options={statusOptions}
+          />
+        )}
+        {report.filterKeys.includes('dateRange') && (
+          <TextField
+            label={t('From date', 'من تاريخ')}
+            type="date"
+            value={draft.dateFrom}
+            onChange={(e) => onChange({ dateFrom: e.target.value })}
+          />
+        )}
+        {report.filterKeys.includes('dateRange') && (
+          <TextField
+            label={t('To date', 'إلى تاريخ')}
+            type="date"
+            value={draft.dateTo}
+            onChange={(e) => onChange({ dateTo: e.target.value })}
           />
         )}
         {report.filterKeys.includes('sku') && (

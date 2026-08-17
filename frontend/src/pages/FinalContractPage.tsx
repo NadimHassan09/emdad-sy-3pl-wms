@@ -267,7 +267,7 @@ export function FinalContractPage() {
         }
         activeCount={[appliedFilters.search, appliedFilters.companyId, appliedFilters.generationStatus, appliedFilters.issueFrom, appliedFilters.issueTo].filter((v) => String(v).trim()).length}
         advancedLabel={t(['Advanced Filtering', 'تصفية متقدمة'])}
-        collapseLabel={t(['Collapse', 'إخفاء'])}
+        collapseLabel={t(['Collapsed', 'إخفاء'])}
       >
         <TextField
           label={t(['Contract # / client', 'رقم العقد / العميل'])}

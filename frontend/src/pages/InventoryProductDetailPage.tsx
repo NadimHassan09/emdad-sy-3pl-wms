@@ -830,7 +830,7 @@ export function InventoryProductDetailPage() {
             }
             activeCount={[mvApplied.movementType, mvApplied.createdFrom, mvApplied.createdTo, mvApplied.referenceSearch, mvApplied.operatorSearch, mvApplied.lotNumber, mvApplied.locationId].filter((v) => String(v).trim()).length}
             advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
-            collapseLabel={t('Collapse', 'إخفاء')}
+            collapseLabel={t('Collapsed', 'إخفاء')}
       >
             <SelectField
               label={t('Movement type', 'نوع الحركة')}

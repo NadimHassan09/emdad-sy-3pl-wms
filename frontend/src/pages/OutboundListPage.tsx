@@ -1,16 +1,19 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { OutboundApi, OutboundOrder } from '../api/outbound';
+import { CompaniesApi } from '../api/companies';
 import { useAuth } from '../auth/AuthContext';
-import { Alert, AdvancedFilterSection, Button as DsButton, countNonEmptyFilters } from '@ds';
+import { Alert, AdvancedFilterSection, Button as DsButton, Combobox, countNonEmptyFilters } from '@ds';
 import { AdminListPageShell } from '../components/AdminListPageShell';
 import { CompanyNameCell } from '../components/CompanyNameCell';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
 import {
+  FILTER_COMPACT_SEARCH_CLASS,
+  FILTER_COMPACT_SELECT_CLASS,
   FILTER_FIELD_CONTROL_CLASS,
   FILTER_FIELD_LABEL_CLASS,
   FILTER_FIELD_LABEL_GAP_CLASS,
@@ -29,8 +32,8 @@ import {
 } from '../hooks/useChunkedServerPagination';
 import { buildOutboundListParams } from '../lib/outbound-list-params';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
+import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { canAccessInternalTransfer } from '../lib/rbac';
-import { useDebounced } from '../lib/useDebounced';
 import { useCachedState } from '../hooks/useCachedState';
 
 type OutListDraft = {
@@ -38,6 +41,7 @@ type OutListDraft = {
   status: string;
   createdFrom: string;
   createdTo: string;
+  companyId: string;
 };
 
 function outboundLabel(label: string, isArabic: boolean): string {
@@ -130,6 +134,7 @@ export function OutboundListPage() {
       status: '',
       createdFrom: '',
       createdTo: '',
+      companyId: '',
     }),
     [],
   );
@@ -141,7 +146,17 @@ export function OutboundListPage() {
     false,
   );
   const [searchParams] = useSearchParams();
-  const debouncedSearch = useDebounced(draftFilters.orderSearch, 300);
+
+  const companiesQuery = useQuery({
+    queryKey: QK.companies,
+    queryFn: () => CompaniesApi.list(),
+    staleTime: 10 * 60_000,
+  });
+
+  const clientOptions = useMemo(
+    () => companyFilterComboboxOptions(companiesQuery.data, t('All clients')),
+    [companiesQuery.data, isArabic],
+  );
 
   useEffect(() => {
     const status = searchParams.get('status') ?? '';
@@ -149,12 +164,6 @@ export function OutboundListPage() {
       applyPatch({ status });
     }
   }, [searchParams, appliedFilters.status, applyPatch]);
-
-  useEffect(() => {
-    if (advancedOpen) return;
-    if (debouncedSearch === appliedFilters.orderSearch) return;
-    applyPatch({ orderSearch: debouncedSearch });
-  }, [advancedOpen, debouncedSearch, appliedFilters.orderSearch, applyPatch]);
 
   const listParams = useMemo(
     () => buildOutboundListParams(appliedFilters, wid),
@@ -446,7 +455,12 @@ export function OutboundListPage() {
         onAdvancedOpenChange={setAdvancedOpen}
         isArabic={isArabic}
         loading={pagination.isFetching}
-        activeCount={countNonEmptyFilters(appliedFilters, ['status', 'createdFrom', 'createdTo'])}
+        activeCount={countNonEmptyFilters(appliedFilters, [
+          'status',
+          'createdFrom',
+          'createdTo',
+          'companyId',
+        ])}
         onApply={applyFilters}
         onReset={() => {
           resetFilters();
@@ -463,14 +477,14 @@ export function OutboundListPage() {
                 value={draftFilters.orderSearch}
                 onChange={(e) => setDraft({ orderSearch: e.target.value })}
                 placeholder={t('Search order # or client…')}
-                className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+                className={FILTER_COMPACT_SEARCH_CLASS}
               />
             </div>
             <select
               value={draftFilters.status}
-              onChange={(e) => applyPatch({ status: e.target.value })}
+              onChange={(e) => setDraft({ status: e.target.value })}
               aria-label={t('Status')}
-              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+              className={FILTER_COMPACT_SELECT_CLASS}
             >
               {statusFilterOptions.map((opt) => (
                 <option key={opt.value || 'all'} value={opt.value}>
@@ -481,6 +495,42 @@ export function OutboundListPage() {
           </div>
         }
       >
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t('Order #')}
+          </label>
+          <input
+            value={draftFilters.orderSearch}
+            onChange={(e) => setDraft({ orderSearch: e.target.value })}
+            placeholder={t('Search order # or client…')}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <Combobox
+            label={t('Client')}
+            value={draftFilters.companyId}
+            onChange={(value) => setDraft({ companyId: value })}
+            options={clientOptions}
+            placeholder={t('All clients')}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t('Status')}
+          </label>
+          <select
+            value={draftFilters.status}
+            onChange={(e) => setDraft({ status: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          >
+            {statusFilterOptions.map((opt) => (
+              <option key={opt.value || 'all'} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="min-w-0">
           <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
             {t('Created from')}
@@ -502,22 +552,6 @@ export function OutboundListPage() {
             onChange={(e) => setDraft({ createdTo: e.target.value })}
             className={FILTER_FIELD_CONTROL_CLASS}
           />
-        </div>
-        <div className="min-w-0">
-          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
-            {t('Status')}
-          </label>
-          <select
-            value={draftFilters.status}
-            onChange={(e) => setDraft({ status: e.target.value })}
-            className={FILTER_FIELD_CONTROL_CLASS}
-          >
-            {statusFilterOptions.map((opt) => (
-              <option key={opt.value || 'all'} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
         </div>
       </AdvancedFilterSection>
       {isAdmin && selectedEligibleIds.length > 0 && (

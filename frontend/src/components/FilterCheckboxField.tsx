@@ -14,7 +14,7 @@ export function FilterCheckboxField({
   return (
     <div className="min-w-0">
       <span className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>{label}</span>
-      <label className="flex h-11 items-center gap-2 rounded-[10px] border border-border bg-surface-panel px-3 text-sm text-text-body shadow-sm">
+      <label className="flex items-center gap-2 rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body">
         <input
           type="checkbox"
           checked={checked}

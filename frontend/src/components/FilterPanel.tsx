@@ -1,10 +1,18 @@
-import { Button, FILTER_APPLY_BUTTON_CLASS, FILTER_RESET_BUTTON_CLASS } from '@ds';
-import { Children, Fragment, isValidElement, useState, type ReactNode } from 'react';
-
+import {
+  Button,
+  FILTER_APPLY_BUTTON_CLASS,
+  FILTER_RESET_BUTTON_CLASS,
+  FilterAdvancedToggle,
+} from '@ds';
 import {
   FILTER_ACTION_BUTTON_SIZE_CLASS,
+  FILTER_ACTIONS_INLINE_CLASS,
+  FILTER_ACTIONS_ROW_CLASS,
+  FILTER_CARD_CLASS,
   FILTER_GRID_CLASS,
   FILTER_OVERFLOW_TRANSITION_CLASS,
+  FILTER_TOGGLE_ROW_CLASS,
+  FILTER_TOOLBAR_ROW_CLASS,
 } from './filter-panel-styles';
 import { useFilterGridColumns } from '../hooks/useFilterGridColumns';
 
@@ -34,8 +42,7 @@ export const FILTER_PRIMARY_BUTTON_CLASS = FILTER_APPLY_BUTTON_CLASS;
 export { FILTER_APPLY_BUTTON_CLASS, FILTER_RESET_BUTTON_CLASS };
 
 /** Shared white panel shell (filters, order details, workflow timeline, etc.). */
-export const PANEL_CARD_CLASS =
-  'mb-4 rounded-xl border border-border bg-surface-panel p-4 shadow-soft';
+export const PANEL_CARD_CLASS = FILTER_CARD_CLASS;
 
 export const PANEL_TITLE_CLASS = 'text-base font-semibold text-text-strong';
 
@@ -115,20 +122,20 @@ export function FilterPanelGrid({
         menus from row 2+ paint above the "Show less" footer (shared by admin + client).
       */}
       {expanded ? (
-        <div className={`relative z-20 ${FILTER_GRID_CLASS} pt-5`}>
+        <div className={`relative z-20 ${FILTER_GRID_CLASS} pt-3`}>
           {rest.map((child, index) => renderField(child, columns + index))}
         </div>
       ) : (
         <div className={`${FILTER_OVERFLOW_TRANSITION_CLASS} grid-rows-[0fr]`}>
           <div className="min-h-0 overflow-hidden">
-            <div className={`${FILTER_GRID_CLASS} pt-5`}>
+            <div className={`${FILTER_GRID_CLASS} pt-3`}>
               {rest.map((child, index) => renderField(child, columns + index))}
             </div>
           </div>
         </div>
       )}
 
-      <div className="relative z-0 mt-5">{renderToggle(expanded)}</div>
+      <div className="relative z-0 mt-3">{renderToggle(expanded)}</div>
     </div>
   );
 }
@@ -155,7 +162,7 @@ export function FilterPanel({
   advancedOpen: controlledAdvancedOpen,
   onAdvancedOpenChange,
   advancedLabel = 'Advanced Filtering',
-  collapseLabel = 'Collapse',
+  collapseLabel = 'Collapsed',
   activeCount = 0,
   summary,
   summaryPrefix = 'Filters: ',
@@ -227,6 +234,76 @@ export function FilterPanel({
     );
   }
 
+  const chipsRow =
+    chips && chips.length > 0 ? (
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border-subtle pt-3">
+        {chips.map((chip) => (
+          <button
+            key={chip.key}
+            type="button"
+            onClick={chip.onClear}
+            className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-sunken px-2.5 py-1 text-xs font-medium text-text-body transition hover:border-border-strong hover:bg-surface-panel"
+          >
+            <span>{chip.label}</span>
+            <span className="text-text-faint" aria-hidden>
+              ×
+            </span>
+          </button>
+        ))}
+        {onClearAllChips ? (
+          <button
+            type="button"
+            onClick={onClearAllChips}
+            className="text-xs font-medium text-text-muted underline-offset-2 hover:text-text-strong hover:underline"
+          >
+            {clearAllChipsLabel}
+          </button>
+        ) : null}
+      </div>
+    ) : null;
+
+  const compactActionButtons = showActions ? (
+    <>
+      <Button type="button" variant="danger" size="md" onClick={onReset} disabled={loading}>
+        {resetLabel}
+      </Button>
+      <Button
+        type="submit"
+        variant="primary"
+        size="md"
+        disabled={applyDisabled || loading}
+        loading={loading}
+      >
+        {applyLabel}
+      </Button>
+    </>
+  ) : null;
+
+  const headerActionButtons = showActions ? (
+    <>
+      <Button
+        type="button"
+        variant="danger"
+        size="md"
+        onClick={onReset}
+        disabled={loading}
+        className={`${FILTER_RESET_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
+      >
+        {resetLabel}
+      </Button>
+      <Button
+        type="submit"
+        variant="primary"
+        size="md"
+        disabled={applyDisabled || loading}
+        loading={loading}
+        className={`${FILTER_APPLY_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
+      >
+        {applyLabel}
+      </Button>
+    </>
+  ) : null;
+
   return (
     <div className={[PANEL_CARD_CLASS, className].filter(Boolean).join(' ')}>
       <form
@@ -235,123 +312,69 @@ export function FilterPanel({
           onApply?.();
         }}
       >
-        {useCompactAdvanced && !advancedOpen ? (
-          <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
-            <div className="min-w-0 flex-1">{compact}</div>
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              aria-expanded={false}
-              onClick={() => setAdvancedOpen(true)}
-              className="inline-flex shrink-0 items-center gap-2"
-            >
-              <i className="fa-solid fa-sliders text-xs" aria-hidden />
-              {advancedLabel}
-              {badge}
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex min-w-0 items-start gap-3">
-              <FilterPanelIcon />
-              <div className="min-w-0">
-                <h2 className={PANEL_TITLE_CLASS}>
-                  {useCompactAdvanced ? advancedLabel : title}
-                </h2>
-                {!useCompactAdvanced && resolvedDescription ? (
-                  <p className="mt-1 text-sm text-text-muted">{resolvedDescription}</p>
+        {useCompactAdvanced ? (
+          <>
+            {advancedOpen ? (
+              <>
+                <FilterPanelGrid showMoreLabel={showMoreLabel} showLessLabel={showLessLabel}>
+                  {children}
+                </FilterPanelGrid>
+                {chipsRow}
+                {compactActionButtons ? (
+                  <div className={FILTER_ACTIONS_ROW_CLASS}>{compactActionButtons}</div>
                 ) : null}
+              </>
+            ) : (
+              <>
+                <div className={FILTER_TOOLBAR_ROW_CLASS}>
+                  <div className="min-w-0 flex-1">{compact}</div>
+                  {compactActionButtons ? (
+                    <div className={FILTER_ACTIONS_INLINE_CLASS}>{compactActionButtons}</div>
+                  ) : null}
+                </div>
+                {summary ? (
+                  <p className="mt-3 truncate text-xs text-text-muted" title={summary}>
+                    {summaryPrefix}
+                    {summary}
+                  </p>
+                ) : null}
+              </>
+            )}
+            <div className={FILTER_TOGGLE_ROW_CLASS}>
+              <FilterAdvancedToggle
+                advancedOpen={advancedOpen}
+                onToggle={() => setAdvancedOpen(!advancedOpen)}
+                advancedLabel={advancedLabel}
+                collapseLabel={collapseLabel}
+                badge={badge}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <FilterPanelIcon />
+                <div className="min-w-0">
+                  <h2 className={PANEL_TITLE_CLASS}>{title}</h2>
+                  {resolvedDescription ? (
+                    <p className="mt-1 text-sm text-text-muted">{resolvedDescription}</p>
+                  ) : null}
+                </div>
               </div>
-              {useCompactAdvanced ? badge : null}
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
+                {headerActions}
+                {headerActionButtons}
+              </div>
             </div>
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
-              {headerActions}
-              {useCompactAdvanced ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  aria-expanded
-                  onClick={() => setAdvancedOpen(false)}
-                >
-                  {collapseLabel}
-                </Button>
-              ) : null}
-              {showActions ? (
-                <>
-                  <Button
-                    type="button"
-                    variant="danger"
-                    size="md"
-                    onClick={onReset}
-                    disabled={loading}
-                    className={`${FILTER_RESET_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
-                  >
-                    {resetLabel}
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="md"
-                    disabled={applyDisabled || loading}
-                    loading={loading}
-                    className={`${FILTER_APPLY_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
-                  >
-                    {applyLabel}
-                  </Button>
-                </>
-              ) : null}
-            </div>
-          </div>
-        )}
-        <div
-          className={
-            useCompactAdvanced
-              ? `${FILTER_OVERFLOW_TRANSITION_CLASS} ${advancedOpen ? 'mt-5 grid-rows-[1fr]' : 'grid-rows-[0fr]'}`
-              : 'mt-5'
-          }
-        >
-          <div className={useCompactAdvanced && !advancedOpen ? 'min-h-0 overflow-hidden' : 'min-h-0'}>
-            {(!useCompactAdvanced || advancedOpen) ? (
+            <div className="mt-5">
               <FilterPanelGrid showMoreLabel={showMoreLabel} showLessLabel={showLessLabel}>
                 {children}
               </FilterPanelGrid>
-            ) : null}
-          </div>
-        </div>
-        {chips && chips.length > 0 && (!useCompactAdvanced || advancedOpen) ? (
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border-subtle pt-3">
-            {chips.map((chip) => (
-              <button
-                key={chip.key}
-                type="button"
-                onClick={chip.onClear}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-sunken px-2.5 py-1 text-xs font-medium text-text-body transition hover:border-border-strong hover:bg-surface-panel"
-              >
-                <span>{chip.label}</span>
-                <span className="text-text-faint" aria-hidden>
-                  ×
-                </span>
-              </button>
-            ))}
-            {onClearAllChips ? (
-              <button
-                type="button"
-                onClick={onClearAllChips}
-                className="text-xs font-medium text-text-muted underline-offset-2 hover:text-text-strong hover:underline"
-              >
-                {clearAllChipsLabel}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        {useCompactAdvanced && !advancedOpen && summary ? (
-          <p className="mt-3 truncate text-xs text-text-muted" title={summary}>
-            {summaryPrefix}
-            {summary}
-          </p>
-        ) : null}
+            </div>
+            {chipsRow}
+          </>
+        )}
       </form>
     </div>
   );

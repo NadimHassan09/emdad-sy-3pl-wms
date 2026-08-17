@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AdvancedFilterSection, Button, Card } from '@ds';
@@ -14,6 +14,8 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
 import {
+  FILTER_COMPACT_SEARCH_CLASS,
+  FILTER_COMPACT_SELECT_CLASS,
   FILTER_FIELD_CONTROL_CLASS,
   FILTER_FIELD_LABEL_CLASS,
   FILTER_FIELD_LABEL_GAP_CLASS,
@@ -39,7 +41,6 @@ import {
   type OmsOrdersListFilters,
   type OmsTotalOperator,
 } from '../lib/oms-orders-list-filters';
-import { useDebounced } from '../lib/useDebounced';
 import { useCachedState } from '../hooks/useCachedState';
 
 const OMS_STATUS_FILTER_OPTIONS = [
@@ -98,6 +99,7 @@ export function OmsOrdersListPage() {
     appliedFilters: appliedFiltersRaw,
     setDraft,
     applyPatch,
+    applyFilters,
     resetFilters,
   } = useFilters<OmsOrdersListFilters>(OMS_ORDERS_FILTER_DEFAULTS);
 
@@ -110,20 +112,6 @@ export function OmsOrdersListPage() {
     () => normalizeOmsOrdersListFilters(appliedFiltersRaw),
     [appliedFiltersRaw],
   );
-
-  const debouncedSearch = useDebounced(draftFilters.orderSearch, 300);
-
-  // Quick search: debounce-apply only while advanced panel is collapsed.
-  useEffect(() => {
-    if (advancedOpen) return;
-    if ((debouncedSearch ?? '') === (appliedFilters.orderSearch ?? '')) return;
-    applyPatch({ orderSearch: debouncedSearch ?? '' });
-  }, [
-    advancedOpen,
-    debouncedSearch,
-    appliedFilters.orderSearch,
-    applyPatch,
-  ]);
 
   const listParams = useMemo(
     () => buildOmsOrdersListParams(appliedFilters),
@@ -153,12 +141,15 @@ export function OmsOrdersListPage() {
     [appliedFilters, clientName, statusLabel, isArabic],
   );
 
-  const onApplyAdvanced = () => {
-    // Commit draft → applied. Clear quick search so dedicated fields own the query.
-    applyPatch({
-      ...draftFilters,
-      orderSearch: '',
-    });
+  const onApplyFilters = () => {
+    if (advancedOpen) {
+      applyPatch({
+        ...draftFilters,
+        orderSearch: '',
+      });
+      return;
+    }
+    applyFilters();
   };
 
   const onResetFilters = () => {
@@ -287,7 +278,7 @@ export function OmsOrdersListPage() {
         summary={appliedSummary}
         isArabic={isArabic}
         loading={pagination.isFetching}
-        onApply={onApplyAdvanced}
+        onApply={onApplyFilters}
         onReset={onResetFilters}
         compact={
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -305,14 +296,14 @@ export function OmsOrdersListPage() {
                     : 'Search orders, clients, customers, phone...'
                 }
                 aria-label={isArabic ? 'بحث سريع' : 'Quick search'}
-                className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+                className={FILTER_COMPACT_SEARCH_CLASS}
               />
             </div>
             <select
               value={draftFilters.status}
-              onChange={(e) => applyPatch({ status: e.target.value })}
+              onChange={(e) => setDraft({ status: e.target.value })}
               aria-label={isArabic ? 'الحالة' : 'Status'}
-              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-52"
+              className={FILTER_COMPACT_SELECT_CLASS}
             >
               {OMS_STATUS_FILTER_OPTIONS.map((opt) => (
                 <option key={opt.value || 'all'} value={opt.value}>

@@ -5,6 +5,7 @@ export type OutboundListFilterState = {
   status: string;
   createdFrom: string;
   createdTo: string;
+  companyId: string;
 };
 
 /** Canonical list/export query from applied outbound filters. */
@@ -14,6 +15,7 @@ export function buildOutboundListParams(
 ) {
   return {
     warehouseId: warehouseId || undefined,
+    companyId: applied.companyId?.trim() || undefined,
     status: (applied.status.trim() || undefined) as OutboundOrderStatus | undefined,
     orderSearch: applied.orderSearch.trim() || undefined,
     createdFrom: applied.createdFrom.trim() || undefined,

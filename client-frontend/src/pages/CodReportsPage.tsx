@@ -2,7 +2,7 @@ import { useMemo, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
-import { AdvancedFilterSection, countNonEmptyFilters } from '@ds';
+import { AdvancedFilterSection, countNonEmptyFilters, FILTER_COMPACT_SELECT_CLASS, FILTER_FIELD_CONTROL_CLASS } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
@@ -62,7 +62,7 @@ export function CodReportsPage(): ReactElement {
   const isArabic = isClientArabic();
   const t = (label: string) => labelText(label, isArabic);
 
-  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters(COD_LIST_FILTERS);
   const [advancedOpen, setAdvancedOpen] = useCachedState('advanced-filters-open', false);
 
@@ -144,8 +144,8 @@ export function CodReportsPage(): ReactElement {
         compact={
           <select
             value={draftFilters.codStatus}
-            onChange={(e) => applyPatch({ codStatus: e.target.value })}
-            className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
+            onChange={(e) => setDraft({ codStatus: e.target.value })}
+            className={FILTER_COMPACT_SELECT_CLASS}
           >
             {COD_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -160,7 +160,7 @@ export function CodReportsPage(): ReactElement {
           <select
             value={draftFilters.codStatus}
             onChange={(e) => setDraft({ codStatus: e.target.value })}
-            className="w-full px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
+            className={FILTER_FIELD_CONTROL_CLASS}
           >
             {COD_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -175,7 +175,7 @@ export function CodReportsPage(): ReactElement {
             type="date"
             value={draftFilters.dateFrom}
             onChange={(e) => setDraft({ dateFrom: e.target.value })}
-            className="w-full px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
+            className={FILTER_FIELD_CONTROL_CLASS}
           />
         </div>
         <div className="min-w-0">
@@ -184,7 +184,7 @@ export function CodReportsPage(): ReactElement {
             type="date"
             value={draftFilters.dateTo}
             onChange={(e) => setDraft({ dateTo: e.target.value })}
-            className="w-full px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
+            className={FILTER_FIELD_CONTROL_CLASS}
           />
         </div>
       </AdvancedFilterSection>

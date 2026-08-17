@@ -209,7 +209,7 @@ export function InventoryLedgerPage() {
         }
         activeCount={[appliedFilters.searchQuery, appliedFilters.movementType, appliedFilters.companyId, appliedFilters.createdFrom, appliedFilters.createdTo].filter((v) => String(v).trim()).length + (appliedFilters.includeInternal ? 1 : 0)}
         advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
-        collapseLabel={t('Collapse', 'إخفاء')}
+        collapseLabel={t('Collapsed', 'إخفاء')}
       >
         <TextField
           label={t('Search', 'بحث')}

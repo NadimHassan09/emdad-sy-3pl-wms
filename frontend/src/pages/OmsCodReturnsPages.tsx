@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { Badge, AdvancedFilterSection, countNonEmptyFilters } from '@ds';
@@ -15,8 +15,9 @@ import {
 } from '../hooks/useChunkedServerPagination';
 import { useFilters } from '../hooks/useFilters';
 import { useCachedState } from '../hooks/useCachedState';
-import { useDebounced } from '../lib/useDebounced';
 import {
+  FILTER_COMPACT_SEARCH_CLASS,
+  FILTER_COMPACT_SELECT_CLASS,
   FILTER_FIELD_CONTROL_CLASS,
   FILTER_FIELD_LABEL_CLASS,
   FILTER_FIELD_LABEL_GAP_CLASS,
@@ -89,20 +90,12 @@ export function OmsCodPage() {
   const toast = useToast();
   const qc = useQueryClient();
 
-  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters({
       search: '',
       status: '',
     });
   const [advancedOpen, setAdvancedOpen] = useCachedState('oms-cod:advanced-filters-open', false);
-
-  const debouncedSearch = useDebounced(draftFilters.search, 300);
-
-  useEffect(() => {
-    if (advancedOpen) return;
-    if ((debouncedSearch ?? '') === (appliedFilters.search ?? '')) return;
-    applyPatch({ search: debouncedSearch ?? '' });
-  }, [advancedOpen, debouncedSearch, appliedFilters.search, applyPatch]);
 
   const listParams = useMemo(
     () => ({
@@ -244,14 +237,14 @@ export function OmsCodPage() {
                     : 'Search order, client, recipient…'
                 }
                 aria-label={isArabic ? 'بحث' : 'Search'}
-                className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+                className={FILTER_COMPACT_SEARCH_CLASS}
               />
             </div>
             <select
               value={draftFilters.status}
-              onChange={(e) => applyPatch({ status: e.target.value })}
+              onChange={(e) => setDraft({ status: e.target.value })}
               aria-label={isArabic ? 'الحالة' : 'Status'}
-              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+              className={FILTER_COMPACT_SELECT_CLASS}
             >
               {COD_STATUS_FILTER_OPTIONS.map((opt) => (
                 <option key={opt.value || 'all'} value={opt.value}>
@@ -262,6 +255,21 @@ export function OmsCodPage() {
           </div>
         }
       >
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {isArabic ? 'بحث' : 'Search'}
+          </label>
+          <input
+            value={draftFilters.search ?? ''}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder={
+              isArabic
+                ? 'بحث: الطلب، العميل، المستلم…'
+                : 'Search order, client, recipient…'
+            }
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
         <div className="min-w-0">
           <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
             {isArabic ? 'الحالة' : 'Status'}
@@ -298,7 +306,7 @@ export function OmsReturnsPage() {
   const isArabic = useIsArabic();
   const navigate = useNavigate();
 
-  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters({
       search: '',
       status: '',
@@ -307,14 +315,6 @@ export function OmsReturnsPage() {
     'oms-returns:advanced-filters-open',
     false,
   );
-
-  const debouncedSearch = useDebounced(draftFilters.search, 300);
-
-  useEffect(() => {
-    if (advancedOpen) return;
-    if ((debouncedSearch ?? '') === (appliedFilters.search ?? '')) return;
-    applyPatch({ search: debouncedSearch ?? '' });
-  }, [advancedOpen, debouncedSearch, appliedFilters.search, applyPatch]);
 
   const listParams = useMemo(
     () => ({
@@ -419,14 +419,14 @@ export function OmsReturnsPage() {
                     : 'Search return #, order, client…'
                 }
                 aria-label={isArabic ? 'بحث' : 'Search'}
-                className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+                className={FILTER_COMPACT_SEARCH_CLASS}
               />
             </div>
             <select
               value={draftFilters.status}
-              onChange={(e) => applyPatch({ status: e.target.value })}
+              onChange={(e) => setDraft({ status: e.target.value })}
               aria-label={isArabic ? 'الحالة' : 'Status'}
-              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+              className={FILTER_COMPACT_SELECT_CLASS}
             >
               {RETURN_STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value || 'all'} value={opt.value}>
@@ -437,6 +437,21 @@ export function OmsReturnsPage() {
           </div>
         }
       >
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {isArabic ? 'بحث' : 'Search'}
+          </label>
+          <input
+            value={draftFilters.search ?? ''}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder={
+              isArabic
+                ? 'بحث: المرتجع، الطلب، العميل…'
+                : 'Search return #, order, client…'
+            }
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
         <div className="min-w-0">
           <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
             {isArabic ? 'الحالة' : 'Status'}

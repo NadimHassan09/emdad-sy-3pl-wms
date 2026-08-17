@@ -350,7 +350,7 @@ export function ContractsPage() {
         }
         activeCount={[appliedFilters.search, appliedFilters.companyId, appliedFilters.generationStatus, appliedFilters.language, appliedFilters.createdFrom, appliedFilters.createdTo].filter((v) => String(v).trim()).length}
         advancedLabel={t(['Advanced Filtering', 'تصفية متقدمة'])}
-        collapseLabel={t(['Collapse', 'إخفاء'])}
+        collapseLabel={t(['Collapsed', 'إخفاء'])}
       >
         <TextField
           label={t(['Contract / order #', 'رقم العقد / الطلب'])}

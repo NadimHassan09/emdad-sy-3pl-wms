@@ -16,9 +16,10 @@ import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../../hooks/useChunkedServerPagination';
-import { useDebounced } from '../../lib/useDebounced';
 import { useCachedState } from '../../hooks/useCachedState';
 import {
+  FILTER_COMPACT_SEARCH_CLASS,
+  FILTER_COMPACT_SELECT_CLASS,
   FILTER_FIELD_CONTROL_CLASS,
   FILTER_FIELD_LABEL_CLASS,
   FILTER_FIELD_LABEL_GAP_CLASS,
@@ -72,19 +73,12 @@ export function BillingPlansPage() {
   const { user } = useAuth();
   const canMutate = user?.role === 'super_admin' || user?.role === 'wh_manager';
 
-  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters<ListFilters>(INITIAL_FILTERS);
   const [advancedOpen, setAdvancedOpen] = useCachedState(
     'billing-plans:advanced-filters-open',
     false,
   );
-  const debouncedSearch = useDebounced(draftFilters.search, 300);
-
-  useEffect(() => {
-    if (advancedOpen) return;
-    if (debouncedSearch === appliedFilters.search) return;
-    applyPatch({ search: debouncedSearch });
-  }, [advancedOpen, debouncedSearch, appliedFilters.search, applyPatch]);
 
   const [openActionId, setOpenActionId] = useState<string | null>(null);
 
@@ -430,16 +424,16 @@ export function BillingPlansPage() {
                 value={draftFilters.search}
                 onChange={(e) => setDraft({ search: e.target.value })}
                 placeholder="Search client…"
-                className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+                className={FILTER_COMPACT_SEARCH_CLASS}
               />
             </div>
             <select
               value={draftFilters.planStatus}
               onChange={(e) =>
-                applyPatch({ planStatus: e.target.value as ListFilters['planStatus'] })
+                setDraft({ planStatus: e.target.value as ListFilters['planStatus'] })
               }
               aria-label="Status"
-              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+              className={FILTER_COMPACT_SELECT_CLASS}
             >
               <option value="">All statuses</option>
               <option value="active">Active</option>
@@ -448,6 +442,17 @@ export function BillingPlansPage() {
           </div>
         }
       >
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            Client
+          </label>
+          <input
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder="Search client…"
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
         <div className="min-w-0">
           <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
             Status

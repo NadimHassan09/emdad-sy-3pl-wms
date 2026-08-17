@@ -1,15 +1,16 @@
 import { type ReactNode, useId } from 'react';
 
 import { Button } from './Button';
-import { FILTER_APPLY_BUTTON_CLASS, FILTER_RESET_BUTTON_CLASS } from './filter-button-styles';
+import { FilterAdvancedToggle } from './FilterAdvancedToggle';
 import {
-  FILTER_ACTION_BUTTON_SIZE_CLASS,
-  FILTER_OVERFLOW_TRANSITION_CLASS,
+  FILTER_ACTIONS_INLINE_CLASS,
+  FILTER_ACTIONS_ROW_CLASS,
+  FILTER_ADVANCED_GRID_CLASS,
+  FILTER_CARD_CLASS,
+  FILTER_TOGGLE_ROW_CLASS,
+  FILTER_TOOLBAR_ROW_CLASS,
 } from './filter-panel-styles';
 import { cn } from './cn';
-
-const ADVANCED_GRID_CLASS =
-  'grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3';
 
 export type AdvancedFilterSectionProps = {
   advancedOpen: boolean;
@@ -55,7 +56,7 @@ export function AdvancedFilterSection({
 }: AdvancedFilterSectionProps) {
   const regionId = useId();
   const resolvedAdvanced = advancedLabel ?? (isArabic ? 'تصفية متقدمة' : 'Advanced Filtering');
-  const resolvedCollapse = collapseLabel ?? (isArabic ? 'إخفاء' : 'Collapse');
+  const resolvedCollapse = collapseLabel ?? (isArabic ? 'إخفاء' : 'Collapsed');
   const resolvedApply = applyLabel ?? (isArabic ? 'تطبيق التصفية' : 'Apply Filters');
   const resolvedReset = resetLabel ?? (isArabic ? 'إعادة تعيين' : 'Reset Filters');
   const resolvedSummaryPrefix = summaryPrefix ?? (isArabic ? 'عوامل التصفية: ' : 'Filters: ');
@@ -67,99 +68,61 @@ export function AdvancedFilterSection({
       </span>
     ) : null;
 
-  return (
-    <div
-      className={cn(
-        'mb-4 overflow-hidden rounded-xl border border-border bg-surface-panel p-4 shadow-soft',
-        className,
-      )}
-    >
-      {!advancedOpen ? (
-        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
-          <div className="min-w-0 flex-1">{compact}</div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="md"
-            aria-expanded={false}
-            aria-controls={regionId}
-            onClick={() => onAdvancedOpenChange(true)}
-            className="inline-flex shrink-0 items-center gap-2"
-          >
-            <i className="fa-solid fa-sliders text-xs" aria-hidden />
-            {resolvedAdvanced}
-            {badge}
-          </Button>
-        </div>
-      ) : (
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm font-semibold text-text-strong">
-            <i className="fa-solid fa-sliders text-brand-700" aria-hidden />
-            {resolvedAdvanced}
-            {badge}
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            aria-expanded
-            aria-controls={regionId}
-            onClick={() => onAdvancedOpenChange(false)}
-          >
-            {resolvedCollapse}
-          </Button>
-        </div>
-      )}
-
-      <div
-        id={regionId}
-        role="region"
-        aria-label={resolvedAdvanced}
-        hidden={!advancedOpen}
-        className={`${FILTER_OVERFLOW_TRANSITION_CLASS} ${
-          advancedOpen ? 'mt-4 grid-rows-[1fr]' : 'grid-rows-[0fr]'
-        }`}
+  const actionButtons = (
+    <>
+      <Button type="button" variant="danger" size="md" onClick={onReset} disabled={loading}>
+        {resolvedReset}
+      </Button>
+      <Button
+        type="submit"
+        variant="primary"
+        size="md"
+        loading={loading}
+        disabled={applyDisabled || loading}
       >
-        <div className={advancedOpen ? 'min-h-0' : 'min-h-0 overflow-hidden'}>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              onApply();
-            }}
-          >
-            <div className={cn(ADVANCED_GRID_CLASS, gridClassName)}>{children}</div>
-            <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
-              <Button
-                type="button"
-                variant="danger"
-                size="md"
-                onClick={onReset}
-                disabled={loading}
-                className={`${FILTER_RESET_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
-              >
-                {resolvedReset}
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                loading={loading}
-                disabled={applyDisabled || loading}
-                className={`${FILTER_APPLY_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
-              >
-                {resolvedApply}
-              </Button>
-            </div>
-          </form>
-        </div>
-      </div>
+        {resolvedApply}
+      </Button>
+    </>
+  );
 
-      {!advancedOpen && summary ? (
-        <p className="mt-3 truncate text-xs text-text-muted" title={summary}>
-          {resolvedSummaryPrefix}
-          {summary}
-        </p>
-      ) : null}
+  return (
+    <div className={cn(FILTER_CARD_CLASS, className)}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onApply();
+        }}
+      >
+        {advancedOpen ? (
+          <div id={regionId} role="region" aria-label={resolvedAdvanced}>
+            <div className={cn(FILTER_ADVANCED_GRID_CLASS, gridClassName)}>{children}</div>
+            <div className={FILTER_ACTIONS_ROW_CLASS}>{actionButtons}</div>
+          </div>
+        ) : (
+          <>
+            <div className={FILTER_TOOLBAR_ROW_CLASS}>
+              <div className="min-w-0 flex-1">{compact}</div>
+              <div className={FILTER_ACTIONS_INLINE_CLASS}>{actionButtons}</div>
+            </div>
+            {summary ? (
+              <p className="mt-3 truncate text-xs text-text-muted" title={summary}>
+                {resolvedSummaryPrefix}
+                {summary}
+              </p>
+            ) : null}
+          </>
+        )}
+        <div className={FILTER_TOGGLE_ROW_CLASS}>
+          <FilterAdvancedToggle
+            advancedOpen={advancedOpen}
+            onToggle={() => onAdvancedOpenChange(!advancedOpen)}
+            advancedLabel={resolvedAdvanced}
+            collapseLabel={resolvedCollapse}
+            badge={badge}
+            regionId={regionId}
+          />
+        </div>
+      </form>
     </div>
   );
 }

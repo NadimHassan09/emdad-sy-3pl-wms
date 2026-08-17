@@ -304,7 +304,7 @@ export function AuditLogsPage() {
         }
         activeCount={[appliedFilters.search, appliedFilters.companyId, appliedFilters.actorEmail, appliedFilters.actorRole, appliedFilters.action, appliedFilters.resourceType, appliedFilters.dateFrom, appliedFilters.dateTo].filter((v) => String(v).trim()).length}
         advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
-        collapseLabel={t('Collapse', 'إخفاء')}
+        collapseLabel={t('Collapsed', 'إخفاء')}
       >
           <TextField
             label={t('Search', 'بحث')}

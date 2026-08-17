@@ -256,7 +256,7 @@ export function AdjustmentsPage() {
         }
         activeCount={[appliedFilters.adjustmentId, appliedFilters.clientId, appliedFilters.productId, appliedFilters.lotId, appliedFilters.createdFrom, appliedFilters.createdTo].filter((v) => String(v).trim()).length}
         advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
-        collapseLabel={t('Collapse', 'إخفاء')}
+        collapseLabel={t('Collapsed', 'إخفاء')}
       >
           <TextField
             label={t('Adjustment id', 'معرف التعديل')}
