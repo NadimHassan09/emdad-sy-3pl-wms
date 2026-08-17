@@ -2,14 +2,19 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-import { OutboundApi, OutboundOrder, OutboundOrderStatus } from '../api/outbound';
+import { OutboundApi, OutboundOrder } from '../api/outbound';
 import { useAuth } from '../auth/AuthContext';
-import { Alert, Button as DsButton, Card } from '@ds';
+import { Alert, AdvancedFilterSection, Button as DsButton, countNonEmptyFilters } from '@ds';
 import { AdminListPageShell } from '../components/AdminListPageShell';
 import { CompanyNameCell } from '../components/CompanyNameCell';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
+import {
+  FILTER_FIELD_CONTROL_CLASS,
+  FILTER_FIELD_LABEL_CLASS,
+  FILTER_FIELD_LABEL_GAP_CLASS,
+} from '../components/filter-panel-styles';
 import { RowActionsMenu, type RowAction } from '../components/RowActionsMenu';
 import { OutboundOrdersImportModal } from '../components/outbound/OutboundOrdersImportModal';
 import { BulkShippingProcessingModal } from '../components/shipping/BulkShippingProcessingModal';
@@ -22,9 +27,11 @@ import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
+import { buildOutboundListParams } from '../lib/outbound-list-params';
 import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
 import { canAccessInternalTransfer } from '../lib/rbac';
 import { useDebounced } from '../lib/useDebounced';
+import { useCachedState } from '../hooks/useCachedState';
 
 type OutListDraft = {
   orderSearch: string;
@@ -127,7 +134,12 @@ export function OutboundListPage() {
     [],
   );
 
-  const { draftFilters, appliedFilters, setDraft, applyPatch } = useFilters(initialList);
+  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+    useFilters(initialList);
+  const [advancedOpen, setAdvancedOpen] = useCachedState(
+    'outbound-orders:advanced-filters-open',
+    false,
+  );
   const [searchParams] = useSearchParams();
   const debouncedSearch = useDebounced(draftFilters.orderSearch, 300);
 
@@ -139,19 +151,13 @@ export function OutboundListPage() {
   }, [searchParams, appliedFilters.status, applyPatch]);
 
   useEffect(() => {
+    if (advancedOpen) return;
     if (debouncedSearch === appliedFilters.orderSearch) return;
     applyPatch({ orderSearch: debouncedSearch });
-  }, [debouncedSearch, appliedFilters.orderSearch, applyPatch]);
+  }, [advancedOpen, debouncedSearch, appliedFilters.orderSearch, applyPatch]);
 
   const listParams = useMemo(
-    () => ({
-      warehouseId: wid || undefined,
-      status: (appliedFilters.status.trim() || undefined) as OutboundOrderStatus | undefined,
-      orderSearch: appliedFilters.orderSearch.trim() || undefined,
-      createdFrom: appliedFilters.createdFrom.trim() || undefined,
-      createdTo: appliedFilters.createdTo.trim() || undefined,
-      quickDirectedOnly: false,
-    }),
+    () => buildOutboundListParams(appliedFilters, wid),
     [appliedFilters, wid],
   );
 
@@ -435,25 +441,76 @@ export function OutboundListPage() {
         </Alert>
       )}
 
-      <Card padding="md">
-        <div className="flex max-w-4xl flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="relative w-full sm:min-w-[16rem] sm:flex-1 sm:max-w-sm">
-            <i
-              className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
-              aria-hidden
-            />
-            <input
-              value={draftFilters.orderSearch}
-              onChange={(e) => setDraft({ orderSearch: e.target.value })}
-              placeholder={t('Search order # or client…')}
-              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
-            />
+      <AdvancedFilterSection
+        advancedOpen={advancedOpen}
+        onAdvancedOpenChange={setAdvancedOpen}
+        isArabic={isArabic}
+        loading={pagination.isFetching}
+        activeCount={countNonEmptyFilters(appliedFilters, ['status', 'createdFrom', 'createdTo'])}
+        onApply={applyFilters}
+        onReset={() => {
+          resetFilters();
+          setAdvancedOpen(false);
+        }}
+        compact={
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative min-w-0 flex-1 sm:max-w-sm">
+              <i
+                className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+                aria-hidden
+              />
+              <input
+                value={draftFilters.orderSearch}
+                onChange={(e) => setDraft({ orderSearch: e.target.value })}
+                placeholder={t('Search order # or client…')}
+                className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+              />
+            </div>
+            <select
+              value={draftFilters.status}
+              onChange={(e) => applyPatch({ status: e.target.value })}
+              aria-label={t('Status')}
+              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+            >
+              {statusFilterOptions.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
+        }
+      >
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t('Created from')}
+          </label>
+          <input
+            type="date"
+            value={draftFilters.createdFrom}
+            onChange={(e) => setDraft({ createdFrom: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t('Created to')}
+          </label>
+          <input
+            type="date"
+            value={draftFilters.createdTo}
+            onChange={(e) => setDraft({ createdTo: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t('Status')}
+          </label>
           <select
             value={draftFilters.status}
-            onChange={(e) => applyPatch({ status: e.target.value })}
-            aria-label={t('Status')}
-            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+            onChange={(e) => setDraft({ status: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
           >
             {statusFilterOptions.map((opt) => (
               <option key={opt.value || 'all'} value={opt.value}>
@@ -461,28 +518,14 @@ export function OutboundListPage() {
               </option>
             ))}
           </select>
-          <input
-            type="date"
-            value={draftFilters.createdFrom}
-            onChange={(e) => applyPatch({ createdFrom: e.target.value })}
-            aria-label={t('Created from')}
-            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
-          />
-          <input
-            type="date"
-            value={draftFilters.createdTo}
-            onChange={(e) => applyPatch({ createdTo: e.target.value })}
-            aria-label={t('Created to')}
-            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
-          />
         </div>
-        {isAdmin && selectedEligibleIds.length > 0 && (
-          <p className="mt-3 text-xs text-text-muted">
-            {selectedEligibleIds.length} eligible order(s) selected for {t('Bulk Shipping Processing')}.
-            Tip: filter status to Waiting for Dispatch.
-          </p>
-        )}
-      </Card>
+      </AdvancedFilterSection>
+      {isAdmin && selectedEligibleIds.length > 0 && (
+        <p className="mb-4 text-xs text-text-muted">
+          {selectedEligibleIds.length} eligible order(s) selected for {t('Bulk Shipping Processing')}.
+          Tip: filter status to Waiting for Dispatch.
+        </p>
+      )}
 
       <DataTable
         columns={columns}

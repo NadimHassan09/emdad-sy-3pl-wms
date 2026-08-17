@@ -251,6 +251,17 @@ export function ReturnsListPage() {
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
         className="mb-4"
+        compact={
+          <TextField
+            label={t('Search', 'بحث')}
+            value={draftFilters.orderSearch}
+            onChange={(e) => setDraft({ ...draftFilters, orderSearch: e.target.value })}
+            placeholder={t('Return #, reference…', 'رقم الإرجاع، مرجع…')}
+          />
+        }
+        activeCount={[appliedFilters.orderSearch, appliedFilters.status, appliedFilters.createdFrom, appliedFilters.createdTo].filter((v) => String(v).trim()).length}
+        advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
+        collapseLabel={t('Collapse', 'إخفاء')}
       >
           <TextField
             label={t('Search', 'بحث')}

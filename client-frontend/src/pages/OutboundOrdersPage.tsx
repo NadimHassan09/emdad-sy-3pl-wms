@@ -1,18 +1,18 @@
-import { useMemo, type ReactElement } from 'react';
+import { useEffect, useMemo, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert } from '@ds';
+import { Alert, AdvancedFilterSection, countNonEmptyFilters, useDebouncedValue } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
 import { useCachedState } from '../hooks/useCachedState';
+import { useFilters } from '../hooks/useFilters';
 
 import { Badge } from '../design-v2/Badge';
 import { Card } from '../design-v2/Card';
 import { ListPageHeader } from '../design-v2/ListPageHeader';
 import { TableFooterPagination } from '../design-v2/TableFooterPagination';
-import { useDebouncedValue } from '../design-v2/useDebouncedValue';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import { mapClientOutboundDisplayStatus, clientOutboundStatusLabel } from '../lib/client-outbound-status';
 import { isClientArabic } from '../lib/client-ui-language';
@@ -54,18 +54,30 @@ function outboundLabel(label: string, isArabic: boolean): string {
   return ar[label] ?? label;
 }
 
+const OUTBOUND_LIST_FILTERS = { search: '', status: '' };
+
 export function OutboundOrdersPage(): ReactElement {
   const navigate = useNavigate();
-  const [search, setSearch] = useCachedState('search', '');
-  const [status, setStatus] = useCachedState('status', '');
+  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+    useFilters(OUTBOUND_LIST_FILTERS);
+  const [advancedOpen, setAdvancedOpen] = useCachedState('advanced-filters-open', false);
   const isArabic = isClientArabic();
   const t = (label: string) => outboundLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const debouncedSearch = useDebouncedValue(draftFilters.search, 300);
+
+  useEffect(() => {
+    if (advancedOpen) return;
+    if (debouncedSearch === appliedFilters.search) return;
+    applyPatch({ search: debouncedSearch });
+  }, [advancedOpen, debouncedSearch, appliedFilters.search, applyPatch]);
 
   const filterKey = useMemo(
-    () => ({ orderSearch: debouncedSearch.trim() || undefined, status: status || undefined }),
-    [debouncedSearch, status],
+    () => ({
+      orderSearch: appliedFilters.search.trim() || undefined,
+      status: appliedFilters.status || undefined,
+    }),
+    [appliedFilters],
   );
 
   const pagination = useChunkedServerPagination({
@@ -104,33 +116,58 @@ export function OutboundOrdersPage(): ReactElement {
         </Alert>
       ) : null}
 
-      <Card className="p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-text-faint text-xs" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('Search order number...')}
-              className="w-full pl-9 pr-4 py-2 bg-surface-sunken border border-border-strong text-text-strong placeholder:text-text-faint rounded-lg text-sm input-premium"
-            />
-          </div>
-          <div className="flex gap-2">
+      <AdvancedFilterSection
+        advancedOpen={advancedOpen}
+        onAdvancedOpenChange={setAdvancedOpen}
+        isArabic={isArabic}
+        loading={pagination.isFetching}
+        activeCount={countNonEmptyFilters(appliedFilters, ['status'])}
+        onApply={applyFilters}
+        onReset={() => {
+          resetFilters();
+          setAdvancedOpen(false);
+        }}
+        compact={
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1 sm:max-w-sm">
+              <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-text-faint text-xs" />
+              <input
+                value={draftFilters.search}
+                onChange={(e) => setDraft({ search: e.target.value })}
+                placeholder={t('Search order number...')}
+                className="w-full pl-9 pr-4 py-2 bg-surface-sunken border border-border-strong text-text-strong placeholder:text-text-faint rounded-lg text-sm input-premium"
+              />
+            </div>
             <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              value={draftFilters.status}
+              onChange={(e) => applyPatch({ status: e.target.value })}
               aria-label={t('All statuses')}
               className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
             >
               {OUTBOUND_STATUS_OPTIONS.map((o) => (
                 <option key={o.value || 'all'} value={o.value}>
-                  {o.value === '' ? t('All statuses') : o.label}
+                  {o.value === '' ? t('All statuses') : t(o.label)}
                 </option>
               ))}
             </select>
           </div>
+        }
+      >
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Status')}</label>
+          <select
+            value={draftFilters.status}
+            onChange={(e) => setDraft({ status: e.target.value })}
+            className="w-full px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
+          >
+            {OUTBOUND_STATUS_OPTIONS.map((o) => (
+              <option key={o.value || 'all'} value={o.value}>
+                {o.value === '' ? t('All statuses') : t(o.label)}
+              </option>
+            ))}
+          </select>
         </div>
-      </Card>
+      </AdvancedFilterSection>
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">

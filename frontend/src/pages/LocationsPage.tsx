@@ -264,6 +264,17 @@ export function LocationsPage() {
         loading={pagination.isFetching}
         applyLabel={t(['Apply filters', 'تطبيق الفلاتر'])}
         resetLabel={t(['Reset', 'إعادة تعيين'])}
+        compact={
+          <TextField
+            label={t(['Location name', 'اسم الموقع'])}
+            value={draftFilters.name}
+            onChange={(e) => setDraft({ name: e.target.value })}
+            placeholder={t(['Contains…', 'يحتوي…'])}
+          />
+        }
+        activeCount={[appliedFilters.name, appliedFilters.barcode, appliedFilters.locationType].filter((v) => String(v).trim()).length}
+        advancedLabel={t(['Advanced Filtering', 'تصفية متقدمة'])}
+        collapseLabel={t(['Collapse', 'إخفاء'])}
       >
           <TextField
             label={t(['Location name', 'اسم الموقع'])}

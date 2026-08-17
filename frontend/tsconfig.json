@@ -35,5 +35,11 @@
     "../shared/design-system-next/ui/**/*.tsx",
     "../shared/design-system-next/lib/**/*.ts",
     "../shared/design-system-next/hooks/**/*.ts"
+  ],
+  "exclude": [
+    "**/*.spec.ts",
+    "**/*.unit.spec.ts",
+    "../shared/design-system-next/**/*.spec.ts",
+    "../shared/design-system-next/**/*.unit.spec.ts"
   ]
 }

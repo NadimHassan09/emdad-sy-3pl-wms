@@ -256,6 +256,18 @@ export function FinalContractPage() {
         loading={pagination.isFetching}
         applyLabel={t(['Apply filters', 'تطبيق الفلاتر'])}
         resetLabel={t(['Reset filters', 'إعادة تعيين الفلاتر'])}
+        compact={
+          <TextField
+            label={t(['Contract # / client', 'رقم العقد / العميل'])}
+            value={draftFilters.search}
+            onChange={(event) => setDraft({ search: event.target.value })}
+            placeholder={t(['Search…', 'ابحث…'])}
+            className="font-mono"
+          />
+        }
+        activeCount={[appliedFilters.search, appliedFilters.companyId, appliedFilters.generationStatus, appliedFilters.issueFrom, appliedFilters.issueTo].filter((v) => String(v).trim()).length}
+        advancedLabel={t(['Advanced Filtering', 'تصفية متقدمة'])}
+        collapseLabel={t(['Collapse', 'إخفاء'])}
       >
         <TextField
           label={t(['Contract # / client', 'رقم العقد / العميل'])}

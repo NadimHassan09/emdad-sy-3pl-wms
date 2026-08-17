@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
-import { Alert, Button, ListPageHeader, Skeleton } from '@ds';
+import { Alert, AdvancedFilterSection, Button, ListPageHeader, Skeleton, countNonEmptyFilters } from '@ds';
 
 import { useAuth } from '../auth/AuthContext';
 import { Badge } from '../design-v2/Badge';
@@ -188,6 +188,8 @@ function tr(label: string, isArabic: boolean): string {
     'What changed today?': 'ما الذي تغيّر اليوم؟',
     'No recent activity': 'لا يوجد نشاط حديث',
     'Could not load dashboard': 'تعذر تحميل لوحة التحكم',
+    'From date': 'من تاريخ',
+    'To date': 'إلى تاريخ',
     Retry: 'إعادة المحاولة',
     Order: 'طلب',
     Return: 'مرتجع',
@@ -349,17 +351,32 @@ export function DashboardPage(): ReactElement {
   const displayName = user?.fullName?.trim() || user?.email || 'Client';
 
   const now = new Date();
-  const [monthPreset, setMonthPreset] = useState<'this' | 'last'>('this');
-  const [dateFrom, setDateFrom] = useState(toYmd(startOfMonth(now)));
-  const [dateTo, setDateTo] = useState(toYmd(endOfMonth(now)));
-  const [storeChannel, setStoreChannel] = useState('');
+  const defaultOrderFilters = {
+    monthPreset: 'this' as 'this' | 'last',
+    dateFrom: toYmd(startOfMonth(now)),
+    dateTo: toYmd(endOfMonth(now)),
+    storeChannel: '',
+  };
+  const [draftOrderFilters, setDraftOrderFilters] = useState(defaultOrderFilters);
+  const [appliedOrderFilters, setAppliedOrderFilters] = useState(defaultOrderFilters);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const applyMonth = (preset: 'this' | 'last') => {
-    setMonthPreset(preset);
     const base = preset === 'this' ? now : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-    setDateFrom(toYmd(startOfMonth(base)));
-    setDateTo(toYmd(endOfMonth(base)));
+    const next = {
+      ...appliedOrderFilters,
+      monthPreset: preset,
+      dateFrom: toYmd(startOfMonth(base)),
+      dateTo: toYmd(endOfMonth(base)),
+    };
+    setDraftOrderFilters(next);
+    setAppliedOrderFilters(next);
   };
+
+  const dateFrom = appliedOrderFilters.dateFrom;
+  const dateTo = appliedOrderFilters.dateTo;
+  const storeChannel = appliedOrderFilters.storeChannel;
+  const monthPreset = appliedOrderFilters.monthPreset;
 
   const orderFilters = useMemo(
     () => ({
@@ -753,46 +770,98 @@ export function DashboardPage(): ReactElement {
         </Card>
 
         <Card className="xl:col-span-8 p-5">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
-            <div>
-              <h2 className="text-base font-bold text-text-strong">{t('Order summary')}</h2>
-              <p className="text-xs text-text-muted mt-0.5">{t('Where are my orders?')}</p>
-            </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <select
-                value={monthPreset}
-                onChange={(e) => applyMonth(e.target.value as 'this' | 'last')}
-                className="h-9 rounded-lg border border-border-strong bg-surface-panel px-3 text-sm text-text-body"
-              >
-                <option value="this">{t('This month')}</option>
-                <option value="last">{t('Last month')}</option>
-              </select>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="h-9 rounded-lg border border-border-strong bg-surface-panel px-2 text-sm text-text-body"
-              />
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="h-9 rounded-lg border border-border-strong bg-surface-panel px-2 text-sm text-text-body"
-              />
-              <select
-                value={storeChannel}
-                onChange={(e) => setStoreChannel(e.target.value)}
-                className="h-9 rounded-lg border border-border-strong bg-surface-panel px-3 text-sm text-text-body min-w-[9rem]"
-                aria-label={t('Sales channel')}
-              >
-                {channelOptions.map((o) => (
-                  <option key={o.value || 'all'} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="mb-4">
+            <h2 className="text-base font-bold text-text-strong">{t('Order summary')}</h2>
+            <p className="text-xs text-text-muted mt-0.5">{t('Where are my orders?')}</p>
           </div>
+          <AdvancedFilterSection
+              className="mb-0"
+              advancedOpen={advancedOpen}
+              onAdvancedOpenChange={setAdvancedOpen}
+              isArabic={isArabic}
+              loading={statusSummaryQuery.isFetching}
+              activeCount={countNonEmptyFilters(
+                {
+                  dateFrom: appliedOrderFilters.dateFrom,
+                  dateTo: appliedOrderFilters.dateTo,
+                  storeChannel: appliedOrderFilters.storeChannel,
+                },
+                ['storeChannel'],
+              )}
+              onApply={() => setAppliedOrderFilters({ ...draftOrderFilters })}
+              onReset={() => {
+                setDraftOrderFilters(defaultOrderFilters);
+                setAppliedOrderFilters(defaultOrderFilters);
+                setAdvancedOpen(false);
+              }}
+              compact={
+                <div className="flex flex-wrap items-end gap-2">
+                  <select
+                    value={monthPreset}
+                    onChange={(e) => applyMonth(e.target.value as 'this' | 'last')}
+                    className="h-9 rounded-lg border border-border-strong bg-surface-panel px-3 text-sm text-text-body"
+                  >
+                    <option value="this">{t('This month')}</option>
+                    <option value="last">{t('Last month')}</option>
+                  </select>
+                  <select
+                    value={storeChannel}
+                    onChange={(e) => {
+                      const next = { ...appliedOrderFilters, storeChannel: e.target.value };
+                      setDraftOrderFilters(next);
+                      setAppliedOrderFilters(next);
+                    }}
+                    className="h-9 rounded-lg border border-border-strong bg-surface-panel px-3 text-sm text-text-body min-w-[9rem]"
+                    aria-label={t('Sales channel')}
+                  >
+                    {channelOptions.map((o) => (
+                      <option key={o.value || 'all'} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              }
+            >
+              <div className="min-w-0">
+                <label className="mb-1 block text-xs font-semibold text-text-muted">{t('From date')}</label>
+                <input
+                  type="date"
+                  value={draftOrderFilters.dateFrom}
+                  onChange={(e) =>
+                    setDraftOrderFilters((prev) => ({ ...prev, dateFrom: e.target.value }))
+                  }
+                  className="h-9 w-full rounded-lg border border-border-strong bg-surface-panel px-2 text-sm text-text-body"
+                />
+              </div>
+              <div className="min-w-0">
+                <label className="mb-1 block text-xs font-semibold text-text-muted">{t('To date')}</label>
+                <input
+                  type="date"
+                  value={draftOrderFilters.dateTo}
+                  onChange={(e) =>
+                    setDraftOrderFilters((prev) => ({ ...prev, dateTo: e.target.value }))
+                  }
+                  className="h-9 w-full rounded-lg border border-border-strong bg-surface-panel px-2 text-sm text-text-body"
+                />
+              </div>
+              <div className="min-w-0">
+                <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Sales channel')}</label>
+                <select
+                  value={draftOrderFilters.storeChannel}
+                  onChange={(e) =>
+                    setDraftOrderFilters((prev) => ({ ...prev, storeChannel: e.target.value }))
+                  }
+                  className="h-9 w-full rounded-lg border border-border-strong bg-surface-panel px-3 text-sm text-text-body"
+                >
+                  {channelOptions.map((o) => (
+                    <option key={o.value || 'all'} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </AdvancedFilterSection>
           <div className="grid grid-cols-7 divide-x divide-border-subtle rtl:divide-x-reverse rounded-xl border border-border-subtle bg-surface-card-muted">
             <StatusCell label={t('Total orders')} count={totalOrders} total={totalOrders || 1} colorClass="text-text-strong" />
             <StatusCell label={t('Waiting')} count={statusCounts.unprocessed} total={totalOrders || 1} colorClass="text-amber-600 dark:text-amber-400" />

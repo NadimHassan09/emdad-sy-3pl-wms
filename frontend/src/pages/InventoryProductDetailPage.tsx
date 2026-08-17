@@ -810,7 +810,28 @@ export function InventoryProductDetailPage() {
             onApply={applyMv}
             onReset={resetMv}
             loading={movementPagination.isFetching}
-          >
+            compact={
+              <SelectField
+                label={t('Movement type', 'نوع الحركة')}
+                name="mvTypeCompact"
+                value={mvDraft.movementType}
+                onChange={(e) =>
+                  setMvDraft({
+                    movementType: e.target.value as MovementDraft['movementType'],
+                  })
+                }
+                options={[
+                  { value: '', label: t('All types', 'كل الأنواع') },
+                  { value: 'inbound', label: t('Inbound', 'وارد') },
+                  { value: 'outbound', label: t('Outbound', 'صادر') },
+                  { value: 'return', label: t('Return', 'مرتجع') },
+                ]}
+              />
+            }
+            activeCount={[mvApplied.movementType, mvApplied.createdFrom, mvApplied.createdTo, mvApplied.referenceSearch, mvApplied.operatorSearch, mvApplied.lotNumber, mvApplied.locationId].filter((v) => String(v).trim()).length}
+            advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
+            collapseLabel={t('Collapse', 'إخفاء')}
+      >
             <SelectField
               label={t('Movement type', 'نوع الحركة')}
               name="mvType"

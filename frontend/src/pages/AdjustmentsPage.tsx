@@ -246,6 +246,17 @@ export function AdjustmentsPage() {
         loading={list.isFetching}
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
+        compact={
+          <TextField
+            label={t('Adjustment id', 'معرف التعديل')}
+            value={draftFilters.adjustmentId}
+            onChange={(e) => setDraft({ adjustmentId: e.target.value })}
+            className="font-mono text-xs"
+          />
+        }
+        activeCount={[appliedFilters.adjustmentId, appliedFilters.clientId, appliedFilters.productId, appliedFilters.lotId, appliedFilters.createdFrom, appliedFilters.createdTo].filter((v) => String(v).trim()).length}
+        advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
+        collapseLabel={t('Collapse', 'إخفاء')}
       >
           <TextField
             label={t('Adjustment id', 'معرف التعديل')}

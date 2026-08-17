@@ -181,6 +181,15 @@ export function WarehousesPage() {
         onApply={applyFilters}
         onReset={resetFilters}
         loading={list.isFetching}
+        compact={
+          <TextField
+            label="Search"
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder="Code, name, city, or country"
+          />
+        }
+        activeCount={[appliedFilters.search, appliedFilters.status].filter((v) => String(v).trim()).length + (appliedFilters.includeInactive ? 1 : 0)}
       >
         <TextField
           label="Search"

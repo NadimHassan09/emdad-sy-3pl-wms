@@ -198,6 +198,18 @@ export function InventoryLedgerPage() {
         loading={pagination.isFetching}
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
+        compact={
+          <TextField
+            label={t('Search', 'بحث')}
+            value={draftFilters.searchQuery}
+            onChange={(e) => setDraft({ searchQuery: e.target.value })}
+            placeholder={t('Contains…', 'يحتوي على…')}
+            className={draftFilters.searchCategory !== 'name' ? 'font-mono text-xs' : undefined}
+          />
+        }
+        activeCount={[appliedFilters.searchQuery, appliedFilters.movementType, appliedFilters.companyId, appliedFilters.createdFrom, appliedFilters.createdTo].filter((v) => String(v).trim()).length + (appliedFilters.includeInternal ? 1 : 0)}
+        advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
+        collapseLabel={t('Collapse', 'إخفاء')}
       >
         <TextField
           label={t('Search', 'بحث')}

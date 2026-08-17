@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { Alert, Card } from '@ds';
+import { Alert, AdvancedFilterSection, countNonEmptyFilters } from '@ds';
 import { BillingApi, type BillingPlanOverviewItem } from '../../api/billing';
 import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { AnchoredDropdown } from '../../components/AnchoredDropdown';
@@ -17,6 +17,12 @@ import {
   useChunkedServerPagination,
 } from '../../hooks/useChunkedServerPagination';
 import { useDebounced } from '../../lib/useDebounced';
+import { useCachedState } from '../../hooks/useCachedState';
+import {
+  FILTER_FIELD_CONTROL_CLASS,
+  FILTER_FIELD_LABEL_CLASS,
+  FILTER_FIELD_LABEL_GAP_CLASS,
+} from '../../components/filter-panel-styles';
 import { adminMediaSrc } from '../../lib/admin-media';
 import {
   formatDate,
@@ -66,14 +72,19 @@ export function BillingPlansPage() {
   const { user } = useAuth();
   const canMutate = user?.role === 'super_admin' || user?.role === 'wh_manager';
 
-  const { draftFilters, appliedFilters, setDraft, applyPatch } =
+  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
     useFilters<ListFilters>(INITIAL_FILTERS);
+  const [advancedOpen, setAdvancedOpen] = useCachedState(
+    'billing-plans:advanced-filters-open',
+    false,
+  );
   const debouncedSearch = useDebounced(draftFilters.search, 300);
 
   useEffect(() => {
+    if (advancedOpen) return;
     if (debouncedSearch === appliedFilters.search) return;
     applyPatch({ search: debouncedSearch });
-  }, [debouncedSearch, appliedFilters.search, applyPatch]);
+  }, [advancedOpen, debouncedSearch, appliedFilters.search, applyPatch]);
 
   const [openActionId, setOpenActionId] = useState<string | null>(null);
 
@@ -392,73 +403,112 @@ export function BillingPlansPage() {
         ) : undefined
       }
     >
-      <Card padding="md">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <div className="relative min-w-[12rem] flex-1">
-            <i
-              className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
-              aria-hidden
-            />
-            <input
-              value={draftFilters.search}
-              onChange={(e) => setDraft({ search: e.target.value })}
-              placeholder="Search client…"
-              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
-            />
-          </div>
-          <label className="flex min-w-[9rem] flex-col gap-1 text-xs font-semibold text-text-muted">
-            Status
+      <AdvancedFilterSection
+        advancedOpen={advancedOpen}
+        onAdvancedOpenChange={setAdvancedOpen}
+        loading={pagination.isFetching}
+        activeCount={countNonEmptyFilters(appliedFilters, [
+          'planStatus',
+          'cycleStartFrom',
+          'cycleStartTo',
+          'cycleEndFrom',
+          'cycleEndTo',
+        ])}
+        onApply={applyFilters}
+        onReset={() => {
+          resetFilters();
+          setAdvancedOpen(false);
+        }}
+        compact={
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative min-w-0 flex-1 sm:max-w-sm">
+              <i
+                className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+                aria-hidden
+              />
+              <input
+                value={draftFilters.search}
+                onChange={(e) => setDraft({ search: e.target.value })}
+                placeholder="Search client…"
+                className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+              />
+            </div>
             <select
               value={draftFilters.planStatus}
               onChange={(e) =>
                 applyPatch({ planStatus: e.target.value as ListFilters['planStatus'] })
               }
               aria-label="Status"
-              className="input-premium rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm font-normal text-text-body"
+              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
             >
               <option value="">All statuses</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
+          </div>
+        }
+      >
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            Status
           </label>
-          <label className="flex min-w-[9.5rem] flex-col gap-1 text-xs font-semibold text-text-muted">
-            Cycle start from
-            <input
-              type="date"
-              value={draftFilters.cycleStartFrom}
-              onChange={(e) => applyPatch({ cycleStartFrom: e.target.value })}
-              className="input-premium rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm font-normal text-text-body"
-            />
-          </label>
-          <label className="flex min-w-[9.5rem] flex-col gap-1 text-xs font-semibold text-text-muted">
-            Cycle start to
-            <input
-              type="date"
-              value={draftFilters.cycleStartTo}
-              onChange={(e) => applyPatch({ cycleStartTo: e.target.value })}
-              className="input-premium rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm font-normal text-text-body"
-            />
-          </label>
-          <label className="flex min-w-[9.5rem] flex-col gap-1 text-xs font-semibold text-text-muted">
-            Cycle end from
-            <input
-              type="date"
-              value={draftFilters.cycleEndFrom}
-              onChange={(e) => applyPatch({ cycleEndFrom: e.target.value })}
-              className="input-premium rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm font-normal text-text-body"
-            />
-          </label>
-          <label className="flex min-w-[9.5rem] flex-col gap-1 text-xs font-semibold text-text-muted">
-            Cycle end to
-            <input
-              type="date"
-              value={draftFilters.cycleEndTo}
-              onChange={(e) => applyPatch({ cycleEndTo: e.target.value })}
-              className="input-premium rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm font-normal text-text-body"
-            />
-          </label>
+          <select
+            value={draftFilters.planStatus}
+            onChange={(e) =>
+              setDraft({ planStatus: e.target.value as ListFilters['planStatus'] })
+            }
+            className={FILTER_FIELD_CONTROL_CLASS}
+          >
+            <option value="">All statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
         </div>
-      </Card>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            Cycle start from
+          </label>
+          <input
+            type="date"
+            value={draftFilters.cycleStartFrom}
+            onChange={(e) => setDraft({ cycleStartFrom: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            Cycle start to
+          </label>
+          <input
+            type="date"
+            value={draftFilters.cycleStartTo}
+            onChange={(e) => setDraft({ cycleStartTo: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            Cycle end from
+          </label>
+          <input
+            type="date"
+            value={draftFilters.cycleEndFrom}
+            onChange={(e) => setDraft({ cycleEndFrom: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            Cycle end to
+          </label>
+          <input
+            type="date"
+            value={draftFilters.cycleEndTo}
+            onChange={(e) => setDraft({ cycleEndTo: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+      </AdvancedFilterSection>
 
       <DataTable
         columns={columns}

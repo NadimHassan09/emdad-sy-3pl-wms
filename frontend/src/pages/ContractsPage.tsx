@@ -339,6 +339,18 @@ export function ContractsPage() {
         loading={pagination.isFetching}
         applyLabel={t(['Apply filters', 'تطبيق الفلاتر'])}
         resetLabel={t(['Reset filters', 'إعادة تعيين الفلاتر'])}
+        compact={
+          <TextField
+            label={t(['Contract / order #', 'رقم العقد / الطلب'])}
+            value={draftFilters.search}
+            onChange={(event) => setDraft({ search: event.target.value })}
+            placeholder={t(['Search contract or order…', 'ابحث عن عقد أو طلب…'])}
+            className="font-mono"
+          />
+        }
+        activeCount={[appliedFilters.search, appliedFilters.companyId, appliedFilters.generationStatus, appliedFilters.language, appliedFilters.createdFrom, appliedFilters.createdTo].filter((v) => String(v).trim()).length}
+        advancedLabel={t(['Advanced Filtering', 'تصفية متقدمة'])}
+        collapseLabel={t(['Collapse', 'إخفاء'])}
       >
         <TextField
           label={t(['Contract / order #', 'رقم العقد / الطلب'])}

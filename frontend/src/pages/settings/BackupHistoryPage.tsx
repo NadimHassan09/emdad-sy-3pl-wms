@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { Alert, Badge, Card } from '@ds';
+import { Alert, AdvancedFilterSection, Badge, Card, countNonEmptyFilters } from '@ds';
 
 import { AuditLogsApi } from '../../api/audit-logs';
 import {
@@ -41,6 +41,11 @@ import {
   shouldShowBackupProgress,
 } from '../../lib/backup-display';
 import { useDebounced } from '../../lib/useDebounced';
+import {
+  FILTER_FIELD_CONTROL_CLASS,
+  FILTER_FIELD_LABEL_CLASS,
+  FILTER_FIELD_LABEL_GAP_CLASS,
+} from '../../components/filter-panel-styles';
 import { isBackupGdriveUiEnabled } from '../../lib/backup-gdrive-ui';
 import { defaultHomePath } from '../../lib/rbac';
 import {
@@ -192,15 +197,21 @@ export function BackupHistoryPage() {
     [],
   );
 
-  const { draftFilters, appliedFilters, setDraft, applyPatch } = useFilters(initialFilters);
+  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+    useFilters(initialFilters);
+  const [advancedOpen, setAdvancedOpen] = useCachedState(
+    'backup-history:advanced-filters-open',
+    false,
+  );
 
   const debouncedSearch = useDebounced(draftFilters.search, 300);
 
   useEffect(() => {
+    if (advancedOpen) return;
     if (debouncedSearch === appliedFilters.search) return;
     applyPatch({ search: debouncedSearch });
     setPage(1);
-  }, [debouncedSearch, appliedFilters.search, applyPatch, setPage]);
+  }, [advancedOpen, debouncedSearch, appliedFilters.search, applyPatch, setPage]);
 
   const listParams = useMemo<ListBackupsParams>(
     () => ({
@@ -629,28 +640,76 @@ export function BackupHistoryPage() {
       </div>
 
       {/* Full-width filters card; controls stay left-clustered */}
-      <Card padding="md">
-        <div className="flex max-w-2xl flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="relative w-full sm:w-64 sm:max-w-xs">
-            <i
-              className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
-              aria-hidden
-            />
-            <input
-              value={draftFilters.search}
-              onChange={(e) => setDraft({ search: e.target.value })}
-              placeholder={t(['ID, label, email…', 'المعرّف، التسمية، البريد…'])}
-              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
-            />
+      <AdvancedFilterSection
+        advancedOpen={advancedOpen}
+        onAdvancedOpenChange={setAdvancedOpen}
+        isArabic={isArabic}
+        loading={listQuery.isFetching}
+        activeCount={countNonEmptyFilters(appliedFilters, ['type', 'status'])}
+        onApply={() => {
+          applyFilters();
+          setPage(1);
+        }}
+        onReset={() => {
+          resetFilters();
+          setPage(1);
+          setAdvancedOpen(false);
+        }}
+        compact={
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative min-w-0 flex-1 sm:max-w-xs">
+              <i
+                className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+                aria-hidden
+              />
+              <input
+                value={draftFilters.search}
+                onChange={(e) => setDraft({ search: e.target.value })}
+                placeholder={t(['ID, label, email…', 'المعرّف، التسمية، البريد…'])}
+                className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+              />
+            </div>
+            <select
+              value={draftFilters.type}
+              onChange={(e) => {
+                applyPatch({ type: e.target.value as ListBackupsParams['type'] | '' });
+                setPage(1);
+              }}
+              aria-label={t(['Type', 'النوع'])}
+              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+            >
+              {typeOptions.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={draftFilters.status}
+              onChange={(e) => {
+                applyPatch({ status: e.target.value as BackupJobStatus | '' });
+                setPage(1);
+              }}
+              aria-label={t(['Status', 'الحالة'])}
+              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+            >
+              {statusOptions.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
+        }
+      >
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t(['Type', 'النوع'])}
+          </label>
           <select
             value={draftFilters.type}
-            onChange={(e) => {
-              applyPatch({ type: e.target.value as ListBackupsParams['type'] | '' });
-              setPage(1);
-            }}
-            aria-label={t(['Type', 'النوع'])}
-            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+            onChange={(e) => setDraft({ type: e.target.value as ListBackupsParams['type'] | '' })}
+            className={FILTER_FIELD_CONTROL_CLASS}
           >
             {typeOptions.map((opt) => (
               <option key={opt.value || 'all'} value={opt.value}>
@@ -658,14 +717,15 @@ export function BackupHistoryPage() {
               </option>
             ))}
           </select>
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t(['Status', 'الحالة'])}
+          </label>
           <select
             value={draftFilters.status}
-            onChange={(e) => {
-              applyPatch({ status: e.target.value as BackupJobStatus | '' });
-              setPage(1);
-            }}
-            aria-label={t(['Status', 'الحالة'])}
-            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+            onChange={(e) => setDraft({ status: e.target.value as BackupJobStatus | '' })}
+            className={FILTER_FIELD_CONTROL_CLASS}
           >
             {statusOptions.map((opt) => (
               <option key={opt.value || 'all'} value={opt.value}>
@@ -674,7 +734,7 @@ export function BackupHistoryPage() {
             ))}
           </select>
         </div>
-      </Card>
+      </AdvancedFilterSection>
 
       {(showCreateProgress || showCreateSuccess || showCreateFailure || isPolling) && (
         <div className="space-y-3">

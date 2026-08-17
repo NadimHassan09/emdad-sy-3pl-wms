@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 
-import { AuditLogsApi, type AuditLogDetail, type AuditLogSummary, type ListAuditLogsParams } from '../api/audit-logs';
+import { AuditLogsApi, type AuditLogDetail, type AuditLogSummary } from '../api/audit-logs';
 import { CompaniesApi } from '../api/companies';
 import { useAuth } from '../auth/AuthContext';
 import { AdminListPageShell } from '../components/AdminListPageShell';
@@ -25,40 +25,12 @@ import {
   formatAuditTimestamp,
   truncateMiddle,
 } from '../lib/audit-log-display';
+import {
+  auditLogsFiltersToParams,
+  type AuditLogFilters,
+} from '../lib/audit-logs-filters';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { defaultHomePath } from '../lib/rbac';
-
-type AuditLogFilters = {
-  search: string;
-  companyId: string;
-  actorEmail: string;
-  actorRole: string;
-  action: string;
-  resourceType: string;
-  dateFrom: string;
-  dateTo: string;
-};
-
-function filtersToParams(
-  filters: AuditLogFilters,
-  limit: number,
-  offset: number,
-): ListAuditLogsParams {
-  return {
-    limit,
-    offset,
-    search: filters.search.trim() || undefined,
-    company_id: filters.companyId.trim() || undefined,
-    actor_email: filters.actorEmail.trim() || undefined,
-    actor_role: filters.actorRole.trim() || undefined,
-    action: filters.action.trim() || undefined,
-    resource_type: filters.resourceType.trim() || undefined,
-    date_from: filters.dateFrom.trim() || undefined,
-    date_to: filters.dateTo.trim() || undefined,
-    sort_by: 'created_at',
-    sort_dir: 'desc',
-  };
-}
 
 export function AuditLogsPage() {
   const { user } = useAuth();
@@ -102,7 +74,7 @@ export function AuditLogsPage() {
   }, [resetFilters]);
 
   const listParams = useMemo(
-    () => filtersToParams(appliedFilters, pageSize, (page - 1) * pageSize),
+    () => auditLogsFiltersToParams(appliedFilters, pageSize, (page - 1) * pageSize),
     [appliedFilters, page, pageSize],
   );
 
@@ -263,7 +235,7 @@ export function AuditLogsPage() {
 
   const exportParams = useMemo(
     (): Parameters<typeof AuditLogsApi.exportDownload>[0] =>
-      filtersToParams(appliedFilters, policyQuery.data?.exportMaxRows ?? 500, 0),
+      auditLogsFiltersToParams(appliedFilters, policyQuery.data?.exportMaxRows ?? 500, 0),
     [appliedFilters, policyQuery.data?.exportMaxRows],
   );
 
@@ -322,6 +294,17 @@ export function AuditLogsPage() {
         loading={listQuery.isFetching}
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
+        compact={
+          <TextField
+            label={t('Search', 'بحث')}
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder={t('Action, email, resource…', 'إجراء، بريد، مورد…')}
+          />
+        }
+        activeCount={[appliedFilters.search, appliedFilters.companyId, appliedFilters.actorEmail, appliedFilters.actorRole, appliedFilters.action, appliedFilters.resourceType, appliedFilters.dateFrom, appliedFilters.dateTo].filter((v) => String(v).trim()).length}
+        advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
+        collapseLabel={t('Collapse', 'إخفاء')}
       >
           <TextField
             label={t('Search', 'بحث')}

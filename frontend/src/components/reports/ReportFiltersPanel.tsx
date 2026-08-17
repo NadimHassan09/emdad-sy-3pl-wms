@@ -95,7 +95,36 @@ export function ReportFiltersPanel({
       resetLabel={t('Reset filters', 'إعادة تعيين')}
       showMoreLabel={t('Show more', 'عرض المزيد')}
       showLessLabel={t('Show less', 'عرض أقل')}
-    >
+      compact={
+        report.filterKeys.includes('client') ? (
+          <Combobox
+            label={t('Client', 'العميل')}
+            value={draft.companyId}
+            onChange={(v) => onChange({ companyId: v })}
+            options={clientOptions}
+            placeholder={t('All clients', 'كل العملاء')}
+          />
+        ) : report.filterKeys.includes('warehouse') ? (
+          <SelectField
+            label={t('Warehouse', 'المستودع')}
+            value={draft.warehouseId}
+            onChange={(e) => onChange({ warehouseId: e.target.value })}
+            options={warehouseOptions}
+          />
+        ) : (
+          <TextField
+            label={t('SKU search', 'بحث برمز الصنف')}
+            value={draft.sku}
+            onChange={(e) => onChange({ sku: e.target.value })}
+            placeholder={t('Filter by SKU…', 'تصفية برمز الصنف…')}
+            className="font-mono text-xs"
+          />
+        )
+      }
+      activeCount={[draft.warehouseId, draft.companyId, draft.status, draft.sku, draft.taskType, draft.groupBy, draft.employeeId, draft.dateFrom, draft.dateTo].filter((v) => String(v ?? '').trim()).length}
+      advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
+      collapseLabel={t('Collapse', 'إخفاء')}
+      >
         {report.filterKeys.includes('warehouse') && (
           <SelectField
             label={t('Warehouse', 'المستودع')}

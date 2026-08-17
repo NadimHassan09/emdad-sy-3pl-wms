@@ -167,3 +167,12 @@ export {
   FilterBarActions,
   StatusFilter,
 } from './FilterBar';
+
+export { AdvancedFilterSection } from './AdvancedFilterSection';
+export type { AdvancedFilterSectionProps } from './AdvancedFilterSection';
+
+export {
+  countNonEmptyFilters,
+  normalizeFilters,
+  joinFilterSummary,
+} from '../lib/filter-state';

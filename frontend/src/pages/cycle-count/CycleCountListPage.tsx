@@ -321,6 +321,28 @@ export function CycleCountListPage() {
         loading={listLoading}
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين')}
+        compact={
+          tab === 'sessions' ? (
+            <SelectField
+              label={t('Status', 'الحالة')}
+              name="statusCompact"
+              value={draftFilters.status}
+              onChange={(e) => setDraft({ status: e.target.value })}
+              options={statusOptions}
+            />
+          ) : (
+            <SelectField
+              label={t('Overdue only', 'متأخر فقط')}
+              name="overdueCompact"
+              value={draftFilters.overdueOnly}
+              onChange={(e) => setDraft({ overdueOnly: e.target.value })}
+              options={yesNo}
+            />
+          )
+        }
+        activeCount={[appliedFilters.status, appliedFilters.overdueOnly, appliedFilters.assignedWorkerId, appliedFilters.discrepancyOnly, appliedFilters.dateFrom, appliedFilters.dateTo].filter((v) => String(v).trim() && String(v) !== 'no').length}
+        advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
+        collapseLabel={t('Collapse', 'إخفاء')}
       >
         {tab === 'sessions' ? (
           <SelectField

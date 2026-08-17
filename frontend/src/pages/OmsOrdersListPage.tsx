@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Button, Card } from '@ds';
+import { AdvancedFilterSection, Button, Card } from '@ds';
 import { CompaniesApi } from '../api/companies';
 import type { OmsOrderListItem } from '../api/oms';
 import { OmsApi } from '../api/oms';
@@ -12,17 +12,11 @@ import { OmsOrderFormModal } from '../components/oms/OmsOrderFormModal';
 import { OmsOrdersImportModal } from '../components/oms/OmsOrdersImportModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
+import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
 import {
-  FILTER_APPLY_BUTTON_CLASS,
-  FILTER_PRIMARY_BUTTON_CLASS,
-  FILTER_RESET_BUTTON_CLASS,
-} from '../components/FilterPanel';
-import {
-  FILTER_ACTION_BUTTON_SIZE_CLASS,
   FILTER_FIELD_CONTROL_CLASS,
   FILTER_FIELD_LABEL_CLASS,
   FILTER_FIELD_LABEL_GAP_CLASS,
-  FILTER_OVERFLOW_TRANSITION_CLASS,
 } from '../components/filter-panel-styles';
 import { RowActionsMenu } from '../components/RowActionsMenu';
 import { OmsStatusBadge } from '../components/oms/OmsStatusBadge';
@@ -52,9 +46,6 @@ const OMS_STATUS_FILTER_OPTIONS = [
   { value: '', label: 'All statuses' },
   ...OMS_COMMERCIAL_FILTER_OPTIONS.filter((o) => o.value !== ''),
 ];
-
-const ADVANCED_GRID_CLASS =
-  'grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3';
 
 function FilterFieldLabel({ children }: { children: string }) {
   return (
@@ -289,9 +280,17 @@ export function OmsOrdersListPage() {
       isArabic={isArabic}
       navActions={navActions}
     >
-      <Card padding="md" className="mb-4 overflow-hidden">
-        {!advancedOpen ? (
-          <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+      <AdvancedFilterSection
+        advancedOpen={advancedOpen}
+        onAdvancedOpenChange={setAdvancedOpen}
+        activeCount={advancedActiveCount}
+        summary={appliedSummary}
+        isArabic={isArabic}
+        loading={pagination.isFetching}
+        onApply={onApplyAdvanced}
+        onReset={onResetFilters}
+        compact={
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <div className="relative min-w-0 flex-1 sm:max-w-md">
               <i
                 className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
@@ -321,182 +320,97 @@ export function OmsOrdersListPage() {
                 </option>
               ))}
             </select>
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              aria-expanded={false}
-              onClick={() => setAdvancedOpen(true)}
-              className="inline-flex items-center gap-2"
-            >
-              <i className="fa-solid fa-sliders text-xs" aria-hidden />
-              {isArabic ? 'تصفية متقدمة' : 'Advanced Filtering'}
-              {advancedActiveCount > 0 ? (
-                <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">
-                  {advancedActiveCount}
-                </span>
-              ) : null}
-            </Button>
           </div>
-        ) : (
-          <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-text-strong">
-              <i className="fa-solid fa-sliders text-brand-700" aria-hidden />
-              {isArabic ? 'تصفية متقدمة' : 'Advanced Filtering'}
-              {advancedActiveCount > 0 ? (
-                <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">
-                  {advancedActiveCount}
-                </span>
-              ) : null}
-            </div>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              aria-expanded
-              onClick={() => setAdvancedOpen(false)}
+        }
+      >
+        <div className="min-w-0">
+          <FilterFieldLabel>{isArabic ? 'رقم الطلب' : 'Order ID'}</FilterFieldLabel>
+          <input
+            value={draftFilters.orderId}
+            onChange={(e) => setDraft({ orderId: e.target.value })}
+            placeholder={isArabic ? 'رقم الطلب أو المرجع…' : 'Order # or reference…'}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <Combobox
+            label={isArabic ? 'العميل' : 'Client'}
+            value={draftFilters.companyId}
+            onChange={(value) => setDraft({ companyId: value })}
+            options={clientOptions}
+            placeholder={isArabic ? 'ابحث عن عميل…' : 'Search client…'}
+          />
+        </div>
+        <div className="min-w-0">
+          <FilterFieldLabel>{isArabic ? 'الزبون' : 'Customer'}</FilterFieldLabel>
+          <input
+            value={draftFilters.customer}
+            onChange={(e) => setDraft({ customer: e.target.value })}
+            placeholder={isArabic ? 'اسم الزبون…' : 'Customer name…'}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <FilterFieldLabel>{isArabic ? 'الهاتف' : 'Phone'}</FilterFieldLabel>
+          <input
+            value={draftFilters.phone}
+            onChange={(e) => setDraft({ phone: e.target.value })}
+            placeholder={isArabic ? 'رقم الهاتف…' : 'Phone…'}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <FilterFieldLabel>{isArabic ? 'المدينة' : 'City'}</FilterFieldLabel>
+          <input
+            value={draftFilters.city}
+            onChange={(e) => setDraft({ city: e.target.value })}
+            placeholder={isArabic ? 'المدينة…' : 'City…'}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <FilterFieldLabel>{isArabic ? 'الإجمالي / التكلفة' : 'Total / Cost'}</FilterFieldLabel>
+          <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] gap-2">
+            <select
+              value={draftFilters.totalOp || 'gte'}
+              onChange={(e) => setDraft({ totalOp: e.target.value as OmsTotalOperator })}
+              aria-label={isArabic ? 'عامل الإجمالي' : 'Total operator'}
+              className={FILTER_FIELD_CONTROL_CLASS}
             >
-              {isArabic ? 'إخفاء' : 'Collapse'}
-            </Button>
-          </div>
-        )}
-
-        <div
-          className={`${FILTER_OVERFLOW_TRANSITION_CLASS} ${
-            advancedOpen ? 'grid-rows-[1fr] mt-4' : 'grid-rows-[0fr]'
-          }`}
-        >
-          <div className="min-h-0 overflow-hidden">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                onApplyAdvanced();
-              }}
-            >
-              <div className={ADVANCED_GRID_CLASS}>
-                <div className="min-w-0">
-                  <FilterFieldLabel>{isArabic ? 'رقم الطلب' : 'Order ID'}</FilterFieldLabel>
-                  <input
-                    value={draftFilters.orderId}
-                    onChange={(e) => setDraft({ orderId: e.target.value })}
-                    placeholder={isArabic ? 'رقم الطلب أو المرجع…' : 'Order # or reference…'}
-                    className={FILTER_FIELD_CONTROL_CLASS}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <Combobox
-                    label={isArabic ? 'العميل' : 'Client'}
-                    value={draftFilters.companyId}
-                    onChange={(value) => setDraft({ companyId: value })}
-                    options={clientOptions}
-                    placeholder={isArabic ? 'ابحث عن عميل…' : 'Search client…'}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <FilterFieldLabel>{isArabic ? 'الزبون' : 'Customer'}</FilterFieldLabel>
-                  <input
-                    value={draftFilters.customer}
-                    onChange={(e) => setDraft({ customer: e.target.value })}
-                    placeholder={isArabic ? 'اسم الزبون…' : 'Customer name…'}
-                    className={FILTER_FIELD_CONTROL_CLASS}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <FilterFieldLabel>{isArabic ? 'الهاتف' : 'Phone'}</FilterFieldLabel>
-                  <input
-                    value={draftFilters.phone}
-                    onChange={(e) => setDraft({ phone: e.target.value })}
-                    placeholder={isArabic ? 'رقم الهاتف…' : 'Phone…'}
-                    className={FILTER_FIELD_CONTROL_CLASS}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <FilterFieldLabel>{isArabic ? 'المدينة' : 'City'}</FilterFieldLabel>
-                  <input
-                    value={draftFilters.city}
-                    onChange={(e) => setDraft({ city: e.target.value })}
-                    placeholder={isArabic ? 'المدينة…' : 'City…'}
-                    className={FILTER_FIELD_CONTROL_CLASS}
-                  />
-                </div>
-                <div className="min-w-0">
-                  <FilterFieldLabel>{isArabic ? 'الإجمالي / التكلفة' : 'Total / Cost'}</FilterFieldLabel>
-                  <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] gap-2">
-                    <select
-                      value={draftFilters.totalOp || 'gte'}
-                      onChange={(e) =>
-                        setDraft({ totalOp: e.target.value as OmsTotalOperator })
-                      }
-                      aria-label={isArabic ? 'عامل الإجمالي' : 'Total operator'}
-                      className={FILTER_FIELD_CONTROL_CLASS}
-                    >
-                      {OMS_TOTAL_OPERATOR_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      inputMode="decimal"
-                      value={draftFilters.totalValue}
-                      onChange={(e) => setDraft({ totalValue: e.target.value })}
-                      placeholder="0"
-                      aria-label={isArabic ? 'قيمة الإجمالي' : 'Total value'}
-                      className={FILTER_FIELD_CONTROL_CLASS}
-                    />
-                  </div>
-                </div>
-                <div className="min-w-0">
-                  <FilterFieldLabel>{isArabic ? 'الحالة' : 'Status'}</FilterFieldLabel>
-                  <select
-                    value={draftFilters.status}
-                    onChange={(e) => setDraft({ status: e.target.value })}
-                    className={FILTER_FIELD_CONTROL_CLASS}
-                  >
-                    {OMS_STATUS_FILTER_OPTIONS.map((opt) => (
-                      <option key={opt.value || 'all'} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex min-w-0 items-end justify-end gap-3 sm:col-span-2 lg:col-span-2">
-                  <Button
-                    type="button"
-                    variant="danger"
-                    size="md"
-                    onClick={onResetFilters}
-                    disabled={pagination.isInitialLoading}
-                    className={`${FILTER_RESET_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
-                  >
-                    {isArabic ? 'إعادة تعيين' : 'Reset Filters'}
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="md"
-                    loading={pagination.isFetching}
-                    disabled={pagination.isFetching}
-                    className={`${FILTER_APPLY_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
-                  >
-                    {isArabic ? 'تطبيق التصفية' : 'Apply Filters'}
-                  </Button>
-                </div>
-              </div>
-            </form>
+              {OMS_TOTAL_OPERATOR_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              inputMode="decimal"
+              value={draftFilters.totalValue}
+              onChange={(e) => setDraft({ totalValue: e.target.value })}
+              placeholder="0"
+              aria-label={isArabic ? 'قيمة الإجمالي' : 'Total value'}
+              className={FILTER_FIELD_CONTROL_CLASS}
+            />
           </div>
         </div>
-
-        {!advancedOpen && appliedSummary ? (
-          <p className="mt-3 truncate text-xs text-text-muted" title={appliedSummary}>
-            {isArabic ? ' عوامل التصفية: ' : 'Filters: '}
-            {appliedSummary}
-          </p>
-        ) : null}
-      </Card>
+        <div className="min-w-0">
+          <FilterFieldLabel>{isArabic ? 'الحالة' : 'Status'}</FilterFieldLabel>
+          <select
+            value={draftFilters.status}
+            onChange={(e) => setDraft({ status: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          >
+            {OMS_STATUS_FILTER_OPTIONS.map((opt) => (
+              <option key={opt.value || 'all'} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </AdvancedFilterSection>
 
       {pagination.isError ? (
         <Card padding="md" className="mb-4 border-status-error-border bg-status-error-bg">

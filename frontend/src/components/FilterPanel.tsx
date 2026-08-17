@@ -151,6 +151,14 @@ export function FilterPanel({
   chips,
   onClearAllChips,
   clearAllChipsLabel = 'Clear all',
+  compact,
+  advancedOpen: controlledAdvancedOpen,
+  onAdvancedOpenChange,
+  advancedLabel = 'Advanced Filtering',
+  collapseLabel = 'Collapse',
+  activeCount = 0,
+  summary,
+  summaryPrefix = 'Filters: ',
 }: {
   children: ReactNode;
   title?: ReactNode;
@@ -173,14 +181,36 @@ export function FilterPanel({
   chips?: Array<{ key: string; label: string; onClear: () => void }>;
   onClearAllChips?: () => void;
   clearAllChipsLabel?: string;
+  /** When set, default to a compact bar + collapsible Advanced Filtering. */
+  compact?: ReactNode;
+  advancedOpen?: boolean;
+  onAdvancedOpenChange?: (open: boolean) => void;
+  advancedLabel?: string;
+  collapseLabel?: string;
+  activeCount?: number;
+  summary?: string | null;
+  summaryPrefix?: string;
 }) {
   const isFilterMode = variant === 'filters' || (variant !== 'content' && onApply != null && onReset != null);
   const showActions = isFilterMode && onApply != null && onReset != null;
+  const [uncontrolledAdvanced, setUncontrolledAdvanced] = useState(false);
+  const advancedOpen = controlledAdvancedOpen ?? uncontrolledAdvanced;
+  const setAdvancedOpen = (next: boolean) => {
+    onAdvancedOpenChange ? onAdvancedOpenChange(next) : setUncontrolledAdvanced(next);
+  };
+  const useCompactAdvanced = isFilterMode && compact != null;
   const resolvedDescription =
     description ??
     (isFilterMode
       ? 'Refine the list using the filters below.'
       : undefined);
+
+  const badge =
+    activeCount > 0 ? (
+      <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">
+        {activeCount}
+      </span>
+    ) : null;
 
   if (!isFilterMode) {
     const showHeaderRow = headerActions != null;
@@ -205,48 +235,92 @@ export function FilterPanel({
           onApply?.();
         }}
       >
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <FilterPanelIcon />
-            <div className="min-w-0">
-              <h2 className={PANEL_TITLE_CLASS}>{title}</h2>
-              {resolvedDescription ? (
-                <p className="mt-1 text-sm text-text-muted">{resolvedDescription}</p>
+        {useCompactAdvanced && !advancedOpen ? (
+          <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+            <div className="min-w-0 flex-1">{compact}</div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              aria-expanded={false}
+              onClick={() => setAdvancedOpen(true)}
+              className="inline-flex shrink-0 items-center gap-2"
+            >
+              <i className="fa-solid fa-sliders text-xs" aria-hidden />
+              {advancedLabel}
+              {badge}
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <FilterPanelIcon />
+              <div className="min-w-0">
+                <h2 className={PANEL_TITLE_CLASS}>
+                  {useCompactAdvanced ? advancedLabel : title}
+                </h2>
+                {!useCompactAdvanced && resolvedDescription ? (
+                  <p className="mt-1 text-sm text-text-muted">{resolvedDescription}</p>
+                ) : null}
+              </div>
+              {useCompactAdvanced ? badge : null}
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
+              {headerActions}
+              {useCompactAdvanced ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  aria-expanded
+                  onClick={() => setAdvancedOpen(false)}
+                >
+                  {collapseLabel}
+                </Button>
+              ) : null}
+              {showActions ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="md"
+                    onClick={onReset}
+                    disabled={loading}
+                    className={`${FILTER_RESET_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
+                  >
+                    {resetLabel}
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="md"
+                    disabled={applyDisabled || loading}
+                    loading={loading}
+                    className={`${FILTER_APPLY_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
+                  >
+                    {applyLabel}
+                  </Button>
+                </>
               ) : null}
             </div>
           </div>
-          {showActions ? (
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
-              {headerActions}
-              <Button
-                type="button"
-                variant="danger"
-                size="md"
-                onClick={onReset}
-                disabled={loading}
-                className={`${FILTER_RESET_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
-              >
-                {resetLabel}
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                disabled={applyDisabled || loading}
-                loading={loading}
-                className={`${FILTER_APPLY_BUTTON_CLASS} ${FILTER_ACTION_BUTTON_SIZE_CLASS}`}
-              >
-                {applyLabel}
-              </Button>
-            </div>
-          ) : null}
+        )}
+        <div
+          className={
+            useCompactAdvanced
+              ? `${FILTER_OVERFLOW_TRANSITION_CLASS} ${advancedOpen ? 'mt-5 grid-rows-[1fr]' : 'grid-rows-[0fr]'}`
+              : 'mt-5'
+          }
+        >
+          <div className={useCompactAdvanced && !advancedOpen ? 'min-h-0 overflow-hidden' : 'min-h-0'}>
+            {(!useCompactAdvanced || advancedOpen) ? (
+              <FilterPanelGrid showMoreLabel={showMoreLabel} showLessLabel={showLessLabel}>
+                {children}
+              </FilterPanelGrid>
+            ) : null}
+          </div>
         </div>
-        <div className="mt-5">
-          <FilterPanelGrid showMoreLabel={showMoreLabel} showLessLabel={showLessLabel}>
-            {children}
-          </FilterPanelGrid>
-        </div>
-        {chips && chips.length > 0 ? (
+        {chips && chips.length > 0 && (!useCompactAdvanced || advancedOpen) ? (
           <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border-subtle pt-3">
             {chips.map((chip) => (
               <button
@@ -271,6 +345,12 @@ export function FilterPanel({
               </button>
             ) : null}
           </div>
+        ) : null}
+        {useCompactAdvanced && !advancedOpen && summary ? (
+          <p className="mt-3 truncate text-xs text-text-muted" title={summary}>
+            {summaryPrefix}
+            {summary}
+          </p>
         ) : null}
       </form>
     </div>

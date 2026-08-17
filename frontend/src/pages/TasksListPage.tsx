@@ -288,6 +288,20 @@ export function TasksListPage() {
         resetLabel={t(['Reset filters', 'إعادة تعيين الفلاتر'])}
         chips={chips}
         onClearAllChips={chips.length ? handleResetFilters : undefined}
+        compact={
+          <TextField
+            label={t(['Search', 'بحث'])}
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder={t([
+              'Order number or task / order id',
+              'رقم الطلب أو معرف المهمة / الطلب',
+            ])}
+          />
+        }
+        activeCount={[appliedFilters.taskType, appliedFilters.status, appliedFilters.search].filter((v) => String(v).trim()).length}
+        advancedLabel={t(['Advanced Filtering', 'تصفية متقدمة'])}
+        collapseLabel={t(['Collapse', 'إخفاء'])}
       >
         <SelectField
           label={t(['Task type', 'نوع المهمة'])}

@@ -253,6 +253,16 @@ export function BillingInvoicesPage() {
         loading={pagination.isFetching}
         applyLabel="Apply filters"
         resetLabel="Reset filters"
+        compact={
+          <TextField
+            label="Invoice #"
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder="Search invoice..."
+            className="font-mono"
+          />
+        }
+        activeCount={[appliedFilters.search, appliedFilters.companyId, appliedFilters.status, appliedFilters.createdFrom, appliedFilters.createdTo].filter((v) => String(v).trim()).length}
       >
         <TextField
           label="Invoice #"

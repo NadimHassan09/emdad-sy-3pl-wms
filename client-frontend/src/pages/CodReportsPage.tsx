@@ -1,13 +1,14 @@
-import { useMemo } from 'react';
-import type { ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
+import { AdvancedFilterSection, countNonEmptyFilters } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
 import { useCachedState } from '../hooks/useCachedState';
+import { useFilters } from '../hooks/useFilters';
 
 import { Badge } from '../design-v2/Badge';
 import { Card } from '../design-v2/Card';
@@ -46,7 +47,7 @@ function labelText(label: string, isArabic: boolean): string {
     Recipient: 'المستلم',
     Client: 'العميل',
     'COD amount': 'المبلغ',
-    'COD status': 'الحالة',
+    'COD status': 'حالة التحصيل',
     Created: 'تاريخ الإنشاء',
     'No cash-on-delivery orders': 'لا توجد طلبات دفع عند الاستلام',
     'COD orders will appear here once they are processed.': 'ستظهر طلبات الدفع عند الاستلام هنا عند معالجتها.',
@@ -54,22 +55,24 @@ function labelText(label: string, isArabic: boolean): string {
   return ar[label] ?? label;
 }
 
+const COD_LIST_FILTERS = { codStatus: '', dateFrom: '', dateTo: '' };
+
 export function CodReportsPage(): ReactElement {
   const navigate = useNavigate();
   const isArabic = isClientArabic();
   const t = (label: string) => labelText(label, isArabic);
 
-  const [codStatus, setCodStatus] = useCachedState('codStatus', '');
-  const [dateFrom, setDateFrom] = useCachedState('dateFrom', '');
-  const [dateTo, setDateTo] = useCachedState('dateTo', '');
+  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+    useFilters(COD_LIST_FILTERS);
+  const [advancedOpen, setAdvancedOpen] = useCachedState('advanced-filters-open', false);
 
   const filterKey = useMemo(
     () => ({
-      codStatus: codStatus || undefined,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
+      codStatus: appliedFilters.codStatus || undefined,
+      dateFrom: appliedFilters.dateFrom || undefined,
+      dateTo: appliedFilters.dateTo || undefined,
     }),
-    [codStatus, dateFrom, dateTo],
+    [appliedFilters],
   );
 
   const summaryQuery = useQuery({
@@ -127,11 +130,21 @@ export function CodReportsPage(): ReactElement {
         </Card>
       </div>
 
-      <Card className="p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
+      <AdvancedFilterSection
+        advancedOpen={advancedOpen}
+        onAdvancedOpenChange={setAdvancedOpen}
+        isArabic={isArabic}
+        loading={pagination.isFetching}
+        activeCount={countNonEmptyFilters(appliedFilters, ['codStatus', 'dateFrom', 'dateTo'])}
+        onApply={applyFilters}
+        onReset={() => {
+          resetFilters();
+          setAdvancedOpen(false);
+        }}
+        compact={
           <select
-            value={codStatus}
-            onChange={(e) => setCodStatus(e.target.value)}
+            value={draftFilters.codStatus}
+            onChange={(e) => applyPatch({ codStatus: e.target.value })}
             className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
           >
             {COD_STATUS_OPTIONS.map((o) => (
@@ -140,22 +153,41 @@ export function CodReportsPage(): ReactElement {
               </option>
             ))}
           </select>
+        }
+      >
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('COD status')}</label>
+          <select
+            value={draftFilters.codStatus}
+            onChange={(e) => setDraft({ codStatus: e.target.value })}
+            className="w-full px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
+          >
+            {COD_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {t(o.label)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('From date')}</label>
           <input
             type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            title={t('From date')}
-            className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
-          />
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            title={t('To date')}
-            className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
+            value={draftFilters.dateFrom}
+            onChange={(e) => setDraft({ dateFrom: e.target.value })}
+            className="w-full px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
           />
         </div>
-      </Card>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('To date')}</label>
+          <input
+            type="date"
+            value={draftFilters.dateTo}
+            onChange={(e) => setDraft({ dateTo: e.target.value })}
+            className="w-full px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
+          />
+        </div>
+      </AdvancedFilterSection>
 
       <Card className="overflow-hidden">
         {pagination.isInitialLoading ? (

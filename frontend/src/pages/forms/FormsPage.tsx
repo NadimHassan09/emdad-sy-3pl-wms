@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { Alert, Card, TableFooterPagination, useDebouncedValue } from '@ds';
+import { Alert, AdvancedFilterSection, Card, TableFooterPagination, countNonEmptyFilters } from '@ds';
 import { FormsApi, type LeadFormSubmission } from '../../api/forms';
 import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { Button } from '../../components/Button';
@@ -11,6 +12,14 @@ import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
 import { useCachedState } from '../../hooks/useCachedState';
+import { useFilters } from '../../hooks/useFilters';
+import { useDebounced } from '../../lib/useDebounced';
+import { readListUiCache } from '../../../../shared/design-system-next/hooks/listUiCache';
+import {
+  FILTER_FIELD_CONTROL_CLASS,
+  FILTER_FIELD_LABEL_CLASS,
+  FILTER_FIELD_LABEL_GAP_CLASS,
+} from '../../components/filter-panel-styles';
 import {
   TASK_LIST_DEFAULT_PAGE_SIZE,
   useServerPagination,
@@ -25,6 +34,7 @@ function formatDateTime(iso?: string | null): string {
 
 export function FormsPage() {
   const { t, isArabic } = useWmsTranslation();
+  const { pathname } = useLocation();
   const { user } = useAuth();
   const toast = useToast();
   const qc = useQueryClient();
@@ -32,19 +42,34 @@ export function FormsPage() {
 
   const [detail, setDetail] = useState<LeadFormSubmission | null>(null);
   const [toDelete, setToDelete] = useState<LeadFormSubmission | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useCachedState('forms:advanced-filters-open', false);
 
-  const [search, setSearch] = useCachedState('search', '');
-  const [createdFrom, setCreatedFrom] = useCachedState('createdFrom', '');
-  const [createdTo, setCreatedTo] = useCachedState('createdTo', '');
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const initialFilters = useMemo(
+    () => ({
+      search: readListUiCache<string>(`${pathname}::search`) ?? '',
+      createdFrom: readListUiCache<string>(`${pathname}::createdFrom`) ?? '',
+      createdTo: readListUiCache<string>(`${pathname}::createdTo`) ?? '',
+    }),
+    [pathname],
+  );
+
+  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+    useFilters(initialFilters);
+  const debouncedSearch = useDebounced(draftFilters.search, 300);
+
+  useEffect(() => {
+    if (advancedOpen) return;
+    if (debouncedSearch === appliedFilters.search) return;
+    applyPatch({ search: debouncedSearch });
+  }, [advancedOpen, debouncedSearch, appliedFilters.search, applyPatch]);
 
   const listParams = useMemo(
     () => ({
-      search: debouncedSearch.trim() || undefined,
-      createdFrom: createdFrom || undefined,
-      createdTo: createdTo || undefined,
+      search: appliedFilters.search.trim() || undefined,
+      createdFrom: appliedFilters.createdFrom || undefined,
+      createdTo: appliedFilters.createdTo || undefined,
     }),
-    [debouncedSearch, createdFrom, createdTo],
+    [appliedFilters],
   );
 
   const pagination = useServerPagination<LeadFormSubmission>({
@@ -76,40 +101,58 @@ export function FormsPage() {
       ])}
       isArabic={isArabic}
     >
-      <Card className="mb-4">
-        <div className="flex flex-col sm:flex-row gap-3 sm:flex-wrap sm:items-center">
-          <div className="relative flex-1 max-w-sm">
-            <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-text-faint text-xs" />
+      <AdvancedFilterSection
+        advancedOpen={advancedOpen}
+        onAdvancedOpenChange={setAdvancedOpen}
+        isArabic={isArabic}
+        loading={pagination.isFetching}
+        activeCount={countNonEmptyFilters(appliedFilters, ['createdFrom', 'createdTo'])}
+        onApply={applyFilters}
+        onReset={() => {
+          resetFilters();
+          setAdvancedOpen(false);
+        }}
+        compact={
+          <div className="relative min-w-0 flex-1 sm:max-w-sm">
+            <i
+              className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+              aria-hidden
+            />
             <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={draftFilters.search}
+              onChange={(e) => setDraft({ search: e.target.value })}
               placeholder={t([
                 'Name, phone, email, or activity type',
                 'الاسم أو الهاتف أو البريد أو نوع النشاط',
               ])}
-              className="w-full pl-9 pr-4 py-2 bg-surface-sunken border border-border-strong text-text-strong placeholder:text-text-faint rounded-lg text-sm input-premium"
+              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
             />
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 sm:flex-wrap">
-            <input
-              type="date"
-              value={createdFrom}
-              onChange={(e) => setCreatedFrom(e.target.value)}
-              aria-label={t(['From date', 'من تاريخ'])}
-              title={t(['From date', 'من تاريخ'])}
-              className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
-            />
-            <input
-              type="date"
-              value={createdTo}
-              onChange={(e) => setCreatedTo(e.target.value)}
-              aria-label={t(['To date', 'إلى تاريخ'])}
-              title={t(['To date', 'إلى تاريخ'])}
-              className="px-3 py-2 bg-surface-sunken border border-border-strong rounded-lg text-sm text-text-body input-premium"
-            />
-          </div>
+        }
+      >
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t(['From date', 'من تاريخ'])}
+          </label>
+          <input
+            type="date"
+            value={draftFilters.createdFrom}
+            onChange={(e) => setDraft({ createdFrom: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
         </div>
-      </Card>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t(['To date', 'إلى تاريخ'])}
+          </label>
+          <input
+            type="date"
+            value={draftFilters.createdTo}
+            onChange={(e) => setDraft({ createdTo: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+      </AdvancedFilterSection>
 
       {pagination.isError ? (
         <Alert

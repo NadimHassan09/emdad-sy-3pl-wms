@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { Badge, Button, Card } from '@ds';
+import { Badge, AdvancedFilterSection, countNonEmptyFilters } from '@ds';
 import type { Tone } from '@ds';
 import type { CodRecord, CodRecordStatus, OmsReturn } from '../api/oms';
 import { CodApi, OmsReturnsApi } from '../api/oms';
@@ -14,7 +14,13 @@ import {
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
 import { useFilters } from '../hooks/useFilters';
+import { useCachedState } from '../hooks/useCachedState';
 import { useDebounced } from '../lib/useDebounced';
+import {
+  FILTER_FIELD_CONTROL_CLASS,
+  FILTER_FIELD_LABEL_CLASS,
+  FILTER_FIELD_LABEL_GAP_CLASS,
+} from '../components/filter-panel-styles';
 
 function useIsArabic(): boolean {
   if (typeof window === 'undefined') return false;
@@ -83,17 +89,20 @@ export function OmsCodPage() {
   const toast = useToast();
   const qc = useQueryClient();
 
-  const { draftFilters, appliedFilters, setDraft, applyPatch } = useFilters({
-    search: '',
-    status: '',
-  });
+  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+    useFilters({
+      search: '',
+      status: '',
+    });
+  const [advancedOpen, setAdvancedOpen] = useCachedState('oms-cod:advanced-filters-open', false);
 
   const debouncedSearch = useDebounced(draftFilters.search, 300);
 
   useEffect(() => {
+    if (advancedOpen) return;
     if ((debouncedSearch ?? '') === (appliedFilters.search ?? '')) return;
     applyPatch({ search: debouncedSearch ?? '' });
-  }, [debouncedSearch, appliedFilters.search, applyPatch]);
+  }, [advancedOpen, debouncedSearch, appliedFilters.search, applyPatch]);
 
   const listParams = useMemo(
     () => ({
@@ -208,30 +217,59 @@ export function OmsCodPage() {
       isArabic={isArabic}
       showSectionNav
     >
-      <Card padding="md" className="mb-4">
-        <div className="flex max-w-3xl flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="relative w-full sm:w-72 sm:max-w-sm">
-            <i
-              className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
-              aria-hidden
-            />
-            <input
-              value={draftFilters.search ?? ''}
-              onChange={(e) => setDraft({ search: e.target.value })}
-              placeholder={
-                isArabic
-                  ? 'بحث: الطلب، العميل، المستلم…'
-                  : 'Search order, client, recipient…'
-              }
-              aria-label={isArabic ? 'بحث' : 'Search'}
-              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
-            />
+      <AdvancedFilterSection
+        advancedOpen={advancedOpen}
+        onAdvancedOpenChange={setAdvancedOpen}
+        isArabic={isArabic}
+        loading={pagination.isFetching}
+        activeCount={countNonEmptyFilters(appliedFilters, ['status'])}
+        onApply={applyFilters}
+        onReset={() => {
+          resetFilters();
+          setAdvancedOpen(false);
+        }}
+        compact={
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative min-w-0 flex-1 sm:max-w-sm">
+              <i
+                className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+                aria-hidden
+              />
+              <input
+                value={draftFilters.search ?? ''}
+                onChange={(e) => setDraft({ search: e.target.value })}
+                placeholder={
+                  isArabic
+                    ? 'بحث: الطلب، العميل، المستلم…'
+                    : 'Search order, client, recipient…'
+                }
+                aria-label={isArabic ? 'بحث' : 'Search'}
+                className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+              />
+            </div>
+            <select
+              value={draftFilters.status}
+              onChange={(e) => applyPatch({ status: e.target.value })}
+              aria-label={isArabic ? 'الحالة' : 'Status'}
+              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+            >
+              {COD_STATUS_FILTER_OPTIONS.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
+        }
+      >
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {isArabic ? 'الحالة' : 'Status'}
+          </label>
           <select
             value={draftFilters.status}
-            onChange={(e) => applyPatch({ status: e.target.value })}
-            aria-label={isArabic ? 'الحالة' : 'Status'}
-            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+            onChange={(e) => setDraft({ status: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
           >
             {COD_STATUS_FILTER_OPTIONS.map((opt) => (
               <option key={opt.value || 'all'} value={opt.value}>
@@ -240,7 +278,7 @@ export function OmsCodPage() {
             ))}
           </select>
         </div>
-      </Card>
+      </AdvancedFilterSection>
 
       <DataTable
         columns={columns}
@@ -260,17 +298,23 @@ export function OmsReturnsPage() {
   const isArabic = useIsArabic();
   const navigate = useNavigate();
 
-  const { draftFilters, appliedFilters, setDraft, applyPatch } = useFilters({
-    search: '',
-    status: '',
-  });
+  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
+    useFilters({
+      search: '',
+      status: '',
+    });
+  const [advancedOpen, setAdvancedOpen] = useCachedState(
+    'oms-returns:advanced-filters-open',
+    false,
+  );
 
   const debouncedSearch = useDebounced(draftFilters.search, 300);
 
   useEffect(() => {
+    if (advancedOpen) return;
     if ((debouncedSearch ?? '') === (appliedFilters.search ?? '')) return;
     applyPatch({ search: debouncedSearch ?? '' });
-  }, [debouncedSearch, appliedFilters.search, applyPatch]);
+  }, [advancedOpen, debouncedSearch, appliedFilters.search, applyPatch]);
 
   const listParams = useMemo(
     () => ({
@@ -348,30 +392,59 @@ export function OmsReturnsPage() {
       isArabic={isArabic}
       showSectionNav
     >
-      <Card padding="md" className="mb-4">
-        <div className="flex max-w-3xl flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <div className="relative w-full sm:w-72 sm:max-w-sm">
-            <i
-              className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
-              aria-hidden
-            />
-            <input
-              value={draftFilters.search ?? ''}
-              onChange={(e) => setDraft({ search: e.target.value })}
-              placeholder={
-                isArabic
-                  ? 'بحث: المرتجع، الطلب، العميل…'
-                  : 'Search return #, order, client…'
-              }
-              aria-label={isArabic ? 'بحث' : 'Search'}
-              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
-            />
+      <AdvancedFilterSection
+        advancedOpen={advancedOpen}
+        onAdvancedOpenChange={setAdvancedOpen}
+        isArabic={isArabic}
+        loading={pagination.isFetching}
+        activeCount={countNonEmptyFilters(appliedFilters, ['status'])}
+        onApply={applyFilters}
+        onReset={() => {
+          resetFilters();
+          setAdvancedOpen(false);
+        }}
+        compact={
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative min-w-0 flex-1 sm:max-w-sm">
+              <i
+                className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+                aria-hidden
+              />
+              <input
+                value={draftFilters.search ?? ''}
+                onChange={(e) => setDraft({ search: e.target.value })}
+                placeholder={
+                  isArabic
+                    ? 'بحث: المرتجع، الطلب، العميل…'
+                    : 'Search return #, order, client…'
+                }
+                aria-label={isArabic ? 'بحث' : 'Search'}
+                className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+              />
+            </div>
+            <select
+              value={draftFilters.status}
+              onChange={(e) => applyPatch({ status: e.target.value })}
+              aria-label={isArabic ? 'الحالة' : 'Status'}
+              className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+            >
+              {RETURN_STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
+        }
+      >
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {isArabic ? 'الحالة' : 'Status'}
+          </label>
           <select
             value={draftFilters.status}
-            onChange={(e) => applyPatch({ status: e.target.value })}
-            aria-label={isArabic ? 'الحالة' : 'Status'}
-            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken px-3 py-2 text-sm text-text-body sm:w-auto"
+            onChange={(e) => setDraft({ status: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
           >
             {RETURN_STATUS_OPTIONS.map((opt) => (
               <option key={opt.value || 'all'} value={opt.value}>
@@ -380,7 +453,7 @@ export function OmsReturnsPage() {
             ))}
           </select>
         </div>
-      </Card>
+      </AdvancedFilterSection>
 
       <DataTable
         columns={columns}
