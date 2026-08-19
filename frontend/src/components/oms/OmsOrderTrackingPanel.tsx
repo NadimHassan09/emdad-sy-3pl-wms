@@ -21,7 +21,7 @@ const MILESTONES: MilestoneDef[] = [
   { key: 'confirmed', label: 'Confirmed', icon: 'fa-square-check' },
   { key: 'processing', label: 'Processing', icon: 'fa-box-open' },
   { key: 'ready_to_ship', label: 'Ready to ship', icon: 'fa-paper-plane' },
-  { key: 'shipped', label: 'Shipped', icon: 'fa-truck' },
+  { key: 'shipped', label: 'Sent with Shipping Company', icon: 'fa-truck' },
   { key: 'delivered', label: 'Delivered', icon: 'fa-box' },
 ];
 

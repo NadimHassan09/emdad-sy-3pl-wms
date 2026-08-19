@@ -50,6 +50,7 @@ const InvoicesPage          = lazyPage(() => import('./pages/InvoicesPage'),    
 const BillingInvoiceDetailPage = lazyPage(() => import('./pages/BillingInvoiceDetailPage'), 'BillingInvoiceDetailPage');
 const NotificationsPage       = lazyPage(() => import('./pages/NotificationsPage'),       'NotificationsPage');
 const ProfilePage             = lazyPage(() => import('./pages/ProfilePage'),             'ProfilePage');
+const ApisPage                = lazyPage(() => import('./pages/ApisPage'),                'ApisPage');
 const NotFoundPage            = lazyPage(() => import('./pages/NotFoundPage'),            'NotFoundPage');
 
 const queryClient = new QueryClient({
@@ -277,6 +278,14 @@ function AppRoutes(): ReactElement {
               element={
                 <RequireRouteAccess>
                   <BillingInvoiceDetailPage />
+                </RequireRouteAccess>
+              }
+            />
+            <Route
+              path="apis"
+              element={
+                <RequireRouteAccess>
+                  <ApisPage />
                 </RequireRouteAccess>
               }
             />

@@ -16,6 +16,7 @@ exports.resolveShippingWeightKg = resolveShippingWeightKg;
 exports.resolveShippingVolumeCbm = resolveShippingVolumeCbm;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
+const recipient_contact_1 = require("../../common/validators/recipient-contact");
 exports.SHIPPING_LOCKED_STATUSES = new Set([
     'ready_to_ship',
     'shipped',
@@ -96,7 +97,7 @@ function assertCarrierShippingReady(fields) {
 function assertShippingPhoneCountry(raw) {
     const normalized = normalizeShippingPhoneCountry(raw);
     if (!normalized) {
-        throw new common_1.BadRequestException('Phone country must be a dial code (e.g. 963) or SY — not an amount or postal code.');
+        throw new common_1.BadRequestException('Phone country must be a dial code (e.g. 963) or ISO code (e.g. SY) — not an amount or postal code.');
     }
 }
 function normalizeShippingPhoneCountry(raw) {
@@ -105,9 +106,9 @@ function normalizeShippingPhoneCountry(raw) {
     const t = raw.trim();
     if (!t)
         return null;
-    const upper = t.toUpperCase();
-    if (upper === 'SY' || upper === 'SYR' || upper === 'SYRIA')
-        return '963';
+    const iso = (0, recipient_contact_1.isoFromCountryHint)(t);
+    if (iso)
+        return (0, recipient_contact_1.callingCodeForIso)(iso);
     const digits = t.replace(/\D/g, '');
     if (!digits || digits.length < 1 || digits.length > 4)
         return null;
@@ -152,11 +153,16 @@ function shippingPrismaData(fields) {
             fields.shippingVolumeCbm == null ? null : fields.shippingVolumeCbm;
     }
     if (fields.shippingPhoneCountry !== undefined) {
-        data.shippingPhoneCountry =
-            fields.shippingPhoneCountry == null || fields.shippingPhoneCountry === ''
-                ? null
-                : normalizeShippingPhoneCountry(fields.shippingPhoneCountry) ??
+        if (fields.shippingPhoneCountry == null || fields.shippingPhoneCountry === '') {
+            data.shippingPhoneCountry = null;
+        }
+        else {
+            const iso = (0, recipient_contact_1.isoFromCountryHint)(fields.shippingPhoneCountry);
+            data.shippingPhoneCountry =
+                iso ??
+                    normalizeShippingPhoneCountry(fields.shippingPhoneCountry) ??
                     fields.shippingPhoneCountry.trim();
+        }
     }
     return data;
 }

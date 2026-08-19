@@ -1,0 +1,14 @@
+---
+description: Restrict all development and deployment work to staging
+alwaysApply: true
+---
+
+# Staging-only operations
+
+- Make code, configuration, database, build, process, and deployment changes **only** in `/var/www/emdad-sy-3pl-wms-staging`.
+- Do **not** modify, build, restart, deploy, migrate, or write data in production at `/var/www/emdad-sy-3pl-wms` (except this rule file if needed).
+- Do **not** restart or rebuild `emdad-wms-backend` (production). Only touch `emdad-wms-backend-staging`.
+- Production may be inspected **read-only** only when needed for comparison or diagnosis.
+- Run application smoke tests against staging port `3001` and staging domains only (`staging-admin.emdadsy.com`, `staging-client.emdadsy.com`).
+- Prefer opening / editing files under the staging tree even when the Cursor workspace root is the production path.
+- If a request would require a production mutation, stop and ask for explicit confirmation.

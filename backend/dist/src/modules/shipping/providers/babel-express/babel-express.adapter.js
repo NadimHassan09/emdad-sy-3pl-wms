@@ -31,11 +31,15 @@ let BabelExpressAdapter = class BabelExpressAdapter {
             return { ok: true, message: 'Babel Express connection OK.' };
         }
         catch (err) {
-            const message = err instanceof babel_express_http_client_1.BabelApiError
+            let message = err instanceof babel_express_http_client_1.BabelApiError
                 ? err.message
                 : err instanceof Error
                     ? err.message
                     : 'Connection test failed.';
+            if (/^unauthorized$/i.test(message.trim())) {
+                message =
+                    'Babel Express rejected these credentials. Use the reseller username and password from Babel Express (not your WMS login).';
+            }
             return { ok: false, message };
         }
     }

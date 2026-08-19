@@ -48,6 +48,7 @@ const NAV_ICONS: Record<string, string> = {
   '/my-profits': 'fa-money-bill',
   '/ecommerce-orders/returns': 'fa-rotate-left',
   '/outbound-orders/returns': 'fa-rotate-left',
+  '/apis': 'fa-key',
   '/profile': 'fa-user',
 };
 
@@ -266,6 +267,12 @@ export function PortalLayout(): ReactElement {
       icon: 'fa-boxes-stacked',
       label: isArabic ? 'المخزون' : 'Inventory',
       keywords: ['product', 'sku', 'barcode', 'inventory', 'منتج', 'مخزون'],
+    },
+    {
+      to: '/apis',
+      icon: 'fa-key',
+      label: isArabic ? 'واجهات البرمجة' : 'APIs',
+      keywords: ['api', 'key', 'secret', 'integration', 'shopify', 'erp'],
     },
     {
       to: '/billing',

@@ -65,16 +65,43 @@ export function ShippingDetailsStageCard({
     return computeSuggestedVolumeCbm(lines, products);
   }, [order.lines]);
 
+  const suggestedContents = useMemo(() => {
+    const names = (order.lines ?? [])
+      .map((l) => l.product?.name)
+      .filter((n): n is string => Boolean(n));
+    return names.length ? names.join(', ') : '';
+  }, [order.lines]);
+
   const [editing, setEditing] = useState(!detailsLocked);
-  const [fields, setFields] = useState<OrderShippingFieldsValue>(() =>
-    orderShippingFieldsFromApi(order),
-  );
+  const [fields, setFields] = useState<OrderShippingFieldsValue>(() => {
+    const base = orderShippingFieldsFromApi(order);
+    if (!base.shippingContents.trim() && suggestedContents) {
+      base.shippingContents = suggestedContents;
+    }
+    if (!base.shippingWeightKg.trim() && suggestedWeightKg != null) {
+      base.shippingWeightKg = String(suggestedWeightKg);
+    }
+    if (!base.shippingVolumeCbm.trim() && suggestedVolumeCbm != null) {
+      base.shippingVolumeCbm = String(suggestedVolumeCbm);
+    }
+    return base;
+  });
   const [sendOpen, setSendOpen] = useState(false);
 
   useEffect(() => {
-    setFields(orderShippingFieldsFromApi(order));
+    const base = orderShippingFieldsFromApi(order);
+    if (!base.shippingContents.trim() && suggestedContents) {
+      base.shippingContents = suggestedContents;
+    }
+    if (!base.shippingWeightKg.trim() && suggestedWeightKg != null) {
+      base.shippingWeightKg = String(suggestedWeightKg);
+    }
+    if (!base.shippingVolumeCbm.trim() && suggestedVolumeCbm != null) {
+      base.shippingVolumeCbm = String(suggestedVolumeCbm);
+    }
+    setFields(base);
     if (detailsLocked) setEditing(false);
-  }, [order, detailsLocked]);
+  }, [order, detailsLocked, suggestedContents, suggestedWeightKg, suggestedVolumeCbm]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: [...QK.outboundOrders, order.id] });

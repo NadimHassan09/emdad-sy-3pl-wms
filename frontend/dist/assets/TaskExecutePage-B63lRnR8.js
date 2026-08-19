@@ -1,0 +1,1 @@
+import{j as r}from"./vendor-react-ESlAFUXX.js";import{b as e,N as s}from"./vendor-router-CUF_W3s9.js";import"./vendor-DRNe6pX8.js";function u(){const{id:t=""}=e();return t?r.jsx(s,{to:`/tasks/${t}`,replace:!0}):null}export{u as TaskExecutePage};

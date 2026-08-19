@@ -1,0 +1,1 @@
+{"version":3,"file":"api-validation.js","sourceRoot":"","sources":["../../../../../src/modules/client-portal/external-api/api-validation.ts"],"names":[],"mappings":";;AAEA,gDASC;AAXD,2CAAqD;AAErD,SAAgB,kBAAkB,CAChC,OAAe,EACf,MAA+B;IAE/B,MAAM,IAAI,4BAAmB,CAAC;QAC5B,IAAI,EAAE,kBAAkB;QACxB,OAAO;QACP,MAAM,EAAE,MAAM,IAAI,EAAE;KACrB,CAAC,CAAC;AACL,CAAC"}

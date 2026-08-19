@@ -41,6 +41,7 @@ class CreateOutboundOrderDto extends shipping_config_dto_1.ShippingConfigDto {
     carrier;
     clientReference;
     notes;
+    externalReference;
     requiresPacking;
     executionMode;
     executionPlan;
@@ -75,6 +76,11 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateOutboundOrderDto.prototype, "notes", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateOutboundOrderDto.prototype, "externalReference", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

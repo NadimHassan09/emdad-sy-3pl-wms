@@ -21,6 +21,7 @@ import { withTenantRls } from '../../common/prisma/tenant-rls';
 import { assertDiscreteUomPositiveIntegerQuantity } from '../../common/utils/discrete-uom-quantity';
 import { assertCalendarDateNotBeforeToday } from '../../common/utils/order-planning-date';
 import { assertProductOrderableForOrders } from '../../common/utils/assert-product-orderable';
+import { normalizeRecipientContact } from '../../common/validators/recipient-contact';
 import { RealtimeService } from '../realtime/realtime.service';
 import { adminOutboundListItem } from '../realtime/realtime-client.payload';
 import { OutboundService } from '../outbound/outbound.service';
@@ -48,7 +49,9 @@ import {
   resolveOmsActorRole,
 } from './oms-order-transitions';
 import { OrderAllocationService } from './order-allocation.service';
+import { ShippingGeoService } from '../shipping/shipping-geo.service';
 import { ShippingService } from '../shipping/shipping.service';
+import { resolveOmsDeliveryLocation } from './oms-delivery-resolution';
 import {
   assertShippingIntentReady,
   assertShippingConfigUnlocked,
@@ -57,6 +60,22 @@ import {
   resolveShippingVolumeCbm,
   shippingPrismaData,
 } from '../shipping/shipping-config.util';
+
+function assertAndNormalizeRecipientContact(dto: {
+  recipientName?: string;
+  recipientPhone?: string;
+  shippingPhoneCountry?: string | null;
+}) {
+  const result = normalizeRecipientContact({
+    recipientName: dto.recipientName,
+    recipientPhone: dto.recipientPhone,
+    shippingPhoneCountry: dto.shippingPhoneCountry,
+  });
+  if (!result.ok) {
+    throw new BadRequestException(result.message);
+  }
+  return result.value;
+}
 
 const ORDER_INCLUDE = {
   company: { select: { id: true, name: true } },
@@ -96,6 +115,7 @@ export class OmsOrdersService {
     private readonly cod: CodRecordsService,
     @Inject(forwardRef(() => ShippingService))
     private readonly shipping: ShippingService,
+    private readonly geo: ShippingGeoService,
   ) {}
 
   /** Shared list filter builder — export must use the exact same where clause. */
@@ -250,6 +270,7 @@ export class OmsOrdersService {
   async assertImportCreateReady(user: AuthPrincipal, dto: CreateOmsOrderDto): Promise<void> {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
     assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
+    assertAndNormalizeRecipientContact(dto);
     const destination = composeDestinationAddress(dto);
     if (!destination) {
       throw new BadRequestException(
@@ -284,7 +305,7 @@ export class OmsOrdersService {
       const p = productById.get(l.productId)!;
       assertDiscreteUomPositiveIntegerQuantity(p.uom, l.requestedQuantity, 'Requested quantity');
     }
-    const shippingMethod = dto.shippingMethod ?? ShippingMethod.manual;
+    const shippingMethod = dto.shippingMethod ?? null;
     const shippingFields = {
       shippingMethod,
       shippingProviderCode: dto.shippingProviderCode,
@@ -309,11 +330,14 @@ export class OmsOrdersService {
     opts?: {
       provisionOutbound?: boolean;
       bulkImport?: { batchId: string; externalReference?: string };
+      needsInformation?: boolean;
     },
   ) {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
     assertCalendarDateNotBeforeToday(dto.requiredShipDate, 'Required ship date');
+    const contact = assertAndNormalizeRecipientContact(dto);
     const bulkImport = opts?.bulkImport;
+    const needsInformation = !!opts?.needsInformation;
     const provisionOutbound =
       !bulkImport && !!opts?.provisionOutbound && !dto.outboundOrderId;
 
@@ -327,9 +351,13 @@ export class OmsOrdersService {
       destination = linked.destinationAddress?.trim() || 'Linked outbound order';
     }
     if (!destination) {
-      throw new BadRequestException(
-        'Destination address is required (address line / city / destination).',
-      );
+      if (needsInformation) {
+        destination = 'Shipping/Delivery information is incomplete.';
+      } else {
+        throw new BadRequestException(
+          'Destination address is required (address line / city / destination).',
+        );
+      }
     }
 
     const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
@@ -359,7 +387,7 @@ export class OmsOrdersService {
     const volumeByProductId = new Map(
       products.map((p) => [p.id, p.volumeCbm?.toString() ?? null] as const),
     );
-    const shippingMethod = dto.shippingMethod ?? ShippingMethod.manual;
+    const shippingMethod = dto.shippingMethod ?? null;
     const lineQty = dto.lines.map((l) => ({
       productId: l.productId,
       requestedQuantity: l.requestedQuantity,
@@ -388,7 +416,10 @@ export class OmsOrdersService {
       shippingPayer: dto.shippingPayer,
       shippingWeightKg,
       shippingVolumeCbm,
-      shippingPhoneCountry: dto.shippingPhoneCountry,
+      shippingPhoneCountry:
+        contact.shippingPhoneCountry !== undefined
+          ? contact.shippingPhoneCountry
+          : dto.shippingPhoneCountry,
     };
     assertShippingIntentReady(shippingFields);
     await this.shipping.assertLiveCarrierSelection({
@@ -468,8 +499,10 @@ export class OmsOrdersService {
           clientReference: dto.clientReference,
           notes: dto.notes,
           requiresPacking: dto.requiresPacking !== false,
-          recipientName: dto.recipientName,
-          recipientPhone: dto.recipientPhone,
+          recipientName:
+            contact.recipientName !== undefined ? contact.recipientName : dto.recipientName,
+          recipientPhone:
+            contact.recipientPhone !== undefined ? contact.recipientPhone : dto.recipientPhone,
           city: dto.city,
           district: dto.district,
           addressLine1: dto.addressLine1,
@@ -483,6 +516,8 @@ export class OmsOrdersService {
           codStatus: codStatus ?? undefined,
           storeChannel: dto.storeChannel,
           externalReference: dto.externalReference,
+          needsInformation,
+          importBatchId: bulkImport?.batchId,
           ...shippingPrismaData(shippingFields),
           submittedAt:
             initialStatus === OmsOrderStatus.waiting_for_confirmation ||
@@ -526,6 +561,7 @@ export class OmsOrdersService {
           provisionOutbound,
           bulkImport: !!bulkImport,
           importBatchId: bulkImport?.batchId,
+          needsInformation,
         },
       });
 
@@ -548,6 +584,7 @@ export class OmsOrdersService {
             batchId: bulkImport.batchId,
             externalReference: bulkImport.externalReference ?? dto.externalReference ?? null,
             status: created.status,
+            needsInformation,
           },
         });
       }
@@ -671,6 +708,12 @@ export class OmsOrdersService {
 
   async approve(id: string, user: AuthPrincipal, dto: ApproveOmsOrderDto = {}) {
     const existing = await this.resolveOrder(id, user);
+
+    if (existing.needsInformation) {
+      throw new InvalidStateException(
+        'This order is incomplete. Shipping/Delivery information must be completed before approval.',
+      );
+    }
 
     // Idempotent: already processing with outbound linked.
     if (
@@ -848,6 +891,7 @@ export class OmsOrdersService {
 
   async update(id: string, user: AuthPrincipal, dto: UpdateOmsOrderDto) {
     const existing = await this.resolveOrder(id, user);
+    const contact = assertAndNormalizeRecipientContact(dto);
     const destination =
       dto.destinationAddress !== undefined
         ? composeDestinationAddress({
@@ -858,6 +902,44 @@ export class OmsOrdersService {
             city: dto.city ?? existing.city ?? undefined,
           })
         : undefined;
+
+    let incompletePatch: {
+      needsInformation?: boolean;
+      city?: string | null;
+      district?: string | null;
+      addressLine1?: string | null;
+      addressLine2?: string | null;
+      shippingReceiverLat?: number | null;
+      shippingReceiverLng?: number | null;
+      destinationAddress?: string;
+    } = {};
+    if (existing.needsInformation) {
+      const resolved = await resolveOmsDeliveryLocation(this.geo, {
+        governorate: dto.city !== undefined ? dto.city : existing.city,
+        city: dto.district !== undefined ? dto.district : existing.district,
+        neighborhood: dto.addressLine1 !== undefined ? dto.addressLine1 : existing.addressLine1,
+        street: dto.addressLine2 !== undefined ? dto.addressLine2 : existing.addressLine2,
+      });
+      if (resolved.complete) {
+        incompletePatch = {
+          needsInformation: false,
+          city: resolved.city,
+          district: resolved.district,
+          addressLine1: resolved.addressLine1,
+          addressLine2: resolved.addressLine2,
+          shippingReceiverLat: resolved.lat,
+          shippingReceiverLng: resolved.lng,
+          destinationAddress:
+            destination ||
+            composeDestinationAddress({
+              addressLine1: resolved.addressLine1 ?? undefined,
+              addressLine2: resolved.addressLine2 ?? undefined,
+              district: resolved.district ?? undefined,
+              city: resolved.city ?? undefined,
+            }),
+        };
+      }
+    }
 
     if (dto.outboundOrderId) {
       // Soft-deprecate link-first: new links must go through approve → auto-generate outbound.
@@ -951,7 +1033,10 @@ export class OmsOrdersService {
               : shippingVolumeCbm !== undefined
                 ? shippingVolumeCbm
                 : undefined,
-          shippingPhoneCountry: dto.shippingPhoneCountry,
+          shippingPhoneCountry:
+            contact.shippingPhoneCountry !== undefined
+              ? contact.shippingPhoneCountry
+              : dto.shippingPhoneCountry,
         }
       : null;
 
@@ -1035,8 +1120,13 @@ export class OmsOrdersService {
       const row = await tx.omsOrder.update({
         where: { id: existing.id },
         data: {
-          recipientName: dto.recipientName,
-          recipientPhone: dto.recipientPhone,
+          recipientName:
+            contact.recipientName !== undefined ? contact.recipientName : dto.recipientName,
+          recipientPhone:
+            contact.recipientPhone !== undefined ? contact.recipientPhone : dto.recipientPhone,
+          ...(contact.shippingPhoneCountry !== undefined
+            ? { shippingPhoneCountry: contact.shippingPhoneCountry }
+            : {}),
           city: dto.city,
           district: dto.district,
           addressLine1: dto.addressLine1,
@@ -1065,6 +1155,20 @@ export class OmsOrdersService {
           currency: dto.currency,
           storeChannel: dto.storeChannel,
           externalReference: dto.externalReference,
+          ...(incompletePatch.needsInformation === false
+            ? {
+                needsInformation: false,
+                city: incompletePatch.city,
+                district: incompletePatch.district,
+                addressLine1: incompletePatch.addressLine1,
+                addressLine2: incompletePatch.addressLine2,
+                shippingReceiverLat: incompletePatch.shippingReceiverLat,
+                shippingReceiverLng: incompletePatch.shippingReceiverLng,
+                ...(incompletePatch.destinationAddress
+                  ? { destinationAddress: incompletePatch.destinationAddress }
+                  : {}),
+              }
+            : {}),
           ...(dto.outboundOrderId !== undefined
             ? { outboundOrderId: dto.outboundOrderId }
             : {}),
@@ -1294,7 +1398,7 @@ export class OmsOrdersService {
       return serializeOmsOrder(existing);
     }
 
-    assertOmsTransition(existing.status, 'record_external_fulfillment', 'admin');
+    assertOmsTransition(existing.status, 'record_external_fulfillment' as never, 'admin');
 
     if (!existing.outboundOrderId) {
       throw new InvalidStateException(

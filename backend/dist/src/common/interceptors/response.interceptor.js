@@ -12,6 +12,9 @@ const operators_1 = require("rxjs/operators");
 let ResponseInterceptor = class ResponseInterceptor {
     intercept(_ctx, next) {
         return next.handle().pipe((0, operators_1.map)((data) => {
+            if (typeof data === 'string' || Buffer.isBuffer(data)) {
+                return data;
+            }
             if (data && typeof data === 'object' && 'success' in data) {
                 return data;
             }

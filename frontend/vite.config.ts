@@ -35,6 +35,8 @@ export default defineConfig(({ mode }) => {
       '@tanstack/react-query': pathResolve(
         './node_modules/@tanstack/react-query/build/modern/index.js',
       ),
+      'libphonenumber-js/max': pathResolve('./node_modules/libphonenumber-js/max/index.js'),
+      'libphonenumber-js': pathResolve('./node_modules/libphonenumber-js/index.js'),
     },
     dedupe: ['react', 'react-dom', '@tanstack/react-query'],
   },

@@ -34,6 +34,7 @@ const TITLES: Array<{ match: (pathname: string) => boolean; title: PageTitle }> 
   { match: (p) => p.startsWith('/billing/invoices/'), title: { en: 'Invoice', ar: 'فاتورة' } },
   { match: (p) => p.startsWith('/billing'), title: { en: 'Billing', ar: 'الفوترة' } },
   { match: (p) => p.startsWith('/notifications'), title: { en: 'Notifications', ar: 'الإشعارات' } },
+  { match: (p) => p.startsWith('/apis'), title: { en: 'APIs', ar: 'واجهات البرمجة' } },
   { match: (p) => p.startsWith('/profile'), title: { en: 'Profile', ar: 'الملف الشخصي' } },
 ];
 

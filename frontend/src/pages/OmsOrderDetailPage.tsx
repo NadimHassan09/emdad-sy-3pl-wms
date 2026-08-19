@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import { Alert, Card, ListPageHeader, Skeleton } from '@ds';
 import { CodApi, OmsApi, OmsReturnsApi } from '../api/oms';
 import { OmsOrderFormModal } from '../components/oms/OmsOrderFormModal';
+import { CreateOmsReturnModal } from '../components/oms/CreateOmsReturnModal';
 import { OmsOrderTrackingPanel } from '../components/oms/OmsOrderTrackingPanel';
 import { OmsStatusBadge } from '../components/oms/OmsStatusBadge';
 import { Button } from '../components/Button';
@@ -46,8 +47,6 @@ export function OmsOrderDetailPage() {
   const [shippingFeeAfter, setShippingFeeAfter] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [revertReason, setRevertReason] = useState('');
-  const [returnReason, setReturnReason] = useState('');
-  const [returnQty, setReturnQty] = useState<Record<string, string>>({});
 
   const openShippingFeeRequested = Boolean((location.state as { openShippingFee?: boolean } | null)?.openShippingFee);
   const autoOpenedShippingFeeModalRef = useRef(false);
@@ -180,58 +179,8 @@ export function OmsOrderDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const createReturnMut = useMutation({
-    mutationFn: () => {
-      const order = orderQuery.data!;
-      const lines = order.lines
-        .map((line) => {
-          const qty = Number(returnQty[line.id] ?? 0);
-          if (!Number.isFinite(qty) || qty <= 0) return null;
-          return {
-            productId: line.productId,
-            quantity: qty,
-            unitPrice: line.unitPrice != null ? Number(line.unitPrice) : undefined,
-          };
-        })
-        .filter(Boolean) as Array<{ productId: string; quantity: number; unitPrice?: number }>;
-      if (lines.length === 0) {
-        throw new Error('Enter a return quantity for at least one line.');
-      }
-      return OmsReturnsApi.create({
-        omsOrderId: id,
-        reason: returnReason.trim() || undefined,
-        lines,
-      });
-    },
-    onSuccess: () => {
-      toast.success('Return request created.');
-      setReturnOpen(false);
-      setReturnReason('');
-      setReturnQty({});
-      invalidate();
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const order = orderQuery.data;
   const commercial = order ? mapOmsCommercialDisplayStatus(order.status) : null;
-
-  const defaultReturnQty = useMemo(() => {
-    if (!order) return {};
-    return Object.fromEntries(order.lines.map((l) => [l.id, l.requestedQuantity]));
-  }, [order]);
-
-  // Already-returned qty by product for return form hints (must be before early returns).
-  const alreadyReturnedByProduct = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const r of returnsQuery.data?.items ?? []) {
-      if (r.status === 'rejected' || r.status === 'cancelled') continue;
-      for (const line of r.lines) {
-        map.set(line.productId, (map.get(line.productId) ?? 0) + Number(line.quantity));
-      }
-    }
-    return map;
-  }, [returnsQuery.data]);
 
   // Auto-open the "Specify shipping fee" modal when coming from the /orders/oms row actions.
   // Must be declared before any early-return (loading/error) paths to keep React hook order stable.
@@ -284,7 +233,7 @@ export function OmsOrderDetailPage() {
   const canConfirm =
     commercial === 'waiting_for_confirmation';
   const canApprove =
-    commercial === 'confirmed_waiting_for_admin_approval';
+    commercial === 'confirmed_waiting_for_admin_approval' && !order.needsInformation;
   const canReject =
     commercial === 'confirmed_waiting_for_admin_approval' ||
     commercial === 'waiting_for_confirmation';
@@ -403,13 +352,7 @@ export function OmsOrderDetailPage() {
               </Button>
             ) : null}
             {canCreateReturn ? (
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setReturnQty(defaultReturnQty);
-                  setReturnOpen(true);
-                }}
-              >
+              <Button variant="secondary" onClick={() => setReturnOpen(true)}>
                 Create return
               </Button>
             ) : null}
@@ -431,18 +374,20 @@ export function OmsOrderDetailPage() {
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <OmsStatusBadge status={order.status} />
-        {order.storeChannel ? (
-          <span className="rounded-full bg-surface-card-muted px-2 py-0.5 text-xs font-medium text-text-body">
-            {order.storeChannel}
-          </span>
-        ) : null}
+        <OmsStatusBadge status={order.status} needsInformation={order.needsInformation} />
         {order.rejectionReason ? (
           <span className="rounded-full bg-status-error-bg px-2 py-0.5 text-xs font-medium text-status-error-fg">
             Rejected: {order.rejectionReason}
           </span>
         ) : null}
       </div>
+
+      {order.needsInformation ? (
+        <Alert variant="warning" title="Incomplete Order">
+          Shipping/Delivery information is incomplete. Use Edit to complete Governorate, City/Area,
+          and location before this order can be approved.
+        </Alert>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
@@ -587,7 +532,6 @@ export function OmsOrderDetailPage() {
                 <Field label="Order #" value={order.orderNumber} />
                 <Field label="Client" value={order.company?.name ?? '—'} />
                 <Field label="Client reference" value={order.clientReference ?? '—'} />
-                <Field label="Sales channel" value={order.storeChannel ?? '—'} />
                 <Field
                   label="Required ship"
                   value={new Date(order.requiredShipDate).toLocaleDateString()}
@@ -780,51 +724,12 @@ export function OmsOrderDetailPage() {
         </div>
       </Modal>
 
-      <Modal open={returnOpen} onClose={() => setReturnOpen(false)} title="Create OMS return">
-        <div className="space-y-4">
-          <TextField
-            label="Reason (optional)"
-            value={returnReason}
-            onChange={(e) => setReturnReason(e.target.value)}
-          />
-          <div className="space-y-2">
-            <div className="text-xs font-semibold uppercase text-text-muted">Return quantities</div>
-            {order.lines.map((line) => {
-              const ordered = Number(line.requestedQuantity);
-              const already = alreadyReturnedByProduct.get(line.productId) ?? 0;
-              const available = Math.max(0, ordered - already);
-              return (
-                <div key={line.id} className="flex flex-wrap items-center gap-3">
-                  <span className="min-w-0 flex-1 truncate text-sm text-text-body">
-                    {line.product?.sku ?? line.productId}
-                    <span className="ml-2 text-xs text-text-muted">
-                      Ordered {ordered} · Returned {already} · Available {available}
-                    </span>
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={available}
-                    value={returnQty[line.id] ?? ''}
-                    onChange={(e) =>
-                      setReturnQty((prev) => ({ ...prev, [line.id]: e.target.value }))
-                    }
-                    className="w-24 rounded-lg border border-border px-2 py-1 text-sm"
-                  />
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="danger" onClick={() => setReturnOpen(false)}>
-              Cancel
-            </Button>
-            <Button loading={createReturnMut.isPending} onClick={() => createReturnMut.mutate()}>
-              Submit return
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      <CreateOmsReturnModal
+        open={returnOpen}
+        onClose={() => setReturnOpen(false)}
+        initialOrderId={id}
+        onSuccess={() => invalidate()}
+      />
     </div>
   );
 }

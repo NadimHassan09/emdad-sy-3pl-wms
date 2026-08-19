@@ -2,32 +2,44 @@ import { OmsOrderStatus } from '@prisma/client';
 
 import { assertOmsTransition } from './oms-order-transitions';
 
-describe('oms-order-transitions external fulfillment', () => {
-  it('allows processing → shipped via record_external_fulfillment', () => {
-    expect(
+describe('oms-order-transitions', () => {
+  it('does not expose record_external_fulfillment as a legal action', () => {
+    expect(() =>
       assertOmsTransition(
         OmsOrderStatus.processing,
-        'record_external_fulfillment',
+        'record_external_fulfillment' as never,
         'admin',
       ),
-    ).toBe(OmsOrderStatus.shipped);
-  });
-
-  it('allows pending → shipped via record_external_fulfillment (migrated B7a leftover)', () => {
-    expect(
-      assertOmsTransition(OmsOrderStatus.pending, 'record_external_fulfillment', 'admin'),
-    ).toBe(OmsOrderStatus.shipped);
-  });
-
-  it('rejects external fulfillment from shipped (must use idempotent service path)', () => {
+    ).toThrow(/not allowed/i);
     expect(() =>
-      assertOmsTransition(OmsOrderStatus.shipped, 'record_external_fulfillment', 'admin'),
+      assertOmsTransition(
+        OmsOrderStatus.pending,
+        'record_external_fulfillment' as never,
+        'admin',
+      ),
+    ).toThrow(/not allowed/i);
+    expect(() =>
+      assertOmsTransition(
+        OmsOrderStatus.shipped,
+        'record_external_fulfillment' as never,
+        'admin',
+      ),
     ).toThrow(/not allowed/i);
   });
 
-  it('still allows mark_delivered from shipped (same path for new and migrated)', () => {
+  it('still allows mark_delivered from shipped (standard OMS path)', () => {
     expect(
       assertOmsTransition(OmsOrderStatus.shipped, 'mark_delivered', 'admin'),
     ).toBe(OmsOrderStatus.delivered);
+  });
+
+  it('still allows admin approve processing start', () => {
+    expect(
+      assertOmsTransition(
+        OmsOrderStatus.confirmed_waiting_for_admin_approval,
+        'admin_approve',
+        'admin',
+      ),
+    ).toBe(OmsOrderStatus.processing);
   });
 });

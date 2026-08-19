@@ -14,6 +14,7 @@ import {
 import { OmsPaymentMethod } from '@prisma/client';
 
 import { IsUuidLoose } from '../../../../common/validators/is-uuid-loose';
+import { IsRecipientName, IsRecipientPhone } from '../../../../common/validators/is-recipient-contact';
 
 export class CreateClientOmsOrderLineDto {
   @IsUuidLoose()
@@ -37,11 +38,17 @@ export class CreateClientOmsOrderDto {
 
   @IsOptional()
   @IsString()
+  @IsRecipientName()
   recipientName?: string;
 
   @IsOptional()
   @IsString()
+  @IsRecipientPhone()
   recipientPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  shippingPhoneCountry?: string;
 
   @IsOptional()
   @IsString()

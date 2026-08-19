@@ -9,6 +9,7 @@ import { WorkflowsApi } from '../../api/workflows';
 import { Alert, Button, Card } from '@ds';
 import { OrderDocumentsCard } from '../documents/OrderDocumentsCard';
 import { ShippingDetailsStageCard } from './ShippingDetailsStageCard';
+import { ShippingMethodStageCard } from './ShippingMethodStageCard';
 import { StatusBadge } from '../StatusBadge';
 import { useToast } from '../ToastProvider';
 import { QK } from '../../constants/query-keys';
@@ -247,9 +248,11 @@ export function AdminOutboundOrderSummary({ order }: Props) {
         ? 'Waiting for Picking'
         : order.status === 'packing'
           ? 'Waiting for Packing'
-          : order.status === 'waiting_for_shipping_details'
-            ? 'Waiting for Shipping Details'
-            : order.status === 'ready_to_ship'
+          : order.status === 'waiting_for_shipping_method'
+            ? 'Waiting for Shipping Method'
+            : order.status === 'waiting_for_shipping_details'
+              ? 'Waiting for Shipping Details'
+              : order.status === 'ready_to_ship'
               ? 'Waiting for Dispatch'
               : order.status === 'externally_fulfilled'
                 ? 'Fulfilled outside warehouse'
@@ -416,6 +419,10 @@ export function AdminOutboundOrderSummary({ order }: Props) {
           </dl>
         </Card.Body>
       </Card>
+
+      {order.status === 'waiting_for_shipping_method' ? (
+        <ShippingMethodStageCard order={order} />
+      ) : null}
 
       {order.status === 'waiting_for_shipping_details' ? (
         <ShippingDetailsStageCard order={order} />

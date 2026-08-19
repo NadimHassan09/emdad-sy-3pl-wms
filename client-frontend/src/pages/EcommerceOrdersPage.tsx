@@ -1,4 +1,4 @@
-import { useMemo, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
@@ -24,6 +24,7 @@ import { useFilters } from '../hooks/useFilters';
 import { Card } from '../design-v2/Card';
 import { StorePillTabs } from '../design-v2/StorePillTabs';
 import { TableFooterPagination } from '../design-v2/TableFooterPagination';
+import { ClientOrderImportModal } from '../components/ClientOrderImportModal';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import {
   CLIENT_OMS_COMMERCIAL_FILTER_OPTIONS,
@@ -48,6 +49,8 @@ function labelText(label: string, isArabic: boolean): string {
     'Online orders': 'الطلبات الإلكترونية',
     'Orders from your store channels': 'طلبات من قنوات متجرك',
     'Create order': 'إنشاء طلب',
+    Import: 'استيراد',
+    'Incomplete Order': 'طلب غير مكتمل',
     'Search order number...': 'ابحث برقم الطلب...',
     'All statuses': 'كل الحالات',
     'Order #': 'رقم الطلب',
@@ -78,6 +81,7 @@ export function EcommerceOrdersPage(): ReactElement {
   const isArabic = isClientArabic();
   const t = (label: string) => labelText(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
+  const [importOpen, setImportOpen] = useState(false);
 
   const filterKey = useMemo(
     () => ({
@@ -98,16 +102,28 @@ export function EcommerceOrdersPage(): ReactElement {
   const hasActiveFilters = Boolean(appliedFilters.search.trim() || appliedFilters.status);
 
   const createButton = (
-    <Button
-      variant="primary"
-      size="md"
-      disabled={!billingAccess.operationalAllowed}
-      title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
-      onClick={() => navigate('/ecommerce-orders/new')}
-      startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
-    >
-      {t('Create order')}
-    </Button>
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        variant="secondary"
+        size="md"
+        disabled={!billingAccess.operationalAllowed}
+        title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
+        onClick={() => setImportOpen(true)}
+        startIcon={<i className="fa-solid fa-file-import text-xs" aria-hidden="true" />}
+      >
+        {t('Import')}
+      </Button>
+      <Button
+        variant="primary"
+        size="md"
+        disabled={!billingAccess.operationalAllowed}
+        title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
+        onClick={() => navigate('/ecommerce-orders/new')}
+        startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
+      >
+        {t('Create order')}
+      </Button>
+    </div>
   );
 
   return (
@@ -117,6 +133,15 @@ export function EcommerceOrdersPage(): ReactElement {
         title={t('Online orders')}
         subtitle={t('Orders from your store channels')}
         actions={createButton}
+      />
+
+      <ClientOrderImportModal
+        kind="oms"
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => pagination.refetch()}
+        disabled={!billingAccess.operationalAllowed}
+        disabledReason={billingAccess.actionBlockedReason}
       />
 
       <StorePillTabs isArabic={isArabic} />
@@ -199,7 +224,6 @@ export function EcommerceOrdersPage(): ReactElement {
                   <th className="px-5 py-3 text-left">{t('Order #')}</th>
                   <th className="px-5 py-3 text-left">{t('Status')}</th>
                   <th className="px-5 py-3 text-left">{t('Recipient')}</th>
-                  <th className="px-5 py-3 text-left">{t('Channel')}</th>
                   <th className="px-5 py-3 text-left">{t('Total')}</th>
                   <th className="px-5 py-3 text-right">{t('Created')}</th>
                 </tr>
@@ -207,7 +231,7 @@ export function EcommerceOrdersPage(): ReactElement {
               <tbody className="divide-y divide-border-subtle">
                 {Array.from({ length: 6 }).map((_, rowIdx) => (
                   <tr key={`sk-${rowIdx}`}>
-                    {Array.from({ length: 6 }).map((__, colIdx) => (
+                    {Array.from({ length: 5 }).map((__, colIdx) => (
                       <td key={colIdx} className="px-5 py-3.5">
                         <Skeleton height={14} width={colIdx === 0 ? '70%' : '55%'} />
                       </td>
@@ -251,7 +275,6 @@ export function EcommerceOrdersPage(): ReactElement {
                     <th className="px-5 py-3 text-left">{t('Status')}</th>
                     <th className="px-5 py-3 text-left">{t('Recipient')}</th>
                     <th className="px-5 py-3 text-left">{t('City')}</th>
-                    <th className="px-5 py-3 text-left">{t('Channel')}</th>
                     <th className="px-5 py-3 text-left">{t('Total')}</th>
                     <th className="px-5 py-3 text-right">{t('Created')}</th>
                   </tr>
@@ -267,13 +290,19 @@ export function EcommerceOrdersPage(): ReactElement {
                         {row.orderNumber || '—'}
                       </td>
                       <td className="px-5 py-3.5">
-                        <StatusBadge status={clientOmsCommercialStatusBadgeKey(row.status)} isArabic={isArabic}>
-                          {clientOmsCommercialStatusLabel(row.status, isArabic)}
-                        </StatusBadge>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <StatusBadge status={clientOmsCommercialStatusBadgeKey(row.status)} isArabic={isArabic}>
+                            {clientOmsCommercialStatusLabel(row.status, isArabic)}
+                          </StatusBadge>
+                          {row.needsInformation ? (
+                            <StatusBadge status="failed delivery" isArabic={isArabic}>
+                              {t('Incomplete Order')}
+                            </StatusBadge>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="px-5 py-3.5 text-text-body">{row.recipientName || '—'}</td>
                       <td className="px-5 py-3.5 text-text-body">{row.city?.trim() || '—'}</td>
-                      <td className="px-5 py-3.5 text-text-body">{row.storeChannel || '—'}</td>
                       <td className="px-5 py-3.5 font-medium text-text-strong">
                         {row.total == null
                           ? '—'

@@ -33,6 +33,7 @@ let PdfService = PdfService_1 = class PdfService {
         dn: handlebars_1.default.compile((0, node_fs_1.readFileSync)((0, node_path_1.join)(this.templatesDir, 'dn.html'), 'utf8')),
         final_contract: handlebars_1.default.compile((0, node_fs_1.readFileSync)((0, node_path_1.join)(this.templatesDir, 'final-contract.html'), 'utf8')),
         invoice: handlebars_1.default.compile((0, node_fs_1.readFileSync)((0, node_path_1.join)(this.templatesDir, 'invoice.html'), 'utf8')),
+        api_docs: handlebars_1.default.compile((0, node_fs_1.readFileSync)((0, node_path_1.join)(this.templatesDir, 'api-docs.html'), 'utf8')),
     };
     buildFontFace() {
         try {

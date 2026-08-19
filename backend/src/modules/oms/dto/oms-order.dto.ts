@@ -17,6 +17,7 @@ import {
 import { OmsPaymentMethod } from '@prisma/client';
 
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
+import { IsRecipientName, IsRecipientPhone } from '../../../common/validators/is-recipient-contact';
 import { ShippingConfigDto } from '../../shipping/dto/shipping-config.dto';
 
 /** Treat empty string / null as omitted so optional UUID fields do not fail validation. */
@@ -81,10 +82,12 @@ export class CreateOmsOrderDto extends ShippingConfigDto {
 
   @IsOptional()
   @IsString()
+  @IsRecipientName()
   recipientName?: string;
 
   @IsOptional()
   @IsString()
+  @IsRecipientPhone()
   recipientPhone?: string;
 
   @IsOptional()
@@ -159,10 +162,12 @@ export class CreateOmsOrderDto extends ShippingConfigDto {
 export class UpdateOmsOrderDto extends ShippingConfigDto {
   @IsOptional()
   @IsString()
+  @IsRecipientName()
   recipientName?: string;
 
   @IsOptional()
   @IsString()
+  @IsRecipientPhone()
   recipientPhone?: string;
 
   @IsOptional()

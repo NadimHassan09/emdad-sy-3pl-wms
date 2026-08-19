@@ -17,7 +17,7 @@ const importPuppeteer = new Function('return import("puppeteer")') as () => Prom
   default: PuppeteerNode;
 }>;
 
-export type RenderableTemplate = 'grn' | 'dn' | 'final_contract' | 'invoice';
+export type RenderableTemplate = 'grn' | 'dn' | 'final_contract' | 'invoice' | 'api_docs';
 
 export interface RenderFooter {
   lang: DocLang;
@@ -62,6 +62,7 @@ export class PdfService implements OnModuleDestroy {
       readFileSync(join(this.templatesDir, 'final-contract.html'), 'utf8'),
     ),
     invoice: Handlebars.compile(readFileSync(join(this.templatesDir, 'invoice.html'), 'utf8')),
+    api_docs: Handlebars.compile(readFileSync(join(this.templatesDir, 'api-docs.html'), 'utf8')),
   };
 
   /** Cairo variable font covers both Arabic and Latin glyphs across all weights. */

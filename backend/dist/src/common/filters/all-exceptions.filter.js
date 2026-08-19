@@ -58,6 +58,7 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
             let message = exception.message;
             let details;
             let customCode;
+            let fields;
             if (typeof response === 'string') {
                 message = response;
             }
@@ -68,6 +69,12 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
                 if (typeof r.code === 'string' && r.code.trim()) {
                     customCode = r.code.trim();
                 }
+                if (r.fields && typeof r.fields === 'object' && !Array.isArray(r.fields)) {
+                    fields = r.fields;
+                }
+            }
+            if (!customCode && Array.isArray(message)) {
+                customCode = 'VALIDATION_ERROR';
             }
             return {
                 status,
@@ -76,6 +83,7 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
                     error: {
                         code: customCode ?? this.codeFromStatus(status),
                         message: this.sanitizeMessage(Array.isArray(message) ? message.join('; ') : message, isProd, status),
+                        ...(fields ? { fields } : {}),
                         ...(isProd ? {} : { details: this.sanitizeDetails(details) }),
                         ...(requestId ? { requestId } : {}),
                     },
@@ -241,7 +249,7 @@ let AllExceptionsFilter = AllExceptionsFilter_1 = class AllExceptionsFilter {
     }
     redact(input) {
         return input
-            .replace(/(password|token|secret|authorization)\s*[:=]\s*([^\s,;]+)/gi, '$1=[REDACTED]')
+            .replace(/(password|token|secret|authorization|api[_-]?secret|api[_-]?key)\s*[:=]\s*([^\s,;]+)/gi, '$1=[REDACTED]')
             .replace(/bearer\s+[a-z0-9\-._~+/]+=*/gi, 'bearer [REDACTED]');
     }
     isPgError(value) {

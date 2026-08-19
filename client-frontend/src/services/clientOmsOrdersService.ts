@@ -36,9 +36,11 @@ export interface CreateClientOmsOrderInput {
   requiredShipDate: string;
   recipientName?: string;
   recipientPhone?: string;
+  shippingPhoneCountry?: string;
   city?: string;
   district?: string;
   addressLine1?: string;
+  addressLine2?: string;
   notes?: string;
   storeChannel?: string;
   paymentMethod?: ClientOmsPaymentMethod;
@@ -63,6 +65,7 @@ export interface ClientOmsOrderListItem {
   linkedOutboundOrder?: { id: string; orderNumber: string; status: string } | null;
   createdAt: string;
   updatedAt: string;
+  needsInformation?: boolean;
 }
 
 export interface ClientOmsOrderPage {
@@ -116,6 +119,8 @@ export interface ClientOmsOrderDetail {
   approvedAt?: string | null;
   rejectedAt?: string | null;
   rejectionReason?: string | null;
+  needsInformation?: boolean;
+  importBatchId?: string | null;
   company?: { id: string; name: string } | null;
   linkedOutboundOrder?: { id: string; orderNumber: string; status: string } | null;
   warehouseStatus?: string | null;

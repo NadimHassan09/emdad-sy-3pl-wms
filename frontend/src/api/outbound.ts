@@ -319,6 +319,18 @@ export const OutboundApi = {
     );
     return data;
   },
+  async selectShippingMethod(
+    id: string,
+    body: { shippingMethod: string; shippingProviderCode?: string },
+    companyIdOverride?: string,
+  ): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/select-shipping-method`,
+      body,
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
   async saveShippingDetails(
     id: string,
     body: Omit<ShippingConfigPayload, 'shippingMethod' | 'shippingProviderCode'> & {

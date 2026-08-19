@@ -11,6 +11,9 @@ module.exports = {
       // Redis adapter is off — multi-instance breaks Socket.IO presence fan-out
       // and causes online/offline flapping + reconnect request storms.
       defaultInstances: 1,
+      env: {
+        PUPPETEER_CACHE_DIR: '/root/.cache/puppeteer',
+      },
     }),
   ],
 };

@@ -16,8 +16,7 @@ export type OmsTransitionAction =
   | 'mark_delivered'
   | 'delivery_revert'
   | 'failed_delivery'
-  | 'mark_returned'
-  | 'record_external_fulfillment';
+  | 'mark_returned';
 
 /** Primary commercial statuses written by the new state machine. */
 export const OMS_PRIMARY_STATUSES: ReadonlySet<OmsOrderStatus> = new Set([
@@ -115,12 +114,6 @@ const ALLOWED: Partial<Record<TransitionKey, OmsOrderStatus>> = {
     OmsOrderStatus.failed_delivery,
   [`${OmsOrderStatus.ready_to_ship}|failed_delivery|admin`]:
     OmsOrderStatus.failed_delivery,
-
-  // External fulfillment (commercial shipped without warehouse execution)
-  [`${OmsOrderStatus.processing}|record_external_fulfillment|admin`]:
-    OmsOrderStatus.shipped,
-  [`${OmsOrderStatus.pending}|record_external_fulfillment|admin`]:
-    OmsOrderStatus.shipped,
 
   // Full return after warehouse receive/complete
   [`${OmsOrderStatus.delivered}|mark_returned|system`]: OmsOrderStatus.returned,

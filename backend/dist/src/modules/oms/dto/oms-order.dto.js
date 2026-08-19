@@ -14,6 +14,7 @@ const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const client_1 = require("@prisma/client");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
+const is_recipient_contact_1 = require("../../../common/validators/is-recipient-contact");
 const shipping_config_dto_1 = require("../../shipping/dto/shipping-config.dto");
 function emptyToUndefined({ value }) {
     return value === '' || value === null ? undefined : value;
@@ -123,11 +124,13 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, is_recipient_contact_1.IsRecipientName)(),
     __metadata("design:type", String)
 ], CreateOmsOrderDto.prototype, "recipientName", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, is_recipient_contact_1.IsRecipientPhone)(),
     __metadata("design:type", String)
 ], CreateOmsOrderDto.prototype, "recipientPhone", void 0);
 __decorate([
@@ -239,11 +242,13 @@ exports.UpdateOmsOrderDto = UpdateOmsOrderDto;
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, is_recipient_contact_1.IsRecipientName)(),
     __metadata("design:type", String)
 ], UpdateOmsOrderDto.prototype, "recipientName", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, is_recipient_contact_1.IsRecipientPhone)(),
     __metadata("design:type", String)
 ], UpdateOmsOrderDto.prototype, "recipientPhone", void 0);
 __decorate([

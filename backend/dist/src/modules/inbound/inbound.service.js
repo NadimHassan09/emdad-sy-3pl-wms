@@ -233,7 +233,7 @@ let InboundService = class InboundService {
             return order;
         });
     }
-    async list(user, query) {
+    async buildListWhere(user, query) {
         const baseAnd = [];
         const where = {};
         const companyId = (0, company_read_scope_1.readCompanyIdCatalogFilter)(this.companyAccess, user, query.companyId);
@@ -272,6 +272,81 @@ let InboundService = class InboundService {
         }
         if (baseAnd.length > 0)
             where.AND = baseAnd;
+        return where;
+    }
+    async listForExport(user, query, opts) {
+        const where = await this.buildListWhere(user, query);
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const total = await tx.inboundOrder.count({ where });
+            const rows = await tx.inboundOrder.findMany({
+                where,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    company: { select: { id: true, name: true } },
+                    lines: {
+                        select: { expectedQuantity: true },
+                    },
+                },
+                take: opts.maxRows,
+            });
+            return {
+                items: rows,
+                total,
+                truncated: total > rows.length,
+            };
+        });
+    }
+    resolveImportCompanyId(user, companyId) {
+        return this.companyAccess.resolveWriteCompanyId(user, companyId);
+    }
+    async findByExternalReference(user, companyId, externalReference) {
+        this.companyAccess.assertCompanyAccess(user, companyId);
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => tx.inboundOrder.findFirst({
+            where: {
+                companyId,
+                externalReference: { equals: externalReference, mode: 'insensitive' },
+            },
+            select: { id: true, orderNumber: true },
+        }));
+    }
+    async findProductsBySkus(companyId, skus) {
+        const upper = skus.map((s) => s.trim().toUpperCase()).filter(Boolean);
+        if (upper.length === 0)
+            return [];
+        return this.prisma.product.findMany({
+            where: {
+                companyId,
+                OR: upper.map((sku) => ({ sku: { equals: sku, mode: 'insensitive' } })),
+            },
+            select: { id: true, sku: true, companyId: true, status: true, uom: true },
+        });
+    }
+    async assertImportCreateReady(user, dto) {
+        const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
+        await this.billingAccess.assertOperationalBilling(companyId);
+        (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(dto.expectedArrivalDate, 'Expected arrival date');
+        const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
+        const products = await this.prisma.product.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true, companyId: true, status: true, uom: true },
+        });
+        if (products.length !== productIds.length) {
+            throw new common_1.NotFoundException('One or more products not found.');
+        }
+        const wrongCompany = products.find((p) => p.companyId !== companyId);
+        if (wrongCompany) {
+            throw new common_1.BadRequestException('All line products must belong to the same company as the order.');
+        }
+        for (const p of products)
+            (0, assert_product_orderable_1.assertProductOrderableForOrders)(p.status);
+        const productById = new Map(products.map((p) => [p.id, p]));
+        for (const l of dto.lines) {
+            const p = productById.get(l.productId);
+            (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(p.uom, l.expectedQuantity, 'Expected quantity');
+        }
+    }
+    async list(user, query) {
+        const where = await this.buildListWhere(user, query);
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             const [items, total] = await Promise.all([
                 tx.inboundOrder.findMany({

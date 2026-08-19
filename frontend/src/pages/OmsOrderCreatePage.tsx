@@ -2,7 +2,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { Button, Textarea } from '@ds';
+import { Button, Textarea, InternationalPhoneInput, RecipientNameInput, createInternationalPhoneValue } from '@ds';
 
 import { CompaniesApi } from '../api/companies';
 import { InventoryApi } from '../api/inventory';
@@ -10,25 +10,23 @@ import type { CreateOmsOrderInput, OmsPaymentMethod } from '../api/oms';
 import { OmsApi } from '../api/oms';
 import type { Product } from '../api/products';
 import { ProductsApi } from '../api/products';
-import {
-  calculateOrderVolume,
-  calculateOrderWeight,
-  emptyOrderShippingFields,
-  orderShippingFieldsToPayload,
-  type OrderShippingFieldsValue,
-} from '../api/shipping';
 import { useAuth } from '../auth/AuthContext';
 import { CascadingAddressSelector } from '../components/CascadingAddressSelector';
 import { Combobox } from '../components/Combobox';
+import { DeliveryLocationMap } from '../components/DeliveryLocationMap';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
 import { SelectField } from '../components/SelectField';
-import { OrderShippingFields } from '../components/shipping/OrderShippingFields';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../lib/order-planning-dates';
 import { canAccessInternalTransfer } from '../lib/rbac';
+import {
+  DEFAULT_PHONE_COUNTRY,
+  isValidRecipientName,
+  phoneFromStoredValue,
+} from '../../../shared/lib/recipient-contact';
 import {
   clearListUiCache,
   readListUiCache,
@@ -47,14 +45,16 @@ type OmsCreateDraft = {
   shipDate: string;
   recipientName: string;
   recipientPhone: string;
+  recipientPhoneCountry?: string;
   city: string;
   district: string;
   addressLine1: string;
-  storeChannel: string;
+  addressLine2: string;
+  deliveryLat: string;
+  deliveryLng: string;
   paymentMethod: OmsPaymentMethod | '';
   notes: string;
   lines: DraftLine[];
-  shipping: OrderShippingFieldsValue;
 };
 
 const OMS_CREATE_DRAFT_KEY = 'form:/orders/oms/new';
@@ -98,20 +98,26 @@ export function OmsOrderCreatePage(): ReactElement {
     () => savedDraft?.shipDate || localCalendarDateYmd(),
   );
   const [recipientName, setRecipientName] = useState(savedDraft?.recipientName ?? '');
-  const [recipientPhone, setRecipientPhone] = useState(savedDraft?.recipientPhone ?? '');
+  const [recipientPhone, setRecipientPhone] = useState(() => {
+    const stored = phoneFromStoredValue(
+      savedDraft?.recipientPhone,
+      savedDraft?.recipientPhoneCountry,
+    );
+    return createInternationalPhoneValue(stored.countryIso, stored.nationalNumber);
+  });
+  const [contactSubmitted, setContactSubmitted] = useState(false);
   const [city, setCity] = useState(savedDraft?.city ?? '');
   const [district, setDistrict] = useState(savedDraft?.district ?? '');
   const [addressLine1, setAddressLine1] = useState(savedDraft?.addressLine1 ?? '');
-  const [storeChannel, setStoreChannel] = useState(savedDraft?.storeChannel ?? '');
+  const [addressLine2, setAddressLine2] = useState(savedDraft?.addressLine2 ?? '');
+  const [deliveryLat, setDeliveryLat] = useState(savedDraft?.deliveryLat ?? '');
+  const [deliveryLng, setDeliveryLng] = useState(savedDraft?.deliveryLng ?? '');
   const [paymentMethod, setPaymentMethod] = useState<OmsPaymentMethod | ''>(
     savedDraft?.paymentMethod ?? '',
   );
   const [notes, setNotes] = useState(savedDraft?.notes ?? '');
   const [lines, setLines] = useState<DraftLine[]>(
     savedDraft?.lines?.length ? savedDraft.lines : [emptyLine()],
-  );
-  const [shipping, setShipping] = useState<OrderShippingFieldsValue>(
-    savedDraft?.shipping ?? emptyOrderShippingFields(),
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -255,53 +261,6 @@ export function OmsOrderCreatePage(): ReactElement {
     }, 0);
   }, [lines]);
 
-  const hasProductQuantities = totalItems > 0;
-
-  const calculatedWeightKg = useMemo(
-    () =>
-      calculateOrderWeight(
-        lines.map((l) => ({ productId: l.productId, requestedQuantity: l.requestedQuantity })),
-        activeProducts.map((p) => ({ id: p.id, weightKg: p.weightKg })),
-      ),
-    [lines, activeProducts],
-  );
-
-  const calculatedVolumeCbm = useMemo(
-    () =>
-      calculateOrderVolume(
-        lines.map((l) => ({ productId: l.productId, requestedQuantity: l.requestedQuantity })),
-        activeProducts.map((p) => {
-          const l = Number(p.lengthCm);
-          const w = Number(p.widthCm);
-          const h = Number(p.heightCm);
-          const volumeCbm =
-            Number.isFinite(l) && Number.isFinite(w) && Number.isFinite(h) && l > 0 && w > 0 && h > 0
-              ? Math.round(((l * w * h) / 1_000_000) * 1_000_000) / 1_000_000
-              : null;
-          return { id: p.id, volumeCbm };
-        }),
-      ),
-    [lines, activeProducts],
-  );
-
-  const suggestedContents = useMemo(() => {
-    const names = lines
-      .filter((l) => l.productId && Number(l.requestedQuantity) > 0)
-      .map((l) => productById.get(l.productId)?.name)
-      .filter((n): n is string => Boolean(n));
-    return names.length ? names.join(', ') : '';
-  }, [lines, productById]);
-
-  useEffect(() => {
-    if (!suggestedContents) return;
-    setShipping((prev) => {
-      if (prev.shippingContents.trim() && prev.shippingContents !== suggestedContents) {
-        return prev;
-      }
-      if (prev.shippingContents === suggestedContents) return prev;
-      return { ...prev, shippingContents: suggestedContents };
-    });
-  }, [suggestedContents]);
 
   const addLine = () => {
     if (!canAddLine) {
@@ -328,15 +287,17 @@ export function OmsOrderCreatePage(): ReactElement {
       companyId,
       shipDate,
       recipientName,
-      recipientPhone,
+      recipientPhone: recipientPhone.e164 || recipientPhone.nationalNumber,
+      recipientPhoneCountry: recipientPhone.countryIso,
       city,
       district,
       addressLine1,
-      storeChannel,
+      addressLine2,
+      deliveryLat,
+      deliveryLng,
       paymentMethod,
       notes,
       lines,
-      shipping,
     });
   }, [
     companyId,
@@ -346,15 +307,25 @@ export function OmsOrderCreatePage(): ReactElement {
     city,
     district,
     addressLine1,
-    storeChannel,
+    addressLine2,
+    deliveryLat,
+    deliveryLng,
     paymentMethod,
     notes,
     lines,
-    shipping,
   ]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
+    setContactSubmitted(true);
+    if (!isValidRecipientName(recipientName)) {
+      setError('Name can only contain Arabic or English letters and spaces.');
+      return;
+    }
+    if (!recipientPhone.isEmpty && !recipientPhone.isValid) {
+      setError('Please enter a valid phone number.');
+      return;
+    }
     if (!effectiveCompanyId) {
       setError('Pick a client.');
       return;
@@ -394,34 +365,25 @@ export function OmsOrderCreatePage(): ReactElement {
       setError('Add at least one line with quantity and price.');
       return;
     }
-    if (isAdmin && shipping.shippingMethod === 'carrier') {
-      if (!shipping.shippingReceiverLat.trim() || !shipping.shippingReceiverLng.trim()) {
-        setError('Place the receiver pin inside the highlighted delivery area.');
-        return;
-      }
-      if (!shipping.shippingProviderCode.trim()) {
-        setError('Select an available shipping company.');
-        return;
-      }
-    }
-
     setError(null);
     createMut.mutate({
       companyId: effectiveCompanyId,
       requiredShipDate: shipDate,
       recipientName: recipientName.trim() || undefined,
-      recipientPhone: recipientPhone.trim() || undefined,
+      recipientPhone: recipientPhone.e164 || undefined,
       city: city.trim() || undefined,
       district: district.trim() || undefined,
       addressLine1: addressLine1.trim() || undefined,
+      addressLine2: addressLine2.trim() || undefined,
+      shippingReceiverLat: deliveryLat.trim() ? Number(deliveryLat) : undefined,
+      shippingReceiverLng: deliveryLng.trim() ? Number(deliveryLng) : undefined,
       notes: notes.trim() || undefined,
-      storeChannel: storeChannel.trim() || undefined,
       paymentMethod: paymentMethod || undefined,
       subtotal: linesSum,
       codAmount: paymentMethod === 'COD' ? linesSum : undefined,
       currency: 'USD',
       lines: payloadLines,
-      ...(isAdmin ? orderShippingFieldsToPayload(shipping) : {}),
+      shippingPhoneCountry: recipientPhone.countryIso || undefined,
     });
   };
 
@@ -473,17 +435,19 @@ export function OmsOrderCreatePage(): ReactElement {
         <section className="space-y-5">
           <SectionHeading title="Shipping information" />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <TextField
+            <RecipientNameInput
               label="Recipient name"
               value={recipientName}
-              onChange={(e) => setRecipientName(e.target.value)}
+              onChange={setRecipientName}
               disabled={loading}
+              submitted={contactSubmitted}
             />
-            <TextField
+            <InternationalPhoneInput
               label="Recipient phone"
               value={recipientPhone}
-              onChange={(e) => setRecipientPhone(e.target.value)}
+              onChange={setRecipientPhone}
               disabled={loading}
+              submitted={contactSubmitted}
             />
             <CascadingAddressSelector
               value={{ city, district, addressLine1 }}
@@ -500,7 +464,32 @@ export function OmsOrderCreatePage(): ReactElement {
               addressLine1Placeholder="Select or type town/neighborhood…"
               disabled={loading}
             />
+            <TextField
+              label="Street / Detailed Address"
+              value={addressLine2}
+              onChange={(e) => setAddressLine2(e.target.value)}
+              disabled={loading}
+              placeholder="Street name, building, floor…"
+              className="md:col-span-2"
+            />
           </div>
+          <DeliveryLocationMap
+            lat={deliveryLat}
+            lng={deliveryLng}
+            onChange={({ lat, lng }) => {
+              setDeliveryLat(lat);
+              setDeliveryLng(lng);
+            }}
+            disabled={loading}
+            governorate={city}
+            city={district}
+            neighborhood={addressLine1}
+            street={addressLine2}
+            onRemovePin={() => {
+              setDeliveryLat('');
+              setDeliveryLng('');
+            }}
+          />
         </section>
 
         <section className="space-y-5">
@@ -513,12 +502,6 @@ export function OmsOrderCreatePage(): ReactElement {
               min={localCalendarDateYmd()}
               value={shipDate}
               onChange={(e) => setShipDate(e.target.value)}
-              disabled={loading}
-            />
-            <TextField
-              label="Sales channel"
-              value={storeChannel}
-              onChange={(e) => setStoreChannel(e.target.value)}
               disabled={loading}
             />
             <SelectField
@@ -711,33 +694,6 @@ export function OmsOrderCreatePage(): ReactElement {
             </p>
           </div>
         </section>
-
-        {isAdmin ? (
-          <section className="space-y-5">
-            <SectionHeading title="Shipping" />
-            {!hasProductQuantities ? (
-              <p className="rounded-lg border border-border-subtle bg-surface-sunken px-3 py-2 text-sm text-text-body">
-                Add products and their quantities first. The shipping company form (weight,
-                volume, package type, contents, etc.) appears here after that.
-              </p>
-            ) : (
-              <OrderShippingFields
-                value={shipping}
-                onChange={setShipping}
-                showTitle={false}
-                disabled={loading}
-                suggestedWeightKg={calculatedWeightKg}
-                suggestedVolumeCbm={calculatedVolumeCbm}
-                destination={{
-                  governorate: city,
-                  city: district,
-                  neighborhood: addressLine1,
-                }}
-                codAmount={paymentMethod === 'COD' ? linesSum : null}
-              />
-            )}
-          </section>
-        ) : null}
 
         <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border-subtle pt-6">
           <Button

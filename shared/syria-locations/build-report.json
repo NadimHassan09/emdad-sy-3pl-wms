@@ -1,0 +1,181 @@
+{
+  "builtAt": "2026-08-18T06:46:08.872409+00:00",
+  "countryConstraint": "SY",
+  "rejectedNonSyriaFeatures": 0,
+  "sources": [
+    {
+      "name": "OCHA Syria COD-AB (HDX)",
+      "dataset": "cod-ab-syr",
+      "version": "v02",
+      "validOn": "2020-12-17",
+      "fileDate": "2026-01-26",
+      "reviewed": "2024-04-01",
+      "url": "https://data.humdata.org/dataset/cod-ab-syr",
+      "levels": {
+        "ADM1": "Governorate (محافظة) — 14",
+        "ADM2": "District (منطقة) — 62 — NOT used as City/Area",
+        "ADM3": "Sub-district / nahiya (ناحية) — used as City/Area",
+        "neighborhoods": "Official urban neighborhood polygons — 414",
+        "populatedPlaces": "Communities / villages (ADM4) — used as Neighborhood when no urban hayy list"
+      }
+    },
+    {
+      "name": "Existing production OMS location JSON",
+      "snapshot": "shared/syria-locations/snapshots/syria-address-hierarchy.pre-sprint3.json",
+      "role": "Aliases + additive neighborhoods already used in production; not rewritten on old orders"
+    },
+    {
+      "name": "GeoNames SY dump",
+      "role": "Compared for ADM semantics only; not imported as new places (would duplicate COD PPL)",
+      "url": "https://download.geonames.org/export/dump/SY.zip",
+      "date": "2026-08-18"
+    },
+    {
+      "name": "geoBoundaries SYR",
+      "role": "Confirmed ADM1=Governorate, ADM2=District, ADM3=sub-district",
+      "boundaryYearRepresented": "2017",
+      "buildDate": "Dec 12, 2023"
+    }
+  ],
+  "semantics": {
+    "governorate": "COD ADM1",
+    "cityArea": "COD ADM3 nahiya (not ADM2 district)",
+    "neighborhood": "COD urban neighborhoods + COD populated-place communities under that ADM3",
+    "notMapped": "ADM2 district is skipped because the product hierarchy is 3 levels and last-mile delivery uses nahiya/hayy"
+  },
+  "counts": {
+    "governorates": 14,
+    "citiesAreas": 272,
+    "neighborhoods": 8100,
+    "citiesWithZeroNeighborhoods": 2,
+    "missingGovernorateCoordinates": 0,
+    "missingCityCoordinates": 0,
+    "missingNeighborhoodCoordinates": 111,
+    "orphanCities": 0,
+    "orphanNeighborhoods": 0,
+    "rejectedNonSyriaFeatures": 0,
+    "unmatchedExistingCities": [],
+    "existingOnlyNeighborhoodsPreserved": 226
+  },
+  "preSprint3": {
+    "governorates": 10,
+    "citiesAreas": 212,
+    "neighborhoods": 5319,
+    "missingGovernoratesAdded": [
+      "الحسكة",
+      "الرقة",
+      "السويداء",
+      "دير الزور"
+    ]
+  },
+  "emptyCityChildren": [
+    [
+      "القنيطرة",
+      "البطيحة"
+    ],
+    [
+      "القنيطرة",
+      "مسعدة"
+    ]
+  ],
+  "governorates": [
+    {
+      "nameAr": "إدلب",
+      "nameEn": "Idleb",
+      "pcode": "SY07",
+      "cities": 26,
+      "neighborhoods": 681
+    },
+    {
+      "nameAr": "الحسكة",
+      "nameEn": "Al-Hasakeh",
+      "pcode": "SY08",
+      "cities": 16,
+      "neighborhoods": 1500
+    },
+    {
+      "nameAr": "الرقة",
+      "nameEn": "Ar-Raqqa",
+      "pcode": "SY11",
+      "cities": 10,
+      "neighborhoods": 676
+    },
+    {
+      "nameAr": "السويداء",
+      "nameEn": "As-Sweida",
+      "pcode": "SY13",
+      "cities": 12,
+      "neighborhoods": 150
+    },
+    {
+      "nameAr": "القنيطرة",
+      "nameEn": "Quneitra",
+      "pcode": "SY14",
+      "cities": 6,
+      "neighborhoods": 61
+    },
+    {
+      "nameAr": "اللاذقية",
+      "nameEn": "Lattakia",
+      "pcode": "SY06",
+      "cities": 22,
+      "neighborhoods": 482
+    },
+    {
+      "nameAr": "حلب",
+      "nameEn": "Aleppo",
+      "pcode": "SY02",
+      "cities": 40,
+      "neighborhoods": 2000
+    },
+    {
+      "nameAr": "حماة",
+      "nameEn": "Hama",
+      "pcode": "SY05",
+      "cities": 22,
+      "neighborhoods": 697
+    },
+    {
+      "nameAr": "حمص",
+      "nameEn": "Homs",
+      "pcode": "SY04",
+      "cities": 23,
+      "neighborhoods": 620
+    },
+    {
+      "nameAr": "درعا",
+      "nameEn": "Dar'a",
+      "pcode": "SY12",
+      "cities": 17,
+      "neighborhoods": 194
+    },
+    {
+      "nameAr": "دمشق",
+      "nameEn": "Damascus",
+      "pcode": "SY01",
+      "cities": 1,
+      "neighborhoods": 124
+    },
+    {
+      "nameAr": "دير الزور",
+      "nameEn": "Deir-ez-Zor",
+      "pcode": "SY09",
+      "cities": 14,
+      "neighborhoods": 214
+    },
+    {
+      "nameAr": "ريف دمشق",
+      "nameEn": "Rural Damascus",
+      "pcode": "SY03",
+      "cities": 36,
+      "neighborhoods": 240
+    },
+    {
+      "nameAr": "طرطوس",
+      "nameEn": "Tartous",
+      "pcode": "SY10",
+      "cities": 27,
+      "neighborhoods": 461
+    }
+  ]
+}

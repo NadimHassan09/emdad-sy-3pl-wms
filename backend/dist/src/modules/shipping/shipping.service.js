@@ -333,7 +333,15 @@ let ShippingService = ShippingService_1 = class ShippingService {
             where: { id: outboundOrderId },
             include: {
                 lines: { include: { product: { select: { weightKg: true } } } },
-                omsOrder: { select: { orderNumber: true, id: true, trackingNumber: true, carrier: true } },
+                omsOrder: {
+                    select: {
+                        orderNumber: true,
+                        id: true,
+                        trackingNumber: true,
+                        carrier: true,
+                        status: true,
+                    },
+                },
             },
         });
         if (!order) {
@@ -341,6 +349,32 @@ let ShippingService = ShippingService_1 = class ShippingService {
             return;
         }
         if (order.shippingMethod !== client_1.ShippingMethod.carrier) {
+            return;
+        }
+        const blockedOutbound = new Set([
+            'externally_fulfilled',
+            'shipped',
+            'cancelled',
+            'delivered',
+            'returned',
+        ]);
+        if (blockedOutbound.has(order.status)) {
+            this.logger.log(`ensureShipmentForOutbound: skip carrier for outbound ${outboundOrderId} status=${order.status}`);
+            return;
+        }
+        const omsStatus = order.omsOrder?.status;
+        if (omsStatus &&
+            [
+                'shipped',
+                'out_for_delivery',
+                'delivered',
+                'returned',
+                'cancelled',
+                'failed_delivery',
+                'completed',
+                'rejected',
+            ].includes(omsStatus)) {
+            this.logger.log(`ensureShipmentForOutbound: skip carrier; OMS ${omsStatus} blocks warehouse handoff for ${outboundOrderId}`);
             return;
         }
         const existingCreated = await this.prisma.carrierShipment.findFirst({

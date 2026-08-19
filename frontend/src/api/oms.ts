@@ -217,6 +217,8 @@ export interface OmsOrderListItem {
   total?: string | null;
   currency?: string | null;
   outboundOrderId?: string | null;
+  needsInformation?: boolean;
+  importBatchId?: string | null;
   linkedOutboundOrder?: LinkedOutboundSummary | null;
   createdAt: string;
   updatedAt: string;
@@ -690,5 +692,29 @@ export const OmsReturnsApi = {
 
   reject(id: string, reason?: string) {
     return api.post<OmsReturn>(`/oms/returns/${id}/reject`, { reason }).then((r) => r.data);
+  },
+
+  expressReturn(input: { omsOrderIds: string[]; reason?: string }) {
+    return api.post<{
+      created: Array<{ omsOrderId: string; orderNumber: string; returnId: string; returnNumber: string }>;
+      failed: Array<{ omsOrderId: string; orderNumber?: string; error: string }>;
+    }>('/oms/returns/express', input).then((r) => r.data);
+  },
+
+  validateForExpress(input: { omsOrderIds: string[] }) {
+    return api.post<Array<{
+      omsOrderId: string;
+      orderNumber: string;
+      eligible: boolean;
+      error?: string;
+      lines?: Array<{
+        productId: string;
+        productName: string;
+        productSku: string;
+        ordered: number;
+        alreadyReturned: number;
+        returnable: number;
+      }>;
+    }>>('/oms/returns/express/validate', input).then((r) => r.data);
   },
 };

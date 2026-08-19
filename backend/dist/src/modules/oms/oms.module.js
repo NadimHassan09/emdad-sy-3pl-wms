@@ -17,6 +17,7 @@ const shipping_module_1 = require("../shipping/shipping.module");
 const oms_controller_1 = require("./oms.controller");
 const oms_dashboard_service_1 = require("./oms-dashboard.service");
 const oms_order_events_service_1 = require("./oms-order-events.service");
+const oms_orders_csv_service_1 = require("./oms-orders-csv.service");
 const oms_orders_service_1 = require("./oms-orders.service");
 const oms_outbound_sync_service_1 = require("./oms-outbound-sync.service");
 const oms_sales_channel_service_1 = require("./sales-channels/oms-sales-channel.service");
@@ -41,6 +42,7 @@ exports.OmsModule = OmsModule = __decorate([
             oms_order_events_service_1.OmsOrderEventsService,
             oms_outbound_sync_service_1.OmsOutboundSyncService,
             oms_orders_service_1.OmsOrdersService,
+            oms_orders_csv_service_1.OmsOrdersCsvService,
             oms_dashboard_service_1.OmsDashboardService,
             oms_sales_channel_service_1.OmsSalesChannelService,
         ],

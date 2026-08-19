@@ -42,6 +42,7 @@ exports.PdfModule = PdfModule = __decorate([
             final_contract_pdf_service_1.FinalContractPdfService,
             invoice_pdf_service_1.InvoicePdfService,
             documents_service_1.DocumentsService,
+            pdf_service_1.PdfService,
         ],
     })
 ], PdfModule);

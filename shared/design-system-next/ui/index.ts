@@ -81,6 +81,10 @@ export { TextField } from './TextField';
 export { SelectField } from './SelectField';
 export { Combobox } from './Combobox';
 export type { ComboboxOption } from './Combobox';
+export { InternationalPhoneInput, createInternationalPhoneValue } from './InternationalPhoneInput';
+export type { InternationalPhoneInputProps, InternationalPhoneValue } from './InternationalPhoneInput';
+export { RecipientNameInput } from './RecipientNameInput';
+export type { RecipientNameInputProps } from './RecipientNameInput';
 
 // Display
 export { Badge } from './Badge';

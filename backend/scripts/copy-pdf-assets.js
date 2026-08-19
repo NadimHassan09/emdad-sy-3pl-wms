@@ -26,3 +26,10 @@ function copyDir(src, dest) {
 for (const [srcRel, destRel] of pairs) {
   copyDir(path.join(root, srcRel), path.join(root, destRel));
 }
+
+const jsonSrc = path.join(root, 'src/modules/client-portal/external-api/syria-address-hierarchy.json');
+const jsonDestDir = path.join(root, 'dist/src/modules/client-portal/external-api');
+if (fs.existsSync(jsonSrc)) {
+  fs.mkdirSync(jsonDestDir, { recursive: true });
+  fs.copyFileSync(jsonSrc, path.join(jsonDestDir, 'syria-address-hierarchy.json'));
+}

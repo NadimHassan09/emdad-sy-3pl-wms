@@ -34,6 +34,22 @@ export class OmsReturnsController {
     return this.returns.create(user, dto);
   }
 
+  @Post('express')
+  expressReturn(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() body: { omsOrderIds: string[]; reason?: string },
+  ) {
+    return this.returns.expressReturn(user, body);
+  }
+
+  @Post('express/validate')
+  validateExpressReturn(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() body: { omsOrderIds: string[] },
+  ) {
+    return this.returns.validateOrdersForExpressReturn(user, body);
+  }
+
   @Get(':id')
   findOne(
     @CurrentUser() user: AuthPrincipal,

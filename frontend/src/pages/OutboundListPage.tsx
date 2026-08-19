@@ -224,6 +224,7 @@ export function OutboundListPage() {
       { value: 'confirmed', label: t('Confirmed') },
       { value: 'picking', label: t('Picking') },
       { value: 'packing', label: t('Packing') },
+      { value: 'waiting_for_shipping_method', label: t('Waiting for Shipping Method') },
       { value: 'waiting_for_shipping_details', label: t('Waiting for Shipping Details') },
       { value: 'ready_to_ship', label: t('Waiting for Dispatch') },
       { value: 'shipped', label: t('Shipped') },

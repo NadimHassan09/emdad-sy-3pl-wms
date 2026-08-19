@@ -466,7 +466,7 @@ export class TaskInventoryEffectsService {
     });
 
     const nextStatus =
-      order?.requiresPacking === false ? 'waiting_for_shipping_details' : 'packing';
+      order?.requiresPacking === false ? 'waiting_for_shipping_method' : 'packing';
     await tx.outboundOrder.update({
       where: { id: orderId },
       data: { status: nextStatus },
@@ -603,7 +603,7 @@ export class TaskInventoryEffectsService {
     }
     await tx.outboundOrder.update({
       where: { id: outboundOrderId },
-      data: { status: 'waiting_for_shipping_details' },
+      data: { status: 'waiting_for_shipping_method' },
     });
     await this.omsSync?.syncFromOutbound(tx, outboundOrderId);
   }

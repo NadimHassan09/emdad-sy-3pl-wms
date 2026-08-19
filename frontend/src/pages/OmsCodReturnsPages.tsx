@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { Badge, AdvancedFilterSection, countNonEmptyFilters } from '@ds';
@@ -7,6 +7,9 @@ import type { Tone } from '@ds';
 import type { CodRecord, CodRecordStatus, OmsReturn } from '../api/oms';
 import { CodApi, OmsReturnsApi } from '../api/oms';
 import { AdminListPageShell } from '../components/AdminListPageShell';
+import { Button } from '../components/Button';
+import { CreateOmsReturnModal } from '../components/oms/CreateOmsReturnModal';
+import { ExpressReturnModal } from '../components/oms/ExpressReturnModal';
 import { Column, DataTable } from '../components/DataTable';
 import { useToast } from '../components/ToastProvider';
 import {
@@ -305,6 +308,8 @@ export function OmsCodPage() {
 export function OmsReturnsPage() {
   const isArabic = useIsArabic();
   const navigate = useNavigate();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [expressOpen, setExpressOpen] = useState(false);
 
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters({
@@ -391,7 +396,29 @@ export function OmsReturnsPage() {
       }
       isArabic={isArabic}
       showSectionNav
+      actions={
+        <div className="flex gap-2">
+          <Button variant="primary" onClick={() => setCreateOpen(true)}>
+            {isArabic ? 'إنشاء مرتجع' : 'Create Return'}
+          </Button>
+          <Button variant="primary" onClick={() => setExpressOpen(true)}>
+            {isArabic ? 'مرتجع سريع' : 'Express Return'}
+          </Button>
+        </div>
+      }
     >
+      <CreateOmsReturnModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        isArabic={isArabic}
+        onSuccess={(created) => navigate(`/oms/returns/${created.id}`)}
+      />
+      <ExpressReturnModal
+        open={expressOpen}
+        onClose={() => setExpressOpen(false)}
+        isArabic={isArabic}
+        onSuccess={() => { pagination.refetch?.(); }}
+      />
       <AdvancedFilterSection
         advancedOpen={advancedOpen}
         onAdvancedOpenChange={setAdvancedOpen}

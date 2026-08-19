@@ -29,6 +29,12 @@ let OmsReturnsController = class OmsReturnsController {
     create(user, dto) {
         return this.returns.create(user, dto);
     }
+    expressReturn(user, body) {
+        return this.returns.expressReturn(user, body);
+    }
+    validateExpressReturn(user, body) {
+        return this.returns.validateOrdersForExpressReturn(user, body);
+    }
     findOne(user, id) {
         return this.returns.findById(id, user);
     }
@@ -65,6 +71,22 @@ __decorate([
     __metadata("design:paramtypes", [Object, oms_return_dto_1.CreateOmsReturnDto]),
     __metadata("design:returntype", void 0)
 ], OmsReturnsController.prototype, "create", null);
+__decorate([
+    (0, common_1.Post)('express'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], OmsReturnsController.prototype, "expressReturn", null);
+__decorate([
+    (0, common_1.Post)('express/validate'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], OmsReturnsController.prototype, "validateExpressReturn", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

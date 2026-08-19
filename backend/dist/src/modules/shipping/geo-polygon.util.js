@@ -3,7 +3,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.pointInGeoJson = pointInGeoJson;
 exports.bboxToPolygon = bboxToPolygon;
 exports.parseNominatimBoundingBox = parseNominatimBoundingBox;
+exports.haversineDistanceKm = haversineDistanceKm;
+exports.pointInCircle = pointInCircle;
+exports.clampPointToCircle = clampPointToCircle;
+exports.circleToPolygon = circleToPolygon;
 exports.geometryBbox = geometryBbox;
+exports.bboxCentroid = bboxCentroid;
 function ringContains(ring, lng, lat) {
     let inside = false;
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
@@ -68,6 +73,74 @@ function parseNominatimBoundingBox(raw) {
         return null;
     return { south, north, west, east };
 }
+const EARTH_RADIUS_KM = 6371;
+function toRad(deg) {
+    return (deg * Math.PI) / 180;
+}
+function toDeg(rad) {
+    return (rad * 180) / Math.PI;
+}
+function bearingRad(from, to) {
+    const φ1 = toRad(from.lat);
+    const φ2 = toRad(to.lat);
+    const Δλ = toRad(to.lng - from.lng);
+    const y = Math.sin(Δλ) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+    return Math.atan2(y, x);
+}
+function destinationAlongBearing(center, bearing, distanceKm) {
+    const δ = distanceKm / EARTH_RADIUS_KM;
+    const φ1 = toRad(center.lat);
+    const λ1 = toRad(center.lng);
+    const sinφ1 = Math.sin(φ1);
+    const cosφ1 = Math.cos(φ1);
+    const sinδ = Math.sin(δ);
+    const cosδ = Math.cos(δ);
+    const φ2 = Math.asin(sinφ1 * cosδ + cosφ1 * sinδ * Math.cos(bearing));
+    const λ2 = λ1 + Math.atan2(Math.sin(bearing) * sinδ * cosφ1, cosδ - sinφ1 * Math.sin(φ2));
+    return { lat: toDeg(φ2), lng: toDeg(λ2) };
+}
+function haversineDistanceKm(a, b) {
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const h = Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+    return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+function pointInCircle(center, point, radiusKm) {
+    if (!Number.isFinite(center.lat) ||
+        !Number.isFinite(center.lng) ||
+        !Number.isFinite(point.lat) ||
+        !Number.isFinite(point.lng) ||
+        !Number.isFinite(radiusKm) ||
+        radiusKm <= 0) {
+        return false;
+    }
+    return haversineDistanceKm(center, point) <= radiusKm + 1e-9;
+}
+function clampPointToCircle(center, point, radiusKm) {
+    if (pointInCircle(center, point, radiusKm))
+        return point;
+    const dist = haversineDistanceKm(center, point);
+    if (!Number.isFinite(dist) || dist <= 0)
+        return center;
+    return destinationAlongBearing(center, bearingRad(center, point), radiusKm * 0.999);
+}
+function circleToPolygon(center, radiusKm, points = 64) {
+    const coords = [];
+    const latRad = (center.lat * Math.PI) / 180;
+    const degLat = radiusKm / 110.574;
+    const degLng = radiusKm / (111.32 * Math.cos(latRad) || 1);
+    for (let i = 0; i <= points; i++) {
+        const angle = (2 * Math.PI * i) / points;
+        const lat = center.lat + degLat * Math.sin(angle);
+        const lng = center.lng + degLng * Math.cos(angle);
+        coords.push([lng, lat]);
+    }
+    return { type: 'Polygon', coordinates: [coords] };
+}
 function geometryBbox(geometry) {
     const pts = [];
     const walk = (c) => {
@@ -98,5 +171,11 @@ function geometryBbox(geometry) {
             east = lng;
     }
     return { south, north, west, east };
+}
+function bboxCentroid(bbox) {
+    return {
+        lat: (bbox.south + bbox.north) / 2,
+        lng: (bbox.west + bbox.east) / 2,
+    };
 }
 //# sourceMappingURL=geo-polygon.util.js.map

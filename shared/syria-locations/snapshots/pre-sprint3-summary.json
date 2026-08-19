@@ -1,0 +1,19 @@
+{
+  "snapshotAt": "2026-08-18T06:31:42.503981+00:00",
+  "source": "/var/www/emdad-sy-3pl-wms/shared/syria-locations/snapshots/syria-address-hierarchy.pre-sprint3.json",
+  "governorates": 10,
+  "citiesAreas": 212,
+  "neighborhoods": 5319,
+  "governorateNames": [
+    "إدلب",
+    "القنيطرة",
+    "اللاذقية",
+    "حلب",
+    "حماة",
+    "حمص",
+    "درعا",
+    "دمشق",
+    "ريف دمشق",
+    "طرطوس"
+  ]
+}

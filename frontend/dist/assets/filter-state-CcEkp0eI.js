@@ -1,0 +1,1 @@
+function f(i,e){if(!i)return 0;const o=e?e.map(n=>[n,i[n]]):Object.entries(i);let t=0;for(const[,n]of o)if(n!=null){if(typeof n=="boolean"){n&&(t+=1);continue}if(typeof n=="number"){Number.isFinite(n)&&(t+=1);continue}String(n).trim()&&(t+=1)}return t}export{f as c};

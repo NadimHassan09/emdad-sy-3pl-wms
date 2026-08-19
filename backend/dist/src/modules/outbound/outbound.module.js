@@ -15,6 +15,7 @@ const shipping_module_1 = require("../shipping/shipping.module");
 const warehouse_workflow_module_1 = require("../warehouse-workflow/warehouse-workflow.module");
 const billing_module_1 = require("../billing/billing.module");
 const outbound_controller_1 = require("./outbound.controller");
+const outbound_orders_csv_service_1 = require("./outbound-orders-csv.service");
 const outbound_service_1 = require("./outbound.service");
 let OutboundModule = class OutboundModule {
 };
@@ -30,7 +31,7 @@ exports.OutboundModule = OutboundModule = __decorate([
             (0, common_1.forwardRef)(() => shipping_module_1.ShippingModule),
         ],
         controllers: [outbound_controller_1.OutboundController],
-        providers: [outbound_service_1.OutboundService],
+        providers: [outbound_service_1.OutboundService, outbound_orders_csv_service_1.OutboundOrdersCsvService],
         exports: [outbound_service_1.OutboundService],
     })
 ], OutboundModule);

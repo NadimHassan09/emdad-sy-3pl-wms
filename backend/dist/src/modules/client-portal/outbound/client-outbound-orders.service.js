@@ -60,6 +60,9 @@ let ClientOutboundOrdersService = class ClientOutboundOrdersService {
     async create(client, dto) {
         return this.outbound.create((0, client_auth_principal_1.clientAuthPrincipal)(client), { ...dto, executionMode: 'admin', executionPlan: undefined }, { pendingClientApproval: true });
     }
+    async findByExternalReference(client, externalReference) {
+        return this.outbound.findByExternalReference((0, client_auth_principal_1.clientAuthPrincipal)(client), client.companyId, externalReference);
+    }
 };
 exports.ClientOutboundOrdersService = ClientOutboundOrdersService;
 exports.ClientOutboundOrdersService = ClientOutboundOrdersService = __decorate([

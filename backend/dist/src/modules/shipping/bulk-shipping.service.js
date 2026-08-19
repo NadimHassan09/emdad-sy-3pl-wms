@@ -119,7 +119,7 @@ let BulkShippingService = BulkShippingService_1 = class BulkShippingService {
                 companyName: order.company?.name ?? null,
                 weightKg: order.shippingWeightKg != null ? Number(order.shippingWeightKg) : null,
                 volumeCbm: order.shippingVolumeCbm != null ? Number(order.shippingVolumeCbm) : null,
-                currentMethod: order.shippingMethod,
+                currentMethod: order.shippingMethod ?? client_1.ShippingMethod.manual,
                 currentProviderCode: order.shippingProviderCode,
                 quotes,
                 recommendedProviderCode: recommended?.providerCode ?? null,

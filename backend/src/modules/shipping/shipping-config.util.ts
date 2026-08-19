@@ -7,6 +7,11 @@ import {
   ShippingPickupType,
 } from '@prisma/client';
 
+import {
+  callingCodeForIso,
+  isoFromCountryHint,
+} from '../../common/validators/recipient-contact';
+
 export const SHIPPING_LOCKED_STATUSES = new Set([
   'ready_to_ship',
   'shipped',
@@ -117,12 +122,12 @@ export function assertCarrierShippingReady(fields: ShippingConfigFields): void {
   }
 }
 
-/** Dial code like 963 (or SY → 963). Rejects amounts mistaken for country codes. */
+/** Dial code like 963 (or SY / EG → calling code). Rejects amounts mistaken for country codes. */
 export function assertShippingPhoneCountry(raw: string): void {
   const normalized = normalizeShippingPhoneCountry(raw);
   if (!normalized) {
     throw new BadRequestException(
-      'Phone country must be a dial code (e.g. 963) or SY — not an amount or postal code.',
+      'Phone country must be a dial code (e.g. 963) or ISO code (e.g. SY) — not an amount or postal code.',
     );
   }
 }
@@ -133,8 +138,8 @@ export function normalizeShippingPhoneCountry(
   if (raw == null) return null;
   const t = raw.trim();
   if (!t) return null;
-  const upper = t.toUpperCase();
-  if (upper === 'SY' || upper === 'SYR' || upper === 'SYRIA') return '963';
+  const iso = isoFromCountryHint(t);
+  if (iso) return callingCodeForIso(iso);
   const digits = t.replace(/\D/g, '');
   if (!digits || digits.length < 1 || digits.length > 4) return null;
   // Guard against COD/fee amounts pasted into the dial-code field.
@@ -176,11 +181,15 @@ export function shippingPrismaData(fields: ShippingConfigFields) {
       fields.shippingVolumeCbm == null ? null : fields.shippingVolumeCbm;
   }
   if (fields.shippingPhoneCountry !== undefined) {
-    data.shippingPhoneCountry =
-      fields.shippingPhoneCountry == null || fields.shippingPhoneCountry === ''
-        ? null
-        : normalizeShippingPhoneCountry(fields.shippingPhoneCountry) ??
-          fields.shippingPhoneCountry.trim();
+    if (fields.shippingPhoneCountry == null || fields.shippingPhoneCountry === '') {
+      data.shippingPhoneCountry = null;
+    } else {
+      const iso = isoFromCountryHint(fields.shippingPhoneCountry);
+      data.shippingPhoneCountry =
+        iso ??
+        normalizeShippingPhoneCountry(fields.shippingPhoneCountry) ??
+        fields.shippingPhoneCountry.trim();
+    }
   }
   return data;
 }

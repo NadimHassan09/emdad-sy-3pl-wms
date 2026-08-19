@@ -69,6 +69,13 @@ const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
     roles: ['client_admin', 'client_staff'],
   },
   {
+    label: 'APIs',
+    labelAr: 'واجهات البرمجة',
+    iconKey: 'Apis',
+    to: '/apis',
+    roles: ['client_admin'],
+  },
+  {
     label: 'Billing',
     labelAr: 'الفوترة',
     iconKey: 'Billing',
@@ -108,6 +115,7 @@ function routeGroup(pathname: string): string {
   if (pathname.startsWith('/billing') || pathname.startsWith('/invoices')) return 'billing';
   if (pathname.startsWith('/notifications')) return 'notifications';
   if (pathname.startsWith('/profile')) return 'profile';
+  if (pathname.startsWith('/apis')) return 'apis';
   return 'other';
 }
 
@@ -118,6 +126,7 @@ const ROUTE_GROUP_ROLES: Record<string, ClientPortalRole[]> = {
   billing: ['client_admin'],
   notifications: ['client_admin', 'client_staff'],
   profile: ['client_admin', 'client_staff'],
+  apis: ['client_admin'],
   other: ['client_admin', 'client_staff'],
 };
 
@@ -140,6 +149,7 @@ export function redirectPathForDeniedRoute(
   const group = routeGroup(pathname);
   if (role === 'client_staff') {
     if (group === 'billing') return '/dashboard';
+    if (group === 'apis') return '/dashboard';
   }
   return defaultClientHomePath();
 }

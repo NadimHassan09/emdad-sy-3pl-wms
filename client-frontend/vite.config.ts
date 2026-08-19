@@ -14,6 +14,8 @@ export default defineConfig({
       'react-dom': pathResolve('./node_modules/react-dom'),
       'react/jsx-runtime': pathResolve('./node_modules/react/jsx-runtime.js'),
       '@tanstack/react-query': pathResolve('./node_modules/@tanstack/react-query'),
+      'libphonenumber-js/max': pathResolve('./node_modules/libphonenumber-js/max/index.js'),
+      'libphonenumber-js': pathResolve('./node_modules/libphonenumber-js/index.js'),
     },
     dedupe: ['react', 'react-dom', '@tanstack/react-query'],
   },

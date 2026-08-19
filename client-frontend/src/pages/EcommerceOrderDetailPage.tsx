@@ -36,6 +36,8 @@ function labelText(label: string, isArabic: boolean): string {
     'Loading order…': 'جاري تحميل الطلب…',
     Rejected: 'مرفوض',
     'Recipient & shipping': 'المستلم والشحن',
+    'Incomplete Order': 'طلب غير مكتمل',
+    'Shipping/Delivery information is incomplete.': 'معلومات الشحن/التوصيل غير مكتملة.',
     Recipient: 'المستلم',
     Phone: 'الهاتف',
     Address: 'العنوان',
@@ -53,7 +55,6 @@ function labelText(label: string, isArabic: boolean): string {
     Notes: 'ملاحظات',
     'Order details': 'تفاصيل الطلب',
     'Order #': 'رقم الطلب',
-    'Sales channel': 'قناة البيع',
     'Required ship': 'تاريخ الشحن المطلوب',
     Created: 'تاريخ الإنشاء',
     'Warehouse status': 'حالة المستودع',
@@ -166,6 +167,11 @@ export function EcommerceOrderDetailPage(): ReactElement {
               <StatusBadge status={clientOmsCommercialStatusBadgeKey(data.status)} isArabic={isArabic}>
                 {clientOmsCommercialStatusLabel(data.status, isArabic)}
               </StatusBadge>
+              {data.needsInformation ? (
+                <StatusBadge status="failed delivery" isArabic={isArabic}>
+                  {t('Incomplete Order')}
+                </StatusBadge>
+              ) : null}
             </div>
             {canConfirm || canCancel ? (
               <div className="flex flex-wrap items-center gap-2">
@@ -206,6 +212,12 @@ export function EcommerceOrderDetailPage(): ReactElement {
 
           {data.rejectionReason ? (
             <Alert variant="error" title={`${t('Rejected')}: ${data.rejectionReason}`} />
+          ) : null}
+
+          {data.needsInformation ? (
+            <Alert variant="warning" title={t('Incomplete Order')}>
+              {t('Shipping/Delivery information is incomplete.')}
+            </Alert>
           ) : null}
 
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -299,9 +311,6 @@ export function EcommerceOrderDetailPage(): ReactElement {
                 <Card.Body>
                   <dl className="space-y-3">
                     <DetailRow label={t('Order #')} value={data.orderNumber} mono />
-                    {data.storeChannel ? (
-                      <DetailRow label={t('Sales channel')} value={data.storeChannel} />
-                    ) : null}
                     <DetailRow label={t('Required ship')} value={formatDate(data.requiredShipDate)} />
                     <DetailRow label={t('Created')} value={formatDateTime(data.createdAt)} />
                     {data.warehouseStatus ? (

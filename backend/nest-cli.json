@@ -7,7 +7,8 @@
     "assets": [
       { "include": "pdf/templates/**/*", "outDir": "dist/src", "watchAssets": true },
       { "include": "pdf/styles/**/*", "outDir": "dist/src", "watchAssets": true },
-      { "include": "pdf/assets/**/*", "outDir": "dist/src", "watchAssets": true }
+      { "include": "pdf/assets/**/*", "outDir": "dist/src", "watchAssets": true },
+      { "include": "modules/client-portal/external-api/*.json", "outDir": "dist/src", "watchAssets": true }
     ]
   }
 }

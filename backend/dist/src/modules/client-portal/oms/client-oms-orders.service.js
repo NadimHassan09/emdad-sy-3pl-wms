@@ -124,6 +124,7 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
             storeChannel: dto.storeChannel,
             paymentMethod: dto.paymentMethod,
             currency: dto.currency ?? 'USD',
+            shippingPhoneCountry: dto.shippingPhoneCountry,
             lines: dto.lines.map((l) => ({
                 productId: l.productId,
                 requestedQuantity: l.requestedQuantity,
@@ -132,6 +133,56 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
             })),
         };
         return this.omsOrders.create(user, payload);
+    }
+    async createFromApi(client, dto) {
+        const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        const payload = {
+            companyId: client.companyId,
+            requiredShipDate: dto.requiredShipDate,
+            recipientName: dto.recipientName,
+            recipientPhone: dto.recipientPhone,
+            city: dto.city,
+            district: dto.district,
+            addressLine1: dto.addressLine1,
+            addressLine2: dto.addressLine2,
+            notes: dto.notes,
+            storeChannel: dto.storeChannel,
+            paymentMethod: dto.paymentMethod,
+            currency: dto.currency ?? 'USD',
+            shippingPhoneCountry: dto.shippingPhoneCountry,
+            externalReference: dto.externalReference,
+            clientReference: dto.clientReference,
+            shippingReceiverLat: dto.shippingReceiverLat,
+            shippingReceiverLng: dto.shippingReceiverLng,
+            lines: dto.lines.map((l) => ({
+                productId: l.productId,
+                requestedQuantity: l.requestedQuantity,
+                unitPrice: l.unitPrice,
+                lineTotal: l.unitPrice != null ? l.unitPrice * l.requestedQuantity : undefined,
+            })),
+        };
+        return this.omsOrders.create(user, payload);
+    }
+    async findByExternalReference(client, externalReference) {
+        const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        return this.omsOrders.findExistingByExternalReference(user, client.companyId, externalReference);
+    }
+    async resolveSkus(companyId, skus) {
+        const unique = Array.from(new Set(skus.map((s) => s.trim()).filter(Boolean)));
+        const products = await this.omsOrders.findProductsBySkus(companyId, unique);
+        const map = new Map();
+        for (const p of products) {
+            map.set(p.sku.trim().toUpperCase(), p.id);
+        }
+        const missing = unique.filter((sku) => !map.has(sku.toUpperCase()));
+        if (missing.length) {
+            throw new common_1.BadRequestException({
+                code: 'VALIDATION_ERROR',
+                message: `Unknown SKU(s): ${missing.join(', ')}`,
+                fields: { sku: `Unknown SKU(s): ${missing.join(', ')}` },
+            });
+        }
+        return map;
     }
     async confirm(client, id) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);

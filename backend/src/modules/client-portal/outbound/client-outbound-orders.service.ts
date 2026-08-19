@@ -68,4 +68,12 @@ export class ClientOutboundOrdersService {
       { pendingClientApproval: true },
     );
   }
+
+  async findByExternalReference(client: ClientPrincipal, externalReference: string) {
+    return this.outbound.findByExternalReference(
+      clientAuthPrincipal(client),
+      client.companyId,
+      externalReference,
+    );
+  }
 }

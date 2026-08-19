@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
@@ -135,6 +135,7 @@ export class ClientOmsOrdersService {
       storeChannel: dto.storeChannel,
       paymentMethod: dto.paymentMethod,
       currency: dto.currency ?? 'USD',
+      shippingPhoneCountry: dto.shippingPhoneCountry,
       // Clients must not set shipping fee — admin sets it before/at approval.
       lines: dto.lines.map((l) => ({
         productId: l.productId,
@@ -145,6 +146,73 @@ export class ClientOmsOrdersService {
       })),
     };
     return this.omsOrders.create(user, payload);
+  }
+
+  async createFromApi(
+    client: ClientPrincipal,
+    dto: CreateClientOmsOrderDto & {
+      externalReference: string;
+      clientReference?: string;
+      addressLine2?: string;
+      shippingReceiverLat: number;
+      shippingReceiverLng: number;
+    },
+  ) {
+    const user = clientAuthPrincipal(client);
+    const payload: CreateOmsOrderDto = {
+      companyId: client.companyId,
+      requiredShipDate: dto.requiredShipDate,
+      recipientName: dto.recipientName,
+      recipientPhone: dto.recipientPhone,
+      city: dto.city,
+      district: dto.district,
+      addressLine1: dto.addressLine1,
+      addressLine2: dto.addressLine2,
+      notes: dto.notes,
+      storeChannel: dto.storeChannel,
+      paymentMethod: dto.paymentMethod,
+      currency: dto.currency ?? 'USD',
+      shippingPhoneCountry: dto.shippingPhoneCountry,
+      externalReference: dto.externalReference,
+      clientReference: dto.clientReference,
+      shippingReceiverLat: dto.shippingReceiverLat,
+      shippingReceiverLng: dto.shippingReceiverLng,
+      lines: dto.lines.map((l) => ({
+        productId: l.productId,
+        requestedQuantity: l.requestedQuantity,
+        unitPrice: l.unitPrice,
+        lineTotal:
+          l.unitPrice != null ? l.unitPrice * l.requestedQuantity : undefined,
+      })),
+    };
+    return this.omsOrders.create(user, payload);
+  }
+
+  async findByExternalReference(client: ClientPrincipal, externalReference: string) {
+    const user = clientAuthPrincipal(client);
+    return this.omsOrders.findExistingByExternalReference(
+      user,
+      client.companyId,
+      externalReference,
+    );
+  }
+
+  async resolveSkus(companyId: string, skus: string[]): Promise<Map<string, string>> {
+    const unique = Array.from(new Set(skus.map((s) => s.trim()).filter(Boolean)));
+    const products = await this.omsOrders.findProductsBySkus(companyId, unique);
+    const map = new Map<string, string>();
+    for (const p of products) {
+      map.set(p.sku.trim().toUpperCase(), p.id);
+    }
+    const missing = unique.filter((sku) => !map.has(sku.toUpperCase()));
+    if (missing.length) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: `Unknown SKU(s): ${missing.join(', ')}`,
+        fields: { sku: `Unknown SKU(s): ${missing.join(', ')}` },
+      });
+    }
+    return map;
   }
 
   async confirm(client: ClientPrincipal, id: string) {

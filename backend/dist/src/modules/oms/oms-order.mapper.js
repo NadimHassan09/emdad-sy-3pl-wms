@@ -70,6 +70,8 @@ function serializeOmsOrderListItem(order) {
         total: computeTotal(order),
         currency: order.currency,
         outboundOrderId: order.outboundOrderId,
+        needsInformation: order.needsInformation,
+        importBatchId: order.importBatchId ?? null,
         linkedOutboundOrder: order.outboundOrder
             ? {
                 id: order.outboundOrder.id,
@@ -127,6 +129,7 @@ function mapOutboundStatusToOms(status) {
         case 'allocated':
         case 'picking':
         case 'packing':
+        case 'waiting_for_shipping_method':
         case 'waiting_for_shipping_details':
             return 'processing';
         case 'ready_to_ship':
@@ -135,6 +138,8 @@ function mapOutboundStatusToOms(status) {
         case 'out_for_delivery':
             return 'shipped';
         case 'delivered':
+            return null;
+        case 'externally_fulfilled':
             return null;
         case 'cancelled':
             return 'cancelled';

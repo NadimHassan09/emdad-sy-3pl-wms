@@ -186,7 +186,7 @@ export class BulkShippingService {
         companyName: order.company?.name ?? null,
         weightKg: order.shippingWeightKg != null ? Number(order.shippingWeightKg) : null,
         volumeCbm: order.shippingVolumeCbm != null ? Number(order.shippingVolumeCbm) : null,
-        currentMethod: order.shippingMethod,
+        currentMethod: order.shippingMethod ?? ShippingMethod.manual,
         currentProviderCode: order.shippingProviderCode,
         quotes,
         recommendedProviderCode: recommended?.providerCode ?? null,
@@ -942,7 +942,7 @@ export class BulkShippingService {
         orderNumber: string;
         status: string;
         trackingNumber: string | null;
-        shippingMethod: ShippingMethod;
+        shippingMethod: ShippingMethod | null;
         shippingProviderCode: string | null;
         companyId: string;
         omsOrder: { id: string; orderNumber: string } | null;

@@ -2,13 +2,18 @@ import { useMemo, useState, type FormEvent, type ReactElement } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { Button, Combobox, SelectField, Textarea, TextField } from '@ds';
+import { Button, Combobox, SelectField, Textarea, TextField, InternationalPhoneInput, RecipientNameInput, createInternationalPhoneValue } from '@ds';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '@ds';
 
 import { CascadingAddressSelector } from '../components/CascadingAddressSelector';
+import { DeliveryLocationMap } from '../components/DeliveryLocationMap';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import { isClientArabic } from '../lib/client-ui-language';
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../lib/order-planning-dates';
+import {
+  DEFAULT_PHONE_COUNTRY,
+  isValidRecipientName,
+} from '../../../shared/lib/recipient-contact';
 import { fetchProductAvailability } from '../services/clientInventoryService';
 import {
   createClientOmsOrder,
@@ -41,7 +46,6 @@ function label(text: string, isArabic: boolean): string {
     'Select or type governorate…': 'اختر أو اكتب المحافظة…',
     'Select or type city/region…': 'اختر أو اكتب المدينة / المنطقة…',
     'Select or type town/neighborhood…': 'اختر أو اكتب البلدة / الحي…',
-    'Sales channel': 'قناة البيع',
     'Payment method': 'طريقة الدفع',
     Notes: 'ملاحظات',
     Product: 'المنتج',
@@ -62,6 +66,9 @@ function label(text: string, isArabic: boolean): string {
     available: 'متاح',
     'Insufficient stock for one or more products.': 'مخزون غير كافٍ لمنتج واحد أو أكثر.',
     'Each product line needs a valid price.': 'كل بند يحتاج سعراً صالحاً.',
+    'Name can only contain Arabic or English letters and spaces.':
+      'الاسم يقبل الحروف العربية أو الإنجليزية والمسافات فقط.',
+    'Please enter a valid phone number.': 'يرجى إدخال رقم هاتف صالح.',
     'Shipping information': 'معلومات الشحن',
     'Order details': 'تفاصيل الطلب',
     Products: 'المنتجات',
@@ -93,11 +100,16 @@ export function CreateEcommerceOrderPage(): ReactElement {
 
   const [shipDate, setShipDate] = useState(() => localCalendarDateYmd());
   const [recipientName, setRecipientName] = useState('');
-  const [recipientPhone, setRecipientPhone] = useState('');
+  const [recipientPhone, setRecipientPhone] = useState(() =>
+    createInternationalPhoneValue(DEFAULT_PHONE_COUNTRY),
+  );
+  const [contactSubmitted, setContactSubmitted] = useState(false);
   const [city, setCity] = useState('');
   const [district, setDistrict] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
-  const [storeChannel, setStoreChannel] = useState('');
+  const [addressLine2, setAddressLine2] = useState('');
+  const [deliveryLat, setDeliveryLat] = useState('');
+  const [deliveryLng, setDeliveryLng] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<DraftLine[]>([emptyLine()]);
@@ -209,16 +221,27 @@ export function CreateEcommerceOrderPage(): ReactElement {
       return;
     }
 
+    setContactSubmitted(true);
+    if (!isValidRecipientName(recipientName)) {
+      setError(t('Name can only contain Arabic or English letters and spaces.'));
+      return;
+    }
+    if (!recipientPhone.isEmpty && !recipientPhone.isValid) {
+      setError(t('Please enter a valid phone number.'));
+      return;
+    }
+
     setError(null);
     createMut.mutate({
       requiredShipDate: shipDate,
       recipientName: recipientName.trim() || undefined,
-      recipientPhone: recipientPhone.trim() || undefined,
+      recipientPhone: recipientPhone.e164 || undefined,
+      shippingPhoneCountry: recipientPhone.countryIso || undefined,
       city: city.trim() || undefined,
       district: district.trim() || undefined,
       addressLine1: addressLine1.trim() || undefined,
+      addressLine2: addressLine2.trim() || undefined,
       notes: notes.trim() || undefined,
-      storeChannel: storeChannel.trim() || undefined,
       paymentMethod: (paymentMethod || undefined) as CreateClientOmsOrderInput['paymentMethod'],
       lines: payloadLines,
     });
@@ -269,17 +292,21 @@ export function CreateEcommerceOrderPage(): ReactElement {
         <section className="space-y-5">
           <SectionHeading title={t('Shipping information')} />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <TextField
+            <RecipientNameInput
               label={t('Recipient name')}
               value={recipientName}
-              onChange={(e) => setRecipientName(e.target.value)}
+              onChange={setRecipientName}
               disabled={fieldsDisabled}
+              isArabic={isArabic}
+              submitted={contactSubmitted}
             />
-            <TextField
+            <InternationalPhoneInput
               label={t('Recipient phone')}
               value={recipientPhone}
-              onChange={(e) => setRecipientPhone(e.target.value)}
+              onChange={setRecipientPhone}
               disabled={fieldsDisabled}
+              isArabic={isArabic}
+              submitted={contactSubmitted}
             />
             <CascadingAddressSelector
               value={{ city, district, addressLine1 }}
@@ -296,7 +323,32 @@ export function CreateEcommerceOrderPage(): ReactElement {
               addressLine1Placeholder={t('Select or type town/neighborhood…')}
               disabled={fieldsDisabled}
             />
+            <TextField
+              label={t('Street / Detailed Address')}
+              value={addressLine2}
+              onChange={(e) => setAddressLine2(e.target.value)}
+              disabled={fieldsDisabled}
+              placeholder={t('Street name, building, floor…')}
+              className="md:col-span-2"
+            />
           </div>
+          <DeliveryLocationMap
+            lat={deliveryLat}
+            lng={deliveryLng}
+            onChange={({ lat, lng }) => {
+              setDeliveryLat(lat);
+              setDeliveryLng(lng);
+            }}
+            disabled={fieldsDisabled}
+            governorate={city}
+            city={district}
+            neighborhood={addressLine1}
+            street={addressLine2}
+            onRemovePin={() => {
+              setDeliveryLat('');
+              setDeliveryLng('');
+            }}
+          />
         </section>
 
         <section className="space-y-5">
@@ -309,12 +361,6 @@ export function CreateEcommerceOrderPage(): ReactElement {
               min={localCalendarDateYmd()}
               value={shipDate}
               onChange={(e) => setShipDate(e.target.value)}
-              disabled={fieldsDisabled}
-            />
-            <TextField
-              label={t('Sales channel')}
-              value={storeChannel}
-              onChange={(e) => setStoreChannel(e.target.value)}
               disabled={fieldsDisabled}
             />
             <SelectField

@@ -14,6 +14,7 @@ const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const client_1 = require("@prisma/client");
 const is_uuid_loose_1 = require("../../../../common/validators/is-uuid-loose");
+const is_recipient_contact_1 = require("../../../../common/validators/is-recipient-contact");
 class CreateClientOmsOrderLineDto {
     productId;
     requestedQuantity;
@@ -41,6 +42,7 @@ class CreateClientOmsOrderDto {
     requiredShipDate;
     recipientName;
     recipientPhone;
+    shippingPhoneCountry;
     city;
     district;
     addressLine1;
@@ -58,13 +60,20 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, is_recipient_contact_1.IsRecipientName)(),
     __metadata("design:type", String)
 ], CreateClientOmsOrderDto.prototype, "recipientName", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, is_recipient_contact_1.IsRecipientPhone)(),
     __metadata("design:type", String)
 ], CreateClientOmsOrderDto.prototype, "recipientPhone", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateClientOmsOrderDto.prototype, "shippingPhoneCountry", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

@@ -28,6 +28,7 @@ const prisma_service_1 = require("../../common/prisma/prisma.service");
 const tenant_rls_1 = require("../../common/prisma/tenant-rls");
 const ledger_idempotency_service_1 = require("../inventory/ledger-idempotency.service");
 const stock_helpers_1 = require("../inventory/stock.helpers");
+const oms_warehouse_guards_1 = require("../oms/oms-warehouse-guards");
 const outbound_confirm_lock_util_1 = require("./outbound-confirm-lock.util");
 const feature_flags_1 = require("../warehouse-workflow/feature-flags");
 const execution_plan_util_1 = require("../orders/execution-plan.util");
@@ -171,7 +172,7 @@ let OutboundService = class OutboundService {
             await this.assertSufficientStockForLines(companyId, dto.lines, products);
             const weightByProductId = new Map(products.map((p) => [p.id, p.weightKg?.toString() ?? null]));
             const volumeByProductId = new Map(products.map((p) => [p.id, p.volumeCbm?.toString() ?? null]));
-            const shippingMethod = dto.shippingMethod ?? client_1.ShippingMethod.manual;
+            const shippingMethod = dto.shippingMethod ?? null;
             const lineQty = dto.lines.map((l) => ({
                 productId: l.productId,
                 requestedQuantity: l.requestedQuantity,
@@ -232,6 +233,7 @@ let OutboundService = class OutboundService {
                     carrier: dto.carrier,
                     clientReference: dto.clientReference,
                     notes: dto.notes,
+                    externalReference: dto.externalReference,
                     requiresPacking: dto.requiresPacking !== false,
                     executionMode,
                     executionPlan,
@@ -309,6 +311,7 @@ let OutboundService = class OutboundService {
                 });
             }
             if (this.orderAllocation?.isEnabled() &&
+                !opts?.skipAllocation &&
                 opts?.oms?.allocateAfterCreate !== false) {
                 const planWarehouse = executionPlan != null
                     ? (0, execution_plan_util_1.parseOutboundExecutionPlan)(executionPlan)?.warehouseId
@@ -404,6 +407,49 @@ let OutboundService = class OutboundService {
         }
     }
     async list(user, query) {
+        const where = await this.buildListWhere(user, query);
+        const listInclude = {
+            company: { select: { id: true, name: true, logoPath: true } },
+            _count: { select: { lines: true } },
+            ...(query.quickDirectedOnly
+                ? {
+                    lines: {
+                        take: 1,
+                        orderBy: { lineNumber: 'asc' },
+                        include: {
+                            product: { select: { id: true, sku: true, name: true, barcode: true } },
+                        },
+                    },
+                }
+                : {}),
+        };
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const [items, total] = await Promise.all([
+                tx.outboundOrder.findMany({
+                    where,
+                    orderBy: { createdAt: 'desc' },
+                    include: listInclude,
+                    take: query.limit,
+                    skip: query.offset,
+                }),
+                tx.outboundOrder.count({ where }),
+            ]);
+            return {
+                items: items.map((o) => ({
+                    ...o,
+                    company: {
+                        id: o.company.id,
+                        name: o.company.name,
+                        logoUrl: (0, avatar_url_1.toAvatarPublicUrl)(o.company.logoPath),
+                    },
+                })),
+                total,
+                limit: query.limit,
+                offset: query.offset,
+            };
+        });
+    }
+    async buildListWhere(user, query) {
         const baseAnd = [];
         const where = {};
         const companyId = (0, company_read_scope_1.readCompanyIdCatalogFilter)(this.companyAccess, user, query.companyId);
@@ -455,46 +501,119 @@ let OutboundService = class OutboundService {
         }
         if (baseAnd.length > 0)
             where.AND = baseAnd;
-        const listInclude = {
-            company: { select: { id: true, name: true, logoPath: true } },
-            _count: { select: { lines: true } },
-            ...(query.quickDirectedOnly
-                ? {
-                    lines: {
-                        take: 1,
-                        orderBy: { lineNumber: 'asc' },
-                        include: {
-                            product: { select: { id: true, sku: true, name: true, barcode: true } },
-                        },
-                    },
-                }
-                : {}),
-        };
+        return where;
+    }
+    async listForExport(user, query, opts) {
+        const where = await this.buildListWhere(user, query);
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
-            const [items, total] = await Promise.all([
-                tx.outboundOrder.findMany({
-                    where,
-                    orderBy: { createdAt: 'desc' },
-                    include: listInclude,
-                    take: query.limit,
-                    skip: query.offset,
-                }),
-                tx.outboundOrder.count({ where }),
-            ]);
-            return {
-                items: items.map((o) => ({
-                    ...o,
-                    company: {
-                        id: o.company.id,
-                        name: o.company.name,
-                        logoUrl: (0, avatar_url_1.toAvatarPublicUrl)(o.company.logoPath),
+            const total = await tx.outboundOrder.count({ where });
+            const rows = await tx.outboundOrder.findMany({
+                where,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    company: { select: { id: true, name: true } },
+                    lines: {
+                        select: { requestedQuantity: true },
                     },
-                })),
+                },
+                take: opts.maxRows,
+            });
+            return {
+                items: rows,
                 total,
-                limit: query.limit,
-                offset: query.offset,
+                truncated: total > rows.length,
             };
         });
+    }
+    resolveImportCompanyId(user, companyId) {
+        return this.companyAccess.resolveWriteCompanyId(user, companyId);
+    }
+    async findByExternalReference(user, companyId, externalReference) {
+        this.companyAccess.assertCompanyAccess(user, companyId);
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => tx.outboundOrder.findFirst({
+            where: {
+                companyId,
+                externalReference: { equals: externalReference, mode: 'insensitive' },
+            },
+            select: { id: true, orderNumber: true },
+        }));
+    }
+    async findProductsBySkus(companyId, skus) {
+        const upper = skus.map((s) => s.trim().toUpperCase()).filter(Boolean);
+        if (upper.length === 0)
+            return [];
+        return this.prisma.product.findMany({
+            where: {
+                companyId,
+                OR: upper.map((sku) => ({ sku: { equals: sku, mode: 'insensitive' } })),
+            },
+            select: { id: true, sku: true, companyId: true, status: true, uom: true },
+        });
+    }
+    async assertImportCreateReady(user, dto) {
+        const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
+        await this.billingAccess.assertOperationalBilling(companyId);
+        (0, order_planning_date_1.assertCalendarDateNotBeforeToday)(dto.requiredShipDate, 'Required ship date');
+        const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
+        const products = await this.prisma.product.findMany({
+            where: { id: { in: productIds } },
+            select: {
+                id: true,
+                companyId: true,
+                sku: true,
+                status: true,
+                uom: true,
+                weightKg: true,
+                volumeCbm: true,
+            },
+        });
+        if (products.length !== productIds.length) {
+            throw new common_1.NotFoundException('One or more products not found.');
+        }
+        const wrongCompany = products.find((p) => p.companyId !== companyId);
+        if (wrongCompany) {
+            throw new common_1.BadRequestException('All line products must belong to the same company as the order.');
+        }
+        for (const p of products)
+            (0, assert_product_orderable_1.assertProductOrderableForOrders)(p.status);
+        const productById = new Map(products.map((p) => [p.id, p]));
+        for (const l of dto.lines) {
+            const p = productById.get(l.productId);
+            (0, discrete_uom_quantity_1.assertDiscreteUomPositiveIntegerQuantity)(p.uom, l.requestedQuantity, 'Requested quantity');
+        }
+        await this.assertSufficientStockForLines(companyId, dto.lines, products);
+        const shippingMethod = dto.shippingMethod ?? null;
+        const weightByProductId = new Map(products.map((p) => [p.id, p.weightKg?.toString() ?? null]));
+        const volumeByProductId = new Map(products.map((p) => [p.id, p.volumeCbm?.toString() ?? null]));
+        const lineQty = dto.lines.map((l) => ({
+            productId: l.productId,
+            requestedQuantity: l.requestedQuantity,
+        }));
+        const shippingFields = {
+            shippingMethod,
+            shippingProviderCode: dto.shippingProviderCode,
+            shippingReceiverLat: dto.shippingReceiverLat,
+            shippingReceiverLng: dto.shippingReceiverLng,
+            shippingPackageType: dto.shippingPackageType,
+            shippingContents: dto.shippingContents,
+            shippingDeliveryType: dto.shippingDeliveryType,
+            shippingPickupType: dto.shippingPickupType,
+            shippingPayer: dto.shippingPayer,
+            shippingWeightKg: (0, shipping_config_util_1.resolveShippingWeightKg)({
+                method: shippingMethod,
+                explicit: dto.shippingWeightKg,
+                lines: lineQty,
+                weightByProductId,
+            }),
+            shippingVolumeCbm: (0, shipping_config_util_1.resolveShippingVolumeCbm)({
+                method: shippingMethod,
+                explicit: dto.shippingVolumeCbm,
+                lines: lineQty,
+                volumeByProductId,
+            }),
+            shippingPhoneCountry: dto.shippingPhoneCountry,
+        };
+        (0, shipping_config_util_1.assertShippingIntentReady)(shippingFields);
     }
     async findById(id, user) {
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
@@ -777,6 +896,39 @@ let OutboundService = class OutboundService {
             orderId: updated.id,
             status: updated.status,
             reason: 'admin_complete_packing',
+            listItem: (0, realtime_client_payload_1.adminOutboundListItem)(updated),
+        });
+        return updated;
+    }
+    async selectShippingMethodAdmin(user, orderId, body) {
+        const order = await this.findById(orderId, user);
+        if ((0, execution_plan_util_1.normalizeExecutionMode)(order.executionMode) !== 'admin') {
+            throw new common_1.BadRequestException('select-shipping-method requires executionMode=admin.');
+        }
+        if (order.status !== client_1.OutboundOrderStatus.waiting_for_shipping_method &&
+            order.status !== 'waiting_for_shipping_method') {
+            throw new common_1.BadRequestException(`Shipping method can only be selected at waiting_for_shipping_method (current: ${order.status}).`);
+        }
+        const method = body.shippingMethod === 'carrier' ? client_1.ShippingMethod.carrier : client_1.ShippingMethod.manual;
+        if (method === client_1.ShippingMethod.carrier && !body.shippingProviderCode?.trim()) {
+            throw new common_1.BadRequestException('shippingProviderCode is required when selecting Shipping Company.');
+        }
+        await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            await tx.outboundOrder.update({
+                where: { id: orderId },
+                data: {
+                    shippingMethod: method,
+                    shippingProviderCode: method === client_1.ShippingMethod.carrier ? body.shippingProviderCode : null,
+                    status: client_1.OutboundOrderStatus.waiting_for_shipping_details,
+                },
+            });
+            await this.omsSync?.syncFromOutbound(tx, orderId);
+        });
+        const updated = await this.findById(orderId, user);
+        this.realtime.emitOutboundOrderUpdated(updated.companyId, {
+            orderId: updated.id,
+            status: updated.status,
+            reason: 'admin_select_shipping_method',
             listItem: (0, realtime_client_payload_1.adminOutboundListItem)(updated),
         });
         return updated;
@@ -1384,6 +1536,13 @@ let OutboundService = class OutboundService {
         }
         if (!(0, outbound_confirm_lock_util_1.isOutboundConfirmable)(order.status)) {
             throw new domain_exceptions_1.InvalidStateException(`Only draft or pending-approval orders can be confirmed (current: ${order.status}).`);
+        }
+        const linkedOms = await tx.omsOrder.findFirst({
+            where: { outboundOrderId: orderId },
+            select: { id: true, status: true, orderNumber: true },
+        });
+        if (linkedOms && (0, oms_warehouse_guards_1.omsBlocksWarehouseExecution)(linkedOms.status)) {
+            throw new domain_exceptions_1.InvalidStateException(`Cannot confirm outbound while linked OMS order ${linkedOms.orderNumber} is ${linkedOms.status}.`);
         }
         if (order.lines.length === 0) {
             throw new common_1.BadRequestException('Cannot confirm an order with no lines.');

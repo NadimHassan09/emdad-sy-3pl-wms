@@ -273,7 +273,7 @@ export class OutboundService {
     const volumeByProductId = new Map(
       products.map((p) => [p.id, p.volumeCbm?.toString() ?? null] as const),
     );
-    const shippingMethod = dto.shippingMethod ?? ShippingMethod.manual;
+    const shippingMethod = dto.shippingMethod ?? null;
     const lineQty = dto.lines.map((l) => ({
       productId: l.productId,
       requestedQuantity: l.requestedQuantity,
@@ -734,7 +734,7 @@ export class OutboundService {
       assertDiscreteUomPositiveIntegerQuantity(p.uom, l.requestedQuantity, 'Requested quantity');
     }
     await this.assertSufficientStockForLines(companyId, dto.lines, products);
-    const shippingMethod = dto.shippingMethod ?? ShippingMethod.manual;
+    const shippingMethod = dto.shippingMethod ?? null;
     const weightByProductId = new Map(
       products.map((p) => [p.id, p.weightKg?.toString() ?? null] as const),
     );
@@ -1098,6 +1098,50 @@ export class OutboundService {
       orderId: updated.id,
       status: updated.status,
       reason: 'admin_complete_packing',
+      listItem: adminOutboundListItem(updated),
+    });
+    return updated;
+  }
+
+  async selectShippingMethodAdmin(
+    user: AuthPrincipal,
+    orderId: string,
+    body: { shippingMethod: string; shippingProviderCode?: string },
+  ) {
+    const order = await this.findById(orderId, user);
+    if (normalizeExecutionMode(order.executionMode) !== 'admin') {
+      throw new BadRequestException('select-shipping-method requires executionMode=admin.');
+    }
+    if (
+      order.status !== OutboundOrderStatus.waiting_for_shipping_method &&
+      order.status !== ('waiting_for_shipping_method' as OutboundOrderStatus)
+    ) {
+      throw new BadRequestException(
+        `Shipping method can only be selected at waiting_for_shipping_method (current: ${order.status}).`,
+      );
+    }
+    const method = body.shippingMethod === 'carrier' ? ShippingMethod.carrier : ShippingMethod.manual;
+    if (method === ShippingMethod.carrier && !body.shippingProviderCode?.trim()) {
+      throw new BadRequestException('shippingProviderCode is required when selecting Shipping Company.');
+    }
+
+    await withTenantRls(this.prisma, user, async (tx) => {
+      await tx.outboundOrder.update({
+        where: { id: orderId },
+        data: {
+          shippingMethod: method,
+          shippingProviderCode: method === ShippingMethod.carrier ? body.shippingProviderCode : null,
+          status: OutboundOrderStatus.waiting_for_shipping_details,
+        },
+      });
+      await this.omsSync?.syncFromOutbound(tx, orderId);
+    });
+
+    const updated = await this.findById(orderId, user);
+    this.realtime.emitOutboundOrderUpdated(updated.companyId, {
+      orderId: updated.id,
+      status: updated.status,
+      reason: 'admin_select_shipping_method',
       listItem: adminOutboundListItem(updated),
     });
     return updated;

@@ -153,6 +153,15 @@ export class OutboundController {
     return this.outbound.completePackingAdmin(user, id);
   }
 
+  @Post(':id/select-shipping-method')
+  selectShippingMethod(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() body: { shippingMethod: string; shippingProviderCode?: string },
+  ) {
+    return this.outbound.selectShippingMethodAdmin(user, id, body);
+  }
+
   @Patch(':id/shipping-details')
   saveShippingDetails(
     @CurrentUser() user: AuthPrincipal,

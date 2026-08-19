@@ -354,7 +354,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
             where: { id: orderId },
             select: { requiresPacking: true },
         });
-        const nextStatus = order?.requiresPacking === false ? 'waiting_for_shipping_details' : 'packing';
+        const nextStatus = order?.requiresPacking === false ? 'waiting_for_shipping_method' : 'packing';
         await tx.outboundOrder.update({
             where: { id: orderId },
             data: { status: nextStatus },
@@ -469,7 +469,7 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
         }
         await tx.outboundOrder.update({
             where: { id: outboundOrderId },
-            data: { status: 'waiting_for_shipping_details' },
+            data: { status: 'waiting_for_shipping_method' },
         });
         await this.omsSync?.syncFromOutbound(tx, outboundOrderId);
     }

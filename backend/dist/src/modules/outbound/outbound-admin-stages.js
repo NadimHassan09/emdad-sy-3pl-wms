@@ -18,6 +18,10 @@ function nextOutboundAdminAction(status, requiresPacking) {
     if (status === client_1.OutboundOrderStatus.packing || status === 'packing') {
         return requiresPacking ? 'complete_packing' : null;
     }
+    if (status === client_1.OutboundOrderStatus.waiting_for_shipping_method ||
+        status === 'waiting_for_shipping_method') {
+        return 'select_shipping_method';
+    }
     if (status === client_1.OutboundOrderStatus.waiting_for_shipping_details ||
         status === 'waiting_for_shipping_details') {
         return 'complete_shipping_details';
@@ -47,6 +51,13 @@ function assertOutboundAdminStageAction(status, action, requiresPacking) {
         }
         if (status !== client_1.OutboundOrderStatus.packing && status !== 'packing') {
             throw new domain_exceptions_1.InvalidStateException(`Mark Packing Complete requires status packing (current: ${status}).`);
+        }
+        return;
+    }
+    if (action === 'select_shipping_method') {
+        if (status !== client_1.OutboundOrderStatus.waiting_for_shipping_method &&
+            status !== 'waiting_for_shipping_method') {
+            throw new domain_exceptions_1.InvalidStateException(`Select Shipping Method requires status waiting_for_shipping_method (current: ${status}).`);
         }
         return;
     }

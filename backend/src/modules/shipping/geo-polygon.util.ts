@@ -95,6 +95,105 @@ export function parseNominatimBoundingBox(
   return { south, north, west, east };
 }
 
+const EARTH_RADIUS_KM = 6371;
+
+function toRad(deg: number): number {
+  return (deg * Math.PI) / 180;
+}
+
+function toDeg(rad: number): number {
+  return (rad * 180) / Math.PI;
+}
+
+/** Initial bearing from `from` toward `to` (radians). */
+function bearingRad(from: LatLng, to: LatLng): number {
+  const φ1 = toRad(from.lat);
+  const φ2 = toRad(to.lat);
+  const Δλ = toRad(to.lng - from.lng);
+  const y = Math.sin(Δλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+  return Math.atan2(y, x);
+}
+
+function destinationAlongBearing(center: LatLng, bearing: number, distanceKm: number): LatLng {
+  const δ = distanceKm / EARTH_RADIUS_KM;
+  const φ1 = toRad(center.lat);
+  const λ1 = toRad(center.lng);
+  const sinφ1 = Math.sin(φ1);
+  const cosφ1 = Math.cos(φ1);
+  const sinδ = Math.sin(δ);
+  const cosδ = Math.cos(δ);
+  const φ2 = Math.asin(sinφ1 * cosδ + cosφ1 * sinδ * Math.cos(bearing));
+  const λ2 =
+    λ1 + Math.atan2(Math.sin(bearing) * sinδ * cosφ1, cosδ - sinφ1 * Math.sin(φ2));
+  return { lat: toDeg(φ2), lng: toDeg(λ2) };
+}
+
+/** Haversine distance in kilometers between two WGS84 points. */
+export function haversineDistanceKm(a: LatLng, b: LatLng): number {
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** True when the point lies within `radiusKm` of `center`. */
+export function pointInCircle(
+  center: LatLng,
+  point: LatLng,
+  radiusKm: number,
+): boolean {
+  if (
+    !Number.isFinite(center.lat) ||
+    !Number.isFinite(center.lng) ||
+    !Number.isFinite(point.lat) ||
+    !Number.isFinite(point.lng) ||
+    !Number.isFinite(radiusKm) ||
+    radiusKm <= 0
+  ) {
+    return false;
+  }
+  return haversineDistanceKm(center, point) <= radiusKm + 1e-9;
+}
+
+/**
+ * If `point` is inside the circle, return it.
+ * Otherwise move it onto the circle toward `center` (never outside).
+ */
+export function clampPointToCircle(
+  center: LatLng,
+  point: LatLng,
+  radiusKm: number,
+): LatLng {
+  if (pointInCircle(center, point, radiusKm)) return point;
+  const dist = haversineDistanceKm(center, point);
+  if (!Number.isFinite(dist) || dist <= 0) return center;
+  return destinationAlongBearing(center, bearingRad(center, point), radiusKm * 0.999);
+}
+
+/** Approximate a circle as a 64-point GeoJSON polygon for map display. */
+export function circleToPolygon(
+  center: LatLng,
+  radiusKm: number,
+  points = 64,
+): GeoJsonPolygon {
+  const coords: GeoJsonPosition[] = [];
+  const latRad = (center.lat * Math.PI) / 180;
+  const degLat = radiusKm / 110.574;
+  const degLng = radiusKm / (111.32 * Math.cos(latRad) || 1);
+  for (let i = 0; i <= points; i++) {
+    const angle = (2 * Math.PI * i) / points;
+    const lat = center.lat + degLat * Math.sin(angle);
+    const lng = center.lng + degLng * Math.cos(angle);
+    coords.push([lng, lat]);
+  }
+  return { type: 'Polygon', coordinates: [coords] };
+}
+
 export function geometryBbox(geometry: GeoJsonGeometry): GeoBbox | null {
   const pts: GeoJsonPosition[] = [];
   const walk = (c: unknown): void => {
@@ -118,4 +217,11 @@ export function geometryBbox(geometry: GeoJsonGeometry): GeoBbox | null {
     if (lng > east) east = lng;
   }
   return { south, north, west, east };
+}
+
+export function bboxCentroid(bbox: GeoBbox): LatLng {
+  return {
+    lat: (bbox.south + bbox.north) / 2,
+    lng: (bbox.west + bbox.east) / 2,
+  };
 }

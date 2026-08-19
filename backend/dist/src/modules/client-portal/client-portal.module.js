@@ -22,6 +22,18 @@ const billing_module_1 = require("../billing/billing.module");
 const oms_module_1 = require("../oms/oms.module");
 const oms_returns_module_1 = require("../oms-returns/oms-returns.module");
 const returns_module_1 = require("../returns/returns.module");
+const shipping_module_1 = require("../shipping/shipping.module");
+const pdf_module_1 = require("../../pdf/pdf.module");
+const api_credentials_controller_1 = require("./api-credentials/api-credentials.controller");
+const api_credentials_service_1 = require("./api-credentials/api-credentials.service");
+const api_docs_service_1 = require("./external-api/api-docs.service");
+const api_key_guard_1 = require("./external-api/api-key.guard");
+const external_inbound_controller_1 = require("./external-api/external-inbound.controller");
+const external_inbound_service_1 = require("./external-api/external-inbound.service");
+const external_oms_controller_1 = require("./external-api/external-oms.controller");
+const external_oms_service_1 = require("./external-api/external-oms.service");
+const external_outbound_controller_1 = require("./external-api/external-outbound.controller");
+const external_outbound_service_1 = require("./external-api/external-outbound.service");
 const client_auth_controller_1 = require("./auth/client-auth.controller");
 const client_auth_service_1 = require("./auth/client-auth.service");
 const jwt_client_auth_guard_1 = require("./auth/jwt-client-auth.guard");
@@ -43,6 +55,9 @@ const client_dashboard_controller_1 = require("./dashboard/client-dashboard.cont
 const client_dashboard_service_1 = require("./dashboard/client-dashboard.service");
 const client_oms_orders_controller_1 = require("./oms/client-oms-orders.controller");
 const client_oms_orders_service_1 = require("./oms/client-oms-orders.service");
+const inbound_client_import_service_1 = require("./order-import/inbound-client-import.service");
+const oms_client_import_service_1 = require("./order-import/oms-client-import.service");
+const outbound_client_import_service_1 = require("./order-import/outbound-client-import.service");
 const client_returns_controller_1 = require("./returns/client-returns.controller");
 const client_returns_service_1 = require("./returns/client-returns.service");
 const client_oms_returns_controller_1 = require("./oms-returns/client-oms-returns.controller");
@@ -76,6 +91,8 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             oms_module_1.OmsModule,
             oms_returns_module_1.OmsReturnsModule,
             returns_module_1.ReturnsModule,
+            shipping_module_1.ShippingModule,
+            pdf_module_1.PdfModule,
         ],
         controllers: [
             client_auth_controller_1.ClientAuthController,
@@ -90,6 +107,10 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             client_oms_orders_controller_1.ClientOmsOrdersController,
             client_oms_returns_controller_1.ClientOmsReturnsController,
             client_returns_controller_1.ClientReturnsController,
+            api_credentials_controller_1.ApiCredentialsController,
+            external_oms_controller_1.ExternalOmsController,
+            external_inbound_controller_1.ExternalInboundController,
+            external_outbound_controller_1.ExternalOutboundController,
         ],
         providers: [
             client_auth_service_1.ClientAuthService,
@@ -101,10 +122,19 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             client_billing_service_1.ClientBillingService,
             client_dashboard_service_1.ClientDashboardService,
             client_oms_orders_service_1.ClientOmsOrdersService,
+            oms_client_import_service_1.OmsClientImportService,
+            inbound_client_import_service_1.InboundClientImportService,
+            outbound_client_import_service_1.OutboundClientImportService,
             client_oms_returns_service_1.ClientOmsReturnsService,
             client_returns_service_1.ClientReturnsService,
             jwt_client_strategy_1.JwtClientStrategy,
             jwt_client_auth_guard_1.JwtClientAuthGuard,
+            api_credentials_service_1.ApiCredentialsService,
+            api_key_guard_1.ApiKeyGuard,
+            api_docs_service_1.ApiDocsService,
+            external_oms_service_1.ExternalOmsService,
+            external_inbound_service_1.ExternalInboundService,
+            external_outbound_service_1.ExternalOutboundService,
         ],
         exports: [client_auth_service_1.ClientAuthService],
     })

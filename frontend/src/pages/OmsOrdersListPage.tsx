@@ -235,7 +235,9 @@ export function OmsOrdersListPage() {
     },
     {
       header: 'Status',
-      accessor: (row) => <OmsStatusBadge status={row.status} isArabic={isArabic} />,
+      accessor: (row) => (
+        <OmsStatusBadge status={row.status} isArabic={isArabic} needsInformation={row.needsInformation} />
+      ),
     },
     {
       header: 'Actions',

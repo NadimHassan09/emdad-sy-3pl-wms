@@ -22,12 +22,19 @@ interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(
-  ({ label, hint, error, options, placeholder, className = '', id, ...rest }, ref) => {
+  ({ label, hint, error, options, placeholder, className = '', id, required, ...rest }, ref) => {
     const selectId = id ?? rest.name;
     return (
       <label htmlFor={selectId} className="block min-w-0">
         {label ? (
-          <span className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>{label}</span>
+          <span className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {label}
+            {required ? (
+              <span aria-hidden="true" className="ms-0.5 text-danger-600">
+                *
+              </span>
+            ) : null}
+          </span>
         ) : null}
         <select
           ref={ref}
@@ -35,6 +42,7 @@ export const SelectField = forwardRef<HTMLSelectElement, SelectFieldProps>(
           className={`${FILTER_FIELD_CONTROL_CLASS} ${
             error ? FILTER_FIELD_CONTROL_ERROR_CLASS : ''
           } ${className}`}
+          required={required}
           {...rest}
         >
           {placeholder && <option value="">{placeholder}</option>}

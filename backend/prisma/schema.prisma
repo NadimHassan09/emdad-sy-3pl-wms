@@ -301,6 +301,7 @@ enum OutboundOrderStatus {
   allocated
   picking
   packing
+  waiting_for_shipping_method
   waiting_for_shipping_details
   ready_to_ship
   out_for_delivery
@@ -686,6 +687,14 @@ enum WarehouseTaskStatus {
   @@map("warehouse_task_status")
 }
 
+enum ApiCredentialScope {
+  oms
+  inbound
+  outbound
+
+  @@map("api_credential_scope")
+}
+
 enum WarehouseTaskType {
   receiving
   qc
@@ -759,6 +768,7 @@ model Company {
   omsIntegrationEvents   OmsIntegrationEvent[]
   codRecords             CodRecord[]
   omsReturns             OmsReturn[]
+  apiCredentials         ApiCredential[]
 
   @@map("companies")
 }
@@ -1033,8 +1043,34 @@ model User {
   omsReturnsRejected         OmsReturn[]              @relation("OmsReturnRejectedBy")
   shippingProviderConnections ShippingProviderConnection[] @relation("ShippingProviderConnectedBy")
   bulkShippingJobsTriggered   BulkShippingJob[]            @relation("BulkShippingTriggeredBy")
+  apiCredentialsCreated       ApiCredential[]              @relation("ApiCredentialCreatedBy")
+  apiCredentialsRevoked       ApiCredential[]              @relation("ApiCredentialRevokedBy")
 
   @@map("users")
+}
+
+model ApiCredential {
+  id              String             @id @default(uuid()) @db.Uuid
+  companyId       String             @map("company_id") @db.Uuid
+  name            String
+  scope           ApiCredentialScope
+  apiKey          String             @unique @map("api_key")
+  keyPrefix       String             @map("key_prefix")
+  secretHash      String             @map("secret_hash")
+  isActive        Boolean            @default(true) @map("is_active")
+  lastUsedAt      DateTime?          @map("last_used_at") @db.Timestamptz(6)
+  createdByUserId String             @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  revokedAt       DateTime?          @map("revoked_at") @db.Timestamptz(6)
+  revokedByUserId String?            @map("revoked_by_user_id") @db.Uuid
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator User    @relation("ApiCredentialCreatedBy", fields: [createdByUserId], references: [id])
+  revoker User?   @relation("ApiCredentialRevokedBy", fields: [revokedByUserId], references: [id])
+
+  @@index([companyId, createdAt(sort: Desc)], map: "idx_api_credentials_company")
+  @@map("api_credentials")
 }
 
 model BackupStorageSettings {
@@ -1633,6 +1669,7 @@ model OutboundOrder {
   outForDeliveryAt     DateTime?           @map("out_for_delivery_at") @db.Timestamptz(6)
   deliveredAt          DateTime?           @map("delivered_at") @db.Timestamptz(6)
   returnedAt           DateTime?           @map("returned_at") @db.Timestamptz(6)
+  /// Sprint 1: retained internally (CSV history, dashboard grouping). Optional; hidden from create/edit UI.
   storeChannel         String?             @map("store_channel")
   externalReference    String?             @map("external_reference")
   confirmedAt          DateTime?           @map("confirmed_at") @db.Timestamptz(6)
@@ -1643,7 +1680,8 @@ model OutboundOrder {
   /// admin | workers — Admin Execution; Confirm runs full pick/pack/dispatch facade.
   executionMode        String?             @map("execution_mode") @db.VarChar(16)
   executionPlan        Json?               @map("execution_plan")
-  shippingMethod       ShippingMethod      @default(manual) @map("shipping_method")
+  /// Unset until Waiting for Shipping Method. Never default to manual.
+  shippingMethod       ShippingMethod?     @map("shipping_method")
   shippingProviderCode String?             @map("shipping_provider_code")
   shippingReceiverLat  Decimal?            @map("shipping_receiver_lat") @db.Decimal(12, 8)
   shippingReceiverLng  Decimal?            @map("shipping_receiver_lng") @db.Decimal(12, 8)
@@ -1731,8 +1769,12 @@ model OmsOrder {
   outForDeliveryAt     DateTime?           @map("out_for_delivery_at") @db.Timestamptz(6)
   deliveredAt          DateTime?           @map("delivered_at") @db.Timestamptz(6)
   returnedAt           DateTime?           @map("returned_at") @db.Timestamptz(6)
+  /// Sprint 1: retained internally (CSV history, OmsSalesChannel integrations). Optional; not a workflow prerequisite; hidden from Admin/Client create/edit UI.
   storeChannel         String?             @map("store_channel")
   externalReference    String?             @map("external_reference")
+  /// Client/API import: order is traceable but not approvable until shipping/delivery info is completed.
+  needsInformation     Boolean             @default(false) @map("needs_information")
+  importBatchId        String?             @map("import_batch_id") @db.Uuid
   confirmedAt          DateTime?           @map("confirmed_at") @db.Timestamptz(6)
   cancelledAt          DateTime?           @map("cancelled_at") @db.Timestamptz(6)
   cancelledBy          String?             @map("cancelled_by") @db.Uuid
@@ -1742,7 +1784,8 @@ model OmsOrder {
   rejectedAt           DateTime?           @map("rejected_at") @db.Timestamptz(6)
   rejectedBy           String?             @map("rejected_by") @db.Uuid
   rejectionReason      String?             @map("rejection_reason")
-  shippingMethod       ShippingMethod      @default(manual) @map("shipping_method")
+  /// Unset until Waiting for Shipping Method. Never default to manual.
+  shippingMethod       ShippingMethod?     @map("shipping_method")
   shippingProviderCode String?             @map("shipping_provider_code")
   shippingReceiverLat  Decimal?            @map("shipping_receiver_lat") @db.Decimal(12, 8)
   shippingReceiverLng  Decimal?            @map("shipping_receiver_lng") @db.Decimal(12, 8)
@@ -1771,6 +1814,7 @@ model OmsOrder {
 
   @@index([companyId, createdAt(sort: Desc)], map: "idx_oms_orders_created")
   @@index([companyId, status], map: "idx_oms_orders_status")
+  @@index([importBatchId], map: "idx_oms_orders_import_batch")
   @@map("oms_orders")
 }
 

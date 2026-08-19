@@ -35,6 +35,7 @@ import { PdfService } from './pdf.service';
     FinalContractPdfService,
     InvoicePdfService,
     DocumentsService,
+    PdfService,
   ],
 })
 export class PdfModule {}

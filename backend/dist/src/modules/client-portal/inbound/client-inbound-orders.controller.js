@@ -14,20 +14,38 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientInboundOrdersController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
+const throttler_1 = require("@nestjs/throttler");
+const multer_1 = require("multer");
 const create_inbound_dto_1 = require("../../inbound/dto/create-inbound.dto");
 const public_decorator_1 = require("../../../common/auth/public.decorator");
 const parse_uuid_loose_pipe_1 = require("../../../common/pipes/parse-uuid-loose.pipe");
 const client_user_decorator_1 = require("../auth/client-user.decorator");
 const jwt_client_auth_guard_1 = require("../auth/jwt-client-auth.guard");
+const inbound_client_import_service_1 = require("../order-import/inbound-client-import.service");
 const client_inbound_orders_service_1 = require("./client-inbound-orders.service");
 const client_list_inbound_query_dto_1 = require("./dto/client-list-inbound-query.dto");
 let ClientInboundOrdersController = class ClientInboundOrdersController {
     inbound;
-    constructor(inbound) {
+    importSvc;
+    constructor(inbound, importSvc) {
         this.inbound = inbound;
+        this.importSvc = importSvc;
     }
     list(client, query) {
         return this.inbound.list(client, query);
+    }
+    importTemplate(res) {
+        const result = this.importSvc.getImportTemplate();
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        return result.body;
+    }
+    async importOrders(client, file) {
+        if (!file?.buffer?.length) {
+            throw new common_1.BadRequestException('Excel or CSV file is required.');
+        }
+        return this.importSvc.importFile(client, file.buffer, file.originalname);
     }
     findOne(client, id) {
         return this.inbound.findOne(client, id);
@@ -45,6 +63,27 @@ __decorate([
     __metadata("design:paramtypes", [Object, client_list_inbound_query_dto_1.ClientListInboundQueryDto]),
     __metadata("design:returntype", void 0)
 ], ClientInboundOrdersController.prototype, "list", null);
+__decorate([
+    (0, common_1.Get)('import/template'),
+    (0, common_1.Header)('Cache-Control', 'no-store'),
+    __param(0, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], ClientInboundOrdersController.prototype, "importTemplate", null);
+__decorate([
+    (0, common_1.Post)('import'),
+    (0, throttler_1.Throttle)({ default: { limit: 20, ttl: 60_000 } }),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
+        storage: (0, multer_1.memoryStorage)(),
+        limits: { fileSize: 5 * 1024 * 1024 },
+    })),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.UploadedFile)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], ClientInboundOrdersController.prototype, "importOrders", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
@@ -65,6 +104,7 @@ exports.ClientInboundOrdersController = ClientInboundOrdersController = __decora
     (0, public_decorator_1.Public)(),
     (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     (0, common_1.Controller)('client/inbound-orders'),
-    __metadata("design:paramtypes", [client_inbound_orders_service_1.ClientInboundOrdersService])
+    __metadata("design:paramtypes", [client_inbound_orders_service_1.ClientInboundOrdersService,
+        inbound_client_import_service_1.InboundClientImportService])
 ], ClientInboundOrdersController);
 //# sourceMappingURL=client-inbound-orders.controller.js.map

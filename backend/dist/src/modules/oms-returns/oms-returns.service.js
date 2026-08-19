@@ -328,7 +328,76 @@ let OmsReturnsService = class OmsReturnsService {
             return row;
         });
         this.emitReturn(created.companyId, created.id, created.status, 'oms_return.created', created.omsOrderId);
-        return serialize(created);
+        try {
+            await this.autoCompleteReturn(created.id, user);
+            return this.findById(created.id, user);
+        }
+        catch {
+            return serialize(created);
+        }
+    }
+    async autoCompleteReturn(returnId, user) {
+        const omsReturn = await this.prisma.omsReturn.findUnique({
+            where: { id: returnId },
+            include: {
+                ...INCLUDE,
+                omsOrder: {
+                    select: {
+                        id: true,
+                        orderNumber: true,
+                        status: true,
+                        outboundOrderId: true,
+                        lines: { select: { productId: true, requestedQuantity: true } },
+                    },
+                },
+            },
+        });
+        if (!omsReturn || omsReturn.status !== client_1.OmsReturnStatus.requested)
+            return;
+        const outboundId = omsReturn.omsOrder?.outboundOrderId;
+        if (!outboundId)
+            return;
+        const warehouseId = (await this.prisma.stockReservation.findFirst({
+            where: { outboundOrderId: outboundId },
+            orderBy: { createdAt: 'desc' },
+            select: { location: { select: { warehouseId: true } } },
+        }))?.location.warehouseId;
+        if (!warehouseId)
+            return;
+        const returnsLocation = await this.prisma.location.findFirst({
+            where: {
+                warehouseId,
+                name: { equals: 'Returns', mode: 'insensitive' },
+                status: 'active',
+            },
+            select: { id: true },
+        });
+        if (!returnsLocation) {
+            throw new common_1.BadRequestException('Configuration error: no "Returns" location found in the warehouse. ' +
+                'Create a location named "Returns" before processing returns.');
+        }
+        const receivingDock = await this.prisma.location.findFirst({
+            where: { warehouseId, type: 'input', status: 'active' },
+            select: { id: true },
+        });
+        const plan = {
+            warehouseId,
+            receivingDockId: receivingDock?.id ?? returnsLocation.id,
+            planUpdatedAt: new Date().toISOString(),
+            lines: omsReturn.lines.map((l) => ({
+                productId: l.productId,
+                orderLineId: l.id,
+                expectedQty: Number(l.quantity),
+                putaway: [{ locationId: returnsLocation.id, qty: Number(l.quantity) }],
+            })),
+        };
+        await this.updatePlan(returnId, user, {
+            executionPlan: plan,
+            executionMode: 'admin',
+        });
+        await this.approve(returnId, user, { warehouseId });
+        await this.completeReceivingAdmin(returnId, user);
+        await this.completePutawayAdmin(returnId, user);
     }
     async updatePlan(id, user, dto) {
         const existing = await this.prisma.omsReturn.findUnique({
@@ -762,6 +831,121 @@ let OmsReturnsService = class OmsReturnsService {
         }
         catch {
         }
+    }
+    async expressReturn(user, dto) {
+        const unique = [...new Set(dto.omsOrderIds)].slice(0, 200);
+        const created = [];
+        const failed = [];
+        for (const omsOrderId of unique) {
+            try {
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(omsOrderId);
+                const order = isUuid
+                    ? await this.prisma.omsOrder.findUnique({ where: { id: omsOrderId }, include: { lines: true } })
+                    : await this.prisma.omsOrder.findFirst({
+                        where: { orderNumber: { equals: omsOrderId, mode: 'insensitive' } },
+                        include: { lines: true },
+                    });
+                if (!order) {
+                    failed.push({ omsOrderId, error: 'OMS order not found.' });
+                    continue;
+                }
+                this.companyAccess.validateResourceOwnership(user, order);
+                if (order.status !== client_1.OmsOrderStatus.delivered) {
+                    failed.push({ omsOrderId, orderNumber: order.orderNumber, error: `Order status is ${order.status}, expected delivered.` });
+                    continue;
+                }
+                const priorReturned = await this.sumActiveReturnedQtyByProduct(omsOrderId);
+                const lines = [];
+                for (const ol of order.lines) {
+                    const already = priorReturned.get(ol.productId) ?? new client_1.Prisma.Decimal(0);
+                    const returnable = Number(ol.requestedQuantity.sub(already));
+                    if (returnable > 0) {
+                        lines.push({ productId: ol.productId, quantity: returnable });
+                    }
+                }
+                if (lines.length === 0) {
+                    failed.push({ omsOrderId, orderNumber: order.orderNumber, error: 'All products already fully returned.' });
+                    continue;
+                }
+                const result = await this.create(user, {
+                    omsOrderId: order.id,
+                    lines,
+                    reason: dto.reason,
+                });
+                created.push({
+                    omsOrderId,
+                    orderNumber: order.orderNumber,
+                    returnId: result.id,
+                    returnNumber: result.returnNumber,
+                });
+            }
+            catch (err) {
+                failed.push({
+                    omsOrderId,
+                    error: err?.message ?? 'Unknown error',
+                });
+            }
+        }
+        return { created, failed };
+    }
+    async validateOrdersForExpressReturn(user, dto) {
+        const unique = [...new Set(dto.omsOrderIds)].slice(0, 200);
+        const results = [];
+        for (const omsOrderId of unique) {
+            try {
+                const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(omsOrderId);
+                const order = isUuid
+                    ? await this.prisma.omsOrder.findUnique({
+                        where: { id: omsOrderId },
+                        include: {
+                            lines: { include: { product: { select: { id: true, name: true, sku: true } } } },
+                        },
+                    })
+                    : await this.prisma.omsOrder.findFirst({
+                        where: { orderNumber: { equals: omsOrderId, mode: 'insensitive' } },
+                        include: {
+                            lines: { include: { product: { select: { id: true, name: true, sku: true } } } },
+                        },
+                    });
+                if (!order) {
+                    results.push({ omsOrderId, orderNumber: '', eligible: false, error: 'OMS order not found.' });
+                    continue;
+                }
+                this.companyAccess.validateResourceOwnership(user, order);
+                if (order.status !== client_1.OmsOrderStatus.delivered) {
+                    results.push({ omsOrderId, orderNumber: order.orderNumber, eligible: false, error: `Order status is ${order.status}, expected delivered.` });
+                    continue;
+                }
+                const priorReturned = await this.sumActiveReturnedQtyByProduct(omsOrderId);
+                const lines = [];
+                for (const ol of order.lines) {
+                    const already = priorReturned.get(ol.productId) ?? new client_1.Prisma.Decimal(0);
+                    const ordered = Number(ol.requestedQuantity);
+                    const alreadyNum = Number(already);
+                    const returnable = ordered - alreadyNum;
+                    lines.push({
+                        productId: ol.productId,
+                        productName: ol.product?.name ?? '',
+                        productSku: ol.product?.sku ?? '',
+                        ordered,
+                        alreadyReturned: alreadyNum,
+                        returnable: Math.max(returnable, 0),
+                    });
+                }
+                const hasReturnable = lines.some((l) => l.returnable > 0);
+                results.push({
+                    omsOrderId,
+                    orderNumber: order.orderNumber,
+                    eligible: hasReturnable,
+                    error: hasReturnable ? undefined : 'All products already fully returned.',
+                    lines,
+                });
+            }
+            catch (err) {
+                results.push({ omsOrderId, orderNumber: '', eligible: false, error: err?.message ?? 'Unknown error' });
+            }
+        }
+        return results;
     }
     async resolveLotFromOutbound(productId, outboundOrderId) {
         if (!outboundOrderId)

@@ -359,30 +359,6 @@ let CodRecordsService = class CodRecordsService {
                     amount: signed.toString(),
                 },
             });
-            const adjSum = cod.adjustments.reduce((s, a) => s.add(a.amount), new client_1.Prisma.Decimal(0));
-            const current = cod.originalAmount.add(adjSum).add(signed);
-            if (current.lte(0) && cod.status !== client_1.CodRecordStatus.returned) {
-                await tx.codRecord.update({
-                    where: { id: cod.id },
-                    data: {
-                        status: client_1.CodRecordStatus.returned,
-                        availableAt: null,
-                        paidOutAt: null,
-                    },
-                });
-                await this.recordEvent(tx, {
-                    omsOrderId: params.omsOrderId,
-                    companyId: params.companyId,
-                    eventType: 'cod.status_changed',
-                    createdBy: params.user.id,
-                    payload: {
-                        from: cod.status,
-                        to: client_1.CodRecordStatus.returned,
-                        codRecordId: cod.id,
-                        reason: 'return_balance_zero',
-                    },
-                });
-            }
             return tx.codRecord.findUnique({ where: { id: cod.id }, include: INCLUDE });
         });
         if (updated) {
@@ -392,6 +368,7 @@ let CodRecordsService = class CodRecordsService {
                 status: updated.status,
             });
         }
+        await this.syncReturnedStatusIfNeeded(params.omsOrderId, params.user);
         return serialize(updated);
     }
     async markReturnedForOrder(omsOrderId, user) {
@@ -404,11 +381,7 @@ let CodRecordsService = class CodRecordsService {
         });
         if (!cod || cod.status === client_1.CodRecordStatus.returned)
             return null;
-        const adjSum = cod.adjustments.reduce((s, a) => s.add(a.amount), new client_1.Prisma.Decimal(0));
-        const current = cod.originalAmount.add(adjSum);
-        const shouldReturn = force ||
-            current.lte(0) ||
-            cod.omsOrder?.status === client_1.OmsOrderStatus.returned;
+        const shouldReturn = force || cod.omsOrder?.status === client_1.OmsOrderStatus.returned;
         if (!shouldReturn)
             return null;
         const updated = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
@@ -430,7 +403,7 @@ let CodRecordsService = class CodRecordsService {
                     from: cod.status,
                     to: client_1.CodRecordStatus.returned,
                     codRecordId: cod.id,
-                    reason: force ? 'oms_order_returned' : 'return_balance_zero',
+                    reason: force ? 'oms_order_returned' : 'oms_status_returned',
                 },
             });
             return row;

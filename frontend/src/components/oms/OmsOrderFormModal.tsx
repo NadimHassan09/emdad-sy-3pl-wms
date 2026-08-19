@@ -6,28 +6,30 @@ import type { CreateOmsOrderInput, OmsOrderDetail, OmsPaymentMethod } from '../.
 import { OmsApi } from '../../api/oms';
 import type { Product } from '../../api/products';
 import { ProductsApi } from '../../api/products';
-import {
-  calculateOrderVolume,
-  calculateOrderWeight,
-  emptyOrderShippingFields,
-  isShippingConfigLocked,
-  orderShippingFieldsFromApi,
-  orderShippingFieldsToPayload,
-  type OrderShippingFieldsValue,
-} from '../../api/shipping';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../Button';
 import { CascadingAddressSelector } from '../CascadingAddressSelector';
 import { Combobox } from '../Combobox';
+import { DeliveryLocationMap } from '../DeliveryLocationMap';
 import { Modal } from '../Modal';
 import { SelectField } from '../SelectField';
-import { OrderShippingFields } from '../shipping/OrderShippingFields';
 import { TextField } from '../TextField';
+import {
+  InternationalPhoneInput,
+  RecipientNameInput,
+  createInternationalPhoneValue,
+  type InternationalPhoneValue,
+} from '@ds';
 import { useToast } from '../ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { companyFilterComboboxOptions } from '../../lib/company-filter-options';
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../../lib/order-planning-dates';
 import { canAccessInternalTransfer } from '../../lib/rbac';
+import {
+  DEFAULT_PHONE_COUNTRY,
+  isValidRecipientName,
+  phoneFromStoredValue,
+} from '../../../../shared/lib/recipient-contact';
 
 type LineDraft = { productId: string; requestedQuantity: string; unitPrice: string };
 
@@ -57,17 +59,21 @@ export function OmsOrderFormModal({
   const [companyId, setCompanyId] = useState('');
   const [requiredShipDate, setRequiredShipDate] = useState(localCalendarDateYmd());
   const [recipientName, setRecipientName] = useState('');
-  const [recipientPhone, setRecipientPhone] = useState('');
+  const [recipientPhone, setRecipientPhone] = useState<InternationalPhoneValue>(() =>
+    createInternationalPhoneValue(DEFAULT_PHONE_COUNTRY),
+  );
+  const [contactSubmitted, setContactSubmitted] = useState(false);
   const [city, setCity] = useState('');
   const [district, setDistrict] = useState('');
   const [addressLine1, setAddressLine1] = useState('');
+  const [addressLine2, setAddressLine2] = useState('');
+  const [deliveryLat, setDeliveryLat] = useState('');
+  const [deliveryLng, setDeliveryLng] = useState('');
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<OmsPaymentMethod | ''>('');
   const [shippingFee, setShippingFee] = useState('');
   const [currency, setCurrency] = useState('USD');
-  const [storeChannel, setStoreChannel] = useState('');
   const [lines, setLines] = useState<LineDraft[]>([emptyLine()]);
-  const [shipping, setShipping] = useState<OrderShippingFieldsValue>(emptyOrderShippingFields);
 
   const companies = useQuery({
     queryKey: QK.companies,
@@ -89,31 +95,36 @@ export function OmsOrderFormModal({
       setCompanyId(initial.companyId);
       setRequiredShipDate(initial.requiredShipDate.slice(0, 10));
       setRecipientName(initial.recipientName ?? '');
-      setRecipientPhone(initial.recipientPhone ?? '');
+      const stored = phoneFromStoredValue(initial.recipientPhone, initial.shippingPhoneCountry);
+      setRecipientPhone(createInternationalPhoneValue(stored.countryIso, stored.nationalNumber));
+      setContactSubmitted(false);
       setCity(initial.city ?? '');
       setDistrict(initial.district ?? '');
       setAddressLine1(initial.addressLine1 ?? '');
+      setAddressLine2((initial as { addressLine2?: string }).addressLine2 ?? '');
+      setDeliveryLat(initial.shippingReceiverLat != null ? String(initial.shippingReceiverLat) : '');
+      setDeliveryLng(initial.shippingReceiverLng != null ? String(initial.shippingReceiverLng) : '');
       setNotes(initial.notes ?? '');
       setPaymentMethod(initial.paymentMethod ?? '');
       setShippingFee(initial.shippingFee ?? '');
       setCurrency(initial.currency ?? 'USD');
-      setStoreChannel(initial.storeChannel ?? '');
-      setShipping(orderShippingFieldsFromApi(initial));
     } else if (mode === 'create') {
       setCompanyId(user?.tenantCompanyId ?? '');
       setRequiredShipDate(localCalendarDateYmd());
       setRecipientName('');
-      setRecipientPhone('');
+      setRecipientPhone(createInternationalPhoneValue(DEFAULT_PHONE_COUNTRY));
+      setContactSubmitted(false);
       setCity('');
       setDistrict('');
       setAddressLine1('');
+      setAddressLine2('');
+      setDeliveryLat('');
+      setDeliveryLng('');
       setNotes('');
       setPaymentMethod('');
       setShippingFee('');
       setCurrency('USD');
-      setStoreChannel('');
       setLines([emptyLine()]);
-      setShipping(emptyOrderShippingFields());
     }
   }, [open, mode, initial, user?.tenantCompanyId]);
 
@@ -144,8 +155,6 @@ export function OmsOrderFormModal({
 
   const shipAmount = shippingFee ? Number(shippingFee) || 0 : 0;
 
-  const shippingLocked =
-    mode === 'edit' && isShippingConfigLocked(initial?.warehouseStatus ?? initial?.status);
 
   /** Subtotal = shipping fee + sum(price × qty) for each line. */
   const calculatedSubtotal = useMemo(() => {
@@ -189,33 +198,35 @@ export function OmsOrderFormModal({
         const payload: CreateOmsOrderInput = {
           companyId: effectiveCompanyId,
           requiredShipDate,
-          recipientName: recipientName || undefined,
-          recipientPhone: recipientPhone || undefined,
+          recipientName: recipientName.trim() || undefined,
+          recipientPhone: recipientPhone.e164 || undefined,
           city: city || undefined,
           district: district || undefined,
           addressLine1: addressLine1 || undefined,
+          addressLine2: addressLine2 || undefined,
+          shippingReceiverLat: deliveryLat.trim() ? Number(deliveryLat) : undefined,
+          shippingReceiverLng: deliveryLng.trim() ? Number(deliveryLng) : undefined,
           notes: notes || undefined,
           paymentMethod: paymentMethod || undefined,
           subtotal: calculatedSubtotal,
           shippingFee: shippingFee ? shipAmount : undefined,
           codAmount: paymentMethod === 'COD' ? calculatedSubtotal : undefined,
           currency: currency || undefined,
-          storeChannel: storeChannel || undefined,
           lines: parsedLines,
-          ...orderShippingFieldsToPayload(shipping),
+          shippingPhoneCountry: recipientPhone.countryIso || undefined,
         };
         return OmsApi.create(payload);
       }
 
       if (!initial) throw new Error('Order not loaded.');
-      const shippingPatch = shippingLocked ? {} : orderShippingFieldsToPayload(shipping);
       if (linesFrozen) {
         return OmsApi.update(initial.id, {
-          recipientName,
-          recipientPhone,
+          recipientName: recipientName.trim() || undefined,
+          recipientPhone: recipientPhone.e164 || undefined,
           city,
           district,
           addressLine1,
+          addressLine2: addressLine2 || undefined,
           requiredShipDate,
           notes,
           paymentMethod: paymentMethod || undefined,
@@ -223,16 +234,16 @@ export function OmsOrderFormModal({
           shippingFee: shippingFee ? shipAmount : 0,
           codAmount: paymentMethod === 'COD' ? calculatedSubtotal : undefined,
           currency,
-          storeChannel,
-          ...shippingPatch,
+          shippingPhoneCountry: recipientPhone.countryIso || undefined,
         });
       }
       return OmsApi.update(initial.id, {
-        recipientName,
-        recipientPhone,
+        recipientName: recipientName.trim() || undefined,
+        recipientPhone: recipientPhone.e164 || undefined,
         city,
         district,
         addressLine1,
+        addressLine2: addressLine2 || undefined,
         requiredShipDate,
         notes,
         paymentMethod: paymentMethod || undefined,
@@ -240,8 +251,7 @@ export function OmsOrderFormModal({
         shippingFee: shippingFee ? shipAmount : 0,
         codAmount: paymentMethod === 'COD' ? calculatedSubtotal : undefined,
         currency,
-        storeChannel,
-        ...shippingPatch,
+        shippingPhoneCountry: recipientPhone.countryIso || undefined,
       });
     },
     onSuccess: (order) => {
@@ -254,6 +264,9 @@ export function OmsOrderFormModal({
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
+    setContactSubmitted(true);
+    if (!isValidRecipientName(recipientName)) return;
+    if (!recipientPhone.isEmpty && !recipientPhone.isValid) return;
     saveMut.mutate();
   };
 
@@ -283,15 +296,17 @@ export function OmsOrderFormModal({
         ) : null}
 
         <div className="grid gap-3 md:grid-cols-2">
-          <TextField
+          <RecipientNameInput
             label="Recipient name"
             value={recipientName}
-            onChange={(e) => setRecipientName(e.target.value)}
+            onChange={setRecipientName}
+            submitted={contactSubmitted}
           />
-          <TextField
+          <InternationalPhoneInput
             label="Recipient phone"
             value={recipientPhone}
-            onChange={(e) => setRecipientPhone(e.target.value)}
+            onChange={setRecipientPhone}
+            submitted={contactSubmitted}
           />
           <CascadingAddressSelector
             value={{ city, district, addressLine1 }}
@@ -308,15 +323,34 @@ export function OmsOrderFormModal({
             addressLine1Placeholder="Select or type town/neighborhood…"
           />
           <TextField
+            label="Street / Detailed Address"
+            value={addressLine2}
+            onChange={(e) => setAddressLine2(e.target.value)}
+            placeholder="Street name, building, floor…"
+          />
+        </div>
+        <DeliveryLocationMap
+          lat={deliveryLat}
+          lng={deliveryLng}
+          onChange={({ lat, lng }) => {
+            setDeliveryLat(lat);
+            setDeliveryLng(lng);
+          }}
+          governorate={city}
+          city={district}
+          neighborhood={addressLine1}
+          street={addressLine2}
+          onRemovePin={() => {
+            setDeliveryLat('');
+            setDeliveryLng('');
+          }}
+        />
+        <div className="grid gap-3 md:grid-cols-2">
+          <TextField
             label="Required ship date"
             type="date"
             value={requiredShipDate}
             onChange={(e) => setRequiredShipDate(e.target.value)}
-          />
-          <TextField
-            label="Sales channel"
-            value={storeChannel}
-            onChange={(e) => setStoreChannel(e.target.value)}
           />
         </div>
 
@@ -411,59 +445,6 @@ export function OmsOrderFormModal({
           </div>
         ) : null}
 
-        {isAdmin ? (
-          mode === 'edit' ||
-          lines.some((l) => l.productId && Number(l.requestedQuantity) > 0) ? (
-            <OrderShippingFields
-              value={shipping}
-              onChange={setShipping}
-              locked={shippingLocked}
-              disabled={saveMut.isPending}
-              destination={{
-                governorate: city,
-                city: district,
-                neighborhood: addressLine1,
-              }}
-              codAmount={paymentMethod === 'COD' ? calculatedSubtotal : null}
-              suggestedWeightKg={
-                calculateOrderWeight(
-                  lines.map((l) => ({
-                    productId: l.productId,
-                    requestedQuantity: l.requestedQuantity,
-                  })),
-                  (products.data?.items ?? []).map((p) => ({ id: p.id, weightKg: p.weightKg })),
-                )
-              }
-              suggestedVolumeCbm={
-                calculateOrderVolume(
-                  lines.map((l) => ({
-                    productId: l.productId,
-                    requestedQuantity: l.requestedQuantity,
-                  })),
-                  (products.data?.items ?? []).map((p) => {
-                    const len = Number(p.lengthCm);
-                    const w = Number(p.widthCm);
-                    const h = Number(p.heightCm);
-                    const volumeCbm =
-                      Number.isFinite(len) &&
-                      Number.isFinite(w) &&
-                      Number.isFinite(h) &&
-                      len > 0 &&
-                      w > 0 &&
-                      h > 0
-                        ? Math.round(((len * w * h) / 1_000_000) * 1_000_000) / 1_000_000
-                        : null;
-                    return { id: p.id, volumeCbm };
-                  }),
-                )
-              }
-            />
-          ) : (
-            <p className="rounded-lg border border-border-subtle bg-surface-sunken px-3 py-2 text-xs text-text-body">
-              Add products and quantities first to fill the shipping company form.
-            </p>
-          )
-        ) : null}
 
         <div className="flex justify-end gap-2 border-t border-border-subtle pt-4">
           <Button type="button" variant="danger" onClick={onClose}>

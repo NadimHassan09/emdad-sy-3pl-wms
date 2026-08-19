@@ -14,19 +14,25 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.OmsController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
+const throttler_1 = require("@nestjs/throttler");
+const multer_1 = require("multer");
 const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
 const parse_uuid_loose_pipe_1 = require("../../common/pipes/parse-uuid-loose.pipe");
 const oms_order_dto_1 = require("./dto/oms-order.dto");
 const oms_dashboard_service_1 = require("./oms-dashboard.service");
+const oms_orders_csv_service_1 = require("./oms-orders-csv.service");
 const oms_orders_service_1 = require("./oms-orders.service");
 const list_oms_orders_query_dto_1 = require("./dto/list-oms-orders-query.dto");
 const oms_dashboard_order_summary_query_dto_1 = require("./dto/oms-dashboard-order-summary-query.dto");
 let OmsController = class OmsController {
     orders;
     dashboard;
-    constructor(orders, dashboard) {
+    csv;
+    constructor(orders, dashboard, csv) {
         this.orders = orders;
         this.dashboard = dashboard;
+        this.csv = csv;
     }
     dashboardSummary(user, companyId) {
         return this.dashboard.summary(user, companyId);
@@ -36,6 +42,34 @@ let OmsController = class OmsController {
     }
     list(user, query) {
         return this.orders.list(user, query);
+    }
+    async exportOrders(user, query, res) {
+        const result = await this.csv.exportCsv(user, query);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        res.setHeader('X-Export-Row-Count', String(result.rowCount));
+        res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+        return result.body;
+    }
+    importTemplate(res) {
+        const result = this.csv.getImportTemplate();
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        return result.body;
+    }
+    async validateImport(user, file) {
+        if (!file?.buffer?.length) {
+            throw new common_1.BadRequestException('CSV file is required.');
+        }
+        const result = await this.csv.validateImport(user, file.buffer);
+        const { _validPayloads: _, ...publicResult } = result;
+        return publicResult;
+    }
+    async importOrders(user, file) {
+        if (!file?.buffer?.length) {
+            throw new common_1.BadRequestException('CSV file is required.');
+        }
+        return this.csv.executeImport(user, file.buffer);
     }
     create(user, dto) {
         return this.orders.create(user, dto, { provisionOutbound: !dto.outboundOrderId });
@@ -75,6 +109,9 @@ let OmsController = class OmsController {
     }
     outForDelivery(user, id) {
         return this.orders.markOutForDelivery(id, user);
+    }
+    recordExternalFulfillment(user, id) {
+        return this.orders.recordExternalFulfillment(id, user);
     }
     delivered(user, id) {
         return this.orders.markDelivered(id, user);
@@ -120,6 +157,51 @@ __decorate([
     __metadata("design:paramtypes", [Object, list_oms_orders_query_dto_1.ListOmsOrdersQueryDto]),
     __metadata("design:returntype", void 0)
 ], OmsController.prototype, "list", null);
+__decorate([
+    (0, common_1.Get)('orders/export'),
+    (0, throttler_1.Throttle)({ default: { limit: 10, ttl: 60_000 } }),
+    (0, common_1.Header)('Cache-Control', 'no-store'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Query)()),
+    __param(2, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, list_oms_orders_query_dto_1.ListOmsOrdersQueryDto, Object]),
+    __metadata("design:returntype", Promise)
+], OmsController.prototype, "exportOrders", null);
+__decorate([
+    (0, common_1.Get)('orders/import/template'),
+    (0, common_1.Header)('Cache-Control', 'no-store'),
+    __param(0, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "importTemplate", null);
+__decorate([
+    (0, common_1.Post)('orders/import/validate'),
+    (0, throttler_1.Throttle)({ default: { limit: 10, ttl: 60_000 } }),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
+        storage: (0, multer_1.memoryStorage)(),
+        limits: { fileSize: 5 * 1024 * 1024 },
+    })),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.UploadedFile)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], OmsController.prototype, "validateImport", null);
+__decorate([
+    (0, common_1.Post)('orders/import'),
+    (0, throttler_1.Throttle)({ default: { limit: 5, ttl: 60_000 } }),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
+        storage: (0, multer_1.memoryStorage)(),
+        limits: { fileSize: 5 * 1024 * 1024 },
+    })),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.UploadedFile)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], OmsController.prototype, "importOrders", null);
 __decorate([
     (0, common_1.Post)('orders'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
@@ -229,6 +311,14 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], OmsController.prototype, "outForDelivery", null);
 __decorate([
+    (0, common_1.Post)('orders/:id/external-fulfillment'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "recordExternalFulfillment", null);
+__decorate([
     (0, common_1.Post)('orders/:id/delivered'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
@@ -280,6 +370,7 @@ __decorate([
 exports.OmsController = OmsController = __decorate([
     (0, common_1.Controller)('oms'),
     __metadata("design:paramtypes", [oms_orders_service_1.OmsOrdersService,
-        oms_dashboard_service_1.OmsDashboardService])
+        oms_dashboard_service_1.OmsDashboardService,
+        oms_orders_csv_service_1.OmsOrdersCsvService])
 ], OmsController);
 //# sourceMappingURL=oms.controller.js.map

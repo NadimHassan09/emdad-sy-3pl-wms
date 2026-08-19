@@ -13,6 +13,7 @@ exports.WorkflowOrchestrationService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const oms_warehouse_guards_1 = require("../oms/oms-warehouse-guards");
 const execution_state_location_util_1 = require("./execution-state-location.util");
 const task_sla_defaults_1 = require("./task-sla-defaults");
 let WorkflowOrchestrationService = class WorkflowOrchestrationService {
@@ -367,10 +368,13 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
         }
         const order = await tx.outboundOrder.findUnique({
             where: { id: orderId },
-            select: { id: true },
+            select: { id: true, status: true },
         });
         if (!order)
             throw new common_1.BadRequestException('Outbound order missing for shipping_details spawn.');
+        if (!(0, oms_warehouse_guards_1.outboundAllowsShippingDetailsSpawn)(order.status)) {
+            return;
+        }
         const seq = await this.nextNodeSequence(tx, instanceId);
         const node = await tx.workflowNode.create({
             data: {

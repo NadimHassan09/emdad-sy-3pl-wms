@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   ShippingApi,
@@ -126,6 +126,9 @@ export function OrderShippingFields({
   const carrier = value.shippingMethod === 'carrier';
   const weightSource = sourceBadge(value.shippingWeightKg, suggestedWeightKg);
   const volumeSource = sourceBadge(value.shippingVolumeCbm, suggestedVolumeCbm);
+  const [weightEditable, setWeightEditable] = useState(false);
+  const [volumeEditable, setVolumeEditable] = useState(false);
+  const [contentsEditable, setContentsEditable] = useState(false);
 
   const destKey = {
     governorate: destination?.governorate?.trim() || '',
@@ -332,38 +335,68 @@ export function OrderShippingFields({
                 { value: 'envelope', label: 'Envelope' },
               ]}
             />
-            <TextField
-              label="Weight (kg)"
-              value={value.shippingWeightKg}
-              disabled={readOnly}
-              onChange={(e) =>
-                onChange(patch(value, { shippingWeightKg: e.target.value }))
-              }
-              placeholder={
-                suggestedWeightKg != null ? String(suggestedWeightKg) : 'e.g. 1.5'
-              }
-              hint={
-                weightSource
-                  ? `${weightSource} from product unit weight × quantity (editable).`
-                  : 'Actual package weight in kilograms.'
-              }
-            />
-            <TextField
-              label="Volume (m³)"
-              value={value.shippingVolumeCbm}
-              disabled={readOnly}
-              onChange={(e) =>
-                onChange(patch(value, { shippingVolumeCbm: e.target.value }))
-              }
-              placeholder={
-                suggestedVolumeCbm != null ? String(suggestedVolumeCbm) : 'e.g. 0.05'
-              }
-              hint={
-                volumeSource
-                  ? `${volumeSource} from product unit volume × quantity (editable)`
-                  : 'Actual packed shipment volume (optional override).'
-              }
-            />
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-xs font-medium text-text-body">Weight (kg)</label>
+                {!readOnly && !weightEditable ? (
+                  <button
+                    type="button"
+                    onClick={() => setWeightEditable(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-600 hover:text-brand-700"
+                    title="Edit weight"
+                  >
+                    <i className="fa-solid fa-pencil text-[10px]" aria-hidden="true" />
+                    Edit
+                  </button>
+                ) : null}
+              </div>
+              <TextField
+                value={value.shippingWeightKg}
+                disabled={readOnly || !weightEditable}
+                onChange={(e) =>
+                  onChange(patch(value, { shippingWeightKg: e.target.value }))
+                }
+                placeholder={
+                  suggestedWeightKg != null ? String(suggestedWeightKg) : 'e.g. 1.5'
+                }
+                hint={
+                  weightSource
+                    ? `${weightSource} from product unit weight × quantity.`
+                    : 'Actual package weight in kilograms.'
+                }
+              />
+            </div>
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-xs font-medium text-text-body">Volume (m³)</label>
+                {!readOnly && !volumeEditable ? (
+                  <button
+                    type="button"
+                    onClick={() => setVolumeEditable(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-600 hover:text-brand-700"
+                    title="Edit volume"
+                  >
+                    <i className="fa-solid fa-pencil text-[10px]" aria-hidden="true" />
+                    Edit
+                  </button>
+                ) : null}
+              </div>
+              <TextField
+                value={value.shippingVolumeCbm}
+                disabled={readOnly || !volumeEditable}
+                onChange={(e) =>
+                  onChange(patch(value, { shippingVolumeCbm: e.target.value }))
+                }
+                placeholder={
+                  suggestedVolumeCbm != null ? String(suggestedVolumeCbm) : 'e.g. 0.05'
+                }
+                hint={
+                  volumeSource
+                    ? `${volumeSource} from product unit volume × quantity.`
+                    : 'Actual packed shipment volume (optional override).'
+                }
+              />
+            </div>
             <SelectField
               label="Delivery type"
               value={value.shippingDeliveryType}
@@ -418,15 +451,31 @@ export function OrderShippingFields({
             />
           </div>
 
-          <TextField
-            label="Contents"
-            value={value.shippingContents}
-            disabled={readOnly}
-            onChange={(e) =>
-              onChange(patch(value, { shippingContents: e.target.value }))
-            }
-            placeholder="Describe package contents"
-          />
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="text-xs font-medium text-text-body">Contents</label>
+              {!readOnly && !contentsEditable ? (
+                <button
+                  type="button"
+                  onClick={() => setContentsEditable(true)}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-600 hover:text-brand-700"
+                  title="Edit contents"
+                >
+                  <i className="fa-solid fa-pencil text-[10px]" aria-hidden="true" />
+                  Edit
+                </button>
+              ) : null}
+            </div>
+            <TextField
+              value={value.shippingContents}
+              disabled={readOnly || !contentsEditable}
+              onChange={(e) =>
+                onChange(patch(value, { shippingContents: e.target.value }))
+              }
+              placeholder="Auto-generated from product names"
+              hint={!contentsEditable ? 'Auto-generated from order products.' : undefined}
+            />
+          </div>
 
           <ShippingCarrierCards
             quotes={quotes}

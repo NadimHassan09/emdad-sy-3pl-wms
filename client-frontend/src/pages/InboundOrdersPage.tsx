@@ -1,4 +1,4 @@
-import { useMemo, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
@@ -20,6 +20,7 @@ import { Badge } from '../design-v2/Badge';
 import { Card } from '../design-v2/Card';
 import { ListPageHeader } from '../design-v2/ListPageHeader';
 import { TableFooterPagination } from '../design-v2/TableFooterPagination';
+import { ClientOrderImportModal } from '../components/ClientOrderImportModal';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import {
   clientInboundStatusLabel,
@@ -43,6 +44,7 @@ function inboundLabel(label: string, isArabic: boolean): string {
     'Manage and track your inbound orders': 'إدارة وتتبع طلبات الوارد الخاصة بك',
     'Warehouse receipts': 'إيصالات المستودع',
     'New inbound': 'وارد جديد',
+    Import: 'استيراد',
     'Search order number...': 'ابحث برقم الطلب...',
     Filters: 'فلاتر',
     'All statuses': 'كل الحالات',
@@ -73,6 +75,7 @@ export function InboundOrdersPage(): ReactElement {
   const isArabic = isClientArabic();
   const t = (label: string) => inboundLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
+  const [importOpen, setImportOpen] = useState(false);
 
   const filterKey = useMemo(
     () => ({
@@ -98,16 +101,36 @@ export function InboundOrdersPage(): ReactElement {
         title={t('Inbound Orders')}
         subtitle={t('Warehouse receipts')}
         actions={
-          <button
-            type="button"
-            disabled={!billingAccess.operationalAllowed}
-            title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
-            onClick={() => navigate('/inbound-orders/new')}
-            className="px-4 py-2 bg-cta text-white rounded-lg text-sm font-medium hover:bg-cta-hover transition-all shadow-lg shadow-brand-600/20 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <i className="fa-solid fa-plus text-xs" /> {t('New inbound')}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={!billingAccess.operationalAllowed}
+              title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
+              onClick={() => setImportOpen(true)}
+              className="px-4 py-2 bg-white text-text-strong border border-border-strong rounded-lg text-sm font-medium hover:bg-surface-hover transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <i className="fa-solid fa-file-import text-xs" /> {t('Import')}
+            </button>
+            <button
+              type="button"
+              disabled={!billingAccess.operationalAllowed}
+              title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
+              onClick={() => navigate('/inbound-orders/new')}
+              className="px-4 py-2 bg-cta text-white rounded-lg text-sm font-medium hover:bg-cta-hover transition-all shadow-lg shadow-brand-600/20 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <i className="fa-solid fa-plus text-xs" /> {t('New inbound')}
+            </button>
+          </div>
         }
+      />
+
+      <ClientOrderImportModal
+        kind="inbound"
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => pagination.refetch()}
+        disabled={!billingAccess.operationalAllowed}
+        disabledReason={billingAccess.actionBlockedReason}
       />
 
       {pagination.isError ? (
