@@ -17,6 +17,8 @@ export type ShippingCreateShipmentInput = {
     address: string;
     lat: number;
     lng: number;
+    /** Resolved via carrier neighbourhood lookup when available. */
+    neighbourhoodId?: number;
   };
   packageType: 'box' | 'envelope';
   weightKg: number;
@@ -52,6 +54,8 @@ export type ShippingQuoteResult = {
   price: number;
   currency: string;
   details?: unknown;
+  /** When the carrier adjusts delivery mode (e.g. address unavailable → hub). */
+  effectiveDeliveryType?: 'address' | 'hub';
   /** Business days, only when the carrier API returns them. Never invent. */
   estimatedDeliveryMin?: number;
   estimatedDeliveryMax?: number;

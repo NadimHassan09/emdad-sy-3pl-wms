@@ -4,7 +4,39 @@ import type {
 } from '../../shipping-provider.interface';
 import { normalizeShippingPhoneCountry } from '../../shipping-config.util';
 
+/** Babel returns dropoff=null when door delivery is not offered for the coordinates. */
+export function isBabelAddressDeliveryAvailable(details: unknown): boolean {
+  if (!details || typeof details !== 'object') return true;
+  const record = details as Record<string, unknown>;
+  const dropoff = record.dropoff ?? record.dropOff;
+  return dropoff !== null && dropoff !== undefined;
+}
+
+export function resolveBabelPickupType(
+  pickupType: ShippingCreateShipmentInput['pickupType'],
+): ShippingCreateShipmentInput['pickupType'] {
+  // Warehouse/reseller handoff: no sender block → courier address pickup is invalid.
+  return pickupType === 'address' ? 'hub' : pickupType;
+}
+
+/** Babel requires cod.currency; quotes are returned in SYP for Syria. */
+export function resolveBabelCodCurrency(currency?: string | null): string {
+  const normalized = currency?.trim().toUpperCase();
+  if (normalized === 'SYP') return 'SYP';
+  return 'SYP';
+}
+
 export function mapCreateShipmentPayload(input: ShippingCreateShipmentInput) {
+  const neighbourhood =
+    input.receiver.neighbourhoodId != null
+      ? { id: input.receiver.neighbourhoodId }
+      : {
+          coordinates: {
+            lat: input.receiver.lat,
+            lng: input.receiver.lng,
+          },
+        };
+
   return {
     shipment: {
       receiver: {
@@ -14,21 +46,16 @@ export function mapCreateShipmentPayload(input: ShippingCreateShipmentInput) {
           phone: input.receiver.phoneLocal,
         },
         address: input.receiver.address,
-        neighbourhood: {
-          coordinates: {
-            lat: input.receiver.lat,
-            lng: input.receiver.lng,
-          },
-        },
+        neighbourhood,
       },
       type: input.packageType,
       parts: [{ weight: input.weightKg }],
       contents: input.contents,
       deliveryType: input.deliveryType,
-      pickupType: input.pickupType,
+      pickupType: resolveBabelPickupType(input.pickupType),
       cod: {
         amount: input.codAmount,
-        ...(input.currency ? { currency: input.currency } : {}),
+        currency: resolveBabelCodCurrency(input.currency),
       },
       payer: input.payer,
       ...(input.reference ? { reference: input.reference } : {}),
@@ -83,6 +110,9 @@ export function parsePhoneForBabel(
   if (local.startsWith('00963')) local = local.slice(5);
   else if (local.startsWith('963')) local = local.slice(3);
   else if (local.startsWith('0') && local.length >= 9) {
+    return { country: '963', phone: local.replace(/^0+/, '') };
+  } else if (local.length >= 7) {
+    // Default to Syria for unrecognized formats
     return { country: '963', phone: local.replace(/^0+/, '') };
   } else {
     return null;

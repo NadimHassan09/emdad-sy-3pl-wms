@@ -1201,10 +1201,19 @@ export class OutboundService {
               )
             : calculateOrderVolume(lineQty, volumeByProductId);
 
+      if (dto.shippingMethod === ShippingMethod.carrier) {
+        assertShippingIntentReady({
+          shippingMethod: dto.shippingMethod,
+          shippingProviderCode: dto.shippingProviderCode,
+        });
+      }
+
       const row = await tx.outboundOrder.update({
         where: { id: orderId },
         data: {
           ...shippingPrismaData({
+            shippingMethod: dto.shippingMethod,
+            shippingProviderCode: dto.shippingProviderCode,
             shippingReceiverLat: dto.shippingReceiverLat,
             shippingReceiverLng: dto.shippingReceiverLng,
             shippingPackageType: dto.shippingPackageType,
@@ -1223,6 +1232,14 @@ export class OutboundService {
         },
         include: ORDER_INCLUDE,
       });
+
+      // Clear stale carrier-send failures once shipping details are corrected/saved.
+      // This prevents the UI from continuing to show an old "phone missing" error
+      // when the admin has already fixed recipient data.
+      await tx.carrierShipment.deleteMany({
+        where: { outboundOrderId: orderId, status: CarrierShipmentStatus.failed },
+      });
+
       if (this.omsEvents && row.omsOrder) {
         await this.omsEvents.record(tx, {
           omsOrderId: row.omsOrder.id,

@@ -203,6 +203,10 @@ export function CreateEcommerceOrderPage(): ReactElement {
       setError(t('Insufficient stock for one or more products.'));
       return;
     }
+    if (!deliveryLat.trim() || !deliveryLng.trim()) {
+      setError(t('Please select the delivery location on the map before creating the order.'));
+      return;
+    }
 
     const payloadLines: CreateClientOmsOrderInput['lines'] = [];
     for (const l of lines) {
@@ -241,6 +245,8 @@ export function CreateEcommerceOrderPage(): ReactElement {
       district: district.trim() || undefined,
       addressLine1: addressLine1.trim() || undefined,
       addressLine2: addressLine2.trim() || undefined,
+      shippingReceiverLat: deliveryLat.trim() ? Number(deliveryLat) : undefined,
+      shippingReceiverLng: deliveryLng.trim() ? Number(deliveryLng) : undefined,
       notes: notes.trim() || undefined,
       paymentMethod: (paymentMethod || undefined) as CreateClientOmsOrderInput['paymentMethod'],
       lines: payloadLines,

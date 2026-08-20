@@ -102,8 +102,10 @@ export function ShippingCarrierCards({
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-2 text-xs text-status-success-fg">
-                  ✓ Available for this destination
+                <p className={`mt-2 text-xs ${q.restrictions?.length ? 'text-status-warning-fg' : 'text-status-success-fg'}`}>
+                  {q.restrictions?.length
+                    ? '⚠ Available via hub delivery for this destination'
+                    : '✓ Available for this destination'}
                 </p>
                 {q.restrictions?.length ? (
                   <ul className="mt-1 list-disc ps-4 text-[11px] text-text-muted">

@@ -14,9 +14,16 @@ import type {
 import { BABEL_EXPRESS_CODE } from '../../shipping.constants';
 import { BabelApiError, BabelExpressHttpClient } from './babel-express.http-client';
 import {
+  isBabelAddressDeliveryAvailable,
   mapCalculatePricePayload,
   mapCreateShipmentPayload,
+  resolveBabelCodCurrency,
+  resolveBabelPickupType,
 } from './babel-shipment.mapper';
+
+function deliveryTypeLabel(type: 'address' | 'hub'): string {
+  return type === 'hub' ? 'Hub' : 'Address';
+}
 
 @Injectable()
 export class BabelExpressAdapter implements ShippingProvider {
@@ -53,7 +60,40 @@ export class BabelExpressAdapter implements ShippingProvider {
     credentials: ShippingCredentials,
     input: ShippingCreateShipmentInput,
   ): Promise<ShippingCreateShipmentResult> {
-    const payload = mapCreateShipmentPayload(input);
+    const neighbourhoodId =
+      input.receiver.neighbourhoodId ??
+      (await this.lookupNeighbourhoodId(credentials, input.receiver.lat, input.receiver.lng));
+
+    let deliveryType = input.deliveryType;
+    if (deliveryType === 'address') {
+      const probe = mapCalculatePricePayload({
+        receiverLat: input.receiver.lat,
+        receiverLng: input.receiver.lng,
+        packageType: input.packageType,
+        weightKg: input.weightKg,
+        deliveryType: 'address',
+        pickupType: input.pickupType,
+      });
+      const probeRaw = await this.http.post<{ details?: unknown }>(
+        'calculatePrice',
+        credentials,
+        probe,
+      );
+      if (!isBabelAddressDeliveryAvailable(probeRaw?.details)) {
+        deliveryType = 'hub';
+      }
+    }
+
+    const payload = mapCreateShipmentPayload({
+      ...input,
+      deliveryType,
+      pickupType: resolveBabelPickupType(input.pickupType),
+      currency: resolveBabelCodCurrency(input.currency),
+      receiver: {
+        ...input.receiver,
+        neighbourhoodId,
+      },
+    });
     const raw = await this.http.post<{ status?: string; awb?: string }>(
       'createShipment',
       credentials,
@@ -70,22 +110,60 @@ export class BabelExpressAdapter implements ShippingProvider {
     credentials: ShippingCredentials,
     input: ShippingQuoteInput,
   ): Promise<ShippingQuoteResult> {
-    const payload = mapCalculatePricePayload(input);
-    const raw = await this.http.post<{
-      status?: string;
-      price?: number;
-      currency?: string;
-      details?: unknown;
-    }>('calculatePrice', credentials, payload);
+    const requestQuote = async (deliveryType: 'address' | 'hub') => {
+      const payload = mapCalculatePricePayload({ ...input, deliveryType });
+      return this.http.post<{
+        status?: string;
+        price?: number;
+        currency?: string;
+        details?: unknown;
+      }>('calculatePrice', credentials, payload);
+    };
+
+    let raw = await requestQuote(input.deliveryType);
+    let effectiveDeliveryType = input.deliveryType;
+    let restrictions: string[] | undefined;
+
+    if (input.deliveryType === 'address' && !isBabelAddressDeliveryAvailable(raw?.details)) {
+      raw = await requestQuote('hub');
+      effectiveDeliveryType = 'hub';
+      restrictions = [
+        'Door delivery is not available at this pin. Hub delivery applies (customer collects from a Babel hub).',
+      ];
+    }
+
     const price = typeof raw?.price === 'number' ? raw.price : Number(raw?.price);
     if (!Number.isFinite(price)) {
       throw new BabelApiError('Babel Express calculatePrice missing price.', undefined, raw);
     }
+    const currency = typeof raw?.currency === 'string' ? raw.currency : 'SYP';
     return {
       price,
-      currency: typeof raw?.currency === 'string' ? raw.currency : 'USD',
+      currency,
       details: raw?.details,
+      effectiveDeliveryType,
+      serviceName: deliveryTypeLabel(effectiveDeliveryType),
+      restrictions,
     };
+  }
+
+  private async lookupNeighbourhoodId(
+    credentials: ShippingCredentials,
+    lat: number,
+    lng: number,
+  ): Promise<number> {
+    const raw = await this.http.post<{
+      neighbourhood?: { id?: number };
+    }>('findNeighbourhoodByCoordinates', credentials, {
+      coordinates: { lat, lng },
+    });
+    const id = raw?.neighbourhood?.id;
+    if (typeof id !== 'number' || !Number.isFinite(id)) {
+      throw new BabelApiError(
+        'Could not resolve the delivery neighbourhood from the map coordinates.',
+      );
+    }
+    return id;
   }
 
   /**

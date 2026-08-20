@@ -17,7 +17,7 @@ const EN_LABELS: Record<ClientOmsCommercialDisplayStatus, string> = {
   confirmed_waiting_for_admin_approval: 'Confirmed — Waiting for Admin Approval',
   processing: 'Processing',
   ready_to_ship: 'Ready to Ship',
-  shipped: 'Sent with Shipping Company',
+  shipped: 'Out for Delivery',
   delivered: 'Delivered',
   cancelled: 'Cancelled',
   failed_delivery: 'Failed Delivery',
@@ -30,7 +30,7 @@ const AR_LABELS: Record<ClientOmsCommercialDisplayStatus, string> = {
   confirmed_waiting_for_admin_approval: 'مؤكد — بانتظار موافقة الإدارة',
   processing: 'قيد المعالجة',
   ready_to_ship: 'جاهز للشحن',
-  shipped: 'أُرسل مع شركة الشحن',
+  shipped: 'خارج للتسليم',
   delivered: 'تم التسليم',
   cancelled: 'ملغي',
   failed_delivery: 'فشل التسليم',
@@ -75,6 +75,7 @@ export function clientOmsCommercialStatusBadgeKey(status: string): string {
   if (mapped === 'waiting_for_confirmation') return 'pending approval';
   if (mapped === 'confirmed_waiting_for_admin_approval') return 'pending approval';
   if (mapped === 'ready_to_ship') return 'ready to ship';
+  if (mapped === 'shipped') return 'out for delivery';
   if (mapped === 'failed_delivery') return 'failed delivery';
   if (mapped === 'legacy') return 'pending';
   return mapped.replace(/_/g, ' ');
@@ -89,7 +90,7 @@ export const CLIENT_OMS_COMMERCIAL_FILTER_OPTIONS = [
   },
   { value: 'processing', label: 'Processing' },
   { value: 'ready_to_ship', label: 'Ready to Ship' },
-  { value: 'shipped', label: 'Sent with Shipping Company' },
+  { value: 'shipped', label: 'Out for Delivery' },
   { value: 'delivered', label: 'Delivered' },
   { value: 'failed_delivery', label: 'Failed Delivery' },
   { value: 'returned', label: 'Returned' },

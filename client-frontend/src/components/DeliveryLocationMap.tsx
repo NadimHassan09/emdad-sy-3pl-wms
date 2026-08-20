@@ -115,14 +115,11 @@ function ClickHandler({
   onPick,
 }: {
   disabled: boolean;
-  circleCenter: { lat: number; lng: number };
-  radius: number;
   onPick: (lat: number, lng: number) => void;
 }) {
   useMapEvents({
     click(e) {
       if (disabled) return;
-      if (!isInsideCircle(circleCenter, radius, { lat: e.latlng.lat, lng: e.latlng.lng })) return;
       onPick(e.latlng.lat, e.latlng.lng);
     },
   });
@@ -151,6 +148,16 @@ export function DeliveryLocationMap({
   });
   const [loading, setLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const prevAddressRef = useRef({ governorate, city });
+
+  // Clear stale pin when governorate or city changes materially
+  useEffect(() => {
+    const prev = prevAddressRef.current;
+    if (hasPin && (prev.governorate !== governorate || prev.city !== city)) {
+      onChange({ lat: '', lng: '' });
+    }
+    prevAddressRef.current = { governorate, city };
+  }, [governorate, city]);
 
   useEffect(() => {
     if (!governorate) {
@@ -205,20 +212,15 @@ export function DeliveryLocationMap({
     (e: L.DragEndEvent) => {
       const marker = e.target as L.Marker;
       const pos = marker.getLatLng();
-      const constrained = constrainToCircle(circleCenter, CIRCLE_RADIUS, { lat: pos.lat, lng: pos.lng });
-      onChange({ lat: formatCoord(constrained.lat), lng: formatCoord(constrained.lng) });
+      onChange({ lat: formatCoord(pos.lat), lng: formatCoord(pos.lng) });
     },
-    [circleCenter, onChange],
+    [onChange],
   );
 
   const handleRemove = () => {
     onChange({ lat: '', lng: '' });
     onRemovePin?.();
   };
-
-  const effectivePin = hasPin
-    ? { lat: latN, lng: lngN }
-    : { lat: circleCenter.lat, lng: circleCenter.lng };
 
   return (
     <div className={className}>
@@ -246,15 +248,15 @@ export function DeliveryLocationMap({
           />
           <ClickHandler
             disabled={disabled}
-            circleCenter={circleCenter}
-            radius={CIRCLE_RADIUS}
             onPick={handlePick}
           />
-          <Marker
-            position={[effectivePin.lat, effectivePin.lng]}
-            draggable={!disabled}
-            eventHandlers={{ dragend: handleDragEnd }}
-          />
+          {hasPin && (
+            <Marker
+              position={[latN, lngN]}
+              draggable={!disabled}
+              eventHandlers={{ dragend: handleDragEnd }}
+            />
+          )}
         </MapContainer>
         {hasPin && !disabled && (
           <button
@@ -267,7 +269,9 @@ export function DeliveryLocationMap({
         )}
       </div>
       <p className="mt-1 text-xs text-text-muted">
-        Click inside the blue circle (3 km radius) to place the delivery pin.
+        {hasPin
+          ? 'Delivery pin selected. Drag to adjust or click elsewhere to move it.'
+          : 'Click on the map to place the delivery pin. The blue circle is an approximate area guide.'}
       </p>
     </div>
   );

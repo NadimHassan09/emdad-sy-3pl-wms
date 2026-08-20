@@ -54,6 +54,7 @@ import { ClientReturnsController } from './returns/client-returns.controller';
 import { ClientReturnsService } from './returns/client-returns.service';
 import { ClientOmsReturnsController } from './oms-returns/client-oms-returns.controller';
 import { ClientOmsReturnsService } from './oms-returns/client-oms-returns.service';
+import { ClientShippingController } from './shipping/client-shipping.controller';
 
 @Module({
   imports: [
@@ -101,6 +102,7 @@ import { ClientOmsReturnsService } from './oms-returns/client-oms-returns.servic
     ExternalOmsController,
     ExternalInboundController,
     ExternalOutboundController,
+    ClientShippingController,
   ],
   providers: [
     ClientAuthService,

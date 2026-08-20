@@ -222,11 +222,14 @@ export function orderShippingIntentToPayload(
   };
 }
 
-/** Full details payload for Shipping Details Save (excludes method/provider). */
+/** Full details payload for Shipping Details Save, including method/provider. */
 export function orderShippingDetailsToPayload(
   value: OrderShippingFieldsValue,
-): Omit<ShippingConfigPayload, 'shippingMethod' | 'shippingProviderCode'> {
+): ShippingConfigPayload {
   return {
+    shippingMethod: value.shippingMethod,
+    shippingProviderCode:
+      value.shippingMethod === 'carrier' ? value.shippingProviderCode.trim() || null : null,
     shippingReceiverLat: parseOptionalNumber(value.shippingReceiverLat) ?? null,
     shippingReceiverLng: parseOptionalNumber(value.shippingReceiverLng) ?? null,
     shippingPackageType: value.shippingPackageType || null,

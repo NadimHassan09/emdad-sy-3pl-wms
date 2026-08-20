@@ -240,7 +240,6 @@ export function ShippingDetailsStageCard({
             <OrderShippingFields
               value={fields}
               onChange={setFields}
-              lockIntent
               showTitle={false}
               suggestedWeightKg={suggestedWeightKg}
               suggestedVolumeCbm={suggestedVolumeCbm}

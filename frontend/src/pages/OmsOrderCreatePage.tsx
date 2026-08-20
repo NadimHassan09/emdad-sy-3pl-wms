@@ -338,6 +338,10 @@ export function OmsOrderCreatePage(): ReactElement {
       setError('Quantity cannot exceed available stock for one or more products.');
       return;
     }
+    if (!deliveryLat.trim() || !deliveryLng.trim()) {
+      setError('Please select the delivery location on the map before creating the order.');
+      return;
+    }
 
     const payloadLines: CreateOmsOrderInput['lines'] = [];
     for (const l of lines) {

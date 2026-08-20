@@ -194,6 +194,9 @@ export function OmsOrderFormModal({
           throw new Error('Required ship date cannot be before today.');
         }
         if (parsedLines.length === 0) throw new Error('Add at least one line.');
+        if (!deliveryLat.trim() || !deliveryLng.trim()) {
+          throw new Error('Please select the delivery location on the map before creating the order.');
+        }
 
         const payload: CreateOmsOrderInput = {
           companyId: effectiveCompanyId,
@@ -227,6 +230,8 @@ export function OmsOrderFormModal({
           district,
           addressLine1,
           addressLine2: addressLine2 || undefined,
+          shippingReceiverLat: deliveryLat.trim() ? Number(deliveryLat) : undefined,
+          shippingReceiverLng: deliveryLng.trim() ? Number(deliveryLng) : undefined,
           requiredShipDate,
           notes,
           paymentMethod: paymentMethod || undefined,
@@ -244,6 +249,8 @@ export function OmsOrderFormModal({
         district,
         addressLine1,
         addressLine2: addressLine2 || undefined,
+        shippingReceiverLat: deliveryLat.trim() ? Number(deliveryLat) : undefined,
+        shippingReceiverLng: deliveryLng.trim() ? Number(deliveryLng) : undefined,
         requiredShipDate,
         notes,
         paymentMethod: paymentMethod || undefined,

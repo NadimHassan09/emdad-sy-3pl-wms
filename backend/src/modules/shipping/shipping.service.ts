@@ -62,8 +62,15 @@ function safeErrorMessage(err: unknown): string {
 }
 
 function publicCarrierRateError(safe: string): string {
-  if (/no shipping service available/i.test(safe)) {
+  const msg = safe.trim().slice(0, 500);
+  if (/no shipping service available/i.test(msg)) {
     return 'This carrier does not currently serve this destination or shipment.';
+  }
+  if (
+    msg &&
+    !/unauthorized|password|credential|decrypt|token|secret/i.test(msg)
+  ) {
+    return msg;
   }
   return 'Unable to retrieve rates right now.';
 }
@@ -187,17 +194,18 @@ export class ShippingService {
             neighborhood: dto.neighborhood,
             codAmount: dto.codAmount ?? undefined,
           });
+          const quotedDeliveryType = result.effectiveDeliveryType ?? dto.deliveryType;
           quotes.push({
             carrierId: row.code,
             carrierName: row.name,
-            serviceId: result.serviceId ?? `${row.code}:${dto.deliveryType}`,
-            serviceName: result.serviceName ?? deliveryTypeLabel(dto.deliveryType),
+            serviceId: result.serviceId ?? `${row.code}:${quotedDeliveryType}`,
+            serviceName: result.serviceName ?? deliveryTypeLabel(quotedDeliveryType),
             available: true,
             price: result.price,
             currency: result.currency || 'USD',
             estimatedDeliveryMin: result.estimatedDeliveryMin,
             estimatedDeliveryMax: result.estimatedDeliveryMax,
-            deliveryType: dto.deliveryType,
+            deliveryType: quotedDeliveryType,
             restrictions: result.restrictions,
           });
         } catch (err) {
@@ -564,12 +572,14 @@ export class ShippingService {
 
     const phone = parsePhoneForBabel(order.recipientPhone, order.shippingPhoneCountry);
     if (!phone) {
+      const reason = !order.recipientPhone?.trim()
+        ? 'Recipient phone number is missing. Add a phone number to the order before sending.'
+        : 'Recipient phone could not be parsed into country dial code + local number. Set shippingPhoneCountry.';
       await this.persistFailedShipment({
         outboundOrderId,
         providerId: provider.id,
         providerCode,
-        error:
-          'Recipient phone could not be parsed into country dial code + local number. Set shippingPhoneCountry.',
+        error: reason,
       });
       this.emitOutboundShippingUpdate(order.companyId, outboundOrderId, order.status);
       return;

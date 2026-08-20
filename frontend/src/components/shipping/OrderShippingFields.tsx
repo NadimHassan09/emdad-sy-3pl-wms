@@ -12,7 +12,7 @@ import { useDebounced } from '../../lib/useDebounced';
 import { SelectField } from '../SelectField';
 import { TextField } from '../TextField';
 import { ShippingCarrierCards } from './ShippingCarrierCards';
-import { ShippingReceiverLocationMap } from './ShippingReceiverLocationMap';
+
 
 type Props = {
   value: OrderShippingFieldsValue;
@@ -238,6 +238,16 @@ export function OrderShippingFields({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carrier, quotes, ratesQuery.isFetching, ratesQuery.isFetched]);
 
+  // When Babel only serves a pin via hub delivery, align delivery type so Save/Send match the quote.
+  useEffect(() => {
+    if (!carrier || readOnly || ratesQuery.isFetching || !ratesQuery.isFetched) return;
+    const hubQuote = quotes.find((q) => q.deliveryType === 'hub');
+    if (hubQuote && value.shippingDeliveryType === 'address') {
+      onChange(patch(value, { shippingDeliveryType: 'hub' }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carrier, quotes, ratesQuery.isFetching, ratesQuery.isFetched, value.shippingDeliveryType]);
+
   let emptyHint: string | null = null;
   if (carrier && !ratesQuery.isFetching) {
     if (!hasDestination) {
@@ -298,24 +308,18 @@ export function OrderShippingFields({
 
       {carrier ? (
         <>
-          <ShippingReceiverLocationMap
-            lat={value.shippingReceiverLat}
-            lng={value.shippingReceiverLng}
-            disabled={readOnly}
-            boundaryGeometry={geometry}
-            areaLabel={areaLabel}
-            boundaryLoading={boundaryQuery.isFetching}
-            boundaryMissing={boundaryMissing}
-            selectionEnabled={hasDestination}
-            onChange={({ lat, lng }) =>
-              onChange(
-                patch(value, {
-                  shippingReceiverLat: lat,
-                  shippingReceiverLng: lng,
-                }),
-              )
-            }
-          />
+          {value.shippingReceiverLat && value.shippingReceiverLng ? (
+            <div className="rounded-lg border border-border bg-surface-card-muted px-3 py-2 text-sm">
+              <div className="text-xs font-semibold uppercase text-text-muted">Delivery Location</div>
+              <div className="mt-1 text-text-body">
+                Lat: {value.shippingReceiverLat} · Lng: {value.shippingReceiverLng}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-status-warning-border bg-status-warning-bg px-3 py-2 text-xs text-status-warning-fg">
+              Delivery coordinates not set. Edit the order address to place a delivery pin.
+            </div>
+          )}
 
           <div className="grid gap-3 md:grid-cols-2">
             <SelectField
@@ -410,8 +414,8 @@ export function OrderShippingFields({
               }
               options={[
                 { value: '', label: '—' },
-                { value: 'address', label: 'Address' },
-                { value: 'hub', label: 'Hub' },
+                { value: 'address', label: 'Address (door delivery)' },
+                { value: 'hub', label: 'Hub (customer collects)' },
               ]}
             />
             <SelectField
@@ -427,8 +431,8 @@ export function OrderShippingFields({
               }
               options={[
                 { value: '', label: '—' },
-                { value: 'address', label: 'Address' },
-                { value: 'hub', label: 'Hub' },
+                { value: 'address', label: 'Address (courier pickup)' },
+                { value: 'hub', label: 'Hub (drop at Babel hub)' },
               ]}
             />
             <SelectField

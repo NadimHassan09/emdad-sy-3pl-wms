@@ -921,14 +921,16 @@ export class OmsOrdersService {
         street: dto.addressLine2 !== undefined ? dto.addressLine2 : existing.addressLine2,
       });
       if (resolved.complete) {
+        const userLat = dto.shippingReceiverLat ?? existing.shippingReceiverLat;
+        const userLng = dto.shippingReceiverLng ?? existing.shippingReceiverLng;
         incompletePatch = {
           needsInformation: false,
           city: resolved.city,
           district: resolved.district,
           addressLine1: resolved.addressLine1,
           addressLine2: resolved.addressLine2,
-          shippingReceiverLat: resolved.lat,
-          shippingReceiverLng: resolved.lng,
+          shippingReceiverLat: userLat != null ? Number(userLat) : resolved.lat,
+          shippingReceiverLng: userLng != null ? Number(userLng) : resolved.lng,
           destinationAddress:
             destination ||
             composeDestinationAddress({
@@ -1177,11 +1179,22 @@ export class OmsOrdersService {
         include: ORDER_INCLUDE,
       });
 
-      if (shippingPatch && row.outboundOrderId) {
-        await tx.outboundOrder.update({
-          where: { id: row.outboundOrderId },
-          data: {
-            ...shippingPrismaData({
+      if (row.outboundOrderId) {
+        const outboundSync: Record<string, unknown> = {
+          recipientName: row.recipientName,
+          recipientPhone: row.recipientPhone,
+          city: row.city,
+          district: row.district,
+          addressLine1: row.addressLine1,
+          addressLine2: row.addressLine2,
+          shippingReceiverLat: row.shippingReceiverLat?.toString() ?? null,
+          shippingReceiverLng: row.shippingReceiverLng?.toString() ?? null,
+          ...(dto.carrier !== undefined ? { carrier: dto.carrier } : {}),
+        };
+        if (shippingPatch) {
+          Object.assign(
+            outboundSync,
+            shippingPrismaData({
               shippingMethod: row.shippingMethod,
               shippingProviderCode: row.shippingProviderCode,
               shippingReceiverLat: row.shippingReceiverLat?.toString() ?? null,
@@ -1195,9 +1208,11 @@ export class OmsOrdersService {
               shippingVolumeCbm: row.shippingVolumeCbm?.toString() ?? null,
               shippingPhoneCountry: row.shippingPhoneCountry,
             }),
-            // Keep legacy carrier label in sync when OMS still carries one (display/cache).
-            ...(dto.carrier !== undefined ? { carrier: dto.carrier } : {}),
-          },
+          );
+        }
+        await tx.outboundOrder.update({
+          where: { id: row.outboundOrderId },
+          data: outboundSync,
         });
       }
 

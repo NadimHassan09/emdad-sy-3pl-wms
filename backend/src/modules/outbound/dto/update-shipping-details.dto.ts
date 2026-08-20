@@ -9,6 +9,7 @@ import {
 } from 'class-validator';
 import {
   ShippingDeliveryType,
+  ShippingMethod,
   ShippingPackageType,
   ShippingPayer,
   ShippingPickupType,
@@ -18,6 +19,17 @@ import { EmptyToUndefined } from '../../../common/transformers/query-transform';
 
 /** Draft shipping details for Waiting for Shipping Details stage (Save only — no carrier API). */
 export class UpdateShippingDetailsDto {
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsEnum(ShippingMethod)
+  shippingMethod?: ShippingMethod | null;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  shippingProviderCode?: string | null;
+
   @EmptyToUndefined()
   @IsOptional()
   @Type(() => Number)

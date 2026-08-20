@@ -36,6 +36,34 @@ export function ShippingMethodStageCard({ order }: Props) {
 
   const allProviders = providersQuery.data ?? [];
 
+  const hasCoords = order.shippingReceiverLat != null && order.shippingReceiverLng != null;
+  const quotesQuery = useQuery({
+    queryKey: [...QK.shipping.providers, 'quotes', order.id],
+    queryFn: () =>
+      ShippingApi.quoteRates({
+        receiverLat: Number(order.shippingReceiverLat),
+        receiverLng: Number(order.shippingReceiverLng),
+        packageType: (order.shippingPackageType as any) ?? 'parcel',
+        weightKg: Number(order.shippingWeightKg) || 1,
+        deliveryType: 'delivery',
+        governorate: order.shippingGovernorate ?? undefined,
+        city: order.shippingCity ?? undefined,
+        neighborhood: order.shippingNeighborhood ?? undefined,
+      }),
+    enabled: method === 'carrier' && hasCoords,
+    staleTime: 60_000,
+  });
+  const quotesByCarrier = useMemo(() => {
+    const map = new Map<string, ShippingRateQuote>();
+    for (const q of quotesQuery.data?.quotes ?? []) map.set(q.carrierId, q);
+    return map;
+  }, [quotesQuery.data]);
+  const errorsByCarrier = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const e of quotesQuery.data?.errors ?? []) map.set(e.carrierId, e.message);
+    return map;
+  }, [quotesQuery.data]);
+
   const submitMut = useMutation({
     mutationFn: () =>
       OutboundApi.selectShippingMethod(
@@ -193,7 +221,18 @@ export function ShippingMethodStageCard({ order }: Props) {
                           </div>
                           <div className="text-xs text-text-muted">
                             {available ? (
-                              <span className="text-green-600 dark:text-green-400">Available</span>
+                              <>
+                                <span className="text-green-600 dark:text-green-400">Available</span>
+                                {(() => {
+                                  const quote = quotesByCarrier.get(provider.code);
+                                  const qErr = errorsByCarrier.get(provider.code);
+                                  if (quotesQuery.isLoading) return <span className="ml-2 text-text-faint">Fetching quote…</span>;
+                                  if (quote) return <span className="ml-2 font-medium text-text-strong">{quote.price} {quote.currency}</span>;
+                                  if (qErr) return <span className="ml-2 text-text-faint">Quote unavailable</span>;
+                                  if (!hasCoords) return <span className="ml-2 text-text-faint">No coordinates for quote</span>;
+                                  return null;
+                                })()}
+                              </>
                             ) : (
                               <span className="text-status-danger-fg">
                                 Unavailable

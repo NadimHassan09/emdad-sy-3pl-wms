@@ -333,7 +333,7 @@ export const OutboundApi = {
   },
   async saveShippingDetails(
     id: string,
-    body: Omit<ShippingConfigPayload, 'shippingMethod' | 'shippingProviderCode'> & {
+    body: ShippingConfigPayload & {
       carrier?: string | null;
       trackingNumber?: string | null;
     },

@@ -48,8 +48,8 @@ const MILESTONES: MilestoneDef[] = [
   },
   {
     key: 'shipped',
-    label: 'Sent with Shipping Company',
-    labelAr: 'أُرسل مع شركة الشحن',
+    label: 'Out for delivery',
+    labelAr: 'خارج للتسليم',
     icon: 'fa-truck',
   },
   {
