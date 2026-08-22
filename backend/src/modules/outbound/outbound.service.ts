@@ -1103,15 +1103,17 @@ export class OutboundService {
     return updated;
   }
 
+  /**
+   * Admin-owned stage gate (Manual vs Shipping Company).
+   * Allowed for both executionMode=admin and executionMode=workers:
+   * workers execute pick/pack/dispatch tasks; shipping-method selection stays with admin/manager roles.
+   */
   async selectShippingMethodAdmin(
     user: AuthPrincipal,
     orderId: string,
     body: { shippingMethod: string; shippingProviderCode?: string },
   ) {
     const order = await this.findById(orderId, user);
-    if (normalizeExecutionMode(order.executionMode) !== 'admin') {
-      throw new BadRequestException('select-shipping-method requires executionMode=admin.');
-    }
     if (
       order.status !== OutboundOrderStatus.waiting_for_shipping_method &&
       order.status !== ('waiting_for_shipping_method' as OutboundOrderStatus)

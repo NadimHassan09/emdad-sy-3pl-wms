@@ -5,10 +5,13 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
+  IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsPositive,
   IsString,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { OmsPaymentMethod } from '@prisma/client';
@@ -36,31 +39,53 @@ export class CreateClientOmsOrderDto {
   @IsDateString()
   requiredShipDate!: string;
 
-  @IsOptional()
   @IsString()
+  @IsNotEmpty({ message: 'Recipient name is required.' })
   @IsRecipientName()
-  recipientName?: string;
+  recipientName!: string;
 
-  @IsOptional()
   @IsString()
+  @IsNotEmpty({ message: 'Recipient phone is required.' })
   @IsRecipientPhone()
-  recipientPhone?: string;
+  recipientPhone!: string;
 
   @IsOptional()
   @IsString()
   shippingPhoneCountry?: string;
 
-  @IsOptional()
   @IsString()
-  city?: string;
+  @IsNotEmpty({ message: 'Governorate is required.' })
+  @MinLength(1)
+  city!: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'City/Region is required.' })
+  @MinLength(1)
+  district!: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Town/Neighborhood is required.' })
+  @MinLength(1)
+  addressLine1!: string;
 
   @IsOptional()
   @IsString()
-  district?: string;
+  addressLine2?: string;
 
   @IsOptional()
-  @IsString()
-  addressLine1?: string;
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 8 })
+  shippingReceiverLat?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 8 })
+  shippingReceiverLng?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  babelNeighbourhoodId?: number;
 
   @IsOptional()
   @IsString()
@@ -70,9 +95,9 @@ export class CreateClientOmsOrderDto {
   @IsString()
   storeChannel?: string;
 
-  @IsOptional()
   @IsEnum(OmsPaymentMethod)
-  paymentMethod?: OmsPaymentMethod;
+  @IsNotEmpty({ message: 'Payment method is required.' })
+  paymentMethod!: OmsPaymentMethod;
 
   @IsOptional()
   @IsString()

@@ -44,6 +44,8 @@ export type ShippingConfigFields = {
   shippingWeightKg?: number | string | null;
   shippingVolumeCbm?: number | string | null;
   shippingPhoneCountry?: string | null;
+  /** Babel neighbourhood id — preferred carrier destination identity. */
+  babelNeighbourhoodId?: number | null;
 };
 
 export function isShippingConfigLocked(outboundStatus: string | null | undefined): boolean {
@@ -78,15 +80,16 @@ export function assertCarrierShippingReady(fields: ShippingConfigFields): void {
     return;
   }
   assertShippingIntentReady(fields);
-  if (fields.shippingReceiverLat == null || fields.shippingReceiverLng == null) {
+  const babelHood =
+    fields.babelNeighbourhoodId != null ? Number(fields.babelNeighbourhoodId) : null;
+  const hasBabelHood = babelHood != null && Number.isFinite(babelHood) && babelHood > 0;
+  const lat = fields.shippingReceiverLat != null ? Number(fields.shippingReceiverLat) : NaN;
+  const lng = fields.shippingReceiverLng != null ? Number(fields.shippingReceiverLng) : NaN;
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+  if (!hasBabelHood && !hasCoords) {
     throw new BadRequestException(
-      'Receiver lat/lng are required when shipping via a carrier.',
+      'Babel neighbourhood id or receiver lat/lng is required when shipping via a carrier.',
     );
-  }
-  const lat = Number(fields.shippingReceiverLat);
-  const lng = Number(fields.shippingReceiverLng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    throw new BadRequestException('Receiver lat/lng must be valid numbers.');
   }
   if (!fields.shippingPackageType) {
     throw new BadRequestException('shippingPackageType is required when shipping via a carrier.');
@@ -191,6 +194,10 @@ export function shippingPrismaData(fields: ShippingConfigFields) {
         fields.shippingPhoneCountry.trim();
     }
   }
+  if (fields.babelNeighbourhoodId !== undefined) {
+    data.babelNeighbourhoodId =
+      fields.babelNeighbourhoodId == null ? null : Number(fields.babelNeighbourhoodId);
+  }
   return data;
 }
 
@@ -207,6 +214,7 @@ export function copyShippingFieldsFromOms(oms: {
   shippingWeightKg?: { toString(): string } | number | string | null;
   shippingVolumeCbm?: { toString(): string } | number | string | null;
   shippingPhoneCountry?: string | null;
+  babelNeighbourhoodId?: number | null;
 }) {
   return {
     shippingMethod: oms.shippingMethod ?? ShippingMethod.manual,
@@ -225,6 +233,7 @@ export function copyShippingFieldsFromOms(oms: {
     shippingVolumeCbm:
       oms.shippingVolumeCbm == null ? null : oms.shippingVolumeCbm.toString(),
     shippingPhoneCountry: oms.shippingPhoneCountry ?? null,
+    babelNeighbourhoodId: oms.babelNeighbourhoodId ?? null,
   };
 }
 
@@ -241,6 +250,7 @@ const SHIPPING_PATCH_KEYS: (keyof ShippingConfigFields)[] = [
   'shippingWeightKg',
   'shippingVolumeCbm',
   'shippingPhoneCountry',
+  'babelNeighbourhoodId',
 ];
 
 export function hasShippingConfigPatch(fields: ShippingConfigFields): boolean {

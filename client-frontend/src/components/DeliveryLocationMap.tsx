@@ -13,6 +13,7 @@ import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 import 'leaflet/dist/leaflet.css';
 
+import { isClientArabic } from '../lib/client-ui-language';
 import { apiClient } from '../services/apiClient';
 
 const DefaultIcon = L.icon({
@@ -29,10 +30,21 @@ L.Marker.prototype.options.icon = DefaultIcon;
 const SYRIA_CENTER: [number, number] = [35.0, 38.0];
 const CIRCLE_RADIUS = 3000;
 
+export type ResolvedMapAddress = {
+  governorate: string;
+  cityRegion: string;
+  townNeighborhood: string;
+  lat: string;
+  lng: string;
+  distanceMeters: number;
+};
+
 export type DeliveryLocationMapProps = {
   lat: string;
   lng: string;
   onChange: (next: { lat: string; lng: string }) => void;
+  onAddressResolved?: (address: ResolvedMapAddress) => void;
+  onAddressUnavailable?: (message: string) => void;
   disabled?: boolean;
   governorate?: string;
   city?: string;
@@ -47,6 +59,23 @@ type AreaBoundaryResult = {
   geometry: { type: string; coordinates: unknown } | null;
   bbox?: { south: number; north: number; west: number; east: number } | null;
 };
+
+type ResolvePinResult =
+  | {
+      found: true;
+      governorate: string;
+      cityRegion: string;
+      townNeighborhood: string;
+      lat: number;
+      lng: number;
+      distanceMeters: number;
+    }
+  | {
+      found: false;
+      message: string;
+      nearestLabel?: string;
+      distanceMeters?: number;
+    };
 
 function parseCoord(raw: string): number | null {
   const t = raw.trim();
@@ -71,47 +100,37 @@ function computeCentroid(geometry: { type: string; coordinates: unknown }): { la
   }
   extract(geometry.coordinates);
   if (coords.length === 0) return null;
-  let sumLng = 0, sumLat = 0;
-  for (const [lng, lat] of coords) { sumLng += lng; sumLat += lat; }
+  let sumLng = 0;
+  let sumLat = 0;
+  for (const [lng, lat] of coords) {
+    sumLng += lng;
+    sumLat += lat;
+  }
   return { lat: sumLat / coords.length, lng: sumLng / coords.length };
-}
-
-function isInsideCircle(
-  center: { lat: number; lng: number },
-  radius: number,
-  point: { lat: number; lng: number },
-): boolean {
-  return L.latLng(center.lat, center.lng).distanceTo(L.latLng(point.lat, point.lng)) <= radius;
-}
-
-function constrainToCircle(
-  center: { lat: number; lng: number },
-  radius: number,
-  point: { lat: number; lng: number },
-): { lat: number; lng: number } {
-  if (isInsideCircle(center, radius, point)) return point;
-  const d = L.latLng(center.lat, center.lng).distanceTo(L.latLng(point.lat, point.lng));
-  const ratio = radius / d;
-  return {
-    lat: center.lat + (point.lat - center.lat) * ratio,
-    lng: center.lng + (point.lng - center.lng) * ratio,
-  };
 }
 
 function FitCircle({ center, radius }: { center: [number, number]; radius: number }) {
   const map = useMap();
-  const key = `${center[0]},${center[1]}`;
+  const key = `${center[0]},${center[1]},${radius}`;
   useEffect(() => {
     const bounds = L.latLng(center[0], center[1]).toBounds(radius * 2);
-    map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14, animate: true });
-  }, [key, radius, map]);
+    if (!bounds.isValid()) return;
+    const apply = () => {
+      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14, animate: true });
+      map.invalidateSize({ animate: false });
+    };
+    const size = map.getSize();
+    if (size.x === 0 || size.y === 0) {
+      const id = window.setTimeout(apply, 50);
+      return () => window.clearTimeout(id);
+    }
+    apply();
+  }, [key, center, radius, map]);
   return null;
 }
 
 function ClickHandler({
   disabled,
-  circleCenter,
-  radius,
   onPick,
 }: {
   disabled: boolean;
@@ -130,6 +149,8 @@ export function DeliveryLocationMap({
   lat,
   lng,
   onChange,
+  onAddressResolved,
+  onAddressUnavailable,
   disabled = false,
   governorate,
   city,
@@ -138,26 +159,30 @@ export function DeliveryLocationMap({
   onRemovePin,
   className,
 }: DeliveryLocationMapProps) {
-  const latN = parseCoord(lat);
-  const lngN = parseCoord(lng);
-  const hasPin = latN != null && lngN != null;
+  const isArabic = isClientArabic();
+  const confirmedLat = parseCoord(lat);
+  const confirmedLng = parseCoord(lng);
+  const hasConfirmedPin = confirmedLat != null && confirmedLng != null;
 
+  const [draft, setDraft] = useState<{ lat: number; lng: number } | null>(
+    hasConfirmedPin ? { lat: confirmedLat!, lng: confirmedLng! } : null,
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [circleCenter, setCircleCenter] = useState<{ lat: number; lng: number }>({
     lat: SYRIA_CENTER[0],
     lng: SYRIA_CENTER[1],
   });
-  const [loading, setLoading] = useState(false);
+  const [loadingArea, setLoadingArea] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const prevAddressRef = useRef({ governorate, city });
 
-  // Clear stale pin when governorate or city changes materially
+  const t = (en: string, ar: string) => (isArabic ? ar : en);
+
   useEffect(() => {
-    const prev = prevAddressRef.current;
-    if (hasPin && (prev.governorate !== governorate || prev.city !== city)) {
-      onChange({ lat: '', lng: '' });
+    if (hasConfirmedPin) {
+      setDraft({ lat: confirmedLat!, lng: confirmedLng! });
     }
-    prevAddressRef.current = { governorate, city };
-  }, [governorate, city]);
+  }, [hasConfirmedPin, confirmedLat, confirmedLng]);
 
   useEffect(() => {
     if (!governorate) {
@@ -168,7 +193,7 @@ export function DeliveryLocationMap({
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    setLoading(true);
+    setLoadingArea(true);
 
     const qs = new URLSearchParams();
     qs.set('governorate', governorate);
@@ -179,9 +204,13 @@ export function DeliveryLocationMap({
       .get<AreaBoundaryResult>(`/shipping/geo/boundary?${qs.toString()}`, { signal: ctrl.signal })
       .then(({ data }) => {
         if (ctrl.signal.aborted) return;
+        if (!data || data.found === false) return;
         if (data.geometry) {
           const c = computeCentroid(data.geometry);
-          if (c) { setCircleCenter(c); return; }
+          if (c) {
+            setCircleCenter(c);
+            return;
+          }
         }
         if (data.bbox) {
           setCircleCenter({
@@ -190,8 +219,12 @@ export function DeliveryLocationMap({
           });
         }
       })
-      .catch(() => {})
-      .finally(() => { if (!ctrl.signal.aborted) setLoading(false); });
+      .catch(() => {
+        /* keep previous center */
+      })
+      .finally(() => {
+        if (!ctrl.signal.aborted) setLoadingArea(false);
+      });
 
     return () => ctrl.abort();
   }, [governorate, city, neighborhood]);
@@ -201,33 +234,95 @@ export function DeliveryLocationMap({
     [circleCenter.lat, circleCenter.lng],
   );
 
-  const handlePick = useCallback(
-    (pickLat: number, pickLng: number) => {
-      onChange({ lat: formatCoord(pickLat), lng: formatCoord(pickLng) });
-    },
-    [onChange],
-  );
+  const pin = draft;
+  const hasDraft = pin != null;
+  const dirty =
+    hasDraft &&
+    (!hasConfirmedPin ||
+      Math.abs(pin!.lat - confirmedLat!) > 1e-7 ||
+      Math.abs(pin!.lng - confirmedLng!) > 1e-7);
 
-  const handleDragEnd = useCallback(
-    (e: L.DragEndEvent) => {
-      const marker = e.target as L.Marker;
-      const pos = marker.getLatLng();
-      onChange({ lat: formatCoord(pos.lat), lng: formatCoord(pos.lng) });
-    },
-    [onChange],
-  );
+  const handlePick = useCallback((pickLat: number, pickLng: number) => {
+    setError(null);
+    setDraft({ lat: pickLat, lng: pickLng });
+  }, []);
+
+  const handleDragEnd = useCallback((e: L.DragEndEvent) => {
+    const marker = e.target as L.Marker;
+    const pos = marker.getLatLng();
+    setError(null);
+    setDraft({ lat: pos.lat, lng: pos.lng });
+  }, []);
+
+  const handleCancel = () => {
+    setError(null);
+    if (hasConfirmedPin) {
+      setDraft({ lat: confirmedLat!, lng: confirmedLng! });
+    } else {
+      setDraft(null);
+    }
+  };
 
   const handleRemove = () => {
+    setError(null);
+    setDraft(null);
     onChange({ lat: '', lng: '' });
     onRemovePin?.();
+  };
+
+  const handleConfirm = async () => {
+    if (!pin || disabled || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { data: result } = await apiClient.post<ResolvePinResult>(
+        '/shipping/address/resolve-from-pin',
+        { lat: pin.lat, lng: pin.lng },
+      );
+      if (!result.found) {
+        const msg =
+          result.message ||
+          t(
+            'No supported address found near this location (within 1 km).',
+            'لا يوجد عنوان مدعوم قرب هذا الموقع (ضمن 1 كم).',
+          );
+        setError(msg);
+        onAddressUnavailable?.(msg);
+        return;
+      }
+      const next = {
+        governorate: result.governorate,
+        cityRegion: result.cityRegion,
+        townNeighborhood: result.townNeighborhood,
+        lat: formatCoord(result.lat),
+        lng: formatCoord(result.lng),
+        distanceMeters: result.distanceMeters,
+      };
+      onChange({ lat: next.lat, lng: next.lng });
+      onAddressResolved?.(next);
+      setDraft({ lat: result.lat, lng: result.lng });
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : t('Could not resolve address from map pin.', 'تعذر استخراج العنوان من الخريطة.');
+      setError(msg);
+      onAddressUnavailable?.(msg);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <div className={className}>
       <div className="relative rounded-lg border border-border-subtle overflow-hidden">
-        {loading && (
+        {(loadingArea || busy) && (
           <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-white/50">
-            <span className="text-xs text-text-muted">Loading area…</span>
+            <span className="text-xs text-text-muted">
+              {busy
+                ? t('Finding nearest address…', 'جاري البحث عن أقرب عنوان…')
+                : t('Loading area…', 'جاري تحميل المنطقة…')}
+            </span>
           </div>
         )}
         <MapContainer
@@ -246,32 +341,83 @@ export function DeliveryLocationMap({
             radius={CIRCLE_RADIUS}
             pathOptions={{ color: '#2563eb', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.12 }}
           />
-          <ClickHandler
-            disabled={disabled}
-            onPick={handlePick}
-          />
-          {hasPin && (
+          <ClickHandler disabled={disabled || busy} onPick={handlePick} />
+          {hasDraft && (
             <Marker
-              position={[latN, lngN]}
-              draggable={!disabled}
+              position={[pin!.lat, pin!.lng]}
+              draggable={!disabled && !busy}
               eventHandlers={{ dragend: handleDragEnd }}
             />
           )}
         </MapContainer>
-        {hasPin && !disabled && (
-          <button
-            type="button"
-            onClick={handleRemove}
-            className="absolute bottom-2 right-2 z-[1000] rounded bg-white px-2 py-1 text-xs font-medium text-red-600 shadow hover:bg-red-50"
-          >
-            Remove Pin
-          </button>
-        )}
+
+        <div className="absolute bottom-2 left-2 right-2 z-[1000] flex flex-wrap items-center justify-between gap-2">
+          <p className="rounded bg-white/95 px-2 py-1 text-[11px] text-text-muted shadow">
+            {hasDraft
+              ? t(
+                  'Pin placed — press Confirm to fill address fields.',
+                  'تم وضع الدبوس — اضغط موافق لملء حقول العنوان.',
+                )
+              : t(
+                  'Click the map to place a pin, then Confirm.',
+                  'اضغط على الخريطة لتحديد المكان ثم موافق.',
+                )}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {hasDraft && !disabled && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  disabled={busy}
+                  className="rounded bg-white px-2.5 py-1 text-xs font-medium text-text-muted shadow hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {t('Cancel', 'إلغاء')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleConfirm()}
+                  disabled={busy || (!dirty && hasConfirmedPin)}
+                  className="rounded bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {t('Confirm', 'موافق')}
+                </button>
+                {hasConfirmedPin && (
+                  <button
+                    type="button"
+                    onClick={handleRemove}
+                    disabled={busy}
+                    className="rounded bg-white px-2.5 py-1 text-xs font-medium text-red-600 shadow hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {t('Remove Pin', 'إزالة الدبوس')}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="mt-2 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+        >
+          <span aria-hidden="true">⚠</span>
+          <div>
+            <p className="font-semibold">
+              {t('Address not available', 'العنوان غير متاح')}
+            </p>
+            <p>{error}</p>
+          </div>
+        </div>
+      )}
+
       <p className="mt-1 text-xs text-text-muted">
-        {hasPin
-          ? 'Delivery pin selected. Drag to adjust or click elsewhere to move it.'
-          : 'Click on the map to place the delivery pin. The blue circle is an approximate area guide.'}
+        {t(
+          'Use the map to auto-fill address fields from the nearest supported location within 1 km.',
+          'استخدم الخريطة لملء حقول العنوان تلقائيًا من أقرب موقع مدعوم ضمن 1 كم.',
+        )}
       </p>
     </div>
   );

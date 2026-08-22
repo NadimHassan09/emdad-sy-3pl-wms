@@ -318,12 +318,24 @@ export function OmsOrderCreatePage(): ReactElement {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setContactSubmitted(true);
+    if (!recipientName.trim()) {
+      setError('Recipient name is required.');
+      return;
+    }
     if (!isValidRecipientName(recipientName)) {
       setError('Name can only contain Arabic or English letters and spaces.');
       return;
     }
-    if (!recipientPhone.isEmpty && !recipientPhone.isValid) {
-      setError('Please enter a valid phone number.');
+    if (recipientPhone.isEmpty || !recipientPhone.isValid) {
+      setError('Recipient phone is required.');
+      return;
+    }
+    if (!city.trim() || !district.trim() || !addressLine1.trim()) {
+      setError('Governorate, City/Region, and Town/Neighborhood are required.');
+      return;
+    }
+    if (!paymentMethod) {
+      setError('Payment method is required.');
       return;
     }
     if (!effectiveCompanyId) {
@@ -338,10 +350,7 @@ export function OmsOrderCreatePage(): ReactElement {
       setError('Quantity cannot exceed available stock for one or more products.');
       return;
     }
-    if (!deliveryLat.trim() || !deliveryLng.trim()) {
-      setError('Please select the delivery location on the map before creating the order.');
-      return;
-    }
+    // Map pin is optional — cascading address is sufficient for OMS create.
 
     const payloadLines: CreateOmsOrderInput['lines'] = [];
     for (const l of lines) {
@@ -445,6 +454,7 @@ export function OmsOrderCreatePage(): ReactElement {
               onChange={setRecipientName}
               disabled={loading}
               submitted={contactSubmitted}
+              required
             />
             <InternationalPhoneInput
               label="Recipient phone"
@@ -452,6 +462,7 @@ export function OmsOrderCreatePage(): ReactElement {
               onChange={setRecipientPhone}
               disabled={loading}
               submitted={contactSubmitted}
+              required
             />
             <CascadingAddressSelector
               value={{ city, district, addressLine1 }}
@@ -467,6 +478,9 @@ export function OmsOrderCreatePage(): ReactElement {
               districtPlaceholder="Select or type city/region…"
               addressLine1Placeholder="Select or type town/neighborhood…"
               disabled={loading}
+              cityRequired
+              districtRequired
+              addressLine1Required
             />
             <TextField
               label="Street / Detailed Address"
@@ -484,6 +498,14 @@ export function OmsOrderCreatePage(): ReactElement {
               setDeliveryLat(lat);
               setDeliveryLng(lng);
             }}
+            onAddressResolved={(addr) => {
+              setCity(addr.governorate);
+              setDistrict(addr.cityRegion);
+              setAddressLine1(addr.townNeighborhood);
+              setDeliveryLat(addr.lat);
+              setDeliveryLng(addr.lng);
+            }}
+            onAddressUnavailable={(msg) => toast.error(msg)}
             disabled={loading}
             governorate={city}
             city={district}
@@ -513,6 +535,7 @@ export function OmsOrderCreatePage(): ReactElement {
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value as OmsPaymentMethod | '')}
               disabled={loading}
+              required
               options={[
                 { value: '', label: '—' },
                 { value: 'COD', label: 'COD' },

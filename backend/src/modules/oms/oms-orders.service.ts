@@ -77,6 +77,33 @@ function assertAndNormalizeRecipientContact(dto: {
   return result.value;
 }
 
+/** Interactive OMS create (not bulk needsInformation): require contact + address hierarchy. */
+function assertOmsCreateContactAndAddressRequired(dto: {
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  city?: string | null;
+  district?: string | null;
+  addressLine1?: string | null;
+}) {
+  if (!dto.recipientName?.trim()) {
+    throw new BadRequestException('Recipient name is required.');
+  }
+  if (!dto.recipientPhone?.trim()) {
+    throw new BadRequestException('Recipient phone is required.');
+  }
+  if (!dto.city?.trim() || !dto.district?.trim() || !dto.addressLine1?.trim()) {
+    throw new BadRequestException(
+      'Governorate, City/Region, and Town/Neighborhood are required.',
+    );
+  }
+}
+
+function assertOmsCreatePaymentMethodRequired(paymentMethod?: string | null) {
+  if (!paymentMethod?.trim()) {
+    throw new BadRequestException('Payment method is required.');
+  }
+}
+
 const ORDER_INCLUDE = {
   company: { select: { id: true, name: true } },
   outboundOrder: { select: { id: true, orderNumber: true, status: true } },
@@ -319,6 +346,7 @@ export class OmsOrdersService {
       shippingWeightKg: dto.shippingWeightKg,
       shippingVolumeCbm: dto.shippingVolumeCbm,
       shippingPhoneCountry: dto.shippingPhoneCountry,
+      babelNeighbourhoodId: dto.babelNeighbourhoodId,
     };
     assertShippingIntentReady(shippingFields);
     await this.assertSufficientStockForLines(companyId, dto.lines, products);
@@ -340,6 +368,17 @@ export class OmsOrdersService {
     const needsInformation = !!opts?.needsInformation;
     const provisionOutbound =
       !bulkImport && !!opts?.provisionOutbound && !dto.outboundOrderId;
+
+    if (!needsInformation) {
+      assertOmsCreateContactAndAddressRequired({
+        recipientName: contact.recipientName ?? dto.recipientName,
+        recipientPhone: contact.recipientPhone ?? dto.recipientPhone,
+        city: dto.city,
+        district: dto.district,
+        addressLine1: dto.addressLine1,
+      });
+      assertOmsCreatePaymentMethodRequired(dto.paymentMethod);
+    }
 
     if (dto.outboundOrderId) {
       await this.assertOutboundLinkable(user, dto.outboundOrderId, companyId);
@@ -452,11 +491,12 @@ export class OmsOrdersService {
     const shippingFee =
       dto.shippingFee != null ? new Prisma.Decimal(dto.shippingFee) : new Prisma.Decimal(0);
     const subtotal = linesSum.add(shippingFee);
+    // COD is merchandise collection only — shipping fee is client billing, not receiver COD.
     const derivedCod =
       dto.codAmount != null
         ? new Prisma.Decimal(dto.codAmount)
         : dto.paymentMethod === 'COD'
-          ? subtotal
+          ? linesSum
           : null;
 
     const codStatus = deriveCodStatus(dto.paymentMethod, derivedCod);
@@ -753,8 +793,9 @@ export class OmsOrdersService {
           data: {
             shippingFee: ship,
             subtotal,
+            // Keep COD on merchandise lines only when fee is set at approve.
             codAmount:
-              existing.paymentMethod === 'COD' ? subtotal : existing.codAmount ?? undefined,
+              existing.paymentMethod === 'COD' ? linesSum : existing.codAmount ?? undefined,
           },
         });
       }
@@ -1109,6 +1150,7 @@ export class OmsOrdersService {
           ? new Prisma.Decimal(dto.subtotal)
           : linesSum.add(nextShipping);
 
+      // COD defaults to merchandise (linesSum). Shipping remains on subtotal / client billing.
       const nextCod =
         dto.codAmount != null
           ? new Prisma.Decimal(dto.codAmount)
@@ -1116,7 +1158,7 @@ export class OmsOrdersService {
               (dto.paymentMethod !== undefined ||
                 dto.subtotal !== undefined ||
                 dto.shippingFee !== undefined)
-            ? nextSubtotal
+            ? linesSum
             : undefined;
 
       const row = await tx.omsOrder.update({
@@ -1550,6 +1592,9 @@ export class OmsOrdersService {
 
     const existing = await this.resolveOrder(id, user);
     assertOmsTransition(existing.status, 'delivery_revert', 'admin');
+
+    // Void COD before status leave Delivered so portals stop showing a stale COD record.
+    await this.cod.voidForDeliveryRevert(user, existing.id, reason);
 
     const updated = await withTenantRls(this.prisma, user, async (tx) => {
       const row = await tx.omsOrder.update({

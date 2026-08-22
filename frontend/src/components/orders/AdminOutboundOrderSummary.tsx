@@ -7,6 +7,7 @@ import { OutboundApi } from '../../api/outbound';
 import { ShippingApi } from '../../api/shipping';
 import { WorkflowsApi } from '../../api/workflows';
 import { Alert, Button, Card } from '@ds';
+import { ConfirmModal } from '../ConfirmModal';
 import { OrderDocumentsCard } from '../documents/OrderDocumentsCard';
 import { ShippingDetailsStageCard } from './ShippingDetailsStageCard';
 import { ShippingMethodStageCard } from './ShippingMethodStageCard';
@@ -177,7 +178,7 @@ export function AdminOutboundOrderSummary({ order }: Props) {
       }
       throw new Error('No stage action available.');
     },
-    onSuccess: () => {
+    onSuccess: (updated) => {
       const messages: Record<AdminStageAction, string> = {
         approve: 'Order approved. Waiting for picking.',
         complete_picking: 'Picking marked complete.',
@@ -186,8 +187,12 @@ export function AdminOutboundOrderSummary({ order }: Props) {
         release: 'Released to workers. Tasks are ready.',
       };
       if (adminStageAction) toast.success(messages[adminStageAction]);
-      qc.invalidateQueries({ queryKey: [...QK.outboundOrders, order.id] });
-      qc.invalidateQueries({ queryKey: QK.outboundOrders });
+      // Apply mutation payload immediately so stage CTA/status do not linger on stale cache.
+      if (updated?.id) {
+        qc.setQueryData([...QK.outboundOrders, updated.id], updated);
+      }
+      void qc.invalidateQueries({ queryKey: [...QK.outboundOrders, order.id] });
+      void qc.invalidateQueries({ queryKey: QK.outboundOrders });
       invalidateWorkflowTasksInventory(qc, {
         referenceId: order.id,
         referenceType: 'outbound_order',
@@ -228,15 +233,12 @@ export function AdminOutboundOrderSummary({ order }: Props) {
               ? 'Release to workers'
               : null;
 
+  const [dispatchConfirmOpen, setDispatchConfirmOpen] = useState(false);
+
   const runStageAction = () => {
     if (adminStageAction === 'complete_dispatch') {
-      if (
-        !window.confirm(
-          'Mark Dispatch as Complete?\n\nThis will mark the outbound order as dispatched and update the linked OMS order to Shipped.',
-        )
-      ) {
-        return;
-      }
+      setDispatchConfirmOpen(true);
+      return;
     }
     stageMut.mutate();
   };
@@ -421,7 +423,15 @@ export function AdminOutboundOrderSummary({ order }: Props) {
       </Card>
 
       {order.status === 'waiting_for_shipping_method' ? (
-        <ShippingMethodStageCard order={order} />
+        <>
+          {!isAdminMode ? (
+            <Alert variant="info" title="Admin handoff — shipping method">
+              Warehouse workers completed pick/pack. An admin or manager must select Manual or
+              Shipping Company before shipping details and dispatch can continue.
+            </Alert>
+          ) : null}
+          <ShippingMethodStageCard order={order} />
+        </>
       ) : null}
 
       {order.status === 'waiting_for_shipping_details' ? (
@@ -664,6 +674,21 @@ export function AdminOutboundOrderSummary({ order }: Props) {
             : 'Release starts the workflow. Workers complete tasks on /tasks. Do not confirm stages here.'}
         </Alert>
       ) : null}
+
+      <ConfirmModal
+        open={dispatchConfirmOpen}
+        title="Mark Dispatch as Complete?"
+        confirmLabel="Mark Dispatch as Complete"
+        loading={stageMut.isPending}
+        onClose={() => !stageMut.isPending && setDispatchConfirmOpen(false)}
+        onConfirm={() => {
+          stageMut.mutate(undefined, {
+            onSettled: () => setDispatchConfirmOpen(false),
+          });
+        }}
+      >
+        This will mark the outbound order as dispatched and update the linked OMS order to Shipped.
+      </ConfirmModal>
     </div>
   );
 }

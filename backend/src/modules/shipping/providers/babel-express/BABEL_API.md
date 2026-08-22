@@ -1,7 +1,8 @@
 # Babel Express Webservice API (V1)
 
 Source of truth: https://www.babel-express.com/api/v1/documents/webservice/openapi.yaml  
-Docs UI: https://www.babel-express.com/api/v1/documents/webservice/index.html
+Docs UI: https://www.babel-express.com/api/v1/documents/webservice/index.html  
+Portal (UX reference): https://www.babel-express.com/ship
 
 ## Authentication
 
@@ -15,70 +16,40 @@ Docs UI: https://www.babel-express.com/api/v1/documents/webservice/index.html
 https://www.babel-express.com/api/v1/webservice.php
 ```
 
-Actions are path suffixes under that base (e.g. `…/webservice.php/createShipment`).
+## Geographic hierarchy (Babel)
 
-## Endpoints used in V1
+| Portal label | API | Parameter |
+|--------------|-----|-----------|
+| محافظة / city list | `POST /getCities` | — |
+| المدينة / المنطقة | `POST /getAreas` | `cityID` |
+| البلدة / الحي | `POST /getNeighbourhoods` | `areaID` |
+| Map resolve | `POST /findNeighbourhoodByCoordinates` | `{ coordinates: { lat, lng } }` |
 
-| Action | Method | Purpose |
-|--------|--------|---------|
-| `/getCities` | POST | Connection test (authenticated, empty body OK) |
-| `/createShipment` | POST | Create shipment; returns AWB |
-| `/calculatePrice` | POST | Quote (adapter only; no V1 Admin UI) |
-| `/trackShipment` | POST | Tracking (adapter only) |
-| `/getAWBLink` | POST | Printable AWB URL |
-| `/getAWBPdf` | POST | Base64 AWB PDF |
+**Shipment identity for quote/create:** Babel **neighbourhood id** (not display names).
 
-Also documented (not required for V1 handoff): `/getAreas`, `/getNeighbourhoods`, `/findNeighbourhoodByCoordinates`, `/findNeighbourhoodByAddress`, `/createReturnShipment`, `/deleteShipment`.
+Internal snapshot tables (`babel_cities` / `babel_areas` / `babel_neighbourhoods`) are a **refreshable copy** via `POST /api/shipping/babel/geo/sync` — not eternal truth.
+
+OMS/Outbound stores only `babel_neighbourhood_id` (nullable). City/area stay in the snapshot tables.
+
+## Quote shippability (critical)
+
+Do **not** use a blanket `price === 0 ⇒ unavailable`.
+
+`isBabelCalculatePriceShippable` marks unshippable when Babel’s **response shape** indicates no service:
+
+1. Address delivery with `details.dropoff === null`, or
+2. `details.shipping === 0` **and** `price === 0` (zeroed fee breakdown that still returns `status:success` but `createShipment` rejects — e.g. برج الساما).
+
+If `price === 0` but `shipping > 0`, treat as potentially legitimate free/promo and allow.
 
 ## Create shipment
 
-**Request (required):**
+Required: receiver (with neighbourhood id or coordinates), `type` box|envelope, `parts[{weight}]`, contents, deliveryType, pickupType, cod, payer.
 
-```json
-{
-  "shipment": {
-    "receiver": {
-      "name": "…",
-      "phone": { "country": "963", "phone": "9xxxxxxxx" },
-      "address": "…",
-      "neighbourhood": { "coordinates": { "lat": 0, "lng": 0 } }
-    },
-    "type": "box",
-    "parts": [{ "weight": 1.5 }],
-    "contents": "…",
-    "deliveryType": "address",
-    "pickupType": "address",
-    "cod": { "amount": 0, "currency": "USD" },
-    "payer": "reseller",
-    "reference": "OMS-…"
-  }
-}
-```
+- Multi-part: one `{ weight }` per physical unit (OpenAPI has **no** L/W/H on parts).
+- Reseller warehouse: `pickupType` coerced to `hub` (no sender block).
+- Preflight `calculatePrice` for the selected option before `createShipment`.
 
-- `type`: `box` | `envelope` (envelope weight must be 1)
-- `deliveryType` / `pickupType`: `address` | `hub`
-- `payer`: `sender` | `receiver` | `reseller`
-- `neighbourhood`: either `{ "id": <int> }` **or** `{ "coordinates": { "lat", "lng" } }` — V1 uses coordinates only
-- `sender` omitted → pickup from reseller primary address (per OpenAPI)
-- `cod.amount` = `0` disables COD
+## COD
 
-**Success response identifier:**
-
-```json
-{ "status": "success", "awb": "2300456789" }
-```
-
-Store `awb` as the external shipment / tracking identifier.
-
-## Quote (`/calculatePrice`)
-
-Returns `{ status, price, currency, details: { pickup, dropoff, shipping } }`.  
-Implemented on the adapter for future use; **not** exposed in V1 UI.
-
-## Errors
-
-```json
-{ "status": "error", "errorMessage": "…" }
-```
-
-Surface `errorMessage` to Admins; never log or return credentials.
+`cod.amount = 0` disables COD. Currency should match EMDAD business currency (USD) when COD is USD — do not force SYP.

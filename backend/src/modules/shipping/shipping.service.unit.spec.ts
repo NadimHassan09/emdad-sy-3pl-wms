@@ -45,7 +45,15 @@ describe('ShippingService.ensureShipmentForOutbound', () => {
                 orderNumber: 'OUT-1',
                 clientReference: null,
                 lines: [],
-                omsOrder: { id: 'oms-1', orderNumber: 'OMS-1', trackingNumber: null, carrier: null },
+                omsOrder: {
+                  id: 'oms-1',
+                  orderNumber: 'OMS-1',
+                  trackingNumber: null,
+                  carrier: null,
+                  paymentMethod: null,
+                  codAmount: null,
+                  currency: 'USD',
+                },
               }
             : overrides.order,
         ),
@@ -97,6 +105,7 @@ describe('ShippingService.ensureShipmentForOutbound', () => {
       registry as any,
       realtime as any,
       { lookupBoundary: jest.fn(), containsPoint: jest.fn() } as any,
+      { resolveNeighbourhoodId: jest.fn(async () => null) } as any,
     );
 
     return { service, prisma, createShipment, registry };

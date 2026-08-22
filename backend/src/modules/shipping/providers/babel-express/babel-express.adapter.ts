@@ -9,12 +9,11 @@ import type {
   ShippingProviderCapabilities,
   ShippingQuoteInput,
   ShippingQuoteResult,
-  ShippingTestResult,
 } from '../../shipping-provider.interface';
 import { BABEL_EXPRESS_CODE } from '../../shipping.constants';
 import { BabelApiError, BabelExpressHttpClient } from './babel-express.http-client';
 import {
-  isBabelAddressDeliveryAvailable,
+  isBabelCalculatePriceShippable,
   mapCalculatePricePayload,
   mapCreateShipmentPayload,
   resolveBabelCodCurrency,
@@ -36,7 +35,7 @@ export class BabelExpressAdapter implements ShippingProvider {
 
   constructor(private readonly http: BabelExpressHttpClient) {}
 
-  async testConnection(credentials: ShippingCredentials): Promise<ShippingTestResult> {
+  async testConnection(credentials: ShippingCredentials): Promise<{ ok: boolean; message?: string }> {
     try {
       await this.http.post('getCities', credentials, {});
       return { ok: true, message: 'Babel Express connection OK.' };
@@ -47,7 +46,6 @@ export class BabelExpressAdapter implements ShippingProvider {
           : err instanceof Error
             ? err.message
             : 'Connection test failed.';
-      // Babel returns a bare "Unauthorized" for bad Basic Auth — make it actionable in Admin UI.
       if (/^unauthorized$/i.test(message.trim())) {
         message =
           'Babel Express rejected these credentials. Use the reseller username and password from Babel Express (not your WMS login).';
@@ -69,19 +67,45 @@ export class BabelExpressAdapter implements ShippingProvider {
       const probe = mapCalculatePricePayload({
         receiverLat: input.receiver.lat,
         receiverLng: input.receiver.lng,
+        neighbourhoodId,
         packageType: input.packageType,
         weightKg: input.weightKg,
+        parts: input.parts,
         deliveryType: 'address',
-        pickupType: input.pickupType,
+        pickupType: 'hub',
       });
-      const probeRaw = await this.http.post<{ details?: unknown }>(
-        'calculatePrice',
-        credentials,
-        probe,
-      );
-      if (!isBabelAddressDeliveryAvailable(probeRaw?.details)) {
+      const probeRaw = await this.http.post<{
+        status?: string;
+        price?: number;
+        details?: unknown;
+      }>('calculatePrice', credentials, probe);
+      if (!isBabelCalculatePriceShippable(probeRaw, 'address')) {
         deliveryType = 'hub';
       }
+    }
+
+    // Preflight selected option — do not call create if calculatePrice shape is unshippable.
+    const preflightPayload = mapCalculatePricePayload({
+      receiverLat: input.receiver.lat,
+      receiverLng: input.receiver.lng,
+      neighbourhoodId,
+      packageType: input.packageType,
+      weightKg: input.weightKg,
+      parts: input.parts,
+      deliveryType,
+      pickupType: 'hub',
+    });
+    const preflight = await this.http.post<{
+      status?: string;
+      price?: number;
+      details?: unknown;
+    }>('calculatePrice', credentials, preflightPayload);
+    if (!isBabelCalculatePriceShippable(preflight, deliveryType)) {
+      throw new BabelApiError(
+        'Babel Express does not offer a shippable service for this destination and options (quote response indicates no service).',
+        undefined,
+        preflight,
+      );
     }
 
     const payload = mapCreateShipmentPayload({
@@ -110,8 +134,22 @@ export class BabelExpressAdapter implements ShippingProvider {
     credentials: ShippingCredentials,
     input: ShippingQuoteInput,
   ): Promise<ShippingQuoteResult> {
+    let neighbourhoodId = input.neighbourhoodId;
+    if (neighbourhoodId == null) {
+      neighbourhoodId = await this.lookupNeighbourhoodId(
+        credentials,
+        input.receiverLat,
+        input.receiverLng,
+      );
+    }
+
     const requestQuote = async (deliveryType: 'address' | 'hub') => {
-      const payload = mapCalculatePricePayload({ ...input, deliveryType });
+      const payload = mapCalculatePricePayload({
+        ...input,
+        neighbourhoodId,
+        deliveryType,
+        pickupType: 'hub',
+      });
       return this.http.post<{
         status?: string;
         price?: number;
@@ -124,12 +162,24 @@ export class BabelExpressAdapter implements ShippingProvider {
     let effectiveDeliveryType = input.deliveryType;
     let restrictions: string[] | undefined;
 
-    if (input.deliveryType === 'address' && !isBabelAddressDeliveryAvailable(raw?.details)) {
+    if (
+      input.deliveryType === 'address' &&
+      !isBabelCalculatePriceShippable(raw, 'address')
+    ) {
       raw = await requestQuote('hub');
       effectiveDeliveryType = 'hub';
       restrictions = [
         'Door delivery is not available at this pin. Hub delivery applies (customer collects from a Babel hub).',
       ];
+    }
+
+    const shippable = isBabelCalculatePriceShippable(raw, effectiveDeliveryType);
+    if (!shippable) {
+      throw new BabelApiError(
+        'Not available for this destination / shipment configuration (Babel returned a non-shippable quote).',
+        undefined,
+        raw,
+      );
     }
 
     const price = typeof raw?.price === 'number' ? raw.price : Number(raw?.price);
@@ -144,16 +194,69 @@ export class BabelExpressAdapter implements ShippingProvider {
       effectiveDeliveryType,
       serviceName: deliveryTypeLabel(effectiveDeliveryType),
       restrictions,
+      shippable: true,
+      neighbourhoodId,
     };
   }
 
-  private async lookupNeighbourhoodId(
+  /**
+   * Quote both address and hub options for a neighbourhood (for Shipping Details UI).
+   */
+  async getServiceOptions(
+    credentials: ShippingCredentials,
+    input: Omit<ShippingQuoteInput, 'deliveryType'>,
+  ): Promise<ShippingQuoteResult[]> {
+    let neighbourhoodId = input.neighbourhoodId;
+    if (neighbourhoodId == null) {
+      neighbourhoodId = await this.lookupNeighbourhoodId(
+        credentials,
+        input.receiverLat,
+        input.receiverLng,
+      );
+    }
+
+    const options: ShippingQuoteResult[] = [];
+    for (const deliveryType of ['address', 'hub'] as const) {
+      const payload = mapCalculatePricePayload({
+        ...input,
+        neighbourhoodId,
+        deliveryType,
+        pickupType: 'hub',
+      });
+      try {
+        const raw = await this.http.post<{
+          status?: string;
+          price?: number;
+          currency?: string;
+          details?: unknown;
+        }>('calculatePrice', credentials, payload);
+        if (!isBabelCalculatePriceShippable(raw, deliveryType)) continue;
+        const price = typeof raw.price === 'number' ? raw.price : Number(raw.price);
+        if (!Number.isFinite(price)) continue;
+        options.push({
+          price,
+          currency: typeof raw.currency === 'string' ? raw.currency : 'SYP',
+          details: raw.details,
+          effectiveDeliveryType: deliveryType,
+          serviceId: `${BABEL_EXPRESS_CODE}:${deliveryType}`,
+          serviceName: deliveryTypeLabel(deliveryType),
+          shippable: true,
+          neighbourhoodId,
+        });
+      } catch {
+        // Option not offered — skip.
+      }
+    }
+    return options;
+  }
+
+  async lookupNeighbourhoodId(
     credentials: ShippingCredentials,
     lat: number,
     lng: number,
   ): Promise<number> {
     const raw = await this.http.post<{
-      neighbourhood?: { id?: number };
+      neighbourhood?: { id?: number; name?: string };
     }>('findNeighbourhoodByCoordinates', credentials, {
       coordinates: { lat, lng },
     });
@@ -166,9 +269,28 @@ export class BabelExpressAdapter implements ShippingProvider {
     return id;
   }
 
+  async findNeighbourhoodByCoordinates(
+    credentials: ShippingCredentials,
+    lat: number,
+    lng: number,
+  ): Promise<{ id: number; name: string } | null> {
+    try {
+      const raw = await this.http.post<{
+        neighbourhood?: { id?: number; name?: string };
+      }>('findNeighbourhoodByCoordinates', credentials, {
+        coordinates: { lat, lng },
+      });
+      const id = raw?.neighbourhood?.id;
+      const name = raw?.neighbourhood?.name;
+      if (typeof id !== 'number' || !Number.isFinite(id)) return null;
+      return { id, name: typeof name === 'string' ? name : String(id) };
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Prefer printable PDF; fall back to AWB link. Returns null if neither is available.
-   * Does not invent labels.
    */
   async getLabel(
     credentials: ShippingCredentials,

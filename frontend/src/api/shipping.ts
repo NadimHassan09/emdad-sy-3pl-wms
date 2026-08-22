@@ -45,6 +45,15 @@ export type ShippingAreaBoundary = {
   source?: 'nominatim' | null;
 };
 
+export type BabelGeoCity = { id: number; name: string; syncedAt?: string };
+export type BabelGeoArea = { id: number; cityId: number; name: string; syncedAt?: string };
+export type BabelGeoNeighbourhood = {
+  id: number;
+  areaId: number;
+  name: string;
+  syncedAt?: string;
+};
+
 export type ShippingRateQuote = {
   carrierId: string;
   carrierName: string;
@@ -69,8 +78,9 @@ export type ShippingRateError = {
 };
 
 export type QuoteShippingRatesInput = {
-  receiverLat: number;
-  receiverLng: number;
+  receiverLat?: number;
+  receiverLng?: number;
+  neighbourhoodId?: number | null;
   packageType: ShippingPackageType;
   weightKg: number;
   deliveryType: ShippingDeliveryType;
@@ -117,6 +127,7 @@ export type ShippingConfigPayload = {
   shippingWeightKg?: number | null;
   shippingVolumeCbm?: number | null;
   shippingPhoneCountry?: string | null;
+  babelNeighbourhoodId?: number | null;
 };
 
 /** Form-friendly shipping field state (string inputs). */
@@ -133,6 +144,7 @@ export type OrderShippingFieldsValue = {
   shippingWeightKg: string;
   shippingVolumeCbm: string;
   shippingPhoneCountry: string;
+  babelNeighbourhoodId: string;
 };
 
 export function emptyOrderShippingFields(): OrderShippingFieldsValue {
@@ -149,6 +161,7 @@ export function emptyOrderShippingFields(): OrderShippingFieldsValue {
     shippingWeightKg: '',
     shippingVolumeCbm: '',
     shippingPhoneCountry: '',
+    babelNeighbourhoodId: '',
   };
 }
 
@@ -175,6 +188,7 @@ export function orderShippingFieldsFromApi(
     shippingWeightKg: numOrEmpty(src.shippingWeightKg),
     shippingVolumeCbm: numOrEmpty(src.shippingVolumeCbm),
     shippingPhoneCountry: src.shippingPhoneCountry?.trim() ?? '',
+    babelNeighbourhoodId: numOrEmpty(src.babelNeighbourhoodId),
   };
 }
 
@@ -206,6 +220,7 @@ export function orderShippingFieldsToPayload(
     shippingWeightKg: parseOptionalNumber(value.shippingWeightKg) ?? null,
     shippingVolumeCbm: parseOptionalNumber(value.shippingVolumeCbm) ?? null,
     shippingPhoneCountry: value.shippingPhoneCountry.trim() || null,
+    babelNeighbourhoodId: parseOptionalNumber(value.babelNeighbourhoodId) ?? null,
   };
 }
 
@@ -240,6 +255,7 @@ export function orderShippingDetailsToPayload(
     shippingWeightKg: parseOptionalNumber(value.shippingWeightKg) ?? null,
     shippingVolumeCbm: parseOptionalNumber(value.shippingVolumeCbm) ?? null,
     shippingPhoneCountry: value.shippingPhoneCountry.trim() || null,
+    babelNeighbourhoodId: parseOptionalNumber(value.babelNeighbourhoodId) ?? null,
   };
 }
 
@@ -384,6 +400,47 @@ export const ShippingApi = {
     if (params.neighborhood?.trim()) qs.set('neighborhood', params.neighborhood.trim());
     return api
       .get<ShippingAreaBoundary>(`/shipping/geo/boundary?${qs.toString()}`)
+      .then((r) => r.data);
+  },
+
+  listBabelCities(): Promise<BabelGeoCity[]> {
+    return api.get<BabelGeoCity[]>('/shipping/babel/geo/cities').then((r) => r.data);
+  },
+
+  listBabelAreas(cityId: number): Promise<BabelGeoArea[]> {
+    return api
+      .get<BabelGeoArea[]>(`/shipping/babel/geo/cities/${cityId}/areas`)
+      .then((r) => r.data);
+  },
+
+  listBabelNeighbourhoods(areaId: number): Promise<BabelGeoNeighbourhood[]> {
+    return api
+      .get<BabelGeoNeighbourhood[]>(`/shipping/babel/geo/areas/${areaId}/neighbourhoods`)
+      .then((r) => r.data);
+  },
+
+  resolveAddressFromPin(
+    lat: number,
+    lng: number,
+  ): Promise<
+    | {
+        found: true;
+        governorate: string;
+        cityRegion: string;
+        townNeighborhood: string;
+        lat: number;
+        lng: number;
+        distanceMeters: number;
+      }
+    | {
+        found: false;
+        message: string;
+        nearestLabel?: string;
+        distanceMeters?: number;
+      }
+  > {
+    return api
+      .post('/shipping/address/resolve-from-pin', { lat, lng })
       .then((r) => r.data);
   },
 

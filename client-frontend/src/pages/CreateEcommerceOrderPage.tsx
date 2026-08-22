@@ -37,6 +37,12 @@ function label(text: string, isArabic: boolean): string {
     'Required ship date': 'تاريخ الشحن المطلوب',
     'Recipient name': 'اسم المستلم',
     'Recipient phone': 'هاتف المستلم',
+    'Recipient name is required.': 'اسم المستلم مطلوب.',
+    'Recipient phone is required.': 'رقم هاتف المستلم مطلوب.',
+    'Governorate, City/Region, and Town/Neighborhood are required.':
+      'المحافظة والمدينة/المنطقة والبلدة/الحي مطلوبة.',
+    'Name can only contain Arabic or English letters and spaces.':
+      'الاسم يقبل حروف عربية أو إنجليزية ومسافات فقط.',
     Governorate: 'المحافظة',
     'City/Region': 'المدينة / المنطقة',
     'Town/Neighborhood': 'البلدة / الحي',
@@ -46,7 +52,14 @@ function label(text: string, isArabic: boolean): string {
     'Select or type governorate…': 'اختر أو اكتب المحافظة…',
     'Select or type city/region…': 'اختر أو اكتب المدينة / المنطقة…',
     'Select or type town/neighborhood…': 'اختر أو اكتب البلدة / الحي…',
+    'Select Babel governorate…': 'اختر المحافظة (Babel)…',
+    'Select Babel city/region…': 'اختر المدينة / المنطقة (Babel)…',
+    'Select Babel town/neighborhood…': 'اختر البلدة / الحي (Babel)…',
     'Payment method': 'طريقة الدفع',
+    'Payment method is required.': 'طريقة الدفع مطلوبة.',
+    'Product is required on every line.': 'المنتج مطلوب في كل سطر.',
+    'Qty is required on every line.': 'الكمية مطلوبة في كل سطر.',
+    'Qty must be a positive number.': 'الكمية يجب أن تكون رقمًا موجبًا.',
     Notes: 'ملاحظات',
     Product: 'المنتج',
     'Pick product…': 'اختر المنتج…',
@@ -66,8 +79,6 @@ function label(text: string, isArabic: boolean): string {
     available: 'متاح',
     'Insufficient stock for one or more products.': 'مخزون غير كافٍ لمنتج واحد أو أكثر.',
     'Each product line needs a valid price.': 'كل بند يحتاج سعراً صالحاً.',
-    'Name can only contain Arabic or English letters and spaces.':
-      'الاسم يقبل الحروف العربية أو الإنجليزية والمسافات فقط.',
     'Please enter a valid phone number.': 'يرجى إدخال رقم هاتف صالح.',
     'Shipping information': 'معلومات الشحن',
     'Order details': 'تفاصيل الطلب',
@@ -203,18 +214,26 @@ export function CreateEcommerceOrderPage(): ReactElement {
       setError(t('Insufficient stock for one or more products.'));
       return;
     }
-    if (!deliveryLat.trim() || !deliveryLng.trim()) {
-      setError(t('Please select the delivery location on the map before creating the order.'));
-      return;
-    }
+    // Map pin is optional — hierarchy address is enough for OMS create.
+    // Babel neighbourhood id is resolved later when a pin is present or at shipping time.
 
     const payloadLines: CreateClientOmsOrderInput['lines'] = [];
     for (const l of lines) {
-      if (!l.productId || !l.requestedQuantity) continue;
+      if (!l.productId.trim()) {
+        setError(t('Product is required on every line.'));
+        return;
+      }
+      if (!l.requestedQuantity.trim()) {
+        setError(t('Qty is required on every line.'));
+        return;
+      }
       const qty = Number(l.requestedQuantity);
       const unitPrice = Number(l.unitPrice);
-      if (!(qty > 0)) continue;
-      if (Number.isNaN(unitPrice) || unitPrice < 0) {
+      if (!(qty > 0) || !Number.isFinite(qty)) {
+        setError(t('Qty must be a positive number.'));
+        return;
+      }
+      if (Number.isNaN(unitPrice) || unitPrice < 0 || l.unitPrice.trim() === '') {
         setError(t('Each product line needs a valid price.'));
         return;
       }
@@ -226,12 +245,24 @@ export function CreateEcommerceOrderPage(): ReactElement {
     }
 
     setContactSubmitted(true);
+    if (!recipientName.trim()) {
+      setError(t('Recipient name is required.'));
+      return;
+    }
     if (!isValidRecipientName(recipientName)) {
       setError(t('Name can only contain Arabic or English letters and spaces.'));
       return;
     }
-    if (!recipientPhone.isEmpty && !recipientPhone.isValid) {
-      setError(t('Please enter a valid phone number.'));
+    if (recipientPhone.isEmpty || !recipientPhone.isValid) {
+      setError(t('Recipient phone is required.'));
+      return;
+    }
+    if (!city.trim() || !district.trim() || !addressLine1.trim()) {
+      setError(t('Governorate, City/Region, and Town/Neighborhood are required.'));
+      return;
+    }
+    if (!paymentMethod) {
+      setError(t('Payment method is required.'));
       return;
     }
 
@@ -248,7 +279,7 @@ export function CreateEcommerceOrderPage(): ReactElement {
       shippingReceiverLat: deliveryLat.trim() ? Number(deliveryLat) : undefined,
       shippingReceiverLng: deliveryLng.trim() ? Number(deliveryLng) : undefined,
       notes: notes.trim() || undefined,
-      paymentMethod: (paymentMethod || undefined) as CreateClientOmsOrderInput['paymentMethod'],
+      paymentMethod: paymentMethod as CreateClientOmsOrderInput['paymentMethod'],
       lines: payloadLines,
     });
   };
@@ -305,6 +336,7 @@ export function CreateEcommerceOrderPage(): ReactElement {
               disabled={fieldsDisabled}
               isArabic={isArabic}
               submitted={contactSubmitted}
+              required
             />
             <InternationalPhoneInput
               label={t('Recipient phone')}
@@ -313,6 +345,7 @@ export function CreateEcommerceOrderPage(): ReactElement {
               disabled={fieldsDisabled}
               isArabic={isArabic}
               submitted={contactSubmitted}
+              required
             />
             <CascadingAddressSelector
               value={{ city, district, addressLine1 }}
@@ -328,6 +361,9 @@ export function CreateEcommerceOrderPage(): ReactElement {
               districtPlaceholder={t('Select or type city/region…')}
               addressLine1Placeholder={t('Select or type town/neighborhood…')}
               disabled={fieldsDisabled}
+              cityRequired
+              districtRequired
+              addressLine1Required
             />
             <TextField
               label={t('Street / Detailed Address')}
@@ -345,6 +381,14 @@ export function CreateEcommerceOrderPage(): ReactElement {
               setDeliveryLat(lat);
               setDeliveryLng(lng);
             }}
+            onAddressResolved={(addr) => {
+              setCity(addr.governorate);
+              setDistrict(addr.cityRegion);
+              setAddressLine1(addr.townNeighborhood);
+              setDeliveryLat(addr.lat);
+              setDeliveryLng(addr.lng);
+            }}
+            onAddressUnavailable={(msg) => setError(msg)}
             disabled={fieldsDisabled}
             governorate={city}
             city={district}
@@ -374,6 +418,7 @@ export function CreateEcommerceOrderPage(): ReactElement {
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value)}
               disabled={fieldsDisabled}
+              required
               options={[
                 { value: '', label: '—' },
                 { value: 'COD', label: 'COD' },
@@ -414,6 +459,7 @@ export function CreateEcommerceOrderPage(): ReactElement {
                       clearable={false}
                       dropdownInFlow
                       disabled={fieldsDisabled}
+                      required
                     />
                     <TextField
                       label={idx === 0 ? t('Qty') : undefined}
@@ -425,6 +471,7 @@ export function CreateEcommerceOrderPage(): ReactElement {
                           ),
                         )
                       }
+                      required
                       disabled={fieldsDisabled}
                     />
                     <TextField

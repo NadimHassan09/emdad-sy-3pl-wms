@@ -43,6 +43,7 @@ export interface CreateClientOmsOrderInput {
   addressLine2?: string;
   shippingReceiverLat?: number;
   shippingReceiverLng?: number;
+  babelNeighbourhoodId?: number;
   notes?: string;
   storeChannel?: string;
   paymentMethod?: ClientOmsPaymentMethod;

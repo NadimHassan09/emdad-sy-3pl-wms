@@ -131,11 +131,15 @@ export class ClientOmsOrdersService {
       city: dto.city,
       district: dto.district,
       addressLine1: dto.addressLine1,
+      addressLine2: dto.addressLine2,
       notes: dto.notes,
       storeChannel: dto.storeChannel,
       paymentMethod: dto.paymentMethod,
       currency: dto.currency ?? 'USD',
       shippingPhoneCountry: dto.shippingPhoneCountry,
+      shippingReceiverLat: dto.shippingReceiverLat,
+      shippingReceiverLng: dto.shippingReceiverLng,
+      babelNeighbourhoodId: dto.babelNeighbourhoodId,
       // Clients must not set shipping fee — admin sets it before/at approval.
       lines: dto.lines.map((l) => ({
         productId: l.productId,

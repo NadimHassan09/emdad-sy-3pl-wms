@@ -17,11 +17,14 @@ export type ShippingCreateShipmentInput = {
     address: string;
     lat: number;
     lng: number;
-    /** Resolved via carrier neighbourhood lookup when available. */
+    /** Babel neighbourhood id — preferred identity for quote and create. */
     neighbourhoodId?: number;
   };
   packageType: 'box' | 'envelope';
+  /** Aggregate weight (legacy / envelope); prefer `parts` when multi-unit. */
   weightKg: number;
+  /** One Babel part per physical unit (weight kg only per OpenAPI). */
+  parts?: Array<{ weight: number }>;
   contents: string;
   deliveryType: 'address' | 'hub';
   pickupType: 'address' | 'hub';
@@ -38,8 +41,11 @@ export type ShippingCreateShipmentResult = {
 export type ShippingQuoteInput = {
   receiverLat: number;
   receiverLng: number;
+  /** Prefer Babel neighbourhood id so quote and createShipment share identity. */
+  neighbourhoodId?: number;
   packageType: 'box' | 'envelope';
   weightKg: number;
+  parts?: Array<{ weight: number }>;
   deliveryType: 'address' | 'hub';
   pickupType?: 'address' | 'hub';
   /** Passed through for adapters that price by volume; ignored when the carrier API has no field. */
@@ -56,12 +62,16 @@ export type ShippingQuoteResult = {
   details?: unknown;
   /** When the carrier adjusts delivery mode (e.g. address unavailable → hub). */
   effectiveDeliveryType?: 'address' | 'hub';
+  /** False when Babel returned a non-shippable calculatePrice shape. */
+  shippable?: boolean;
   /** Business days, only when the carrier API returns them. Never invent. */
   estimatedDeliveryMin?: number;
   estimatedDeliveryMax?: number;
   serviceId?: string;
   serviceName?: string;
   restrictions?: string[];
+  /** Babel neighbourhood id used for this quote (when known). */
+  neighbourhoodId?: number;
 };
 
 /** How the carrier delivers printable labels to WMS (do not invent labels). */

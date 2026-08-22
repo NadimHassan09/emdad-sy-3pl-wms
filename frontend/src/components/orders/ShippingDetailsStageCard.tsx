@@ -84,6 +84,15 @@ export function ShippingDetailsStageCard({
     if (!base.shippingVolumeCbm.trim() && suggestedVolumeCbm != null) {
       base.shippingVolumeCbm = String(suggestedVolumeCbm);
     }
+    if (!base.shippingPackageType) {
+      base.shippingPackageType = 'box';
+    }
+    if (!base.shippingPickupType) {
+      base.shippingPickupType = 'hub';
+    }
+    if (!base.shippingDeliveryType) {
+      base.shippingDeliveryType = 'hub';
+    }
     return base;
   });
   const [sendOpen, setSendOpen] = useState(false);
@@ -98,6 +107,15 @@ export function ShippingDetailsStageCard({
     }
     if (!base.shippingVolumeCbm.trim() && suggestedVolumeCbm != null) {
       base.shippingVolumeCbm = String(suggestedVolumeCbm);
+    }
+    if (!base.shippingPackageType) {
+      base.shippingPackageType = 'box';
+    }
+    if (!base.shippingPickupType) {
+      base.shippingPickupType = 'hub';
+    }
+    if (!base.shippingDeliveryType) {
+      base.shippingDeliveryType = 'hub';
     }
     setFields(base);
     if (detailsLocked) setEditing(false);

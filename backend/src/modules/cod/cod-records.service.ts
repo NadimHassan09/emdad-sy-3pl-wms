@@ -220,7 +220,8 @@ export class CodRecordsService {
       return serialize(existing);
     }
 
-    const amount = order.codAmount ?? order.subtotal ?? new Prisma.Decimal(0);
+    // Prefer stored COD (merchandise). Do not fall back to order.subtotal (includes shipping fee / billing).
+    const amount = order.codAmount ?? new Prisma.Decimal(0);
     if (amount.isZero()) {
       throw new BadRequestException('COD amount is zero; cannot generate COD record.');
     }
@@ -282,6 +283,70 @@ export class CodRecordsService {
 
   async retryGeneration(omsOrderId: string, user: AuthPrincipal) {
     return this.generateForDeliveredOrder(user, omsOrderId);
+  }
+
+  /**
+   * Delivery revert voids the COD record so it no longer appears to admin/client,
+   * and so a later Mark delivered can regenerate cleanly (unique omsOrderId).
+   */
+  async voidForDeliveryRevert(user: AuthPrincipal, omsOrderId: string, reason: string) {
+    const order = await this.prisma.omsOrder.findUnique({ where: { id: omsOrderId } });
+    if (!order) throw new NotFoundException('OMS order not found.');
+    this.companyAccess.validateResourceOwnership(user, order);
+
+    const existing = await this.prisma.codRecord.findUnique({
+      where: { omsOrderId },
+      include: { adjustments: true },
+    });
+    if (!existing) {
+      await this.prisma.omsOrder.update({
+        where: { id: omsOrderId },
+        data: {
+          codGenerationStatus: CodGenerationStatus.none,
+          codStatus: order.paymentMethod === 'COD' ? 'pending' : null,
+          codCollectedAt: null,
+          codRemittedAt: null,
+        },
+      });
+      return null;
+    }
+
+    if (existing.status === CodRecordStatus.paid_out) {
+      throw new InvalidStateException(
+        'Cannot revert delivery while COD is paid out. Reverse payout first.',
+      );
+    }
+
+    await withTenantRls(this.prisma, user, async (tx) => {
+      await tx.codRecord.delete({ where: { id: existing.id } });
+      await tx.omsOrder.update({
+        where: { id: omsOrderId },
+        data: {
+          codGenerationStatus: CodGenerationStatus.none,
+          codStatus: order.paymentMethod === 'COD' ? 'pending' : null,
+          codCollectedAt: null,
+          codRemittedAt: null,
+        },
+      });
+      await this.recordEvent(tx, {
+        omsOrderId,
+        companyId: order.companyId,
+        eventType: 'cod.voided_on_delivery_revert',
+        createdBy: user.id,
+        payload: {
+          previousCodRecordId: existing.id,
+          previousAmount: existing.originalAmount.toString(),
+          reason,
+        },
+      });
+    });
+
+    this.realtime.emitCodUpdated(order.companyId, {
+      orderId: omsOrderId,
+      codRecordId: existing.id,
+      status: 'voided',
+    });
+    return { voided: true as const, previousCodRecordId: existing.id };
   }
 
   async setStatus(id: string, user: AuthPrincipal, status: CodRecordStatus) {

@@ -271,6 +271,7 @@ export interface OmsOrderDetail extends OmsOrderListItem {
   shippingWeightKg?: string | number | null;
   shippingVolumeCbm?: string | number | null;
   shippingPhoneCountry?: string | null;
+  babelNeighbourhoodId?: number | null;
   lines: OmsOrderLine[];
   timeline?: OmsOrderEvent[];
   reservations?: OmsStockReservation[];

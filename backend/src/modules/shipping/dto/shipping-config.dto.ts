@@ -71,4 +71,9 @@ export class ShippingConfigDto {
   @IsOptional()
   @IsString()
   shippingPhoneCountry?: string | null;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  babelNeighbourhoodId?: number | null;
 }

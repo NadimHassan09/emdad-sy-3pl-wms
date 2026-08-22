@@ -114,6 +114,7 @@ export function serializeOmsOrder(order: OmsOrderWithRelations) {
     codAmount: dec(order.codAmount),
     shippingReceiverLat: dec(order.shippingReceiverLat),
     shippingReceiverLng: dec(order.shippingReceiverLng),
+    babelNeighbourhoodId: order.babelNeighbourhoodId ?? null,
     shippingWeightKg: dec(order.shippingWeightKg),
     total: computeTotal(order),
     linkedOutboundOrder: order.outboundOrder

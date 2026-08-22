@@ -43,6 +43,53 @@ describe('babel-shipment.mapper', () => {
 
     expect(payload.shipment.receiver.neighbourhood).toEqual({ id: 4278 });
     expect(payload.shipment.pickupType).toBe('hub');
-    expect(payload.shipment.cod).toEqual({ amount: 0, currency: 'SYP' });
+    expect(payload.shipment.cod).toEqual({ amount: 0, currency: 'USD' });
+  });
+
+  it('keeps USD COD currency for non-zero COD (does not force SYP)', () => {
+    const payload = mapCreateShipmentPayload({
+      receiver: {
+        name: 'Ali',
+        phoneCountry: '963',
+        phoneLocal: '999000111',
+        address: 'Street 1',
+        lat: 33.5,
+        lng: 36.3,
+        neighbourhoodId: 1,
+      },
+      packageType: 'box',
+      weightKg: 1,
+      contents: 'Goods',
+      deliveryType: 'hub',
+      pickupType: 'hub',
+      payer: 'receiver',
+      codAmount: 50,
+      currency: 'USD',
+    });
+    expect(payload.shipment.cod).toEqual({ amount: 50, currency: 'USD' });
+  });
+
+  it('maps multi-unit parts by weight', () => {
+    const payload = mapCreateShipmentPayload({
+      receiver: {
+        name: 'Ali',
+        phoneCountry: '963',
+        phoneLocal: '999000111',
+        address: 'Street 1',
+        lat: 33.5,
+        lng: 36.3,
+        neighbourhoodId: 12,
+      },
+      packageType: 'box',
+      weightKg: 3,
+      parts: [{ weight: 1 }, { weight: 1 }, { weight: 1 }],
+      contents: 'Goods',
+      deliveryType: 'hub',
+      pickupType: 'hub',
+      payer: 'reseller',
+      codAmount: 0,
+      currency: 'USD',
+    });
+    expect(payload.shipment.parts).toEqual([{ weight: 1 }, { weight: 1 }, { weight: 1 }]);
   });
 });

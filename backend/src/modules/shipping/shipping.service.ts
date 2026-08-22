@@ -15,8 +15,9 @@ import { EncryptionService } from '../../common/crypto/encryption.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
 import { composeDestinationAddress } from '../oms/oms-order.mapper';
+import { BabelAddressAdapter } from './providers/babel-express/babel-address.adapter';
 import { BabelApiError } from './providers/babel-express/babel-express.http-client';
-import { parsePhoneForBabel } from './providers/babel-express/babel-shipment.mapper';
+import { parsePhoneForBabel, resolveBabelCodCurrency } from './providers/babel-express/babel-shipment.mapper';
 import { BABEL_EXPRESS_CODE, ShippingProviderRegistry } from './shipping-provider.registry';
 import { assertCarrierShippingReady, type ShippingConfigFields } from './shipping-config.util';
 import type { QuoteShippingRatesDto } from './dto/quote-shipping-rates.dto';
@@ -26,6 +27,10 @@ import {
   type ShippingRateError,
   type ShippingRateQuote,
 } from './shipping-rate.util';
+import {
+  buildPhysicalShipmentParts,
+  toBabelWeightParts,
+} from './shipment-parts.util';
 
 export type ShippingProviderAdminView = {
   code: string;
@@ -101,6 +106,7 @@ export class ShippingService {
     private readonly registry: ShippingProviderRegistry,
     private readonly realtime: RealtimeService,
     private readonly geo: ShippingGeoService,
+    private readonly babelAddress: BabelAddressAdapter,
   ) {}
 
   private readonly rateCache = new Map<
@@ -121,8 +127,9 @@ export class ShippingService {
    */
   async quoteDestinationRates(dto: QuoteShippingRatesDto): Promise<QuoteDestinationRatesResult> {
     const cacheKey = JSON.stringify({
-      lat: roundCoord(dto.receiverLat),
-      lng: roundCoord(dto.receiverLng),
+      lat: dto.receiverLat != null ? roundCoord(dto.receiverLat) : null,
+      lng: dto.receiverLng != null ? roundCoord(dto.receiverLng) : null,
+      neighbourhoodId: dto.neighbourhoodId ?? null,
       packageType: dto.packageType,
       weightKg: dto.weightKg,
       deliveryType: dto.deliveryType,
@@ -137,15 +144,39 @@ export class ShippingService {
       return cached.value;
     }
 
-    const boundary = await this.geo.lookupBoundary({
-      governorate: dto.governorate,
-      city: dto.city,
-      neighborhood: dto.neighborhood,
-    });
-    const inSelectedArea =
-      boundary != null
-        ? this.geo.containsPoint(boundary, { lat: dto.receiverLat, lng: dto.receiverLng })
+    const hasCoords =
+      dto.receiverLat != null &&
+      dto.receiverLng != null &&
+      Number.isFinite(dto.receiverLat) &&
+      Number.isFinite(dto.receiverLng);
+
+    let neighbourhoodId =
+      dto.neighbourhoodId != null && Number.isFinite(Number(dto.neighbourhoodId))
+        ? Number(dto.neighbourhoodId)
         : null;
+    if (neighbourhoodId == null) {
+      neighbourhoodId = await this.babelAddress.resolveNeighbourhoodId({
+        governorate: dto.governorate,
+        cityRegion: dto.city,
+        townNeighborhood: dto.neighborhood,
+      });
+    }
+
+    let inSelectedArea: boolean | null = null;
+    if (hasCoords) {
+      const boundary = await this.geo.lookupBoundary({
+        governorate: dto.governorate,
+        city: dto.city,
+        neighborhood: dto.neighborhood,
+      });
+      inSelectedArea =
+        boundary != null
+          ? this.geo.containsPoint(boundary, {
+              lat: dto.receiverLat!,
+              lng: dto.receiverLng!,
+            })
+          : null;
+    }
 
     if (inSelectedArea === false) {
       const empty: QuoteDestinationRatesResult = {
@@ -182,12 +213,13 @@ export class ShippingService {
             password: this.encryption.decrypt(row.connection!.encryptedPassword!),
           };
           const result = await adapter.getQuote(credentials, {
-            receiverLat: dto.receiverLat,
-            receiverLng: dto.receiverLng,
+            receiverLat: dto.receiverLat ?? 0,
+            receiverLng: dto.receiverLng ?? 0,
+            neighbourhoodId: neighbourhoodId ?? undefined,
             packageType: dto.packageType,
             weightKg: dto.packageType === 'envelope' ? 1 : dto.weightKg,
             deliveryType: dto.deliveryType,
-            pickupType: dto.pickupType,
+            pickupType: dto.pickupType ?? 'hub',
             volumeCbm: dto.volumeCbm ?? undefined,
             governorate: dto.governorate,
             city: dto.city,
@@ -195,6 +227,14 @@ export class ShippingService {
             codAmount: dto.codAmount ?? undefined,
           });
           const quotedDeliveryType = result.effectiveDeliveryType ?? dto.deliveryType;
+          if (result.shippable === false) {
+            errors.push({
+              carrierId: row.code,
+              carrierName: row.name,
+              message: 'Not available for this destination / shipment configuration.',
+            });
+            return;
+          }
           quotes.push({
             carrierId: row.code,
             carrierName: row.name,
@@ -429,7 +469,19 @@ export class ShippingService {
     const order = await this.prisma.outboundOrder.findUnique({
       where: { id: outboundOrderId },
       include: {
-        lines: { include: { product: { select: { weightKg: true } } } },
+        lines: {
+          include: {
+            product: {
+              select: {
+                weightKg: true,
+                lengthCm: true,
+                widthCm: true,
+                heightCm: true,
+                name: true,
+              },
+            },
+          },
+        },
         omsOrder: {
           select: {
             orderNumber: true,
@@ -437,6 +489,13 @@ export class ShippingService {
             trackingNumber: true,
             carrier: true,
             status: true,
+            paymentMethod: true,
+            codAmount: true,
+            currency: true,
+            babelNeighbourhoodId: true,
+            city: true,
+            district: true,
+            addressLine1: true,
           },
         },
       },
@@ -558,6 +617,8 @@ export class ShippingService {
         shippingPickupType: order.shippingPickupType,
         shippingPayer: order.shippingPayer,
         shippingWeightKg: order.shippingWeightKg?.toString() ?? null,
+        babelNeighbourhoodId:
+          order.babelNeighbourhoodId ?? order.omsOrder?.babelNeighbourhoodId ?? null,
       });
     } catch (err) {
       await this.persistFailedShipment({
@@ -645,14 +706,82 @@ export class ShippingService {
       return;
     }
 
+    const oms = order.omsOrder;
+    const paymentMethod = order.paymentMethod ?? oms?.paymentMethod ?? null;
+    const rawCodAmount = order.codAmount ?? oms?.codAmount ?? null;
+    const orderCurrency = order.currency ?? oms?.currency ?? null;
+
+    const isCod = paymentMethod === 'COD';
     const codAmount =
-      order.paymentMethod === 'COD' && order.codAmount != null
-        ? Number(order.codAmount)
-        : 0;
+      isCod && rawCodAmount != null ? Number(rawCodAmount) : 0;
+    const codCurrency = resolveBabelCodCurrency(orderCurrency);
+
+    if (isCod && (!Number.isFinite(codAmount) || codAmount <= 0)) {
+      await this.failClaim(
+        claimId,
+        outboundOrderId,
+        order.companyId,
+        order.status,
+        'COD order is missing a collectible amount. Set COD on the OMS order before Send Shipment.',
+      );
+      return;
+    }
+    if (isCod && codCurrency === 'SYP' && codAmount < 1000) {
+      await this.failClaim(
+        claimId,
+        outboundOrderId,
+        order.companyId,
+        order.status,
+        `COD amount ${codAmount} SYP is below Babel Express minimum (1,000 SYP).`,
+      );
+      return;
+    }
 
     const adapter = this.registry.get(providerCode);
     const reference =
       order.omsOrder?.orderNumber ?? order.orderNumber ?? order.clientReference ?? undefined;
+
+    const babelNeighbourhoodId =
+      order.babelNeighbourhoodId ??
+      order.omsOrder?.babelNeighbourhoodId ??
+      (await this.babelAddress.resolveNeighbourhoodId({
+        governorate: order.city ?? order.omsOrder?.city,
+        cityRegion: order.district ?? order.omsOrder?.district,
+        townNeighborhood: order.addressLine1 ?? order.omsOrder?.addressLine1,
+      }));
+
+    const physicalParts = buildPhysicalShipmentParts(
+      (order.lines ?? []).map((line) => ({
+        productId: line.productId,
+        productName: line.product?.name ?? 'item',
+        quantity: Number(line.requestedQuantity),
+        weightKg: line.product?.weightKg != null ? Number(line.product.weightKg) : null,
+        lengthCm: line.product?.lengthCm != null ? Number(line.product.lengthCm) : null,
+        widthCm: line.product?.widthCm != null ? Number(line.product.widthCm) : null,
+        heightCm: line.product?.heightCm != null ? Number(line.product.heightCm) : null,
+      })),
+    );
+    const babelParts = toBabelWeightParts(
+      physicalParts,
+      order.shippingPackageType === 'envelope' ? 'envelope' : 'box',
+    );
+
+    this.logger.log(
+      JSON.stringify({
+        msg: 'babel_create_shipment_attempt',
+        outboundOrderId,
+        babelNeighbourhoodId,
+        deliveryType: order.shippingDeliveryType,
+        pickupType: order.shippingPickupType,
+        packageType: order.shippingPackageType,
+        partCount: babelParts.length,
+        totalWeightKg: weightKg,
+        payer: order.shippingPayer,
+        isCod,
+        codAmount: isCod ? codAmount : 0,
+        codCurrency,
+      }),
+    );
 
     try {
       const result = await adapter.createShipment(
@@ -664,18 +793,22 @@ export class ShippingService {
             phoneCountry: phone.country,
             phoneLocal: phone.phone,
             address: address.trim(),
-            lat: Number(order.shippingReceiverLat),
-            lng: Number(order.shippingReceiverLng),
+            lat: Number(order.shippingReceiverLat) || 0,
+            lng: Number(order.shippingReceiverLng) || 0,
+            neighbourhoodId:
+              babelNeighbourhoodId != null ? Number(babelNeighbourhoodId) : undefined,
           },
           packageType: order.shippingPackageType!,
           weightKg:
             order.shippingPackageType === 'envelope' ? 1 : weightKg,
+          parts: babelParts,
           contents: order.shippingContents!.trim(),
           deliveryType: order.shippingDeliveryType!,
           pickupType: order.shippingPickupType!,
           payer: order.shippingPayer!,
-          codAmount: Number.isFinite(codAmount) ? codAmount : 0,
-          currency: order.currency ?? undefined,
+          // Non-COD: amount 0 disables COD per Babel OpenAPI. COD: business amount + currency.
+          codAmount: isCod && Number.isFinite(codAmount) ? codAmount : 0,
+          currency: codCurrency,
         },
       );
 
@@ -738,6 +871,26 @@ export class ShippingService {
       });
       this.emitOutboundShippingUpdate(order.companyId, outboundOrderId, order.status);
     }
+  }
+
+  /**
+   * Mark a claimed pending shipment as failed with a safe user-facing reason.
+   */
+  private async failClaim(
+    claimId: string,
+    outboundOrderId: string,
+    companyId: string,
+    orderStatus: string,
+    message: string,
+  ) {
+    await this.prisma.carrierShipment.update({
+      where: { id: claimId },
+      data: {
+        status: CarrierShipmentStatus.failed,
+        lastErrorSafe: message,
+      },
+    });
+    this.emitOutboundShippingUpdate(companyId, outboundOrderId, orderStatus);
   }
 
   /**

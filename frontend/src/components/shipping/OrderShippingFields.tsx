@@ -90,9 +90,11 @@ export function OrderShippingFields({
     staleTime: 60_000,
   });
 
+  const listedProviders = useMemo(() => providersQuery.data ?? [], [providersQuery.data]);
+
   const connectedProviders = useMemo(
-    () => (providersQuery.data ?? []).filter((p) => p.connected && p.enabled),
-    [providersQuery.data],
+    () => listedProviders.filter((p) => p.connected && p.enabled),
+    [listedProviders],
   );
 
   useEffect(() => {
@@ -173,16 +175,24 @@ export function OrderShippingFields({
     value.shippingVolumeCbm.trim() !== '' && Number.isFinite(volumeN) && volumeN >= 0;
   const hasPackage = Boolean(value.shippingPackageType);
   const hasDelivery = Boolean(value.shippingDeliveryType);
-  const ratesReady = carrier && hasPin && hasWeight && hasVolume && hasPackage && hasDelivery;
+  const hasBabelHood = parseCoord(value.babelNeighbourhoodId) != null;
+  const ratesReady =
+    carrier &&
+    (hasPin || hasBabelHood) &&
+    hasWeight &&
+    hasVolume &&
+    hasPackage &&
+    hasDelivery;
 
   const rateParams = {
     receiverLat: latN,
     receiverLng: lngN,
+    neighbourhoodId: parseCoord(value.babelNeighbourhoodId),
     packageType: value.shippingPackageType,
     weightKg: weightN,
     volumeCbm: volumeN,
     deliveryType: value.shippingDeliveryType,
-    pickupType: value.shippingPickupType || undefined,
+    pickupType: value.shippingPickupType || 'hub',
     governorate: destKey.governorate,
     city: destKey.city,
     neighborhood: destKey.neighborhood,
@@ -194,8 +204,15 @@ export function OrderShippingFields({
     queryKey: QK.shipping.rates(debouncedRates as unknown as Record<string, unknown>),
     queryFn: () =>
       ShippingApi.quoteRates({
-        receiverLat: debouncedRates.receiverLat as number,
-        receiverLng: debouncedRates.receiverLng as number,
+        ...(debouncedRates.receiverLat != null
+          ? { receiverLat: debouncedRates.receiverLat as number }
+          : {}),
+        ...(debouncedRates.receiverLng != null
+          ? { receiverLng: debouncedRates.receiverLng as number }
+          : {}),
+        ...(debouncedRates.neighbourhoodId != null
+          ? { neighbourhoodId: debouncedRates.neighbourhoodId as number }
+          : {}),
         packageType: debouncedRates.packageType as 'box' | 'envelope',
         weightKg: debouncedRates.weightKg,
         deliveryType: debouncedRates.deliveryType as 'address' | 'hub',
@@ -216,8 +233,8 @@ export function OrderShippingFields({
       }),
     enabled: Boolean(
       ratesReady &&
-        debouncedRates.receiverLat != null &&
-        debouncedRates.receiverLng != null &&
+        (debouncedRates.neighbourhoodId != null ||
+          (debouncedRates.receiverLat != null && debouncedRates.receiverLng != null)) &&
         debouncedRates.packageType &&
         debouncedRates.deliveryType,
     ),
@@ -227,16 +244,16 @@ export function OrderShippingFields({
   const quotes = ratesQuery.data?.quotes ?? [];
   const rateErrors = ratesQuery.data?.errors ?? [];
 
+  // Clear selection only if the selected provider is no longer connected/enabled.
   useEffect(() => {
     if (!carrier || lockIntent || intentReadOnly) return;
-    if (ratesQuery.isFetching || !ratesQuery.isFetched) return;
     if (!value.shippingProviderCode) return;
-    const stillOffered = quotes.some((q) => q.carrierId === value.shippingProviderCode);
-    if (!stillOffered) {
+    const stillConnected = connectedProviders.some((p) => p.code === value.shippingProviderCode);
+    if (!stillConnected) {
       onChange(patch(value, { shippingProviderCode: '' }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carrier, quotes, ratesQuery.isFetching, ratesQuery.isFetched]);
+  }, [carrier, connectedProviders, value.shippingProviderCode]);
 
   // When Babel only serves a pin via hub delivery, align delivery type so Save/Send match the quote.
   useEffect(() => {
@@ -251,9 +268,9 @@ export function OrderShippingFields({
   let emptyHint: string | null = null;
   if (carrier && !ratesQuery.isFetching) {
     if (!hasDestination) {
-      emptyHint = 'Select a receiver location to see available shipping companies.';
+      emptyHint = 'Select a receiver location — carriers stay listed while you complete shipping details.';
     } else if (!hasPin) {
-      emptyHint = 'Select a receiver location to see available shipping companies.';
+      emptyHint = 'Place or enter map coordinates to calculate rates. Carriers remain listed below.';
     } else if (!hasWeight) {
       emptyHint = 'Enter the shipment weight to calculate shipping rates.';
     } else if (!hasPackage) {
@@ -262,15 +279,6 @@ export function OrderShippingFields({
       emptyHint = 'Enter the shipment volume to calculate shipping rates.';
     } else if (!hasDelivery) {
       emptyHint = 'Select a delivery type to calculate shipping rates.';
-    } else if (
-      ratesQuery.isFetched &&
-      quotes.length === 0 &&
-      rateErrors.length === 0 &&
-      connectedProviders.length === 0
-    ) {
-      emptyHint = 'No connected shipping companies. Connect one under Shipping Companies.';
-    } else if (ratesQuery.isFetched && quotes.length === 0 && rateErrors.length === 0) {
-      emptyHint = 'No shipping companies currently serve this destination for this shipment.';
     }
   }
 
@@ -482,14 +490,16 @@ export function OrderShippingFields({
           </div>
 
           <ShippingCarrierCards
+            providers={listedProviders}
             quotes={quotes}
             errors={rateErrors}
             selectedCarrierId={value.shippingProviderCode}
             onSelect={(carrierId) =>
               onChange(patch(value, { shippingProviderCode: carrierId }))
             }
-            loading={ratesReady && ratesQuery.isFetching}
-            disabled={intentReadOnly || (ratesReady && ratesQuery.isFetching)}
+            loading={Boolean(ratesReady && ratesQuery.isFetching)}
+            providersLoading={providersQuery.isLoading}
+            disabled={intentReadOnly || Boolean(ratesReady && ratesQuery.isFetching)}
             emptyHint={emptyHint}
           />
         </>

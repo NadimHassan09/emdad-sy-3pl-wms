@@ -204,6 +204,7 @@ export function PortalLayout(): ReactElement {
   const dashboardItem = byPath('/dashboard');
   const billingItem = byPath('/billing');
   const invoicesItem = byPath('/invoices');
+  const apisItem = byPath('/apis');
   const notificationsItem = byPath('/notifications');
   const wmsItems = navItems.filter((n) => n.group === 'wms');
   const omsItems = navItems.filter((n) => n.group === 'oms');
@@ -340,7 +341,10 @@ export function PortalLayout(): ReactElement {
   const omsOpen = omsItems.some((item) => isActive(item));
   const wmsOpen = wmsItems.some((item) => isActive(item));
   const accountOpen =
-    (billingItem ? isActive(billingItem) : false) || (invoicesItem ? isActive(invoicesItem) : false);
+    (billingItem ? isActive(billingItem) : false) ||
+    (invoicesItem ? isActive(invoicesItem) : false) ||
+    (apisItem ? isActive(apisItem) : false) ||
+    (notificationsItem ? isActive(notificationsItem) : false);
 
   const navContent = (
     <SidebarNav className="space-y-0.5">
@@ -378,7 +382,7 @@ export function PortalLayout(): ReactElement {
           ))}
         </SidebarSection>
       ) : null}
-      {billingItem || invoicesItem ? (
+      {billingItem || invoicesItem || notificationsItem || apisItem ? (
         <SidebarSection label={isArabic ? 'الحساب' : 'Account'} defaultOpen={accountOpen || true}>
           {billingItem ? (
             <PortalSidebarLink
@@ -396,16 +400,24 @@ export function PortalLayout(): ReactElement {
               onNavigate={go}
             />
           ) : null}
+          {notificationsItem ? (
+            <PortalSidebarLink
+              item={notificationsItem}
+              active={isActive(notificationsItem)}
+              isArabic={isArabic}
+              badge={notifications.unreadCount || undefined}
+              onNavigate={go}
+            />
+          ) : null}
+          {apisItem ? (
+            <PortalSidebarLink
+              item={apisItem}
+              active={isActive(apisItem)}
+              isArabic={isArabic}
+              onNavigate={go}
+            />
+          ) : null}
         </SidebarSection>
-      ) : null}
-      {notificationsItem ? (
-        <PortalSidebarLink
-          item={notificationsItem}
-          active={isActive(notificationsItem)}
-          isArabic={isArabic}
-          badge={notifications.unreadCount || undefined}
-          onNavigate={go}
-        />
       ) : null}
     </SidebarNav>
   );

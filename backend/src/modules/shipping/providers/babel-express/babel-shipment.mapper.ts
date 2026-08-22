@@ -3,14 +3,13 @@ import type {
   ShippingQuoteInput,
 } from '../../shipping-provider.interface';
 import { normalizeShippingPhoneCountry } from '../../shipping-config.util';
+import { isBabelAddressDeliveryAvailable } from './babel-quote.util';
 
-/** Babel returns dropoff=null when door delivery is not offered for the coordinates. */
-export function isBabelAddressDeliveryAvailable(details: unknown): boolean {
-  if (!details || typeof details !== 'object') return true;
-  const record = details as Record<string, unknown>;
-  const dropoff = record.dropoff ?? record.dropOff;
-  return dropoff !== null && dropoff !== undefined;
-}
+export { isBabelAddressDeliveryAvailable } from './babel-quote.util';
+export {
+  isBabelCalculatePriceShippable,
+  type BabelCalculatePriceRaw,
+} from './babel-quote.util';
 
 export function resolveBabelPickupType(
   pickupType: ShippingCreateShipmentInput['pickupType'],
@@ -19,23 +18,62 @@ export function resolveBabelPickupType(
   return pickupType === 'address' ? 'hub' : pickupType;
 }
 
-/** Babel requires cod.currency; quotes are returned in SYP for Syria. */
+/**
+ * Babel OpenAPI accepts COD currency (example uses USD; amount 0 disables COD).
+ * Pass through the order's business currency — do NOT force SYP when COD is USD
+ * (that would send "50 SYP" for a 50 USD COD and trip Babel's SYP minimum).
+ * Shipping *rate* quotes may still return SYP; that is separate from COD currency.
+ */
 export function resolveBabelCodCurrency(currency?: string | null): string {
   const normalized = currency?.trim().toUpperCase();
-  if (normalized === 'SYP') return 'SYP';
-  return 'SYP';
+  if (normalized === 'USD' || normalized === 'SYP') return normalized;
+  // Unknown / missing: Babel docs example defaults COD to USD; EMDAD business currency is USD.
+  return 'USD';
+}
+
+function resolveParts(
+  input: Pick<ShippingCreateShipmentInput, 'parts' | 'weightKg' | 'packageType'>,
+): Array<{ weight: number }> {
+  if (input.packageType === 'envelope') {
+    return [{ weight: 1 }];
+  }
+  if (input.parts && input.parts.length > 0) {
+    return input.parts.map((p) => ({
+      weight: Math.max(0.1, Number(p.weight) || 0.1),
+    }));
+  }
+  const w = Number(input.weightKg);
+  return [{ weight: Number.isFinite(w) && w > 0 ? w : 0.1 }];
+}
+
+function resolveNeighbourhood(input: {
+  neighbourhoodId?: number | null;
+  lat?: number;
+  lng?: number;
+  receiverLat?: number;
+  receiverLng?: number;
+}):
+  | { id: number }
+  | { coordinates: { lat: number; lng: number } } {
+  if (input.neighbourhoodId != null && Number.isFinite(Number(input.neighbourhoodId))) {
+    return { id: Number(input.neighbourhoodId) };
+  }
+  const lat = input.lat ?? input.receiverLat;
+  const lng = input.lng ?? input.receiverLng;
+  return {
+    coordinates: {
+      lat: Number(lat),
+      lng: Number(lng),
+    },
+  };
 }
 
 export function mapCreateShipmentPayload(input: ShippingCreateShipmentInput) {
-  const neighbourhood =
-    input.receiver.neighbourhoodId != null
-      ? { id: input.receiver.neighbourhoodId }
-      : {
-          coordinates: {
-            lat: input.receiver.lat,
-            lng: input.receiver.lng,
-          },
-        };
+  const neighbourhood = resolveNeighbourhood({
+    neighbourhoodId: input.receiver.neighbourhoodId,
+    lat: input.receiver.lat,
+    lng: input.receiver.lng,
+  });
 
   return {
     shipment: {
@@ -49,7 +87,7 @@ export function mapCreateShipmentPayload(input: ShippingCreateShipmentInput) {
         neighbourhood,
       },
       type: input.packageType,
-      parts: [{ weight: input.weightKg }],
+      parts: resolveParts(input),
       contents: input.contents,
       deliveryType: input.deliveryType,
       pickupType: resolveBabelPickupType(input.pickupType),
@@ -64,20 +102,30 @@ export function mapCreateShipmentPayload(input: ShippingCreateShipmentInput) {
 }
 
 export function mapCalculatePricePayload(input: ShippingQuoteInput) {
+  const neighbourhood = resolveNeighbourhood({
+    neighbourhoodId: input.neighbourhoodId,
+    receiverLat: input.receiverLat,
+    receiverLng: input.receiverLng,
+  });
+  const parts =
+    input.parts && input.parts.length > 0
+      ? input.parts.map((p) => ({ weight: Math.max(0.1, Number(p.weight) || 0.1) }))
+      : resolveParts({
+          packageType: input.packageType,
+          weightKg: input.weightKg,
+          parts: undefined,
+        });
+
   return {
     delivery: {
       receiver: {
-        neighbourhood: {
-          coordinates: {
-            lat: input.receiverLat,
-            lng: input.receiverLng,
-          },
-        },
+        neighbourhood,
       },
       type: input.packageType,
-      parts: [{ weight: input.weightKg }],
+      parts: input.packageType === 'envelope' ? [{ weight: 1 }] : parts,
       deliveryType: input.deliveryType,
-      ...(input.pickupType ? { pickupType: input.pickupType } : {}),
+      // Reseller warehouse: always hub pickup for quote/create consistency.
+      pickupType: resolveBabelPickupType(input.pickupType ?? 'hub'),
     },
   };
 }

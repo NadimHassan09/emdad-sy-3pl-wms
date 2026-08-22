@@ -3,13 +3,21 @@ import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { ShippingDeliveryType, ShippingPackageType, ShippingPickupType } from '@prisma/client';
 
 export class QuoteShippingRatesDto {
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  receiverLat!: number;
+  receiverLat?: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  receiverLng!: number;
+  receiverLng?: number;
+
+  /** Babel neighbourhood id — preferred over coordinates for quote/create identity. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  neighbourhoodId?: number | null;
 
   @IsEnum(ShippingPackageType)
   packageType!: ShippingPackageType;

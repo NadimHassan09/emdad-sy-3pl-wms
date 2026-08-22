@@ -97,6 +97,7 @@ export interface OutboundOrder {
   shippingWeightKg?: string | number | null;
   shippingVolumeCbm?: string | number | null;
   shippingPhoneCountry?: string | null;
+  babelNeighbourhoodId?: number | null;
   codAmount?: string | number | null;
   carrierShipments?: CarrierShipment[];
   lines?: OutboundOrderLine[];

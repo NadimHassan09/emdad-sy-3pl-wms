@@ -194,8 +194,15 @@ export function OmsOrderFormModal({
           throw new Error('Required ship date cannot be before today.');
         }
         if (parsedLines.length === 0) throw new Error('Add at least one line.');
-        if (!deliveryLat.trim() || !deliveryLng.trim()) {
-          throw new Error('Please select the delivery location on the map before creating the order.');
+        if (!recipientName.trim()) throw new Error('Recipient name is required.');
+        if (!isValidRecipientName(recipientName)) {
+          throw new Error('Name can only contain Arabic or English letters and spaces.');
+        }
+        if (recipientPhone.isEmpty || !recipientPhone.isValid) {
+          throw new Error('Recipient phone is required.');
+        }
+        if (!city.trim() || !district.trim() || !addressLine1.trim()) {
+          throw new Error('Governorate, City/Region, and Town/Neighborhood are required.');
         }
 
         const payload: CreateOmsOrderInput = {
@@ -272,8 +279,27 @@ export function OmsOrderFormModal({
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
     setContactSubmitted(true);
+    if (!recipientName.trim()) {
+      toast.error('Recipient name is required.');
+      return;
+    }
     if (!isValidRecipientName(recipientName)) return;
-    if (!recipientPhone.isEmpty && !recipientPhone.isValid) return;
+    if (recipientPhone.isEmpty || !recipientPhone.isValid) {
+      toast.error('Recipient phone is required.');
+      return;
+    }
+    if (mode === 'create' && (!city.trim() || !district.trim() || !addressLine1.trim())) {
+      toast.error('Governorate, City/Region, and Town/Neighborhood are required.');
+      return;
+    }
+    if (mode === 'edit' && (!city.trim() || !district.trim() || !addressLine1.trim())) {
+      toast.error('Governorate, City/Region, and Town/Neighborhood are required.');
+      return;
+    }
+    if (!paymentMethod) {
+      toast.error('Payment method is required.');
+      return;
+    }
     saveMut.mutate();
   };
 
@@ -308,12 +334,14 @@ export function OmsOrderFormModal({
             value={recipientName}
             onChange={setRecipientName}
             submitted={contactSubmitted}
+            required
           />
           <InternationalPhoneInput
             label="Recipient phone"
             value={recipientPhone}
             onChange={setRecipientPhone}
             submitted={contactSubmitted}
+            required
           />
           <CascadingAddressSelector
             value={{ city, district, addressLine1 }}
@@ -328,6 +356,9 @@ export function OmsOrderFormModal({
             cityPlaceholder="Select or type governorate…"
             districtPlaceholder="Select or type city/region…"
             addressLine1Placeholder="Select or type town/neighborhood…"
+            cityRequired
+            districtRequired
+            addressLine1Required
           />
           <TextField
             label="Street / Detailed Address"
@@ -343,6 +374,14 @@ export function OmsOrderFormModal({
             setDeliveryLat(lat);
             setDeliveryLng(lng);
           }}
+          onAddressResolved={(addr) => {
+            setCity(addr.governorate);
+            setDistrict(addr.cityRegion);
+            setAddressLine1(addr.townNeighborhood);
+            setDeliveryLat(addr.lat);
+            setDeliveryLng(addr.lng);
+          }}
+          onAddressUnavailable={(msg) => toast.error(msg)}
           governorate={city}
           city={district}
           neighborhood={addressLine1}
@@ -366,6 +405,7 @@ export function OmsOrderFormModal({
             label="Payment method"
             value={paymentMethod}
             onChange={(e) => setPaymentMethod(e.target.value as OmsPaymentMethod | '')}
+            required
             options={[
               { value: '', label: '—' },
               { value: 'COD', label: 'COD' },

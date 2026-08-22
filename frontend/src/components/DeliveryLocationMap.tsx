@@ -28,12 +28,26 @@ const DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 const SYRIA_CENTER: [number, number] = [35.0, 38.0];
-const CIRCLE_RADIUS = 3000; // 3 km
+const CIRCLE_RADIUS = 3000;
+
+export type ResolvedMapAddress = {
+  governorate: string;
+  cityRegion: string;
+  townNeighborhood: string;
+  lat: string;
+  lng: string;
+  distanceMeters: number;
+};
 
 export type DeliveryLocationMapProps = {
   lat: string;
   lng: string;
+  /** Persist confirmed pin coords (optional — address fill is the primary use). */
   onChange: (next: { lat: string; lng: string }) => void;
+  /** Called after Confirm when a supported address is found within 1 km. */
+  onAddressResolved?: (address: ResolvedMapAddress) => void;
+  /** Called after Confirm when no supported address is within 1 km. */
+  onAddressUnavailable?: (message: string) => void;
   disabled?: boolean;
   governorate?: string;
   city?: string;
@@ -78,30 +92,6 @@ function computeCentroid(geometry: GeoJsonGeometry): { lat: number; lng: number 
   return { lat: sumLat / coords.length, lng: sumLng / coords.length };
 }
 
-function isInsideCircle(
-  center: { lat: number; lng: number },
-  radius: number,
-  point: { lat: number; lng: number },
-): boolean {
-  const d = L.latLng(center.lat, center.lng).distanceTo(L.latLng(point.lat, point.lng));
-  return d <= radius;
-}
-
-function constrainToCircle(
-  center: { lat: number; lng: number },
-  radius: number,
-  point: { lat: number; lng: number },
-): { lat: number; lng: number } {
-  if (isInsideCircle(center, radius, point)) return point;
-  const cLL = L.latLng(center.lat, center.lng);
-  const pLL = L.latLng(point.lat, point.lng);
-  const d = cLL.distanceTo(pLL);
-  const ratio = radius / d;
-  const lat = center.lat + (point.lat - center.lat) * ratio;
-  const lng = center.lng + (point.lng - center.lng) * ratio;
-  return { lat, lng };
-}
-
 function FitCircle({ center, radius }: { center: [number, number]; radius: number }) {
   const map = useMap();
   const key = `${center[0]},${center[1]}`;
@@ -128,10 +118,16 @@ function ClickHandler({
   return null;
 }
 
+/**
+ * Map is an address search tool: pin → Confirm → fill Governorate/City/Town
+ * from the nearest local hierarchy point within 1 km (or show unavailable).
+ */
 export function DeliveryLocationMap({
   lat,
   lng,
   onChange,
+  onAddressResolved,
+  onAddressUnavailable,
   disabled = false,
   governorate,
   city,
@@ -140,28 +136,28 @@ export function DeliveryLocationMap({
   onRemovePin,
   className,
 }: DeliveryLocationMapProps) {
-  const latN = parseCoord(lat);
-  const lngN = parseCoord(lng);
-  const hasPin = latN != null && lngN != null;
+  const confirmedLat = parseCoord(lat);
+  const confirmedLng = parseCoord(lng);
+  const hasConfirmedPin = confirmedLat != null && confirmedLng != null;
 
+  const [draft, setDraft] = useState<{ lat: number; lng: number } | null>(
+    hasConfirmedPin ? { lat: confirmedLat!, lng: confirmedLng! } : null,
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [circleCenter, setCircleCenter] = useState<{ lat: number; lng: number }>({
     lat: SYRIA_CENTER[0],
     lng: SYRIA_CENTER[1],
   });
-  const [loading, setLoading] = useState(false);
+  const [loadingArea, setLoadingArea] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const prevAddressRef = useRef({ governorate, city });
 
-  // Clear stale pin when governorate or city changes materially
   useEffect(() => {
-    const prev = prevAddressRef.current;
-    if (hasPin && (prev.governorate !== governorate || prev.city !== city)) {
-      onChange({ lat: '', lng: '' });
+    if (hasConfirmedPin) {
+      setDraft({ lat: confirmedLat!, lng: confirmedLng! });
     }
-    prevAddressRef.current = { governorate, city };
-  }, [governorate, city]);
+  }, [hasConfirmedPin, confirmedLat, confirmedLng]);
 
-  // Fetch boundary centroid when address fields change
   useEffect(() => {
     if (!governorate) {
       setCircleCenter({ lat: SYRIA_CENTER[0], lng: SYRIA_CENTER[1] });
@@ -171,7 +167,7 @@ export function DeliveryLocationMap({
     abortRef.current?.abort();
     const ctrl = new AbortController();
     abortRef.current = ctrl;
-    setLoading(true);
+    setLoadingArea(true);
 
     ShippingApi.getAreaBoundary({
       governorate,
@@ -192,15 +188,13 @@ export function DeliveryLocationMap({
             lat: (result.bbox.south + result.bbox.north) / 2,
             lng: (result.bbox.west + result.bbox.east) / 2,
           });
-          return;
         }
-        // keep current center if no data
       })
       .catch(() => {
-        // keep current center on error
+        /* keep center */
       })
       .finally(() => {
-        if (!ctrl.signal.aborted) setLoading(false);
+        if (!ctrl.signal.aborted) setLoadingArea(false);
       });
 
     return () => ctrl.abort();
@@ -211,33 +205,85 @@ export function DeliveryLocationMap({
     [circleCenter.lat, circleCenter.lng],
   );
 
-  const handlePick = useCallback(
-    (pickLat: number, pickLng: number) => {
-      onChange({ lat: formatCoord(pickLat), lng: formatCoord(pickLng) });
-    },
-    [onChange],
-  );
+  const pin = draft;
+  const hasDraft = pin != null;
+  const dirty =
+    hasDraft &&
+    (!hasConfirmedPin ||
+      Math.abs(pin!.lat - confirmedLat!) > 1e-7 ||
+      Math.abs(pin!.lng - confirmedLng!) > 1e-7);
 
-  const handleDragEnd = useCallback(
-    (e: L.DragEndEvent) => {
-      const marker = e.target as L.Marker;
-      const pos = marker.getLatLng();
-      onChange({ lat: formatCoord(pos.lat), lng: formatCoord(pos.lng) });
-    },
-    [onChange],
-  );
+  const handlePick = useCallback((pickLat: number, pickLng: number) => {
+    setError(null);
+    setDraft({ lat: pickLat, lng: pickLng });
+  }, []);
+
+  const handleDragEnd = useCallback((e: L.DragEndEvent) => {
+    const marker = e.target as L.Marker;
+    const pos = marker.getLatLng();
+    setError(null);
+    setDraft({ lat: pos.lat, lng: pos.lng });
+  }, []);
+
+  const handleCancel = () => {
+    setError(null);
+    if (hasConfirmedPin) {
+      setDraft({ lat: confirmedLat!, lng: confirmedLng! });
+    } else {
+      setDraft(null);
+    }
+  };
 
   const handleRemove = () => {
+    setError(null);
+    setDraft(null);
     onChange({ lat: '', lng: '' });
     onRemovePin?.();
+  };
+
+  const handleConfirm = async () => {
+    if (!pin || disabled || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await ShippingApi.resolveAddressFromPin(pin.lat, pin.lng);
+      if (!result.found) {
+        const msg =
+          result.message ||
+          'No supported address found near this location (within 1 km).';
+        setError(msg);
+        onAddressUnavailable?.(msg);
+        return;
+      }
+      const next = {
+        governorate: result.governorate,
+        cityRegion: result.cityRegion,
+        townNeighborhood: result.townNeighborhood,
+        lat: formatCoord(result.lat),
+        lng: formatCoord(result.lng),
+        distanceMeters: result.distanceMeters,
+      };
+      onChange({ lat: next.lat, lng: next.lng });
+      onAddressResolved?.(next);
+      setDraft({ lat: result.lat, lng: result.lng });
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : 'Could not resolve address from map pin.';
+      setError(msg);
+      onAddressUnavailable?.(msg);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <div className={className}>
       <div className="relative rounded-lg border border-border-subtle overflow-hidden">
-        {loading && (
+        {(loadingArea || busy) && (
           <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-white/50">
-            <span className="text-xs text-text-muted">Loading area…</span>
+            <span className="text-xs text-text-muted">
+              {busy ? 'Finding nearest address…' : 'Loading area…'}
+            </span>
           </div>
         )}
         <MapContainer
@@ -256,32 +302,73 @@ export function DeliveryLocationMap({
             radius={CIRCLE_RADIUS}
             pathOptions={{ color: '#2563eb', weight: 2, fillColor: '#3b82f6', fillOpacity: 0.12 }}
           />
-          <ClickHandler
-            disabled={disabled}
-            onPick={handlePick}
-          />
-          {hasPin && (
+          <ClickHandler disabled={disabled || busy} onPick={handlePick} />
+          {hasDraft && (
             <Marker
-              position={[latN, lngN]}
-              draggable={!disabled}
+              position={[pin!.lat, pin!.lng]}
+              draggable={!disabled && !busy}
               eventHandlers={{ dragend: handleDragEnd }}
             />
           )}
         </MapContainer>
-        {hasPin && !disabled && (
-          <button
-            type="button"
-            onClick={handleRemove}
-            className="absolute bottom-2 right-2 z-[1000] rounded bg-white px-2 py-1 text-xs font-medium text-red-600 shadow hover:bg-red-50"
-          >
-            Remove Pin
-          </button>
-        )}
+
+        <div className="absolute bottom-2 left-2 right-2 z-[1000] flex flex-wrap items-center justify-between gap-2">
+          <p className="rounded bg-white/95 px-2 py-1 text-[11px] text-text-muted shadow">
+            {hasDraft
+              ? 'Pin placed — press Confirm to fill address fields.'
+              : 'Click the map to place a pin, then Confirm.'}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {hasDraft && !disabled && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  disabled={busy}
+                  className="rounded bg-white px-2.5 py-1 text-xs font-medium text-text-muted shadow hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleConfirm()}
+                  disabled={busy || (!dirty && hasConfirmedPin)}
+                  className="rounded bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  Confirm
+                </button>
+                {hasConfirmedPin && (
+                  <button
+                    type="button"
+                    onClick={handleRemove}
+                    disabled={busy}
+                    className="rounded bg-white px-2.5 py-1 text-xs font-medium text-red-600 shadow hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Remove Pin
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          className="mt-2 flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+        >
+          <span aria-hidden="true">⚠</span>
+          <div>
+            <p className="font-semibold">Address not available</p>
+            <p>{error}</p>
+          </div>
+        </div>
+      )}
+
       <p className="mt-1 text-xs text-text-muted">
-        {hasPin
-          ? 'Delivery pin selected. Drag to adjust or click elsewhere to move it.'
-          : 'Click on the map to place the delivery pin. The blue circle is an approximate area guide.'}
+        Use the map to auto-fill Governorate, City/Region, and Town/Neighborhood from the nearest
+        supported address within 1 km. Dropdowns stay available for manual entry.
       </p>
     </div>
   );

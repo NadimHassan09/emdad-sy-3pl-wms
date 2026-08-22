@@ -1693,6 +1693,8 @@ model OutboundOrder {
   shippingWeightKg     Decimal?            @map("shipping_weight_kg") @db.Decimal(12, 4)
   shippingVolumeCbm    Decimal?            @map("shipping_volume_cbm") @db.Decimal(12, 6)
   shippingPhoneCountry String?             @map("shipping_phone_country")
+  /// Babel Express neighbourhood id (source of truth for quote/create). Snapshot tables hold city/area.
+  babelNeighbourhoodId Int?                @map("babel_neighbourhood_id")
   createdBy            String              @map("created_by") @db.Uuid
   createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1797,6 +1799,8 @@ model OmsOrder {
   shippingWeightKg     Decimal?            @map("shipping_weight_kg") @db.Decimal(12, 4)
   shippingVolumeCbm    Decimal?            @map("shipping_volume_cbm") @db.Decimal(12, 6)
   shippingPhoneCountry String?             @map("shipping_phone_country")
+  /// Babel Express neighbourhood id — only Babel geo id required on OMS for quote/create.
+  babelNeighbourhoodId Int?                @map("babel_neighbourhood_id")
   createdBy            String              @map("created_by") @db.Uuid
   createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -1815,6 +1819,7 @@ model OmsOrder {
   @@index([companyId, createdAt(sort: Desc)], map: "idx_oms_orders_created")
   @@index([companyId, status], map: "idx_oms_orders_status")
   @@index([importBatchId], map: "idx_oms_orders_import_batch")
+  @@index([babelNeighbourhoodId], map: "idx_oms_orders_babel_neighbourhood")
   @@map("oms_orders")
 }
 
@@ -2344,6 +2349,40 @@ model LeadFormSubmission {
   @@index([createdAt(sort: Desc)], map: "idx_lead_form_submissions_created_at_desc")
   @@index([activityType], map: "idx_lead_form_submissions_activity_type")
   @@map("lead_form_submissions")
+}
+
+/// Snapshot of Babel Express city list (refreshable via BabelGeoSyncService — not eternal truth).
+model BabelCity {
+  id         Int      @id
+  name       String
+  syncedAt   DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+  areas      BabelArea[]
+
+  @@map("babel_cities")
+}
+
+model BabelArea {
+  id       Int    @id
+  cityId   Int    @map("city_id")
+  name     String
+  syncedAt DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+  city     BabelCity @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  neighbourhoods BabelNeighbourhood[]
+
+  @@index([cityId], map: "idx_babel_areas_city")
+  @@map("babel_areas")
+}
+
+model BabelNeighbourhood {
+  id       Int    @id
+  areaId   Int    @map("area_id")
+  name     String
+  syncedAt DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+  area     BabelArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
+
+  @@index([areaId], map: "idx_babel_neighbourhoods_area")
+  @@index([name], map: "idx_babel_neighbourhoods_name")
+  @@map("babel_neighbourhoods")
 }
 
 /// Catalog of shipping carriers (code-seeded; not Admin-created).

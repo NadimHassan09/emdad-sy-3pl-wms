@@ -1,4 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Type } from 'class-transformer';
+import { IsNumber } from 'class-validator';
+import { ShippingProviderConnectionStatus } from '@prisma/client';
 
 import { AuthGroup } from '../../common/auth/auth-groups';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
@@ -6,14 +9,31 @@ import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { Roles } from '../../common/auth/roles.decorator';
 import { RolesGuard } from '../../common/auth/roles.guard';
+import { EncryptionService } from '../../common/crypto/encryption.service';
+import { PrismaService } from '../../common/prisma/prisma.service';
 import { BulkShippingService } from './bulk-shipping.service';
+import { AddressResolveService } from './address-resolve.service';
 import {
   BulkShippingConfirmDto,
   BulkShippingPreviewDto,
 } from './dto/bulk-shipping.dto';
 import { ConnectShippingProviderDto } from './dto/connect-shipping-provider.dto';
 import { QuoteShippingRatesDto } from './dto/quote-shipping-rates.dto';
+import { ResolveAddressFromPinDto } from './dto/resolve-address-from-pin.dto';
+import { BabelExpressAdapter } from './providers/babel-express/babel-express.adapter';
+import { BabelGeoSyncService } from './providers/babel-express/babel-geo-sync.service';
+import { BABEL_EXPRESS_CODE } from './shipping.constants';
 import { ShippingService } from './shipping.service';
+
+class ResolveBabelNeighbourhoodDto {
+  @Type(() => Number)
+  @IsNumber()
+  lat!: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  lng!: number;
+}
 
 @Controller('shipping')
 @UseGuards(RolesGuard, InternalAdminGuard)
@@ -22,6 +42,11 @@ export class ShippingController {
   constructor(
     private readonly shipping: ShippingService,
     private readonly bulkShipping: BulkShippingService,
+    private readonly babelGeo: BabelGeoSyncService,
+    private readonly babelAdapter: BabelExpressAdapter,
+    private readonly addressResolve: AddressResolveService,
+    private readonly prisma: PrismaService,
+    private readonly encryption: EncryptionService,
   ) {}
 
   @Get('providers')
@@ -70,6 +95,56 @@ export class ShippingController {
     return { found: true as const, ...row };
   }
 
+  /** Refreshable Babel geo snapshot (not eternal truth). */
+  @Post('babel/geo/sync')
+  syncBabelGeo() {
+    return this.babelGeo.syncFromBabel();
+  }
+
+  @Get('babel/geo/meta')
+  babelGeoMeta() {
+    return this.babelGeo.snapshotMeta();
+  }
+
+  @Get('babel/geo/cities')
+  babelCities() {
+    return this.babelGeo.listCities();
+  }
+
+  @Get('babel/geo/cities/:cityId/areas')
+  babelAreas(@Param('cityId') cityId: string) {
+    return this.babelGeo.listAreas(Number(cityId));
+  }
+
+  @Get('babel/geo/areas/:areaId/neighbourhoods')
+  babelNeighbourhoods(@Param('areaId') areaId: string) {
+    return this.babelGeo.listNeighbourhoods(Number(areaId));
+  }
+
+  /**
+   * Map pin → nearest local hierarchy address within 1 km.
+   * Used to auto-fill Governorate / City-Region / Town-Neighborhood.
+   */
+  @Post('address/resolve-from-pin')
+  resolveAddressFromPin(@Body() body: ResolveAddressFromPinDto) {
+    return this.addressResolve.resolveFromPin(body.lat, body.lng);
+  }
+
+  /** Map pin → Babel neighbourhood id (optional address helper). */
+  @Post('babel/resolve-neighbourhood')
+  async resolveNeighbourhood(@Body() body: ResolveBabelNeighbourhoodDto) {
+    const credentials = await this.requireBabelCredentials();
+    const found = await this.babelAdapter.findNeighbourhoodByCoordinates(
+      credentials,
+      body.lat,
+      body.lng,
+    );
+    if (!found) {
+      return { found: false as const, neighbourhood: null };
+    }
+    return { found: true as const, neighbourhood: found };
+  }
+
   @Post('rates')
   quoteRates(@Body() body: QuoteShippingRatesDto) {
     return this.shipping.quoteDestinationRates(body);
@@ -79,8 +154,6 @@ export class ShippingController {
   retry(@Param('outboundOrderId') outboundOrderId: string) {
     return this.shipping.retryShipment(outboundOrderId);
   }
-
-  // ── Bulk Shipping Processing (Admin only) ───────────────────────────────
 
   @Get('bulk/eligible')
   listEligible(
@@ -122,5 +195,25 @@ export class ShippingController {
   @Get('bulk/jobs/:id/labels')
   getLabels(@Param('id') id: string) {
     return this.bulkShipping.getLabelsForJob(id);
+  }
+
+  private async requireBabelCredentials() {
+    const provider = await this.prisma.shippingProvider.findUnique({
+      where: { code: BABEL_EXPRESS_CODE },
+      include: { connection: true },
+    });
+    const conn = provider?.connection;
+    if (
+      !conn ||
+      conn.status !== ShippingProviderConnectionStatus.connected ||
+      !conn.encryptedUsername ||
+      !conn.encryptedPassword
+    ) {
+      throw new Error('Babel Express is not connected.');
+    }
+    return {
+      username: this.encryption.decrypt(conn.encryptedUsername),
+      password: this.encryption.decrypt(conn.encryptedPassword),
+    };
   }
 }
