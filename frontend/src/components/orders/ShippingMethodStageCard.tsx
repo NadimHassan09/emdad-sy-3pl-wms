@@ -8,6 +8,8 @@ import { CarrierShippingDetailsForm } from '../shipping/CarrierShippingDetailsFo
 import {
   buildCarrierShippingFormFromOrder,
   carrierFormToSavePayload,
+  hasOverPacking,
+  packingSummary,
   type CarrierShippingFormValue,
 } from '../shipping/carrier-shipping-form';
 import { useToast } from '../ToastProvider';
@@ -84,10 +86,16 @@ export function ShippingMethodStageCard({ order }: Props) {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const packingInvalid = useMemo(
+    () => hasOverPacking(packingSummary(form.cartons, form.catalog)),
+    [form.cartons, form.catalog],
+  );
+
   const canSubmit =
     method === 'manual' ||
     (method === 'carrier' &&
       !quotesRefreshing &&
+      !packingInvalid &&
       selectedCarrierAvailable &&
       form.shippingProviderCode.trim() !== '' &&
       form.city.trim() !== '' &&
@@ -207,7 +215,9 @@ export function ShippingMethodStageCard({ order }: Props) {
             loading={submitMut.isPending}
             disabled={!canSubmit}
             title={
-              method === 'carrier' && quotesRefreshing
+              method === 'carrier' && packingInvalid
+                ? 'Fix over-packed product quantities in packages.'
+                : method === 'carrier' && quotesRefreshing
                 ? 'Wait until carrier availability finishes updating.'
                 : method === 'carrier' && !selectedCarrierAvailable
                   ? 'Select an available shipping company.'

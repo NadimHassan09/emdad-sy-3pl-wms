@@ -174,6 +174,14 @@ const ORDER_INCLUDE = {
   },
 } satisfies Prisma.OutboundOrderInclude;
 
+function shippingPackagesPrisma(
+  packages: unknown[] | null | undefined,
+): Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined {
+  if (packages === undefined) return undefined;
+  if (packages === null) return Prisma.JsonNull;
+  return packages as Prisma.InputJsonValue;
+}
+
 const FULL_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -1165,6 +1173,14 @@ export class OutboundService {
             townNeighborhood: resolvedAddressLine1,
           })
         : body.babelNeighbourhoodId ?? null;
+    const resolvedCoords =
+      method === ShippingMethod.carrier && this.shipping
+        ? this.shipping.resolveReceiverCoordinatesFromAddress({
+            governorate: resolvedCity,
+            cityRegion: resolvedDistrict,
+            townNeighborhood: resolvedAddressLine1,
+          })
+        : null;
 
     await withTenantRls(this.prisma, user, async (tx) => {
       await tx.outboundOrder.update({
@@ -1174,8 +1190,10 @@ export class OutboundService {
             shippingMethod: method,
             shippingProviderCode:
               method === ShippingMethod.carrier ? body.shippingProviderCode : null,
-            shippingReceiverLat: body.shippingReceiverLat,
-            shippingReceiverLng: body.shippingReceiverLng,
+            shippingReceiverLat:
+              resolvedCoords?.lat ?? body.shippingReceiverLat ?? null,
+            shippingReceiverLng:
+              resolvedCoords?.lng ?? body.shippingReceiverLng ?? null,
             shippingPackageType: body.shippingPackageType,
             shippingContents: body.shippingContents,
             shippingDeliveryType: body.shippingDeliveryType,
@@ -1200,6 +1218,9 @@ export class OutboundService {
                 currency:
                   body.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
               }
+            : {}),
+          ...(body.shippingPackages !== undefined
+            ? { shippingPackages: shippingPackagesPrisma(body.shippingPackages) }
             : {}),
           status: OutboundOrderStatus.waiting_for_shipping_details,
         },
@@ -1294,6 +1315,14 @@ export class OutboundService {
               townNeighborhood: saveAddressLine1,
             })
           : dto.babelNeighbourhoodId ?? null;
+      const saveCoords =
+        (order.shippingMethod ?? dto.shippingMethod) === ShippingMethod.carrier && this.shipping
+          ? this.shipping.resolveReceiverCoordinatesFromAddress({
+              governorate: saveCity,
+              cityRegion: saveDistrict,
+              townNeighborhood: saveAddressLine1,
+            })
+          : null;
 
       const row = await tx.outboundOrder.update({
         where: { id: orderId },
@@ -1301,8 +1330,10 @@ export class OutboundService {
           ...shippingPrismaData({
             shippingMethod: dto.shippingMethod,
             shippingProviderCode: dto.shippingProviderCode,
-            shippingReceiverLat: dto.shippingReceiverLat,
-            shippingReceiverLng: dto.shippingReceiverLng,
+            shippingReceiverLat:
+              saveCoords?.lat ?? dto.shippingReceiverLat ?? null,
+            shippingReceiverLng:
+              saveCoords?.lng ?? dto.shippingReceiverLng ?? null,
             shippingPackageType: dto.shippingPackageType,
             shippingContents: dto.shippingContents,
             shippingDeliveryType: dto.shippingDeliveryType,
@@ -1330,6 +1361,9 @@ export class OutboundService {
             ? {
                 currency: dto.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
               }
+            : {}),
+          ...(dto.shippingPackages !== undefined
+            ? { shippingPackages: shippingPackagesPrisma(dto.shippingPackages) }
             : {}),
         },
         include: ORDER_INCLUDE,
@@ -1389,12 +1423,21 @@ export class OutboundService {
       cityRegion: order.district,
       townNeighborhood: order.addressLine1,
     });
+    const resolvedCoords = this.shipping.resolveReceiverCoordinatesFromAddress({
+      governorate: order.city,
+      cityRegion: order.district,
+      townNeighborhood: order.addressLine1,
+    });
 
     assertCarrierShippingReady({
       shippingMethod: order.shippingMethod,
       shippingProviderCode: order.shippingProviderCode,
-      shippingReceiverLat: order.shippingReceiverLat?.toString() ?? null,
-      shippingReceiverLng: order.shippingReceiverLng?.toString() ?? null,
+      shippingReceiverLat:
+        resolvedCoords?.lat ??
+        (order.shippingReceiverLat != null ? Number(order.shippingReceiverLat) : null),
+      shippingReceiverLng:
+        resolvedCoords?.lng ??
+        (order.shippingReceiverLng != null ? Number(order.shippingReceiverLng) : null),
       shippingPackageType: order.shippingPackageType,
       shippingContents: order.shippingContents,
       shippingDeliveryType: order.shippingDeliveryType,
@@ -1404,13 +1447,18 @@ export class OutboundService {
       babelNeighbourhoodId,
     });
 
-    if (
-      babelNeighbourhoodId != null &&
-      order.babelNeighbourhoodId == null
-    ) {
+    if (babelNeighbourhoodId != null || resolvedCoords) {
       await this.prisma.outboundOrder.update({
         where: { id: orderId },
-        data: { babelNeighbourhoodId },
+        data: {
+          ...(babelNeighbourhoodId != null ? { babelNeighbourhoodId } : {}),
+          ...(resolvedCoords
+            ? {
+                shippingReceiverLat: resolvedCoords.lat,
+                shippingReceiverLng: resolvedCoords.lng,
+              }
+            : {}),
+        },
       });
     }
 
@@ -1418,8 +1466,12 @@ export class OutboundService {
       fields: {
         shippingMethod: order.shippingMethod,
         shippingProviderCode: order.shippingProviderCode,
-        shippingReceiverLat: order.shippingReceiverLat?.toString() ?? null,
-        shippingReceiverLng: order.shippingReceiverLng?.toString() ?? null,
+        shippingReceiverLat:
+          resolvedCoords?.lat ??
+          (order.shippingReceiverLat != null ? Number(order.shippingReceiverLat) : null),
+        shippingReceiverLng:
+          resolvedCoords?.lng ??
+          (order.shippingReceiverLng != null ? Number(order.shippingReceiverLng) : null),
         shippingPackageType: order.shippingPackageType,
         shippingDeliveryType: order.shippingDeliveryType,
         shippingPickupType: order.shippingPickupType,

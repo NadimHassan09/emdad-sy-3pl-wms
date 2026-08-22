@@ -101,6 +101,12 @@ export interface OutboundOrder {
   shippingPayer?: ShippingPayer | null;
   shippingWeightKg?: string | number | null;
   shippingVolumeCbm?: string | number | null;
+  shippingPackages?: Array<{
+    lines: Array<{ productId: string; quantity: number }>;
+    lengthCm: number;
+    widthCm: number;
+    heightCm: number;
+  }> | null;
   shippingPhoneCountry?: string | null;
   babelNeighbourhoodId?: number | null;
   codAmount?: string | number | null;
@@ -337,6 +343,12 @@ export const OutboundApi = {
       addressLine1?: string | null;
       addressLine2?: string | null;
       currency?: string | null;
+      shippingPackages?: Array<{
+        lines: Array<{ productId: string; quantity: number }>;
+        lengthCm: number;
+        widthCm: number;
+        heightCm: number;
+      }> | null;
     },
     companyIdOverride?: string,
   ): Promise<OutboundOrder> {
@@ -357,6 +369,12 @@ export const OutboundApi = {
       addressLine1?: string | null;
       addressLine2?: string | null;
       currency?: string | null;
+      shippingPackages?: Array<{
+        lines: Array<{ productId: string; quantity: number }>;
+        lengthCm: number;
+        widthCm: number;
+        heightCm: number;
+      }> | null;
     },
     companyIdOverride?: string,
   ): Promise<OutboundOrder> {

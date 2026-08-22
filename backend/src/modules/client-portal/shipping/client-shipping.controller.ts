@@ -12,6 +12,7 @@ import { BABEL_EXPRESS_CODE } from '../../shipping/shipping.constants';
 import { ShippingService } from '../../shipping/shipping.service';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { ResolveAddressFromPinDto } from '../../shipping/dto/resolve-address-from-pin.dto';
+import { ResolveAddressFromNamesDto } from '../../shipping/dto/resolve-address-from-names.dto';
 
 class ResolveBabelNeighbourhoodDto {
   @Type(() => Number)
@@ -63,6 +64,16 @@ export class ClientShippingController {
   @Post('address/resolve-from-pin')
   resolveAddressFromPin(@Body() body: ResolveAddressFromPinDto) {
     return this.addressResolve.resolveFromPin(body.lat, body.lng);
+  }
+
+  /** Internal geography → stored coordinates (read-only preview / carrier adapters). */
+  @Post('address/resolve-from-names')
+  resolveAddressFromNames(@Body() body: ResolveAddressFromNamesDto) {
+    return this.addressResolve.resolveFromAddress({
+      governorate: body.governorate,
+      cityRegion: body.cityRegion,
+      townNeighborhood: body.townNeighborhood,
+    });
   }
 
   /** Optional map helper: resolve pin to Babel neighbourhood id when Babel is connected. */

@@ -20,6 +20,7 @@ import {
 import { ConnectShippingProviderDto } from './dto/connect-shipping-provider.dto';
 import { QuoteShippingRatesDto } from './dto/quote-shipping-rates.dto';
 import { ResolveAddressFromPinDto } from './dto/resolve-address-from-pin.dto';
+import { ResolveAddressFromNamesDto } from './dto/resolve-address-from-names.dto';
 import { BabelExpressAdapter } from './providers/babel-express/babel-express.adapter';
 import { BabelGeoSyncService } from './providers/babel-express/babel-geo-sync.service';
 import { BABEL_EXPRESS_CODE } from './shipping.constants';
@@ -128,6 +129,16 @@ export class ShippingController {
   @Post('address/resolve-from-pin')
   resolveAddressFromPin(@Body() body: ResolveAddressFromPinDto) {
     return this.addressResolve.resolveFromPin(body.lat, body.lng);
+  }
+
+  /** Internal hierarchy names → stored coordinates for carrier shipping. */
+  @Post('address/resolve-from-names')
+  resolveAddressFromNames(@Body() body: ResolveAddressFromNamesDto) {
+    return this.addressResolve.resolveFromAddress({
+      governorate: body.governorate,
+      cityRegion: body.cityRegion,
+      townNeighborhood: body.townNeighborhood,
+    });
   }
 
   /** Map pin → Babel neighbourhood id (optional address helper). */

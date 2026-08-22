@@ -7,14 +7,32 @@ import type {
 
 export type ShippingCurrency = 'USD' | 'SYP';
 
-export type PackageGroupValue = {
+export type OrderProductCatalog = {
   productId: string;
   productName: string;
-  parts: number;
-  weightKgPerPart: string;
+  weightKg: number;
+  orderedQty: number;
+};
+
+export type CartonLineValue = {
+  lineId: string;
+  productId: string;
+  quantity: string;
+};
+
+export type ShippingCartonValue = {
+  cartonId: string;
+  lines: CartonLineValue[];
   lengthCm: string;
   widthCm: string;
   heightCm: string;
+};
+
+export type StoredShippingCarton = {
+  lines: Array<{ productId: string; quantity: number }>;
+  lengthCm: number;
+  widthCm: number;
+  heightCm: number;
 };
 
 /** Carrier shipping review form — defaults live in state, not only in the UI. */
@@ -24,7 +42,9 @@ export type CarrierShippingFormValue = {
   addressLine1: string;
   addressLine2: string;
   packageType: ShippingPackageType;
-  groups: PackageGroupValue[];
+  packageCount: string;
+  cartons: ShippingCartonValue[];
+  catalog: OrderProductCatalog[];
   currency: ShippingCurrency;
   deliveryType: ShippingDeliveryType;
   shippingProviderCode: string;
@@ -33,11 +53,9 @@ export type CarrierShippingFormValue = {
 export function providerSupportedCurrencies(providerCode: string): ShippingCurrency[] {
   const code = providerCode.trim().toUpperCase();
   if (code === 'BABEL_EXPRESS' || code === 'BABEL') return ['USD', 'SYP'];
-  // Unknown / future carriers: treat as USD+SYP until adapters declare otherwise.
   return ['USD', 'SYP'];
 }
 
-/** Effective form currency after selecting a carrier (USD default; SYP-only forces SYP). */
 export function currencyAfterCarrierSelect(providerCode: string): ShippingCurrency {
   const supported = providerSupportedCurrencies(providerCode);
   if (supported.length === 1 && supported[0] === 'SYP') return 'SYP';
@@ -50,42 +68,109 @@ function numStr(v: string | number | null | undefined, fallback = '0'): string {
   return Number.isFinite(n) ? String(n) : fallback;
 }
 
-export function buildPackageGroupsFromOrder(order: OutboundOrder): PackageGroupValue[] {
+export function newLineId(): string {
+  return `ln-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function newCartonId(): string {
+  return `ct-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function emptyCartonLine(productId = ''): CartonLineValue {
+  return { lineId: newLineId(), productId, quantity: '1' };
+}
+
+export function emptyCarton(defaultProductId = ''): ShippingCartonValue {
+  return {
+    cartonId: newCartonId(),
+    lines: [emptyCartonLine(defaultProductId)],
+    lengthCm: '10',
+    widthCm: '10',
+    heightCm: '10',
+  };
+}
+
+export function buildCatalogFromOrder(order: OutboundOrder): OrderProductCatalog[] {
   return (order.lines ?? [])
     .filter((l) => Number(l.requestedQuantity) > 0)
     .map((l) => {
-      const qty = Math.max(0, Math.floor(Number(l.requestedQuantity)) || 0);
-      const p = l.product;
-      let lengthCm = numStr(p?.lengthCm, '');
-      let widthCm = numStr(p?.widthCm, '');
-      let heightCm = numStr(p?.heightCm, '');
-      // Derive crude dims from volume when L/W/H missing (cube root of cbm → cm).
-      if ((!lengthCm || !widthCm || !heightCm) && p?.volumeCbm != null && p.volumeCbm !== '') {
-        const cbm = Number(p.volumeCbm);
-        if (Number.isFinite(cbm) && cbm > 0) {
-          const edge = Math.round(Math.cbrt(cbm * 1_000_000) * 10) / 10;
-          if (!lengthCm) lengthCm = String(edge);
-          if (!widthCm) widthCm = String(edge);
-          if (!heightCm) heightCm = String(edge);
-        }
-      }
-      if (!lengthCm) lengthCm = '10';
-      if (!widthCm) widthCm = '10';
-      if (!heightCm) heightCm = '10';
+      const orderedQty = Math.max(0, Math.floor(Number(l.requestedQuantity)) || 0);
+      const w = Number(l.product?.weightKg);
       return {
         productId: l.productId,
-        productName: p?.name?.trim() || p?.sku || 'Product',
-        parts: qty,
-        weightKgPerPart: numStr(p?.weightKg, '1'),
-        lengthCm,
-        widthCm,
-        heightCm,
+        productName: l.product?.name?.trim() || l.product?.sku || 'Product',
+        weightKg: Number.isFinite(w) && w > 0 ? w : 0.1,
+        orderedQty,
       };
     });
 }
 
+function parseStoredCartons(raw: unknown): StoredShippingCarton[] | null {
+  if (!Array.isArray(raw)) return null;
+  const out: StoredShippingCarton[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    if (!Array.isArray(r.lines)) continue;
+    const lines: StoredShippingCarton['lines'] = [];
+    for (const ln of r.lines) {
+      if (!ln || typeof ln !== 'object') continue;
+      const l = ln as Record<string, unknown>;
+      const productId = typeof l.productId === 'string' ? l.productId : '';
+      const quantity = Number(l.quantity);
+      if (!productId || !Number.isFinite(quantity) || quantity <= 0) continue;
+      lines.push({ productId, quantity: Math.floor(quantity) });
+    }
+    const lengthCm = Number(r.lengthCm);
+    const widthCm = Number(r.widthCm);
+    const heightCm = Number(r.heightCm);
+    if (lines.length === 0 || !Number.isFinite(lengthCm) || lengthCm <= 0) continue;
+    out.push({
+      lines,
+      lengthCm,
+      widthCm: Number.isFinite(widthCm) && widthCm > 0 ? widthCm : 10,
+      heightCm: Number.isFinite(heightCm) && heightCm > 0 ? heightCm : 10,
+    });
+  }
+  return out.length > 0 ? out : null;
+}
+
+function cartonsFromStored(stored: StoredShippingCarton[]): ShippingCartonValue[] {
+  return stored.map((c) => ({
+    cartonId: newCartonId(),
+    lines: c.lines.map((ln) => ({
+      lineId: newLineId(),
+      productId: ln.productId,
+      quantity: String(ln.quantity),
+    })),
+    lengthCm: String(c.lengthCm),
+    widthCm: String(c.widthCm),
+    heightCm: String(c.heightCm),
+  }));
+}
+
+/** Default: one carton containing all order lines at full quantity. */
+export function buildDefaultCartons(catalog: OrderProductCatalog[]): ShippingCartonValue[] {
+  if (catalog.length === 0) return [emptyCarton()];
+  return [
+    {
+      cartonId: newCartonId(),
+      lines: catalog.map((p) => ({
+        lineId: newLineId(),
+        productId: p.productId,
+        quantity: String(p.orderedQty),
+      })),
+      lengthCm: '10',
+      widthCm: '10',
+      heightCm: '10',
+    },
+  ];
+}
+
 export function buildCarrierShippingFormFromOrder(order: OutboundOrder): CarrierShippingFormValue {
-  const groups = buildPackageGroupsFromOrder(order);
+  const catalog = buildCatalogFromOrder(order);
+  const stored = parseStoredCartons(order.shippingPackages);
+  const cartons = stored ? cartonsFromStored(stored) : buildDefaultCartons(catalog);
   const savedPkg = order.shippingPackageType;
   const savedDelivery = order.shippingDeliveryType;
   const savedCurrency = (order.currency ?? 'USD').trim().toUpperCase();
@@ -96,70 +181,160 @@ export function buildCarrierShippingFormFromOrder(order: OutboundOrder): Carrier
     addressLine1: (order.addressLine1 ?? '').trim(),
     addressLine2: (order.addressLine2 ?? '').trim(),
     packageType: savedPkg === 'envelope' ? 'envelope' : 'box',
-    groups,
+    packageCount: String(cartons.length),
+    cartons,
+    catalog,
     currency: savedCurrency === 'SYP' ? 'SYP' : 'USD',
     deliveryType: savedDelivery === 'hub' ? 'hub' : 'address',
     shippingProviderCode: (order.shippingProviderCode ?? '').trim(),
   };
 }
 
-export function totalParts(groups: PackageGroupValue[]): number {
-  return groups.reduce((sum, g) => sum + (Number.isFinite(g.parts) ? g.parts : 0), 0);
+export function resizeCartons(
+  cartons: ShippingCartonValue[],
+  count: number,
+  catalog: OrderProductCatalog[],
+): ShippingCartonValue[] {
+  const n = Math.max(1, Math.min(50, Math.floor(count) || 1));
+  const next = [...cartons];
+  while (next.length < n) {
+    next.push(emptyCarton(catalog[0]?.productId ?? ''));
+  }
+  return next.slice(0, n);
 }
 
-export function totalWeightKg(groups: PackageGroupValue[]): number {
+export function cartonWeightKg(
+  carton: ShippingCartonValue,
+  catalog: OrderProductCatalog[],
+): number {
+  const byId = new Map(catalog.map((p) => [p.productId, p.weightKg]));
   let sum = 0;
-  for (const g of groups) {
-    const w = Number(g.weightKgPerPart);
-    const parts = Number(g.parts);
-    if (!Number.isFinite(w) || !Number.isFinite(parts) || w < 0 || parts <= 0) continue;
-    sum += w * parts;
+  for (const line of carton.lines) {
+    const qty = Math.floor(Number(line.quantity));
+    if (!Number.isFinite(qty) || qty <= 0) continue;
+    const unit = byId.get(line.productId) ?? 0.1;
+    sum += unit * qty;
   }
   return Math.round(sum * 10000) / 10000;
 }
 
-/** Volume m³ from L×W×H (cm) × parts, or 0. */
-export function totalVolumeCbm(groups: PackageGroupValue[]): number {
+export function totalCartonsWeightKg(
+  cartons: ShippingCartonValue[],
+  catalog: OrderProductCatalog[],
+): number {
   let sum = 0;
-  for (const g of groups) {
-    const L = Number(g.lengthCm);
-    const W = Number(g.widthCm);
-    const H = Number(g.heightCm);
-    const parts = Number(g.parts);
-    if (
-      !Number.isFinite(L) ||
-      !Number.isFinite(W) ||
-      !Number.isFinite(H) ||
-      !Number.isFinite(parts) ||
-      L < 0 ||
-      W < 0 ||
-      H < 0 ||
-      parts <= 0
-    ) {
-      continue;
-    }
-    sum += ((L * W * H) / 1_000_000) * parts;
+  for (const c of cartons) sum += cartonWeightKg(c, catalog);
+  return Math.round(sum * 10000) / 10000;
+}
+
+export function totalCartonsVolumeCbm(cartons: ShippingCartonValue[]): number {
+  let sum = 0;
+  for (const c of cartons) {
+    const L = Number(c.lengthCm);
+    const W = Number(c.widthCm);
+    const H = Number(c.heightCm);
+    if (!Number.isFinite(L) || !Number.isFinite(W) || !Number.isFinite(H)) continue;
+    if (L <= 0 || W <= 0 || H <= 0) continue;
+    sum += (L * W * H) / 1_000_000;
   }
   return Math.round(sum * 1_000_000) / 1_000_000;
 }
 
-export function contentsFromGroups(groups: PackageGroupValue[]): string {
-  return groups
-    .map((g) => g.productName)
-    .filter(Boolean)
-    .join(', ');
+export type PackingSummaryRow = {
+  productId: string;
+  productName: string;
+  ordered: number;
+  packed: number;
+  remaining: number;
+  overPacked: boolean;
+};
+
+export function packingSummary(
+  cartons: ShippingCartonValue[],
+  catalog: OrderProductCatalog[],
+): PackingSummaryRow[] {
+  const packedByProduct = new Map<string, number>();
+  for (const carton of cartons) {
+    for (const line of carton.lines) {
+      const qty = Math.floor(Number(line.quantity));
+      if (!line.productId || !Number.isFinite(qty) || qty <= 0) continue;
+      packedByProduct.set(
+        line.productId,
+        (packedByProduct.get(line.productId) ?? 0) + qty,
+      );
+    }
+  }
+  return catalog.map((p) => {
+    const packed = packedByProduct.get(p.productId) ?? 0;
+    return {
+      productId: p.productId,
+      productName: p.productName,
+      ordered: p.orderedQty,
+      packed,
+      remaining: Math.max(0, p.orderedQty - packed),
+      overPacked: packed > p.orderedQty,
+    };
+  });
 }
 
-/** Expand groups into Babel-style weight-only parts (one entry per physical unit). */
-export function expandWeightParts(groups: PackageGroupValue[]): Array<{ weight: number }> {
-  const parts: Array<{ weight: number }> = [];
-  for (const g of groups) {
-    const w = Number(g.weightKgPerPart);
-    const n = Math.floor(Number(g.parts));
-    if (!Number.isFinite(w) || w <= 0 || !Number.isFinite(n) || n <= 0) continue;
-    for (let i = 0; i < n; i += 1) parts.push({ weight: w });
+export function hasOverPacking(summary: PackingSummaryRow[]): boolean {
+  return summary.some((r) => r.overPacked);
+}
+
+export function toStoredCartons(cartons: ShippingCartonValue[]): StoredShippingCarton[] {
+  return cartons
+    .map((c) => {
+      const lines = c.lines
+        .map((ln) => ({
+          productId: ln.productId.trim(),
+          quantity: Math.floor(Number(ln.quantity)),
+        }))
+        .filter((ln) => ln.productId && Number.isFinite(ln.quantity) && ln.quantity > 0);
+      const lengthCm = Number(c.lengthCm);
+      const widthCm = Number(c.widthCm);
+      const heightCm = Number(c.heightCm);
+      if (
+        lines.length === 0 ||
+        !Number.isFinite(lengthCm) ||
+        !Number.isFinite(widthCm) ||
+        !Number.isFinite(heightCm) ||
+        lengthCm <= 0 ||
+        widthCm <= 0 ||
+        heightCm <= 0
+      ) {
+        return null;
+      }
+      return { lines, lengthCm, widthCm, heightCm };
+    })
+    .filter((c): c is StoredShippingCarton => c != null);
+}
+
+export function toBabelPartsFromCartons(
+  cartons: ShippingCartonValue[],
+  catalog: OrderProductCatalog[],
+  packageType: ShippingPackageType,
+): Array<{ weight: number }> {
+  if (packageType === 'envelope') return [{ weight: 1 }];
+  const stored = toStoredCartons(cartons);
+  if (stored.length === 0) return [{ weight: 0.1 }];
+  return stored.map((_, idx) => ({
+    weight: Math.max(0.1, cartonWeightKg(cartons[idx], catalog)),
+  }));
+}
+
+export function contentsFromCartons(
+  cartons: ShippingCartonValue[],
+  catalog: OrderProductCatalog[],
+): string {
+  const names = new Set<string>();
+  const byId = new Map(catalog.map((p) => [p.productId, p.productName]));
+  for (const c of cartons) {
+    for (const ln of c.lines) {
+      const name = byId.get(ln.productId);
+      if (name) names.add(name);
+    }
   }
-  return parts;
+  return [...names].join(', ');
 }
 
 export type CarrierShippingSavePayload = ShippingConfigPayload & {
@@ -168,27 +343,38 @@ export type CarrierShippingSavePayload = ShippingConfigPayload & {
   addressLine1?: string | null;
   addressLine2?: string | null;
   currency?: string | null;
+  shippingPackages?: StoredShippingCarton[] | null;
 };
 
 export function carrierFormToSavePayload(
   form: CarrierShippingFormValue,
 ): CarrierShippingSavePayload {
-  const weight = totalWeightKg(form.groups);
-  const volume = totalVolumeCbm(form.groups);
+  const stored = toStoredCartons(form.cartons);
+  const weight =
+    form.packageType === 'envelope'
+      ? 1
+      : totalCartonsWeightKg(form.cartons, form.catalog);
+  const volume = form.packageType === 'envelope' ? 0 : totalCartonsVolumeCbm(form.cartons);
   return {
     shippingMethod: 'carrier',
     shippingProviderCode: form.shippingProviderCode.trim() || null,
     shippingPackageType: form.packageType || 'box',
-    shippingContents: contentsFromGroups(form.groups) || null,
+    shippingContents: contentsFromCartons(form.cartons, form.catalog) || null,
     shippingDeliveryType: form.deliveryType || 'address',
     shippingPickupType: 'hub',
     shippingPayer: 'sender',
     shippingWeightKg: weight > 0 ? weight : null,
     shippingVolumeCbm: volume >= 0 ? volume : 0,
+    shippingPackages: stored.length > 0 ? stored : null,
     city: form.city.trim() || null,
     district: form.district.trim() || null,
     addressLine1: form.addressLine1.trim() || null,
     addressLine2: form.addressLine2.trim() || null,
     currency: form.currency || 'USD',
   };
+}
+
+/** @deprecated Use cartons.length — parts = physical cartons for carriers. */
+export function totalParts(cartons: ShippingCartonValue[]): number {
+  return cartons.length;
 }

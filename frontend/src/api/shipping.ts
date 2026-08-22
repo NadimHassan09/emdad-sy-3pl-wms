@@ -100,6 +100,8 @@ export type QuoteShippingRatesInput = {
   governorate?: string;
   city?: string;
   neighborhood?: string;
+  /** One entry per carton — Babel part weight (kg). */
+  parts?: Array<{ weight: number }>;
 };
 
 export type QuoteShippingRatesResult = {
@@ -136,6 +138,12 @@ export type ShippingConfigPayload = {
   shippingPayer?: ShippingPayer | null;
   shippingWeightKg?: number | null;
   shippingVolumeCbm?: number | null;
+  shippingPackages?: Array<{
+    lines: Array<{ productId: string; quantity: number }>;
+    lengthCm: number;
+    widthCm: number;
+    heightCm: number;
+  }> | null;
   shippingPhoneCountry?: string | null;
   babelNeighbourhoodId?: number | null;
 };
@@ -454,8 +462,30 @@ export const ShippingApi = {
       .then((r) => r.data);
   },
 
-  quoteRates(body: QuoteShippingRatesInput): Promise<QuoteShippingRatesResult> {
-    return api.post<QuoteShippingRatesResult>('/shipping/rates', body).then((r) => r.data);
+  resolveAddressFromNames(
+    input: {
+      governorate: string;
+      cityRegion: string;
+      townNeighborhood: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<
+    | {
+        found: true;
+        lat: number;
+        lng: number;
+        source: 'neighborhood' | 'city' | 'governorate';
+        resolvedLabel: string;
+      }
+    | { found: false; message: string }
+  > {
+    return api
+      .post('/shipping/address/resolve-from-names', input, { signal })
+      .then((r) => r.data);
+  },
+
+  quoteRates(body: QuoteShippingRatesInput, signal?: AbortSignal): Promise<QuoteShippingRatesResult> {
+    return api.post<QuoteShippingRatesResult>('/shipping/rates', body, { signal }).then((r) => r.data);
   },
 
   bulkPreview(outboundOrderIds: string[]): Promise<BulkShippingPreviewResult> {

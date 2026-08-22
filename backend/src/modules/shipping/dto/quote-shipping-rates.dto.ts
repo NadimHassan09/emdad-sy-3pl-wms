@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsArray, IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { ShippingDeliveryType, ShippingPackageType, ShippingPickupType } from '@prisma/client';
 
 export class QuoteShippingRatesDto {
@@ -45,6 +45,11 @@ export class QuoteShippingRatesDto {
   @IsNumber()
   @Min(0)
   codAmount?: number | null;
+
+  /** One entry per carton — Babel part weight (kg). */
+  @IsOptional()
+  @IsArray()
+  parts?: Array<{ weight: number }>;
 
   @IsOptional()
   @IsString()

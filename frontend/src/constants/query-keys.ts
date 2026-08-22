@@ -131,6 +131,8 @@ export const QK = {
     boundary: (governorate: string, city: string, neighborhood: string) =>
       ['shipping', 'geo', 'boundary', governorate, city, neighborhood] as const,
     rates: (params: Record<string, unknown>) => ['shipping', 'rates', params] as const,
+    resolveAddress: (params: { governorate: string; city: string; neighborhood: string }) =>
+      ['shipping', 'resolve-address', params] as const,
   },
   cycleCount: {
     all: ['cycle-count'] as const,

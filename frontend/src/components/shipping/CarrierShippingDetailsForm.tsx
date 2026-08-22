@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { ShippingApi } from '../../api/shipping';
@@ -8,15 +8,19 @@ import { CascadingAddressSelector } from '../CascadingAddressSelector';
 import { TextField } from '../TextField';
 import {
   currencyAfterCarrierSelect,
+  hasOverPacking,
+  packingSummary,
   providerSupportedCurrencies,
-  totalParts,
-  totalVolumeCbm,
-  totalWeightKg,
+  resizeCartons,
+  toBabelPartsFromCartons,
+  totalCartonsVolumeCbm,
+  totalCartonsWeightKg,
   type CarrierShippingFormValue,
-  type PackageGroupValue,
   type ShippingCurrency,
 } from './carrier-shipping-form';
+import { PackingSummaryPanel, ShippingCartonEditor } from './ShippingCartonEditor';
 import { ShippingCarrierCards } from './ShippingCarrierCards';
+import { ResolvedDeliveryLocationPreview } from './ResolvedDeliveryLocationPreview';
 
 type Props = {
   value: CarrierShippingFormValue;
@@ -36,6 +40,29 @@ type Props = {
   onSelectedCarrierAvailableChange?: (available: boolean) => void;
 };
 
+/** Wait for form edits to settle before address resolve + carrier quotes. */
+const SHIPPING_QUOTE_DEBOUNCE_MS = 650;
+
+type ShippingQuoteSnapshot = {
+  governorate: string;
+  city: string;
+  neighborhood: string;
+  packageType: CarrierShippingFormValue['packageType'];
+  weightKg: number;
+  volumeCbm: number;
+  deliveryType: CarrierShippingFormValue['deliveryType'];
+  pickupType: 'hub';
+  currency: ShippingCurrency;
+  codAmount: number | null;
+  parts: Array<{ weight: number }>;
+  packingInvalid: boolean;
+};
+
+type SettledQuoteRequest = ShippingQuoteSnapshot & {
+  receiverLat: number;
+  receiverLng: number;
+};
+
 function stableRateKey(params: Record<string, unknown>): string {
   return JSON.stringify(params);
 }
@@ -45,14 +72,6 @@ function patch(
   partial: Partial<CarrierShippingFormValue>,
 ): CarrierShippingFormValue {
   return { ...value, ...partial };
-}
-
-function patchGroup(
-  groups: PackageGroupValue[],
-  productId: string,
-  partial: Partial<PackageGroupValue>,
-): PackageGroupValue[] {
-  return groups.map((g) => (g.productId === productId ? { ...g, ...partial } : g));
 }
 
 function PillToggle<T extends string>({
@@ -94,7 +113,7 @@ function PillToggle<T extends string>({
 }
 
 /**
- * Shipping Details for carrier flow: address + package groups + currency + delivery,
+ * Shipping Details for carrier flow: address + cartons + currency + delivery,
  * then shipping company cards. Prefill lives in state (defaults always set).
  */
 export function CarrierShippingDetailsForm({
@@ -109,8 +128,9 @@ export function CarrierShippingDetailsForm({
   onSelectedCarrierAvailableChange,
 }: Props) {
   const readOnly = locked || disabled;
-  /** Ignore late responses from superseded quote requests. */
-  const quoteRequestIdRef = useRef(0);
+  const queryClient = useQueryClient();
+  /** Monotonic id — late responses must not overwrite newer quote state. */
+  const quoteGenerationRef = useRef(0);
 
   const providersQuery = useQuery({
     queryKey: QK.shipping.providers,
@@ -123,95 +143,183 @@ export function CarrierShippingDetailsForm({
     [listedProviders],
   );
 
-  const partsCount = totalParts(value.groups);
-  const weightKg = totalWeightKg(value.groups);
-  const volumeCbm = totalVolumeCbm(value.groups);
-
-  const destKey = {
-    governorate: value.city.trim(),
-    city: value.district.trim(),
-    neighborhood: value.addressLine1.trim(),
-  };
-  const inputsHaveDestination = Boolean(
-    destKey.governorate && destKey.city && destKey.neighborhood,
+  const partsCount = value.cartons.length;
+  const weightKg =
+    value.packageType === 'envelope' ? 1 : totalCartonsWeightKg(value.cartons, value.catalog);
+  const volumeCbm =
+    value.packageType === 'envelope' ? 0 : totalCartonsVolumeCbm(value.cartons);
+  const packingRows = packingSummary(value.cartons, value.catalog);
+  const packingInvalid = hasOverPacking(packingRows);
+  const babelParts = toBabelPartsFromCartons(
+    value.cartons,
+    value.catalog,
+    value.packageType,
   );
-
   const quoteWeight =
     value.packageType === 'envelope' ? Math.max(weightKg, 1) : Math.max(weightKg, 0.001);
-  const inputsReady =
-    inputsHaveDestination &&
-    Number.isFinite(quoteWeight) &&
-    quoteWeight > 0 &&
-    Boolean(value.packageType) &&
-    Boolean(value.deliveryType);
 
-  const rateParams = {
-    packageType: value.packageType,
-    weightKg: quoteWeight,
-    volumeCbm,
-    deliveryType: value.deliveryType,
-    pickupType: 'hub' as const,
-    governorate: destKey.governorate,
-    city: destKey.city,
-    neighborhood: destKey.neighborhood,
-    codAmount,
-    currency: value.currency,
-  };
-  const debouncedRates = useDebounced(rateParams, 600);
-  const rateParamsKey = stableRateKey(rateParams);
-  const debouncedRatesKey = stableRateKey(debouncedRates);
-  const paramsPending = rateParamsKey !== debouncedRatesKey;
+  const liveSnapshot = useMemo<ShippingQuoteSnapshot>(
+    () => ({
+      governorate: value.city.trim(),
+      city: value.district.trim(),
+      neighborhood: value.addressLine1.trim(),
+      packageType: value.packageType,
+      weightKg: quoteWeight,
+      volumeCbm,
+      deliveryType: value.deliveryType,
+      pickupType: 'hub',
+      currency: value.currency,
+      codAmount,
+      parts: babelParts,
+      packingInvalid,
+    }),
+    [
+      value.city,
+      value.district,
+      value.addressLine1,
+      value.packageType,
+      value.deliveryType,
+      value.currency,
+      quoteWeight,
+      volumeCbm,
+      codAmount,
+      babelParts,
+      packingInvalid,
+    ],
+  );
 
-  const debouncedReady =
-    Boolean(
-      debouncedRates.governorate && debouncedRates.city && debouncedRates.neighborhood,
-    ) &&
-    Number.isFinite(debouncedRates.weightKg) &&
-    debouncedRates.weightKg > 0 &&
-    Boolean(debouncedRates.packageType) &&
-    Boolean(debouncedRates.deliveryType);
+  const debouncedSnapshot = useDebounced(liveSnapshot, SHIPPING_QUOTE_DEBOUNCE_MS);
+  const liveSnapshotKey = stableRateKey(liveSnapshot as unknown as Record<string, unknown>);
+  const debouncedSnapshotKey = stableRateKey(debouncedSnapshot as unknown as Record<string, unknown>);
+  const snapshotPending = liveSnapshotKey !== debouncedSnapshotKey;
+
+  const inputsHaveAddress = Boolean(liveSnapshot.governorate && liveSnapshot.city);
+
+  const addressResolveQuery = useQuery({
+    queryKey: QK.shipping.resolveAddress({
+      governorate: debouncedSnapshot.governorate,
+      city: debouncedSnapshot.city,
+      neighborhood: debouncedSnapshot.neighborhood,
+    }),
+    queryFn: ({ signal }) =>
+      ShippingApi.resolveAddressFromNames(
+        {
+          governorate: debouncedSnapshot.governorate,
+          cityRegion: debouncedSnapshot.city,
+          townNeighborhood: debouncedSnapshot.neighborhood,
+        },
+        signal,
+      ),
+    enabled:
+      Boolean(debouncedSnapshot.governorate && debouncedSnapshot.city) && !snapshotPending,
+    staleTime: 30_000,
+    gcTime: 60_000,
+  });
+
+  const resolvedLocation = useMemo(() => {
+    if (snapshotPending || addressResolveQuery.isFetching) return null;
+    if (addressResolveQuery.data?.found !== true) return null;
+    return addressResolveQuery.data;
+  }, [snapshotPending, addressResolveQuery.isFetching, addressResolveQuery.data]);
+
+  const isResolvingLocation =
+    inputsHaveAddress && (snapshotPending || addressResolveQuery.isFetching);
+
+  const locationResolveError =
+    inputsHaveAddress &&
+    !isResolvingLocation &&
+    addressResolveQuery.isSuccess &&
+    addressResolveQuery.data?.found === false
+      ? addressResolveQuery.data.message
+      : null;
+
+  const settledQuoteRequest = useMemo<SettledQuoteRequest | null>(() => {
+    if (snapshotPending || !resolvedLocation || debouncedSnapshot.packingInvalid) return null;
+    if (
+      !debouncedSnapshot.governorate ||
+      !debouncedSnapshot.city ||
+      !debouncedSnapshot.packageType ||
+      !debouncedSnapshot.deliveryType ||
+      !Number.isFinite(debouncedSnapshot.weightKg) ||
+      debouncedSnapshot.weightKg <= 0
+    ) {
+      return null;
+    }
+    return {
+      ...debouncedSnapshot,
+      receiverLat: resolvedLocation.lat,
+      receiverLng: resolvedLocation.lng,
+    };
+  }, [snapshotPending, resolvedLocation, debouncedSnapshot]);
+
+  const settledQuoteKey = settledQuoteRequest
+    ? stableRateKey(settledQuoteRequest as unknown as Record<string, unknown>)
+    : null;
+
+  useEffect(() => {
+    if (!settledQuoteKey) return;
+    quoteGenerationRef.current += 1;
+    void queryClient.cancelQueries({ queryKey: ['shipping', 'rates'] });
+  }, [settledQuoteKey, queryClient]);
 
   const ratesQuery = useQuery({
-    queryKey: QK.shipping.rates(debouncedRates as unknown as Record<string, unknown>),
+    queryKey: settledQuoteRequest
+      ? QK.shipping.rates(settledQuoteRequest as unknown as Record<string, unknown>)
+      : ['shipping', 'rates', 'idle'],
     queryFn: async ({ signal }) => {
-      const requestId = quoteRequestIdRef.current;
-      const result = await ShippingApi.quoteRates({
-        packageType: debouncedRates.packageType,
-        weightKg: debouncedRates.weightKg,
-        deliveryType: debouncedRates.deliveryType,
-        pickupType: 'hub',
-        volumeCbm: debouncedRates.volumeCbm,
-        governorate: debouncedRates.governorate,
-        city: debouncedRates.city,
-        neighborhood: debouncedRates.neighborhood,
-        ...(debouncedRates.codAmount != null && Number.isFinite(debouncedRates.codAmount)
-          ? { codAmount: debouncedRates.codAmount }
-          : {}),
-      });
-      if (signal.aborted || requestId !== quoteRequestIdRef.current) {
+      if (!settledQuoteRequest) {
+        throw new DOMException('Quote inputs not ready', 'AbortError');
+      }
+      const generation = quoteGenerationRef.current;
+      const result = await ShippingApi.quoteRates(
+        {
+          packageType: settledQuoteRequest.packageType,
+          weightKg: settledQuoteRequest.weightKg,
+          deliveryType: settledQuoteRequest.deliveryType,
+          pickupType: settledQuoteRequest.pickupType,
+          volumeCbm: settledQuoteRequest.volumeCbm,
+          governorate: settledQuoteRequest.governorate,
+          city: settledQuoteRequest.city,
+          neighborhood: settledQuoteRequest.neighborhood,
+          receiverLat: settledQuoteRequest.receiverLat,
+          receiverLng: settledQuoteRequest.receiverLng,
+          parts: settledQuoteRequest.parts,
+          ...(settledQuoteRequest.codAmount != null &&
+          Number.isFinite(settledQuoteRequest.codAmount)
+            ? { codAmount: settledQuoteRequest.codAmount }
+            : {}),
+        },
+        signal,
+      );
+      if (signal.aborted || generation !== quoteGenerationRef.current) {
         throw new DOMException('Quote request superseded', 'AbortError');
       }
       return result;
     },
-    enabled: debouncedReady && !paramsPending,
+    enabled: Boolean(settledQuoteRequest) && !hideCarrierSelect,
     staleTime: 0,
     gcTime: 30_000,
-    placeholderData: undefined,
     retry: (failureCount, error) => {
       if (error instanceof DOMException && error.name === 'AbortError') return false;
       return failureCount < 1;
     },
   });
 
-  // Invalidate in-flight quote results as soon as live form inputs change.
-  useEffect(() => {
-    quoteRequestIdRef.current += 1;
-  }, [rateParamsKey]);
+  const inputsReady =
+    inputsHaveAddress &&
+    Boolean(settledQuoteRequest) &&
+    Number.isFinite(quoteWeight) &&
+    quoteWeight > 0 &&
+    Boolean(value.packageType) &&
+    Boolean(value.deliveryType) &&
+    !packingInvalid;
 
   const isRefreshingCarrierQuotes =
     !hideCarrierSelect &&
-    inputsReady &&
-    (paramsPending || ratesQuery.isFetching || ratesQuery.isPending);
+    inputsHaveAddress &&
+    (snapshotPending ||
+      isResolvingLocation ||
+      (inputsReady && (ratesQuery.isFetching || ratesQuery.isPending)));
 
   const quotes =
     isRefreshingCarrierQuotes || !ratesQuery.isSuccess ? [] : (ratesQuery.data?.quotes ?? []);
@@ -254,13 +362,19 @@ export function CarrierShippingDetailsForm({
 
   let emptyHint: string | null = null;
   if (!isRefreshingCarrierQuotes) {
-    if (!inputsHaveDestination) {
-      emptyHint =
-        'Complete Governorate, City/Region, and Town/Neighborhood to calculate carrier rates.';
+    if (!inputsHaveAddress) {
+      emptyHint = 'Complete Governorate and City/Region to calculate carrier rates.';
+    } else if (packingInvalid) {
+      emptyHint = 'Fix over-packed quantities before requesting carrier rates.';
+    } else if (!resolvedLocation) {
+      emptyHint = 'Resolving delivery pin from address…';
     } else if (!(weightKg > 0) && value.packageType !== 'envelope') {
-      emptyHint = 'Enter weight per part so rates can be calculated.';
+      emptyHint = 'Assign products to packages so total weight can be calculated.';
     }
   }
+
+  const mapLat = resolvedLocation?.lat ?? null;
+  const mapLng = resolvedLocation?.lng ?? null;
 
   return (
     <div className="space-y-5">
@@ -306,6 +420,20 @@ export function CarrierShippingDetailsForm({
         />
       </section>
 
+      <section className="space-y-3 rounded-xl border border-border-subtle bg-surface-card p-4">
+        <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-brand-600 dark:text-brand-400">
+          Delivery location
+        </div>
+        <ResolvedDeliveryLocationPreview
+          lat={mapLat}
+          lng={mapLng}
+          loading={isResolvingLocation}
+          error={locationResolveError}
+          resolveSource={resolvedLocation?.source ?? null}
+          resolvedLabel={resolvedLocation?.resolvedLabel ?? ''}
+        />
+      </section>
+
       <section className="space-y-4 rounded-xl border border-border-subtle bg-surface-card p-4">
         <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-brand-600 dark:text-brand-400">
           Shipment information
@@ -324,104 +452,54 @@ export function CarrierShippingDetailsForm({
           />
         </div>
 
-        <div>
-          <div className="text-xs font-medium text-text-muted">Total parts</div>
-          <div className="mt-1 text-sm font-semibold tabular-nums text-text-strong">{partsCount}</div>
-          <p className="mt-0.5 text-[11px] text-text-faint">
-            Sum of line quantities (identical products share weight &amp; dimensions).
-          </p>
-        </div>
+        {value.packageType === 'box' ? (
+          <>
+            <TextField
+              label="Number of packages"
+              type="number"
+              min={1}
+              max={50}
+              step={1}
+              value={value.packageCount}
+              disabled={readOnly}
+              onChange={(e) => {
+                const n = Math.max(1, Math.min(50, Math.floor(Number(e.target.value)) || 1));
+                onChange(
+                  patch(value, {
+                    packageCount: String(n),
+                    cartons: resizeCartons(value.cartons, n, value.catalog),
+                  }),
+                );
+              }}
+            />
+            <p className="text-[11px] text-text-faint">
+              Physical cartons the carrier will receive (not product quantity).
+            </p>
 
-        <div className="space-y-3">
-          <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">
-            Package details
-          </div>
-          {value.groups.length === 0 ? (
-            <p className="text-sm text-text-muted">No line items on this order.</p>
-          ) : (
-            value.groups.map((g) => (
-              <div
-                key={g.productId}
-                className="space-y-2 rounded-lg border border-border-subtle bg-surface-sunken/40 p-3"
-              >
-                <div className="text-sm font-semibold text-text-strong">
-                  {g.productName}{' '}
-                  <span className="font-normal text-text-muted">— {g.parts} parts</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <TextField
-                    label="Weight / part (kg)"
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={g.weightKgPerPart}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      onChange(
-                        patch(value, {
-                          groups: patchGroup(value.groups, g.productId, {
-                            weightKgPerPart: e.target.value,
-                          }),
-                        }),
-                      )
-                    }
-                  />
-                  <TextField
-                    label="Length (cm)"
-                    type="number"
-                    min={0}
-                    step="0.1"
-                    value={g.lengthCm}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      onChange(
-                        patch(value, {
-                          groups: patchGroup(value.groups, g.productId, {
-                            lengthCm: e.target.value,
-                          }),
-                        }),
-                      )
-                    }
-                  />
-                  <TextField
-                    label="Width (cm)"
-                    type="number"
-                    min={0}
-                    step="0.1"
-                    value={g.widthCm}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      onChange(
-                        patch(value, {
-                          groups: patchGroup(value.groups, g.productId, {
-                            widthCm: e.target.value,
-                          }),
-                        }),
-                      )
-                    }
-                  />
-                  <TextField
-                    label="Height (cm)"
-                    type="number"
-                    min={0}
-                    step="0.1"
-                    value={g.heightCm}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      onChange(
-                        patch(value, {
-                          groups: patchGroup(value.groups, g.productId, {
-                            heightCm: e.target.value,
-                          }),
-                        }),
-                      )
-                    }
-                  />
-                </div>
+            <PackingSummaryPanel rows={packingRows} />
+
+            <ShippingCartonEditor
+              cartons={value.cartons}
+              catalog={value.catalog}
+              readOnly={readOnly}
+              onChange={(cartons) => onChange(patch(value, { cartons }))}
+            />
+
+            <div>
+              <div className="text-xs font-medium text-text-muted">Total shipment weight</div>
+              <div className="mt-1 text-sm font-semibold tabular-nums text-text-strong">
+                {weightKg} kg
               </div>
-            ))
-          )}
-        </div>
+              <p className="mt-0.5 text-[11px] text-text-faint">
+                Sum of calculated carton weights ({partsCount} package{partsCount === 1 ? '' : 's'}).
+              </p>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-text-muted">
+            Envelope shipments use a single 1 kg part; package breakdown is not required.
+          </p>
+        )}
 
         <div>
           <div className="mb-1.5 text-xs font-medium text-text-muted">Currency</div>

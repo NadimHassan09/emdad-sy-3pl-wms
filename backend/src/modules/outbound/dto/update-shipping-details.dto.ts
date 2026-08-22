@@ -1,11 +1,14 @@
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsEnum,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import {
   ShippingDeliveryType,
@@ -16,6 +19,38 @@ import {
 } from '@prisma/client';
 
 import { EmptyToUndefined } from '../../../common/transformers/query-transform';
+
+class ShippingCartonLineDto {
+  @IsUUID()
+  productId!: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  quantity!: number;
+}
+
+class ShippingCartonDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ShippingCartonLineDto)
+  lines!: ShippingCartonLineDto[];
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.1)
+  lengthCm!: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.1)
+  widthCm!: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.1)
+  heightCm!: number;
+}
 
 /** Draft shipping details for Waiting for Shipping Details stage (Save only — no carrier API). */
 export class UpdateShippingDetailsDto {
@@ -137,4 +172,12 @@ export class UpdateShippingDetailsDto {
   @IsString()
   @MaxLength(8)
   currency?: string | null;
+
+  /** Physical cartons for carrier handoff (one Babel part per carton). */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ShippingCartonDto)
+  shippingPackages?: ShippingCartonDto[] | null;
 }

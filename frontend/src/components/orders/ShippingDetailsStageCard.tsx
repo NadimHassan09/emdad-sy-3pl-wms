@@ -9,6 +9,8 @@ import { CarrierShippingDetailsForm } from '../shipping/CarrierShippingDetailsFo
 import {
   buildCarrierShippingFormFromOrder,
   carrierFormToSavePayload,
+  hasOverPacking,
+  packingSummary,
   type CarrierShippingFormValue,
 } from '../shipping/carrier-shipping-form';
 import { useToast } from '../ToastProvider';
@@ -130,8 +132,14 @@ export function ShippingDetailsStageCard({
         ? 'Home delivery'
         : order.shippingDeliveryType?.trim() || '—';
 
+  const packingInvalid = useMemo(
+    () => hasOverPacking(packingSummary(form.cartons, form.catalog)),
+    [form.cartons, form.catalog],
+  );
+
   const canSaveEdit =
     !quotesRefreshing &&
+    !packingInvalid &&
     form.shippingProviderCode.trim() !== '' &&
     selectedCarrierAvailable;
 

@@ -1692,6 +1692,8 @@ model OutboundOrder {
   shippingPayer        ShippingPayer?      @map("shipping_payer")
   shippingWeightKg     Decimal?            @map("shipping_weight_kg") @db.Decimal(12, 4)
   shippingVolumeCbm    Decimal?            @map("shipping_volume_cbm") @db.Decimal(12, 6)
+  /// Carton layout for carrier handoff: [{ lines: [{ productId, quantity }], lengthCm, widthCm, heightCm }]
+  shippingPackages     Json?               @map("shipping_packages")
   shippingPhoneCountry String?             @map("shipping_phone_country")
   /// Babel Express neighbourhood id (source of truth for quote/create). Snapshot tables hold city/area.
   babelNeighbourhoodId Int?                @map("babel_neighbourhood_id")
