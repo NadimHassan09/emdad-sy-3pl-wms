@@ -1,10 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { OutboundOrder } from '../../api/outbound';
 import { OutboundApi } from '../../api/outbound';
-import { ShippingApi, type ShippingRateQuote, type ShippingRateError } from '../../api/shipping';
 import { Alert, Button, Card } from '@ds';
+import { CarrierShippingDetailsForm } from '../shipping/CarrierShippingDetailsForm';
+import {
+  buildCarrierShippingFormFromOrder,
+  carrierFormToSavePayload,
+  type CarrierShippingFormValue,
+} from '../shipping/carrier-shipping-form';
 import { useToast } from '../ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { invalidateWorkflowTasksInventory } from '../../lib/invalidate-wms-queries';
@@ -13,11 +18,29 @@ type Props = { order: OutboundOrder };
 
 type MethodChoice = 'manual' | 'carrier' | null;
 
+/**
+ * Waiting-for-shipping-method stage:
+ * 1) Choose Manual vs Shipping Company
+ * 2) If company → prefilled Shipping Details + company cards (Available / Unavailable)
+ */
 export function ShippingMethodStageCard({ order }: Props) {
   const toast = useToast();
   const qc = useQueryClient();
   const [method, setMethod] = useState<MethodChoice>(null);
-  const [selectedProvider, setSelectedProvider] = useState<string>('');
+  const [form, setForm] = useState<CarrierShippingFormValue>(() =>
+    buildCarrierShippingFormFromOrder(order),
+  );
+
+  useEffect(() => {
+    setForm(buildCarrierShippingFormFromOrder(order));
+  }, [order]);
+
+  const codAmount = useMemo(() => {
+    const raw = order.codAmount;
+    if (raw == null || raw === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }, [order.codAmount]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: [...QK.outboundOrders, order.id] });
@@ -28,56 +51,30 @@ export function ShippingMethodStageCard({ order }: Props) {
     });
   };
 
-  const providersQuery = useQuery({
-    queryKey: QK.shipping.providers,
-    queryFn: () => ShippingApi.listProviders(),
-    staleTime: 60_000,
-  });
-
-  const allProviders = providersQuery.data ?? [];
-
-  const hasCoords = order.shippingReceiverLat != null && order.shippingReceiverLng != null;
-  const quotesQuery = useQuery({
-    queryKey: [...QK.shipping.providers, 'quotes', order.id],
-    queryFn: () =>
-      ShippingApi.quoteRates({
-        receiverLat: Number(order.shippingReceiverLat),
-        receiverLng: Number(order.shippingReceiverLng),
-        packageType: (order.shippingPackageType as any) ?? 'parcel',
-        weightKg: Number(order.shippingWeightKg) || 1,
-        deliveryType: 'delivery',
-        governorate: order.shippingGovernorate ?? undefined,
-        city: order.shippingCity ?? undefined,
-        neighborhood: order.shippingNeighborhood ?? undefined,
-      }),
-    enabled: method === 'carrier' && hasCoords,
-    staleTime: 60_000,
-  });
-  const quotesByCarrier = useMemo(() => {
-    const map = new Map<string, ShippingRateQuote>();
-    for (const q of quotesQuery.data?.quotes ?? []) map.set(q.carrierId, q);
-    return map;
-  }, [quotesQuery.data]);
-  const errorsByCarrier = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const e of quotesQuery.data?.errors ?? []) map.set(e.carrierId, e.message);
-    return map;
-  }, [quotesQuery.data]);
-
   const submitMut = useMutation({
-    mutationFn: () =>
-      OutboundApi.selectShippingMethod(
+    mutationFn: () => {
+      if (method === 'manual') {
+        return OutboundApi.selectShippingMethod(
+          order.id,
+          { shippingMethod: 'manual' },
+          order.companyId,
+        );
+      }
+      const details = carrierFormToSavePayload(form);
+      return OutboundApi.selectShippingMethod(
         order.id,
         {
-          shippingMethod: method === 'carrier' ? 'carrier' : 'manual',
-          shippingProviderCode: method === 'carrier' ? selectedProvider : undefined,
+          ...details,
+          shippingMethod: 'carrier',
+          shippingProviderCode: form.shippingProviderCode.trim() || undefined,
         },
         order.companyId,
-      ),
+      );
+    },
     onSuccess: () => {
       toast.success(
         method === 'carrier'
-          ? 'Shipping company selected. Proceed to shipping details.'
+          ? 'Shipping company and details saved. Continue with Send / Complete on Shipping Details.'
           : 'Manual shipping selected. Proceed to shipping details.',
       );
       invalidate();
@@ -86,25 +83,28 @@ export function ShippingMethodStageCard({ order }: Props) {
   });
 
   const canSubmit =
-    method === 'manual' || (method === 'carrier' && selectedProvider.trim() !== '');
+    method === 'manual' ||
+    (method === 'carrier' &&
+      form.shippingProviderCode.trim() !== '' &&
+      form.city.trim() !== '' &&
+      form.district.trim() !== '' &&
+      form.addressLine1.trim() !== '');
 
   return (
     <Card padding="none">
       <Card.Header>
         <Card.Title>Select Shipping Method</Card.Title>
       </Card.Header>
-      <Card.Body className="space-y-4">
+      <Card.Body className="space-y-5">
         <p className="text-sm text-text-body">
-          Choose how this order will be shipped. This determines the next step in the workflow.
+          Choose how this order will be shipped. For Shipping Company, review the prefilled
+          shipment details, then pick an available carrier.
         </p>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
             type="button"
-            onClick={() => {
-              setMethod('manual');
-              setSelectedProvider('');
-            }}
+            onClick={() => setMethod('manual')}
             className={[
               'relative rounded-xl border-2 p-4 text-left transition-all',
               method === 'manual'
@@ -174,91 +174,19 @@ export function ShippingMethodStageCard({ order }: Props) {
         </div>
 
         {method === 'carrier' ? (
-          <div className="space-y-3">
-            <div className="text-sm font-medium text-text-strong">
-              Available Shipping Companies
-            </div>
-            {providersQuery.isLoading ? (
-              <p className="text-xs text-text-muted">Loading providers...</p>
-            ) : allProviders.length === 0 ? (
-              <Alert variant="warning" title="No shipping companies configured">
-                Connect a shipping company under Shipping Companies settings first.
+          <div className="space-y-3 border-t border-border-subtle pt-4">
+            {!form.city || !form.district ? (
+              <Alert variant="warning" title="Address incomplete">
+                Governorate / city are missing on this order. Complete the address so carriers can
+                quote correctly.
               </Alert>
-            ) : (
-              <div className="grid gap-2">
-                {allProviders.map((provider) => {
-                  const available = provider.connected && provider.enabled;
-                  const isSelected = selectedProvider === provider.code;
-                  return (
-                    <button
-                      key={provider.code}
-                      type="button"
-                      disabled={!available}
-                      onClick={() => setSelectedProvider(provider.code)}
-                      className={[
-                        'relative flex items-center justify-between rounded-lg border-2 px-4 py-3 text-left transition-all',
-                        !available
-                          ? 'cursor-not-allowed border-border bg-surface-sunken opacity-60'
-                          : isSelected
-                            ? 'border-green-500 bg-green-50 dark:bg-green-950/30'
-                            : 'border-border hover:border-border-strong',
-                      ].join(' ')}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={[
-                            'flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold',
-                            available
-                              ? 'bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300'
-                              : 'bg-surface-card-muted text-text-faint',
-                          ].join(' ')}
-                        >
-                          {provider.name.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="text-sm font-medium text-text-strong">
-                            {provider.name}
-                          </div>
-                          <div className="text-xs text-text-muted">
-                            {available ? (
-                              <>
-                                <span className="text-green-600 dark:text-green-400">Available</span>
-                                {(() => {
-                                  const quote = quotesByCarrier.get(provider.code);
-                                  const qErr = errorsByCarrier.get(provider.code);
-                                  if (quotesQuery.isLoading) return <span className="ml-2 text-text-faint">Fetching quote…</span>;
-                                  if (quote) return <span className="ml-2 font-medium text-text-strong">{quote.price} {quote.currency}</span>;
-                                  if (qErr) return <span className="ml-2 text-text-faint">Quote unavailable</span>;
-                                  if (!hasCoords) return <span className="ml-2 text-text-faint">No coordinates for quote</span>;
-                                  return null;
-                                })()}
-                              </>
-                            ) : (
-                              <span className="text-status-danger-fg">
-                                Unavailable
-                                {provider.lastErrorSafe
-                                  ? ` — ${provider.lastErrorSafe}`
-                                  : !provider.connected
-                                    ? ' — Not connected'
-                                    : !provider.enabled
-                                      ? ' — Disabled'
-                                      : ''}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      {isSelected ? (
-                        <i
-                          className="fa-solid fa-circle-check text-green-600"
-                          aria-hidden="true"
-                        />
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            ) : null}
+            <CarrierShippingDetailsForm
+              value={form}
+              onChange={setForm}
+              codAmount={codAmount}
+              showTitle
+            />
           </div>
         ) : null}
 
@@ -270,7 +198,9 @@ export function ShippingMethodStageCard({ order }: Props) {
             disabled={!canSubmit}
             onClick={() => submitMut.mutate()}
           >
-            {method === 'manual' ? 'Continue with Manual Shipping' : 'Continue with Selected Carrier'}
+            {method === 'manual'
+              ? 'Continue with Manual Shipping'
+              : 'Continue with Selected Carrier'}
           </Button>
         </div>
       </Card.Body>

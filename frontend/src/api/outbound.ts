@@ -46,6 +46,9 @@ export interface OutboundOrderLine {
     imagePath?: string | null;
     weightKg?: string | number | null;
     volumeCbm?: string | number | null;
+    lengthCm?: string | number | null;
+    widthCm?: string | number | null;
+    heightCm?: string | number | null;
   };
 }
 
@@ -71,6 +74,7 @@ export interface OutboundOrder {
   city?: string | null;
   district?: string | null;
   addressLine1?: string | null;
+  addressLine2?: string | null;
   requiredShipDate: string;
   carrier: string | null;
   trackingNumber: string | null;
@@ -81,6 +85,7 @@ export interface OutboundOrder {
   shippedAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
+  currency?: string | null;
   executionMode?: OrderExecutionMode | null;
   executionPlan?: OutboundExecutionPlan | null;
   /** Present when this outbound is the warehouse execution for an OMS order. */
@@ -322,7 +327,17 @@ export const OutboundApi = {
   },
   async selectShippingMethod(
     id: string,
-    body: { shippingMethod: string; shippingProviderCode?: string },
+    body: ShippingConfigPayload & {
+      shippingMethod: string;
+      shippingProviderCode?: string;
+      carrier?: string | null;
+      trackingNumber?: string | null;
+      city?: string | null;
+      district?: string | null;
+      addressLine1?: string | null;
+      addressLine2?: string | null;
+      currency?: string | null;
+    },
     companyIdOverride?: string,
   ): Promise<OutboundOrder> {
     const { data } = await api.post<OutboundOrder>(
@@ -337,6 +352,11 @@ export const OutboundApi = {
     body: ShippingConfigPayload & {
       carrier?: string | null;
       trackingNumber?: string | null;
+      city?: string | null;
+      district?: string | null;
+      addressLine1?: string | null;
+      addressLine2?: string | null;
+      currency?: string | null;
     },
     companyIdOverride?: string,
   ): Promise<OutboundOrder> {

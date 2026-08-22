@@ -21,6 +21,8 @@ type Props = {
   locked?: boolean;
   /** Lock method/provider only (details remain editable). */
   lockIntent?: boolean;
+  /** Hide Shipping method dropdown (parent already chose Manual vs Company). */
+  hideMethodSelect?: boolean;
   /** Override lock explanation (defaults to ready-to-ship lock message). */
   lockMessage?: string;
   /** Hide the inner "Shipping" title when the parent section already has a heading. */
@@ -71,6 +73,7 @@ export function OrderShippingFields({
   onChange,
   locked = false,
   lockIntent = false,
+  hideMethodSelect = false,
   lockMessage,
   showTitle = true,
   suggestedWeightKg = null,
@@ -296,23 +299,26 @@ export function OrderShippingFields({
         </p>
       ) : null}
 
-      <SelectField
-        label="Shipping method"
-        value={value.shippingMethod}
-        disabled={intentReadOnly}
-        onChange={(e) =>
-          onChange(
-            patch(value, {
-              shippingMethod: e.target.value === 'carrier' ? 'carrier' : 'manual',
-              shippingProviderCode: e.target.value === 'carrier' ? value.shippingProviderCode : '',
-            }),
-          )
-        }
-        options={[
-          { value: 'manual', label: 'Manual' },
-          { value: 'carrier', label: 'Shipping Company' },
-        ]}
-      />
+      {hideMethodSelect ? null : (
+        <SelectField
+          label="Shipping method"
+          value={value.shippingMethod}
+          disabled={intentReadOnly}
+          onChange={(e) =>
+            onChange(
+              patch(value, {
+                shippingMethod: e.target.value === 'carrier' ? 'carrier' : 'manual',
+                shippingProviderCode:
+                  e.target.value === 'carrier' ? value.shippingProviderCode : '',
+              }),
+            )
+          }
+          options={[
+            { value: 'manual', label: 'Manual' },
+            { value: 'carrier', label: 'Shipping Company' },
+          ]}
+        />
+      )}
 
       {carrier ? (
         <>

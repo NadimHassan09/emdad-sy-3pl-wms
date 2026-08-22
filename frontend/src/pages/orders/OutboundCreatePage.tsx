@@ -9,17 +9,9 @@ import { InventoryApi } from '../../api/inventory';
 import { CreateOutboundOrderInput, OutboundApi } from '../../api/outbound';
 import type { Product } from '../../api/products';
 import { ProductsApi } from '../../api/products';
-import {
-  emptyOrderShippingFields,
-  isShippingConfigLocked,
-  orderShippingFieldsFromApi,
-  orderShippingIntentToPayload,
-  type OrderShippingFieldsValue,
-} from '../../api/shipping';
 import { Combobox } from '../../components/Combobox';
 import { DispatchDockPicker } from '../../components/locations/DispatchDockPicker';
 import { PackingLocationPicker } from '../../components/locations/PackingLocationPicker';
-import { OrderShippingIntentFields } from '../../components/shipping/OrderShippingIntentFields';
 import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
@@ -54,9 +46,6 @@ function tLabel(label: string, ar: boolean): string {
     Notes: 'ملاحظات',
     'Add any notes about this outbound order…': 'أضف أي ملاحظات عن طلب الصادر…',
     'Destination address': 'عنوان الوجهة',
-    'Inherited from OMS': 'موروث من طلب OMS',
-    'Shipping is managed on the linked OMS order. Edit the OMS order to change carrier settings.':
-      'إعدادات الشحن تُدار من طلب OMS المرتبط. عدّل طلب OMS لتغيير إعدادات الناقل.',
     'Linked OMS order': 'طلب OMS المرتبط',
     'Packing & dispatch': 'التغليف والإرسال',
     'Packing required': 'التغليف مطلوب',
@@ -209,7 +198,6 @@ export function OutboundCreatePage() {
   const [lines, setLines] = useState<DraftLine[]>([
     { key: '1', productId: '', requestedQuantity: '' },
   ]);
-  const [shipping, setShipping] = useState<OrderShippingFieldsValue>(emptyOrderShippingFields);
 
   const existing = useQuery({
     queryKey: [...QK.outboundOrders, editId],
@@ -237,7 +225,6 @@ export function OutboundCreatePage() {
         requestedQuantity: String(l.requestedQuantity),
       })),
     );
-    setShipping(orderShippingFieldsFromApi(o));
   }, [existing.data]);
 
   const companies = useQuery({
@@ -346,15 +333,6 @@ export function OutboundCreatePage() {
     [lines],
   );
 
-  const linkedOms = existing.data?.omsOrder ?? null;
-  const shippingLocked =
-    (isEdit && isShippingConfigLocked(existing.data?.status)) || !!linkedOms;
-  const shippingLockMessage = linkedOms
-    ? t(
-        'Shipping is managed on the linked OMS order. Edit the OMS order to change carrier settings.',
-      )
-    : undefined;
-
   const saveMut = useMutation({
     mutationFn: async () => {
       if (!companyId.trim()) throw new Error(t('Pick a client.'));
@@ -403,8 +381,6 @@ export function OutboundCreatePage() {
         if (issues.length) throw new Error(issues[0]!);
       }
 
-      const shippingPayload = shippingLocked ? {} : orderShippingIntentToPayload(shipping);
-
       if (isEdit) {
         return OutboundApi.updatePlan(editId!, {
           executionMode,
@@ -413,7 +389,6 @@ export function OutboundCreatePage() {
           notes: notes.trim() || undefined,
           destinationAddress: destination.trim(),
           requiresPacking,
-          ...shippingPayload,
         });
       }
 
@@ -429,7 +404,6 @@ export function OutboundCreatePage() {
           productId: l.productId,
           requestedQuantity: Number(l.requestedQuantity),
         })),
-        ...shippingPayload,
       };
       return OutboundApi.create(input);
     },
@@ -701,41 +675,6 @@ export function OutboundCreatePage() {
               </ul>
             </Alert>
           ) : null}
-        </section>
-
-        <section className="space-y-5">
-          <SectionHeading title={t('Shipping plan')} />
-          {linkedOms ? (
-            <p className="rounded-lg border border-border-subtle bg-surface-sunken px-3 py-2 text-xs text-text-body">
-              {t('Inherited from OMS')}
-              {': '}
-              <Link
-                to={`/orders/oms/${linkedOms.id}`}
-                className="font-semibold text-brand-700 hover:underline"
-              >
-                {linkedOms.orderNumber}
-              </Link>
-              {' — '}
-              {t(
-                'Shipping is managed on the linked OMS order. Edit the OMS order to change carrier settings.',
-              )}
-            </p>
-          ) : null}
-          <OrderShippingIntentFields
-            value={shipping}
-            onChange={(next) =>
-              setShipping((prev) => ({
-                ...prev,
-                shippingMethod: next.shippingMethod,
-                shippingProviderCode: next.shippingProviderCode,
-              }))
-            }
-            locked={shippingLocked}
-            lockMessage={shippingLockMessage}
-            showTitle={false}
-            disabled={loading}
-            available={shippingLocked || totalItems > 0}
-          />
         </section>
 
         <section className="space-y-5">

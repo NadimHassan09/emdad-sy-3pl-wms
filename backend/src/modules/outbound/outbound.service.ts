@@ -130,20 +130,23 @@ const ORDER_INCLUDE = {
   lines: {
     orderBy: { lineNumber: 'asc' as const },
     include: {
-      product: {
-        select: {
-          id: true,
-          sku: true,
-          name: true,
-          barcode: true,
-          status: true,
-          trackingType: true,
-          uom: true,
-          imagePath: true,
-          weightKg: true,
-          volumeCbm: true,
-        },
-      },
+          product: {
+            select: {
+              id: true,
+              sku: true,
+              name: true,
+              barcode: true,
+              status: true,
+              trackingType: true,
+              uom: true,
+              imagePath: true,
+              weightKg: true,
+              volumeCbm: true,
+              lengthCm: true,
+              widthCm: true,
+              heightCm: true,
+            },
+          },
     },
   },
   stockReservations: {
@@ -1107,11 +1110,17 @@ export class OutboundService {
    * Admin-owned stage gate (Manual vs Shipping Company).
    * Allowed for both executionMode=admin and executionMode=workers:
    * workers execute pick/pack/dispatch tasks; shipping-method selection stays with admin/manager roles.
+   *
+   * When choosing Shipping Company, optional shipping-details fields may be saved in the
+   * same step (reviewed/edited form on the method stage before picking a carrier).
    */
   async selectShippingMethodAdmin(
     user: AuthPrincipal,
     orderId: string,
-    body: { shippingMethod: string; shippingProviderCode?: string },
+    body: UpdateShippingDetailsDto & {
+      shippingMethod: string;
+      shippingProviderCode?: string | null;
+    },
   ) {
     const order = await this.findById(orderId, user);
     if (
@@ -1126,13 +1135,47 @@ export class OutboundService {
     if (method === ShippingMethod.carrier && !body.shippingProviderCode?.trim()) {
       throw new BadRequestException('shippingProviderCode is required when selecting Shipping Company.');
     }
+    if (method === ShippingMethod.carrier) {
+      assertShippingIntentReady({
+        shippingMethod: method,
+        shippingProviderCode: body.shippingProviderCode,
+      });
+    }
 
     await withTenantRls(this.prisma, user, async (tx) => {
       await tx.outboundOrder.update({
         where: { id: orderId },
         data: {
-          shippingMethod: method,
-          shippingProviderCode: method === ShippingMethod.carrier ? body.shippingProviderCode : null,
+          ...shippingPrismaData({
+            shippingMethod: method,
+            shippingProviderCode:
+              method === ShippingMethod.carrier ? body.shippingProviderCode : null,
+            shippingReceiverLat: body.shippingReceiverLat,
+            shippingReceiverLng: body.shippingReceiverLng,
+            shippingPackageType: body.shippingPackageType,
+            shippingContents: body.shippingContents,
+            shippingDeliveryType: body.shippingDeliveryType,
+            shippingPickupType: body.shippingPickupType,
+            shippingPayer: body.shippingPayer,
+            shippingWeightKg: body.shippingWeightKg,
+            shippingVolumeCbm: body.shippingVolumeCbm,
+            shippingPhoneCountry: body.shippingPhoneCountry,
+            babelNeighbourhoodId: body.babelNeighbourhoodId,
+          }),
+          ...(body.city !== undefined ? { city: body.city?.trim() || null } : {}),
+          ...(body.district !== undefined ? { district: body.district?.trim() || null } : {}),
+          ...(body.addressLine1 !== undefined
+            ? { addressLine1: body.addressLine1?.trim() || null }
+            : {}),
+          ...(body.addressLine2 !== undefined
+            ? { addressLine2: body.addressLine2?.trim() || null }
+            : {}),
+          ...(body.currency !== undefined
+            ? {
+                currency:
+                  body.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+              }
+            : {}),
           status: OutboundOrderStatus.waiting_for_shipping_details,
         },
       });
@@ -1228,9 +1271,23 @@ export class OutboundService {
             shippingVolumeCbm:
               dto.shippingVolumeCbm !== undefined ? dto.shippingVolumeCbm : resolvedVolume,
             shippingPhoneCountry: dto.shippingPhoneCountry,
+            babelNeighbourhoodId: dto.babelNeighbourhoodId,
           }),
           ...(dto.carrier !== undefined ? { carrier: dto.carrier } : {}),
           ...(dto.trackingNumber !== undefined ? { trackingNumber: dto.trackingNumber } : {}),
+          ...(dto.city !== undefined ? { city: dto.city?.trim() || null } : {}),
+          ...(dto.district !== undefined ? { district: dto.district?.trim() || null } : {}),
+          ...(dto.addressLine1 !== undefined
+            ? { addressLine1: dto.addressLine1?.trim() || null }
+            : {}),
+          ...(dto.addressLine2 !== undefined
+            ? { addressLine2: dto.addressLine2?.trim() || null }
+            : {}),
+          ...(dto.currency !== undefined
+            ? {
+                currency: dto.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+              }
+            : {}),
         },
         include: ORDER_INCLUDE,
       });

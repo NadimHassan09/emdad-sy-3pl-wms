@@ -157,7 +157,7 @@ export class OutboundController {
   selectShippingMethod(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
-    @Body() body: { shippingMethod: string; shippingProviderCode?: string },
+    @Body() body: UpdateShippingDetailsDto & { shippingMethod: string },
   ) {
     return this.outbound.selectShippingMethodAdmin(user, id, body);
   }

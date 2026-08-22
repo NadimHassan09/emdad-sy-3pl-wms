@@ -3,16 +3,14 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { OutboundOrder } from '../../api/outbound';
 import { OutboundApi } from '../../api/outbound';
-import {
-  computeSuggestedVolumeCbm,
-  computeSuggestedWeightKg,
-  orderShippingDetailsToPayload,
-  orderShippingFieldsFromApi,
-  type OrderShippingFieldsValue,
-} from '../../api/shipping';
 import { Alert, Button, Card } from '@ds';
 import { ConfirmModal } from '../ConfirmModal';
-import { OrderShippingFields } from '../shipping/OrderShippingFields';
+import { CarrierShippingDetailsForm } from '../shipping/CarrierShippingDetailsForm';
+import {
+  buildCarrierShippingFormFromOrder,
+  carrierFormToSavePayload,
+  type CarrierShippingFormValue,
+} from '../shipping/carrier-shipping-form';
 import { useToast } from '../ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { invalidateWorkflowTasksInventory } from '../../lib/invalidate-wms-queries';
@@ -43,83 +41,23 @@ export function ShippingDetailsStageCard({
   const shipmentCreated = latestShipment?.status === 'created';
   const detailsLocked = shipmentCreated;
 
-  const suggestedWeightKg = useMemo(() => {
-    const lines = (order.lines ?? []).map((l) => ({
-      productId: l.productId,
-      requestedQuantity: l.requestedQuantity,
-    }));
-    const products = (order.lines ?? [])
-      .map((l) => l.product)
-      .filter((p): p is NonNullable<typeof p> => !!p);
-    return computeSuggestedWeightKg(lines, products);
-  }, [order.lines]);
-
-  const suggestedVolumeCbm = useMemo(() => {
-    const lines = (order.lines ?? []).map((l) => ({
-      productId: l.productId,
-      requestedQuantity: l.requestedQuantity,
-    }));
-    const products = (order.lines ?? [])
-      .map((l) => l.product)
-      .filter((p): p is NonNullable<typeof p> => !!p);
-    return computeSuggestedVolumeCbm(lines, products);
-  }, [order.lines]);
-
-  const suggestedContents = useMemo(() => {
-    const names = (order.lines ?? [])
-      .map((l) => l.product?.name)
-      .filter((n): n is string => Boolean(n));
-    return names.length ? names.join(', ') : '';
-  }, [order.lines]);
-
   const [editing, setEditing] = useState(!detailsLocked);
-  const [fields, setFields] = useState<OrderShippingFieldsValue>(() => {
-    const base = orderShippingFieldsFromApi(order);
-    if (!base.shippingContents.trim() && suggestedContents) {
-      base.shippingContents = suggestedContents;
-    }
-    if (!base.shippingWeightKg.trim() && suggestedWeightKg != null) {
-      base.shippingWeightKg = String(suggestedWeightKg);
-    }
-    if (!base.shippingVolumeCbm.trim() && suggestedVolumeCbm != null) {
-      base.shippingVolumeCbm = String(suggestedVolumeCbm);
-    }
-    if (!base.shippingPackageType) {
-      base.shippingPackageType = 'box';
-    }
-    if (!base.shippingPickupType) {
-      base.shippingPickupType = 'hub';
-    }
-    if (!base.shippingDeliveryType) {
-      base.shippingDeliveryType = 'hub';
-    }
-    return base;
-  });
+  const [form, setForm] = useState<CarrierShippingFormValue>(() =>
+    buildCarrierShippingFormFromOrder(order),
+  );
   const [sendOpen, setSendOpen] = useState(false);
 
   useEffect(() => {
-    const base = orderShippingFieldsFromApi(order);
-    if (!base.shippingContents.trim() && suggestedContents) {
-      base.shippingContents = suggestedContents;
-    }
-    if (!base.shippingWeightKg.trim() && suggestedWeightKg != null) {
-      base.shippingWeightKg = String(suggestedWeightKg);
-    }
-    if (!base.shippingVolumeCbm.trim() && suggestedVolumeCbm != null) {
-      base.shippingVolumeCbm = String(suggestedVolumeCbm);
-    }
-    if (!base.shippingPackageType) {
-      base.shippingPackageType = 'box';
-    }
-    if (!base.shippingPickupType) {
-      base.shippingPickupType = 'hub';
-    }
-    if (!base.shippingDeliveryType) {
-      base.shippingDeliveryType = 'hub';
-    }
-    setFields(base);
+    setForm(buildCarrierShippingFormFromOrder(order));
     if (detailsLocked) setEditing(false);
-  }, [order, detailsLocked, suggestedContents, suggestedWeightKg, suggestedVolumeCbm]);
+  }, [order, detailsLocked]);
+
+  const codAmount = useMemo(() => {
+    const raw = order.codAmount;
+    if (raw == null || raw === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }, [order.codAmount]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: [...QK.outboundOrders, order.id] });
@@ -134,7 +72,12 @@ export function ShippingDetailsStageCard({
     mutationFn: () =>
       OutboundApi.saveShippingDetails(
         order.id,
-        orderShippingDetailsToPayload(fields),
+        {
+          ...carrierFormToSavePayload(form),
+          shippingMethod: order.shippingMethod ?? 'carrier',
+          shippingProviderCode:
+            form.shippingProviderCode.trim() || order.shippingProviderCode || null,
+        },
         order.companyId,
       ),
     onSuccess: () => {
@@ -174,6 +117,13 @@ export function ShippingDetailsStageCard({
     allowSendAndComplete &&
     order.status === 'waiting_for_shipping_details' &&
     (!carrierMethod || shipmentCreated);
+
+  const deliveryLabel =
+    order.shippingDeliveryType === 'hub'
+      ? 'Branch delivery'
+      : order.shippingDeliveryType === 'address'
+        ? 'Home delivery'
+        : order.shippingDeliveryType?.trim() || '—';
 
   return (
     <>
@@ -243,7 +193,8 @@ export function ShippingDetailsStageCard({
 
           {carrierMethod && latestShipment?.status === 'failed' ? (
             <Alert variant="error" title="Carrier send failed">
-              {latestShipment.lastErrorSafe?.trim() || 'Submission failed. Fix details and Send again.'}
+              {latestShipment.lastErrorSafe?.trim() ||
+                'Submission failed. Fix details and Send again.'}
             </Alert>
           ) : null}
 
@@ -254,20 +205,14 @@ export function ShippingDetailsStageCard({
             </Alert>
           ) : null}
 
-          {editing && !detailsLocked ? (
-            <OrderShippingFields
-              value={fields}
-              onChange={setFields}
-              showTitle={false}
-              suggestedWeightKg={suggestedWeightKg}
-              suggestedVolumeCbm={suggestedVolumeCbm}
+          {editing && !detailsLocked && carrierMethod ? (
+            <CarrierShippingDetailsForm
+              value={form}
+              onChange={setForm}
               disabled={saveMut.isPending}
-              destination={{
-                governorate: order.city ?? '',
-                city: order.district ?? '',
-                neighborhood: order.addressLine1 ?? '',
-              }}
-              codAmount={order.codAmount != null ? Number(order.codAmount) : null}
+              hideCarrierSelect={Boolean(order.shippingProviderCode)}
+              codAmount={codAmount}
+              showTitle={false}
             />
           ) : (
             <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
@@ -281,27 +226,39 @@ export function ShippingDetailsStageCard({
                   value={order.shippingProviderCode?.trim() || '—'}
                 />
               ) : null}
+              <DetailRow label="Governorate" value={order.city?.trim() || '—'} />
+              <DetailRow label="City / Region" value={order.district?.trim() || '—'} />
+              <DetailRow
+                label="Town / Neighborhood"
+                value={order.addressLine1?.trim() || '—'}
+              />
+              <DetailRow
+                label="Street / Detailed Address"
+                value={order.addressLine2?.trim() || '—'}
+              />
               {carrierMethod ? (
                 <>
+                  <DetailRow
+                    label="Shipment type"
+                    value={
+                      order.shippingPackageType === 'envelope'
+                        ? 'Envelope'
+                        : order.shippingPackageType === 'box'
+                          ? 'Parcel'
+                          : order.shippingPackageType?.trim() || '—'
+                    }
+                  />
                   <DetailRow
                     label="Weight (kg)"
                     value={
                       order.shippingWeightKg != null ? String(order.shippingWeightKg) : '—'
                     }
                   />
+                  <DetailRow label="Delivery" value={deliveryLabel} />
                   <DetailRow
-                    label="Package"
-                    value={order.shippingPackageType?.trim() || '—'}
+                    label="Currency"
+                    value={(order.currency ?? 'USD').trim() || 'USD'}
                   />
-                  <DetailRow
-                    label="Delivery"
-                    value={order.shippingDeliveryType?.trim() || '—'}
-                  />
-                  <DetailRow
-                    label="Pickup"
-                    value={order.shippingPickupType?.trim() || '—'}
-                  />
-                  <DetailRow label="Payer" value={order.shippingPayer?.trim() || '—'} />
                   <DetailRow
                     label="Contents"
                     value={order.shippingContents?.trim() || '—'}

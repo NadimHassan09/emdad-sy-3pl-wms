@@ -3,15 +3,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { OutboundApi } from '../../../api/outbound';
-import {
-  computeSuggestedVolumeCbm,
-  computeSuggestedWeightKg,
-  orderShippingDetailsToPayload,
-  orderShippingFieldsFromApi,
-  type OrderShippingFieldsValue,
-} from '../../../api/shipping';
 import { Alert, Button } from '@ds';
-import { OrderShippingFields } from '../../../components/shipping/OrderShippingFields';
+import { CarrierShippingDetailsForm } from '../../../components/shipping/CarrierShippingDetailsForm';
+import {
+  buildCarrierShippingFormFromOrder,
+  carrierFormToSavePayload,
+  type CarrierShippingFormValue,
+} from '../../../components/shipping/carrier-shipping-form';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { useToast } from '../../../components/ToastProvider';
 import { QK } from '../../../constants/query-keys';
@@ -29,7 +27,6 @@ type Props = {
 };
 
 export function ShippingDetailsExecutionPanel({
-  taskId,
   outboundOrderId,
   companyIdOverride,
   taskStatus,
@@ -53,43 +50,33 @@ export function ShippingDetailsExecutionPanel({
   const shipmentCreated =
     order?.carrierShipments?.some((s) => s.status === 'created') ?? false;
 
-  const suggestedWeightKg = useMemo(() => {
-    if (!order?.lines) return null;
-    return computeSuggestedWeightKg(
-      order.lines.map((l) => ({
-        productId: l.productId,
-        requestedQuantity: l.requestedQuantity,
-      })),
-      order.lines.map((l) => l.product).filter((p): p is NonNullable<typeof p> => !!p),
-    );
-  }, [order?.lines]);
-
-  const suggestedVolumeCbm = useMemo(() => {
-    if (!order?.lines) return null;
-    return computeSuggestedVolumeCbm(
-      order.lines.map((l) => ({
-        productId: l.productId,
-        requestedQuantity: l.requestedQuantity,
-      })),
-      order.lines.map((l) => l.product).filter((p): p is NonNullable<typeof p> => !!p),
-    );
-  }, [order?.lines]);
-
-  const [fields, setFields] = useState<OrderShippingFieldsValue>(
-    orderShippingFieldsFromApi(null),
-  );
+  const [form, setForm] = useState<CarrierShippingFormValue | null>(null);
 
   useEffect(() => {
-    if (order) setFields(orderShippingFieldsFromApi(order));
+    if (order) setForm(buildCarrierShippingFormFromOrder(order));
   }, [order]);
 
+  const codAmount = useMemo(() => {
+    const raw = order?.codAmount;
+    if (raw == null || raw === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }, [order?.codAmount]);
+
   const saveMut = useMutation({
-    mutationFn: () =>
-      OutboundApi.saveShippingDetails(
+    mutationFn: () => {
+      if (!form) throw new Error('Form not ready');
+      return OutboundApi.saveShippingDetails(
         outboundOrderId,
-        orderShippingDetailsToPayload(fields),
+        {
+          ...carrierFormToSavePayload(form),
+          shippingMethod: order?.shippingMethod ?? 'carrier',
+          shippingProviderCode:
+            form.shippingProviderCode.trim() || order?.shippingProviderCode || null,
+        },
         companyIdOverride ?? order?.companyId,
-      ),
+      );
+    },
     onSuccess: () => {
       toast.success(t(['Shipping details saved.', 'تم حفظ تفاصيل الشحن.']));
       qc.invalidateQueries({ queryKey: [...QK.outboundOrders, outboundOrderId] });
@@ -152,22 +139,26 @@ export function ShippingDetailsExecutionPanel({
       ) : null}
 
       <div className="rounded-xl border border-border bg-surface-card p-4 space-y-4">
-        <OrderShippingFields
-          value={fields}
-          onChange={setFields}
-          lockIntent
-          showTitle={false}
-          suggestedWeightKg={suggestedWeightKg}
-          suggestedVolumeCbm={suggestedVolumeCbm}
-          locked={isCompleted || shipmentCreated}
-          disabled={isCompleted || pending}
-          destination={{
-            governorate: order?.city ?? '',
-            city: order?.district ?? '',
-            neighborhood: order?.addressLine1 ?? '',
-          }}
-          codAmount={order?.codAmount != null ? Number(order.codAmount) : null}
-        />
+        {form && carrierMethod ? (
+          <CarrierShippingDetailsForm
+            value={form}
+            onChange={setForm}
+            locked={isCompleted || shipmentCreated}
+            disabled={isCompleted || pending}
+            hideCarrierSelect
+            codAmount={codAmount}
+            showTitle={false}
+          />
+        ) : !carrierMethod ? (
+          <p className="text-sm text-text-muted">
+            {t([
+              'Manual shipping — no carrier form required.',
+              'شحن يدوي — لا يلزم نموذج شركة شحن.',
+            ])}
+          </p>
+        ) : (
+          <p className="text-sm text-text-muted">{t(['Loading…', 'جاري التحميل…'])}</p>
+        )}
 
         {!isCompleted ? (
           <div className="flex flex-wrap gap-2">
@@ -176,7 +167,7 @@ export function ShippingDetailsExecutionPanel({
               variant="secondary"
               size="md"
               loading={saveMut.isPending}
-              disabled={pending || shipmentCreated}
+              disabled={pending || shipmentCreated || !form}
               onClick={() => saveMut.mutate()}
             >
               {t(['Save', 'حفظ'])}
@@ -187,11 +178,11 @@ export function ShippingDetailsExecutionPanel({
                 variant="primary"
                 size="md"
                 loading={busy}
-                disabled={pending}
+                disabled={pending || !form}
                 onClick={() =>
                   submit({
                     task_type: 'shipping_details',
-                    ...orderShippingDetailsToPayload(fields),
+                    ...(form ? carrierFormToSavePayload(form) : {}),
                   })
                 }
               >

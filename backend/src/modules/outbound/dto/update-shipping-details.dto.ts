@@ -88,6 +88,12 @@ export class UpdateShippingDetailsDto {
   @MaxLength(16)
   shippingPhoneCountry?: string | null;
 
+  @EmptyToUndefined()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  babelNeighbourhoodId?: number | null;
+
   /** Optional display/manual carrier label (legacy field). */
   @EmptyToUndefined()
   @IsOptional()
@@ -100,4 +106,35 @@ export class UpdateShippingDetailsDto {
   @IsString()
   @MaxLength(120)
   trackingNumber?: string | null;
+
+  /** Receiver address hierarchy (editable on shipping details). */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  city?: string | null;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  district?: string | null;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  addressLine1?: string | null;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  addressLine2?: string | null;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  currency?: string | null;
 }

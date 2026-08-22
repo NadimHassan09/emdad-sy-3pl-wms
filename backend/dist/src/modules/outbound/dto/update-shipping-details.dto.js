@@ -27,8 +27,14 @@ class UpdateShippingDetailsDto {
     shippingWeightKg;
     shippingVolumeCbm;
     shippingPhoneCountry;
+    babelNeighbourhoodId;
     carrier;
     trackingNumber;
+    city;
+    district;
+    addressLine1;
+    addressLine2;
+    currency;
 }
 exports.UpdateShippingDetailsDto = UpdateShippingDetailsDto;
 __decorate([
@@ -115,6 +121,13 @@ __decorate([
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "babelNeighbourhoodId", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(120),
     __metadata("design:type", Object)
@@ -126,4 +139,39 @@ __decorate([
     (0, class_validator_1.MaxLength)(120),
     __metadata("design:type", Object)
 ], UpdateShippingDetailsDto.prototype, "trackingNumber", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(120),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "city", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(120),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "district", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "addressLine1", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "addressLine2", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(8),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "currency", void 0);
 //# sourceMappingURL=update-shipping-details.dto.js.map

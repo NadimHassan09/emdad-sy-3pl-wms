@@ -70,6 +70,9 @@ const ORDER_INCLUDE = {
                     imagePath: true,
                     weightKg: true,
                     volumeCbm: true,
+                    lengthCm: true,
+                    widthCm: true,
+                    heightCm: true,
                 },
             },
         },
@@ -910,12 +913,44 @@ let OutboundService = class OutboundService {
         if (method === client_1.ShippingMethod.carrier && !body.shippingProviderCode?.trim()) {
             throw new common_1.BadRequestException('shippingProviderCode is required when selecting Shipping Company.');
         }
+        if (method === client_1.ShippingMethod.carrier) {
+            (0, shipping_config_util_1.assertShippingIntentReady)({
+                shippingMethod: method,
+                shippingProviderCode: body.shippingProviderCode,
+            });
+        }
         await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             await tx.outboundOrder.update({
                 where: { id: orderId },
                 data: {
-                    shippingMethod: method,
-                    shippingProviderCode: method === client_1.ShippingMethod.carrier ? body.shippingProviderCode : null,
+                    ...(0, shipping_config_util_1.shippingPrismaData)({
+                        shippingMethod: method,
+                        shippingProviderCode: method === client_1.ShippingMethod.carrier ? body.shippingProviderCode : null,
+                        shippingReceiverLat: body.shippingReceiverLat,
+                        shippingReceiverLng: body.shippingReceiverLng,
+                        shippingPackageType: body.shippingPackageType,
+                        shippingContents: body.shippingContents,
+                        shippingDeliveryType: body.shippingDeliveryType,
+                        shippingPickupType: body.shippingPickupType,
+                        shippingPayer: body.shippingPayer,
+                        shippingWeightKg: body.shippingWeightKg,
+                        shippingVolumeCbm: body.shippingVolumeCbm,
+                        shippingPhoneCountry: body.shippingPhoneCountry,
+                        babelNeighbourhoodId: body.babelNeighbourhoodId,
+                    }),
+                    ...(body.city !== undefined ? { city: body.city?.trim() || null } : {}),
+                    ...(body.district !== undefined ? { district: body.district?.trim() || null } : {}),
+                    ...(body.addressLine1 !== undefined
+                        ? { addressLine1: body.addressLine1?.trim() || null }
+                        : {}),
+                    ...(body.addressLine2 !== undefined
+                        ? { addressLine2: body.addressLine2?.trim() || null }
+                        : {}),
+                    ...(body.currency !== undefined
+                        ? {
+                            currency: body.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+                        }
+                        : {}),
                     status: client_1.OutboundOrderStatus.waiting_for_shipping_details,
                 },
             });
@@ -983,9 +1018,23 @@ let OutboundService = class OutboundService {
                         shippingWeightKg: dto.shippingWeightKg !== undefined ? dto.shippingWeightKg : resolvedWeight,
                         shippingVolumeCbm: dto.shippingVolumeCbm !== undefined ? dto.shippingVolumeCbm : resolvedVolume,
                         shippingPhoneCountry: dto.shippingPhoneCountry,
+                        babelNeighbourhoodId: dto.babelNeighbourhoodId,
                     }),
                     ...(dto.carrier !== undefined ? { carrier: dto.carrier } : {}),
                     ...(dto.trackingNumber !== undefined ? { trackingNumber: dto.trackingNumber } : {}),
+                    ...(dto.city !== undefined ? { city: dto.city?.trim() || null } : {}),
+                    ...(dto.district !== undefined ? { district: dto.district?.trim() || null } : {}),
+                    ...(dto.addressLine1 !== undefined
+                        ? { addressLine1: dto.addressLine1?.trim() || null }
+                        : {}),
+                    ...(dto.addressLine2 !== undefined
+                        ? { addressLine2: dto.addressLine2?.trim() || null }
+                        : {}),
+                    ...(dto.currency !== undefined
+                        ? {
+                            currency: dto.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+                        }
+                        : {}),
                 },
                 include: ORDER_INCLUDE,
             });
