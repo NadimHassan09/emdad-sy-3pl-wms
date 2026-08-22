@@ -163,7 +163,14 @@ const ORDER_INCLUDE = {
     take: 5,
   },
   omsOrder: {
-    select: { id: true, orderNumber: true },
+    select: {
+      id: true,
+      orderNumber: true,
+      babelNeighbourhoodId: true,
+      city: true,
+      district: true,
+      addressLine1: true,
+    },
   },
 } satisfies Prisma.OutboundOrderInclude;
 
@@ -1142,6 +1149,23 @@ export class OutboundService {
       });
     }
 
+    const resolvedCity = body.city?.trim() || order.city?.trim() || null;
+    const resolvedDistrict = body.district?.trim() || order.district?.trim() || null;
+    const resolvedAddressLine1 =
+      body.addressLine1?.trim() || order.addressLine1?.trim() || null;
+    const resolvedBabelNeighbourhoodId =
+      method === ShippingMethod.carrier && this.shipping
+        ? await this.shipping.resolveBabelNeighbourhoodId({
+            existingId:
+              body.babelNeighbourhoodId ??
+              order.babelNeighbourhoodId ??
+              order.omsOrder?.babelNeighbourhoodId,
+            governorate: resolvedCity,
+            cityRegion: resolvedDistrict,
+            townNeighborhood: resolvedAddressLine1,
+          })
+        : body.babelNeighbourhoodId ?? null;
+
     await withTenantRls(this.prisma, user, async (tx) => {
       await tx.outboundOrder.update({
         where: { id: orderId },
@@ -1160,7 +1184,8 @@ export class OutboundService {
             shippingWeightKg: body.shippingWeightKg,
             shippingVolumeCbm: body.shippingVolumeCbm,
             shippingPhoneCountry: body.shippingPhoneCountry,
-            babelNeighbourhoodId: body.babelNeighbourhoodId,
+            babelNeighbourhoodId:
+              resolvedBabelNeighbourhoodId ?? body.babelNeighbourhoodId ?? null,
           }),
           ...(body.city !== undefined ? { city: body.city?.trim() || null } : {}),
           ...(body.district !== undefined ? { district: body.district?.trim() || null } : {}),
@@ -1253,6 +1278,23 @@ export class OutboundService {
         });
       }
 
+      const saveCity = dto.city?.trim() || order.city?.trim() || null;
+      const saveDistrict = dto.district?.trim() || order.district?.trim() || null;
+      const saveAddressLine1 =
+        dto.addressLine1?.trim() || order.addressLine1?.trim() || null;
+      const saveBabelNeighbourhoodId =
+        (order.shippingMethod ?? dto.shippingMethod) === ShippingMethod.carrier && this.shipping
+          ? await this.shipping.resolveBabelNeighbourhoodId({
+              existingId:
+                dto.babelNeighbourhoodId ??
+                order.babelNeighbourhoodId ??
+                order.omsOrder?.babelNeighbourhoodId,
+              governorate: saveCity,
+              cityRegion: saveDistrict,
+              townNeighborhood: saveAddressLine1,
+            })
+          : dto.babelNeighbourhoodId ?? null;
+
       const row = await tx.outboundOrder.update({
         where: { id: orderId },
         data: {
@@ -1271,7 +1313,8 @@ export class OutboundService {
             shippingVolumeCbm:
               dto.shippingVolumeCbm !== undefined ? dto.shippingVolumeCbm : resolvedVolume,
             shippingPhoneCountry: dto.shippingPhoneCountry,
-            babelNeighbourhoodId: dto.babelNeighbourhoodId,
+            babelNeighbourhoodId:
+              saveBabelNeighbourhoodId ?? dto.babelNeighbourhoodId ?? null,
           }),
           ...(dto.carrier !== undefined ? { carrier: dto.carrier } : {}),
           ...(dto.trackingNumber !== undefined ? { trackingNumber: dto.trackingNumber } : {}),
@@ -1339,6 +1382,14 @@ export class OutboundService {
       throw new BadRequestException('Shipping service is unavailable.');
     }
 
+    const babelNeighbourhoodId = await this.shipping.resolveBabelNeighbourhoodId({
+      existingId:
+        order.babelNeighbourhoodId ?? order.omsOrder?.babelNeighbourhoodId ?? null,
+      governorate: order.city,
+      cityRegion: order.district,
+      townNeighborhood: order.addressLine1,
+    });
+
     assertCarrierShippingReady({
       shippingMethod: order.shippingMethod,
       shippingProviderCode: order.shippingProviderCode,
@@ -1350,7 +1401,18 @@ export class OutboundService {
       shippingPickupType: order.shippingPickupType,
       shippingPayer: order.shippingPayer,
       shippingWeightKg: order.shippingWeightKg?.toString() ?? null,
+      babelNeighbourhoodId,
     });
+
+    if (
+      babelNeighbourhoodId != null &&
+      order.babelNeighbourhoodId == null
+    ) {
+      await this.prisma.outboundOrder.update({
+        where: { id: orderId },
+        data: { babelNeighbourhoodId },
+      });
+    }
 
     await this.shipping.assertLiveCarrierSelection({
       fields: {
@@ -1363,6 +1425,7 @@ export class OutboundService {
         shippingPickupType: order.shippingPickupType,
         shippingWeightKg: order.shippingWeightKg?.toString() ?? null,
         shippingVolumeCbm: order.shippingVolumeCbm?.toString() ?? null,
+        babelNeighbourhoodId,
       },
       governorate: order.city,
       city: order.district,

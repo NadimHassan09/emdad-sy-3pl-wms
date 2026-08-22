@@ -30,6 +30,8 @@ export function ShippingMethodStageCard({ order }: Props) {
   const [form, setForm] = useState<CarrierShippingFormValue>(() =>
     buildCarrierShippingFormFromOrder(order),
   );
+  const [quotesRefreshing, setQuotesRefreshing] = useState(false);
+  const [selectedCarrierAvailable, setSelectedCarrierAvailable] = useState(false);
 
   useEffect(() => {
     setForm(buildCarrierShippingFormFromOrder(order));
@@ -85,6 +87,8 @@ export function ShippingMethodStageCard({ order }: Props) {
   const canSubmit =
     method === 'manual' ||
     (method === 'carrier' &&
+      !quotesRefreshing &&
+      selectedCarrierAvailable &&
       form.shippingProviderCode.trim() !== '' &&
       form.city.trim() !== '' &&
       form.district.trim() !== '' &&
@@ -139,7 +143,11 @@ export function ShippingMethodStageCard({ order }: Props) {
 
           <button
             type="button"
-            onClick={() => setMethod('carrier')}
+            onClick={() => {
+              setMethod('carrier');
+              setQuotesRefreshing(true);
+              setSelectedCarrierAvailable(false);
+            }}
             className={[
               'relative rounded-xl border-2 p-4 text-left transition-all',
               method === 'carrier'
@@ -186,6 +194,8 @@ export function ShippingMethodStageCard({ order }: Props) {
               onChange={setForm}
               codAmount={codAmount}
               showTitle
+              onQuotesRefreshingChange={setQuotesRefreshing}
+              onSelectedCarrierAvailableChange={setSelectedCarrierAvailable}
             />
           </div>
         ) : null}
@@ -196,11 +206,20 @@ export function ShippingMethodStageCard({ order }: Props) {
             variant="primary"
             loading={submitMut.isPending}
             disabled={!canSubmit}
+            title={
+              method === 'carrier' && quotesRefreshing
+                ? 'Wait until carrier availability finishes updating.'
+                : method === 'carrier' && !selectedCarrierAvailable
+                  ? 'Select an available shipping company.'
+                  : undefined
+            }
             onClick={() => submitMut.mutate()}
           >
             {method === 'manual'
               ? 'Continue with Manual Shipping'
-              : 'Continue with Selected Carrier'}
+              : quotesRefreshing
+                ? 'Updating carriers…'
+                : 'Continue with Selected Carrier'}
           </Button>
         </div>
       </Card.Body>

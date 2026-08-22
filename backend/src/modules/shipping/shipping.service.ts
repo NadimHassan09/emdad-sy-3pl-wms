@@ -243,6 +243,10 @@ export class ShippingService {
             available: true,
             price: result.price,
             currency: result.currency || 'USD',
+            prices:
+              result.prices && result.prices.length > 0
+                ? result.prices
+                : [{ price: result.price, currency: result.currency || 'USD' }],
             estimatedDeliveryMin: result.estimatedDeliveryMin,
             estimatedDeliveryMax: result.estimatedDeliveryMax,
             deliveryType: quotedDeliveryType,
@@ -272,6 +276,29 @@ export class ShippingService {
       if (first) this.rateCache.delete(first);
     }
     return result;
+  }
+
+  /**
+   * Resolve Babel neighbourhood id from stored id or unified address hierarchy names.
+   */
+  async resolveBabelNeighbourhoodId(input: {
+    existingId?: number | string | null;
+    governorate?: string | null;
+    cityRegion?: string | null;
+    townNeighborhood?: string | null;
+  }): Promise<number | null> {
+    const existing =
+      input.existingId != null && input.existingId !== ''
+        ? Number(input.existingId)
+        : null;
+    if (existing != null && Number.isFinite(existing) && existing > 0) {
+      return existing;
+    }
+    return this.babelAddress.resolveNeighbourhoodId({
+      governorate: input.governorate,
+      cityRegion: input.cityRegion,
+      townNeighborhood: input.townNeighborhood,
+    });
   }
 
   /**
@@ -313,9 +340,21 @@ export class ShippingService {
       }
     }
 
+    const neighbourhoodId = await this.resolveBabelNeighbourhoodId({
+      existingId: params.fields.babelNeighbourhoodId,
+      governorate: params.governorate,
+      cityRegion: params.city,
+      townNeighborhood: params.neighborhood,
+    });
+    const hasBabelHood = neighbourhoodId != null;
+    const hasAddressNames = Boolean(
+      params.governorate?.trim() && params.city?.trim() && params.neighborhood?.trim(),
+    );
+    const hasDestination = hasBabelHood || hasCoords || hasAddressNames;
+
     const weight = Number(params.fields.shippingWeightKg);
     const canQuote =
-      hasCoords &&
+      hasDestination &&
       !!params.fields.shippingPackageType &&
       !!params.fields.shippingDeliveryType &&
       Number.isFinite(weight) &&
@@ -324,7 +363,7 @@ export class ShippingService {
     if (!canQuote) {
       if (params.requireQuote) {
         throw new BadRequestException(
-          'Receiver location, package type, weight, and delivery type are required to confirm the shipping company.',
+          'Shipping address (Governorate / City / Town), package type, weight, and delivery type are required to confirm the shipping company.',
         );
       }
       return;
@@ -334,8 +373,9 @@ export class ShippingService {
       const { credentials } = await this.requireConnectedCredentials(code);
       const adapter = this.registry.get(code);
       await adapter.getQuote(credentials, {
-        receiverLat: lat,
-        receiverLng: lng,
+        receiverLat: hasCoords ? lat : 0,
+        receiverLng: hasCoords ? lng : 0,
+        neighbourhoodId: neighbourhoodId ?? undefined,
         packageType: params.fields.shippingPackageType as 'box' | 'envelope',
         weightKg: params.fields.shippingPackageType === 'envelope' ? 1 : weight,
         deliveryType: params.fields.shippingDeliveryType as 'address' | 'hub',
@@ -606,6 +646,13 @@ export class ShippingService {
     }
 
     try {
+      const babelNeighbourhoodId = await this.resolveBabelNeighbourhoodId({
+        existingId:
+          order.babelNeighbourhoodId ?? order.omsOrder?.babelNeighbourhoodId ?? null,
+        governorate: order.city ?? order.omsOrder?.city,
+        cityRegion: order.district ?? order.omsOrder?.district,
+        townNeighborhood: order.addressLine1 ?? order.omsOrder?.addressLine1,
+      });
       assertCarrierShippingReady({
         shippingMethod: order.shippingMethod,
         shippingProviderCode: order.shippingProviderCode,
@@ -617,8 +664,7 @@ export class ShippingService {
         shippingPickupType: order.shippingPickupType,
         shippingPayer: order.shippingPayer,
         shippingWeightKg: order.shippingWeightKg?.toString() ?? null,
-        babelNeighbourhoodId:
-          order.babelNeighbourhoodId ?? order.omsOrder?.babelNeighbourhoodId ?? null,
+        babelNeighbourhoodId,
       });
     } catch (err) {
       await this.persistFailedShipment({
@@ -744,7 +790,7 @@ export class ShippingService {
     const babelNeighbourhoodId =
       order.babelNeighbourhoodId ??
       order.omsOrder?.babelNeighbourhoodId ??
-      (await this.babelAddress.resolveNeighbourhoodId({
+      (await this.resolveBabelNeighbourhoodId({
         governorate: order.city ?? order.omsOrder?.city,
         cityRegion: order.district ?? order.omsOrder?.district,
         townNeighborhood: order.addressLine1 ?? order.omsOrder?.addressLine1,

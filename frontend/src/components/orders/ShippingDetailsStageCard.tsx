@@ -46,9 +46,14 @@ export function ShippingDetailsStageCard({
     buildCarrierShippingFormFromOrder(order),
   );
   const [sendOpen, setSendOpen] = useState(false);
+  const [quotesRefreshing, setQuotesRefreshing] = useState(false);
+  const [selectedCarrierAvailable, setSelectedCarrierAvailable] = useState(() =>
+    Boolean(order.shippingProviderCode?.trim()),
+  );
 
   useEffect(() => {
     setForm(buildCarrierShippingFormFromOrder(order));
+    setSelectedCarrierAvailable(Boolean(order.shippingProviderCode?.trim()));
     if (detailsLocked) setEditing(false);
   }, [order, detailsLocked]);
 
@@ -125,6 +130,11 @@ export function ShippingDetailsStageCard({
         ? 'Home delivery'
         : order.shippingDeliveryType?.trim() || '—';
 
+  const canSaveEdit =
+    !quotesRefreshing &&
+    form.shippingProviderCode.trim() !== '' &&
+    selectedCarrierAvailable;
+
   return (
     <>
       <Card padding="none">
@@ -147,9 +157,19 @@ export function ShippingDetailsStageCard({
                 variant="secondary"
                 size="sm"
                 loading={saveMut.isPending}
+                disabled={!canSaveEdit}
+                title={
+                  quotesRefreshing
+                    ? 'Wait until carrier availability finishes updating.'
+                    : !form.shippingProviderCode.trim()
+                      ? 'Select an available shipping company.'
+                      : !selectedCarrierAvailable
+                        ? 'Selected carrier is not available for the current details.'
+                        : undefined
+                }
                 onClick={() => saveMut.mutate()}
               >
-                Save
+                {quotesRefreshing ? 'Updating carriers…' : 'Save'}
               </Button>
             ) : null}
             {canSend ? (
@@ -210,9 +230,10 @@ export function ShippingDetailsStageCard({
               value={form}
               onChange={setForm}
               disabled={saveMut.isPending}
-              hideCarrierSelect={Boolean(order.shippingProviderCode)}
               codAmount={codAmount}
               showTitle={false}
+              onQuotesRefreshingChange={setQuotesRefreshing}
+              onSelectedCarrierAvailableChange={setSelectedCarrierAvailable}
             />
           ) : (
             <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">

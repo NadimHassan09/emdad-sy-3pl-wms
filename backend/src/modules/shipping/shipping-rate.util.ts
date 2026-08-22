@@ -6,6 +6,8 @@ export type ShippingRateQuote = {
   available: boolean;
   price: number;
   currency: string;
+  /** When the provider returns multiple currencies; UI shows USD then SYP. */
+  prices?: Array<{ price: number; currency: string }>;
   estimatedDeliveryMin?: number;
   estimatedDeliveryMax?: number;
   deliveryType?: string;

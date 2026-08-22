@@ -100,6 +100,20 @@ describe('shipping-config.util', () => {
         shippingWeightKg: 1.5,
       }),
     ).not.toThrow();
+
+    expect(() =>
+      assertCarrierShippingReady({
+        shippingMethod: ShippingMethod.carrier,
+        shippingProviderCode: 'BABEL_EXPRESS',
+        babelNeighbourhoodId: 12345,
+        shippingPackageType: 'box',
+        shippingContents: 'Goods',
+        shippingDeliveryType: 'address',
+        shippingPickupType: 'hub',
+        shippingPayer: 'sender',
+        shippingWeightKg: 1.5,
+      }),
+    ).not.toThrow();
   });
 
   it('rejects absurd Babel box weights (common COD/amount mix-up)', () => {

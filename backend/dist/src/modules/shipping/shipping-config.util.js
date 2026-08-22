@@ -63,7 +63,7 @@ function assertCarrierShippingReady(fields) {
     const lng = fields.shippingReceiverLng != null ? Number(fields.shippingReceiverLng) : NaN;
     const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
     if (!hasBabelHood && !hasCoords) {
-        throw new common_1.BadRequestException('Babel neighbourhood id or receiver lat/lng is required when shipping via a carrier.');
+        throw new common_1.BadRequestException('Babel neighbourhood id (resolved from Governorate / City / Town) or receiver lat/lng is required when shipping via a carrier.');
     }
     if (!fields.shippingPackageType) {
         throw new common_1.BadRequestException('shippingPackageType is required when shipping via a carrier.');

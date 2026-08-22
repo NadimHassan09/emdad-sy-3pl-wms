@@ -59,6 +59,8 @@ export type ShippingQuoteInput = {
 export type ShippingQuoteResult = {
   price: number;
   currency: string;
+  /** Optional multi-currency amounts from the provider API. */
+  prices?: Array<{ price: number; currency: string }>;
   details?: unknown;
   /** When the carrier adjusts delivery mode (e.g. address unavailable → hub). */
   effectiveDeliveryType?: 'address' | 'hub';

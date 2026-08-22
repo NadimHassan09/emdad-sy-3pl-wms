@@ -54,6 +54,11 @@ export type BabelGeoNeighbourhood = {
   syncedAt?: string;
 };
 
+export type ShippingRatePrice = {
+  price: number;
+  currency: string;
+};
+
 export type ShippingRateQuote = {
   carrierId: string;
   carrierName: string;
@@ -62,6 +67,11 @@ export type ShippingRateQuote = {
   available: boolean;
   price: number;
   currency: string;
+  /**
+   * When the provider API returns multiple currencies, list them here.
+   * UI shows USD first, then SYP. If omitted, `price` + `currency` are used.
+   */
+  prices?: ShippingRatePrice[];
   estimatedDeliveryMin?: number;
   estimatedDeliveryMax?: number;
   deliveryType?: string;

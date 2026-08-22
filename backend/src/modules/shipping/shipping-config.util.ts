@@ -88,7 +88,7 @@ export function assertCarrierShippingReady(fields: ShippingConfigFields): void {
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
   if (!hasBabelHood && !hasCoords) {
     throw new BadRequestException(
-      'Babel neighbourhood id or receiver lat/lng is required when shipping via a carrier.',
+      'Babel neighbourhood id (resolved from Governorate / City / Town) or receiver lat/lng is required when shipping via a carrier.',
     );
   }
   if (!fields.shippingPackageType) {

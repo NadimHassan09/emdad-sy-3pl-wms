@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 
 import { ShippingApi } from '../../api/shipping';
 import { QK } from '../../constants/query-keys';
@@ -27,7 +27,18 @@ type Props = {
   hideCarrierSelect?: boolean;
   codAmount?: number | null;
   showTitle?: boolean;
+  /**
+   * Fires whenever carrier quote refresh state changes.
+   * Parents must disable Continue / Save while true.
+   */
+  onQuotesRefreshingChange?: (refreshing: boolean) => void;
+  /** Selected carrier is still available for the latest settled quotes. */
+  onSelectedCarrierAvailableChange?: (available: boolean) => void;
 };
+
+function stableRateKey(params: Record<string, unknown>): string {
+  return JSON.stringify(params);
+}
 
 function patch(
   value: CarrierShippingFormValue,
@@ -94,8 +105,12 @@ export function CarrierShippingDetailsForm({
   hideCarrierSelect = false,
   codAmount = null,
   showTitle = true,
+  onQuotesRefreshingChange,
+  onSelectedCarrierAvailableChange,
 }: Props) {
   const readOnly = locked || disabled;
+  /** Ignore late responses from superseded quote requests. */
+  const quoteRequestIdRef = useRef(0);
 
   const providersQuery = useQuery({
     queryKey: QK.shipping.providers,
@@ -117,15 +132,14 @@ export function CarrierShippingDetailsForm({
     city: value.district.trim(),
     neighborhood: value.addressLine1.trim(),
   };
-  const debouncedDest = useDebounced(destKey, 400);
-  const hasDestination = Boolean(
-    debouncedDest.governorate && debouncedDest.city && debouncedDest.neighborhood,
+  const inputsHaveDestination = Boolean(
+    destKey.governorate && destKey.city && destKey.neighborhood,
   );
 
   const quoteWeight =
     value.packageType === 'envelope' ? Math.max(weightKg, 1) : Math.max(weightKg, 0.001);
-  const ratesReady =
-    hasDestination &&
+  const inputsReady =
+    inputsHaveDestination &&
     Number.isFinite(quoteWeight) &&
     quoteWeight > 0 &&
     Boolean(value.packageType) &&
@@ -144,11 +158,24 @@ export function CarrierShippingDetailsForm({
     currency: value.currency,
   };
   const debouncedRates = useDebounced(rateParams, 600);
+  const rateParamsKey = stableRateKey(rateParams);
+  const debouncedRatesKey = stableRateKey(debouncedRates);
+  const paramsPending = rateParamsKey !== debouncedRatesKey;
+
+  const debouncedReady =
+    Boolean(
+      debouncedRates.governorate && debouncedRates.city && debouncedRates.neighborhood,
+    ) &&
+    Number.isFinite(debouncedRates.weightKg) &&
+    debouncedRates.weightKg > 0 &&
+    Boolean(debouncedRates.packageType) &&
+    Boolean(debouncedRates.deliveryType);
 
   const ratesQuery = useQuery({
     queryKey: QK.shipping.rates(debouncedRates as unknown as Record<string, unknown>),
-    queryFn: () =>
-      ShippingApi.quoteRates({
+    queryFn: async ({ signal }) => {
+      const requestId = quoteRequestIdRef.current;
+      const result = await ShippingApi.quoteRates({
         packageType: debouncedRates.packageType,
         weightKg: debouncedRates.weightKg,
         deliveryType: debouncedRates.deliveryType,
@@ -160,13 +187,49 @@ export function CarrierShippingDetailsForm({
         ...(debouncedRates.codAmount != null && Number.isFinite(debouncedRates.codAmount)
           ? { codAmount: debouncedRates.codAmount }
           : {}),
-      }),
-    enabled: ratesReady,
-    staleTime: 30_000,
+      });
+      if (signal.aborted || requestId !== quoteRequestIdRef.current) {
+        throw new DOMException('Quote request superseded', 'AbortError');
+      }
+      return result;
+    },
+    enabled: debouncedReady && !paramsPending,
+    staleTime: 0,
+    gcTime: 30_000,
+    placeholderData: undefined,
+    retry: (failureCount, error) => {
+      if (error instanceof DOMException && error.name === 'AbortError') return false;
+      return failureCount < 1;
+    },
   });
 
-  const quotes = ratesQuery.data?.quotes ?? [];
-  const rateErrors = ratesQuery.data?.errors ?? [];
+  // Invalidate in-flight quote results as soon as live form inputs change.
+  useEffect(() => {
+    quoteRequestIdRef.current += 1;
+  }, [rateParamsKey]);
+
+  const isRefreshingCarrierQuotes =
+    !hideCarrierSelect &&
+    inputsReady &&
+    (paramsPending || ratesQuery.isFetching || ratesQuery.isPending);
+
+  const quotes =
+    isRefreshingCarrierQuotes || !ratesQuery.isSuccess ? [] : (ratesQuery.data?.quotes ?? []);
+  const rateErrors =
+    isRefreshingCarrierQuotes || !ratesQuery.isSuccess ? [] : (ratesQuery.data?.errors ?? []);
+
+  const selectedAvailable = Boolean(
+    value.shippingProviderCode &&
+      quotes.some((q) => q.carrierId === value.shippingProviderCode),
+  );
+
+  useEffect(() => {
+    onQuotesRefreshingChange?.(isRefreshingCarrierQuotes);
+  }, [isRefreshingCarrierQuotes, onQuotesRefreshingChange]);
+
+  useEffect(() => {
+    onSelectedCarrierAvailableChange?.(selectedAvailable);
+  }, [selectedAvailable, onSelectedCarrierAvailableChange]);
 
   useEffect(() => {
     if (readOnly || hideCarrierSelect) return;
@@ -179,6 +242,7 @@ export function CarrierShippingDetailsForm({
   }, [connectedProviders, value.shippingProviderCode, readOnly, hideCarrierSelect]);
 
   const handleSelectCarrier = (carrierId: string) => {
+    if (isRefreshingCarrierQuotes) return;
     const nextCurrency = currencyAfterCarrierSelect(carrierId);
     onChange(
       patch(value, {
@@ -189,8 +253,8 @@ export function CarrierShippingDetailsForm({
   };
 
   let emptyHint: string | null = null;
-  if (!ratesQuery.isFetching) {
-    if (!hasDestination) {
+  if (!isRefreshingCarrierQuotes) {
+    if (!inputsHaveDestination) {
       emptyHint =
         'Complete Governorate, City/Region, and Town/Neighborhood to calculate carrier rates.';
     } else if (!(weightKg > 0) && value.packageType !== 'envelope') {
@@ -404,8 +468,8 @@ export function CarrierShippingDetailsForm({
           errors={rateErrors}
           selectedCarrierId={value.shippingProviderCode}
           onSelect={handleSelectCarrier}
-          loading={ratesQuery.isFetching}
-          disabled={readOnly}
+          loading={isRefreshingCarrierQuotes}
+          disabled={readOnly || isRefreshingCarrierQuotes}
           emptyHint={emptyHint}
           providersLoading={providersQuery.isLoading}
           preferredCurrency={value.currency}
