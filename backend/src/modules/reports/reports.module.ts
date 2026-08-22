@@ -11,6 +11,7 @@ import { ReportsCacheService } from './reports-cache.service';
 import { ReportsController } from './reports.controller';
 import { ReportsPolicyConfig } from './reports-policy.config';
 import { FinanceReportsRunner } from './finance-reports.runner';
+import { OmsReportsRunner } from './oms-reports.runner';
 import { InventoryIntelligenceReportsRunner } from './inventory-intelligence-reports.runner';
 import { OperationalReportsRunner } from './operational-reports.runner';
 import { ReportsService } from './reports.service';
@@ -33,6 +34,7 @@ import { ReportsService } from './reports.service';
     OperationalReportsRunner,
     InventoryIntelligenceReportsRunner,
     FinanceReportsRunner,
+    OmsReportsRunner,
   ],
   exports: [ReportsService, ReportsFrameworkService],
 })

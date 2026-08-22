@@ -1,0 +1,59 @@
+import { Skeleton } from './Skeleton';
+
+/**
+ * PageLoadFallback — full-content-area skeleton shown while a lazy route
+ * chunk is downloading. The AppShell (topbar + sidebar) is already rendered;
+ * this fills the `<main>` scroll area with plausible page structure.
+ *
+ * Used as the `fallback` prop of every React.Suspense boundary wrapping
+ * lazy-loaded route elements.
+ */
+export function PageLoadFallback() {
+  return (
+    <div className="p-3 sm:p-4 space-y-3 animate-pulse">
+      {/* Page header skeleton */}
+      <div className="pb-3 mb-2 border-b border-border-subtle space-y-1.5">
+        <Skeleton height={20} width="32%" />
+        <Skeleton height={11} width="52%" />
+      </div>
+
+      {/* Toolbar / filter bar skeleton */}
+      <div className="flex gap-2">
+        <Skeleton height={28} width="200px" shape="pill" />
+        <Skeleton height={28} width="110px" shape="pill" />
+        <Skeleton height={28} width="90px" shape="pill" className="ms-auto" />
+      </div>
+
+      {/* Table skeleton: header row + 8 data rows */}
+      <div className="rounded-card border border-border overflow-hidden shadow-sm">
+        {/* Table header */}
+        <div className="flex gap-3 px-3 py-1.5 bg-surface-card-muted border-b border-border">
+          {[150, 120, 80, 140, 90, 100].map((w, i) => (
+            <Skeleton key={i} height={12} width={w} />
+          ))}
+        </div>
+        {/* Table rows */}
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex gap-3 px-3 py-2 border-b border-border-subtle last:border-0"
+            style={{ opacity: Math.max(1 - i * 0.08, 0.4) }}
+          >
+            {[150, 120, 80, 140, 90, 100].map((w, j) => (
+              <Skeleton key={j} height={14} width={w} />
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Pagination skeleton */}
+      <div className="flex items-center justify-between pt-1">
+        <Skeleton height={13} width="120px" />
+        <div className="flex gap-2">
+          <Skeleton height={30} width="80px" shape="pill" />
+          <Skeleton height={30} width="80px" shape="pill" />
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -175,11 +175,11 @@ export function CycleCountExecutePage() {
   }
 
   if (taskQuery.isLoading) {
-    return <p className="text-sm text-slate-500">{t('Loading…', 'جاري التحميل…')}</p>;
+    return <p className="text-sm text-text-muted">{t('Loading…', 'جاري التحميل…')}</p>;
   }
 
   if (!task) {
-    return <p className="text-sm text-red-600">{t('Task not found.', 'المهمة غير موجودة.')}</p>;
+    return <p className="text-sm text-status-danger-fg">{t('Task not found.', 'المهمة غير موجودة.')}</p>;
   }
 
   const busy = countLineMut.isPending || skipMut.isPending || finishMut.isPending;
@@ -196,15 +196,15 @@ export function CycleCountExecutePage() {
         }
       />
 
-      <div className="mb-4 rounded-lg border border-slate-200 bg-white p-3">
+      <div className="sticky top-0 z-sticky mb-4 rounded-lg border border-border bg-surface-card/95 p-3 backdrop-blur-sm">
         <div className="mb-2 flex items-center justify-between text-sm">
           <StatusBadge status={task.status} />
-          <span className="font-mono text-xs text-slate-600">{progressPct}%</span>
+          <span className="font-mono text-xs text-text-body">{progressPct}%</span>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-          <div className="h-full bg-emerald-600 transition-all" style={{ width: `${progressPct}%` }} />
+        <div className="h-2 overflow-hidden rounded-full bg-surface-card-muted">
+          <div className="h-full bg-cta transition-all" style={{ width: `${progressPct}%` }} />
         </div>
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-text-muted">
           {t('Blind count — expected quantities are hidden.', 'جرد أعمى — الكميات المتوقعة مخفية.')}
         </p>
       </div>
@@ -216,20 +216,20 @@ export function CycleCountExecutePage() {
       </div>
 
       {activeProduct && activeLine ? (
-        <div className="mb-4 rounded-lg border-2 border-slate-800 bg-white p-4 shadow-sm">
-          <div className="mb-1 text-xs uppercase tracking-wide text-slate-500">{t('Product', 'المنتج')}</div>
-          <div className="text-lg font-semibold text-slate-900">{activeProduct.name}</div>
-          <div className="font-mono text-sm text-slate-600">{activeProduct.sku}</div>
+        <div className="mb-4 rounded-lg border-2 border-border-strong bg-surface-card p-4 text-text-strong shadow-sm">
+          <div className="mb-1 text-xs uppercase tracking-wide text-text-muted">{t('Product', 'المنتج')}</div>
+          <div className="text-lg font-semibold text-text-strong">{activeProduct.name}</div>
+          <div className="font-mono text-sm text-text-body">{activeProduct.sku}</div>
           {activeProduct.barcode ? (
-            <div className="mt-1 font-mono text-xs text-slate-500">{activeProduct.barcode}</div>
+            <div className="mt-1 font-mono text-xs text-text-muted">{activeProduct.barcode}</div>
           ) : null}
 
-          <div className="mt-4 border-t border-slate-100 pt-3">
-            <div className="text-xs uppercase text-slate-500">{t('Location', 'الموقع')}</div>
+          <div className="mt-4 border-t border-border-subtle pt-3">
+            <div className="text-xs uppercase text-text-muted">{t('Location', 'الموقع')}</div>
             <div className="font-mono text-sm font-medium">{activeLine.location.fullPath}</div>
-            <div className="font-mono text-[11px] text-slate-500">{activeLine.location.barcode}</div>
+            <div className="font-mono text-[11px] text-text-muted">{activeLine.location.barcode}</div>
             {activeLine.lot ? (
-              <div className="mt-1 text-xs text-slate-600">
+              <div className="mt-1 text-xs text-text-body">
                 {t('Lot', 'دفعة')}: {activeLine.lot.lotNumber}
               </div>
             ) : null}
@@ -258,33 +258,33 @@ export function CycleCountExecutePage() {
               />
             </div>
           ) : (
-            <div className="mt-4 text-sm text-slate-600">
+            <div className="mt-4 text-sm text-text-body">
               {t('Counted', 'معد')}:{' '}
               <span className="font-mono font-semibold">{activeLine.actualQuantity ?? '—'}</span>
             </div>
           )}
         </div>
       ) : (
-        <p className="text-sm text-emerald-700">{t('All locations counted.', 'تم عد كل المواقع.')}</p>
+        <p className="text-sm text-brand-700">{t('All locations counted.', 'تم عد كل المواقع.')}</p>
       )}
 
       <section className="mt-6">
-        <h2 className="mb-2 text-sm font-semibold text-slate-800">{t('Products', 'المنتجات')}</h2>
-        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+        <h2 className="mb-2 text-sm font-semibold text-text-strong">{t('Products', 'المنتجات')}</h2>
+        <ul className="divide-y divide-border-subtle rounded-lg border border-border bg-surface-card">
           {products.map((p) => (
             <li key={p.productId}>
               <button
                 type="button"
-                className={`flex w-full items-center justify-between px-3 py-3 text-left hover:bg-slate-50 ${
-                  activeProduct?.productId === p.productId ? 'bg-slate-50' : ''
+                className={`flex w-full items-center justify-between px-3 py-3 text-left hover:bg-surface-hover ${
+                  activeProduct?.productId === p.productId ? 'bg-surface-card-muted' : ''
                 }`}
                 onClick={() => setActiveProductId(p.productId)}
               >
                 <div>
                   <div className="font-medium text-sm">{p.name}</div>
-                  <div className="font-mono text-[11px] text-slate-500">{p.sku}</div>
+                  <div className="font-mono text-[11px] text-text-muted">{p.sku}</div>
                 </div>
-                <span className="font-mono text-xs text-slate-600">
+                <span className="font-mono text-xs text-text-body">
                   {p.completedCount}/{p.locations.length}
                 </span>
               </button>
@@ -293,7 +293,7 @@ export function CycleCountExecutePage() {
         </ul>
       </section>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg sm:static sm:mt-6 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-surface-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-lg sm:static sm:mt-6 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
         <div className="mx-auto flex max-w-3xl gap-2">
           {activeLine?.status === 'pending' ? (
             <>

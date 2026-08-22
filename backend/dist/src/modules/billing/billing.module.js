@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BillingModule = void 0;
 const common_1 = require("@nestjs/common");
 const audit_module_1 = require("../../common/audit/audit.module");
+const pdf_module_1 = require("../../pdf/pdf.module");
 const realtime_module_1 = require("../realtime/realtime.module");
 const billing_access_service_1 = require("./billing-access.service");
 const billing_audit_service_1 = require("./billing-audit.service");
@@ -25,12 +26,13 @@ const billing_invoices_service_1 = require("./billing-invoices.service");
 const billing_plans_service_1 = require("./billing-plans.service");
 const billing_usage_processor_service_1 = require("./billing-usage-processor.service");
 const billing_usage_service_1 = require("./billing-usage.service");
+const order_manual_charges_service_1 = require("./order-manual-charges.service");
 let BillingModule = class BillingModule {
 };
 exports.BillingModule = BillingModule;
 exports.BillingModule = BillingModule = __decorate([
     (0, common_1.Module)({
-        imports: [audit_module_1.AuditModule, realtime_module_1.RealtimeModule],
+        imports: [audit_module_1.AuditModule, realtime_module_1.RealtimeModule, pdf_module_1.PdfModule],
         controllers: [billing_controller_1.BillingController],
         providers: [
             billing_audit_service_1.BillingAuditService,
@@ -48,6 +50,7 @@ exports.BillingModule = BillingModule = __decorate([
             billing_dashboard_service_1.BillingDashboardService,
             billing_notifications_service_1.BillingNotificationsService,
             billing_expiry_reminder_service_1.BillingExpiryReminderService,
+            order_manual_charges_service_1.OrderManualChargesService,
         ],
         exports: [
             billing_access_service_1.BillingAccessService,
@@ -57,6 +60,7 @@ exports.BillingModule = BillingModule = __decorate([
             billing_cycles_service_1.BillingCyclesService,
             billing_invoices_service_1.BillingInvoicesService,
             billing_usage_service_1.BillingUsageService,
+            order_manual_charges_service_1.OrderManualChargesService,
         ],
     })
 ], BillingModule);

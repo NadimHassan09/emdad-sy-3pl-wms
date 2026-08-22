@@ -13,3 +13,8 @@ function randomToken(length: number): string {
 export function generateSku(): string {
   return `SKU-${randomToken(6)}-${Date.now().toString(36).toUpperCase()}`;
 }
+
+/** Mirrors backend `generateBarcodeCandidate` for instant UI feedback before create. */
+export function generateBarcode(): string {
+  return `BCN-${randomToken(8)}-${Date.now().toString(36).toUpperCase()}`;
+}

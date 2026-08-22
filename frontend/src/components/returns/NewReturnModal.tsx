@@ -129,7 +129,7 @@ export function NewReturnModal({
   const productOptionsFromOutbound = useMemo(() => {
     const ob = outboundDetail.data;
     if (!ob) return [];
-    return ob.lines.map((l) => {
+    return (ob.lines ?? []).map((l) => {
       const q = quotaByLineId.get(l.id);
       const remaining = q?.remaining ?? Number(l.pickedQuantity);
       return {
@@ -180,7 +180,7 @@ export function NewReturnModal({
           return;
         }
         seenOutbound.add(row.outboundOrderLineId);
-        const obLine = outboundDetail.data?.lines.find((l) => l.id === row.outboundOrderLineId);
+        const obLine = outboundDetail.data?.lines?.find((l) => l.id === row.outboundOrderLineId);
         if (!obLine) continue;
         const max = quotaByLineId.get(obLine.id)?.remaining ?? Number(obLine.pickedQuantity);
         if (qty > max) {
@@ -231,7 +231,7 @@ export function NewReturnModal({
     >
       <div className="space-y-4 p-4">
         {!warehouseId ? (
-          <p className="text-sm text-amber-800">{t('Warehouse not resolved.', 'المستودع غير محدد.')}</p>
+          <p className="text-sm text-status-warning-fg">{t('Warehouse not resolved.', 'المستودع غير محدد.')}</p>
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -269,7 +269,7 @@ export function NewReturnModal({
         />
 
         {outboundId && outboundQuota.data ? (
-          <p className="rounded-md border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-sky-950">
+          <p className="rounded-md border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-text-strong dark:border-brand-800 dark:bg-brand-950/40">
             {t(
               'Quantities are capped by shipped minus prior returns on this outbound.',
               'الكميات محدودة بالمشحون ناقص الإرجاعات السابقة على هذا الصادر.',
@@ -279,7 +279,7 @@ export function NewReturnModal({
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-800">{t('Products', 'المنتجات')}</h3>
+            <h3 className="text-sm font-semibold text-text-strong">{t('Products', 'المنتجات')}</h3>
             <Button
               variant="ghost"
               className="!px-2 !py-1 text-xs"
@@ -291,7 +291,7 @@ export function NewReturnModal({
           </div>
 
           {lines.map((row, idx) => (
-            <div key={idx} className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-12">
+            <div key={idx} className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-12">
               {outboundId ? (
                 <div className="sm:col-span-7">
                   <Combobox

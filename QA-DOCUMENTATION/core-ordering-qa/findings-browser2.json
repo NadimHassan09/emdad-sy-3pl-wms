@@ -1,0 +1,27 @@
+[
+  {
+    "id": "INV-CLIENT-DETAIL-DIRECT",
+    "status": "FAIL",
+    "detail": "Client INV-2026-00010 detail: omsTable=false aggregates=true. Has line types: sub=true inbound=true outbound=true"
+  },
+  {
+    "id": "OMS-CLIENT-DETAIL",
+    "status": "PASS",
+    "detail": "Client detail cues: status/COD/qty present=true"
+  },
+  {
+    "id": "INV-ADMIN-DETAIL-DIRECT",
+    "status": "PASS",
+    "detail": "Admin INV-2026-00010: omsTable=true grand70=false subscription=true"
+  },
+  {
+    "id": "OUT-ADMIN-DETAIL",
+    "status": "PARTIAL",
+    "detail": "OUT-2026-00374 not on first list page"
+  },
+  {
+    "id": "SHIP-COMPANIES-UI",
+    "status": "PASS",
+    "detail": "Shipping companies UI shows Babel connected=true"
+  }
+]

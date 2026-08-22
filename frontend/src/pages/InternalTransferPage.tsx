@@ -3,9 +3,10 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { CompaniesApi } from '../api/companies';
-import { InventoryApi, LedgerRow, StockRow } from '../api/inventory';
-import { LocationsApi } from '../api/locations';
+import { InventoryApi, LedgerRow } from '../api/inventory';
+import type { Location } from '../api/locations';
 import { ProductsApi, type ProductListQuery } from '../api/products';
+import { AdjustmentStockLocationPicker } from '../components/locations/AdjustmentStockLocationPicker';
 import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
 import { ADJUSTMENT_CANCEL_BUTTON_CLASS } from '../components/adjustments/adjustment-button-styles';
@@ -15,11 +16,20 @@ import { Column, DataTable } from '../components/DataTable';
 import { Modal } from '../components/Modal';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
+import { WedgeScanField } from '../components/WedgeScanField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
+import { useResolvedLocations } from '../hooks/useResolvedLocations';
 import { fmtLedgerQty } from '../lib/ledger-display';
-import { isAdjustmentStockLocationType, locationTypeLabel } from '../lib/location-types';
+import {
+  buildStockSourceLocationOptions,
+  transferableQtyAtRow,
+  uniqueStockLocationIds,
+} from '../lib/inventory-location-options';
+import { resolveLocationByScan } from '../lib/location-resolve';
+import { localizedLocationTypeLabel } from '../lib/ui-labels/locations';
+import { useWmsTranslation } from '../lib/ui-i18n';
 
 /** Subset of `LocationType` allowed for internal transfers (matches backend adjustment-stock types). */
 type TransferLocationTypeFilter = '' | 'internal' | 'fridge' | 'quarantine' | 'scrap';
@@ -54,17 +64,12 @@ function productListQuery(
   }
 }
 
-/** Matches backend decrement: on-hand minus reserved (never raw on-hand only). */
-function transferableQtyAtRow(row: StockRow): number {
-  const avail = Number(row.quantityAvailable);
-  if (Number.isFinite(avail)) return Math.max(0, avail);
-  const onHand = Number(row.quantityOnHand);
-  const reserved = Number(row.quantityReserved);
-  if (Number.isFinite(onHand) && Number.isFinite(reserved)) {
-    return Math.max(0, onHand - reserved);
-  }
-  if (Number.isFinite(onHand)) return Math.max(0, onHand);
-  return 0;
+function formatTransferLocationLabel(loc: Location | undefined, id: string | null | undefined): string {
+  if (!id) return '—';
+  if (!loc) return `${id.slice(0, 8)}…`;
+  const primary = loc.fullPath?.trim() || loc.name?.trim() || loc.barcode?.trim();
+  if (primary) return primary;
+  return `${id.slice(0, 8)}…`;
 }
 
 export function InternalTransferPage() {
@@ -86,6 +91,17 @@ export function InternalTransferPage() {
     enabled: !!warehouseId,
   });
 
+  const historyLocationIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const r of transfers.data?.items ?? []) {
+      if (r.fromLocationId) ids.push(r.fromLocationId);
+      if (r.toLocationId) ids.push(r.toLocationId);
+    }
+    return ids;
+  }, [transfers.data?.items]);
+
+  const { locationById } = useResolvedLocations(historyLocationIds);
+
   const columns: Column<LedgerRow>[] = useMemo(
     () => [
       {
@@ -102,54 +118,62 @@ export function InternalTransferPage() {
         header: 'Product',
         accessor: (r) => (
           <div>
-            <div className="font-medium text-slate-900">{r.product.name}</div>
-            <div className="font-mono text-xs text-slate-500">{r.product.sku}</div>
+            <div className="font-medium text-text-strong">{r.product.name}</div>
+            <div className="font-mono text-xs text-text-muted">{r.product.sku}</div>
           </div>
         ),
       },
       {
         header: 'Lot',
         accessor: (r) => (
-          <span className="font-mono text-xs text-slate-600">{r.lot?.lotNumber ?? '—'}</span>
+          <span className="font-mono text-xs text-text-body">{r.lot?.lotNumber ?? '—'}</span>
         ),
         width: '120px',
       },
       {
         header: 'Qty',
-        accessor: (r) => <span className="font-mono text-slate-700">{fmtLedgerQty(r.quantity)}</span>,
+        accessor: (r) => <span className="font-mono text-text-body">{fmtLedgerQty(r.quantity)}</span>,
         width: '100px',
         className: 'text-right',
       },
       {
-        header: 'From -> To',
+        header: 'From → To',
         accessor: (r) => {
-          const from = r.fromLocationId?.slice(0, 8) ?? '—';
-          const to = r.toLocationId?.slice(0, 8) ?? '—';
+          const fromLoc = r.fromLocationId ? locationById.get(r.fromLocationId) : undefined;
+          const toLoc = r.toLocationId ? locationById.get(r.toLocationId) : undefined;
+          const fromLabel = formatTransferLocationLabel(fromLoc, r.fromLocationId);
+          const toLabel = formatTransferLocationLabel(toLoc, r.toLocationId);
           return (
-            <span className="font-mono text-xs text-slate-600">
-              {from}... to {to}...
-            </span>
+            <div className="text-xs text-text-body">
+              <div className="font-medium text-text-strong" title={fromLoc?.fullPath ?? r.fromLocationId ?? undefined}>
+                {fromLabel}
+              </div>
+              <div className="mt-0.5 text-text-muted">→</div>
+              <div className="font-medium text-text-strong" title={toLoc?.fullPath ?? r.toLocationId ?? undefined}>
+                {toLabel}
+              </div>
+            </div>
           );
         },
-        width: '220px',
+        width: '260px',
       },
       {
         header: 'Ref',
         accessor: (r) => (
-          <Link to={`/inventory/ledger/transfer/${r.referenceId}`} className="text-primary-700 underline">
+          <Link to={`/inventory/ledger/transfer/${r.referenceId}`} className="text-brand-700 underline">
             {r.referenceId.slice(0, 8)}...
           </Link>
         ),
         width: '120px',
       },
     ],
-    [],
+    [locationById],
   );
 
   return (
     <div className="space-y-4">
       {!warehouseId ? (
-        <p className="text-sm text-slate-600">{t('Resolve warehouse configuration first.', 'قم بحل إعدادات المستودع أولاً.')}</p>
+        <p className="text-sm text-text-body">{t('Resolve warehouse configuration first.', 'قم بحل إعدادات المستودع أولاً.')}</p>
       ) : (
         <DataTable
           title={t('Internal transfer', 'نقل داخلي')}
@@ -187,6 +211,7 @@ function CreateInternalTransferModal({
   onClose: () => void;
   warehouseId: string;
 }) {
+  const { t } = useWmsTranslation();
   const toast = useToast();
   const qc = useQueryClient();
 
@@ -195,6 +220,9 @@ function CreateInternalTransferModal({
   const [productSearch, setProductSearch] = useState('');
   const [debouncedProductSearch, setDebouncedProductSearch] = useState('');
   const [scanOpen, setScanOpen] = useState(false);
+  const [sourceScan, setSourceScan] = useState('');
+  const [destScan, setDestScan] = useState('');
+  const [locCameraTarget, setLocCameraTarget] = useState<'from' | 'to' | null>(null);
   const [productId, setProductId] = useState('');
   const [lotId, setLotId] = useState('');
   const [fromLocationId, setFromLocationId] = useState('');
@@ -216,6 +244,9 @@ function CreateInternalTransferModal({
     setSourceTypeFilter('');
     setDestTypeFilter('');
     setQuantity('');
+    setSourceScan('');
+    setDestScan('');
+    setLocCameraTarget(null);
   }, [open]);
 
   useEffect(() => {
@@ -285,18 +316,6 @@ function CreateInternalTransferModal({
     staleTime: 60_000,
   });
 
-  const locs = useQuery({
-    queryKey: QK.locationsFlat(warehouseId, false),
-    queryFn: () => LocationsApi.list(warehouseId),
-    enabled: !!warehouseId && open,
-    staleTime: 5 * 60_000,
-  });
-
-  const adjustmentLocations = useMemo(
-    () => (locs.data ?? []).filter((l) => isAdjustmentStockLocationType(l.type)),
-    [locs.data],
-  );
-
   const stockByProduct = useQuery({
     queryKey: [...QK.inventoryStock, 'internal-transfer-create', warehouseId, stockCompanyId, productId],
     queryFn: () =>
@@ -310,9 +329,18 @@ function CreateInternalTransferModal({
     staleTime: 30_000,
   });
 
+  const stockLocationIds = useMemo(
+    () => uniqueStockLocationIds(stockByProduct.data?.items ?? []),
+    [stockByProduct.data?.items],
+  );
+
+  const { locationById } = useResolvedLocations(
+    open && productId && stockByProduct.isFetched ? stockLocationIds : [],
+  );
+
   const eligibleLocationIds = useMemo(
-    () => new Set(adjustmentLocations.map((l) => l.id)),
-    [adjustmentLocations],
+    () => new Set([...locationById.keys()]),
+    [locationById],
   );
 
   const lotOptionsWithStock = useMemo(() => {
@@ -349,60 +377,27 @@ function CreateInternalTransferModal({
     lots.data,
   ]);
 
-  const sourceLocationOptions = useMemo(() => {
-    if (!productId || (lotTracked && !lotId)) return [];
-
-    const items = stockByProduct.data?.items ?? [];
-    const locMap = new Map(adjustmentLocations.map((l) => [l.id, l]));
-    const availByLoc = new Map<string, number>();
-
-    for (const row of items) {
-      const loc = locMap.get(row.locationId);
-      if (!loc) continue;
-      if (sourceTypeFilter && loc.type !== sourceTypeFilter) continue;
-
-      const rowLot = row.lotId ?? row.lot?.id ?? null;
-      if (lotTracked) {
-        if (rowLot !== lotId) continue;
-      } else if (rowLot) {
-        continue;
-      }
-
-      const qty = transferableQtyAtRow(row);
-      if (qty <= 0) continue;
-      availByLoc.set(loc.id, (availByLoc.get(loc.id) ?? 0) + qty);
-    }
-
-    return [...availByLoc.entries()]
-      .map(([id, avail]) => {
-        const loc = locMap.get(id)!;
-        return {
-          id,
-          label: loc.fullPath,
-          hint: `${locationTypeLabel(loc.type)} · avail ${avail.toLocaleString()}`,
-        };
-      })
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [
-    stockByProduct.data?.items,
-    adjustmentLocations,
-    lotTracked,
-    lotId,
-    productId,
-    sourceTypeFilter,
-  ]);
-
-  const destLocationOptions = useMemo(
+  const sourceLocationOptions = useMemo(
     () =>
-      adjustmentLocations
-        .filter((l) => l.id !== fromLocationId)
-        .filter((l) => !destTypeFilter || l.type === destTypeFilter)
-        .map((l) => ({
-          id: l.id,
-          label: l.fullPath,
-          hint: `${locationTypeLabel(l.type)} · ${l.barcode}`,
-        })),
-    [adjustmentLocations, fromLocationId, destTypeFilter],
+      buildStockSourceLocationOptions({
+        stockItems: stockByProduct.data?.items ?? [],
+        locationById,
+        productId,
+        lotId,
+        lotTracked,
+        sourceTypeFilter: sourceTypeFilter || undefined,
+        typeLabel: (type) => localizedLocationTypeLabel(type, t),
+        availWord: t(['avail', 'متاح']),
+      }),
+    [
+      stockByProduct.data?.items,
+      locationById,
+      productId,
+      lotId,
+      lotTracked,
+      sourceTypeFilter,
+      t,
+    ],
   );
 
   const availableQty = useMemo(() => {
@@ -431,10 +426,40 @@ function CreateInternalTransferModal({
       qc.invalidateQueries({ queryKey: QK.inventoryStock });
       qc.invalidateQueries({ queryKey: QK.inventoryStockByProduct });
       qc.invalidateQueries({ queryKey: QK.ledger });
-      onClose();
+      // Keep modal open for consecutive creates — clear product/lot/qty only.
+      setQuantity('');
+      setProductId('');
+      setLotId('');
+      setProductSearch('');
+      setDebouncedProductSearch('');
+      setProductSearchCategory('name');
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  async function applyLocationScan(target: 'from' | 'to', code: string) {
+    const trimmed = code.trim();
+    if (!trimmed || !warehouseId) return;
+    try {
+      const hit = await resolveLocationByScan(warehouseId, trimmed);
+      if (!hit) {
+        toast.error('No location matches this barcode.');
+        return;
+      }
+      if (target === 'from') {
+        setFromLocationId(hit.id);
+        setSourceScan('');
+        toast.success(`Source: ${hit.fullPath || hit.name}`);
+      } else {
+        setToLocationId(hit.id);
+        setDestScan('');
+        toast.success(`Destination: ${hit.fullPath || hit.name}`);
+      }
+      setLocCameraTarget(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Location scan failed.');
+    }
+  }
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -527,8 +552,8 @@ function CreateInternalTransferModal({
             clearable
           />
 
-          <div className="space-y-2 border-t border-slate-100 pt-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="space-y-2 border-t border-border-subtle pt-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">
               Find product
             </div>
             <div className="grid w-full grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(8.75rem,11rem)_auto]">
@@ -619,59 +644,85 @@ function CreateInternalTransferModal({
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
-            <Combobox
-              label="Source location"
-              required
-              value={fromLocationId}
-              onChange={setFromLocationId}
-              disabled={!productId || stockByProduct.isPending || (lotTracked && !lotId)}
-              options={sourceLocationOptions.map((o) => ({
-                value: o.id,
-                label: o.label,
-                hint: o.hint,
-              }))}
-              placeholder={
-                !productId
-                  ? 'Select product...'
-                  : lotTracked && !lotId
-                    ? 'Select lot first...'
-                    : stockByProduct.isPending
-                      ? 'Loading stock...'
-                      : 'Where stock is now...'
-              }
-              emptyMessage={
-                lotTracked && !lotId
-                  ? 'Select a lot first.'
-                  : sourceTypeFilter
-                    ? 'No on-hand stock in an eligible bin for this type filter.'
-                    : 'No on-hand stock in an eligible bin for this product.'
-              }
-            />
-            <Combobox
-              label="Destination location"
-              required
-              value={toLocationId}
-              onChange={setToLocationId}
-              disabled={!warehouseId || !fromLocationId}
-              options={destLocationOptions.map((o) => ({
-                value: o.id,
-                label: o.label,
-                hint: o.hint,
-              }))}
-              placeholder={!fromLocationId ? 'Pick source first...' : 'Where stock goes...'}
-              emptyMessage="No other eligible bins in this warehouse."
-            />
+            <div className="space-y-2">
+              <Combobox
+                label="Source location"
+                required
+                value={fromLocationId}
+                onChange={setFromLocationId}
+                disabled={!productId || stockByProduct.isPending || (lotTracked && !lotId)}
+                options={sourceLocationOptions.map((o) => ({
+                  value: o.id,
+                  label: o.label,
+                  hint: o.hint,
+                }))}
+                placeholder={
+                  !productId
+                    ? 'Select product...'
+                    : lotTracked && !lotId
+                      ? 'Select lot first...'
+                      : stockByProduct.isPending
+                        ? 'Loading stock...'
+                        : 'Where stock is now...'
+                }
+                emptyMessage={
+                  lotTracked && !lotId
+                    ? 'Select a lot first.'
+                    : sourceTypeFilter
+                      ? 'No on-hand stock in an eligible bin for this type filter.'
+                      : 'No on-hand stock in an eligible bin for this product.'
+                }
+              />
+              <WedgeScanField
+                label="Scan source location"
+                value={sourceScan}
+                onChange={setSourceScan}
+                onScan={(code) => void applyLocationScan('from', code)}
+                onCameraClick={() => setLocCameraTarget('from')}
+                placeholder="Location barcode + Enter"
+                autoFocus={false}
+                disabled={!warehouseId}
+                hint="Gun / keyboard wedge sets the source bin."
+              />
+            </div>
+            <div className="space-y-2">
+              <AdjustmentStockLocationPicker
+                label="Destination location"
+                required
+                warehouseId={warehouseId}
+                value={toLocationId}
+                onChange={setToLocationId}
+                typeFilter={destTypeFilter || ''}
+                excludeId={fromLocationId}
+                disabled={!warehouseId || !fromLocationId}
+                placeholder={
+                  !fromLocationId ? 'Pick source first...' : 'Search destination bin...'
+                }
+                emptyMessage="No matching destination bins. Try another search or type filter."
+              />
+              <WedgeScanField
+                label="Scan destination location"
+                value={destScan}
+                onChange={setDestScan}
+                onScan={(code) => void applyLocationScan('to', code)}
+                onCameraClick={() => setLocCameraTarget('to')}
+                placeholder="Location barcode + Enter"
+                autoFocus={false}
+                disabled={!warehouseId}
+                hint="Gun / keyboard wedge sets the destination bin."
+              />
+            </div>
           </div>
 
           {fromLocationId && productId && (!lotTracked || !!lotId) ? (
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-              <span className="font-medium text-slate-600">Available at source:</span>{' '}
+            <div className="rounded-md border border-border bg-surface-card-muted px-3 py-2 text-xs text-text-body">
+              <span className="font-medium text-text-body">Available at source:</span>{' '}
               {stockByProduct.isPending ? (
-                <span className="text-slate-400">...</span>
+                <span className="text-text-muted">...</span>
               ) : availableQty != null ? (
                 <span className="font-mono font-semibold">{availableQty.toLocaleString()}</span>
               ) : (
-                <span className="text-slate-500">-</span>
+                <span className="text-text-muted">-</span>
               )}
             </div>
           ) : null}
@@ -695,6 +746,14 @@ function CreateInternalTransferModal({
           setProductSearchCategory('barcode');
           setProductSearch(text.trim());
           setScanOpen(false);
+        }}
+        onCameraError={(msg) => toast.error(msg)}
+      />
+      <BarcodeScanModal
+        open={locCameraTarget != null}
+        onClose={() => setLocCameraTarget(null)}
+        onScan={(text) => {
+          if (locCameraTarget) void applyLocationScan(locCameraTarget, text);
         }}
         onCameraError={(msg) => toast.error(msg)}
       />

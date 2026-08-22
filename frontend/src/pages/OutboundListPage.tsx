@@ -1,48 +1,47 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
+import { OutboundApi, OutboundOrder } from '../api/outbound';
 import { CompaniesApi } from '../api/companies';
-import { InventoryApi } from '../api/inventory';
-import { CreateOutboundOrderInput, OutboundApi, OutboundOrder } from '../api/outbound';
-import type { Product } from '../api/products';
-import { ProductsApi } from '../api/products';
-import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
-import { BarcodeScanModal } from '../components/BarcodeScanModal';
-import { OrderDraftLinesTable } from '../components/OrderDraftLinesTable';
-import { Alert, Button as DsButton } from '@ds';
-import { Button } from '../components/Button';
-import { Combobox } from '../components/Combobox';
+import { useAuth } from '../auth/AuthContext';
+import { Alert, AdvancedFilterSection, Button as DsButton, Combobox, countNonEmptyFilters } from '@ds';
+import { AdminListPageShell } from '../components/AdminListPageShell';
+import { CompanyNameCell } from '../components/CompanyNameCell';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
+import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
 import {
-  FILTER_PRIMARY_BUTTON_CLASS,
-  FILTER_RESET_BUTTON_CLASS,
-  FilterPanel,
-} from '../components/FilterPanel';
-import { Modal } from '../components/Modal';
+  FILTER_COMPACT_SEARCH_CLASS,
+  FILTER_COMPACT_SELECT_CLASS,
+  FILTER_FIELD_CONTROL_CLASS,
+  FILTER_FIELD_LABEL_CLASS,
+  FILTER_FIELD_LABEL_GAP_CLASS,
+} from '../components/filter-panel-styles';
+import { RowActionsMenu, type RowAction } from '../components/RowActionsMenu';
+import { OutboundOrdersImportModal } from '../components/outbound/OutboundOrdersImportModal';
+import { BulkShippingProcessingModal } from '../components/shipping/BulkShippingProcessingModal';
 import { StatusBadge } from '../components/StatusBadge';
-import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '../hooks/useChunkedServerPagination';
+import { buildOutboundListParams } from '../lib/outbound-list-params';
+import { invalidateWorkflowTasksInventory } from '../lib/invalidate-wms-queries';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
-import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../lib/order-planning-dates';
-
-const DEFAULT_COMPANY_ID = (import.meta.env.VITE_MOCK_COMPANY_ID as string | undefined) ?? '';
-
-function formatProductOnHand(p: Product): string {
-  const n = Number(p.totalOnHand ?? 0);
-  return Number.isFinite(n)
-    ? n.toLocaleString(undefined, { maximumFractionDigits: 4 })
-    : String(p.totalOnHand ?? '0');
-}
+import { canAccessInternalTransfer } from '../lib/rbac';
+import { useCachedState } from '../hooks/useCachedState';
 
 type OutListDraft = {
   orderSearch: string;
-  companyId: string;
+  status: string;
   createdFrom: string;
   createdTo: string;
+  companyId: string;
 };
 
 function outboundLabel(label: string, isArabic: boolean): string {
@@ -50,13 +49,12 @@ function outboundLabel(label: string, isArabic: boolean): string {
   const ar: Record<string, string> = {
     'Outbound orders': 'طلبات الصادر',
     '+ New outbound': '+ صادر جديد',
-    'Search order...': 'ابحث عن الطلب...',
+    Import: 'استيراد',
+    'Export CSV': 'تصدير CSV',
+    'Search order # or client…': 'ابحث برقم الطلب أو العميل…',
     Client: 'العميل',
     'Created from': 'تاريخ الإنشاء من',
     'Created to': 'تاريخ الإنشاء إلى',
-    'Order filters': 'فلاتر الطلبات',
-    'Apply filters': 'تطبيق الفلاتر',
-    'Reset filters': 'إعادة تعيين الفلاتر',
     'Order #': 'رقم الطلب #',
     Status: 'الحالة',
     'Required ship': 'الشحن المطلوب',
@@ -68,103 +66,278 @@ function outboundLabel(label: string, isArabic: boolean): string {
     Previous: 'السابق',
     Next: 'التالي',
     'Rows per page': 'عدد الصفوف لكل صفحة',
-    'New outbound order': 'طلب صادر جديد',
-    Cancel: 'إلغاء',
-    Create: 'إنشاء',
-    Back: 'رجوع',
-    'Required ship date': 'تاريخ الشحن المطلوب',
-    Carrier: 'الناقل',
-    Notes: 'ملاحظات',
-    'Destination address': 'عنوان الوجهة',
-    'Required ship date cannot be before today.': 'لا يمكن أن يكون تاريخ الشحن المطلوب قبل اليوم.',
-    'Pick a client.': 'اختر عميلاً.',
-    'Enter a destination address.': 'أدخل عنوان الوجهة.',
-    'Pick a client…': 'اختر عميلاً…',
-    Product: 'المنتج',
-    Quantity: 'الكمية',
-    Remove: 'إزالة',
-    'Pick product…': 'اختر منتجاً…',
-    'No lines yet — add a product below.': 'لا توجد بنود بعد — أضف منتجاً أدناه.',
-    '+ Add line': '+ إضافة بند',
-    'Pick a client first': 'اختر عميلاً أولاً',
-    'All clients': 'كل العملاء',
+    'All statuses': 'كل الحالات',
+    Draft: 'مسودة',
+    'Pending approval': 'بانتظار الموافقة',
+    'Pending stock': 'بانتظار المخزون',
+    Confirmed: 'مؤكد',
+    Picking: 'التقاط',
+    Packing: 'تغليف',
+    'Waiting for Shipping Details': 'بانتظار تفاصيل الشحن',
+    'Waiting for Dispatch': 'بانتظار الإرسال',
+    Shipped: 'تم الشحن',
+    Cancelled: 'ملغي',
+    Actions: 'الإجراءات',
+    Edit: 'تعديل',
+    Delete: 'حذف',
+    'Cancel order': 'إلغاء الطلب',
+    'Open actions': 'فتح الإجراءات',
+    'Cancel this order?': 'إلغاء هذا الطلب؟',
+    'Cancelling stops all remaining work and deletes the order’s tasks. Product quantities are not changed. This cannot be undone.':
+      'سيؤدي الإلغاء إلى إيقاف جميع الأعمال المتبقية وحذف مهام الطلب. لن يتم تغيير كميات المنتجات. لا يمكن التراجع عن هذا الإجراء.',
+    'Delete this order?': 'حذف هذا الطلب؟',
+    'This permanently removes the order and its lines. This action cannot be undone.':
+      'سيؤدي هذا إلى حذف الطلب وبنوده نهائياً. لا يمكن التراجع عن هذا الإجراء.',
+    'Keep order': 'الاحتفاظ بالطلب',
+    'Order cancelled.': 'تم إلغاء الطلب.',
+    'Order deleted.': 'تم حذف الطلب.',
+    'Bulk Shipping Processing': 'معالجة الشحن الجماعي',
+    'Select Waiting for Dispatch orders without an existing carrier shipment.':
+      'اختر طلبات بانتظار الإرسال دون شحنة ناقلة قائمة.',
   };
   return ar[label] ?? label;
+}
+
+
+function isBulkShippingCandidate(o: OutboundOrder): boolean {
+  if (o.status !== 'ready_to_ship') return false;
+  if (o.trackingNumber?.trim()) return false;
+  const created = (o.carrierShipments ?? []).some((s) => s.status === 'created');
+  return !created;
 }
 
 export function OutboundListPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = canAccessInternalTransfer(user?.role);
+  const [toCancel, setToCancel] = useState<OutboundOrder | null>(null);
+  const [toDelete, setToDelete] = useState<OutboundOrder | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const isArabic =
-    typeof window !== 'undefined' && (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
+    typeof window !== 'undefined' &&
+    (window.localStorage.getItem('wms-ui-language') === 'AR' ||
+      document.documentElement.dir === 'rtl');
   const t = (label: string) => outboundLabel(label, isArabic);
+  const openCreate = () => {
+    navigate('/orders/outbound/new');
+  };
   const { warehouseId: wid } = useDefaultWarehouseId();
 
   const initialList = useMemo<OutListDraft>(
     () => ({
       orderSearch: '',
-      companyId: '',
+      status: '',
       createdFrom: '',
       createdTo: '',
+      companyId: '',
     }),
     [],
   );
 
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
+  const { draftFilters, appliedFilters, setDraft, applyPatch, applyFilters, resetFilters } =
     useFilters(initialList);
-
-  const listParams = useMemo(
-    () => ({
-      warehouseId: wid || undefined,
-      companyId: appliedFilters.companyId || undefined,
-      orderSearch: appliedFilters.orderSearch.trim() || undefined,
-      createdFrom: appliedFilters.createdFrom.trim() || undefined,
-      createdTo: appliedFilters.createdTo.trim() || undefined,
-      limit: 200,
-    }),
-    [appliedFilters, wid],
+  const [advancedOpen, setAdvancedOpen] = useCachedState(
+    'outbound-orders:advanced-filters-open',
+    false,
   );
+  const [searchParams] = useSearchParams();
 
-  const list = useQuery({
-    queryKey: [...QK.outboundOrders, listParams],
-    queryFn: () => OutboundApi.list(listParams),
-    enabled: !!wid,
-  });
-
-  const companies = useQuery({
+  const companiesQuery = useQuery({
     queryKey: QK.companies,
     queryFn: () => CompaniesApi.list(),
     staleTime: 10 * 60_000,
   });
 
-  const clientFilterOptions = useMemo(
-    () => companyFilterComboboxOptions(companies.data, t('All clients')),
-    [companies.data, isArabic],
+  const clientOptions = useMemo(
+    () => companyFilterComboboxOptions(companiesQuery.data, t('All clients')),
+    [companiesQuery.data, isArabic],
   );
 
-  const createMut = useMutation({
-    mutationFn: OutboundApi.create,
-    onSuccess: (order) => {
-      toast.success(`Outbound order ${order.orderNumber} created.`);
-      qc.invalidateQueries({ queryKey: QK.outboundOrders });
-      setOpen(false);
-      navigate(`/orders/outbound/${order.id}`);
-    },
-    onError: (err: Error & { code?: string }) => {
-      toast.error(err.message);
-    },
+  useEffect(() => {
+    const status = searchParams.get('status') ?? '';
+    if (status && status !== appliedFilters.status) {
+      applyPatch({ status });
+    }
+  }, [searchParams, appliedFilters.status, applyPatch]);
+
+  const listParams = useMemo(
+    () => buildOutboundListParams(appliedFilters, wid),
+    [appliedFilters, wid],
+  );
+
+  const pagination = useChunkedServerPagination<OutboundOrder>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey: listParams,
+    fetchChunk: (offset, limit) => OutboundApi.list({ ...listParams, offset, limit }),
+    rtQueryKeyPrefix: QK.outboundOrders,
+    chunkQueryKeyPrefix: 'outbound-orders-chunk',
+    enabled: !!wid,
   });
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [listParams]);
+
+  const pageEligibleIds = useMemo(
+    () => pagination.rows.filter(isBulkShippingCandidate).map((o) => o.id),
+    [pagination.rows],
+  );
+
+  const selectedEligibleIds = useMemo(() => [...selectedIds], [selectedIds]);
+
+  const allPageEligibleSelected =
+    pageEligibleIds.length > 0 && pageEligibleIds.every((id) => selectedIds.has(id));
+
+  const toggleOne = (id: string, eligible: boolean) => {
+    if (!eligible) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllPageEligible = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allPageEligibleSelected) {
+        for (const id of pageEligibleIds) next.delete(id);
+      } else {
+        for (const id of pageEligibleIds) next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const statusFilterOptions = useMemo(
+    () => [
+      { value: '', label: t('All statuses') },
+      { value: 'draft', label: t('Draft') },
+      { value: 'pending_approval', label: t('Pending approval') },
+      { value: 'pending_stock', label: t('Pending stock') },
+      { value: 'confirmed', label: t('Confirmed') },
+      { value: 'picking', label: t('Picking') },
+      { value: 'packing', label: t('Packing') },
+      { value: 'waiting_for_shipping_method', label: t('Waiting for Shipping Method') },
+      { value: 'waiting_for_shipping_details', label: t('Waiting for Shipping Details') },
+      { value: 'ready_to_ship', label: t('Waiting for Dispatch') },
+      { value: 'shipped', label: t('Shipped') },
+      { value: 'externally_fulfilled', label: t('Fulfilled outside warehouse') },
+      { value: 'cancelled', label: t('Cancelled') },
+    ],
+    [isArabic],
+  );
+
+  const cancelMut = useMutation({
+    mutationFn: (orderId: string) => OutboundApi.cancel(orderId),
+    onSuccess: (_data, orderId) => {
+      toast.success(t('Order cancelled.'));
+      setToCancel(null);
+      qc.invalidateQueries({ queryKey: QK.outboundOrders });
+      invalidateWorkflowTasksInventory(qc, {
+        referenceId: orderId,
+        referenceType: 'outbound_order',
+      });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (orderId: string) => OutboundApi.remove(orderId),
+    onSuccess: () => {
+      toast.success(t('Order deleted.'));
+      setToDelete(null);
+      qc.invalidateQueries({ queryKey: QK.outboundOrders });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const rowActions = (o: OutboundOrder): RowAction[] => {
+    const actions: RowAction[] = [];
+    if (o.status === 'draft' || o.status === 'pending_approval') {
+      actions.push({
+        key: 'edit',
+        label: t('Edit'),
+        onClick: () => navigate(`/orders/outbound/${o.id}`),
+      });
+    }
+    if (o.status !== 'shipped' && o.status !== 'cancelled') {
+      actions.push({
+        key: 'cancel',
+        label: t('Cancel order'),
+        danger: true,
+        onClick: () => setToCancel(o),
+      });
+    }
+    if (isAdmin && o.status === 'cancelled') {
+      actions.push({
+        key: 'delete',
+        label: t('Delete'),
+        danger: true,
+        onClick: () => setToDelete(o),
+      });
+    }
+    return actions;
+  };
 
   const columns: Column<OutboundOrder>[] = useMemo(
     () => [
+      ...(isAdmin
+        ? [
+            {
+              header: (
+                <input
+                  type="checkbox"
+                  aria-label="Select all eligible on page"
+                  checked={allPageEligibleSelected}
+                  disabled={pageEligibleIds.length === 0}
+                  onChange={toggleAllPageEligible}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ),
+              accessor: (o: OutboundOrder) => {
+                const eligible = isBulkShippingCandidate(o);
+                return (
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${o.orderNumber}`}
+                    checked={selectedIds.has(o.id)}
+                    disabled={!eligible}
+                    title={
+                      eligible
+                        ? undefined
+                        : t(
+                            'Select Waiting for Dispatch orders without an existing carrier shipment.',
+                          )
+                    }
+                    onChange={() => toggleOne(o.id, eligible)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                );
+              },
+              width: '44px',
+              className: 'w-1',
+            } as Column<OutboundOrder>,
+          ]
+        : []),
       {
         header: t('Order #'),
         accessor: (o) => <span className="font-mono">{o.orderNumber || '—'}</span>,
         width: '170px',
       },
-      { header: t('Client'), accessor: (o) => o.company?.name ?? '—', width: '200px' },
+      {
+        header: t('Client'),
+        accessor: (o) => (
+          <CompanyNameCell name={o.company?.name} logoUrl={o.company?.logoUrl} />
+        ),
+        width: '220px',
+      },
       {
         header: t('Status'),
         accessor: (o) => <StatusBadge status={o.status} />,
@@ -177,12 +350,86 @@ export function OutboundListPage() {
       },
       { header: t('Lines'), accessor: (o) => o._count?.lines ?? 0, width: '70px' },
       { header: t('Destination'), accessor: (o) => o.destinationAddress },
+      {
+        header: t('Actions'),
+        accessor: (o) => (
+          <RowActionsMenu items={rowActions(o)} ariaLabel={t('Open actions')} />
+        ),
+        className: 'w-1 whitespace-nowrap text-center',
+        width: '90px',
+      },
     ],
-    [isArabic],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isArabic, isAdmin, selectedIds, allPageEligibleSelected, pageEligibleIds],
+  );
+
+  const onExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await OutboundApi.exportDownload(listParams);
+      toast.success(
+        isArabic ? 'تم تنزيل ملف CSV للطلبات المفلترة.' : 'Exported filtered outbound orders to CSV.',
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Export failed.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const newButton = (
+    <div className="flex flex-wrap items-center gap-2">
+      {isAdmin && (
+        <DsButton
+          variant="secondary"
+          size="md"
+          disabled={selectedEligibleIds.length === 0}
+          onClick={() => setBulkOpen(true)}
+          title={
+            selectedEligibleIds.length === 0
+              ? t('Select Waiting for Dispatch orders without an existing carrier shipment.')
+              : undefined
+          }
+        >
+          {t('Bulk Shipping Processing')}
+          {selectedEligibleIds.length > 0 ? ` (${selectedEligibleIds.length})` : ''}
+        </DsButton>
+      )}
+      <DsButton
+        variant="secondary"
+        size="md"
+        onClick={() => setImportOpen(true)}
+      >
+        {t('Import')}
+      </DsButton>
+      <DsButton
+        variant="secondary"
+        size="md"
+        loading={exporting}
+        disabled={exporting}
+        onClick={() => void onExport()}
+      >
+        {t('Export CSV')}
+      </DsButton>
+      <DsButton
+        variant="primary"
+        size="md"
+        onClick={openCreate}
+        className={FILTER_PRIMARY_BUTTON_CLASS}
+      >
+        {t('+ New outbound')}
+      </DsButton>
+    </div>
   );
 
   return (
-    <>
+    <AdminListPageShell
+      icon="fa-arrow-up"
+      title={t('Outbound orders')}
+      isArabic={isArabic}
+      navActions={newButton}
+    >
       {!wid && (
         <Alert
           variant="warning"
@@ -192,72 +439,135 @@ export function OutboundListPage() {
         />
       )}
 
-      {list.isError && (
+      {pagination.isError && (
         <Alert
           variant="error"
           title="Failed to load outbound orders"
           description="There was a problem retrieving your orders. Check your connection and try again."
           className="mb-4"
-          onDismiss={() => list.refetch()}
+          onDismiss={() => pagination.refetch()}
         >
-          <Alert.Action onClick={() => list.refetch()}>Retry</Alert.Action>
+          <Alert.Action onClick={() => pagination.refetch()}>Retry</Alert.Action>
         </Alert>
       )}
 
-      <FilterPanel
-        title={t('Order filters')}
+      <AdvancedFilterSection
+        advancedOpen={advancedOpen}
+        onAdvancedOpenChange={setAdvancedOpen}
+        isArabic={isArabic}
+        loading={pagination.isFetching}
+        activeCount={countNonEmptyFilters(appliedFilters, [
+          'status',
+          'createdFrom',
+          'createdTo',
+          'companyId',
+        ])}
         onApply={applyFilters}
-        onReset={resetFilters}
-        loading={list.isFetching}
-        applyLabel={t('Apply filters')}
-        resetLabel={t('Reset filters')}
+        onReset={() => {
+          resetFilters();
+          setAdvancedOpen(false);
+        }}
+        compact={
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative min-w-0 flex-1 sm:max-w-sm">
+              <i
+                className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+                aria-hidden
+              />
+              <input
+                value={draftFilters.orderSearch}
+                onChange={(e) => setDraft({ orderSearch: e.target.value })}
+                placeholder={t('Search order # or client…')}
+                className={FILTER_COMPACT_SEARCH_CLASS}
+              />
+            </div>
+            <select
+              value={draftFilters.status}
+              onChange={(e) => setDraft({ status: e.target.value })}
+              aria-label={t('Status')}
+              className={FILTER_COMPACT_SELECT_CLASS}
+            >
+              {statusFilterOptions.map((opt) => (
+                <option key={opt.value || 'all'} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        }
       >
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
-        <TextField
-          label={t('Order #')}
-          value={draftFilters.orderSearch}
-          onChange={(e) => setDraft({ orderSearch: e.target.value })}
-          placeholder={t('Search order...')}
-          className="font-mono"
-        />
-        <Combobox
-          label={t('Client')}
-          value={draftFilters.companyId}
-          onChange={(v) => setDraft({ companyId: v })}
-          options={clientFilterOptions}
-          placeholder={t('All clients')}
-        />
-        <TextField
-          label={t('Created from')}
-          type="date"
-          value={draftFilters.createdFrom}
-          onChange={(e) => setDraft({ createdFrom: e.target.value })}
-        />
-        <TextField
-          label={t('Created to')}
-          type="date"
-          value={draftFilters.createdTo}
-          onChange={(e) => setDraft({ createdTo: e.target.value })}
-        />
-      </div>
-      </FilterPanel>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t('Order #')}
+          </label>
+          <input
+            value={draftFilters.orderSearch}
+            onChange={(e) => setDraft({ orderSearch: e.target.value })}
+            placeholder={t('Search order # or client…')}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <Combobox
+            label={t('Client')}
+            value={draftFilters.companyId}
+            onChange={(value) => setDraft({ companyId: value })}
+            options={clientOptions}
+            placeholder={t('All clients')}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t('Status')}
+          </label>
+          <select
+            value={draftFilters.status}
+            onChange={(e) => setDraft({ status: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          >
+            {statusFilterOptions.map((opt) => (
+              <option key={opt.value || 'all'} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t('Created from')}
+          </label>
+          <input
+            type="date"
+            value={draftFilters.createdFrom}
+            onChange={(e) => setDraft({ createdFrom: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {t('Created to')}
+          </label>
+          <input
+            type="date"
+            value={draftFilters.createdTo}
+            onChange={(e) => setDraft({ createdTo: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+      </AdvancedFilterSection>
+      {isAdmin && selectedEligibleIds.length > 0 && (
+        <p className="mb-4 text-xs text-text-muted">
+          {selectedEligibleIds.length} eligible order(s) selected for {t('Bulk Shipping Processing')}.
+          Tip: filter status to Waiting for Dispatch.
+        </p>
+      )}
 
       <DataTable
-        title={t('Outbound orders')}
-        actions={
-          <DsButton
-            variant="primary"
-            size="md"
-            onClick={() => setOpen(true)}
-            className={FILTER_PRIMARY_BUTTON_CLASS}
-          >
-            {t('+ New outbound')}
-          </DsButton>
-        }
         columns={columns}
-        rows={list.data?.items ?? []}
+        rows={pagination.rows}
         rowKey={(o) => o.id}
-        loading={list.isLoading || !wid}
+        serverPagination={pagination.serverPagination}
+        loading={pagination.isInitialLoading || !wid}
         onRowClick={(o) => navigate(`/orders/outbound/${o.id}`)}
         empty={wid ? 'No outbound orders match the filters.' : 'Warehouse not resolved yet.'}
         labels={{
@@ -270,459 +580,57 @@ export function OutboundListPage() {
         }}
       />
 
-      <CreateOutboundModal
-        open={open}
-        onClose={() => setOpen(false)}
-        loading={createMut.isPending}
-        isArabic={isArabic}
-        onSubmit={(input) => createMut.mutate(input)}
-      />
-    </>
-  );
-}
+      <ConfirmModal
+        open={!!toCancel}
+        title={t('Cancel this order?')}
+        confirmLabel={t('Cancel order')}
+        cancelLabel={t('Keep order')}
+        danger
+        loading={cancelMut.isPending}
+        onClose={() => !cancelMut.isPending && setToCancel(null)}
+        onConfirm={() => toCancel && cancelMut.mutate(toCancel.id)}
+      >
+        <p className="text-sm">
+          {t(
+            'Cancelling stops all remaining work and deletes the order’s tasks. Product quantities are not changed. This cannot be undone.',
+          )}
+        </p>
+      </ConfirmModal>
 
-interface DraftLine {
-  productId: string;
-  requestedQuantity: string;
-}
+      <ConfirmModal
+        open={!!toDelete}
+        title={t('Delete this order?')}
+        confirmLabel={t('Delete')}
+        cancelLabel={t('Cancel')}
+        danger
+        loading={deleteMut.isPending}
+        onClose={() => !deleteMut.isPending && setToDelete(null)}
+        onConfirm={() => toDelete && deleteMut.mutate(toDelete.id)}
+      >
+        <p className="text-sm">
+          {t('This permanently removes the order and its lines. This action cannot be undone.')}
+        </p>
+      </ConfirmModal>
+      {isAdmin && (
+        <BulkShippingProcessingModal
+          open={bulkOpen}
+          outboundOrderIds={selectedEligibleIds}
+          onClose={() => {
+            setBulkOpen(false);
+            setSelectedIds(new Set());
+            qc.invalidateQueries({ queryKey: QK.outboundOrders });
+          }}
+        />
+      )}
 
-interface CreateOutboundModalProps {
-  open: boolean;
-  onClose: () => void;
-  loading: boolean;
-  isArabic: boolean;
-  onSubmit: (input: CreateOutboundOrderInput) => void;
-}
-
-function CreateOutboundModal({ open, onClose, loading, isArabic, onSubmit }: CreateOutboundModalProps) {
-  const toast = useToast();
-  const t = (label: string) => outboundLabel(label, isArabic);
-  const [step, setStep] = useState<1 | 2>(1);
-  const [companyId, setCompanyId] = useState(DEFAULT_COMPANY_ID);
-  const [shipDate, setShipDate] = useState(() => localCalendarDateYmd());
-  const [destination, setDestination] = useState('');
-  const [carrier, setCarrier] = useState('');
-  const [notes, setNotes] = useState('');
-  const [requiresPacking, setRequiresPacking] = useState(true);
-  const [lines, setLines] = useState<DraftLine[]>([{ productId: '', requestedQuantity: '' }]);
-  const [scanOpen, setScanOpen] = useState(false);
-
-  const companies = useQuery({
-    queryKey: QK.companies,
-    queryFn: () => CompaniesApi.list(),
-    enabled: open,
-  });
-
-  const products = useQuery({
-    queryKey: [...QK.products, companyId],
-    queryFn: () => ProductsApi.list({ companyId, limit: 200 }),
-    enabled: open && !!companyId,
-    staleTime: 5 * 60_000,
-  });
-
-  useEffect(() => {
-    if (open && !companyId && companies.data?.length) {
-      const fallback =
-        companies.data.find((c) => c.id === DEFAULT_COMPANY_ID) ?? companies.data[0];
-      setCompanyId(fallback.id);
-    }
-  }, [open, companyId, companies.data]);
-
-  useEffect(() => {
-    setLines((prev) => prev.map((l) => ({ ...l, productId: '' })));
-  }, [companyId]);
-
-  const productOptions = useMemo(
-    () =>
-      (products.data?.items ?? []).map((p) => ({
-        value: p.id,
-        label: `${p.sku} — ${p.name}`,
-        hint: `${p.uom} · on hand ${formatProductOnHand(p)}`,
-      })),
-    [products.data],
-  );
-
-  const productsById = useMemo(() => {
-    const m = new Map<string, Product>();
-    for (const p of products.data?.items ?? []) m.set(p.id, p);
-    return m;
-  }, [products.data]);
-
-  const tableLines = useMemo(
-    () =>
-      lines.map((l, idx) => ({
-        lineKey: String(idx),
-        productId: l.productId,
-        quantity: l.requestedQuantity,
-      })),
-    [lines],
-  );
-
-  const distinctProductIds = useMemo(
-    () => Array.from(new Set(lines.map((l) => l.productId).filter(Boolean))),
-    [lines],
-  );
-
-  const availabilityResults = useQueries({
-    queries: distinctProductIds.map((pid) => ({
-      queryKey: QK.availability(pid, companyId),
-      queryFn: () => InventoryApi.availability(pid, companyId),
-      enabled: open && !!pid && !!companyId,
-      staleTime: 10_000,
-    })),
-  });
-  const availabilityByProduct = useMemo(() => {
-    const m = new Map<string, number>();
-    distinctProductIds.forEach((pid, i) => {
-      const r = availabilityResults[i]?.data;
-      if (r) m.set(pid, Number(r.available));
-    });
-    return m;
-  }, [availabilityResults, distinctProductIds]);
-
-  const requestedByProduct = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const l of lines) {
-      if (!l.productId) continue;
-      const n = Number(l.requestedQuantity);
-      if (!Number.isFinite(n) || n <= 0) continue;
-      m.set(l.productId, (m.get(l.productId) ?? 0) + n);
-    }
-    return m;
-  }, [lines]);
-
-  const shortages = useMemo(() => {
-    const out: { productId: string; requested: number; available: number }[] = [];
-    requestedByProduct.forEach((qty, pid) => {
-      const avail = availabilityByProduct.get(pid);
-      if (avail !== undefined && qty > avail) {
-        out.push({ productId: pid, requested: qty, available: avail });
-      }
-    });
-    return out;
-  }, [availabilityByProduct, requestedByProduct]);
-
-  const reset = () => {
-    setCompanyId(DEFAULT_COMPANY_ID);
-    setShipDate(localCalendarDateYmd());
-    setDestination('');
-    setCarrier('');
-    setNotes('');
-    setRequiresPacking(true);
-    setLines([{ productId: '', requestedQuantity: '' }]);
-    setScanOpen(false);
-    setStep(1);
-  };
-
-  const handleClose = () => {
-    if (!loading) {
-      reset();
-      onClose();
-    }
-  };
-
-  const updateLine = (idx: number, patch: Partial<DraftLine>) => {
-    setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
-  };
-
-  const applyProductByBarcode = async (raw: string) => {
-    const code = raw.trim();
-    if (!companyId) {
-      toast.error('Pick a client first.');
-      return;
-    }
-    if (!code) {
-      toast.error('Enter or scan a barcode.');
-      return;
-    }
-    try {
-      const { items } = await ProductsApi.list({
-        companyId,
-        productBarcode: code,
-        limit: 50,
-      });
-      const norm = code.toLowerCase();
-      const exact = items.filter((p) => (p.barcode ?? '').trim().toLowerCase() === norm);
-      const product = exact.length === 1 ? exact[0]! : items.length === 1 ? items[0]! : null;
-      if (!product) {
-        toast.error(
-          exact.length > 1
-            ? 'Multiple products share this barcode fragment — type a longer code or pick from the list.'
-            : 'No product found for this barcode.',
-        );
-        return;
-      }
-      setLines((prev) => {
-        const emptyIdx = prev.findIndex((l) => !l.productId);
-        if (emptyIdx >= 0) {
-          return prev.map((l, i) => (i === emptyIdx ? { ...l, productId: product.id } : l));
-        }
-        return [...prev, { productId: product.id, requestedQuantity: '' }];
-      });
-      toast.success(`${product.sku} added from barcode.`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Lookup failed.');
-    }
-  };
-
-  const goToLinesStep = () => {
-    if (!companyId.trim()) {
-      toast.error(t('Pick a client.'));
-      return;
-    }
-    if (!isYmdOnOrAfterLocalToday(shipDate)) {
-      toast.error(t('Required ship date cannot be before today.'));
-      return;
-    }
-    if (!destination.trim()) {
-      toast.error(t('Enter a destination address.'));
-      return;
-    }
-    setStep(2);
-  };
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (step !== 2) return;
-    if (shortages.length > 0) {
-      toast.error('Insufficient stock for one or more products.');
-      return;
-    }
-    if (!isYmdOnOrAfterLocalToday(shipDate)) {
-      toast.error(t('Required ship date cannot be before today.'));
-      return;
-    }
-    onSubmit({
-      companyId,
-      destinationAddress: destination,
-      requiredShipDate: shipDate,
-      carrier: carrier || undefined,
-      notes: notes || undefined,
-      requiresPacking,
-      lines: lines
-        .filter((l) => l.productId && l.requestedQuantity)
-        .map((l) => ({ productId: l.productId, requestedQuantity: Number(l.requestedQuantity) })),
-    });
-  };
-
-  const submitDisabled = shortages.length > 0;
-
-  return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      title={t('New outbound order')}
-      widthClass="max-w-3xl"
-      footer={
-        step === 1 ? (
-          <>
-            <DsButton
-              type="button"
-              variant="danger"
-              size="md"
-              onClick={handleClose}
-              disabled={loading}
-              className={FILTER_RESET_BUTTON_CLASS}
-            >
-              {t('Cancel')}
-            </DsButton>
-            <DsButton
-              type="button"
-              variant="primary"
-              size="md"
-              disabled={loading}
-              className={FILTER_PRIMARY_BUTTON_CLASS}
-              onClick={goToLinesStep}
-            >
-              {t('Next')}
-            </DsButton>
-          </>
-        ) : (
-          <>
-            <DsButton
-              type="button"
-              variant="danger"
-              size="md"
-              onClick={handleClose}
-              disabled={loading}
-              className={FILTER_RESET_BUTTON_CLASS}
-            >
-              {t('Cancel')}
-            </DsButton>
-            <Button type="button" variant="secondary" onClick={() => setStep(1)} disabled={loading}>
-              {t('Back')}
-            </Button>
-            <DsButton
-              form="create-outbound"
-              type="submit"
-              variant="primary"
-              size="md"
-              loading={loading}
-              disabled={submitDisabled}
-              className={FILTER_PRIMARY_BUTTON_CLASS}
-            >
-              {t('Create')}
-            </DsButton>
-          </>
-        )
-      }
-    >
-      <form id="create-outbound" onSubmit={submit} className="space-y-4">
-        {step === 1 ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Combobox
-                label={t('Client')}
-                required
-                value={companyId}
-                onChange={setCompanyId}
-                clearable={false}
-                dropdownInFlow
-                options={(companies.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-                placeholder={t('Pick a client…')}
-              />
-              <TextField
-                label={t('Required ship date')}
-                type="date"
-                required
-                min={localCalendarDateYmd()}
-                value={shipDate}
-                onChange={(e) => setShipDate(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <TextField
-                label={t('Carrier')}
-                value={carrier}
-                onChange={(e) => setCarrier(e.target.value)}
-              />
-              <TextField label={t('Notes')} value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </div>
-            <TextField
-              label={t('Destination address')}
-              required
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-            />
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-              <input
-                type="checkbox"
-                checked={requiresPacking}
-                onChange={(e) => setRequiresPacking(e.target.checked)}
-                className="mt-1 rounded border-slate-300"
-              />
-              <span className="text-sm font-medium text-slate-900">{t('Packing')}</span>
-            </label>
-          </div>
-        ) : (
-          <>
-            <OrderDraftLinesTable
-              title={t('Lines')}
-              productHeader={t('Product')}
-              lines={tableLines}
-              productOptions={productOptions}
-              productsById={productsById}
-              companyId={companyId}
-              companyDisabledMessage={t('Pick a client first')}
-              pickProductPlaceholder={t('Pick product…')}
-              quantityHeader={t('Quantity')}
-              emptyMessage={t('No lines yet — add a product below.')}
-              removeLabel={t('Remove')}
-              loading={loading}
-              showProductOnHand={false}
-              formatOnHand={formatProductOnHand}
-              onHandLabel=""
-              renderProductFooter={(productId) => {
-                const avail = availabilityByProduct.get(productId);
-                const summed = requestedByProduct.get(productId) ?? 0;
-                if (avail === undefined) return null;
-                const isShort = summed > avail;
-                return (
-                  <div className={`mt-1 text-xs ${isShort ? 'text-rose-600' : 'text-emerald-700'}`}>
-                    Available: {avail.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                    {summed > 0 && (
-                      <>
-                        {' '}
-                        • Requested across lines:{' '}
-                        {summed.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-                      </>
-                    )}
-                  </div>
-                );
-              }}
-              quantityError={(row) => {
-                if (!row.productId) return undefined;
-                const avail = availabilityByProduct.get(row.productId);
-                const summed = requestedByProduct.get(row.productId) ?? 0;
-                if (avail !== undefined && summed > avail) return 'Exceeds available stock';
-                return undefined;
-              }}
-              onUpdateLine={(lineKey, patch) => {
-                const idx = Number(lineKey);
-                updateLine(idx, {
-                  ...(patch.productId !== undefined ? { productId: patch.productId } : {}),
-                  ...(patch.quantity !== undefined ? { requestedQuantity: patch.quantity } : {}),
-                });
-              }}
-              onRemoveLine={(lineKey) => {
-                setLines((prev) => prev.filter((_, i) => i !== Number(lineKey)));
-              }}
-              toolbar={
-                <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={!companyId || loading}
-                    onClick={() => setScanOpen(true)}
-                    aria-label="Scan barcode"
-                    title="Scan a barcode with the device camera"
-                    className="px-2.5"
-                  >
-                    <BarcodeScanIcon className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    disabled={loading}
-                    onClick={() =>
-                      setLines((prev) => [...prev, { productId: '', requestedQuantity: '' }])
-                    }
-                  >
-                    {t('+ Add line')}
-                  </Button>
-                </>
-              }
-            />
-            {shortages.length > 0 && (
-              <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
-                <strong className="block">Order cannot be created — insufficient stock:</strong>
-                <ul className="mt-1 list-disc pl-4">
-                  {shortages.map((s) => {
-                    const p = products.data?.items.find((x) => x.id === s.productId);
-                    return (
-                      <li key={s.productId}>
-                        {p ? `${p.sku} — ${p.name}` : s.productId}: requested {s.requested}, available{' '}
-                        {s.available}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-          </>
-        )}
-      </form>
-
-      <BarcodeScanModal
-        open={scanOpen}
-        onClose={() => setScanOpen(false)}
-        onScan={(text) => {
-          void applyProductByBarcode(text);
-          setScanOpen(false);
+      <OutboundOrdersImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          void qc.invalidateQueries({ queryKey: QK.outboundOrders });
         }}
       />
-    </Modal>
+    </AdminListPageShell>
   );
 }
+

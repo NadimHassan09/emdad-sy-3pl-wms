@@ -11,7 +11,6 @@ import { Column, DataTable } from '../components/DataTable';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import {
-  fmtLedgerQty,
   fmtSignedDelta,
   ledgerMovementCategory,
   ledgerMovementLabel,
@@ -24,17 +23,19 @@ import {
 function movementTone(cat: LedgerMovementCategory): string {
   switch (cat) {
     case 'inbound':
-      return 'text-emerald-700';
+    case 'return':
+      return 'text-brand-700';
     case 'outbound':
-      return 'text-rose-700';
+      return 'text-status-danger-fg';
     default:
-      return 'text-slate-800';
+      return 'text-text-strong';
   }
 }
 
 function movementIcon(cat: LedgerMovementCategory): string {
   switch (cat) {
     case 'inbound':
+    case 'return':
       return 'fa-solid fa-arrow-down';
     case 'outbound':
       return 'fa-solid fa-arrow-up';
@@ -54,11 +55,11 @@ function LedgerDetailField({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
         <i className={`${iconClass} text-[11px] text-brand-600/80`} aria-hidden="true" />
         <span>{label}</span>
       </div>
-      <div className="mt-1.5 text-sm font-semibold text-slate-900">{value}</div>
+      <div className="mt-1.5 text-sm font-semibold text-text-strong">{value}</div>
     </div>
   );
 }
@@ -95,7 +96,7 @@ function LedgerMovementSummaryCard({
     referenceTo != null ? (
       <Link
         to={referenceTo}
-        className="font-mono text-xs font-semibold text-primary-700 hover:underline"
+        className="font-mono text-xs font-semibold text-brand-700 hover:underline"
       >
         {referenceLabel}
       </Link>
@@ -104,16 +105,16 @@ function LedgerMovementSummaryCard({
     );
 
   return (
-    <section className="mb-6 overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+    <section className="mb-6 overflow-hidden rounded-2xl border border-border-subtle bg-surface-card p-6 shadow-sm">
       <div className="flex items-start gap-4">
         <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-100 to-slate-50 ring-4 ring-slate-50"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-surface-card-muted to-surface-card ring-4 ring-surface-card-muted"
           aria-hidden="true"
         >
-          <i className={`${movementIcon(category)} text-xl text-slate-500`} />
+          <i className={`${movementIcon(category)} text-xl text-text-muted`} />
         </div>
         <div className="min-w-0 flex-1 pt-0.5">
-          <h2 className="text-lg font-semibold leading-tight text-slate-900">
+          <h2 className="text-lg font-semibold leading-tight text-text-strong">
             {t('Movement information', 'معلومات الحركة')}
           </h2>
         </div>
@@ -248,45 +249,29 @@ export function InventoryLedgerEntryPage() {
       {
         header: t('Lot', 'الدفعة'),
         accessor: (r) => (
-          <span className="font-mono text-xs text-slate-800">{r.lotNumber}</span>
+          <span className="font-mono text-xs text-text-strong">{r.lotNumber}</span>
         ),
         width: '140px',
       },
       {
         header: t('Location', 'الموقع'),
-        accessor: (r) => <span className="text-xs text-slate-800">{r.locationDescription}</span>,
+        accessor: (r) => <span className="text-xs text-text-strong">{r.locationDescription}</span>,
         width: '260px',
       },
       {
-        header: t('Δ Qty', 'فرق الكمية'),
+        header: t('Quantity', 'الكمية'),
         accessor: (r) => {
           const pos = r.delta > 0;
           const neg = r.delta < 0;
           return (
             <span
-              className={`font-mono font-semibold ${pos ? 'text-emerald-600' : neg ? 'text-rose-600' : 'text-slate-600'}`}
+              className={`font-mono font-semibold ${pos ? 'text-status-success-fg' : neg ? 'text-status-danger-fg' : 'text-text-body'}`}
             >
               {fmtSignedDelta(r.delta)}
             </span>
           );
         },
-        width: '100px',
-        className: 'text-right',
-      },
-      {
-        header: t('Before', 'قبل'),
-        accessor: (r) => (
-          <span className="font-mono text-slate-700">{fmtLedgerQty(r.before)}</span>
-        ),
-        width: '100px',
-        className: 'text-right',
-      },
-      {
-        header: t('After', 'بعد'),
-        accessor: (r) => (
-          <span className="font-mono text-slate-700">{fmtLedgerQty(r.after)}</span>
-        ),
-        width: '100px',
+        width: '110px',
         className: 'text-right',
       },
     ],
@@ -297,17 +282,17 @@ export function InventoryLedgerEntryPage() {
 
   return (
     <>
-      <div className="mb-2 text-sm text-slate-500">
+      <div className="mb-2 text-sm text-text-muted">
         <Link to="/inventory/ledger" className="hover:underline">
           ← {t('Back to ledger', 'العودة إلى السجل')}
         </Link>
       </div>
       {!wid ? (
-        <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>
+        <p className="text-sm text-text-body">Resolve warehouse configuration…</p>
       ) : null}
 
       {query.isError ? (
-        <p className="text-sm text-rose-600">Could not load this movement.</p>
+        <p className="text-sm text-status-danger-fg">Could not load this movement.</p>
       ) : null}
 
       {headLine ? (

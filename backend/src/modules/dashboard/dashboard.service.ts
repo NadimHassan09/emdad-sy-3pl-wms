@@ -8,6 +8,7 @@ import {
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { BillingUsageService } from '../billing/billing-usage.service';
 import type { TaskRunnableShape } from '../warehouse-workflow/task-runnable.util';
 import {
   buildInboundOpenOrdersChart,
@@ -46,6 +47,11 @@ export type DashboardOverviewDto = {
     inProgressCount: number;
   }>;
   capacity: {
+    usedStorageCbm: string;
+    reservedStorageCbm: string;
+    remainingStorageCbm: string;
+    storageUsagePercent: number;
+    /** @deprecated location occupancy — kept 0 for backwards compatibility */
     occupiedLocations: number;
     totalStorageLocations: number;
     consumedPercent: number;
@@ -163,7 +169,10 @@ function addUtcMonths(day: Date, months: number): Date {
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly usage: BillingUsageService,
+  ) {}
 
   async openOrdersCharts(_user: AuthPrincipal): Promise<OpenOrdersChartsDto> {
     // Warehouse KPIs: all customers (ignore request-scoped X-Company-Id).
@@ -448,10 +457,7 @@ export class DashboardService {
       })
       .slice(0, 10);
 
-    const consumedPercent =
-      totalStorageLocationsCount > 0
-        ? Math.round((occupiedLocationsCount / totalStorageLocationsCount) * 100)
-        : 0;
+    const storage = await this.usage.getSystemStorageSnapshot();
 
     return {
       counters: {
@@ -465,9 +471,13 @@ export class DashboardService {
       },
       openTasksByType,
       capacity: {
-        occupiedLocations: occupiedLocationsCount,
-        totalStorageLocations: totalStorageLocationsCount,
-        consumedPercent,
+        usedStorageCbm: storage.usedStorageCbm.toString(),
+        reservedStorageCbm: storage.reservedStorageCbm.toString(),
+        remainingStorageCbm: storage.remainingStorageCbm.toString(),
+        storageUsagePercent: storage.storageUsagePercent,
+        occupiedLocations: 0,
+        totalStorageLocations: 0,
+        consumedPercent: storage.storageUsagePercent,
       },
       soonExpiryLots,
       recentOrders: {

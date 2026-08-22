@@ -10,6 +10,7 @@ exports.ReturnsModule = void 0;
 const common_1 = require("@nestjs/common");
 const audit_module_1 = require("../../common/audit/audit.module");
 const inventory_module_1 = require("../inventory/inventory.module");
+const oms_returns_module_1 = require("../oms-returns/oms-returns.module");
 const return_inventory_service_1 = require("./return-inventory.service");
 const return_quantity_validation_1 = require("./return-quantity.validation");
 const return_workflow_service_1 = require("./return-workflow.service");
@@ -20,7 +21,7 @@ let ReturnsModule = class ReturnsModule {
 exports.ReturnsModule = ReturnsModule;
 exports.ReturnsModule = ReturnsModule = __decorate([
     (0, common_1.Module)({
-        imports: [inventory_module_1.InventoryModule, audit_module_1.AuditModule],
+        imports: [inventory_module_1.InventoryModule, audit_module_1.AuditModule, (0, common_1.forwardRef)(() => oms_returns_module_1.OmsReturnsModule)],
         controllers: [returns_controller_1.ReturnsController],
         providers: [
             returns_service_1.ReturnsService,

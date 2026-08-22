@@ -1,246 +1,265 @@
-import { useMemo, useState } from 'react';
-import type { ReactElement } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { Alert, Button } from '@ds';
-import type { Column } from '@wms/components/DataTable';
-import { DataTable } from '@wms/components/DataTable';
-import { FILTER_PRIMARY_BUTTON_CLASS, FilterPanel } from '@wms/components/FilterPanel';
-import { SelectField } from '@wms/components/SelectField';
-import { StatusBadge } from '@wms/components/StatusBadge';
-import { TextField } from '@wms/components/TextField';
-import { useFilters } from '@wms/hooks/useFilters';
+import {
+  Alert,
+  AdvancedFilterSection,
+  countNonEmptyFilters,
+  FILTER_COMPACT_SEARCH_CLASS,
+  FILTER_COMPACT_SELECT_CLASS,
+  FILTER_FIELD_CONTROL_CLASS,
+} from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
-} from '@wms/hooks/useChunkedServerPagination';
+} from '../hooks/useChunkedServerPagination';
+import { useCachedState } from '../hooks/useCachedState';
+import { useFilters } from '../hooks/useFilters';
 
-import { CreateClientInboundModal } from '../components/CreateClientInboundModal';
+import { Badge } from '../design-v2/Badge';
+import { Card } from '../design-v2/Card';
+import { ListPageHeader } from '../design-v2/ListPageHeader';
+import { TableFooterPagination } from '../design-v2/TableFooterPagination';
+import { ClientOrderImportModal } from '../components/ClientOrderImportModal';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
-import { isClientArabic } from '../lib/client-ui-language';
 import {
-  createClientInboundOrder,
-  fetchClientInboundOrders,
-  type ClientInboundOrderRow,
-} from '../services/clientInboundOrdersService';
+  clientInboundStatusLabel,
+  mapClientInboundDisplayStatus,
+} from '../lib/client-inbound-status';
+import { isClientArabic } from '../lib/client-ui-language';
+import { fetchClientInboundOrders } from '../services/clientInboundOrdersService';
 
 const INBOUND_STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
-  { value: 'draft', label: 'Draft' },
   { value: 'pending_approval', label: 'Waiting for approval' },
-  { value: 'confirmed', label: 'Confirmed' },
   { value: 'in_progress', label: 'In progress' },
-  { value: 'partially_received', label: 'Partially received' },
   { value: 'completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
-type InboundListDraft = {
-  orderSearch: string;
-  status: string;
-};
-
 function inboundLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
-    'Inbound orders': 'طلبات الوارد',
-    '+ New inbound': '+ وارد جديد',
-    'Waiting for approval': 'بانتظار الموافقة',
-    'Order filters': 'فلاتر الطلبات',
-    'Apply filters': 'تطبيق الفلاتر',
-    'Reset filters': 'إعادة تعيين الفلاتر',
-    'Order #': 'رقم الطلب',
-    'Search order...': 'ابحث عن الطلب...',
-    Status: 'الحالة',
+    'Inbound Orders': 'طلبات الوارد',
+    'Manage and track your inbound orders': 'إدارة وتتبع طلبات الوارد الخاصة بك',
+    'Warehouse receipts': 'إيصالات المستودع',
+    'New inbound': 'وارد جديد',
+    Import: 'استيراد',
+    'Search order number...': 'ابحث برقم الطلب...',
+    Filters: 'فلاتر',
     'All statuses': 'كل الحالات',
-    'Expected arrival': 'الوصول المتوقع',
+    'Waiting for approval': 'بانتظار الموافقة',
+    'In progress': 'قيد التنفيذ',
+    Completed: 'مكتمل',
+    Cancelled: 'ملغي',
+    'Order #': 'رقم الطلب',
+    Status: 'الحالة',
+    'Expected Arrival': 'الوصول المتوقع',
     Lines: 'البنود',
     Created: 'تاريخ الإنشاء',
+    Actions: 'الإجراءات',
     'No inbound orders found.': 'لا توجد طلبات وارد.',
     'Could not load inbound orders': 'تعذر تحميل طلبات الوارد',
-    rows: 'صف',
-    results: 'نتيجة',
-    of: 'من',
-    Previous: 'السابق',
-    Next: 'التالي',
-    'Rows per page': 'عدد الصفوف لكل صفحة',
+    Retry: 'إعادة المحاولة',
   };
   return ar[label] ?? label;
 }
 
+const INBOUND_LIST_FILTERS = { search: '', status: '' };
+
 export function InboundOrdersPage(): ReactElement {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
+    useFilters(INBOUND_LIST_FILTERS);
+  const [advancedOpen, setAdvancedOpen] = useCachedState('advanced-filters-open', false);
   const isArabic = isClientArabic();
   const t = (label: string) => inboundLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
-
-  const createMut = useMutation({
-    mutationFn: createClientInboundOrder,
-    onSuccess: (order) => {
-      void queryClient.invalidateQueries({ queryKey: ['client', 'inbound-orders'] });
-      setCreateError(null);
-      setCreateOpen(false);
-      navigate(`/inbound-orders/${order.id}`);
-    },
-    onError: (err: Error) => {
-      setCreateError(err.message || 'Could not submit order.');
-    },
-  });
-
-  const initialList = useMemo<InboundListDraft>(
-    () => ({ orderSearch: '', status: '' }),
-    [],
-  );
-
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(initialList);
+  const [importOpen, setImportOpen] = useState(false);
 
   const filterKey = useMemo(
     () => ({
-      orderSearch: appliedFilters.orderSearch.trim() || undefined,
-      status: appliedFilters.status.trim() || undefined,
+      orderSearch: appliedFilters.search.trim() || undefined,
+      status: appliedFilters.status || undefined,
     }),
     [appliedFilters],
   );
 
-  const pagination = useChunkedServerPagination<ClientInboundOrderRow>({
+  const pagination = useChunkedServerPagination({
     chunkSize: CHUNK_SIZE_STANDARD,
     filterKey,
-    fetchChunk: (offset, limit) => fetchClientInboundOrders({ ...filterKey, offset, limit }),
+    fetchChunk: (offset, limit) =>
+      fetchClientInboundOrders({ ...filterKey, offset, limit }),
     rtQueryKeyPrefix: ['client', 'inbound-orders'],
     chunkQueryKeyPrefix: 'client-inbound-orders-chunk',
   });
 
-  const statusOptions = useMemo(
-    () =>
-      INBOUND_STATUS_OPTIONS.map((o) => ({
-        ...o,
-        label: o.value === '' ? t('All statuses') : o.label,
-      })),
-    [isArabic],
-  );
-
-  const columns: Column<ClientInboundOrderRow>[] = useMemo(
-    () => [
-      {
-        header: t('Order #'),
-        accessor: (o) => <span className="font-mono">{o.orderNumber || '—'}</span>,
-        width: '170px',
-      },
-      {
-        header: t('Status'),
-        accessor: (o) => <StatusBadge status={o.status} />,
-        className: 'w-1 whitespace-nowrap',
-      },
-      {
-        header: t('Expected arrival'),
-        accessor: (o) => new Date(o.expectedArrivalDate).toLocaleDateString(),
-        width: '160px',
-      },
-      { header: t('Lines'), accessor: (o) => o._count?.lines ?? 0, width: '70px' },
-      {
-        header: t('Created'),
-        accessor: (o) => new Date(o.createdAt).toLocaleString(),
-      },
-    ],
-    [isArabic],
-  );
-
   return (
-    <>
-      {pagination.isError && (
-        <Alert
-          variant="error"
-          title={t('Could not load inbound orders')}
-          description="Check your connection and try refreshing the page."
-          action={
-            <Alert.Action variant="error" onClick={() => pagination.refetch()}>
-              Retry
-            </Alert.Action>
-          }
-          className="mb-3"
-        />
-      )}
+    <div className="space-y-5 animate-enter">
+      <ListPageHeader
+        icon="fa-arrow-down"
+        title={t('Inbound Orders')}
+        subtitle={t('Warehouse receipts')}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={!billingAccess.operationalAllowed}
+              title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
+              onClick={() => setImportOpen(true)}
+              className="px-4 py-2 bg-white text-text-strong border border-border-strong rounded-lg text-sm font-medium hover:bg-surface-hover transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <i className="fa-solid fa-file-import text-xs" /> {t('Import')}
+            </button>
+            <button
+              type="button"
+              disabled={!billingAccess.operationalAllowed}
+              title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
+              onClick={() => navigate('/inbound-orders/new')}
+              className="px-4 py-2 bg-cta text-white rounded-lg text-sm font-medium hover:bg-cta-hover transition-all shadow-lg shadow-brand-600/20 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <i className="fa-solid fa-plus text-xs" /> {t('New inbound')}
+            </button>
+          </div>
+        }
+      />
 
-      <FilterPanel
-        title={t('Order filters')}
-        onApply={applyFilters}
-        onReset={resetFilters}
+      <ClientOrderImportModal
+        kind="inbound"
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => pagination.refetch()}
+        disabled={!billingAccess.operationalAllowed}
+        disabledReason={billingAccess.actionBlockedReason}
+      />
+
+      {pagination.isError ? (
+        <Alert variant="error" title={t('Could not load inbound orders')}>
+          <Alert.Action variant="error" onClick={() => pagination.refetch()}>
+            {t('Retry')}
+          </Alert.Action>
+        </Alert>
+      ) : null}
+
+      <AdvancedFilterSection
+        advancedOpen={advancedOpen}
+        onAdvancedOpenChange={setAdvancedOpen}
+        isArabic={isArabic}
         loading={pagination.isFetching}
-        applyLabel={t('Apply filters')}
-        resetLabel={t('Reset filters')}
+        activeCount={countNonEmptyFilters(appliedFilters, ['status'])}
+        onApply={applyFilters}
+        onReset={() => {
+          resetFilters();
+          setAdvancedOpen(false);
+        }}
+        compact={
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1 sm:max-w-sm">
+              <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-text-faint text-xs" />
+              <input
+                value={draftFilters.search}
+                onChange={(e) => setDraft({ search: e.target.value })}
+                placeholder={t('Search order number...')}
+                className={FILTER_COMPACT_SEARCH_CLASS}
+              />
+            </div>
+            <select
+              value={draftFilters.status}
+              onChange={(e) => setDraft({ status: e.target.value })}
+              aria-label={t('All statuses')}
+              className={FILTER_COMPACT_SELECT_CLASS}
+            >
+              {INBOUND_STATUS_OPTIONS.map((o) => (
+                <option key={o.value || 'all'} value={o.value}>
+                  {o.value === '' ? t('All statuses') : t(o.label)}
+                </option>
+              ))}
+            </select>
+          </div>
+        }
       >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <TextField
-            label={t('Order #')}
-            value={draftFilters.orderSearch}
-            onChange={(e) => setDraft({ orderSearch: e.target.value })}
-            placeholder={t('Search order...')}
-            className="font-mono text-xs"
-          />
-          <SelectField
-            label={t('Status')}
-            value={draftFilters.status}
-            onChange={(e) => setDraft({ status: e.target.value })}
-            options={statusOptions}
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Order #')}</label>
+          <input
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder={t('Search order number...')}
+            className={FILTER_FIELD_CONTROL_CLASS}
           />
         </div>
-      </FilterPanel>
-
-      <DataTable
-        title={t('Inbound orders')}
-        titleAs="h1"
-        actions={
-          <Button
-            variant="primary"
-            size="md"
-            disabled={!billingAccess.operationalAllowed}
-            title={
-              billingAccess.operationalAllowed
-                ? undefined
-                : billingAccess.actionBlockedReason
-            }
-            onClick={() => {
-              setCreateError(null);
-              setCreateOpen(true);
-            }}
-            className={FILTER_PRIMARY_BUTTON_CLASS}
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Status')}</label>
+          <select
+            value={draftFilters.status}
+            onChange={(e) => setDraft({ status: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
           >
-            {t('+ New inbound')}
-          </Button>
-        }
-        columns={columns}
-        rows={pagination.rows}
-        rowKey={(o) => o.id}
-        loading={pagination.isInitialLoading}
-        onRowClick={(o) => navigate(`/inbound-orders/${o.id}`)}
-        empty={t('No inbound orders found.')}
-        serverPagination={pagination.serverPagination}
-        labels={{
-          rowsSuffix: t('rows'),
-          resultsSuffix: t('results'),
-          ofWord: t('of'),
-          previous: t('Previous'),
-          next: t('Next'),
-          rowsPerPageAria: t('Rows per page'),
-        }}
-      />
+            {INBOUND_STATUS_OPTIONS.map((o) => (
+              <option key={o.value || 'all'} value={o.value}>
+                {o.value === '' ? t('All statuses') : t(o.label)}
+              </option>
+            ))}
+          </select>
+        </div>
+      </AdvancedFilterSection>
 
-      <CreateClientInboundModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        loading={createMut.isPending}
-        submitError={createError}
-        onSubmit={(input) => {
-          setCreateError(null);
-          createMut.mutate(input);
-        }}
-        isArabic={isArabic}
-      />
-    </>
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
+              <tr>
+                <th className="px-5 py-3 text-left">{t('Order #')}</th>
+                <th className="px-5 py-3 text-left">{t('Status')}</th>
+                <th className="px-5 py-3 text-left">{t('Expected Arrival')}</th>
+                <th className="px-5 py-3 text-left">{t('Lines')}</th>
+                <th className="px-5 py-3 text-right">{t('Created')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {pagination.isInitialLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={`sk-${i}`} className="animate-pulse">
+                    <td className="px-5 py-3.5" colSpan={5}>
+                      <div className="h-4 w-full max-w-xl rounded bg-skeleton-base" />
+                    </td>
+                  </tr>
+                ))
+              ) : pagination.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-10 text-center text-text-faint text-sm">
+                    {t('No inbound orders found.')}
+                  </td>
+                </tr>
+              ) : (
+                pagination.rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    onClick={() => navigate(`/inbound-orders/${row.id}`)}
+                    className="hover:bg-surface-hover transition-colors group cursor-pointer"
+                  >
+                    <td className="px-5 py-3.5 font-semibold text-text-strong font-mono">
+                      {row.orderNumber || '—'}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <Badge status={mapClientInboundDisplayStatus(row.status)}>
+                        {clientInboundStatusLabel(row.status, isArabic)}
+                      </Badge>
+                    </td>
+                    <td className="px-5 py-3.5 text-text-body">
+                      {new Date(row.expectedArrivalDate).toLocaleDateString()}
+                    </td>
+                    <td className="px-5 py-3.5 text-text-body">{row._count?.lines ?? 0}</td>
+                    <td className="px-5 py-3.5 text-right text-text-muted text-xs">
+                      {new Date(row.createdAt).toLocaleString()}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <TableFooterPagination pagination={pagination.serverPagination} isArabic={isArabic} />
+      </Card>
+    </div>
   );
 }

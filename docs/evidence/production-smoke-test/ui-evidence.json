@@ -1,0 +1,156 @@
+{
+  "capturedAt": "2026-06-12T14:22:39.284Z",
+  "pages": [
+    {
+      "label": "admin-login",
+      "url": "https://admin.emdadsy.com/login",
+      "ms": 2706,
+      "screenshot": "screenshots/admin-login.png"
+    },
+    {
+      "label": "admin-dashboard",
+      "url": "https://admin.emdadsy.com/dashboard/overview",
+      "ms": 2588,
+      "screenshot": "screenshots/admin-dashboard.png"
+    },
+    {
+      "label": "admin-products",
+      "url": "https://admin.emdadsy.com/products",
+      "ms": 2547,
+      "screenshot": "screenshots/admin-products.png"
+    },
+    {
+      "label": "admin-locations",
+      "url": "https://admin.emdadsy.com/locations",
+      "ms": 2549,
+      "screenshot": "screenshots/admin-locations.png"
+    },
+    {
+      "label": "admin-inventory",
+      "url": "https://admin.emdadsy.com/inventory/stock",
+      "ms": 2545,
+      "screenshot": "screenshots/admin-inventory.png"
+    },
+    {
+      "label": "admin-inbound",
+      "url": "https://admin.emdadsy.com/inbound",
+      "ms": 2551,
+      "screenshot": "screenshots/admin-inbound.png"
+    },
+    {
+      "label": "admin-outbound",
+      "url": "https://admin.emdadsy.com/outbound",
+      "ms": 2543,
+      "screenshot": "screenshots/admin-outbound.png"
+    },
+    {
+      "label": "admin-returns",
+      "url": "https://admin.emdadsy.com/returns",
+      "ms": 2564,
+      "screenshot": "screenshots/admin-returns.png"
+    },
+    {
+      "label": "admin-cycle-count",
+      "url": "https://admin.emdadsy.com/cycle-count",
+      "ms": 2545,
+      "screenshot": "screenshots/admin-cycle-count.png"
+    },
+    {
+      "label": "admin-tasks",
+      "url": "https://admin.emdadsy.com/tasks",
+      "ms": 2538,
+      "screenshot": "screenshots/admin-tasks.png"
+    },
+    {
+      "label": "admin-reports",
+      "url": "https://admin.emdadsy.com/reports",
+      "ms": 2546,
+      "screenshot": "screenshots/admin-reports.png"
+    },
+    {
+      "label": "admin-billing",
+      "url": "https://admin.emdadsy.com/billing",
+      "ms": 2555,
+      "screenshot": "screenshots/admin-billing.png"
+    },
+    {
+      "label": "admin-backup",
+      "url": "https://admin.emdadsy.com/settings/backups",
+      "ms": 2556,
+      "screenshot": "screenshots/admin-backup.png"
+    },
+    {
+      "label": "admin-audit-logs",
+      "url": "https://admin.emdadsy.com/audit-logs",
+      "ms": 2559,
+      "screenshot": "screenshots/admin-audit-logs.png"
+    },
+    {
+      "label": "client-login",
+      "url": "https://client.emdadsy.com/login",
+      "ms": 2639,
+      "screenshot": "screenshots/client-login.png"
+    },
+    {
+      "label": "client-dashboard",
+      "url": "https://client.emdadsy.com/dashboard",
+      "ms": 2546,
+      "screenshot": "screenshots/client-dashboard.png"
+    },
+    {
+      "label": "client-products",
+      "url": "https://client.emdadsy.com/products",
+      "ms": 2543,
+      "screenshot": "screenshots/client-products.png"
+    },
+    {
+      "label": "client-inventory",
+      "url": "https://client.emdadsy.com/inventory",
+      "ms": 2537,
+      "screenshot": "screenshots/client-inventory.png"
+    },
+    {
+      "label": "client-inbound",
+      "url": "https://client.emdadsy.com/inbound",
+      "ms": 2534,
+      "screenshot": "screenshots/client-inbound.png"
+    },
+    {
+      "label": "client-outbound",
+      "url": "https://client.emdadsy.com/outbound",
+      "ms": 2551,
+      "screenshot": "screenshots/client-outbound.png"
+    },
+    {
+      "label": "client-billing",
+      "url": "https://client.emdadsy.com/billing",
+      "ms": 2546,
+      "screenshot": "screenshots/client-billing.png"
+    },
+    {
+      "label": "client-notifications",
+      "url": "https://client.emdadsy.com/notifications",
+      "ms": 2537,
+      "screenshot": "screenshots/client-notifications.png"
+    },
+    {
+      "label": "admin-operator-tasks-nav",
+      "url": "https://admin.emdadsy.com/tasks",
+      "ms": 2551,
+      "screenshot": "screenshots/admin-operator-tasks-nav.png"
+    }
+  ],
+  "consoleErrors": [
+    {
+      "label": "client-login",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    }
+  ],
+  "networkFailures": [
+    {
+      "label": "client-login",
+      "url": "https://client.emdadsy.com/api/client/auth/me",
+      "status": 401
+    }
+  ]
+}

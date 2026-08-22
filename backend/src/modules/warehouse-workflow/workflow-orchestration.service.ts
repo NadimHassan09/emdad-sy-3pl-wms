@@ -11,6 +11,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { outboundAllowsShippingDetailsSpawn } from '../oms/oms-warehouse-guards';
 import { readPickDraftPackingDestinationId } from './execution-state-location.util';
 import { defaultSlaMinutesForTaskType } from './task-sla-defaults';
 import type {
@@ -356,7 +357,7 @@ export class WorkflowOrchestrationService {
             select: { requiresPacking: true },
           });
           if (order?.requiresPacking === false) {
-            await this.enqueueDispatchTaskIfNeeded(tx, wf.id, orderId, completedTask.id);
+            await this.spawnShippingDetailsIfNeeded(tx, wf.id, orderId);
           } else {
             await this.spawnPackIfNeeded(tx, wf.id, orderId);
           }
@@ -364,8 +365,11 @@ export class WorkflowOrchestrationService {
         break;
       case WarehouseTaskType.pack:
         if (body.task_type === 'pack') {
-          await this.enqueueDispatchTaskIfNeeded(tx, wf.id, orderId);
+          await this.spawnShippingDetailsIfNeeded(tx, wf.id, orderId);
         }
+        break;
+      case WarehouseTaskType.shipping_details:
+        await this.enqueueDispatchTaskIfNeeded(tx, wf.id, orderId);
         break;
       case WarehouseTaskType.dispatch:
         if (body.task_type === 'dispatch') {
@@ -427,6 +431,63 @@ export class WorkflowOrchestrationService {
         payload: {
           outbound_order_id: orderId,
           outbound_order_line_ids: order.lines.map((l) => l.id),
+        } as object as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  async spawnShippingDetailsIfNeeded(
+    tx: Prisma.TransactionClient,
+    instanceId: string,
+    orderId: string,
+  ) {
+    const existing = await tx.warehouseTask.findFirst({
+      where: {
+        workflowInstanceId: instanceId,
+        taskType: WarehouseTaskType.shipping_details,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (
+      existing &&
+      [WarehouseTaskStatus.pending, WarehouseTaskStatus.assigned, WarehouseTaskStatus.in_progress].includes(
+        existing.status as 'pending' | 'assigned' | 'in_progress',
+      )
+    ) {
+      return;
+    }
+    if (existing?.status === WarehouseTaskStatus.completed) {
+      return;
+    }
+
+    const order = await tx.outboundOrder.findUnique({
+      where: { id: orderId },
+      select: { id: true, status: true },
+    });
+    if (!order) throw new BadRequestException('Outbound order missing for shipping_details spawn.');
+    if (!outboundAllowsShippingDetailsSpawn(order.status)) {
+      return;
+    }
+
+    const seq = await this.nextNodeSequence(tx, instanceId);
+    const node = await tx.workflowNode.create({
+      data: {
+        instanceId,
+        stepKind: WorkflowStepKind.shipping_details,
+        sequence: seq,
+        status: 'pending',
+      },
+    });
+
+    await tx.warehouseTask.create({
+      data: {
+        workflowInstanceId: instanceId,
+        workflowNodeId: node.id,
+        taskType: WarehouseTaskType.shipping_details,
+        status: WarehouseTaskStatus.pending,
+        slaMinutes: defaultSlaMinutesForTaskType(WarehouseTaskType.shipping_details),
+        payload: {
+          outbound_order_id: orderId,
         } as object as Prisma.InputJsonValue,
       },
     });

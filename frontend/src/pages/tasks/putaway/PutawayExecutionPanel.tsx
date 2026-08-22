@@ -6,8 +6,11 @@ import { Column, DataTable } from '../../../components/DataTable';
 import { TaskDetailsCard } from '../../../components/tasks/TaskDetailsCard';
 import type { Location } from '../../../api/locations';
 import { ProductsApi, type ProductLot } from '../../../api/products';
+import { BarcodeScanIcon } from '../../../components/BarcodeScanIcon';
+import { BarcodeScanModal } from '../../../components/BarcodeScanModal';
 import { Button } from '../../../components/Button';
 import { PutawayDestinationPicker } from './PutawayDestinationPicker';
+import { WedgeScanField } from '../../../components/WedgeScanField';
 import { useResolvedLocations } from '../../../hooks/useResolvedLocations';
 import { TaskLinesFilterCard } from '../../../components/tasks/TaskLinesFilterCard';
 import {
@@ -17,7 +20,13 @@ import {
 import type { TaskLineFilters } from '../../../lib/task-line-filters';
 import { useToast } from '../../../components/ToastProvider';
 import { QK } from '../../../constants/query-keys';
-import { displayWarehouseLabel, inboundOrderTitle } from '../../../lib/task-details-helpers';
+import { resolveLocationByScan } from '../../../lib/location-resolve';
+import {
+  isAllowedPutawayDestination,
+  putawayDestinationTypes,
+} from '../../../lib/location-types';
+import { inboundOrderTitle } from '../../../lib/task-details-helpers';
+import { useWarehouseLabel } from '../../../hooks/useWarehouseLabel';
 import { taskTypeIconClass } from '../../../lib/task-type-icons';
 import { useWmsTranslation } from '../../../lib/ui-i18n';
 import {
@@ -123,6 +132,7 @@ export function PutawayExecutionPanel({
 }: Props) {
   const { t } = useWmsTranslation();
   const toast = useToast();
+  const { warehouseLabel } = useWarehouseLabel();
   const isMdUp = useMediaQuery('(min-width: 768px)');
   const savedDraft = readPutawayDraft(executionState);
 
@@ -370,7 +380,7 @@ export function PutawayExecutionPanel({
         {
           iconClass: 'fa-solid fa-warehouse',
           label: t(['Warehouse', 'المستودع']),
-          value: displayWarehouseLabel(warehouseId),
+          value: warehouseLabel(warehouseId),
         },
         {
           iconClass: 'fa-solid fa-arrows-turn-right',
@@ -485,7 +495,7 @@ export function PutawayExecutionPanel({
         onSplit={splitRow}
       />
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface-card/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
         <div className="mx-auto flex max-w-4xl flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button
             type="button"
@@ -524,10 +534,10 @@ function SummaryCards({ summary }: { summary: ReturnType<typeof computePutawaySu
       {cards.map((c) => (
         <div
           key={c.label}
-          className={`rounded-xl border p-3 ${c.accent ? 'border-emerald-200 bg-emerald-50' : 'border-slate-100 bg-white'}`}
+          className={`rounded-xl border p-3 ${c.accent ? 'border-border bg-surface-active' : 'border-border-subtle bg-surface-card'}`}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{c.label}</p>
-          <p className={`mt-1 text-lg font-semibold ${c.accent ? 'text-emerald-800' : 'text-slate-900'}`}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{c.label}</p>
+          <p className={`mt-1 text-lg font-semibold ${c.accent ? 'text-brand-700' : 'text-text-strong'}`}>
             {c.value}
           </p>
         </div>
@@ -564,12 +574,58 @@ function PutawayLinesTable({
   onSplit?: (rowKey: string) => void;
 }) {
   const { t } = useWmsTranslation();
+  const toast = useToast();
+  const [scanRowKey, setScanRowKey] = useState<string | null>(null);
+  const [wedgeDest, setWedgeDest] = useState('');
+
+  const activeRowKey = useMemo(() => {
+    const incomplete = drafts.find((d) => !d.destination_location_id.trim() || !d.destVerified);
+    return incomplete?.rowKey ?? drafts[0]?.rowKey ?? null;
+  }, [drafts]);
+
+  const lastDestId = useMemo(() => {
+    for (let i = drafts.length - 1; i >= 0; i -= 1) {
+      const id = drafts[i]?.destination_location_id?.trim();
+      if (id) return id;
+    }
+    return '';
+  }, [drafts]);
+
+  const applyDestinationScan = useCallback(
+    async (rowKey: string, code: string) => {
+      const trimmed = code.trim();
+      if (!trimmed) {
+        toast.error(t(['Scan a location barcode.', 'امسح barcode الموقع.']));
+        return;
+      }
+      const hit = await resolveLocationByScan(warehouseId, trimmed, {
+        types: putawayDestinationTypes(taskType),
+      });
+      if (!hit || !isAllowedPutawayDestination(hit.type, taskType)) {
+        toast.error(
+          t([
+            'No eligible storage bin matches this barcode.',
+            'لا يوجد صندوق تخزين مطابق لهذا barcode.',
+          ]),
+        );
+        return;
+      }
+      onPatch?.(rowKey, { destination_location_id: hit.id, destVerified: true });
+      toast.success(
+        t([`Destination: ${hit.fullPath}`, `الوجهة: ${hit.fullPath}`]),
+      );
+      setScanRowKey(null);
+      setWedgeDest('');
+    },
+    [onPatch, taskType, toast, t, warehouseId],
+  );
+
   const columns: Column<PutawayLineDraft>[] = [
     {
       header: t(['Product', 'المنتج']),
       accessor: (d) => {
         const ol = lineById.get(d.inbound_order_line_id);
-        return <span className="font-medium text-slate-800">{ol?.product?.name ?? '—'}</span>;
+        return <span className="font-medium text-text-strong">{ol?.product?.name ?? '—'}</span>;
       },
       width: '160px',
     },
@@ -586,7 +642,7 @@ function PutawayLinesTable({
       accessor: (d) => {
         const src = locationById.get(stagingByLineId.get(d.inbound_order_line_id) ?? '');
         return (
-          <span className="font-mono text-xs font-semibold text-slate-800">
+          <span className="font-mono text-xs font-semibold text-text-strong">
             {locationDisplay(src).shortLabel}
           </span>
         );
@@ -600,12 +656,29 @@ function PutawayLinesTable({
         return readOnly ? (
           <span className="font-mono text-xs">{locationDisplay(dest).fullPath}</span>
         ) : (
-          <PutawayDestinationPicker
-            warehouseId={warehouseId}
-            taskType={taskType}
-            value={d.destination_location_id}
-            onChange={(v) => onPatch?.(d.rowKey, { destination_location_id: v, destVerified: !!v })}
-          />
+          <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
+            <PutawayDestinationPicker
+              warehouseId={warehouseId}
+              taskType={taskType}
+              value={d.destination_location_id}
+              dropdownInFlow
+              onChange={(v) => onPatch?.(d.rowKey, { destination_location_id: v, destVerified: !!v })}
+            />
+            {lastDestId && !d.destination_location_id.trim() ? (
+              <button
+                type="button"
+                className="text-[10px] font-semibold text-brand-700 underline-offset-2 hover:underline"
+                onClick={() =>
+                  onPatch?.(d.rowKey, {
+                    destination_location_id: lastDestId,
+                    destVerified: true,
+                  })
+                }
+              >
+                {t(['Use last destination', 'استخدم آخر وجهة'])}
+              </button>
+            ) : null}
+          </div>
         );
       },
       width: '200px',
@@ -624,7 +697,7 @@ function PutawayLinesTable({
           <span className="font-mono tabular-nums">{d.putaway_quantity}</span>
         ) : (
           <input
-            className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm"
+            className="w-20 rounded border border-border px-2 py-1 font-mono text-sm"
             value={d.putaway_quantity}
             onChange={(e) => onPatch?.(d.rowKey, { putaway_quantity: e.target.value })}
             onClick={(e) => e.stopPropagation()}
@@ -647,6 +720,24 @@ function PutawayLinesTable({
     ...(!readOnly
       ? [
           {
+            header: t(['Scan', 'مسح']),
+            accessor: (d: PutawayLineDraft) => (
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-hover"
+                aria-label={t(['Scan destination barcode', 'مسح barcode الوجهة'])}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setScanRowKey(d.rowKey);
+                }}
+              >
+                <BarcodeScanIcon className="h-5 w-5" />
+              </button>
+            ),
+            width: '56px',
+            className: 'text-center',
+          } satisfies Column<PutawayLineDraft>,
+          {
             header: t(['Actions', 'إجراءات']),
             accessor: (d: PutawayLineDraft) => (
               <Button type="button" size="sm" variant="secondary" onClick={() => onSplit?.(d.rowKey)}>
@@ -660,29 +751,55 @@ function PutawayLinesTable({
   ];
 
   return (
-    <DataTable
-      title={t(['Movement lines', 'أسطر الحركة'])}
-      actions={
-        onExportPrint ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={drafts.length === 0}
-            onClick={() => onExportPrint()}
-          >
-            {t(['Export PDF', 'تصدير PDF'])}
-          </Button>
-        ) : undefined
-      }
-      columns={columns}
-      rows={drafts}
-      rowKey={(d) => d.rowKey}
-      empty={
-        totalLineCount === 0
-          ? t(['No putaway lines.', 'لا أسطر تخزين.'])
-          : t(['No lines match the current filters.', 'لا أسطر تطابق الفلاتر الحالية.'])
-      }
-    />
+    <>
+      {!readOnly && activeRowKey ? (
+        <div className="mb-3 rounded-xl border border-border bg-surface-card p-3 text-text-strong">
+          <WedgeScanField
+            label={t(['Scan destination bin', 'امسح صندوق الوجهة'])}
+            value={wedgeDest}
+            onChange={setWedgeDest}
+            onScan={(code) => void applyDestinationScan(activeRowKey, code)}
+            placeholder={t(['Location barcode + Enter', 'باركود الموقع ثم Enter'])}
+            hint={t([
+              'Applies to the first line still missing a destination.',
+              'يُطبَّق على أول سطر بلا وجهة.',
+            ])}
+          />
+        </div>
+      ) : null}
+      <DataTable
+        title={t(['Movement lines', 'أسطر الحركة'])}
+        actions={
+          onExportPrint ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={drafts.length === 0}
+              onClick={() => onExportPrint()}
+            >
+              {t(['Export PDF', 'تصدير PDF'])}
+            </Button>
+          ) : undefined
+        }
+        columns={columns}
+        rows={drafts}
+        rowKey={(d) => d.rowKey}
+        empty={
+          totalLineCount === 0
+            ? t(['No putaway lines.', 'لا أسطر تخزين.'])
+            : t(['No lines match the current filters.', 'لا أسطر تطابق الفلاتر الحالية.'])
+        }
+      />
+      {!readOnly ? (
+        <BarcodeScanModal
+          open={scanRowKey !== null}
+          onClose={() => setScanRowKey(null)}
+          onScan={(code) => {
+            if (scanRowKey) void applyDestinationScan(scanRowKey, code);
+          }}
+        />
+      ) : null}
+    </>
   );
 }

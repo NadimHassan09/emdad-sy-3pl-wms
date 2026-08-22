@@ -165,7 +165,7 @@ export function NewAdjustmentModal({
           <Button
             type="button"
             size="sm"
-            variant="secondary"
+            variant="danger"
             disabled={pending}
             onClick={() => setPendingRows((rows) => rows.filter((x) => x.key !== r.key))}
           >
@@ -257,7 +257,7 @@ export function NewAdjustmentModal({
           } pr-1`}
         >
           {!warehouseId ? (
-            <p className="text-sm text-rose-600">
+            <p className="text-sm text-status-danger-fg">
               {t(
                 'Cannot create — default warehouse not resolved.',
                 'لا يمكن الإنشاء — المستودع الافتراضي غير محدد.',

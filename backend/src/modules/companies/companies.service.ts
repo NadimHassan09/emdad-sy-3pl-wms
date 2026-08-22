@@ -8,6 +8,9 @@ import { CompanyStatus, Prisma } from '@prisma/client';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { ImageProcessingService } from '../media/image-processing.service';
+import { MediaStorageService } from '../media/media-storage.service';
+import { toAvatarPublicUrl } from '../media/avatar-url';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { ListCompaniesQueryDto } from './dto/list-companies-query.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
@@ -25,23 +28,43 @@ const COMPANY_LIST_SELECT = {
   billingCycle: true,
   paymentTermsDays: true,
   notes: true,
+  logoPath: true,
+  suspendedAt: true,
+  suspensionReason: true,
+  archivedAt: true,
+  archiveReason: true,
+  purgedAt: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.CompanySelect;
+
+type CompanyRow = Prisma.CompanyGetPayload<{ select: typeof COMPANY_LIST_SELECT }>;
+
+function mapCompany(row: CompanyRow) {
+  const { logoPath, ...rest } = row;
+  return {
+    ...rest,
+    logoUrl: toAvatarPublicUrl(logoPath),
+  };
+}
 
 @Injectable()
 export class CompaniesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly companyAccess: CompanyAccessService,
+    private readonly images: ImageProcessingService,
+    private readonly storage: MediaStorageService,
   ) {}
 
-  list(user: AuthPrincipal, query: ListCompaniesQueryDto) {
+  async list(user: AuthPrincipal, query: ListCompaniesQueryDto) {
     const where: Prisma.CompanyWhereInput = {};
     if (user.tenantScope === 'restricted') {
       where.id = { in: user.authorizedCompanyIds };
     }
-    if (!query.includeAll) {
+    if (query.status) {
+      where.status = query.status;
+    } else if (!query.includeAll) {
       where.status = CompanyStatus.active;
     }
     if (query.search?.trim()) {
@@ -50,13 +73,17 @@ export class CompaniesService {
         { name: { contains: t, mode: 'insensitive' } },
         { tradeName: { contains: t, mode: 'insensitive' } },
         { contactEmail: { contains: t, mode: 'insensitive' } },
+        { contactPhone: { contains: t, mode: 'insensitive' } },
+        { city: { contains: t, mode: 'insensitive' } },
+        { country: { contains: t, mode: 'insensitive' } },
       ];
     }
-    return this.prisma.company.findMany({
+    const rows = await this.prisma.company.findMany({
       where,
       orderBy: { name: 'asc' },
       select: COMPANY_LIST_SELECT,
     });
+    return rows.map(mapCompany);
   }
 
   async findById(user: AuthPrincipal, id: string) {
@@ -66,17 +93,17 @@ export class CompaniesService {
       select: COMPANY_LIST_SELECT,
     });
     if (!company) throw new NotFoundException('Company not found.');
-    return company;
+    return mapCompany(company);
   }
 
   async create(dto: CreateCompanyDto) {
-    return this.prisma.company.create({
+    const company = await this.prisma.company.create({
       data: {
         name: dto.name.trim(),
         tradeName: dto.tradeName?.trim() || null,
         contactEmail: dto.contactEmail.trim().toLowerCase(),
-        country: (dto.country ?? 'SA').trim(),
-        city: dto.city?.trim() || null,
+        country: dto.country.trim(),
+        city: dto.city.trim(),
         contactPhone: dto.contactPhone?.trim() || null,
         address: dto.address?.trim() || null,
         notes: dto.notes?.trim() || null,
@@ -84,6 +111,7 @@ export class CompaniesService {
       },
       select: COMPANY_LIST_SELECT,
     });
+    return mapCompany(company);
   }
 
   async update(user: AuthPrincipal, id: string, dto: UpdateCompanyDto) {
@@ -100,10 +128,47 @@ export class CompaniesService {
     if (dto.notes !== undefined) data.notes = dto.notes?.trim() || null;
     if (dto.status !== undefined) data.status = dto.status;
 
-    return this.prisma.company.update({
+    const company = await this.prisma.company.update({
       where: { id },
       data,
       select: COMPANY_LIST_SELECT,
+    });
+    return mapCompany(company);
+  }
+
+  async uploadLogo(user: AuthPrincipal, id: string, file: Express.Multer.File) {
+    this.companyAccess.assertCompanyAccess(user, id);
+    const existing = await this.prisma.company.findUnique({
+      where: { id },
+      select: { logoPath: true },
+    });
+    if (!existing) throw new NotFoundException('Company not found.');
+
+    const compressed = await this.images.compress(file.buffer, file.mimetype, 'company-logo');
+    const saved = await this.storage.write('company-logos', id, compressed);
+    await this.storage.remove(existing.logoPath ?? null);
+    const company = await this.prisma.company.update({
+      where: { id },
+      data: { logoPath: saved.relativePath },
+      select: COMPANY_LIST_SELECT,
+    });
+    return {
+      logoUrl: toAvatarPublicUrl(company.logoPath)!,
+      company: mapCompany(company),
+    };
+  }
+
+  async deleteLogo(user: AuthPrincipal, id: string): Promise<void> {
+    this.companyAccess.assertCompanyAccess(user, id);
+    const existing = await this.prisma.company.findUnique({
+      where: { id },
+      select: { logoPath: true },
+    });
+    if (!existing) throw new NotFoundException('Company not found.');
+    await this.storage.remove(existing.logoPath ?? null);
+    await this.prisma.company.update({
+      where: { id },
+      data: { logoPath: null },
     });
   }
 

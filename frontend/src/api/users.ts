@@ -29,6 +29,7 @@ export type UserListRow = {
   companyId: string | null;
   companyName: string | null;
   kind: UserKind;
+  avatarUrl: string | null;
   workerProfile: UserWorkerProfileSummary | null;
   createdAt: string;
   updatedAt: string;

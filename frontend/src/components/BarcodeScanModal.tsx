@@ -337,13 +337,13 @@ export function BarcodeScanModal({ open, onClose, onScan, onCameraError }: Barco
       widthClass="max-w-lg"
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={handleUserClose} disabled={busy}>
+          <Button type="button" variant="danger" onClick={handleUserClose} disabled={busy}>
             {t('Cancel', 'إلغاء')}
           </Button>
         </>
       }
     >
-      <p className="mb-3 text-sm text-slate-600">
+      <p className="mb-3 text-sm text-text-body">
         {t(
           'Take a photo',
           'التقط صورة',
@@ -401,7 +401,7 @@ export function BarcodeScanModal({ open, onClose, onScan, onCameraError }: Barco
         <div className="mt-4 space-y-3">
           <div
             id={liveHostId}
-            className="mx-auto min-h-[260px] w-full max-w-md overflow-hidden rounded-lg bg-slate-950"
+            className="mx-auto min-h-[260px] w-full max-w-md overflow-hidden rounded-lg bg-black"
           />
           <div className="flex justify-center">
             <Button type="button" onClick={() => void scanLiveCameraFrame()} disabled={busy} loading={busy}>
@@ -412,11 +412,11 @@ export function BarcodeScanModal({ open, onClose, onScan, onCameraError }: Barco
       ) : null}
 
       {busy ? (
-        <p className="mt-3 text-center text-sm text-slate-600">
+        <p className="mt-3 text-center text-sm text-text-body">
           {liveMode ? t('Reading frame…', 'جاري قراءة الإطار…') : t('Reading image…', 'جاري قراءة الصورة…')}
         </p>
       ) : null}
-      {hint ? <p className="mt-3 text-center text-sm text-rose-600">{hint}</p> : null}
+      {hint ? <p className="mt-3 text-center text-sm text-status-danger-fg">{hint}</p> : null}
     </Modal>
   );
 }

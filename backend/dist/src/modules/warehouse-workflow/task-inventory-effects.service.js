@@ -8,6 +8,9 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TaskInventoryEffectsService = void 0;
 const common_1 = require("@nestjs/common");
@@ -18,6 +21,8 @@ const location_operational_1 = require("../../common/utils/location-operational"
 const discrete_uom_quantity_1 = require("../../common/utils/discrete-uom-quantity");
 const ledger_idempotency_service_1 = require("../inventory/ledger-idempotency.service");
 const stock_helpers_1 = require("../inventory/stock.helpers");
+const oms_outbound_sync_service_1 = require("../oms/oms-outbound-sync.service");
+const shipping_handoff_hook_service_1 = require("../outbound/shipping-handoff-hook.service");
 const task_allocation_helper_1 = require("./task-allocation.helper");
 const pick_concurrency_util_1 = require("./pick-concurrency.util");
 function parseExpiryFromDiscrepancyNotes(notes) {
@@ -39,11 +44,34 @@ function resolveReceivingLotExpiry(product, line, taskLine) {
 let TaskInventoryEffectsService = class TaskInventoryEffectsService {
     stock;
     ledgerDedup;
-    constructor(stock, ledgerDedup) {
+    shippingHandoff;
+    omsSync;
+    constructor(stock, ledgerDedup, shippingHandoff, omsSync) {
         this.stock = stock;
         this.ledgerDedup = ledgerDedup;
+        this.shippingHandoff = shippingHandoff;
+        this.omsSync = omsSync;
     }
-    async buildPickReservations(tx, companyId, warehouseId, lines) {
+    scheduleReadyForShippingHook(_orderId) {
+    }
+    async buildPickReservations(tx, companyId, warehouseId, lines, outboundOrderId) {
+        if (outboundOrderId) {
+            const existing = await tx.stockReservation.findMany({
+                where: { outboundOrderId, status: 'active' },
+                include: { location: { select: { warehouseId: true } } },
+            });
+            if (existing.length > 0) {
+                return existing.map((r) => ({
+                    outboundOrderLineId: r.outboundOrderLineId ?? '',
+                    companyId: r.companyId,
+                    productId: r.productId,
+                    locationId: r.locationId,
+                    warehouseId: r.location.warehouseId,
+                    lotId: r.lotId,
+                    quantity: r.quantity.toString(),
+                }));
+            }
+        }
         const planned = [];
         for (const line of (0, pick_concurrency_util_1.sortPickLinesForLocking)(lines)) {
             let remaining = new client_1.Prisma.Decimal(line.requestedQty.toString());
@@ -174,13 +202,20 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                     }
                 }
             }
-            const stockMeta = await this.stock.upsertPositiveWithMeta(tx, {
+            await this.stock.upsertPositive(tx, {
                 companyId,
                 productId: line.productId,
                 locationId: stagingLocationId,
                 warehouseId: location.warehouseId,
                 lotId,
                 quantity: qty.toString(),
+            });
+            await this.stock.setStockStatus(tx, {
+                companyId,
+                productId: line.productId,
+                locationId: stagingLocationId,
+                lotId,
+                status: client_1.StockStatus.awaiting_putaway,
             });
             const idemKey = `bm:inbound:${inboundOrderId}:${line.productId}:task:${taskId}:line:${line.id}`;
             await this.ledgerDedup.appendIfAbsent(tx, idemKey, {
@@ -191,8 +226,6 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 toLocationId: stagingLocationId,
                 movementType: client_1.MovementType.inbound_receive,
                 quantity: qty,
-                quantityBefore: stockMeta.before,
-                quantityAfter: stockMeta.after,
                 referenceType: 'inbound_order',
                 referenceId: inboundOrderId,
                 operatorId,
@@ -277,6 +310,13 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 lotId,
                 quantity: qty.toString(),
             });
+            await this.stock.setStockStatus(tx, {
+                companyId,
+                productId: src.productId,
+                locationId: l.destination_location_id,
+                lotId,
+                status: quarantineBinsOnly ? client_1.StockStatus.quarantined : client_1.StockStatus.available,
+            });
         }
     }
     async applyPickRecord(tx, orderId, reservations, body) {
@@ -314,12 +354,12 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
             where: { id: orderId },
             select: { requiresPacking: true },
         });
+        const nextStatus = order?.requiresPacking === false ? 'waiting_for_shipping_method' : 'packing';
         await tx.outboundOrder.update({
             where: { id: orderId },
-            data: {
-                status: order?.requiresPacking === false ? 'ready_to_ship' : 'packing',
-            },
+            data: { status: nextStatus },
         });
+        await this.omsSync?.syncFromOutbound(tx, orderId);
     }
     async applyDispatchShip(tx, operatorId, taskId, outboundOrderId, companyId, reservations, body) {
         await this.lockOutboundOrderRow(tx, outboundOrderId);
@@ -370,22 +410,26 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
                 toLocationId: null,
                 movementType: client_1.MovementType.outbound_pick,
                 quantity: new client_1.Prisma.Decimal(r.quantity),
-                quantityBefore: meta.before,
-                quantityAfter: meta.after,
                 referenceType: 'outbound_order',
                 referenceId: outboundOrderId,
                 operatorId,
             });
         }
+        await tx.stockReservation.updateMany({
+            where: { outboundOrderId, status: 'active' },
+            data: { status: 'fulfilled' },
+        });
         await tx.outboundOrder.update({
             where: { id: outboundOrderId },
             data: {
+                allocationStatus: 'fulfilled',
                 status: 'shipped',
                 shippedAt: new Date(),
                 carrier: body.carrier ?? order.carrier,
                 trackingNumber: body.tracking ?? order.trackingNumber,
             },
         });
+        await this.omsSync?.syncFromOutbound(tx, outboundOrderId, operatorId);
         return {
             companyId: order.companyId,
             orderId: outboundOrderId,
@@ -425,8 +469,66 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
         }
         await tx.outboundOrder.update({
             where: { id: outboundOrderId },
-            data: { status: 'ready_to_ship' },
+            data: { status: 'waiting_for_shipping_method' },
         });
+        await this.omsSync?.syncFromOutbound(tx, outboundOrderId);
+    }
+    async applyShippingDetailsTaskComplete(tx, outboundOrderId, body, actorUserId) {
+        const order = await tx.outboundOrder.findUnique({
+            where: { id: outboundOrderId },
+            include: {
+                carrierShipments: {
+                    where: { status: 'created' },
+                    take: 1,
+                },
+            },
+        });
+        if (!order)
+            throw new common_1.BadRequestException('Outbound order not found.');
+        if (order.status !== 'waiting_for_shipping_details') {
+            throw new common_1.BadRequestException(`shipping_details complete requires waiting_for_shipping_details (current: ${order.status}).`);
+        }
+        const data = {};
+        if (body.shippingReceiverLat !== undefined) {
+            data.shippingReceiverLat =
+                body.shippingReceiverLat == null ? null : body.shippingReceiverLat;
+        }
+        if (body.shippingReceiverLng !== undefined) {
+            data.shippingReceiverLng =
+                body.shippingReceiverLng == null ? null : body.shippingReceiverLng;
+        }
+        if (body.shippingPackageType !== undefined) {
+            data.shippingPackageType = body.shippingPackageType;
+        }
+        if (body.shippingContents !== undefined)
+            data.shippingContents = body.shippingContents;
+        if (body.shippingDeliveryType !== undefined) {
+            data.shippingDeliveryType = body.shippingDeliveryType;
+        }
+        if (body.shippingPickupType !== undefined) {
+            data.shippingPickupType = body.shippingPickupType;
+        }
+        if (body.shippingPayer !== undefined)
+            data.shippingPayer = body.shippingPayer;
+        if (body.shippingWeightKg !== undefined) {
+            data.shippingWeightKg =
+                body.shippingWeightKg == null ? null : body.shippingWeightKg;
+        }
+        if (body.shippingPhoneCountry !== undefined) {
+            data.shippingPhoneCountry = body.shippingPhoneCountry;
+        }
+        const isCarrier = order.shippingMethod === 'carrier';
+        if (isCarrier && order.carrierShipments.length === 0) {
+            throw new common_1.BadRequestException('Carrier shipment must be sent by Admin before completing Shipping Details.');
+        }
+        await tx.outboundOrder.update({
+            where: { id: outboundOrderId },
+            data: {
+                ...data,
+                status: 'ready_to_ship',
+            },
+        });
+        await this.omsSync?.syncFromOutbound(tx, outboundOrderId, actorUserId);
     }
     async lockOutboundOrderRow(tx, outboundOrderId) {
         await tx.$executeRaw(client_1.Prisma.sql `SELECT id FROM outbound_orders WHERE id = ${outboundOrderId}::uuid FOR UPDATE`);
@@ -507,7 +609,11 @@ let TaskInventoryEffectsService = class TaskInventoryEffectsService {
 exports.TaskInventoryEffectsService = TaskInventoryEffectsService;
 exports.TaskInventoryEffectsService = TaskInventoryEffectsService = __decorate([
     (0, common_1.Injectable)(),
+    __param(3, (0, common_1.Optional)()),
+    __param(3, (0, common_1.Inject)((0, common_1.forwardRef)(() => oms_outbound_sync_service_1.OmsOutboundSyncService))),
     __metadata("design:paramtypes", [stock_helpers_1.StockHelpers,
-        ledger_idempotency_service_1.LedgerIdempotencyService])
+        ledger_idempotency_service_1.LedgerIdempotencyService,
+        shipping_handoff_hook_service_1.ShippingHandoffHookService,
+        oms_outbound_sync_service_1.OmsOutboundSyncService])
 ], TaskInventoryEffectsService);
 //# sourceMappingURL=task-inventory-effects.service.js.map

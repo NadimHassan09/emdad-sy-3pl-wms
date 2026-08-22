@@ -1,327 +1,1094 @@
-import type { ReactElement, ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState, type ReactElement } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
-import { Alert, EmptyState } from '@ds';
+import { Alert, AdvancedFilterSection, Button, ListPageHeader, Skeleton, countNonEmptyFilters, FILTER_COMPACT_SELECT_CLASS, FILTER_FIELD_CONTROL_CLASS } from '@ds';
 
-import { ClientRecentInvoicesCard } from '../components/ClientRecentInvoicesCard';
 import { useAuth } from '../auth/AuthContext';
+import { Badge } from '../design-v2/Badge';
+import { Card } from '../design-v2/Card';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
-import { formatDecimal } from '../lib/billing-display';
 import { isClientArabic } from '../lib/client-ui-language';
-import { isClientAdmin } from '../lib/rbac';
-import { fetchClientDashboardOverview } from '../services/clientDashboardService';
+import {
+  clientNotificationHref,
+  fetchClientNotifications,
+} from '../services/clientNotificationsService';
+import {
+  fetchClientCodReport,
+  fetchClientOmsOrders,
+  fetchClientOmsStatusSummary,
+  type ClientOmsOrderStatus,
+  type ClientOmsStatusSummary,
+} from '../services/clientOmsOrdersService';
+import { fetchClientInvoicesPage } from '../services/clientBillingService';
+import { fetchClientProducts } from '../services/clientProductsService';
+import { fetchClientOmsReturns } from '../services/clientOmsReturnsService';
+import { fetchStockPage } from '../services/stockService';
 
-function roleLabel(role: string): string {
-  if (role === 'client_staff') return 'Client staff';
-  if (role === 'client_admin') return 'Client administrator';
-  return role;
+/** Commercial OMS lifecycle buckets (plus legacy WMS-mirrored statuses). */
+const WAITING = new Set<ClientOmsOrderStatus>([
+  'draft',
+  'waiting_for_confirmation',
+  'confirmed_waiting_for_admin_approval',
+  'pending_approval',
+]);
+/** In-fulfillment commercial Processing + historical warehouse-mirrored statuses. */
+const PENDING_FULFILLMENT = new Set<ClientOmsOrderStatus>([
+  'pending',
+  'approved',
+  'confirmed',
+  'processing',
+  'allocated',
+  'picking',
+  'packing',
+  'ready_to_ship',
+  'failed_delivery',
+]);
+const OUT_FOR_DELIVERY = new Set<ClientOmsOrderStatus>(['shipped', 'out_for_delivery']);
+const DELIVERED = new Set<ClientOmsOrderStatus>(['delivered', 'completed']);
+/** True returns only — do not mix cancelled / rejected / failed_delivery into “Returned”. */
+const RETURNED = new Set<ClientOmsOrderStatus>(['returned']);
+const CANCELLED_OR_FAILED = new Set<ClientOmsOrderStatus>(['cancelled', 'rejected']);
+/** Still in flight — not delivered, returned, or cancelled. */
+const OPEN_OMS = new Set<ClientOmsOrderStatus>([
+  ...WAITING,
+  ...PENDING_FULFILLMENT,
+  ...OUT_FOR_DELIVERY,
+]);
+/** Orders that need merchant/ops attention. */
+const NEEDS_ATTENTION = new Set<ClientOmsOrderStatus>([
+  'waiting_for_confirmation',
+  'confirmed_waiting_for_admin_approval',
+  'pending_approval',
+]);
+
+function sumStatuses(
+  byStatus: Partial<Record<ClientOmsOrderStatus, number>> | undefined,
+  bucket: Set<ClientOmsOrderStatus>,
+): number {
+  let n = 0;
+  for (const status of bucket) {
+    n += byStatus?.[status] ?? 0;
+  }
+  return n;
 }
 
-function dashboardLabel(label: string, isArabic: boolean): string {
+function bucketStatusCounts(summary: ClientOmsStatusSummary | undefined) {
+  const byStatus = summary?.byStatus ?? {};
+  return {
+    unprocessed: sumStatuses(byStatus, WAITING),
+    processing: sumStatuses(byStatus, PENDING_FULFILLMENT),
+    out: sumStatuses(byStatus, OUT_FOR_DELIVERY),
+    delivered: sumStatuses(byStatus, DELIVERED),
+    returned: sumStatuses(byStatus, RETURNED),
+    cancelled: sumStatuses(byStatus, CANCELLED_OR_FAILED),
+  };
+}
+
+function toYmd(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function startOfMonth(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+}
+
+function endOfMonth(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+}
+
+function pct(part: number, total: number): string {
+  if (total === 0) return '0%';
+  return `${((part / total) * 100).toFixed(1)}%`;
+}
+
+function sumAmounts(items: Array<{ codAmount: string | null }>): number {
+  return items.reduce((acc, row) => acc + (Number(row.codAmount) || 0), 0);
+}
+
+function formatMoney(amount: number, currency: string | null | undefined, locale: string): string {
+  const cur = currency?.trim() || '';
+  const n = amount.toLocaleString(locale, { maximumFractionDigits: 0 });
+  return cur ? `${n} ${cur}` : n;
+}
+
+function inventoryStatus(available: number, threshold: number): 'available' | 'low' | 'out' {
+  if (available <= 0) return 'out';
+  const lowAt = threshold > 0 ? threshold : 5;
+  if (available <= lowAt) return 'low';
+  return 'available';
+}
+
+function tr(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
     Dashboard: 'لوحة التحكم',
     'Welcome back': 'مرحبًا بعودتك',
-    Name: 'الاسم',
-    Email: 'البريد',
-    Role: 'الدور',
-    Company: 'الشركة',
-    'Storage Utilization': 'استخدام التخزين',
-    'Stock Volume': 'حجم المخزون',
-    'Reserved Volume': 'الحجم المحجوز',
-    'Reserved Weight': 'الوزن المحجوز',
-    'Products Count': 'عدد المنتجات',
-    'Inbound Orders': 'طلبات الوارد',
-    'Outbound Orders': 'طلبات الصادر',
-    'Active Orders': 'الطلبات النشطة',
-    'Expiring Products': 'منتجات تنتهي صلاحيتها',
-    'Days Until Billing Expiration': 'أيام حتى انتهاء الفوترة',
-    'Current Invoice Amount': 'مبلغ الفاتورة الحالية',
-    'Recent invoices': 'الفواتير الأخيرة',
-    'View all invoices': 'عرض كل الفواتير',
-    'No recent invoices': 'لا توجد فواتير حديثة',
-    'Invoices appear here after your billing cycle closes.':
-      'تظهر الفواتير هنا بعد إغلاق دورة الفوترة.',
-    'Loading…': 'جاري التحميل…',
-    'Get started with your portal': 'ابدأ باستخدام البوابة',
-    'Create an inbound order or add products to see activity here.':
-      'أنشئ طلب وارد أو أضف منتجات لرؤية النشاط هنا.',
-    'New inbound order': 'طلب وارد جديد',
-    'Account restricted — renew billing to create orders.':
-      'الحساب مقيّد — جدّد الفوترة لإنشاء الطلبات.',
-    CBM: 'م³',
-    kg: 'كغ',
+    'New order': 'طلب جديد',
+    'View COD': 'عرض التحصيل',
+    'Open OMS orders': 'الطلبات الإلكترونية المفتوحة',
+    'Not yet delivered or closed': 'لم تُسلَّم أو تُغلق بعد',
+    'Current obligation': 'الالتزام الحالي',
+    'Unpaid and draft invoices': 'فواتير غير مدفوعة',
+    'Unpaid invoices': 'فواتير غير مدفوعة',
+    'Awaiting payment': 'بانتظار الدفع',
+    'No outstanding invoices': 'لا توجد فواتير مستحقة',
+    'Sellable stock': 'المخزون القابل للبيع',
+    'Units available to sell': 'وحدات متاحة للبيع',
+    'Low-stock SKUs': 'أصناف منخفضة المخزون',
+    'Cash on delivery': 'الدفع عند الاستلام',
+    'Ready vs pending': 'جاهز مقابل معلّق',
+    'Pending collection': 'بانتظار التحصيل',
+    'View cash on delivery': 'عرض الدفع عند الاستلام',
+    'Order movement': 'حركة الطلبات',
+    'Last 7 days': 'آخر 7 أيام',
+    'Order summary': 'ملخص الطلبات',
+    'Where are my orders?': 'أين طلباتي؟',
+    Unprocessed: 'غير معالج',
+    Waiting: 'بانتظار الموافقة',
+    Pending: 'قيد الانتظار',
+    Processing: 'قيد المعالجة',
+    'Out for delivery': 'خارج للتسليم',
+    Delivered: 'تم التسليم',
+    Returned: 'مرتجع',
+    'Cancelled / failed': 'ملغي / فشل',
+    'This month': 'هذا الشهر',
+    'Last month': 'الشهر الماضي',
+    All: 'الكل',
+    'Sales channel': 'قناة البيع',
+    'Live inventory': 'المخزون الحالي',
+    'What inventory do I have?': 'ما المخزون المتاح لدي؟',
+    Product: 'المنتج',
+    SKU: 'رمز SKU',
+    Available: 'المتاح',
+    Reserved: 'المحجوز',
+    Status: 'الحالة',
+    'In stock': 'متوفر',
+    'Low stock': 'مخزون منخفض',
+    'Out of stock': 'نفد المخزون',
+    'View all': 'عرض الكل',
+    'Orders needing attention': 'طلبات تحتاج متابعة',
+    'Unprocessed, failed delivery, and similar exceptions':
+      'غير معالج، فشل التسليم، واستثناءات مشابهة',
+    Recipient: 'المستلم',
+    Channel: 'القناة',
+    Total: 'الإجمالي',
+    'No orders yet': 'لا توجد طلبات بعد',
+    'No orders need attention': 'لا توجد طلبات تحتاج متابعة',
+    'No inventory rows': 'لا توجد صفوف مخزون',
+    'Ready for payout': 'جاهز للتحويل',
+    'Available to withdraw': 'متاح للسحب',
+    'Still with carriers': 'ما زال لدى شركات الشحن',
+    'Total COD': 'إجمالي الدفع عند الاستلام',
+    'COD collected this period': 'المحصّل في هذه الفترة',
+    Remitted: 'تم التحويل',
+    'Already paid out': 'تم تحويله إليك',
+    'Recent activity': 'النشاط الأخير',
+    'What changed today?': 'ما الذي تغيّر اليوم؟',
+    'No recent activity': 'لا يوجد نشاط حديث',
     'Could not load dashboard': 'تعذر تحميل لوحة التحكم',
-    'Loading dashboard…': 'جاري تحميل لوحة التحكم…',
-    'No billing plan': 'لا توجد خطة فوترة',
-    days: 'يوم',
+    'From date': 'من تاريخ',
+    'To date': 'إلى تاريخ',
+    Retry: 'إعادة المحاولة',
+    Order: 'طلب',
+    Return: 'مرتجع',
+    Payment: 'دفعة',
+    'No data': 'لا توجد بيانات',
+    'Total orders': 'إجمالي الطلبات',
   };
   return ar[label] ?? label;
 }
 
-const statCardClass =
-  'rounded-xl border border-slate-100 bg-white p-3 shadow-sm transition hover:border-slate-200 hover:shadow-md sm:p-4';
-
-function StatWidget({
-  title,
+function TopKpi({
+  label,
   value,
   hint,
+  icon,
+  tone,
+  loading,
   to,
-  iconClass,
 }: {
-  title: string;
-  value: ReactNode;
-  hint?: ReactNode;
+  label: string;
+  value: string;
+  hint: string;
+  icon: string;
+  tone: 'emerald' | 'amber' | 'slate';
+  loading: boolean;
+  to: string;
+}): ReactElement {
+  const tones = {
+    emerald: {
+      card: 'border-border',
+      bg: 'bg-brand-50 dark:bg-white/5',
+      text: 'text-brand-600 dark:text-brand-400',
+      value: 'text-brand-700 dark:text-brand-400',
+    },
+    amber: {
+      card: 'border-status-danger-border bg-status-danger-bg/40',
+      bg: 'bg-status-danger-bg',
+      text: 'text-status-danger-fg',
+      value: 'text-status-danger-fg',
+    },
+    slate: {
+      card: 'border-border',
+      bg: 'bg-surface-sunken',
+      text: 'text-text-muted',
+      value: 'text-text-strong',
+    },
+  }[tone];
+
+  return (
+    <Link to={to} className="no-underline block h-full">
+      <Card className={`p-5 h-full border ${tones.card}`} hover>
+        <div className="flex items-center gap-4">
+          <div className={`w-12 h-12 rounded-xl ${tones.bg} flex items-center justify-center shrink-0`}>
+            <i className={`fa-solid ${icon} ${tones.text} text-lg`} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs font-semibold text-text-muted">{label}</div>
+            <div className={`text-3xl font-bold tabular-nums mt-1 ${tones.value}`}>
+              {loading ? <Skeleton height={32} width={56} className="mt-1" /> : value}
+            </div>
+            <div className="text-[11px] text-text-faint mt-1">{hint}</div>
+          </div>
+        </div>
+      </Card>
+    </Link>
+  );
+}
+
+function StatusCell({
+  label,
+  count,
+  total,
+  colorClass,
+}: {
+  label: string;
+  count: number;
+  total: number;
+  colorClass: string;
+}): ReactElement {
+  return (
+    <div className="min-w-0 text-center px-1.5 py-3 sm:px-2">
+      <div className={`text-xl font-bold tabular-nums sm:text-2xl ${colorClass}`}>
+        {count.toLocaleString()}
+      </div>
+      <div className="mt-1 text-[10px] font-semibold leading-snug text-text-muted sm:text-[11px]">
+        {label}
+      </div>
+      <div className="mt-0.5 text-[10px] text-text-faint">{pct(count, total)}</div>
+    </div>
+  );
+}
+
+function FinanceCard({
+  label,
+  value,
+  hint,
+  icon,
+  iconBg,
+  iconText,
+  emphasize,
+  action,
+  loading,
+  to,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  icon: string;
+  iconBg: string;
+  iconText: string;
+  emphasize?: boolean;
+  action?: ReactElement;
+  loading: boolean;
   to?: string;
-  iconClass: string;
-}) {
+}): ReactElement {
   const inner = (
     <>
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">{title}</p>
-        <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700"
-          aria-hidden="true"
-        >
-          <i className={`${iconClass} text-sm`} />
-        </span>
+      <div className="flex items-center gap-3">
+        <div className={`w-11 h-11 rounded-xl ${emphasize ? 'bg-cta shadow-md shadow-brand-600/30' : iconBg} flex items-center justify-center shrink-0`}>
+          <i className={`fa-solid ${icon} ${emphasize ? 'text-on-brand' : iconText}`} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className={`text-[11px] font-semibold uppercase tracking-wide ${emphasize ? 'text-brand-800 dark:text-brand-300' : 'text-text-muted'}`}>
+            {label}
+          </div>
+          <div className={`text-xl font-bold tabular-nums mt-0.5 ${emphasize ? 'text-brand-900 dark:text-brand-100' : 'text-text-strong'}`}>
+            {loading ? <Skeleton height={24} width={72} className="mt-0.5" /> : value}
+          </div>
+          <div className={`text-[10px] mt-0.5 ${emphasize ? 'text-brand-700/80 dark:text-brand-300/80' : 'text-text-faint'}`}>{hint}</div>
+        </div>
       </div>
-      <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
     </>
   );
 
-  if (to) {
     return (
-      <Link to={to} className={`${statCardClass} block no-underline text-inherit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500`}>
+    <Card
+      className={`p-4 ${emphasize ? 'border-2 border-brand-500 bg-gradient-to-br from-brand-50/90 to-transparent dark:from-white/[0.04] shadow-lg shadow-brand-600/10' : ''}`}
+      hover
+    >
+      {to ? (
+        <Link to={to} className="no-underline block">
         {inner}
       </Link>
+      ) : (
+        inner
+      )}
+      {action}
+    </Card>
     );
-  }
-
-  return <div className={statCardClass}>{inner}</div>;
 }
 
 export function DashboardPage(): ReactElement {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isArabic = isClientArabic();
-  const t = (label: string) => dashboardLabel(label, isArabic);
-  const showBilling = isClientAdmin(user?.role);
+  const t = (label: string) => tr(label, isArabic);
+  const locale = isArabic ? 'ar' : 'en-US';
   const billingAccess = useClientOperationalAccess(isArabic);
+  const displayName = user?.fullName?.trim() || user?.email || 'Client';
 
-  const overview = useQuery({
-    queryKey: ['client', 'dashboard', 'overview'],
-    queryFn: fetchClientDashboardOverview,
+  const now = new Date();
+  const defaultOrderFilters = {
+    monthPreset: 'this' as 'this' | 'last',
+    dateFrom: toYmd(startOfMonth(now)),
+    dateTo: toYmd(endOfMonth(now)),
+    storeChannel: '',
+  };
+  const [draftOrderFilters, setDraftOrderFilters] = useState(defaultOrderFilters);
+  const [appliedOrderFilters, setAppliedOrderFilters] = useState(defaultOrderFilters);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const applyMonthDraft = (preset: 'this' | 'last') => {
+    const base = preset === 'this' ? now : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+    setDraftOrderFilters((prev) => ({
+      ...prev,
+      monthPreset: preset,
+      dateFrom: toYmd(startOfMonth(base)),
+      dateTo: toYmd(endOfMonth(base)),
+    }));
+  };
+
+  const dateFrom = appliedOrderFilters.dateFrom;
+  const dateTo = appliedOrderFilters.dateTo;
+  const storeChannel = appliedOrderFilters.storeChannel;
+
+  const orderFilters = useMemo(
+    () => ({
+      createdFrom: dateFrom,
+      createdTo: dateTo,
+      storeChannel: storeChannel.trim() || undefined,
+    }),
+    [dateFrom, dateTo, storeChannel],
+  );
+
+  const last7From = useMemo(() => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - 6);
+    return toYmd(d);
+  }, []);
+  const last7To = toYmd(now);
+
+  const ordersQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'oms', orderFilters],
+    queryFn: () => fetchClientOmsOrders({ ...orderFilters, limit: 50, offset: 0 }),
   });
 
-  const displayName = user?.fullName?.trim() || user?.email || 'Client';
-  const data = overview.data;
+  const statusSummaryQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'oms-status-summary', orderFilters],
+    queryFn: () => fetchClientOmsStatusSummary(orderFilters),
+  });
 
-  const utilization = data?.storage.utilizationPercent;
-  const usedVolume = data ? formatDecimal(data.storage.usedVolumeCbm, 2) : '—';
-  const usedWeight = data ? formatDecimal(data.storage.usedWeightKg, 2) : '—';
-  const reservedVolume = data?.storage.reservedVolumeCbm
-    ? formatDecimal(data.storage.reservedVolumeCbm, 2)
-    : '—';
-  const reservedWeight = data?.storage.reservedWeightKg
-    ? formatDecimal(data.storage.reservedWeightKg, 2)
-    : '—';
+  const openOmsSummaryQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'oms-open-summary', storeChannel],
+    queryFn: () =>
+      fetchClientOmsStatusSummary({
+        storeChannel: storeChannel.trim() || undefined,
+      }),
+  });
 
-  const isEmptyDashboard =
-    !overview.isPending &&
-    data != null &&
-    data.activeOrders === 0 &&
-    data.productsCount === 0 &&
-    Number(data.storage.usedVolumeCbm) === 0;
+  const movementSummaryQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'oms-7d-summary', last7From, last7To, storeChannel],
+    queryFn: () =>
+      fetchClientOmsStatusSummary({
+        createdFrom: last7From,
+        createdTo: last7To,
+        storeChannel: storeChannel.trim() || undefined,
+      }),
+  });
+
+  const productsQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'products'],
+    queryFn: () => fetchClientProducts({ limit: 100, offset: 0 }),
+  });
+
+  const stockQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'stock'],
+    queryFn: () => fetchStockPage({ limit: 200, offset: 0 }),
+  });
+
+  const codParams = useMemo(() => ({ dateFrom, dateTo }), [dateFrom, dateTo]);
+  const codPendingQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'cod-pending', codParams],
+    queryFn: () => fetchClientCodReport({ ...codParams, codStatus: 'pending', limit: 500, offset: 0 }),
+  });
+  const codCollectedQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'cod-collected', codParams],
+    queryFn: () => fetchClientCodReport({ ...codParams, codStatus: 'collected', limit: 500, offset: 0 }),
+  });
+  const codRemittedQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'cod-remitted', codParams],
+    queryFn: () => fetchClientCodReport({ ...codParams, codStatus: 'remitted', limit: 500, offset: 0 }),
+  });
+
+  const returnsQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'returns'],
+    queryFn: () => fetchClientOmsReturns({ limit: 6, offset: 0 }),
+  });
+  const notificationsQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'notifications'],
+    queryFn: () => fetchClientNotifications({ limit: 8, offset: 0 }),
+  });
+  const invoicesQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'invoices-obligation'],
+    queryFn: () => fetchClientInvoicesPage({ limit: 200, offset: 0 }),
+  });
+
+  const orders = ordersQuery.data?.items ?? [];
+  const openOmsCount = useMemo(
+    () => sumStatuses(openOmsSummaryQuery.data?.byStatus, OPEN_OMS),
+    [openOmsSummaryQuery.data],
+  );
+  const obligationInvoices = useMemo(
+    () =>
+      (invoicesQuery.data?.items ?? []).filter((inv) =>
+        inv.status === 'unpaid' ||
+        inv.status === 'open' ||
+        inv.status === 'overdue',
+      ),
+    [invoicesQuery.data],
+  );
+  const obligationAmount = useMemo(
+    () =>
+      obligationInvoices.reduce((sum, inv) => {
+        const raw = inv.grandTotal ?? inv.totalAmount;
+        const n = Number(raw);
+        return sum + (Number.isFinite(n) ? n : 0);
+      }, 0),
+    [obligationInvoices],
+  );
+  const obligationCount = obligationInvoices.length;
+  const attentionOrders = useMemo(
+    () =>
+      orders
+        .filter((o) => NEEDS_ATTENTION.has(o.status))
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        .slice(0, 8),
+    [orders],
+  );
+
+  const statusCounts = useMemo(
+    () => bucketStatusCounts(statusSummaryQuery.data),
+    [statusSummaryQuery.data],
+  );
+
+  const pieData = useMemo(() => {
+    const counts = bucketStatusCounts(movementSummaryQuery.data);
+    return [
+      { name: t('Waiting'), value: counts.unprocessed, fill: '#F59E0B' },
+      { name: t('Pending'), value: counts.processing, fill: '#3B82F6' },
+      { name: t('Out for delivery'), value: counts.out, fill: '#8B5CF6' },
+      { name: t('Delivered'), value: counts.delivered, fill: '#059669' },
+      { name: t('Returned'), value: counts.returned, fill: '#EF4444' },
+      { name: t('Cancelled / failed'), value: counts.cancelled, fill: '#94A3B8' },
+    ].filter((d) => d.value > 0);
+  }, [movementSummaryQuery.data, isArabic]);
+
+  const channelOptions = useMemo(() => {
+    const channels = statusSummaryQuery.data?.storeChannels ?? [];
+    return [{ value: '', label: t('All') }, ...channels.map((v) => ({ value: v, label: v }))];
+  }, [statusSummaryQuery.data, isArabic]);
+
+  const inventoryRows = useMemo(() => {
+    const thresholdBySku = new Map<string, number>();
+    for (const p of productsQuery.data?.items ?? []) {
+      thresholdBySku.set(p.sku, Number(p.minStockThreshold) || 0);
+    }
+    const rows = (stockQuery.data?.items ?? []).map((s) => {
+      const available = Number(s.available) || 0;
+      const reserved = Number(s.reserved) || 0;
+      const status = inventoryStatus(available, thresholdBySku.get(s.sku) ?? 0);
+      return { productId: s.productId, name: s.productName, sku: s.sku, available, reserved, status };
+    });
+    rows.sort((a, b) => {
+      const rank = { out: 0, low: 1, available: 2 };
+      return rank[a.status] - rank[b.status] || b.available - a.available;
+    });
+    return rows.slice(0, 8);
+  }, [stockQuery.data, productsQuery.data]);
+
+  const sellableTotal = useMemo(
+    () => (stockQuery.data?.items ?? []).reduce((acc, s) => acc + (Number(s.available) || 0), 0),
+    [stockQuery.data],
+  );
+  const lowStockCount = useMemo(() => {
+    const thresholdBySku = new Map<string, number>();
+    for (const p of productsQuery.data?.items ?? []) {
+      thresholdBySku.set(p.sku, Number(p.minStockThreshold) || 0);
+    }
+    let n = 0;
+    for (const s of stockQuery.data?.items ?? []) {
+      const st = inventoryStatus(Number(s.available) || 0, thresholdBySku.get(s.sku) ?? 0);
+      if (st === 'low' || st === 'out') n += 1;
+    }
+    return n;
+  }, [stockQuery.data, productsQuery.data]);
+
+  const totalOrders = statusSummaryQuery.data?.total ?? 0;
+
+  const codCurrency =
+    codCollectedQuery.data?.items.find((i) => i.currency)?.currency ||
+    codPendingQuery.data?.items.find((i) => i.currency)?.currency ||
+    'USD';
+
+  const pendingCod = sumAmounts(codPendingQuery.data?.items ?? []);
+  const collectedCod = sumAmounts(codCollectedQuery.data?.items ?? []);
+  // remitted and settled are the same portal status — do not sum both queries
+  const remittedCod = sumAmounts(codRemittedQuery.data?.items ?? []);
+  const totalCod = pendingCod + collectedCod + remittedCod;
+
+  const activityItems = useMemo(() => {
+    const items: Array<{
+      id: string;
+      kind: string;
+      title: string;
+      subtitle: string;
+      at: string;
+      href?: string;
+      status?: string;
+    }> = [];
+    for (const o of orders.slice(0, 5)) {
+      items.push({
+        id: `o-${o.id}`,
+        kind: t('Order'),
+        title: o.orderNumber,
+        subtitle: `${o.recipientName || '—'} · ${o.storeChannel || '—'}`,
+        at: o.updatedAt,
+        href: `/ecommerce-orders/${o.id}`,
+        status: o.status,
+      });
+    }
+    for (const r of returnsQuery.data?.items ?? []) {
+      items.push({
+        id: `r-${r.id}`,
+        kind: t('Return'),
+        title: r.returnNumber,
+        subtitle: r.status,
+        at: r.createdAt,
+        href: `/ecommerce-orders/returns/${r.id}`,
+        status: r.status,
+      });
+    }
+    for (const n of notificationsQuery.data?.items ?? []) {
+      items.push({
+        id: `n-${n.id}`,
+        kind: n.type.includes('cod') || n.type.includes('payment') ? t('Payment') : t('Order'),
+        title: n.title,
+        subtitle: n.body,
+        at: n.createdAt,
+        href: clientNotificationHref(n),
+      });
+    }
+    items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+    return items.slice(0, 8);
+  }, [orders, returnsQuery.data, notificationsQuery.data, isArabic]);
+
+  const loading = ordersQuery.isPending || productsQuery.isPending;
+  const loadingOpenOms = openOmsSummaryQuery.isPending;
+  const loadingObligation = invoicesQuery.isPending;
+  const loadingCod =
+    codPendingQuery.isPending || codCollectedQuery.isPending || codRemittedQuery.isPending;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900 sm:text-xl">{t('Dashboard')}</h1>
-          <p className="text-sm text-slate-500">
-            {t('Welcome back')}, {displayName}
-          </p>
+    <div className="space-y-5 animate-enter">
+      <ListPageHeader
+        icon="fa-chart-line"
+        title={t('Dashboard')}
+        subtitle={
+          <>
+            {t('Welcome back')}, <span className="font-medium text-text-body">{displayName}</span>
+          </>
+        }
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="primary"
+              size="md"
+              disabled={!billingAccess.operationalAllowed}
+              onClick={() => navigate('/ecommerce-orders')}
+              startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
+            >
+              {t('New order')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => navigate('/my-profits')}
+              startIcon={
+                <i className="fa-solid fa-money-bill-wave text-brand-600 dark:text-brand-400 text-xs" aria-hidden="true" />
+              }
+            >
+              {t('View cash on delivery')}
+            </Button>
         </div>
-      </div>
+        }
+      />
 
-      {overview.isError ? (
+      {ordersQuery.isError || statusSummaryQuery.isError ? (
         <Alert
           variant="error"
           title={t('Could not load dashboard')}
           action={
-            <Alert.Action variant="error" onClick={() => overview.refetch()}>
-              Retry
+            <Alert.Action
+              variant="error"
+              onClick={() => {
+                void ordersQuery.refetch();
+                void statusSummaryQuery.refetch();
+              }}
+            >
+              {t('Retry')}
             </Alert.Action>
           }
         />
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,22rem)_1fr]">
-        <section className="card card--narrow lg:max-w-sm">
-          <h2 className="card__title">{displayName}</h2>
-          {user ? (
-            <dl className="details">
-              <div className="details__row">
-                <dt>{t('Name')}</dt>
-                <dd>{user.fullName || '—'}</dd>
-              </div>
-              <div className="details__row">
-                <dt>{t('Email')}</dt>
-                <dd>{user.email ?? '—'}</dd>
-              </div>
-              <div className="details__row">
-                <dt>{t('Role')}</dt>
-                <dd>{roleLabel(user.role)}</dd>
-              </div>
-              <div className="details__row">
-                <dt>{t('Company')}</dt>
-                <dd>{user.companyName || '—'}</dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="muted">{t('Loading dashboard…')}</p>
-          )}
-        </section>
-
-        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <StatWidget
-            title={t('Storage Utilization')}
-            value={utilization != null ? `${utilization}%` : '—'}
-            hint={
-              utilization != null ? (
-                <span className="block">
-                  <span
-                    className="mt-1 block h-2 overflow-hidden rounded-full bg-slate-100"
-                    role="presentation"
-                  >
-                    <span
-                      className="block h-full rounded-full bg-emerald-500 transition-all"
-                      style={{ width: `${Math.min(100, utilization)}%` }}
-                    />
-                  </span>
-                  <span className="mt-1 block text-[11px]">
-                    {usedVolume} / {reservedVolume} {t('CBM')}
-                  </span>
-                </span>
-              ) : (
-                `${usedVolume} ${t('CBM')}`
-              )
-            }
-            iconClass="fa-solid fa-chart-pie"
-          />
-          <StatWidget
-            title={t('Stock Volume')}
-            value={overview.isPending ? '…' : `${usedVolume} ${t('CBM')}`}
-            hint={`${usedWeight} ${t('kg')}`}
-            to="/stock"
-            iconClass="fa-solid fa-warehouse"
-          />
-          <StatWidget
-            title={t('Reserved Volume')}
-            value={reservedVolume === '—' ? '—' : `${reservedVolume} ${t('CBM')}`}
-            iconClass="fa-solid fa-cube"
-          />
-          <StatWidget
-            title={t('Reserved Weight')}
-            value={reservedWeight === '—' ? '—' : `${reservedWeight} ${t('kg')}`}
-            iconClass="fa-solid fa-weight-hanging"
-          />
-          <StatWidget
-            title={t('Products Count')}
-            value={overview.isPending ? '…' : (data?.productsCount ?? 0).toLocaleString()}
-            to={showBilling ? '/products' : '/stock'}
-            iconClass="fa-solid fa-boxes-stacked"
-          />
-          <StatWidget
-            title={t('Inbound Orders')}
-            value={overview.isPending ? '…' : (data?.openInboundOrders ?? 0).toLocaleString()}
-            to="/inbound-orders"
-            iconClass="fa-solid fa-arrow-down"
-          />
-          <StatWidget
-            title={t('Outbound Orders')}
-            value={overview.isPending ? '…' : (data?.openOutboundOrders ?? 0).toLocaleString()}
-            to="/outbound-orders"
-            iconClass="fa-solid fa-arrow-up"
-          />
-          <StatWidget
-            title={t('Active Orders')}
-            value={overview.isPending ? '…' : (data?.activeOrders ?? 0).toLocaleString()}
-            to="/inbound-orders"
-            iconClass="fa-solid fa-clipboard-list"
-          />
-          <StatWidget
-            title={t('Expiring Products')}
-            value={overview.isPending ? '…' : (data?.expiringProductsCount ?? 0).toLocaleString()}
-            to="/stock"
-            iconClass="fa-solid fa-hourglass-half"
-          />
-          {showBilling ? (
-            <>
-              <StatWidget
-                title={t('Days Until Billing Expiration')}
-                value={
-                  overview.isPending
-                    ? '…'
-                    : data?.billing?.daysUntilExpiration != null
-                      ? `${Math.max(0, data.billing.daysUntilExpiration)} ${t('days')}`
-                      : '—'
-                }
-                hint={data?.billing == null ? t('No billing plan') : undefined}
-                to="/billing"
-                iconClass="fa-solid fa-calendar-days"
-              />
-              <StatWidget
-                title={t('Current Invoice Amount')}
-                value={
-                  overview.isPending
-                    ? '…'
-                    : data?.billing?.currentInvoiceAmount != null
-                      ? formatDecimal(data.billing.currentInvoiceAmount)
-                      : '—'
-                }
-                to="/billing"
-                iconClass="fa-solid fa-file-invoice-dollar"
-              />
-            </>
-          ) : null}
-        </section>
+      {/* Exception-first KPIs */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <TopKpi
+          label={t('Open OMS orders')}
+          value={openOmsCount.toLocaleString(locale)}
+          hint={t('Not yet delivered or closed')}
+          icon="fa-cart-shopping"
+          tone="slate"
+          loading={loadingOpenOms}
+          to="/ecommerce-orders"
+        />
+        <TopKpi
+          label={t('Current obligation')}
+          value={formatMoney(obligationAmount, 'USD', locale)}
+          hint={
+            obligationCount > 0
+              ? `${obligationCount.toLocaleString(locale)} · ${t('Awaiting payment')}`
+              : t('No outstanding invoices')
+          }
+          icon="fa-file-invoice-dollar"
+          tone={obligationAmount > 0 ? 'amber' : 'slate'}
+          loading={loadingObligation}
+          to="/invoices"
+        />
+        <TopKpi
+          label={t('Sellable stock')}
+          value={sellableTotal.toLocaleString(locale)}
+          hint={
+            lowStockCount > 0
+              ? `${lowStockCount.toLocaleString(locale)} ${t('Low-stock SKUs')}`
+              : t('Units available to sell')
+          }
+          icon="fa-boxes-stacked"
+          tone="emerald"
+          loading={loading || stockQuery.isPending}
+          to="/products"
+        />
+        <TopKpi
+          label={t('Cash on delivery')}
+          value={formatMoney(collectedCod, codCurrency, locale)}
+          hint={`${t('Pending collection')}: ${formatMoney(pendingCod, codCurrency, locale)}`}
+          icon="fa-money-bill-wave"
+          tone="slate"
+          loading={loadingCod}
+          to="/my-profits"
+        />
       </div>
 
-      {showBilling ? (
-        <ClientRecentInvoicesCard
-          rows={data?.recentInvoices ?? []}
-          loading={overview.isPending}
-          translateLabel={t}
-        />
-      ) : null}
-
-      {isEmptyDashboard ? (
-        <section className="card">
-          <EmptyState
-            icon={<i className="fa-solid fa-truck-ramp-box text-2xl" aria-hidden="true" />}
-            title={t('Get started with your portal')}
-            description={t('Create an inbound order or add products to see activity here.')}
-            action={
-              billingAccess.operationalAllowed ? (
-                <Link to="/inbound-orders" className="btn btn--primary">
-                  {t('New inbound order')}
-                </Link>
-              ) : (
-                <span
-                  className="btn btn--primary opacity-50 cursor-not-allowed"
-                  title={billingAccess.actionBlockedReason}
-                  aria-disabled="true"
-                >
-                  {t('New inbound order')}
+      {/* ✓ KEEP — Order movement pie + Order summary status row */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+        <Card className="xl:col-span-4 p-5">
+          <div className="mb-3">
+            <h2 className="text-base font-bold text-text-strong">{t('Order movement')}</h2>
+            <p className="text-xs text-text-muted mt-0.5">{t('Last 7 days')}</p>
+              </div>
+          <div className="h-52">
+            {pieData.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-sm text-text-faint">{t('No data')}</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={48}
+                    outerRadius={74}
+                    paddingAngle={2}
+                    stroke="none"
+                  >
+                    {pieData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: 10,
+                      border: '1px solid var(--border-default)',
+                      background: 'var(--surface-panel)',
+                      color: 'var(--text-strong)',
+                      fontSize: 12,
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          <ul className="mt-2 space-y-1.5">
+            {pieData.map((row) => (
+              <li key={row.name} className="flex justify-between text-xs text-text-body">
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full" style={{ background: row.fill }} />
+                  {row.name}
                 </span>
-              )
-            }
+                <span className="font-semibold tabular-nums">{row.value}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card className="xl:col-span-8 p-5">
+          <div className="mb-4">
+            <h2 className="text-base font-bold text-text-strong">{t('Order summary')}</h2>
+            <p className="text-xs text-text-muted mt-0.5">{t('Where are my orders?')}</p>
+          </div>
+          <AdvancedFilterSection
+              className="mb-0"
+              advancedOpen={advancedOpen}
+              onAdvancedOpenChange={setAdvancedOpen}
+              isArabic={isArabic}
+              loading={statusSummaryQuery.isFetching}
+              activeCount={countNonEmptyFilters(
+                {
+                  dateFrom: appliedOrderFilters.dateFrom,
+                  dateTo: appliedOrderFilters.dateTo,
+                  storeChannel: appliedOrderFilters.storeChannel,
+                },
+                ['storeChannel'],
+              )}
+              onApply={() => setAppliedOrderFilters({ ...draftOrderFilters })}
+              onReset={() => {
+                setDraftOrderFilters(defaultOrderFilters);
+                setAppliedOrderFilters(defaultOrderFilters);
+                setAdvancedOpen(false);
+              }}
+              compact={
+                <div className="flex flex-wrap items-end gap-2">
+                  <select
+                    value={draftOrderFilters.monthPreset}
+                    onChange={(e) => applyMonthDraft(e.target.value as 'this' | 'last')}
+                    className={FILTER_COMPACT_SELECT_CLASS}
+                  >
+                    <option value="this">{t('This month')}</option>
+                    <option value="last">{t('Last month')}</option>
+                  </select>
+                  <select
+                    value={draftOrderFilters.storeChannel}
+                    onChange={(e) =>
+                      setDraftOrderFilters((prev) => ({ ...prev, storeChannel: e.target.value }))
+                    }
+                    className={FILTER_COMPACT_SELECT_CLASS}
+                    aria-label={t('Sales channel')}
+                  >
+                    {channelOptions.map((o) => (
+                      <option key={o.value || 'all'} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              }
+            >
+              <div className="min-w-0">
+                <label className="mb-1 block text-xs font-semibold text-text-muted">{t('From date')}</label>
+                <input
+                  type="date"
+                  value={draftOrderFilters.dateFrom}
+                  onChange={(e) =>
+                    setDraftOrderFilters((prev) => ({ ...prev, dateFrom: e.target.value }))
+                  }
+                  className={FILTER_FIELD_CONTROL_CLASS}
+                />
+              </div>
+              <div className="min-w-0">
+                <label className="mb-1 block text-xs font-semibold text-text-muted">{t('To date')}</label>
+                <input
+                  type="date"
+                  value={draftOrderFilters.dateTo}
+                  onChange={(e) =>
+                    setDraftOrderFilters((prev) => ({ ...prev, dateTo: e.target.value }))
+                  }
+                  className={FILTER_FIELD_CONTROL_CLASS}
+                />
+              </div>
+              <div className="min-w-0">
+                <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Sales channel')}</label>
+                <select
+                  value={draftOrderFilters.storeChannel}
+                  onChange={(e) =>
+                    setDraftOrderFilters((prev) => ({ ...prev, storeChannel: e.target.value }))
+                  }
+                  className={FILTER_FIELD_CONTROL_CLASS}
+                >
+                  {channelOptions.map((o) => (
+                    <option key={o.value || 'all'} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </AdvancedFilterSection>
+          <div className="grid grid-cols-7 divide-x divide-border-subtle rtl:divide-x-reverse rounded-xl border border-border-subtle bg-surface-card-muted">
+            <StatusCell label={t('Total orders')} count={totalOrders} total={totalOrders || 1} colorClass="text-text-strong" />
+            <StatusCell label={t('Waiting')} count={statusCounts.unprocessed} total={totalOrders || 1} colorClass="text-amber-600 dark:text-amber-400" />
+            <StatusCell label={t('Pending')} count={statusCounts.processing} total={totalOrders || 1} colorClass="text-blue-600 dark:text-blue-400" />
+            <StatusCell label={t('Out for delivery')} count={statusCounts.out} total={totalOrders || 1} colorClass="text-violet-600 dark:text-violet-400" />
+            <StatusCell label={t('Delivered')} count={statusCounts.delivered} total={totalOrders || 1} colorClass="text-brand-600 dark:text-brand-400" />
+            <StatusCell label={t('Returned')} count={statusCounts.returned} total={totalOrders || 1} colorClass="text-rose-600 dark:text-rose-400" />
+            <StatusCell label={t('Cancelled / failed')} count={statusCounts.cancelled} total={totalOrders || 1} colorClass="text-text-muted" />
+          </div>
+        </Card>
+      </div>
+
+      {/* ✕ REPLACE — was Client Order Performance table → Live inventory (OMS / merchant) */}
+      <Card className="overflow-hidden">
+        <div className="p-5 border-b border-border-subtle flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-bold text-text-strong">{t('Live inventory')}</h2>
+            <p className="text-xs text-text-muted mt-0.5">{t('What inventory do I have?')}</p>
+          </div>
+          <Link to="/products" className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 no-underline">
+            {t('View all')}
+          </Link>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-card-muted text-[11px] uppercase text-text-muted font-semibold">
+              <tr>
+                <th className="px-5 py-3 text-start">{t('Product')}</th>
+                <th className="px-5 py-3 text-start">{t('SKU')}</th>
+                <th className="px-5 py-3 text-end">{t('Available')}</th>
+                <th className="px-5 py-3 text-end">{t('Reserved')}</th>
+                <th className="px-5 py-3 text-end">{t('Status')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {stockQuery.isPending ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={`inv-sk-${i}`} className="animate-pulse">
+                    <td className="px-5 py-3" colSpan={5}>
+                      <Skeleton height={16} width="100%" />
+                    </td>
+                  </tr>
+                ))
+              ) : inventoryRows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-10 text-center text-text-faint">
+                    {t('No inventory rows')}
+                  </td>
+                </tr>
+              ) : (
+                inventoryRows.map((row) => {
+                  const badge =
+                    row.status === 'out'
+                      ? { label: t('Out of stock'), cls: 'bg-status-danger-bg text-status-danger-fg border-status-danger-border' }
+                      : row.status === 'low'
+                        ? { label: t('Low stock'), cls: 'bg-status-warning-bg text-status-warning-fg border-status-warning-border' }
+                        : { label: t('In stock'), cls: 'bg-status-success-bg text-status-success-fg border-status-success-border' };
+                  const initial = row.name.trim().charAt(0).toUpperCase() || '?';
+                  return (
+                    <tr
+                      key={row.productId}
+                      className="hover:bg-surface-hover cursor-pointer transition-colors"
+                      onClick={() => navigate(`/products/${row.productId}`)}
+                    >
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-lg bg-brand-100 dark:bg-white/10 text-brand-800 dark:text-brand-300 flex items-center justify-center text-sm font-bold shrink-0">
+                            {initial}
+                          </div>
+                          <span className="font-medium text-text-strong truncate">{row.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-text-muted font-mono text-xs">{row.sku}</td>
+                      <td className="px-5 py-3 text-end font-semibold tabular-nums text-text-strong">
+                        {row.available.toLocaleString(locale)}
+                      </td>
+                      <td className="px-5 py-3 text-end tabular-nums text-text-muted">
+                        {row.reserved.toLocaleString(locale)}
+                      </td>
+                      <td className="px-5 py-3 text-end">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold border ${badge.cls}`}>
+                          {badge.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* ✕ REPLACE bottom chart | ✓ KEEP financial cards — OMS latest orders + finance stack */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+        <Card className="xl:col-span-8 overflow-hidden">
+          <div className="p-5 border-b border-border-subtle flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-bold text-text-strong">{t('Orders needing attention')}</h2>
+              <p className="text-xs text-text-muted mt-0.5">
+                {t('Unprocessed, failed delivery, and similar exceptions')}
+              </p>
+            </div>
+            <Link to="/ecommerce-orders" className="text-xs font-semibold text-brand-600 dark:text-brand-400 no-underline">
+              {t('View all')}
+            </Link>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-surface-card-muted text-[11px] uppercase text-text-muted font-semibold">
+                <tr>
+                  <th className="px-5 py-3 text-start">{t('Order')}</th>
+                  <th className="px-5 py-3 text-start">{t('Recipient')}</th>
+                  <th className="px-5 py-3 text-start">{t('Channel')}</th>
+                  <th className="px-5 py-3 text-start">{t('Status')}</th>
+                  <th className="px-5 py-3 text-end">{t('Total')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {attentionOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-10 text-center text-text-faint">
+                      {t('No orders need attention')}
+                    </td>
+                  </tr>
+                ) : (
+                  attentionOrders.map((o) => (
+                    <tr
+                      key={o.id}
+                      className="hover:bg-surface-hover cursor-pointer transition-colors"
+                      onClick={() => navigate(`/ecommerce-orders/${o.id}`)}
+                    >
+                      <td className="px-5 py-3 font-semibold text-text-strong">{o.orderNumber}</td>
+                      <td className="px-5 py-3 text-text-body">{o.recipientName || '—'}</td>
+                      <td className="px-5 py-3 text-text-muted text-xs">{o.storeChannel || '—'}</td>
+                      <td className="px-5 py-3">
+                        <Badge status={o.status} />
+                      </td>
+                      <td className="px-5 py-3 text-end font-semibold tabular-nums text-text-strong">
+                        {o.total != null ? `${o.total} ${o.currency || ''}`.trim() : '—'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        {/* ✓ KEEP — Financial KPI stack (merchant COD lifecycle) */}
+        <div className="xl:col-span-4 flex flex-col gap-3">
+          <FinanceCard
+            label={t('Ready for payout')}
+            value={formatMoney(collectedCod, codCurrency, locale)}
+            hint={t('Available to withdraw')}
+            icon="fa-sack-dollar"
+            iconBg="bg-brand-50 dark:bg-white/5"
+            iconText="text-brand-700 dark:text-brand-400"
+            emphasize
+            loading={loadingCod}
+            to="/my-profits"
           />
-        </section>
-      ) : null}
+          <FinanceCard
+            label={t('Total COD')}
+            value={formatMoney(totalCod, codCurrency, locale)}
+            hint={t('COD collected this period')}
+            icon="fa-money-bill-wave"
+            iconBg="bg-brand-50 dark:bg-white/5"
+            iconText="text-brand-700 dark:text-brand-400"
+            loading={loadingCod}
+            to="/my-profits"
+          />
+          <FinanceCard
+            label={t('Pending collection')}
+            value={formatMoney(pendingCod, codCurrency, locale)}
+            hint={t('Still with carriers')}
+            icon="fa-truck"
+            iconBg="bg-surface-sunken"
+            iconText="text-text-muted"
+            loading={loadingCod}
+            to="/my-profits"
+          />
+          <FinanceCard
+            label={t('Remitted')}
+            value={formatMoney(remittedCod, codCurrency, locale)}
+            hint={t('Already paid out')}
+            icon="fa-building-columns"
+            iconBg="bg-surface-sunken"
+            iconText="text-text-muted"
+            loading={loadingCod}
+            to="/my-profits"
+          />
+        </div>
+      </div>
+
+      {/* OMS merchant activity feed */}
+      <Card className="overflow-hidden">
+        <div className="p-5 border-b border-border-subtle">
+          <h2 className="font-bold text-text-strong">{t('Recent activity')}</h2>
+          <p className="text-xs text-text-muted mt-0.5">{t('What changed today?')}</p>
+        </div>
+        <div className="divide-y divide-border-subtle max-h-80 overflow-y-auto">
+          {activityItems.length === 0 ? (
+            <div className="p-8 text-center text-sm text-text-faint">{t('No recent activity')}</div>
+          ) : (
+            activityItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => item.href && navigate(item.href)}
+                className={`w-full text-start p-4 hover:bg-surface-hover transition-colors ${item.href ? 'cursor-pointer' : ''}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-bold uppercase text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-white/5 px-1.5 py-0.5 rounded">
+                        {item.kind}
+                </span>
+                      {item.status ? <Badge status={item.status} /> : null}
+                    </div>
+                    <div className="text-sm font-semibold text-text-strong truncate">{item.title}</div>
+                    <div className="text-xs text-text-muted mt-0.5 line-clamp-2">{item.subtitle}</div>
+                  </div>
+                  <div className="text-[10px] text-text-faint shrink-0 whitespace-nowrap">
+                    {new Date(item.at).toLocaleDateString(locale)}
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </Card>
     </div>
   );
 }

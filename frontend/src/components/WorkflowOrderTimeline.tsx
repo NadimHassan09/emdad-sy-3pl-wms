@@ -1,10 +1,71 @@
 import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { WorkflowsApi, type WorkflowTimelineTask } from '../api/workflows';
 import { PANEL_CARD_CLASS, PANEL_TITLE_CLASS } from './FilterPanel';
 import { QK } from '../constants/query-keys';
+import { formatTaskDateTime } from '../lib/task-details-helpers';
+import {
+  formatTaskDuration,
+  isTaskTimingCompleteStatus,
+  taskDurationMs,
+  taskEndedAtIso,
+  taskStartedAtIso,
+  toTaskMs,
+} from '../lib/task-timing';
 import { taskAssignedWorkerLabel } from '../lib/task-worker-label';
+
+/** Timer starts when the task is assigned (fallback: started), stops at completion. */
+function taskStartMs(task: WorkflowTimelineTask): number | null {
+  return toTaskMs(taskStartedAtIso(task));
+}
+
+function TaskTimer({ task, now }: { task: WorkflowTimelineTask; now: number }) {
+  const elapsed = taskDurationMs(task, now);
+  if (elapsed == null) return null;
+  const completed = isTaskTimingCompleteStatus(task.status);
+
+  return (
+    <div
+      className={`mt-2 inline-flex self-center items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[11px] tabular-nums ${
+        completed
+          ? 'bg-status-success-bg text-status-success-fg'
+          : 'bg-status-warning-bg text-status-warning-fg'
+      }`}
+      title={completed ? 'Total task duration' : 'Time since assignment (live)'}
+    >
+      <svg viewBox="0 0 20 20" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <circle cx="10" cy="10" r="7.2" />
+        <path d="M10 6.4v4l2.6 1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      {formatTaskDuration(elapsed)}
+    </div>
+  );
+}
+
+function TaskDateRange({ task }: { task: WorkflowTimelineTask }) {
+  const startedIso = taskStartedAtIso(task);
+  const endedIso = taskEndedAtIso(task);
+  if (!startedIso && !endedIso) return null;
+
+  return (
+    <div className="mt-2 space-y-0.5 text-[11px] leading-snug text-text-muted">
+      {startedIso ? (
+        <div>
+          Started:{' '}
+          <span className="font-medium text-text-strong">{formatTaskDateTime(startedIso)}</span>
+        </div>
+      ) : null}
+      {endedIso ? (
+        <div>
+          Ended:{' '}
+          <span className="font-medium text-text-strong">{formatTaskDateTime(endedIso)}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function blockedTitle(code: string | null | undefined): string {
   switch (code?.trim()) {
@@ -22,7 +83,7 @@ function blockedTitle(code: string | null | undefined): string {
 function prettyTaskType(taskType: string): string {
   switch (taskType) {
     case 'receiving':
-      return 'Receive';
+      return 'Receiving';
     case 'putaway':
       return 'Putaway';
     case 'putaway_quarantine':
@@ -31,8 +92,10 @@ function prettyTaskType(taskType: string): string {
       return 'Pick';
     case 'pack':
       return 'Pack';
+    case 'shipping_details':
+      return 'Shipping details';
     case 'dispatch':
-      return 'Delivery';
+      return 'Dispatch';
     case 'qc':
       return 'QC';
     case 'routing':
@@ -57,7 +120,7 @@ function isActiveStatus(status: string): boolean {
 function taskSequence(referenceType: 'inbound_order' | 'outbound_order') {
   return referenceType === 'inbound_order'
     ? ['receiving', 'qc', 'putaway', 'putaway_quarantine', 'routing', 'dispatch']
-    : ['pick', 'pack', 'dispatch', 'routing'];
+    : ['pick', 'pack', 'shipping_details', 'dispatch', 'routing'];
 }
 
 function workflowState(task: WorkflowTimelineTask): 'completed' | 'active' | 'pending' {
@@ -106,11 +169,22 @@ export function WorkflowOrderTimeline({
     enabled: enabled && !!referenceId,
   });
 
+  const [now, setNow] = useState(() => Date.now());
+  // Tick once per second only while at least one task is still running (assigned but not done).
+  const hasRunningTimer = (q.data?.tasks ?? []).some(
+    (t) => taskStartMs(t) != null && !isTaskTimingCompleteStatus(t.status),
+  );
+  useEffect(() => {
+    if (!hasRunningTimer) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [hasRunningTimer]);
+
   if (!enabled || !referenceId) return null;
   if (q.isLoading)
-    return <p className="mt-4 text-xs text-slate-500">Loading workflow timeline…</p>;
+    return <p className="mt-4 text-xs text-text-muted">Loading workflow timeline…</p>;
   if (q.isError || !q.data)
-    return <p className="mt-4 text-xs text-rose-600">Could not load workflow timeline.</p>;
+    return <p className="mt-4 text-xs text-status-danger-fg">Could not load workflow timeline.</p>;
 
   const wf = q.data.workflowInstance;
   const tasksRaw = q.data.tasks ?? [];
@@ -129,26 +203,26 @@ export function WorkflowOrderTimeline({
     <section className={PANEL_CARD_CLASS}>
       <h2 className={PANEL_TITLE_CLASS}>Workflow timeline</h2>
       <div className="mt-4 flex justify-center overflow-x-auto pb-1">
-        <ol className="flex w-max items-start gap-0">
+        <ol className="flex w-max items-stretch gap-0">
           {tasks.map((t, idx) => {
             const state = workflowState(t);
             const assigneeLabel = taskAssignedWorkerLabel(t.assignments);
             const done = state === 'completed';
             const active = state === 'active';
             const toneNode = done
-              ? 'border-emerald-300 bg-emerald-100 text-emerald-700'
+              ? 'border-status-success-border bg-status-success-bg text-status-success-fg'
               : active
-                ? 'border-amber-300 bg-amber-100 text-amber-700'
-                : 'border-slate-300 bg-slate-100 text-slate-500';
+                ? 'border-status-warning-border bg-status-warning-bg text-status-warning-fg'
+                : 'border-border bg-surface-sunken text-text-faint';
             const toneCard = done
-              ? 'border-emerald-200 bg-emerald-50/70'
+              ? 'border-status-success-border bg-status-success-bg/70'
               : active
-                ? 'border-amber-200 bg-amber-50/80 ring-1 ring-amber-100'
-                : 'border-slate-200 bg-slate-50/80';
+                ? 'border-status-warning-border bg-status-warning-bg/80 ring-1 ring-inset ring-status-warning-border/50'
+                : 'border-border bg-surface-sunken/80';
             const connectorDone = idx < tasks.length - 1 && done;
             return (
-              <li key={t.id} className="flex items-start">
-                <div className="w-[18rem] pr-4">
+              <li key={t.id} className="flex items-stretch">
+                <div className="flex w-[18rem] flex-col pr-4">
                   <div className="mb-2 flex items-center justify-center gap-2 text-center">
                     <span
                       className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${toneNode}`}
@@ -157,17 +231,19 @@ export function WorkflowOrderTimeline({
                       <StepIcon state={state} />
                     </span>
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-slate-900">{prettyTaskType(t.taskType)}</div>
-                      <div className="truncate text-[11px] uppercase tracking-wide text-slate-500">{prettyStatus(t.status)}</div>
+                      <div className="truncate text-sm font-semibold text-text-strong">{prettyTaskType(t.taskType)}</div>
+                      <div className="truncate text-[11px] uppercase tracking-wide text-text-muted">{prettyStatus(t.status)}</div>
                     </div>
                   </div>
-                  <div className={`rounded-lg border p-3 text-center text-xs ${toneCard}`}>
-                    <div className="text-slate-600">
+                  <div className={`flex flex-1 flex-col rounded-lg border p-3 text-center text-xs ${toneCard}`}>
+                    <div className="text-text-muted">
                       Assigned:{' '}
-                      <span className="font-medium text-slate-800">
+                      <span className="font-medium text-text-strong">
                         {assigneeLabel === '—' ? 'Unassigned' : assigneeLabel}
                       </span>
                     </div>
+                    <TaskTimer task={t} now={now} />
+                    <TaskDateRange task={t} />
                     <div className="mt-2 flex items-center justify-center gap-3">
                       <Link
                         to={
@@ -175,12 +251,12 @@ export function WorkflowOrderTimeline({
                             ? `/tasks/${t.id}?companyId=${encodeURIComponent(companyIdOverride)}`
                             : `/tasks/${t.id}`
                         }
-                        className="font-medium text-primary-700 hover:underline"
+                        className="font-medium text-text-link hover:underline"
                       >
                         Open task
                       </Link>
                       {!t.is_current_runnable && state === 'pending' ? (
-                        <span className="cursor-help text-slate-500 underline decoration-dotted" title={blockedTitle(t.runnability_blocked_reason ?? null)}>
+                        <span className="cursor-help text-text-muted underline decoration-dotted" title={blockedTitle(t.runnability_blocked_reason ?? null)}>
                           blocked
                         </span>
                       ) : null}
@@ -189,7 +265,7 @@ export function WorkflowOrderTimeline({
                 </div>
                 {idx < tasks.length - 1 ? (
                   <div className="mt-4 mr-4 h-0.5 w-16 shrink-0">
-                    <div className={`h-full rounded ${connectorDone ? 'bg-emerald-300' : 'bg-slate-300'}`} />
+                    <div className={`h-full rounded ${connectorDone ? 'bg-status-success-border' : 'bg-border'}`} />
                   </div>
                 ) : null}
               </li>
@@ -198,7 +274,7 @@ export function WorkflowOrderTimeline({
         </ol>
       </div>
       {tasks.length === 0 && wf ? (
-        <p className="mt-2 text-xs text-slate-500">No tasks recorded.</p>
+        <p className="mt-2 text-xs text-text-muted">No tasks recorded.</p>
       ) : null}
     </section>
   );

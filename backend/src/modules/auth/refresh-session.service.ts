@@ -13,6 +13,8 @@ export type RefreshSessionIssue = {
 export type RefreshRotationResult = RefreshSessionIssue & {
   /** True when a parallel refresh replayed the same presented JTI safely. */
   idempotent: boolean;
+  /** Absolute expiry of the refresh family (set at login; not shortened on rotate). */
+  expiresAt: Date;
 };
 
 /**
@@ -91,7 +93,7 @@ export class RefreshSessionService {
               toJti: newJti,
             },
           });
-          return { familyId, jti: newJti, idempotent: false };
+          return { familyId, jti: newJti, idempotent: false, expiresAt: session.expiresAt };
         }
       }
 
@@ -104,7 +106,7 @@ export class RefreshSessionService {
         },
       });
       if (prior) {
-        return { familyId, jti: prior.toJti, idempotent: true };
+        return { familyId, jti: prior.toJti, idempotent: true, expiresAt: session.expiresAt };
       }
 
       await this.revokeAllSessionsForUserTx(tx, userId, { bumpTokenVersion: true });

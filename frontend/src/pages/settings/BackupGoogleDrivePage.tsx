@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
+import { SectionContainer } from '@ds';
 
 import {
   BackupsApi,
@@ -9,7 +10,6 @@ import {
 } from '../../api/backups';
 import { Button } from '../../components/Button';
 import { ConfirmModal } from '../../components/ConfirmModal';
-import { PANEL_CARD_CLASS, PANEL_TITLE_CLASS } from '../../components/FilterPanel';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
@@ -36,24 +36,24 @@ function deriveSyncStatus(status: GoogleDriveAdminStatus | undefined): DriveSync
   return 'idle';
 }
 
-function connectionBadgeClass(connected: boolean): string {
+function connectionCardClass(connected: boolean): string {
   return connected
-    ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-    : 'border-slate-300 bg-slate-50 text-slate-700';
+    ? 'border-status-success-border bg-status-success-bg text-status-success-fg'
+    : 'border-border bg-surface-card-muted text-text-body';
 }
 
-function syncStatusBadgeClass(key: DriveSyncStatusKey): string {
+function syncStatusCardClass(key: DriveSyncStatusKey): string {
   switch (key) {
     case 'healthy':
-      return 'border-emerald-300 bg-emerald-50 text-emerald-900';
+      return 'border-status-success-border bg-status-success-bg text-status-success-fg';
     case 'pending':
-      return 'border-amber-300 bg-amber-50 text-amber-900';
+      return 'border-status-warning-border bg-status-warning-bg text-status-warning-fg';
     case 'failed':
-      return 'border-rose-300 bg-rose-50 text-rose-900';
+      return 'border-status-danger-border bg-status-danger-bg text-status-danger-fg';
     case 'disabled':
-      return 'border-slate-300 bg-slate-100 text-slate-600';
+      return 'border-border bg-surface-sunken text-text-muted';
     default:
-      return 'border-slate-300 bg-white text-slate-800';
+      return 'border-border bg-surface-card text-text-body';
   }
 }
 
@@ -153,7 +153,7 @@ export function BackupGoogleDrivePage() {
   }
 
   if (!gdriveUiEnabled) {
-    return <Navigate to="/settings/backups" replace />;
+    return <Navigate to="/backups" replace />;
   }
 
   const drive = driveQuery.data;
@@ -163,18 +163,14 @@ export function BackupGoogleDrivePage() {
 
   return (
     <div className="space-y-4">
-      <section className={PANEL_CARD_CLASS}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className={PANEL_TITLE_CLASS}>Google Drive</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              {t([
-                'Connect encrypted backup storage to Google Drive. OAuth credentials are stored encrypted at rest.',
-                'ربط التخزين الاحتياطي المشفّر بـ Google Drive. تُخزَّن بيانات OAuth مشفّرة.',
-              ])}
-            </p>
-          </div>
-          {canMutate ? (
+      <SectionContainer
+        title="Google Drive"
+        description={t([
+          'Connect encrypted backup storage to Google Drive. OAuth credentials are stored encrypted at rest.',
+          'ربط التخزين الاحتياطي المشفّر بـ Google Drive. تُخزَّن بيانات OAuth مشفّرة.',
+        ])}
+        actions={
+          canMutate ? (
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="brand"
@@ -200,16 +196,14 @@ export function BackupGoogleDrivePage() {
                 {t(['Disconnect Drive', 'فصل Drive'])}
               </Button>
             </div>
-          ) : null}
-        </div>
-
+          ) : undefined
+        }
+      >
         {driveQuery.isLoading ? (
-          <p className="mt-4 text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+          <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
         ) : drive ? (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div
-              className={`rounded-xl border-2 p-4 ${connectionBadgeClass(drive.connected)}`}
-            >
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className={`rounded-xl border-2 p-4 ${connectionCardClass(drive.connected)}`}>
               <p className="text-xs font-medium uppercase tracking-wide opacity-80">
                 {t(['Connection status', 'حالة الاتصال'])}
               </p>
@@ -226,7 +220,7 @@ export function BackupGoogleDrivePage() {
               ) : null}
             </div>
 
-            <div className={`rounded-xl border-2 p-4 ${syncStatusBadgeClass(syncStatusKey)}`}>
+            <div className={`rounded-xl border-2 p-4 ${syncStatusCardClass(syncStatusKey)}`}>
               <p className="text-xs font-medium uppercase tracking-wide opacity-80">
                 {t(['Sync status', 'حالة المزامنة'])}
               </p>
@@ -252,42 +246,42 @@ export function BackupGoogleDrivePage() {
               ) : null}
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <div className="rounded-xl border border-border bg-surface-card p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
                 {t(['Last sync', 'آخر مزامنة'])}
               </p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">
+              <p className="mt-1 text-lg font-semibold text-text-strong">
                 {formatBackupTimestamp(drive.lastSyncedAt)}
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4 sm:col-span-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <div className="rounded-xl border border-border bg-surface-card p-4 sm:col-span-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
                 {t(['Root folder', 'المجلد الجذري'])}
               </p>
-              <p className="mt-1 font-semibold text-slate-900">{drive.rootFolderName}</p>
+              <p className="mt-1 font-semibold text-text-strong">{drive.rootFolderName}</p>
               {drive.folderId ? (
-                <p className="mt-1 break-all font-mono text-xs text-slate-500">
+                <p className="mt-1 break-all font-mono text-xs text-text-muted">
                   {drive.folderId}
                 </p>
               ) : (
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-text-muted">
                   {t(['Connect Drive to create the root folder.', 'اربط Drive لإنشاء المجلد الجذري.'])}
                 </p>
               )}
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            <div className="rounded-xl border border-border bg-surface-card p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
                 {t(['Integration', 'التكامل'])}
               </p>
-              <p className="mt-1 text-sm text-slate-800">
+              <p className="mt-1 text-sm text-text-body">
                 {drive.gdriveConfigured
                   ? t(['OAuth configured', 'OAuth مُعدّ'])
                   : t(['OAuth not configured', 'OAuth غير مُعدّ'])}
               </p>
               {!drive.gdriveEnabled ? (
-                <p className="mt-1 text-xs text-amber-700">
+                <p className="mt-1 text-xs text-status-warning-fg">
                   {t([
                     'BACKUP_GDRIVE_ENABLED is false — Drive sync is disabled at runtime.',
                     'BACKUP_GDRIVE_ENABLED=false — مزامنة Drive معطّلة وقت التشغيل.',
@@ -297,37 +291,18 @@ export function BackupGoogleDrivePage() {
             </div>
           </div>
         ) : driveQuery.isError ? (
-          <p className="mt-4 text-sm text-rose-600">{driveQuery.error.message}</p>
+          <p className="text-sm text-status-danger-fg">{driveQuery.error.message}</p>
         ) : null}
-      </section>
+      </SectionContainer>
 
-      <section className={PANEL_CARD_CLASS}>
-        <h2 className={PANEL_TITLE_CLASS}>{t(['Storage policy', 'سياسة التخزين'])}</h2>
-        <p className="text-sm text-slate-600">
-          {t([
-            'Configure global and per-schedule backup storage routing on the Storage Policy page.',
-            'اضبط توجيه التخزين العام ولكل جدول في صفحة سياسة التخزين.',
-          ])}
-        </p>
-        <Link
-          to="/settings/backups/storage-policy"
-          className="mt-3 inline-block text-sm font-medium text-emerald-700 hover:underline"
-        >
-          {t(['Open storage policy', 'فتح سياسة التخزين'])}
-        </Link>
-      </section>
-
-      <section className={PANEL_CARD_CLASS}>
-        <h2 className={PANEL_TITLE_CLASS}>
-          {t(['Backup sync failures', 'فشل مزامنة النسخ'])}
-        </h2>
+      <SectionContainer title={t(['Backup sync failures', 'فشل مزامنة النسخ'])}>
         {driveQuery.isLoading ? (
-          <p className="mt-4 text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+          <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
         ) : drive && drive.syncFailures.length > 0 ? (
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-border text-sm">
               <thead>
-                <tr className="text-start text-xs uppercase tracking-wide text-slate-500">
+                <tr className="text-start text-xs uppercase tracking-wide text-text-muted">
                   <th className="px-3 py-2">{t(['Backup', 'النسخة'])}</th>
                   <th className="px-3 py-2">{t(['Type', 'النوع'])}</th>
                   <th className="px-3 py-2">{t(['Completed', 'الإكمال'])}</th>
@@ -338,9 +313,9 @@ export function BackupGoogleDrivePage() {
                   <th className="px-3 py-2" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border-subtle">
                 {drive.syncFailures.map((row) => (
-                  <tr key={row.id} className="align-top text-slate-800">
+                  <tr key={row.id} className="align-top text-text-body">
                     <td className="px-3 py-3 font-mono text-xs">{row.id.slice(0, 8)}…</td>
                     <td className="px-3 py-3">
                       {localizedBackupTypeLabel(row.type as BackupJobType, t)}
@@ -352,7 +327,7 @@ export function BackupGoogleDrivePage() {
                       {localizedBackupStoragePolicyLabel(row.storagePolicy, t)}
                     </td>
                     <td className="px-3 py-3">{row.gdriveSyncAttempts}</td>
-                    <td className="max-w-xs px-3 py-3 text-xs text-rose-700">
+                    <td className="max-w-xs px-3 py-3 text-xs text-status-danger-fg">
                       {row.gdriveSyncError ?? '—'}
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap text-xs">
@@ -376,11 +351,11 @@ export function BackupGoogleDrivePage() {
             </table>
           </div>
         ) : (
-          <p className="mt-4 text-sm text-slate-500">
+          <p className="text-sm text-text-muted">
             {t(['No failed Drive sync jobs.', 'لا توجد مهام مزامنة Drive فاشلة.'])}
           </p>
         )}
-      </section>
+      </SectionContainer>
 
       {canMutate ? (
         <ConfirmModal

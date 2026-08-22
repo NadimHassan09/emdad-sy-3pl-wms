@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
+import { SectionContainer } from '@ds';
 
 import { AuditLogsApi } from '../../api/audit-logs';
 import { QK } from '../../constants/query-keys';
 import { formatAuditActionLabel, formatAuditTimestamp } from '../../lib/audit-log-display';
 import { isBackupAuditAction } from '../../lib/backup-audit-actions';
 import { useWmsTranslation } from '../../lib/ui-i18n';
-import { PANEL_CARD_CLASS, PANEL_TITLE_CLASS } from '../FilterPanel';
 
 type Props = {
   limit?: number;
@@ -25,35 +25,32 @@ export function BackupAuditPanel({ limit = 12 }: Props) {
   });
 
   return (
-    <section className={PANEL_CARD_CLASS}>
-      <h2 className={PANEL_TITLE_CLASS}>
-        {t(['Recent backup audit events', 'أحداث تدقيق النسخ الاحتياطي'])}
-      </h2>
+    <SectionContainer title={t(['Recent backup audit events', 'أحداث تدقيق النسخ الاحتياطي'])}>
       {query.isLoading ? (
-        <p className="text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+        <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
       ) : query.data && query.data.length > 0 ? (
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-border-subtle">
           {query.data.map((row) => (
             <li key={row.id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-slate-800">
+                <p className="text-sm font-medium text-text-strong">
                   {formatAuditActionLabel(row.action)}
                 </p>
-                <p className="truncate text-xs text-slate-500">
+                <p className="truncate text-xs text-text-muted">
                   {row.actorEmail} · {row.resourceType}
                 </p>
               </div>
-              <time className="shrink-0 text-xs text-slate-500" dateTime={row.createdAt}>
+              <time className="shrink-0 text-xs text-text-muted" dateTime={row.createdAt}>
                 {formatAuditTimestamp(row.createdAt)}
               </time>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-text-muted">
           {t(['No backup audit events yet.', 'لا توجد أحداث تدقيق بعد.'])}
         </p>
       )}
-    </section>
+    </SectionContainer>
   );
 }

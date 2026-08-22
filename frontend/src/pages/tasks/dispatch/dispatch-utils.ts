@@ -311,13 +311,13 @@ export function readinessLabel(r: DispatchReadiness): string {
 export function readinessClass(r: DispatchReadiness): string {
   switch (r) {
     case 'ready':
-      return 'bg-emerald-100 text-emerald-800';
+      return 'bg-status-success-bg text-brand-700';
     case 'partial':
-      return 'bg-amber-100 text-amber-900';
+      return 'bg-status-warning-bg text-status-warning-fg';
     case 'blocked':
-      return 'bg-rose-100 text-rose-900';
+      return 'bg-status-danger-bg text-status-danger-fg';
     default:
-      return 'bg-slate-100 text-slate-600';
+      return 'bg-surface-card-muted text-text-body';
   }
 }
 

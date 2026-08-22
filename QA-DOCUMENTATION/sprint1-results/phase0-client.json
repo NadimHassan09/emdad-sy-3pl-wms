@@ -1,0 +1,238 @@
+{
+  "type": "run_end",
+  "status": "passed",
+  "summary": "Opened Online orders from the sidebar on the staging client site.\nOpened the Inbound section and confirmed the orders list loaded with data.\nOpened the Outbound section and confirmed the orders list loaded with data.\nDid not create any orders during the run.\nFinished on the staging Outbound orders page without being redirected to a production site.",
+  "one_liner": "navigated online, inbound, and outbound orders on staging-client.emdadsy.com",
+  "final_state": {
+    "url": "https://staging-client.emdadsy.com/outbound-orders",
+    "page_title": "Online orders \u00b7 Client Portal",
+    "inbound_orders_loaded": "true",
+    "outbound_orders_loaded": "true"
+  },
+  "reason": "Objective completed",
+  "duration": 163,
+  "bifurcated": true,
+  "total_runs": 2,
+  "context": {
+    "memory": {
+      "login_page_email_check": {
+        "extracted_value": "true",
+        "operator": "equals",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'true' -> 'true'; equals 'true' -> PASS",
+        "analyzer_type": "textual_visual",
+        "step": 10,
+        "query": "whether the Email label is present on the login page",
+        "condition": "the login page shows Email",
+        "human_description": "Checking whether the Email label is present",
+        "expected_value": "true",
+        "code_js": "!!el(8) && /email/i.test(el(8).textContent || '')",
+        "wrapped_js": "(els) => {\n  const __m = {8: 0};\n  const el = (i) => els[__m[i]];\n  const __v = (!!el(8) && /email/i.test(el(8).textContent || ''));\n  return (typeof __v === 'boolean' ? String(__v) : __v);\n}",
+        "locators": [
+          "internal:text=\"Email\"i"
+        ],
+        "needs_unit_conversion": false
+      },
+      "login_page_password_check": {
+        "extracted_value": "true",
+        "operator": "equals",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'true' -> 'true'; equals 'true' -> PASS",
+        "analyzer_type": "textual_visual",
+        "step": 10,
+        "query": "whether the Password label is present on the login page",
+        "condition": "the login page shows Password",
+        "human_description": "Checking whether the Password label is present",
+        "expected_value": "true",
+        "code_js": "!!el(11) && /password/i.test(el(11).textContent || '')",
+        "wrapped_js": "(els) => {\n  const __m = {11: 0};\n  const el = (i) => els[__m[i]];\n  const __v = (!!el(11) && /password/i.test(el(11).textContent || ''));\n  return (typeof __v === 'boolean' ? String(__v) : __v);\n}",
+        "locators": [
+          "internal:text=\"Password\"i"
+        ],
+        "needs_unit_conversion": false
+      },
+      "dashboard_url_check": {
+        "extracted_value": "https://staging-client.emdadsy.com/dashboard",
+        "operator": "contains",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'https://staging-client.emdadsy.com/dashboard' -> 'https://staging-client.emdadsy.com/dashboard'; contains 'staging-client.emdadsy.com/dashboard' -> PASS",
+        "analyzer_type": "url",
+        "step": 17,
+        "query": "the URL contains staging-client.emdadsy.com/dashboard",
+        "condition": "the URL contains staging-client.emdadsy.com/dashboard",
+        "human_description": "Reading the current page URL",
+        "expected_value": "staging-client.emdadsy.com/dashboard"
+      },
+      "online_orders_list_page_loads_check": {
+        "extracted_value": "Online orders \u00b7 Client Portal",
+        "operator": "contains",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'Online orders \u00b7 Client Portal' -> 'Online orders \u00b7 Client Portal'; contains 'Online orders' -> PASS",
+        "analyzer_type": "title",
+        "step": 2,
+        "query": "the Online orders (or ecommerce-orders) list page loads on staging-client",
+        "condition": "the Online orders (or ecommerce-orders) list page loads on staging-client",
+        "human_description": "Extracting the current page title",
+        "expected_value": "Online orders"
+      },
+      "inbound_orders_list_loads_check": {
+        "extracted_value": "true",
+        "operator": "equals",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'true' -> 'true'; equals 'true' -> PASS",
+        "analyzer_type": "textual_visual",
+        "step": 5,
+        "query": "whether the inbound orders list is present with at least one data row",
+        "condition": "the Inbound orders list loads",
+        "human_description": "Checking whether the inbound orders list is present with data rows",
+        "expected_value": "true",
+        "code_js": "!!el(43) && el(43).querySelectorAll('[role=\"row\"], tr').length > 1",
+        "wrapped_js": "(els) => {\n  const __m = {43: 0};\n  const el = (i) => els[__m[i]];\n  const __v = (!!el(43) && el(43).querySelectorAll('[role=\"row\"], tr').length > 1);\n  return (typeof __v === 'boolean' ? String(__v) : __v);\n}",
+        "locators": [
+          "internal:text=\"Order #StatusExpected ArrivalLinesCreatedINB-2026-00031Completed8/12/202618/12/\"i"
+        ],
+        "needs_unit_conversion": false
+      },
+      "outbound_orders_list_loads_check": {
+        "extracted_value": "true",
+        "operator": "equals",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'true' -> 'true'; equals 'true' -> PASS",
+        "analyzer_type": "textual_visual",
+        "step": 8,
+        "query": "whether the outbound orders list table has loaded rows",
+        "condition": "the Outbound orders list loads",
+        "human_description": "Checking whether the outbound orders list has loaded",
+        "expected_value": "true",
+        "code_js": "!!(el(25).querySelector('table') && el(25).querySelectorAll('tbody tr').length > 0)",
+        "wrapped_js": "(els) => {\n  const __m = {25: 0};\n  const el = (i) => els[__m[i]];\n  const __v = (!!(el(25).querySelector('table') && el(25).querySelectorAll('tbody tr').length > 0));\n  return (typeof __v === 'boolean' ? String(__v) : __v);\n}",
+        "locators": [
+          "#main-content"
+        ],
+        "needs_unit_conversion": false
+      },
+      "no_redirect_to_production_check": {
+        "extracted_value": "https://staging-client.emdadsy.com/outbound-orders",
+        "operator": "contains",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'https://staging-client.emdadsy.com/outbound-orders' -> 'https://staging-client.emdadsy.com/outbound-orders'; contains 'staging-client.emdadsy.com' -> PASS",
+        "analyzer_type": "url",
+        "step": 8,
+        "query": "there is no redirect to admin.emdadsy.com or emdadsy.com production",
+        "condition": "there is no redirect to admin.emdadsy.com or emdadsy.com production",
+        "human_description": "Extracting the final page URL",
+        "expected_value": "staging-client.emdadsy.com"
+      },
+      "client_smoke_url": {
+        "extracted_value": "https://staging-client.emdadsy.com/outbound-orders",
+        "operator": "equals",
+        "transforms": [
+          "strip"
+        ],
+        "json_path": null,
+        "reasoning": "value: 'https://staging-client.emdadsy.com/outbound-orders' (stored, no comparison)",
+        "analyzer_type": "url",
+        "step": 8,
+        "query": "the final URL is saved as ",
+        "condition": "the final URL is saved as ",
+        "human_description": "Extracting the final page URL",
+        "expected_value": ""
+      }
+    },
+    "variables": {
+      "secrets.user.client_email": {
+        "value": "client@acme.example",
+        "secret": true,
+        "syntax": "{{secrets.user.client_email}}",
+        "type": "secret"
+      },
+      "secrets.user.client_password": {
+        "value": "demo123",
+        "secret": true,
+        "syntax": "{{secrets.user.client_password}}",
+        "type": "secret"
+      },
+      "login_page_email_check": {
+        "syntax": "{{login_page_email_check}}",
+        "value": "true",
+        "type": "memory",
+        "secret": false
+      },
+      "login_page_password_check": {
+        "syntax": "{{login_page_password_check}}",
+        "value": "true",
+        "type": "memory",
+        "secret": false
+      },
+      "dashboard_url_check": {
+        "syntax": "{{dashboard_url_check}}",
+        "value": "https://staging-client.emdadsy.com/dashboard",
+        "type": "memory",
+        "secret": false
+      },
+      "client_smoke_url": {
+        "syntax": "{{client_smoke_url}}",
+        "value": "https://staging-client.emdadsy.com/outbound-orders",
+        "type": "memory",
+        "secret": false
+      },
+      "online_orders_list_page_loads_check": {
+        "syntax": "{{online_orders_list_page_loads_check}}",
+        "value": "Online orders \u00b7 Client Portal",
+        "type": "memory",
+        "secret": false
+      },
+      "inbound_orders_list_loads_check": {
+        "syntax": "{{inbound_orders_list_loads_check}}",
+        "value": "true",
+        "type": "memory",
+        "secret": false
+      },
+      "outbound_orders_list_loads_check": {
+        "syntax": "{{outbound_orders_list_loads_check}}",
+        "value": "true",
+        "type": "memory",
+        "secret": false
+      },
+      "no_redirect_to_production_check": {
+        "syntax": "{{no_redirect_to_production_check}}",
+        "value": "https://staging-client.emdadsy.com/outbound-orders",
+        "type": "memory",
+        "secret": false
+      }
+    },
+    "pointer": "(passed) logged in on staging-client.emdadsy.com; navigated online, inbound, and outbound orders on staging-client.emdadsy.com"
+  },
+  "credits_consumed": 53.69057,
+  "session_dir": "/root/.testmuai/kaneai/sessions/e83c51f8-ae9b-4782-a70d-b1b363a8cc2a",
+  "run_dir": "/root/.testmuai/kaneai/sessions/e83c51f8-ae9b-4782-a70d-b1b363a8cc2a/runs/0",
+  "result_code": 100,
+  "reason_code": "success.complete",
+  "per_flow_metadata": [
+    {
+      "result_code": "100",
+      "reason_code": "success.complete",
+      "error_message": null,
+      "summary": "The task was to sign in using the provided email address and password.\nThe login page showed both the Email and Password fields before sign-in.\nThe provided credentials were entered and the sign-in was completed successfully.\nThe browser reached the dashboard page at staging-client.emdadsy.com/dashboard.",
+      "one_liner": "logged in on staging-client.emdadsy.com",
+      "credits_consumed": 30.885095
+    },
+    {
+      "result_code": "100",
+      "reason_code": "success.complete",
+      "error_message": null,
+      "summary": "Opened Online orders from the sidebar on the staging client site.\nOpened the Inbound section and confirmed the orders list loaded with data.\nOpened the Outbound section and confirmed the orders list loaded with data.\nDid not create any orders during the run.\nFinished on the staging Outbound orders page without being redirected to a production site.",
+      "one_liner": "navigated online, inbound, and outbound orders on staging-client.emdadsy.com",
+      "credits_consumed": 22.805475
+    }
+  ],
+  "run_id": "run-0",
+  "test_url": "https://test-manager.lambdatest.com/projects/01M0GDK7AFN1DN6NRMEAY1DSB9/test-cases/01M0GGY23RR6DT26QFRPBRANRY/dashboard/share/US_4RWA0NIFMYVL9SPBYG71FJOY7SQXTJ4V7M71YSCEE74CGCUFAUBRIIYUISZ4GIGT?type=summary&agentView=true&fqdn=summary-page"
+}

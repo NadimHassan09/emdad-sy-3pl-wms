@@ -8,16 +8,14 @@ export default defineConfig({
   resolve: {
     alias: {
       '@ds': fileURLToPath(
-        new NodeURL('../shared/design-system/ui/index.ts', import.meta.url),
+        new NodeURL('../shared/design-system-next/ui/index.ts', import.meta.url),
       ),
-      '@wms/components': fileURLToPath(
-        new NodeURL('../frontend/src/components', import.meta.url),
-      ),
-      '@wms/hooks': fileURLToPath(new NodeURL('../frontend/src/hooks', import.meta.url)),
       'react': pathResolve('./node_modules/react'),
       'react-dom': pathResolve('./node_modules/react-dom'),
       'react/jsx-runtime': pathResolve('./node_modules/react/jsx-runtime.js'),
       '@tanstack/react-query': pathResolve('./node_modules/@tanstack/react-query'),
+      'libphonenumber-js/max': pathResolve('./node_modules/libphonenumber-js/max/index.js'),
+      'libphonenumber-js': pathResolve('./node_modules/libphonenumber-js/index.js'),
     },
     dedupe: ['react', 'react-dom', '@tanstack/react-query'],
   },

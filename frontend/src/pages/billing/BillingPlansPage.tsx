@@ -1,23 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import {
-  BillingApi,
-  type BillingPlanOverviewItem,
-  type CreateBillingPlanPayload,
-  type UpdateBillingPlanPayload,
-} from '../../api/billing';
-import { CompaniesApi } from '../../api/companies';
-import { BillingPlanFormModal } from '../../components/billing/BillingPlanFormModal';
-import { VolumeAllocationPanel } from '../../components/billing/VolumeAllocationPanel';
+import { Alert, AdvancedFilterSection, countNonEmptyFilters } from '@ds';
+import { BillingApi, type BillingPlanOverviewItem } from '../../api/billing';
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { AnchoredDropdown } from '../../components/AnchoredDropdown';
 import { Button } from '../../components/Button';
-import { Combobox } from '../../components/Combobox';
 import { DataTable, type Column } from '../../components/DataTable';
-import { FilterPanel } from '../../components/FilterPanel';
-import { SelectField } from '../../components/SelectField';
-import { TextField } from '../../components/TextField';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
@@ -26,40 +16,39 @@ import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
 } from '../../hooks/useChunkedServerPagination';
-import { companyFilterComboboxOptions } from '../../lib/company-filter-options';
+import { useCachedState } from '../../hooks/useCachedState';
+import {
+  FILTER_COMPACT_SEARCH_CLASS,
+  FILTER_COMPACT_SELECT_CLASS,
+  FILTER_FIELD_CONTROL_CLASS,
+  FILTER_FIELD_LABEL_CLASS,
+  FILTER_FIELD_LABEL_GAP_CLASS,
+} from '../../components/filter-panel-styles';
+import { adminMediaSrc } from '../../lib/admin-media';
 import {
   formatDate,
   formatDecimal,
-  type BillingStatusDisplay,
-  type BillingStatusFilter,
-  type BillingCycleStatusDisplay,
-  type CycleStatusFilter,
-  type DaysRemainingFilter,
 } from '../../lib/billing-plan-overview';
 
 type ListFilters = {
-  companyId: string;
   search: string;
-  cycleStatus: CycleStatusFilter;
-  daysRemaining: DaysRemainingFilter;
-  billingStatus: BillingStatusFilter;
-  expiryFrom: string;
-  expiryTo: string;
-  sort_by: 'companyName' | 'cycleEnd' | 'daysRemaining' | 'createdAt';
-  sort_dir: 'asc' | 'desc';
+  planStatus: '' | 'active' | 'inactive';
+  cycleStartFrom: string;
+  cycleStartTo: string;
+  cycleEndFrom: string;
+  cycleEndTo: string;
 };
 
 const INITIAL_FILTERS: ListFilters = {
-  companyId: '',
   search: '',
-  cycleStatus: '',
-  daysRemaining: '',
-  billingStatus: '',
-  expiryFrom: '',
-  expiryTo: '',
-  sort_by: 'createdAt',
-  sort_dir: 'desc',
+  planStatus: '',
+  cycleStartFrom: '',
+  cycleStartTo: '',
+  cycleEndFrom: '',
+  cycleEndTo: '',
 };
+
+const CURRENCY = 'USD';
 
 function BillingLabel({
   text,
@@ -77,54 +66,71 @@ function BillingLabel({
   return <span className={`badge w-fit ${cls}`}>{text}</span>;
 }
 
-function cycleStatusBadge(status: BillingCycleStatusDisplay) {
-  const map = {
-    active: { label: 'Active', variant: 'success' as const },
-    renewed: { label: 'Renewed', variant: 'warning' as const },
-    expired: { label: 'Expired', variant: 'warning' as const },
-    none: { label: 'No cycle', variant: 'neutral' as const },
-  };
-  const m = map[status];
-  return <BillingLabel text={m.label} variant={m.variant} />;
-}
-
-function billingStatusBadge(status: BillingStatusDisplay) {
-  const map = {
-    operational: { label: 'Operational', variant: 'success' as const },
-    restricted: { label: 'Restricted', variant: 'danger' as const },
-    inactive: { label: 'Inactive', variant: 'neutral' as const },
-  };
-  const m = map[status];
-  return <BillingLabel text={m.label} variant={m.variant} />;
-}
-
-function daysRemainingLabel(n: number | null): string {
-  if (n == null) return '—';
-  if (n <= 0) return 'Expired';
-  return `${n}d`;
-}
-
 export function BillingPlansPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const toast = useToast();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const canMutate = user?.role === 'super_admin' || user?.role === 'wh_manager';
 
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters<ListFilters>(INITIAL_FILTERS);
+  const [advancedOpen, setAdvancedOpen] = useCachedState(
+    'billing-plans:advanced-filters-open',
+    false,
+  );
 
   const [openActionId, setOpenActionId] = useState<string | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editRow, setEditRow] = useState<BillingPlanOverviewItem | null>(null);
+
+  const suspendMut = useMutation({
+    mutationFn: (planId: string) => BillingApi.suspendPlan(planId),
+    onSuccess: () => {
+      toast.success('Billing plan suspended. Subscription is frozen.');
+      void qc.invalidateQueries({ queryKey: QK.billing.plans });
+      void qc.invalidateQueries({ queryKey: QK.billing.capacity });
+      void qc.invalidateQueries({ queryKey: QK.companies });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const resumeMut = useMutation({
+    mutationFn: (planId: string) => BillingApi.resumePlan(planId),
+    onSuccess: () => {
+      toast.success('Billing plan resumed. Subscription is active again.');
+      void qc.invalidateQueries({ queryKey: QK.billing.plans });
+      void qc.invalidateQueries({ queryKey: QK.billing.capacity });
+      void qc.invalidateQueries({ queryKey: QK.companies });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const renewMut = useMutation({
+    mutationFn: (planId: string) => BillingApi.renewPlan(planId),
+    onSuccess: (result) => {
+      toast.success(
+        result.mode === 'reactivated'
+          ? 'Billing plan renewed. Access restored and a new cycle started.'
+          : 'Billing cycle marked for renewal when it expires.',
+      );
+      void qc.invalidateQueries({ queryKey: QK.billing.plans });
+      void qc.invalidateQueries({ queryKey: QK.billing.cycles });
+      void qc.invalidateQueries({ queryKey: QK.billing.capacity });
+      void qc.invalidateQueries({ queryKey: QK.billing.suspendedAccounts });
+      void qc.invalidateQueries({ queryKey: QK.billing.overdueClients });
+      void qc.invalidateQueries({ queryKey: QK.companies });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   useEffect(() => {
     if (!openActionId) return;
     const onPointerDown = (ev: PointerEvent) => {
       const target = ev.target as Element | null;
       if (!target) return;
+      // Menu is portaled to document.body — must include menu root, not only the trigger.
       if (
         target.closest('[data-billing-action-trigger="true"]') ||
+        target.closest('[data-billing-action-menu="true"]') ||
         target.closest('[data-billing-action-menu-button="true"]')
       ) {
         return;
@@ -135,28 +141,16 @@ export function BillingPlansPage() {
     return () => window.removeEventListener('pointerdown', onPointerDown);
   }, [openActionId]);
 
-  const companiesQuery = useQuery({
-    queryKey: QK.companies,
-    queryFn: () => CompaniesApi.list({ includeAll: true }),
-  });
-
-  const capacityQuery = useQuery({
-    queryKey: QK.billing.capacity,
-    queryFn: () => BillingApi.getCapacitySummary(),
-    enabled: canMutate,
-  });
-
   const serverFilters = useMemo(
     () => ({
-      companyId: appliedFilters.companyId.trim() || undefined,
       search: appliedFilters.search.trim() || undefined,
-      cycleStatus: appliedFilters.cycleStatus || undefined,
-      daysRemaining: appliedFilters.daysRemaining || undefined,
-      billingStatus: appliedFilters.billingStatus || undefined,
-      expiryFrom: appliedFilters.expiryFrom || undefined,
-      expiryTo: appliedFilters.expiryTo || undefined,
-      sort_by: appliedFilters.sort_by,
-      sort_dir: appliedFilters.sort_dir,
+      planStatus: appliedFilters.planStatus || undefined,
+      cycleStartFrom: appliedFilters.cycleStartFrom || undefined,
+      cycleStartTo: appliedFilters.cycleStartTo || undefined,
+      expiryFrom: appliedFilters.cycleEndFrom || undefined,
+      expiryTo: appliedFilters.cycleEndTo || undefined,
+      sort_by: 'createdAt' as const,
+      sort_dir: 'desc' as const,
     }),
     [appliedFilters],
   );
@@ -170,81 +164,97 @@ export function BillingPlansPage() {
     chunkQueryKeyPrefix: 'billing-plans-chunk',
   });
 
-  const invalidateBilling = () => {
-    void qc.invalidateQueries({ queryKey: QK.billing.plans });
-    void qc.invalidateQueries({ queryKey: QK.billing.cycles });
-    void qc.invalidateQueries({ queryKey: QK.billing.capacity });
-    void qc.invalidateQueries({ queryKey: QK.billing.expiringSoon });
-  };
-
-  const createMut = useMutation({
-    mutationFn: (payload: CreateBillingPlanPayload) => BillingApi.createPlan(payload),
-    onSuccess: () => {
-      toast.success('Billing plan created.');
-      setCreateOpen(false);
-      invalidateBilling();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const updateMut = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: UpdateBillingPlanPayload }) =>
-      BillingApi.updatePlan(id, payload),
-    onSuccess: () => {
-      toast.success('Billing plan updated.');
-      setEditRow(null);
-      setOpenActionId(null);
-      invalidateBilling();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const renewMut = useMutation({
-    mutationFn: (cycleId: string) => BillingApi.renewCycle(cycleId),
-    onSuccess: () => {
-      toast.success('Billing cycle marked for renewal.');
-      setOpenActionId(null);
-      invalidateBilling();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
   const columns: Column<BillingPlanOverviewItem>[] = [
     {
       header: 'Client',
-      accessor: (r) => <span className="font-medium text-slate-900">{r.companyName}</span>,
+      accessor: (r) => {
+        const logoSrc = adminMediaSrc(r.companyLogoUrl);
+        return (
+          <div className="flex items-center gap-3">
+            {logoSrc ? (
+              <img
+                src={logoSrc}
+                alt=""
+                className="h-9 w-9 shrink-0 rounded-lg border border-border object-cover"
+              />
+            ) : (
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-text-faint">
+                <i className="fa-solid fa-building text-xs" aria-hidden="true" />
+              </div>
+            )}
+            <span className="min-w-0 truncate font-medium text-text-strong">{r.companyName}</span>
+          </div>
+        );
+      },
     },
-    { header: 'Cycle start', accessor: (r) => formatDate(r.cycleStart) },
-    { header: 'Cycle end', accessor: (r) => formatDate(r.cycleEnd) },
     {
-      header: 'Days remaining',
-      accessor: (r) => (
-        <span className={r.daysRemaining != null && r.daysRemaining <= 7 ? 'font-medium text-amber-700' : ''}>
-          {daysRemainingLabel(r.daysRemaining)}
-        </span>
-      ),
-    },
-    { header: 'Cycle length', accessor: (r) => `${r.plan.cycleLengthDays}d` },
-    {
-      header: 'Fixed fee',
-      accessor: (r) => formatDecimal(r.plan.fixedSubscriptionFee),
+      header: 'Remaining days',
+      accessor: (r) => {
+        if (r.daysRemaining == null) {
+          return <span className="text-sm text-text-muted">—</span>;
+        }
+        if (r.daysRemaining < 0) {
+          return <BillingLabel text="Expired" variant="danger" />;
+        }
+        if (r.daysRemaining === 0) {
+          return <BillingLabel text="Last day" variant="warning" />;
+        }
+        const text = `${r.daysRemaining} day${r.daysRemaining === 1 ? '' : 's'}`;
+        if (r.daysRemaining <= 3) {
+          return <BillingLabel text={text} variant="danger" />;
+        }
+        if (r.daysRemaining <= 7) {
+          return <BillingLabel text={text} variant="warning" />;
+        }
+        return <span className="text-sm text-text-body">{text}</span>;
+      },
     },
     {
       header: 'Reserved volume',
-      accessor: (r) => `${formatDecimal(r.plan.reservedVolume, 4)} CBM`,
+      accessor: (r) => `${formatDecimal(r.plan.reservedVolume, 2)} m³`,
     },
     {
-      header: 'Reserved weight',
-      accessor: (r) => `${formatDecimal(r.plan.reservedWeight, 4)} kg`,
+      header: 'Price',
+      accessor: (r) => `${formatDecimal(r.plan.fixedSubscriptionFee)} ${CURRENCY}`,
+    },
+    {
+      header: 'Billing cycle',
+      accessor: (r) => `${r.plan.cycleLengthDays} days`,
+    },
+    {
+      header: 'Current cycle',
+      accessor: (r) => {
+        const start = formatDate(r.cycleStart);
+        const end = formatDate(r.cycleEnd);
+        if (start === '—' && end === '—') {
+          return <span className="text-sm text-text-muted">—</span>;
+        }
+        return (
+          <span className="text-sm text-text-body">
+            {start}
+            <span className="mx-1 text-text-muted">→</span>
+            {end}
+          </span>
+        );
+      },
     },
     {
       header: 'Status',
-      accessor: (r) => (
-        <div className="flex flex-col gap-1">
-          {cycleStatusBadge(r.cycleStatus)}
-          {billingStatusBadge(r.billingStatus)}
-        </div>
-      ),
+      accessor: (r) =>
+        r.plan.active ? (
+          <BillingLabel text="Active" variant="success" />
+        ) : (
+          <BillingLabel text="Inactive" variant="neutral" />
+        ),
+    },
+    {
+      header: 'Auto renewal',
+      accessor: (r) =>
+        r.plan.autoRenew === false ? (
+          <BillingLabel text="Off" variant="neutral" />
+        ) : (
+          <BillingLabel text="On" variant="success" />
+        ),
     },
     {
       header: 'Actions',
@@ -257,7 +267,7 @@ export function BillingPlansPage() {
             trigger={
               <button
                 type="button"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-card-muted"
                 data-billing-action-menu-button="true"
                 onClick={() => setOpenActionId((cur) => (cur === r.plan.id ? null : r.plan.id))}
                 aria-label="Open actions"
@@ -272,7 +282,7 @@ export function BillingPlansPage() {
           >
             <button
               type="button"
-              className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+              className="block w-full px-3 py-2 text-left text-sm hover:bg-surface-sunken"
               onClick={() => {
                 setOpenActionId(null);
                 navigate(`/billing/plans/${r.companyId}`);
@@ -283,25 +293,80 @@ export function BillingPlansPage() {
             {canMutate ? (
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-surface-sunken"
                 onClick={() => {
                   setOpenActionId(null);
-                  setEditRow(r);
+                  navigate(`/billing/plans/${r.companyId}/edit`);
                 }}
               >
                 Edit
               </button>
             ) : null}
-            {canMutate && r.currentCycle && r.currentCycle.status === 'active' ? (
+            {canMutate &&
+            (r.billingStatus === 'restricted' ||
+              r.cycleStatus === 'active' ||
+              r.cycleStatus === 'expired' ||
+              r.cycleStatus === 'none') ? (
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                className="block w-full px-3 py-2 text-left text-sm text-status-success-fg hover:bg-status-success-bg"
+                disabled={renewMut.isPending}
                 onClick={() => {
-                  if (!window.confirm('Mark this billing cycle for renewal when it expires?')) return;
-                  renewMut.mutate(r.currentCycle!.id);
+                  const restricted = r.billingStatus === 'restricted' || r.cycleStatus !== 'active';
+                  if (
+                    !window.confirm(
+                      restricted
+                        ? `Renew billing plan for ${r.companyName}? This restores access and starts a new billing cycle.`
+                        : `Mark billing cycle for ${r.companyName} for renewal when it expires?`,
+                    )
+                  ) {
+                    return;
+                  }
+                  setOpenActionId(null);
+                  renewMut.mutate(r.plan.id);
                 }}
               >
                 Renew
+              </button>
+            ) : null}
+            {canMutate && r.plan.active ? (
+              <button
+                type="button"
+                className="block w-full px-3 py-2 text-left text-sm text-status-error-fg hover:bg-status-error-bg"
+                disabled={suspendMut.isPending}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      `Suspend billing plan for ${r.companyName}? This freezes the subscription and stops auto-renewal.`,
+                    )
+                  ) {
+                    return;
+                  }
+                  setOpenActionId(null);
+                  suspendMut.mutate(r.plan.id);
+                }}
+              >
+                Suspend
+              </button>
+            ) : null}
+            {canMutate && !r.plan.active ? (
+              <button
+                type="button"
+                className="block w-full px-3 py-2 text-left text-sm text-status-success-fg hover:bg-status-success-bg"
+                disabled={resumeMut.isPending}
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      `Resume billing plan for ${r.companyName}? This reactivates the subscription and starts a new billing cycle if needed.`,
+                    )
+                  ) {
+                    return;
+                  }
+                  setOpenActionId(null);
+                  resumeMut.mutate(r.plan.id);
+                }}
+              >
+                Resume
               </button>
             ) : null}
           </AnchoredDropdown>
@@ -311,156 +376,163 @@ export function BillingPlansPage() {
   ];
 
   return (
-    <div className="space-y-4">
-      <VolumeAllocationPanel
-        capacity={capacityQuery.data}
-        loading={capacityQuery.isLoading}
-      />
-
-      <FilterPanel
-        title="Billing plan filters"
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-      >
-        <TextField
-          label="Search client"
-          value={draftFilters.search}
-          onChange={(e) => setDraft({ search: e.target.value })}
-          placeholder="Client name"
-        />
-        <Combobox
-          label="Client"
-          value={draftFilters.companyId}
-          onChange={(v) => setDraft({ companyId: v })}
-          options={companyFilterComboboxOptions(companiesQuery.data, 'All clients')}
-        />
-        <SelectField
-          label="Cycle status"
-          value={draftFilters.cycleStatus}
-          onChange={(e) => setDraft({ cycleStatus: e.target.value as CycleStatusFilter })}
-          options={[
-            { value: '', label: 'All' },
-            { value: 'active', label: 'Active' },
-            { value: 'renewed', label: 'Renewed' },
-            { value: 'expired', label: 'Expired' },
-            { value: 'none', label: 'No cycle' },
-          ]}
-        />
-        <SelectField
-          label="Days remaining"
-          value={draftFilters.daysRemaining}
-          onChange={(e) => {
-            const v = e.target.value as unknown as DaysRemainingFilter;
-            setDraft({ daysRemaining: v });
-          }}
-          options={[
-            { value: '', label: 'All' },
-            { value: 'critical', label: '≤ 7 days' },
-            { value: 'warning', label: '8–30 days' },
-            { value: 'healthy', label: '> 30 days' },
-            { value: 'expired', label: 'Expired' },
-            { value: 'none', label: 'No cycle' },
-          ]}
-        />
-        <SelectField
-          label="Billing status"
-          value={draftFilters.billingStatus}
-          onChange={(e) => {
-            const v = e.target.value as unknown as BillingStatusFilter;
-            setDraft({ billingStatus: v });
-          }}
-          options={[
-            { value: '', label: 'All' },
-            { value: 'operational', label: 'Operational' },
-            { value: 'restricted', label: 'Restricted' },
-            { value: 'inactive', label: 'Inactive' },
-          ]}
-        />
-        <TextField
-          label="Expiry from"
-          type="date"
-          value={draftFilters.expiryFrom}
-          onChange={(e) => setDraft({ expiryFrom: e.target.value })}
-        />
-        <TextField
-          label="Expiry to"
-          type="date"
-          value={draftFilters.expiryTo}
-          onChange={(e) => setDraft({ expiryTo: e.target.value })}
-        />
-        <SelectField
-          label="Sort by"
-          value={draftFilters.sort_by}
-          onChange={(e) =>
-            setDraft({
-              sort_by: e.target.value as ListFilters['sort_by'],
-            })
-          }
-          options={[
-            { value: 'createdAt', label: 'Created' },
-            { value: 'companyName', label: 'Client name' },
-            { value: 'cycleEnd', label: 'Cycle end' },
-            { value: 'daysRemaining', label: 'Days remaining' },
-          ]}
-        />
-        <SelectField
-          label="Sort direction"
-          value={draftFilters.sort_dir}
-          onChange={(e) =>
-            setDraft({ sort_dir: e.target.value as 'asc' | 'desc' })
-          }
-          options={[
-            { value: 'desc', label: 'Descending' },
-            { value: 'asc', label: 'Ascending' },
-          ]}
-        />
-      </FilterPanel>
-
-      <DataTable
-        title="Billing plans"
-        description="Click a row to open client billing plan details."
-        actions={
-          canMutate ? (
-            <Button variant="brand" onClick={() => setCreateOpen(true)}>
+    <AdminListPageShell
+      icon="fa-file-invoice-dollar"
+      title="Billing plans"
+      subtitle="Subscription storage billing by client — reserved volume, price, and cycle."
+      actions={
+        canMutate ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              className="!border-brand-600 !bg-white !text-brand-700 hover:!bg-brand-50 hover:!text-brand-800"
+              onClick={() => navigate('/billing/templates')}
+            >
+              Create plan template
+            </Button>
+            <Button variant="brand" onClick={() => navigate('/billing/plans/new')}>
               + Create plan
             </Button>
-          ) : undefined
+          </div>
+        ) : undefined
+      }
+    >
+      <AdvancedFilterSection
+        advancedOpen={advancedOpen}
+        onAdvancedOpenChange={setAdvancedOpen}
+        loading={pagination.isFetching}
+        activeCount={countNonEmptyFilters(appliedFilters, [
+          'planStatus',
+          'cycleStartFrom',
+          'cycleStartTo',
+          'cycleEndFrom',
+          'cycleEndTo',
+        ])}
+        onApply={applyFilters}
+        onReset={() => {
+          resetFilters();
+          setAdvancedOpen(false);
+        }}
+        compact={
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="relative min-w-0 flex-1 sm:max-w-sm">
+              <i
+                className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+                aria-hidden
+              />
+              <input
+                value={draftFilters.search}
+                onChange={(e) => setDraft({ search: e.target.value })}
+                placeholder="Search client…"
+                className={FILTER_COMPACT_SEARCH_CLASS}
+              />
+            </div>
+            <select
+              value={draftFilters.planStatus}
+              onChange={(e) =>
+                setDraft({ planStatus: e.target.value as ListFilters['planStatus'] })
+              }
+              aria-label="Status"
+              className={FILTER_COMPACT_SELECT_CLASS}
+            >
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
         }
+      >
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            Client
+          </label>
+          <input
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder="Search client…"
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            Status
+          </label>
+          <select
+            value={draftFilters.planStatus}
+            onChange={(e) =>
+              setDraft({ planStatus: e.target.value as ListFilters['planStatus'] })
+            }
+            className={FILTER_FIELD_CONTROL_CLASS}
+          >
+            <option value="">All statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            Cycle start from
+          </label>
+          <input
+            type="date"
+            value={draftFilters.cycleStartFrom}
+            onChange={(e) => setDraft({ cycleStartFrom: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            Cycle start to
+          </label>
+          <input
+            type="date"
+            value={draftFilters.cycleStartTo}
+            onChange={(e) => setDraft({ cycleStartTo: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            Cycle end from
+          </label>
+          <input
+            type="date"
+            value={draftFilters.cycleEndFrom}
+            onChange={(e) => setDraft({ cycleEndFrom: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            Cycle end to
+          </label>
+          <input
+            type="date"
+            value={draftFilters.cycleEndTo}
+            onChange={(e) => setDraft({ cycleEndTo: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+      </AdvancedFilterSection>
+
+      <DataTable
         columns={columns}
         rows={pagination.rows}
         rowKey={(r) => r.plan.id}
         onRowClick={(r) => navigate(`/billing/plans/${r.companyId}`)}
+        getRowClassName={(r) =>
+          r.daysRemaining != null && r.daysRemaining >= 0 && r.daysRemaining <= 3
+            ? 'bg-red-50/80 dark:bg-red-950/25'
+            : undefined
+        }
         loading={pagination.isInitialLoading}
         empty="No billing plans match your filters."
         serverPagination={pagination.serverPagination}
       />
 
       {pagination.isError ? (
-        <p className="text-sm text-rose-600">{(pagination.error as Error).message}</p>
+        <Alert variant="error" title={(pagination.error as Error).message} className="mb-4" />
       ) : null}
-
-      <BillingPlanFormModal
-        open={createOpen}
-        mode="create"
-        companies={companiesQuery.data ?? []}
-        saving={createMut.isPending}
-        onClose={() => !createMut.isPending && setCreateOpen(false)}
-        onSubmit={(payload) => createMut.mutate(payload as CreateBillingPlanPayload)}
-      />
-
-      <BillingPlanFormModal
-        open={!!editRow}
-        mode="edit"
-        companies={companiesQuery.data ?? []}
-        plan={editRow?.plan ?? null}
-        saving={updateMut.isPending}
-        onClose={() => !updateMut.isPending && setEditRow(null)}
-        onSubmit={(payload) => {
-          if (!editRow) return;
-          updateMut.mutate({ id: editRow.plan.id, payload: payload as UpdateBillingPlanPayload });
-        }}
-      />
-    </div>
+    </AdminListPageShell>
   );
 }

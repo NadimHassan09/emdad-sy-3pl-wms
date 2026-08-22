@@ -78,8 +78,10 @@ let RealtimeGateway = RealtimeGateway_1 = class RealtimeGateway {
             return;
         }
         if (!tenantScope.activeCompanyId) {
-            this.log.warn(`Internal socket ${client.id} rejected: provide auth.companyId for an authorized tenant.`);
-            client.disconnect(true);
+            client.join(realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM);
+            client.join((0, realtime_socket_auth_1.userRoomName)(principal.userId));
+            this.presence.handleConnect(client, principal);
+            this.log.debug(`Internal socket ${client.id} joined ${realtime_socket_auth_1.INTERNAL_MASTER_DATA_ROOM} (no tenant scope)`);
             return;
         }
         client.join((0, realtime_socket_auth_1.companyRoomName)(tenantScope.activeCompanyId));

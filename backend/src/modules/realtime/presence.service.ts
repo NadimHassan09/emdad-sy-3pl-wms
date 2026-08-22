@@ -40,10 +40,8 @@ export class PresenceService {
     });
 
     if (!wasOnline) {
+      // Presence events only — do not bump dashboard Module Versions on every connect.
       this.realtime.emitPresenceOnline(this.toPresencePayload(principal, new Date()));
-      this.realtime.emitDashboardKpiUpdated({
-        counters: { activeUsers: this.getOnlineCount() },
-      });
       this.log.debug(`User online: ${userId}`);
     }
   }
@@ -63,9 +61,6 @@ export class PresenceService {
       this.realtime.emitPresenceOffline({
         ...this.toPresencePayload(meta.principal, meta.connectedAt),
         disconnectedAt: disconnectedAt.toISOString(),
-      });
-      this.realtime.emitDashboardKpiUpdated({
-        counters: { activeUsers: this.getOnlineCount() },
       });
       this.log.debug(`User offline: ${userId}`);
     } else {

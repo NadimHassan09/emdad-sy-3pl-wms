@@ -40,6 +40,9 @@ function billingPlansOverviewCountSql(query, tenantCompanyIds) {
         p.fixed_subscription_fee,
         p.inbound_order_fee,
         p.outbound_order_fee,
+        p.outbound_base_fee,
+        p.outbound_included_items,
+        p.outbound_additional_item_fee,
         p.packaging_fee,
         p.quality_check_fee,
         p.excess_volume_fee_per_day,
@@ -50,6 +53,7 @@ function billingPlansOverviewCountSql(query, tenantCompanyIds) {
         p.updated_at AS plan_updated_at,
         c.name AS company_name,
         c.status AS company_status,
+        c.logo_path AS company_logo_path,
         cc.id AS cycle_id,
         cc.starts_at AS cycle_starts_at,
         cc.ends_at AS cycle_ends_at,
@@ -106,10 +110,14 @@ function billingPlansOverviewListSql(query, tenantCompanyIds) {
         p.id AS plan_id,
         p.company_id,
         p.active,
+        p.auto_renew,
         p.cycle_length_days,
         p.fixed_subscription_fee,
         p.inbound_order_fee,
         p.outbound_order_fee,
+        p.outbound_base_fee,
+        p.outbound_included_items,
+        p.outbound_additional_item_fee,
         p.packaging_fee,
         p.quality_check_fee,
         p.excess_volume_fee_per_day,
@@ -120,6 +128,7 @@ function billingPlansOverviewListSql(query, tenantCompanyIds) {
         p.updated_at AS plan_updated_at,
         c.name AS company_name,
         c.status AS company_status,
+        c.logo_path AS company_logo_path,
         cc.id AS cycle_id,
         cc.starts_at AS cycle_starts_at,
         cc.ends_at AS cycle_ends_at,
@@ -171,6 +180,12 @@ function buildPlansOverviewWhere(query, tenantCompanyIds) {
     if (query.billingStatus) {
         clauses.push(client_1.Prisma.sql `AND o.billing_status = ${query.billingStatus}`);
     }
+    if (query.planStatus === 'active') {
+        clauses.push(client_1.Prisma.sql `AND o.active = true`);
+    }
+    else if (query.planStatus === 'inactive') {
+        clauses.push(client_1.Prisma.sql `AND o.active = false`);
+    }
     if (query.daysRemaining) {
         switch (query.daysRemaining) {
             case 'none':
@@ -189,6 +204,13 @@ function buildPlansOverviewWhere(query, tenantCompanyIds) {
                 clauses.push(client_1.Prisma.sql `AND o.days_remaining > 30`);
                 break;
         }
+    }
+    if (query.cycleStartFrom) {
+        clauses.push(client_1.Prisma.sql `AND o.cycle_starts_at >= ${query.cycleStartFrom}::date`);
+    }
+    if (query.cycleStartTo) {
+        const end = `${query.cycleStartTo}T23:59:59.999Z`;
+        clauses.push(client_1.Prisma.sql `AND o.cycle_starts_at <= ${end}::timestamptz`);
     }
     if (query.expiryFrom) {
         clauses.push(client_1.Prisma.sql `AND o.cycle_ends_at >= ${query.expiryFrom}::date`);

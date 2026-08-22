@@ -1,6 +1,14 @@
 import { api } from './client';
 
-export type CompanyStatus = 'active' | 'paused' | 'offboarding' | 'closed' | 'restricted';
+export type CompanyStatus =
+  | 'active'
+  | 'paused'
+  | 'offboarding'
+  | 'closed'
+  | 'restricted'
+  | 'suspended'
+  | 'archived'
+  | 'purged';
 
 export type CompanyListRow = {
   id: string;
@@ -15,28 +23,96 @@ export type CompanyListRow = {
   billingCycle: string;
   paymentTermsDays: number;
   notes: string | null;
+  logoUrl?: string | null;
+  suspendedAt: string | null;
+  suspensionReason: string | null;
+  archivedAt: string | null;
+  archiveReason: string | null;
+  purgedAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type CustomerLifecycleCounts = {
+  products: number;
+  inboundOrders: number;
+  outboundOrders: number;
+  returns: number;
+  openInbound: number;
+  openOutbound: number;
+  openReturns: number;
+  stockOnHand: number;
+  stockRows: number;
+  ledgerEntries: number;
+  invoices: number;
+  unresolvedInvoices: number;
+  openBillingCycles: number;
+  users: number;
+  activeUsers: number;
+  auditReferences: number;
+};
+
+export type CustomerLifecycleContext = {
+  companyId: string;
+  name: string;
+  status: CompanyStatus;
+  archivedAt: string | null;
+  suspendedAt: string | null;
+  purgedAt: string | null;
+  retentionDays: number;
+  retentionElapsedDays: number | null;
+  counts: CustomerLifecycleCounts;
+  flags: {
+    hasStock: boolean;
+    hasOpenOrders: boolean;
+    hasHistory: boolean;
+    isEmpty: boolean;
+  };
+  actions: {
+    canSuspend: boolean;
+    canRestore: boolean;
+    canArchive: boolean;
+    canHardDelete: boolean;
+    canPurge: boolean;
+  };
+  blockers: {
+    archive: string[];
+    delete: string[];
+    purge: string[];
+  };
 };
 
 export type CreateCompanyPayload = {
   name: string;
   tradeName?: string;
   contactEmail: string;
-  country?: string;
-  city?: string;
+  country: string;
+  city: string;
   contactPhone?: string;
   address?: string;
   notes?: string;
 };
 
-export type UpdateCompanyPayload = Partial<CreateCompanyPayload> & {
+export type UpdateCompanyPayload = {
+  name?: string;
+  tradeName?: string | null;
+  contactEmail?: string;
+  country?: string;
+  city?: string | null;
+  contactPhone?: string | null;
+  address?: string | null;
+  notes?: string | null;
   status?: CompanyStatus;
 };
 
 export const CompaniesApi = {
-  async list(options?: { includeAll?: boolean }): Promise<CompanyListRow[]> {
-    const params = options?.includeAll ? { includeAll: true } : {};
+  async list(options?: {
+    includeAll?: boolean;
+    status?: CompanyStatus;
+  }): Promise<CompanyListRow[]> {
+    const params: Record<string, unknown> = {};
+    if (options?.includeAll) params.includeAll = true;
+    if (options?.status) params.status = options.status;
     const { data } = await api.get<CompanyListRow[]>('/companies', { params });
     return data;
   },
@@ -56,13 +132,49 @@ export const CompaniesApi = {
     return data;
   },
 
-  async suspend(id: string): Promise<CompanyListRow> {
-    const { data } = await api.post<CompanyListRow>(`/companies/${id}/suspend`);
+  async uploadLogo(id: string, file: File): Promise<{ logoUrl: string; company: CompanyListRow }> {
+    const form = new FormData();
+    form.append('file', file);
+    const { data } = await api.post<{ logoUrl: string; company: CompanyListRow }>(
+      `/companies/${id}/logo`,
+      form,
+    );
+    return data;
+  },
+
+  async deleteLogo(id: string): Promise<void> {
+    await api.delete(`/companies/${id}/logo`);
+  },
+
+  async getLifecycle(id: string): Promise<CustomerLifecycleContext> {
+    const { data } = await api.get<CustomerLifecycleContext>(`/companies/${id}/lifecycle`);
+    return data;
+  },
+
+  async suspend(id: string, reason?: string): Promise<CompanyListRow> {
+    const { data } = await api.post<CompanyListRow>(`/companies/${id}/suspend`, { reason });
+    return data;
+  },
+
+  async archive(id: string, reason?: string): Promise<CompanyListRow> {
+    const { data } = await api.post<CompanyListRow>(`/companies/${id}/archive`, { reason });
+    return data;
+  },
+
+  async restore(id: string, reason?: string): Promise<CompanyListRow> {
+    const { data } = await api.post<CompanyListRow>(`/companies/${id}/restore`, { reason });
     return data;
   },
 
   async close(id: string): Promise<CompanyListRow> {
     const { data } = await api.post<CompanyListRow>(`/companies/${id}/close`);
+    return data;
+  },
+
+  async purge(id: string): Promise<{ id: string; purged: true; mode: 'deleted' | 'anonymized' }> {
+    const { data } = await api.post<{ id: string; purged: true; mode: 'deleted' | 'anonymized' }>(
+      `/companies/${id}/purge`,
+    );
     return data;
   },
 

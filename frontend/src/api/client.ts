@@ -1,6 +1,13 @@
-import axios, { AxiosError, type AxiosInstance } from 'axios';
+import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 
-import { getAccessToken, setAccessToken } from '../auth/authStorage';
+import {
+  clearAccessToken,
+  getAccessToken,
+  isPersistSessionEnabled,
+  clearContinueSession,
+  setAccessToken,
+  setPostLoginReturnTo,
+} from '../auth/authStorage';
 import { getApiBaseUrl } from './apiBaseUrl';
 
 const baseURL = getApiBaseUrl();
@@ -26,9 +33,58 @@ export interface ApiError {
   error: { code: string; message: string; details?: unknown };
 }
 
+type RetriableConfig = InternalAxiosRequestConfig & { _retry?: boolean };
+
+/** Single-flight refresh so parallel 401s share one cookie rotation. */
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        const { data } = await api.post<
+          Pick<{ access_token: string }, 'access_token'> & {
+            expires_in?: number;
+            token_type?: string;
+          }
+        >('/auth/refresh');
+        const token = data?.access_token;
+        if (!token) return null;
+        setAccessToken(token, isPersistSessionEnabled());
+        return token;
+      } catch {
+        return null;
+      } finally {
+        refreshInFlight = null;
+      }
+    })();
+  }
+  return refreshInFlight;
+}
+
+function isAuthSessionUrl(url: string): boolean {
+  return (
+    url.includes('/auth/login') ||
+    url.includes('/auth/logout') ||
+    url.includes('/auth/refresh')
+  );
+}
+
+function forceLoginRedirect(): void {
+  if (typeof window === 'undefined') return;
+  if (window.location.pathname.startsWith('/login')) return;
+  const returnTo = `${window.location.pathname}${window.location.search}`;
+  setPostLoginReturnTo(returnTo);
+  window.location.assign(`/login?next=${encodeURIComponent(returnTo)}`);
+}
+
 /**
  * Unwrap the `{ success, data }` envelope and surface backend error codes
  * as proper Error instances with the `code` carried in `(err as any).code`.
+ *
+ * On 401: try refresh (remember-me cookie) once, then retry. Only clear the
+ * persisted session after refresh fails — otherwise "Remember me for 30 days"
+ * was wiped whenever the short-lived access JWT expired.
  */
 api.interceptors.response.use(
   (resp) => {
@@ -46,14 +102,26 @@ api.interceptors.response.use(
     }
     return resp;
   },
-  (err: AxiosError<ApiError>) => {
+  async (err: AxiosError<ApiError>) => {
     const status = err.response?.status;
-    if (status === 401) {
-      setAccessToken(null);
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.assign('/login');
+    const original = err.config as RetriableConfig | undefined;
+    const reqUrl = String(original?.url ?? '');
+
+    if (status === 401 && original && !original._retry && !isAuthSessionUrl(reqUrl)) {
+      original._retry = true;
+      // Keep remember-me flag while attempting cookie refresh.
+      clearAccessToken({ keepPersist: true });
+      const token = await refreshAccessToken();
+      if (token) {
+        original.headers = original.headers ?? {};
+        original.headers.Authorization = `Bearer ${token}`;
+        return api(original);
       }
+      clearContinueSession();
+      clearAccessToken();
+      forceLoginRedirect();
     }
+
     const data = err.response?.data;
     if (data && typeof data === 'object' && 'error' in data) {
       const wrapped = Object.assign(new Error(data.error.message), {

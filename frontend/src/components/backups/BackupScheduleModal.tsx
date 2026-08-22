@@ -122,7 +122,7 @@ export function BackupScheduleModal({
       }
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+          <Button type="button" variant="danger" onClick={onClose} disabled={loading}>
             {t(['Cancel', 'إلغاء'])}
           </Button>
           <Button type="submit" form="backup-schedule-form" loading={loading}>
@@ -178,17 +178,17 @@ export function BackupScheduleModal({
           onChange={(e) => setForm((prev) => ({ ...prev, storagePolicy: e.target.value }))}
         />
 
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <label className="flex items-center gap-2 text-sm text-text-body">
           <input
             type="checkbox"
             checked={form.enabled}
             onChange={(e) => setForm((prev) => ({ ...prev, enabled: e.target.checked }))}
-            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+            className="h-4 w-4 rounded border-border text-brand-600 focus:ring-brand-500"
           />
           {t(['Enabled', 'مفعّل'])}
         </label>
 
-        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+        {error ? <p className="text-sm text-status-danger-fg">{error}</p> : null}
       </form>
     </Modal>
   );

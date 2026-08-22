@@ -6,6 +6,7 @@ import { AdjustmentsApi, type StockAdjustment } from '../api/adjustments';
 import { CompaniesApi } from '../api/companies';
 import { ProductsApi } from '../api/products';
 import { NewAdjustmentModal } from '../components/adjustments/NewAdjustmentModal';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { Button } from '../components/Button';
 import { StatusBadge } from '../components/StatusBadge';
@@ -173,7 +174,7 @@ export function AdjustmentsPage() {
               trigger={
                 <button
                   type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-hover"
                   data-adjustment-action-trigger="true"
                   onClick={() => setOpenActionId((cur) => (cur === a.id ? null : a.id))}
                   aria-label={t('Open actions', 'فتح الإجراءات')}
@@ -188,7 +189,7 @@ export function AdjustmentsPage() {
             >
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-hover"
                 data-adjustment-action-menu-button="true"
                 onClick={() => {
                   setOpenActionId(null);
@@ -200,7 +201,7 @@ export function AdjustmentsPage() {
               {a.status === 'draft' ? (
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
+                  className="block w-full px-3 py-2 text-left text-sm text-status-danger-fg transition hover:bg-status-danger-bg"
                   data-adjustment-action-menu-button="true"
                   onClick={() => {
                     setOpenActionId(null);
@@ -220,9 +221,22 @@ export function AdjustmentsPage() {
   );
 
   return (
-    <>
+    <AdminListPageShell
+      icon="fa-sliders"
+      title={t('Stock adjustments', 'تعديلات المخزون')}
+      isArabic={isArabic}
+      actions={
+        <Button
+          disabled={!wid}
+          variant="brand"
+          onClick={() => wid && setNewModalOpen(true)}
+        >
+          {t('+ New adjustment', '+ تعديل جديد')}
+        </Button>
+      }
+    >
       {!wid ? (
-        <p className="mb-3 text-sm text-slate-600">Resolve warehouse configuration…</p>
+        <p className="mb-3 text-sm text-text-body">Resolve warehouse configuration…</p>
       ) : null}
 
       <FilterPanel
@@ -232,8 +246,18 @@ export function AdjustmentsPage() {
         loading={list.isFetching}
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
+        compact={
+          <TextField
+            label={t('Adjustment id', 'معرف التعديل')}
+            value={draftFilters.adjustmentId}
+            onChange={(e) => setDraft({ adjustmentId: e.target.value })}
+            className="font-mono text-xs"
+          />
+        }
+        activeCount={[appliedFilters.adjustmentId, appliedFilters.clientId, appliedFilters.productId, appliedFilters.lotId, appliedFilters.createdFrom, appliedFilters.createdTo].filter((v) => String(v).trim()).length}
+        advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
+        collapseLabel={t('Collapsed', 'إخفاء')}
       >
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
           <TextField
             label={t('Adjustment id', 'معرف التعديل')}
             value={draftFilters.adjustmentId}
@@ -277,20 +301,9 @@ export function AdjustmentsPage() {
             value={draftFilters.createdTo}
             onChange={(e) => setDraft({ createdTo: e.target.value })}
           />
-        </div>
       </FilterPanel>
 
       <DataTable
-        title={t('Stock adjustments', 'تعديلات المخزون')}
-        actions={
-          <Button
-            disabled={!wid}
-            variant="brand"
-            onClick={() => wid && setNewModalOpen(true)}
-          >
-            {t('+ New adjustment', '+ تعديل جديد')}
-          </Button>
-        }
         columns={adjustmentCols}
         rows={list.data?.items ?? []}
         rowKey={(a) => a.id}
@@ -331,6 +344,6 @@ export function AdjustmentsPage() {
           )}
         </p>
       </ConfirmModal>
-    </>
+    </AdminListPageShell>
   );
 }

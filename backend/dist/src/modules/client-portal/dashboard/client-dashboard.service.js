@@ -78,11 +78,16 @@ let ClientDashboardService = class ClientDashboardService {
         const usedVolume = usageTotals.volumeCbm;
         const usedWeight = usageTotals.weightKg;
         let storageUtilizationPercent = null;
+        let remainingVolumeCbm = null;
         if (reservedVolume) {
             const reserved = Number(reservedVolume);
             const used = Number(usedVolume);
             if (Number.isFinite(reserved) && reserved > 0 && Number.isFinite(used)) {
                 storageUtilizationPercent = Math.min(100, Math.round((used / reserved) * 1000) / 10);
+                remainingVolumeCbm = String(Math.max(0, reserved - used));
+            }
+            else if (Number.isFinite(reserved) && Number.isFinite(used)) {
+                remainingVolumeCbm = String(Math.max(0, reserved - used));
             }
         }
         return {
@@ -96,6 +101,7 @@ let ClientDashboardService = class ClientDashboardService {
                 usedWeightKg: usedWeight.toString(),
                 reservedVolumeCbm: reservedVolume,
                 reservedWeightKg: reservedWeight,
+                remainingVolumeCbm,
                 utilizationPercent: storageUtilizationPercent,
             },
             billing: billingSummary

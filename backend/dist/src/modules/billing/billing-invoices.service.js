@@ -9,20 +9,31 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BillingInvoicesService = void 0;
+exports.BillingInvoicesService = exports.INVOICE_SELECT = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const realtime_service_1 = require("../realtime/realtime.service");
 const billing_audit_service_1 = require("./billing-audit.service");
-const INVOICE_SELECT = {
+const billing_invoice_calculation_service_1 = require("./billing-invoice-calculation.service");
+exports.INVOICE_SELECT = {
     id: true,
     companyId: true,
     billingCycleId: true,
+    invoiceSource: true,
     invoiceNumber: true,
     status: true,
+    subtotalAmount: true,
+    discountType: true,
+    discountValue: true,
+    discountAmount: true,
+    vatPercentage: true,
+    vatAmount: true,
+    grandTotal: true,
     totalAmount: true,
     issuedAt: true,
+    dueDate: true,
     createdAt: true,
     updatedAt: true,
     billingCycle: {
@@ -39,40 +50,63 @@ const INVOICE_SELECT = {
         select: {
             id: true,
             type: true,
+            lineSource: true,
+            description: true,
             quantity: true,
             unitPrice: true,
             totalPrice: true,
+            orderChargeId: true,
+            createdAt: true,
         },
+        orderBy: [{ lineSource: 'asc' }, { createdAt: 'asc' }],
     },
 };
 let BillingInvoicesService = class BillingInvoicesService {
     prisma;
     companyAccess;
     billingAudit;
-    constructor(prisma, companyAccess, billingAudit) {
+    invoiceCalc;
+    realtime;
+    constructor(prisma, companyAccess, billingAudit, invoiceCalc, realtime) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.billingAudit = billingAudit;
+        this.invoiceCalc = invoiceCalc;
+        this.realtime = realtime;
+    }
+    emitInvoice(invoice, action) {
+        this.realtime.emitInvoiceUpdated(invoice.companyId, {
+            invoiceId: invoice.id,
+            companyId: invoice.companyId,
+            status: invoice.status,
+            invoiceNumber: invoice.invoiceNumber ?? null,
+            action,
+        });
     }
     async updateStatus(user, id, status) {
         const invoice = await this.findById(user, id);
         const allowed = {
-            paid: [client_1.BillingInvoiceStatus.open, client_1.BillingInvoiceStatus.overdue],
+            paid: [client_1.BillingInvoiceStatus.unpaid, client_1.BillingInvoiceStatus.open, client_1.BillingInvoiceStatus.overdue],
             cancelled: [
                 client_1.BillingInvoiceStatus.draft,
+                client_1.BillingInvoiceStatus.unpaid,
                 client_1.BillingInvoiceStatus.open,
                 client_1.BillingInvoiceStatus.overdue,
             ],
-            open: [client_1.BillingInvoiceStatus.paid, client_1.BillingInvoiceStatus.cancelled],
+            unpaid: [client_1.BillingInvoiceStatus.paid, client_1.BillingInvoiceStatus.cancelled],
         };
         const from = invoice.status;
         if (!allowed[status]?.includes(from)) {
             throw new common_1.BadRequestException(`Cannot transition invoice from ${from} to ${status}.`);
         }
+        const data = { status: status };
+        if (status === 'unpaid' && !invoice.issuedAt) {
+            data.issuedAt = new Date();
+        }
         const updated = await this.prisma.invoice.update({
             where: { id },
-            data: { status: status },
-            select: INVOICE_SELECT,
+            data,
+            select: exports.INVOICE_SELECT,
         });
         const action = status === 'paid'
             ? billing_audit_service_1.BILLING_AUDIT_ACTIONS.INVOICE_PAID
@@ -87,6 +121,89 @@ let BillingInvoicesService = class BillingInvoicesService {
             previousState: { status: from },
             newState: { status },
         });
+        this.emitInvoice(updated, action);
+        return updated;
+    }
+    async issueInvoice(user, id) {
+        const invoice = await this.findById(user, id);
+        if (invoice.status !== client_1.BillingInvoiceStatus.draft) {
+            throw new common_1.BadRequestException('Only draft invoices can be issued.');
+        }
+        const now = new Date();
+        const dueDate = invoice.dueDate ??
+            (() => {
+                const d = new Date(now);
+                d.setUTCDate(d.getUTCDate() + 30);
+                return d;
+            })();
+        const updated = await this.prisma.invoice.update({
+            where: { id },
+            data: {
+                status: client_1.BillingInvoiceStatus.unpaid,
+                issuedAt: now,
+                dueDate,
+            },
+            select: exports.INVOICE_SELECT,
+        });
+        this.emitInvoice(updated, 'invoice_issued');
+        return updated;
+    }
+    async createAdHoc(user, dto) {
+        this.companyAccess.assertCompanyAccess(user, dto.companyId);
+        if (!dto.lines?.length) {
+            throw new common_1.BadRequestException('At least one invoice line is required.');
+        }
+        const created = await this.prisma.$transaction(async (tx) => {
+            const invoice = await tx.invoice.create({
+                data: {
+                    companyId: dto.companyId,
+                    invoiceSource: client_1.BillingInvoiceSource.ad_hoc,
+                    status: client_1.BillingInvoiceStatus.draft,
+                    issuedAt: new Date(dto.invoiceDate),
+                    dueDate: new Date(dto.dueDate),
+                },
+            });
+            for (const line of dto.lines) {
+                await this.createManualLineTx(tx, invoice.id, line);
+            }
+            await this.invoiceCalc.applyInvoiceTotals(tx, invoice.id);
+            return tx.invoice.findUniqueOrThrow({
+                where: { id: invoice.id },
+                select: exports.INVOICE_SELECT,
+            });
+        });
+        this.emitInvoice(created, 'invoice_created');
+        return created;
+    }
+    async updateInvoice(user, id, dto) {
+        const invoice = await this.findById(user, id);
+        if (invoice.status !== client_1.BillingInvoiceStatus.draft) {
+            throw new common_1.BadRequestException('Only draft invoices can be edited.');
+        }
+        const data = {};
+        if (dto.invoiceDate) {
+            data.issuedAt = new Date(dto.invoiceDate);
+        }
+        if (dto.dueDate) {
+            data.dueDate = new Date(dto.dueDate);
+        }
+        if (dto.discountType !== undefined) {
+            data.discountType =
+                dto.discountType === null ? null : dto.discountType;
+        }
+        if (dto.discountValue !== undefined) {
+            data.discountValue =
+                dto.discountValue == null ? null : new client_1.Prisma.Decimal(dto.discountValue);
+        }
+        if (dto.vatPercentage != null) {
+            data.vatPercentage = new client_1.Prisma.Decimal(dto.vatPercentage);
+        }
+        const updated = await this.prisma.$transaction(async (tx) => {
+            await tx.invoice.update({ where: { id }, data });
+            await this.invoiceCalc.applyInvoiceTotals(tx, id);
+            return tx.invoice.findUniqueOrThrow({ where: { id }, select: exports.INVOICE_SELECT });
+        });
+        this.emitInvoice(updated, 'invoice_updated');
         return updated;
     }
     async listPage(user, query) {
@@ -98,7 +215,7 @@ let BillingInvoicesService = class BillingInvoicesService {
                 orderBy,
                 skip: query.offset,
                 take: query.limit,
-                select: INVOICE_SELECT,
+                select: exports.INVOICE_SELECT,
             }),
             this.prisma.invoice.count({ where }),
         ]);
@@ -116,46 +233,103 @@ let BillingInvoicesService = class BillingInvoicesService {
         return this.prisma.invoice.findMany({
             where,
             orderBy: { createdAt: 'desc' },
-            select: INVOICE_SELECT,
+            select: exports.INVOICE_SELECT,
         });
     }
     async findById(user, id) {
         const invoice = await this.prisma.invoice.findUnique({
             where: { id },
-            select: INVOICE_SELECT,
+            select: exports.INVOICE_SELECT,
         });
         if (!invoice)
             throw new common_1.NotFoundException('Invoice not found.');
         this.companyAccess.assertCompanyAccess(user, invoice.companyId);
         return invoice;
     }
+    async getForPdf(user, id) {
+        const invoice = await this.findById(user, id);
+        const company = await this.prisma.company.findUnique({
+            where: { id: invoice.companyId },
+            select: {
+                name: true,
+                tradeName: true,
+                contactEmail: true,
+                contactPhone: true,
+                address: true,
+                city: true,
+                country: true,
+            },
+        });
+        return { invoice, company };
+    }
     async addLine(user, invoiceId, dto) {
         const invoice = await this.findById(user, invoiceId);
-        if (invoice.status !== 'draft') {
+        if (invoice.status !== client_1.BillingInvoiceStatus.draft) {
             throw new common_1.BadRequestException('Lines can only be added to draft invoices.');
         }
-        const quantity = new client_1.Prisma.Decimal(dto.quantity);
-        const unitPrice = new client_1.Prisma.Decimal(dto.unitPrice);
+        return this.prisma.$transaction(async (tx) => {
+            const line = await this.createManualLineTx(tx, invoiceId, dto);
+            await this.invoiceCalc.applyInvoiceTotals(tx, invoiceId);
+            return line;
+        });
+    }
+    async updateManualLine(user, invoiceId, lineId, dto) {
+        const invoice = await this.findById(user, invoiceId);
+        if (invoice.status !== client_1.BillingInvoiceStatus.draft) {
+            throw new common_1.BadRequestException('Only draft invoices can be edited.');
+        }
+        const line = await this.prisma.invoiceLine.findFirst({
+            where: { id: lineId, invoiceId, lineSource: client_1.BillingInvoiceLineSource.manual },
+        });
+        if (!line)
+            throw new common_1.NotFoundException('Manual invoice line not found.');
+        const quantity = dto.quantity != null ? new client_1.Prisma.Decimal(dto.quantity) : line.quantity;
+        const unitPrice = dto.unitPrice != null ? new client_1.Prisma.Decimal(dto.unitPrice) : line.unitPrice;
         const totalPrice = quantity.mul(unitPrice).toDecimalPlaces(2);
         return this.prisma.$transaction(async (tx) => {
-            const line = await tx.invoiceLine.create({
+            const updated = await tx.invoiceLine.update({
+                where: { id: lineId },
                 data: {
-                    invoiceId,
-                    type: dto.type,
+                    description: dto.description?.trim(),
                     quantity,
                     unitPrice,
                     totalPrice,
                 },
             });
-            const agg = await tx.invoiceLine.aggregate({
-                where: { invoiceId },
-                _sum: { totalPrice: true },
-            });
-            await tx.invoice.update({
-                where: { id: invoiceId },
-                data: { totalAmount: agg._sum.totalPrice ?? new client_1.Prisma.Decimal(0) },
-            });
-            return line;
+            await this.invoiceCalc.applyInvoiceTotals(tx, invoiceId);
+            return updated;
+        });
+    }
+    async removeManualLine(user, invoiceId, lineId) {
+        const invoice = await this.findById(user, invoiceId);
+        if (invoice.status !== client_1.BillingInvoiceStatus.draft) {
+            throw new common_1.BadRequestException('Only draft invoices can be edited.');
+        }
+        const line = await this.prisma.invoiceLine.findFirst({
+            where: { id: lineId, invoiceId, lineSource: client_1.BillingInvoiceLineSource.manual },
+        });
+        if (!line)
+            throw new common_1.NotFoundException('Manual invoice line not found.');
+        return this.prisma.$transaction(async (tx) => {
+            await tx.invoiceLine.delete({ where: { id: lineId } });
+            await this.invoiceCalc.applyInvoiceTotals(tx, invoiceId);
+            return { ok: true };
+        });
+    }
+    async createManualLineTx(tx, invoiceId, dto) {
+        const quantity = new client_1.Prisma.Decimal(dto.quantity);
+        const unitPrice = new client_1.Prisma.Decimal(dto.unitPrice);
+        const totalPrice = quantity.mul(unitPrice).toDecimalPlaces(2);
+        return tx.invoiceLine.create({
+            data: {
+                invoiceId,
+                type: client_1.BillingInvoiceLineType.manual,
+                lineSource: client_1.BillingInvoiceLineSource.manual,
+                description: dto.description.trim(),
+                quantity,
+                unitPrice,
+                totalPrice,
+            },
         });
     }
     buildInvoiceWhere(user, query) {
@@ -227,6 +401,8 @@ exports.BillingInvoicesService = BillingInvoicesService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         company_access_service_1.CompanyAccessService,
-        billing_audit_service_1.BillingAuditService])
+        billing_audit_service_1.BillingAuditService,
+        billing_invoice_calculation_service_1.BillingInvoiceCalculationService,
+        realtime_service_1.RealtimeService])
 ], BillingInvoicesService);
 //# sourceMappingURL=billing-invoices.service.js.map

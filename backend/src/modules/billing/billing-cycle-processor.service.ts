@@ -8,6 +8,7 @@ import { BillingCyclesService } from './billing-cycles.service';
 import { BillingInvoiceCalculationService } from './billing-invoice-calculation.service';
 import { BillingAuditService, BILLING_AUDIT_ACTIONS } from './billing-audit.service';
 import { BillingNotificationsService } from './billing-notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 /**
  * Processes billing cycle expiry, account restriction, and deferred renewals.
@@ -23,6 +24,7 @@ export class BillingCycleProcessorService {
     private readonly billingNotifications: BillingNotificationsService,
     private readonly billingAudit: BillingAuditService,
     private readonly cronLeader: CronLeaderService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   @Cron('*/15 * * * *')
@@ -62,9 +64,28 @@ export class BillingCycleProcessorService {
       let nextCycleId: string | null = null;
       const company = await this.prisma.company.findUnique({
         where: { id: cycle.companyId },
-        select: { name: true },
+        select: { name: true, status: true },
       });
       const companyName = company?.name ?? cycle.companyId;
+      // Archived / closed / purged customers must not generate new invoices or renew.
+      const billingLockedStatuses: CompanyStatus[] = [
+        CompanyStatus.archived,
+        CompanyStatus.purged,
+        CompanyStatus.closed,
+        CompanyStatus.offboarding,
+      ];
+      const billingLocked = !!company && billingLockedStatuses.includes(company.status);
+
+      if (billingLocked) {
+        await this.prisma.billingCycle.update({
+          where: { id: cycle.id },
+          data: { status: 'expired' },
+        });
+        this.log.log(
+          `Skipped billing renewal/invoicing for ${company!.status} company ${cycle.companyId}.`,
+        );
+        continue;
+      }
 
       await this.prisma.$transaction(async (tx) => {
         await this.invoiceCalc.finalizeCycleInvoice(tx, cycle.id);
@@ -74,7 +95,14 @@ export class BillingCycleProcessorService {
           data: { status: 'expired' },
         });
 
-        if (cycle.status === 'renewed') {
+        const plan = await tx.billingPlan.findUnique({
+          where: { id: cycle.billingPlanId },
+          select: { active: true, autoRenew: true },
+        });
+        const shouldAutoRenew =
+          !!plan?.active && (cycle.status === 'renewed' || plan.autoRenew === true);
+
+        if (shouldAutoRenew) {
           const next = await this.billingCycles.createNextCycleFromPlan(tx, cycle);
           if (next) {
             await tx.company.update({
@@ -100,7 +128,7 @@ export class BillingCycleProcessorService {
       });
 
       const issuedInvoice = await this.prisma.invoice.findFirst({
-        where: { billingCycleId: cycle.id, status: 'open' },
+        where: { billingCycleId: cycle.id, status: 'unpaid' },
         orderBy: { issuedAt: 'desc' },
         select: { id: true, invoiceNumber: true },
       });
@@ -119,6 +147,13 @@ export class BillingCycleProcessorService {
           invoiceNumber: issuedInvoice.invoiceNumber,
           billingCycleId: cycle.id,
         });
+        this.realtime.emitInvoiceUpdated(cycle.companyId, {
+          invoiceId: issuedInvoice.id,
+          companyId: cycle.companyId,
+          status: 'unpaid',
+          invoiceNumber: issuedInvoice.invoiceNumber,
+          action: 'invoice_issued',
+        });
       }
 
       if (renewedCompanyId && nextCycleId) {
@@ -129,6 +164,16 @@ export class BillingCycleProcessorService {
           nextCycleId,
         });
         void this.invoiceCalc.recalculateForCompany(renewedCompanyId, 'cycle_started');
+        this.realtime.emitBillingRestrictionChanged(cycle.companyId, {
+          companyId: cycle.companyId,
+          restricted: false,
+          status: 'active',
+        });
+        this.realtime.emitCompanyLifecycleChanged(cycle.companyId, {
+          companyId: cycle.companyId,
+          status: 'active',
+          action: 'billing_renewed',
+        });
       } else {
         void this.billingAudit.system({
           action: BILLING_AUDIT_ACTIONS.PLAN_SUSPENDED,
@@ -141,6 +186,16 @@ export class BillingCycleProcessorService {
           companyId: cycle.companyId,
           companyName,
           cycleId: cycle.id,
+        });
+        this.realtime.emitBillingRestrictionChanged(cycle.companyId, {
+          companyId: cycle.companyId,
+          restricted: true,
+          status: 'restricted',
+        });
+        this.realtime.emitCompanyLifecycleChanged(cycle.companyId, {
+          companyId: cycle.companyId,
+          status: 'restricted',
+          action: 'billing_restricted',
         });
       }
     }

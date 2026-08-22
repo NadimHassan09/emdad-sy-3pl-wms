@@ -1,0 +1,9 @@
+{
+  "status": "failed",
+  "one_liner": "Automation got stuck while trying to turn the product suggestion into a selected line item.",
+  "summary": "The run never got the product picker from showing a suggestion to actually choosing the item, so the quantity field stayed blocked and the order could not be completed.\nUpdate the automation to check for a real selected-product state after choosing from autocomplete, and add a fallback retry path before proceeding to quantity and submit.",
+  "reason": "AP determined agent is stuck \u2014 no viable actions remain",
+  "duration": 169,
+  "final_state": {},
+  "test_url": "https://test-manager.lambdatest.com/projects/01M0GDK7AFN1DN6NRMEAY1DSB9/test-cases/01M0GJP2JMR42RYV6JDZK9319H/dashboard/share/US_4RFJB7NHTMQLN8B8O4EJHB0LTU9OF03CJV7BJU8KXGANYDF1SKJP6BWAURA31MSN?type=summary&agentView=true&fqdn=summary-page"
+}

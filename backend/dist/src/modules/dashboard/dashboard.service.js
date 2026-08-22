@@ -13,6 +13,7 @@ exports.DashboardService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const billing_usage_service_1 = require("../billing/billing-usage.service");
 const open_orders_chart_util_1 = require("./open-orders-chart.util");
 const INBOUND_OPEN = [
     client_1.InboundOrderStatus.draft,
@@ -95,8 +96,10 @@ function addUtcMonths(day, months) {
 }
 let DashboardService = class DashboardService {
     prisma;
-    constructor(prisma) {
+    usage;
+    constructor(prisma, usage) {
         this.prisma = prisma;
+        this.usage = usage;
     }
     async openOrdersCharts(_user) {
         const [openInbound, openOutbound] = await Promise.all([
@@ -332,9 +335,7 @@ let DashboardService = class DashboardService {
             return da - db;
         })
             .slice(0, 10);
-        const consumedPercent = totalStorageLocationsCount > 0
-            ? Math.round((occupiedLocationsCount / totalStorageLocationsCount) * 100)
-            : 0;
+        const storage = await this.usage.getSystemStorageSnapshot();
         return {
             counters: {
                 totalItemsInStock: Number(stockAgg._sum.quantityOnHand ?? 0),
@@ -347,9 +348,13 @@ let DashboardService = class DashboardService {
             },
             openTasksByType,
             capacity: {
-                occupiedLocations: occupiedLocationsCount,
-                totalStorageLocations: totalStorageLocationsCount,
-                consumedPercent,
+                usedStorageCbm: storage.usedStorageCbm.toString(),
+                reservedStorageCbm: storage.reservedStorageCbm.toString(),
+                remainingStorageCbm: storage.remainingStorageCbm.toString(),
+                storageUsagePercent: storage.storageUsagePercent,
+                occupiedLocations: 0,
+                totalStorageLocations: 0,
+                consumedPercent: storage.storageUsagePercent,
             },
             soonExpiryLots,
             recentOrders: {
@@ -374,6 +379,7 @@ let DashboardService = class DashboardService {
 exports.DashboardService = DashboardService;
 exports.DashboardService = DashboardService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        billing_usage_service_1.BillingUsageService])
 ], DashboardService);
 //# sourceMappingURL=dashboard.service.js.map

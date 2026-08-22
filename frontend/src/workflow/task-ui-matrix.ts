@@ -15,6 +15,7 @@ const MAP: Record<string, TaskUiMeta> = {
   putaway_quarantine: { label: 'Quarantine putaway', stage: 'qc_storage' },
   pick: { label: 'Order pick', stage: 'outbound' },
   pack: { label: 'Pack', stage: 'outbound' },
+  shipping_details: { label: 'Shipping details', stage: 'outbound' },
   dispatch: { label: 'Dispatch / ship', stage: 'outbound' },
   routing: { label: 'Routing', stage: 'outbound' },
 };
@@ -32,6 +33,7 @@ export function taskTypeTitle(taskType: string): string {
     putaway_quarantine: 'Quarantine putaway',
     pick: 'Pick',
     pack: 'Pack',
+    shipping_details: 'Shipping details',
     dispatch: 'Dispatch',
     routing: 'Routing',
   };

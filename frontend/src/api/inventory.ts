@@ -25,6 +25,15 @@ export interface StockQuery {
 export interface ProductStockSummaryRow {
   productId: string;
   totalQuantity: string;
+  /** On hand equals the total physical quantity; optional for partial realtime patches. */
+  onHand?: string;
+  reserved?: string;
+  available?: string;
+  lastMovement?: {
+    at: string;
+    quantityChange: string;
+    movementType: string;
+  } | null;
   product: { id: string; sku: string; name: string; uom: string; barcode: string | null };
   client: { id: string; name: string };
 }
@@ -40,7 +49,7 @@ export interface StockRow {
   quantityOnHand: string;
   quantityReserved: string;
   quantityAvailable: string;
-  status: 'available' | 'quarantined';
+  status: 'available' | 'quarantined' | 'awaiting_putaway';
   lastMovementAt: string | null;
   product: { id: string; sku: string; name: string; uom: string };
   location: { id: string; name: string; fullPath: string; barcode: string };
@@ -48,12 +57,26 @@ export interface StockRow {
   lot: { id: string; lotNumber: string; expiryDate: string | null } | null;
 }
 
+export interface StockTotals {
+  quantityOnHand: string;
+  quantityReserved: string;
+  quantityAvailable: string;
+}
+
+/** Stock page result, including server-computed totals over the full matching set. */
+export interface StockPageResult extends PageResult<StockRow> {
+  totals: StockTotals;
+}
+
 export interface AvailabilityResult {
   productId: string;
   companyId: string;
   onHand: string;
   reserved: string;
+  /** Usable qty; when outboundOrderId is passed, includes that order's own soft-holds. */
   available: string;
+  reservedByThisOrder?: string;
+  availableForOrder?: string;
 }
 
 export interface LedgerRow {
@@ -94,13 +117,33 @@ export interface LedgerQuery {
   productBarcode?: string;
   companyId?: string;
   warehouseId?: string;
-  movementType?: 'inbound' | 'outbound' | 'adjustment' | string;
+  movementType?: 'inbound' | 'outbound' | 'return' | 'adjustment' | 'transfer' | string;
+  includeInternal?: boolean;
   referenceType?: string;
   referenceId?: string;
+  referenceSearch?: string;
+  operatorId?: string;
+  operatorSearch?: string;
+  locationId?: string;
+  lotId?: string;
+  lotNumber?: string;
   createdFrom?: string;
   createdTo?: string;
   limit?: number;
   offset?: number;
+}
+
+export interface BalanceHistoryPoint {
+  day: string;
+  balance: number;
+}
+
+export interface BalanceHistoryResult {
+  productId: string;
+  currentOnHand: string;
+  from: string;
+  to: string;
+  points: BalanceHistoryPoint[];
 }
 
 export interface InternalTransferInput {
@@ -122,8 +165,8 @@ function companyHeaders(companyIdOverride?: string) {
 }
 
 export const InventoryApi = {
-  async stock(query: StockQuery = {}): Promise<PageResult<StockRow>> {
-    const { data } = await api.get<PageResult<StockRow>>('/inventory/stock', {
+  async stock(query: StockQuery = {}): Promise<StockPageResult> {
+    const { data } = await api.get<StockPageResult>('/inventory/stock', {
       params: { limit: 200, ...query },
     });
     return data;
@@ -133,6 +176,19 @@ export const InventoryApi = {
   async stockByProductSummary(query: StockQuery = {}): Promise<PageResult<ProductStockSummaryRow>> {
     const { data } = await api.get<PageResult<ProductStockSummaryRow>>('/inventory/stock/by-product', {
       params: { limit: 200, ...query },
+    });
+    return data;
+  },
+
+  async balanceHistory(query: {
+    productId: string;
+    warehouseId?: string;
+    companyId?: string;
+    from: string;
+    to: string;
+  }): Promise<BalanceHistoryResult> {
+    const { data } = await api.get<BalanceHistoryResult>('/inventory/stock/balance-history', {
+      params: query,
     });
     return data;
   },
@@ -165,9 +221,17 @@ export const InventoryApi = {
     return data;
   },
 
-  async availability(productId: string, companyIdOverride?: string): Promise<AvailabilityResult> {
+  async availability(
+    productId: string,
+    companyIdOverride?: string,
+    outboundOrderId?: string,
+  ): Promise<AvailabilityResult> {
     const { data } = await api.get<AvailabilityResult>('/inventory/availability', {
-      params: { productId, ...(companyIdOverride ? { companyId: companyIdOverride } : {}) },
+      params: {
+        productId,
+        ...(companyIdOverride ? { companyId: companyIdOverride } : {}),
+        ...(outboundOrderId ? { outboundOrderId } : {}),
+      },
       ...(companyHeaders(companyIdOverride) ?? {}),
     });
     return data;

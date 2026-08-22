@@ -1,12 +1,19 @@
 import { LedgerRefType, MovementType, StockStatus } from '@prisma/client';
-import { IsIn, IsOptional, IsString, Matches } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, Matches } from 'class-validator';
 
 import { PaginationDto } from '../../../common/dto/pagination.dto';
-import { EmptyToUndefined } from '../../../common/transformers/query-transform';
+import { EmptyToUndefined, QueryBoolOptional } from '../../../common/transformers/query-transform';
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 
 const MOVEMENT_TYPES = Object.values(MovementType) as MovementType[];
-const MOVEMENT_FILTERS = [...MOVEMENT_TYPES, 'inbound', 'outbound', 'adjustment'] as const;
+const MOVEMENT_FILTERS = [
+  ...MOVEMENT_TYPES,
+  'inbound',
+  'outbound',
+  'return',
+  'adjustment',
+  'transfer',
+] as const;
 const REF_TYPES = Object.values(LedgerRefType) as LedgerRefType[];
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -126,7 +133,13 @@ export class LedgerQueryDto extends PaginationDto {
   @EmptyToUndefined()
   @IsOptional()
   @IsIn(MOVEMENT_FILTERS)
-  movementType?: MovementType | 'inbound' | 'outbound' | 'adjustment';
+  movementType?: MovementType | 'inbound' | 'outbound' | 'return' | 'adjustment' | 'transfer';
+
+  /** When true, include adjustments, transfers, scrap, QC (internal audit movements). */
+  @QueryBoolOptional()
+  @IsOptional()
+  @IsBoolean()
+  includeInternal?: boolean;
 
   @EmptyToUndefined()
   @IsOptional()
@@ -147,4 +160,36 @@ export class LedgerQueryDto extends PaginationDto {
   @IsOptional()
   @Matches(DAY, { message: 'createdTo must be YYYY-MM-DD' })
   createdTo?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsUuidLoose()
+  operatorId?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsUuidLoose()
+  locationId?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsUuidLoose()
+  lotId?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  lotNumber?: string;
+
+  /** Match operator full name (case-insensitive substring). */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  operatorSearch?: string;
+
+  /** Match reference UUID text or inbound/outbound/return order number. */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  referenceSearch?: string;
 }

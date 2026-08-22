@@ -13,11 +13,16 @@ exports.UpdateBillingPlanDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 class UpdateBillingPlanDto {
+    applyMode;
     active;
+    autoRenew;
     cycleLengthDays;
     fixedSubscriptionFee;
     inboundOrderFee;
     outboundOrderFee;
+    outboundBaseFee;
+    outboundIncludedItems;
+    outboundAdditionalItemFee;
     packagingFee;
     qualityCheckFee;
     excessVolumeFeePerDay;
@@ -28,9 +33,19 @@ class UpdateBillingPlanDto {
 exports.UpdateBillingPlanDto = UpdateBillingPlanDto;
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['immediate', 'next_cycle']),
+    __metadata("design:type", String)
+], UpdateBillingPlanDto.prototype, "applyMode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], UpdateBillingPlanDto.prototype, "active", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], UpdateBillingPlanDto.prototype, "autoRenew", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsInt)(),
@@ -58,6 +73,27 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], UpdateBillingPlanDto.prototype, "outboundOrderFee", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], UpdateBillingPlanDto.prototype, "outboundBaseFee", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], UpdateBillingPlanDto.prototype, "outboundIncludedItems", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
+    __metadata("design:type", Number)
+], UpdateBillingPlanDto.prototype, "outboundAdditionalItemFee", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_transformer_1.Type)(() => Number),

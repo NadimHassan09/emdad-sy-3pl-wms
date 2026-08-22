@@ -37,7 +37,7 @@ let BillingInvoiceOverdueProcessorService = BillingInvoiceOverdueProcessorServic
         try {
             const n = await this.processOverdueInvoices();
             if (n > 0)
-                this.log.log(`Marked ${n} invoice(s) overdue.`);
+                this.log.log(`Notified ${n} past-due unpaid invoice(s).`);
         }
         catch (err) {
             this.log.error('Overdue invoice processor failed', err);
@@ -45,35 +45,42 @@ let BillingInvoiceOverdueProcessorService = BillingInvoiceOverdueProcessorServic
     }
     async processOverdueInvoices() {
         const now = new Date();
-        const openInvoices = await this.prisma.invoice.findMany({
-            where: { status: client_1.BillingInvoiceStatus.open, issuedAt: { not: null } },
+        const unpaidInvoices = await this.prisma.invoice.findMany({
+            where: {
+                status: {
+                    in: [client_1.BillingInvoiceStatus.unpaid, client_1.BillingInvoiceStatus.open, client_1.BillingInvoiceStatus.overdue],
+                },
+                issuedAt: { not: null },
+            },
             select: {
                 id: true,
                 companyId: true,
                 invoiceNumber: true,
                 issuedAt: true,
+                dueDate: true,
                 company: { select: { name: true, paymentTermsDays: true } },
             },
         });
         let updated = 0;
-        for (const inv of openInvoices) {
+        for (const inv of unpaidInvoices) {
             if (!inv.issuedAt)
                 continue;
-            const dueAt = new Date(inv.issuedAt);
-            dueAt.setUTCDate(dueAt.getUTCDate() + (inv.company.paymentTermsDays ?? 30));
+            const dueAt = inv.dueDate
+                ? new Date(inv.dueDate)
+                : (() => {
+                    const d = new Date(inv.issuedAt);
+                    d.setUTCDate(d.getUTCDate() + (inv.company.paymentTermsDays ?? 30));
+                    return d;
+                })();
             if (dueAt >= now)
                 continue;
-            await this.prisma.invoice.update({
-                where: { id: inv.id },
-                data: { status: client_1.BillingInvoiceStatus.overdue },
-            });
             void this.billingAudit.system({
                 action: billing_audit_service_1.BILLING_AUDIT_ACTIONS.INVOICE_OVERDUE,
                 resourceType: 'invoice',
                 resourceId: inv.id,
                 companyId: inv.companyId,
-                previousState: { status: 'open' },
-                newState: { status: 'overdue', dueAt: dueAt.toISOString() },
+                previousState: { status: 'unpaid' },
+                newState: { pastDue: true, dueAt: dueAt.toISOString() },
             });
             void this.notifications.notifyInvoiceOverdue({
                 companyId: inv.companyId,

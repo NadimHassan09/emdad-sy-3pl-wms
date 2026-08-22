@@ -1,0 +1,517 @@
+/* =============================================================================
+ * WMS Design System v2 — Token Foundation (Client Portal)
+ *
+ * The single source of truth for spacing, radius, typography, shadows,
+ * z-index, brand colors, semantic state colors, and operational warehouse
+ * colors — now with a full light + dark theme pair.
+ *
+ * Consumed by:
+ *   - shared/design-system-next/globals.css   (base styles, components)
+ *   - shared/design-system-next/tailwind.preset.cjs (Tailwind theme extension)
+ *   - shared/design-system-next/ui/*          (primitive components)
+ *
+ * Theme strategy:
+ *   - `:root` defines the LIGHT theme (default).
+ *   - `.dark` (toggled on `#client-portal-root` by `useUiTheme`) overrides the
+ *     same variable names with dark-theme values — components never branch on
+ *     theme in JS for pure color, they just consume the variable.
+ *   - The sidebar/rail chrome intentionally stays a fixed near-black in BOTH
+ *     themes (same convention as Vercel/Linear/Notion) — see section 14. Only
+ *     the topbar + content canvas switch between light and dark.
+ *   - Brand hue is locked across themes (same emerald family) — only which
+ *     ramp step is used as the "loudest" accent shifts for contrast.
+ *
+ * Do NOT inline raw hex values in components — always reference tokens.
+ * ============================================================================= */
+
+@layer base {
+  :root {
+    /* -------------------------------------------------------------------------
+     * 1. NEUTRAL PALETTE (slate-based ramp — light theme surfaces/chrome)
+     * ----------------------------------------------------------------------- */
+    --color-neutral-0:    #ffffff;
+    --color-neutral-50:   #f8fafc;
+    --color-neutral-100:  #f1f5f9;
+    --color-neutral-200:  #e2e8f0;
+    --color-neutral-300:  #cbd5e1;
+    --color-neutral-400:  #94a3b8;
+    --color-neutral-500:  #64748b;
+    --color-neutral-600:  #475569;
+    --color-neutral-700:  #334155;
+    --color-neutral-800:  #1e293b;
+    --color-neutral-900:  #0f172a;
+    --color-neutral-950:  #020617;
+
+    /* -------------------------------------------------------------------------
+     * 1b. DARK NEUTRAL PALETTE (zinc-based ramp — dark theme surfaces/chrome)
+     * All 4 pattern generations independently converged on a zinc, not slate,
+     * near-black — adopted here as the validated dark-mode neutral family.
+     * ----------------------------------------------------------------------- */
+    --color-dark-0:    #000000;
+    --color-dark-50:   #fafafa;
+    --color-dark-100:  #e4e4e7;
+    --color-dark-200:  #a1a1aa;
+    --color-dark-300:  #71717a;
+    --color-dark-400:  #52525b;
+    --color-dark-500:  #3f3f46;
+    --color-dark-600:  #27272a;
+    --color-dark-700:  #1f1f23;
+    --color-dark-800:  #18181b;
+    --color-dark-850:  #141416;
+    --color-dark-900:  #0d0d0f;
+    --color-dark-950:  #09090b;
+
+    /* -------------------------------------------------------------------------
+     * 2. BRAND PALETTE — locked identity, do not change hue.
+     * ----------------------------------------------------------------------- */
+    --color-brand-50:   #ecfdf5;
+    --color-brand-100:  #d1fae5;
+    --color-brand-200:  #a7f3d0;
+    --color-brand-300:  #6ee7b7;
+    --color-brand-400:  #34d399;
+    --color-brand-500:  #10b981;
+    --color-brand-600:  #059669; /* emerald-600 — light-theme primary CTA */
+    --color-brand-700:  #047857;
+    --color-brand-800:  #065f46;
+    --color-brand-900:  #064e3b;
+
+    --color-accent-50:  #eff6ff;
+    --color-accent-100: #dbeafe;
+    --color-accent-200: #bfdbfe;
+    --color-accent-300: #93c5fd;
+    --color-accent-400: #60a5fa;
+    --color-accent-500: #3b82f6;
+    --color-accent-600: #2563eb;
+    --color-accent-700: #1d4ed8;
+    --color-accent-800: #1e40af;
+    --color-accent-900: #1e3a8a;
+
+    /* Semantic brand aliases — the ramp step actually used for "loudest"
+       affordances. Light theme favors the deeper 600 step for AA contrast on
+       white; dark theme favors the lighter 500/400 steps for contrast on
+       near-black (validated by all 4 AIDesigner pattern generations). */
+    --brand-cta:          var(--color-brand-600);
+    --brand-cta-hover:    var(--color-brand-700);
+    --brand-cta-active:   var(--color-brand-800);
+    --brand-text-accent:  var(--color-brand-600);
+    --brand-ring:         rgb(16 185 129 / 0.25);
+
+    /* -------------------------------------------------------------------------
+     * 3. SEMANTIC STATE PALETTE
+     * ----------------------------------------------------------------------- */
+    --color-success-50:  #f0fdf4;
+    --color-success-100: #dcfce7;
+    --color-success-200: #bbf7d0;
+    --color-success-500: #22c55e;
+    --color-success-600: #16a34a;
+    --color-success-700: #15803d;
+    --color-success-900: #14532d;
+
+    --color-warning-50:  #fffbeb;
+    --color-warning-100: #fef3c7;
+    --color-warning-200: #fde68a;
+    --color-warning-400: #fbbf24;
+    --color-warning-500: #f59e0b;
+    --color-warning-600: #d97706;
+    --color-warning-700: #b45309;
+    --color-warning-900: #78350f;
+
+    --color-danger-50:   #fff1f2;
+    --color-danger-100:  #ffe4e6;
+    --color-danger-200:  #fecdd3;
+    --color-danger-500:  #f43f5e;
+    /* Destructive / cancel / reset / sign-out / delete / remove button fill */
+    --color-danger-600:  #E11D48;
+    /* Destructive button hover */
+    --color-danger-700:  #BE123C;
+    --color-danger-900:  #881337;
+
+    --color-info-50:     #f0f9ff;
+    --color-info-100:    #e0f2fe;
+    --color-info-200:    #bae6fd;
+    --color-info-500:    #0ea5e9;
+    --color-info-600:    #0284c7;
+    --color-info-700:    #0369a1;
+    --color-info-900:    #0c4a6e;
+
+    /* Status pill treatment — tinted background + matching foreground, the
+       badge language validated across every generated pattern. Light theme
+       values; dark theme redefines the *-soft-bg tokens at higher lightness
+       is wrong for dark surfaces, so .dark overrides these below. */
+    --status-success-fg: var(--color-success-700);
+    --status-success-bg: var(--color-success-50);
+    --status-success-border: var(--color-success-200);
+    --status-warning-fg: var(--color-warning-700);
+    --status-warning-bg: var(--color-warning-50);
+    --status-warning-border: var(--color-warning-200);
+    --status-danger-fg: var(--color-danger-700);
+    --status-danger-bg: var(--color-danger-50);
+    --status-danger-border: var(--color-danger-200);
+    --status-info-fg: var(--color-info-700);
+    --status-info-bg: var(--color-info-50);
+    --status-info-border: var(--color-info-200);
+    --status-neutral-fg: var(--color-neutral-600);
+    --status-neutral-bg: var(--color-neutral-100);
+    --status-neutral-border: var(--color-neutral-200);
+    --status-violet-fg: #6d28d9;
+    --status-violet-bg: #f5f3ff;
+    --status-violet-border: #ddd6fe;
+    --status-orange-fg: #c2410c;
+    --status-orange-bg: #fff7ed;
+    --status-orange-border: #fed7aa;
+
+    /* -------------------------------------------------------------------------
+     * 4. OPERATIONAL COLOR SYSTEM (Section B of WMS spec) — theme-invariant
+     * hues; only surface tokens above/below change per theme.
+     * ----------------------------------------------------------------------- */
+    --color-inv-increase:        #16a34a;
+    --color-inv-increase-bg:     #f0fdf4;
+    --color-inv-increase-text:   #14532d;
+    --color-inv-decrease:        #dc2626;
+    --color-inv-decrease-bg:     #fef2f2;
+    --color-inv-decrease-text:   #7f1d1d;
+    --color-inv-neutral:         #64748b;
+    --color-inv-neutral-bg:      #f8fafc;
+
+    --color-task-assigned:       #7c3aed;
+    --color-task-assigned-bg:    #f5f3ff;
+    --color-task-assigned-text:  #4c1d95;
+    --color-task-active:         #0891b2;
+    --color-task-active-bg:      #ecfeff;
+    --color-task-active-text:    #164e63;
+    --color-task-blocked:        #9a3412;
+    --color-task-blocked-bg:     #fff7ed;
+    --color-task-blocked-text:   #7c2d12;
+
+    --color-locked:              #b45309;
+    --color-locked-bg:           #fffbeb;
+    --color-locked-border:       #fbbf24;
+    --color-locked-text:         #78350f;
+
+    --color-syncing:             #0284c7;
+    --color-syncing-bg:          #f0f9ff;
+    --color-live:                #16a34a;
+    --color-stale:               #d97706;
+    --color-offline:             #dc2626;
+
+    --color-critical:            #9f1239;
+    --color-critical-bg:         #fff1f2;
+    --color-critical-border:     #fda4af;
+
+    --color-expiry-warning:      #d97706;
+    --color-expiry-critical:     #dc2626;
+    --color-expired:             #9f1239;
+
+    --color-shortfall:           #ea580c;
+    --color-shortfall-bg:        #fff7ed;
+    --color-overage:             #7c3aed;
+    --color-overage-bg:          #f5f3ff;
+
+    /* -------------------------------------------------------------------------
+     * 5. SURFACE / TEXT / BORDER TOKENS — LIGHT THEME (default)
+     * ----------------------------------------------------------------------- */
+    --surface-app-bg:        #f8fafc;
+    --surface-page:          #f8fafc;
+    --surface-card:          var(--color-neutral-0);
+    --surface-card-muted:    var(--color-neutral-50);
+    --surface-raised:        var(--color-neutral-50);
+    --surface-elevated:      var(--color-neutral-0);
+    --surface-panel:         var(--color-neutral-0);
+    --surface-overlay:       rgba(15, 23, 42, 0.55);
+    --surface-hover:         var(--color-neutral-50);
+    --surface-active:        var(--color-brand-50);
+    --surface-sunken:        var(--color-neutral-100);
+    --surface-divider:       var(--color-neutral-200);
+    --surface-border:        var(--color-neutral-200);
+    --surface-border-strong: var(--color-neutral-300);
+
+    --text-strong:           var(--color-neutral-900);
+    --text-body:             var(--color-neutral-700);
+    --text-base:             var(--color-neutral-700);
+    --text-muted:            var(--color-neutral-500);
+    --text-subtle:           var(--color-neutral-400);
+    --text-faint:            var(--color-neutral-400);
+    --text-inverse:          var(--color-neutral-0);
+    --text-on-brand:         var(--color-neutral-0);
+    --text-link:             var(--brand-text-accent);
+    --text-link-hover:       var(--color-brand-700);
+
+    --border-default:        var(--color-neutral-200);
+    --border-strong:         var(--color-neutral-300);
+    --border-subtle:         var(--color-neutral-100);
+
+    --skeleton-base:  var(--color-neutral-200);
+    --skeleton-shine: var(--color-neutral-100);
+
+    /* Legacy aliases — kept for backward compatibility with existing classes. */
+    --app-page-bg:           var(--surface-app-bg);
+    --app-text:              var(--text-strong);
+    --app-topbar-bg:         var(--color-neutral-900);
+    --app-topbar-fg:         var(--color-neutral-50);
+    --app-primary:           var(--color-accent-600);
+    --app-primary-hover:     var(--color-accent-700);
+    --app-border:            var(--surface-border-strong);
+    --app-muted:             var(--text-muted);
+
+    /* -------------------------------------------------------------------------
+     * 6. TYPOGRAPHY
+     * ----------------------------------------------------------------------- */
+    --font-sans:   'Inter', 'DM Sans', ui-sans-serif, system-ui, -apple-system,
+                   'Segoe UI', Roboto, Ubuntu, Cantarell, 'Noto Sans', sans-serif;
+    --font-mono:   'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular,
+                   Menlo, Consolas, monospace;
+    --font-arabic: 'IBM Plex Arabic', 'Noto Naskh Arabic', 'Cairo',
+                   'Segoe UI', Tahoma, Arial, sans-serif;
+
+    --text-2xs: 0.6429rem;
+    --text-xs:  0.7143rem;
+    --text-sm:  0.8571rem;
+    --text-base-size: 1rem;
+    --text-lg:  1.1429rem;
+    --text-xl:  1.2857rem;
+    --text-2xl: 1.5714rem;
+    --text-3xl: 1.8571rem;
+    --text-4xl: 2.2857rem;
+
+    --leading-tight:   1.2;
+    --leading-snug:    1.35;
+    --leading-normal:  1.5;
+    --leading-relaxed: 1.65;
+
+    --tracking-tight:  -0.01em;
+    --tracking-normal: 0;
+    --tracking-wide:   0.02em;
+
+    /* -------------------------------------------------------------------------
+     * 7. SPACING SCALE (4px base)
+     * ----------------------------------------------------------------------- */
+    --space-0:   0;
+    --space-px:  1px;
+    --space-0_5: 0.125rem;
+    --space-1:   0.25rem;
+    --space-1_5: 0.375rem;
+    --space-2:   0.5rem;
+    --space-2_5: 0.625rem;
+    --space-3:   0.75rem;
+    --space-4:   1rem;
+    --space-5:   1.25rem;
+    --space-6:   1.5rem;
+    --space-8:   2rem;
+    --space-10:  2.5rem;
+    --space-12:  3rem;
+    --space-16:  4rem;
+    --space-20:  5rem;
+    --space-24:  6rem;
+
+    /* -------------------------------------------------------------------------
+     * 8. RADIUS SCALE — slightly rounder than v1, matching the approved
+     * pattern generations (xl/2xl-heavy card and pill treatments).
+     * ----------------------------------------------------------------------- */
+    --radius-none: 0;
+    --radius-xs:   3px;
+    --radius-sm:   6px;
+    --radius-md:   8px;
+    --radius-lg:   10px;
+    --radius-xl:   12px;
+    --radius-2xl:  14px;
+    --radius-3xl:  20px;
+    --radius-pill: 9999px;
+
+    --radius-input:  8px;
+    --radius-button: 8px;
+    --radius-card:   14px;
+    --radius-badge:  6px;
+    --radius-modal:  16px;
+
+    /* -------------------------------------------------------------------------
+     * 9. SHADOW SCALE — light theme (soft, low-opacity). Dark theme overrides
+     * these to near-zero + relies on borders/translucency for depth instead.
+     * ----------------------------------------------------------------------- */
+    --shadow-xs:   0 1px 2px 0 rgb(15 23 42 / 0.05);
+    --shadow-sm:   0 1px 2px 0 rgb(15 23 42 / 0.06), 0 1px 3px 0 rgb(15 23 42 / 0.10);
+    --shadow-md:   0 4px 6px -1px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.06);
+    --shadow-lg:   0 10px 15px -3px rgb(15 23 42 / 0.10), 0 4px 6px -4px rgb(15 23 42 / 0.08);
+    --shadow-xl:   0 20px 25px -5px rgb(15 23 42 / 0.12), 0 8px 10px -6px rgb(15 23 42 / 0.10);
+    --shadow-2xl:  0 25px 50px -12px rgb(15 23 42 / 0.25);
+    --shadow-focus: 0 0 0 3px var(--brand-ring);
+    --shadow-focus-danger: 0 0 0 3px rgb(220 38 38 / 0.25);
+    --shadow-inset: inset 0 0 0 1px var(--surface-border);
+    --shadow-popover: 0 4px 20px -2px rgb(15 23 42 / 0.12);
+
+    /* -------------------------------------------------------------------------
+     * 10. Z-INDEX SCALE
+     * ----------------------------------------------------------------------- */
+    --z-base:        0;
+    --z-raised:      10;
+    --z-dropdown:    20;
+    --z-sticky:      30;
+    --z-fixed:       40;
+    --z-overlay:     50;
+    --z-modal:       60;
+    --z-drawer:      60;
+    --z-popover:     70;
+    --z-tooltip:     80;
+    --z-toast:       90;
+    --z-max:         100;
+
+    /* -------------------------------------------------------------------------
+     * 11. MOTION
+     * ----------------------------------------------------------------------- */
+    --duration-instant: 80ms;
+    --duration-fast:    150ms;
+    --duration-base:    200ms;
+    --duration-slow:    320ms;
+
+    --ease-standard:    cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-emphasis:    cubic-bezier(0.2, 0, 0, 1);
+    --ease-exit:        cubic-bezier(0.4, 0, 1, 1);
+    --ease-spring:      cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-decelerate:  cubic-bezier(0, 0, 0.2, 1);
+    --ease-accelerate:  cubic-bezier(0.4, 0, 1, 1);
+
+    /* -------------------------------------------------------------------------
+     * 12. LAYOUT CONSTANTS
+     * ----------------------------------------------------------------------- */
+    --topbar-h:             64px;
+    --sidebar-w:            256px;
+    --sidebar-compact-w:    72px;
+    --sidebar-w-mobile:     16rem;
+    --content-max-w:        1440px;
+
+    /* -------------------------------------------------------------------------
+     * 13. SURFACE LAYER SYSTEM — kept for backward compatibility with any
+     * copied component still referencing the old numbered aliases.
+     * ----------------------------------------------------------------------- */
+    --text-on-brand:     var(--color-neutral-0);
+
+    /* -------------------------------------------------------------------------
+     * 14. SIDEBAR CHROME — fixed near-black rail in BOTH themes (Vercel /
+     * Linear / Notion convention), validated by the approved shell pattern.
+     * The topbar is theme-aware (see section 15) even though the sidebar is not.
+     * ----------------------------------------------------------------------- */
+    --sidebar-bg:            var(--color-dark-950);
+    --sidebar-bg-gradient:   none;
+    --sidebar-brand-bg:      transparent;
+    --sidebar-text:          var(--color-dark-200);
+    --sidebar-text-muted:    var(--color-dark-400);
+    --sidebar-border:        rgba(255, 255, 255, 0.06);
+    --sidebar-active-bg:     rgba(16, 185, 129, 0.10);
+    --sidebar-active-text:   var(--color-brand-400);
+    --sidebar-hover-bg:      rgba(255, 255, 255, 0.05);
+    --sidebar-icon-muted:    var(--color-dark-300);
+    --sidebar-active-accent: var(--color-brand-500);
+
+    /* -------------------------------------------------------------------------
+     * 15. TOPBAR CHROME — theme-aware (light glass by default, overridden by
+     * .dark below to match the fixed-dark sidebar/canvas).
+     * ----------------------------------------------------------------------- */
+    --topbar-bg:            rgba(255, 255, 255, 0.72);
+    --topbar-border:        rgba(226, 232, 240, 0.6);
+    --topbar-text:          var(--color-neutral-900);
+    --topbar-text-muted:    var(--color-neutral-500);
+    --topbar-hover-bg:      var(--color-neutral-100);
+    --topbar-icon:          var(--color-neutral-500);
+
+    --z-topbar:   var(--z-fixed);
+    --z-sidebar:  var(--z-fixed);
+    --z-mob-overlay: var(--z-overlay);
+    --z-mob-sidebar: var(--z-modal);
+  }
+
+  /* ---------------------------------------------------------------------------
+   * DARK THEME — overrides. Toggled by adding `.dark` to `#client-portal-root`
+   * (and `<html>`) via `useUiTheme`. Brand hue never changes, only which
+   * surfaces/ramp-steps carry it.
+   * ------------------------------------------------------------------------- */
+  .dark {
+    --brand-cta:          var(--color-brand-500);
+    --brand-cta-hover:    var(--color-brand-400);
+    --brand-cta-active:   var(--color-brand-600);
+    --brand-text-accent:  var(--color-brand-400);
+    --brand-ring:         rgb(16 185 129 / 0.35);
+
+    --status-success-fg: #4ade80;
+    --status-success-bg: rgba(34, 197, 94, 0.12);
+    --status-success-border: rgba(34, 197, 94, 0.24);
+    --status-warning-fg: #fbbf24;
+    --status-warning-bg: rgba(245, 158, 11, 0.12);
+    --status-warning-border: rgba(245, 158, 11, 0.24);
+    --status-danger-fg: #fb7185;
+    --status-danger-bg: rgba(244, 63, 94, 0.10);
+    --status-danger-border: rgba(244, 63, 94, 0.22);
+    --status-info-fg: #38bdf8;
+    --status-info-bg: rgba(14, 165, 233, 0.12);
+    --status-info-border: rgba(14, 165, 233, 0.24);
+    --status-neutral-fg: var(--color-dark-200);
+    --status-neutral-bg: rgba(255, 255, 255, 0.06);
+    --status-neutral-border: rgba(255, 255, 255, 0.10);
+    --status-violet-fg: #c4b5fd;
+    --status-violet-bg: rgba(139, 92, 246, 0.14);
+    --status-violet-border: rgba(139, 92, 246, 0.28);
+    --status-orange-fg: #fdba74;
+    --status-orange-bg: rgba(249, 115, 22, 0.14);
+    --status-orange-border: rgba(249, 115, 22, 0.28);
+
+    --surface-app-bg:        var(--color-dark-950);
+    --surface-page:          var(--color-dark-950);
+    --surface-card:          var(--color-dark-800);
+    --surface-card-muted:    var(--color-dark-850);
+    --surface-raised:        var(--color-dark-850);
+    --surface-elevated:      var(--color-dark-700);
+    --surface-panel:         var(--color-dark-800);
+    --surface-overlay:       rgba(0, 0, 0, 0.7);
+    --surface-hover:         rgba(255, 255, 255, 0.04);
+    --surface-active:        rgba(16, 185, 129, 0.10);
+    --surface-sunken:        var(--color-dark-900);
+    --surface-divider:       rgba(255, 255, 255, 0.06);
+    --surface-border:        rgba(255, 255, 255, 0.08);
+    --surface-border-strong: rgba(255, 255, 255, 0.14);
+
+    --text-strong:           var(--color-dark-50);
+    --text-body:             var(--color-dark-200);
+    --text-base:             var(--color-dark-200);
+    --text-muted:            var(--color-dark-300);
+    --text-subtle:           var(--color-dark-400);
+    --text-faint:            var(--color-dark-400);
+    --text-inverse:          var(--color-dark-950);
+    --text-on-brand:         #ffffff;
+    --text-link:             var(--brand-text-accent);
+    --text-link-hover:       var(--color-brand-300);
+
+    --border-default:        rgba(255, 255, 255, 0.08);
+    --border-strong:         rgba(255, 255, 255, 0.14);
+    --border-subtle:         rgba(255, 255, 255, 0.05);
+
+    --skeleton-base:  var(--color-dark-700);
+    --skeleton-shine: var(--color-dark-600);
+
+    --shadow-xs:   0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-sm:   0 1px 2px 0 rgb(0 0 0 / 0.4), 0 1px 3px 0 rgb(0 0 0 / 0.3);
+    --shadow-md:   0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+    --shadow-lg:   0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+    --shadow-xl:   0 20px 25px -5px rgb(0 0 0 / 0.55), 0 8px 10px -6px rgb(0 0 0 / 0.4);
+    --shadow-2xl:  0 25px 50px -12px rgb(0 0 0 / 0.7);
+    --shadow-popover: 0 4px 20px -2px rgb(0 0 0 / 0.5), 0 0 0 1px rgba(255,255,255,0.05);
+
+    /* Topbar matches the fixed-dark canvas instead of the light glass. */
+    --topbar-bg:            rgba(9, 9, 11, 0.8);
+    --topbar-border:        rgba(255, 255, 255, 0.06);
+    --topbar-text:          var(--color-dark-50);
+    --topbar-text-muted:    var(--color-dark-300);
+    --topbar-hover-bg:      rgba(255, 255, 255, 0.06);
+    --topbar-icon:          var(--color-dark-300);
+  }
+}
+
+/* -----------------------------------------------------------------------------
+ * Arabic typography overrides — applied when document language is Arabic.
+ * --------------------------------------------------------------------------- */
+[lang='ar'],
+[lang^='ar-'] {
+  font-family: var(--font-arabic);
+}
+
+[lang='ar'] :where(table, .data-table) th {
+  text-transform: none;
+  letter-spacing: 0;
+}

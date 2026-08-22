@@ -7,6 +7,7 @@ import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { Roles } from '../../common/auth/roles.decorator';
 import { RolesGuard } from '../../common/auth/roles.guard';
 import { AvailabilityQueryDto } from './dto/availability-query.dto';
+import { BalanceHistoryQueryDto } from './dto/balance-history-query.dto';
 import { ConsistencyQueryDto } from './dto/consistency-query.dto';
 import { InternalTransferDto } from './dto/internal-transfer.dto';
 import { LedgerEntryQueryDto } from './dto/ledger-entry-query.dto';
@@ -24,6 +25,14 @@ export class InventoryController {
   @Get('stock/by-product')
   stockByProduct(@CurrentUser() user: AuthPrincipal, @Query() query: StockQueryDto) {
     return this.inventory.stockByProductSummary(user, query);
+  }
+
+  @Get('stock/balance-history')
+  balanceHistory(
+    @CurrentUser() user: AuthPrincipal,
+    @Query() query: BalanceHistoryQueryDto,
+  ) {
+    return this.inventory.balanceHistory(user, query);
   }
 
   @Get('stock')
@@ -46,7 +55,12 @@ export class InventoryController {
     @CurrentUser() user: AuthPrincipal,
     @Query() query: AvailabilityQueryDto,
   ) {
-    return this.inventory.availability(user, query.productId, query.companyId);
+    return this.inventory.availability(
+      user,
+      query.productId,
+      query.companyId,
+      query.outboundOrderId,
+    );
   }
 
   @Get('consistency/validate')

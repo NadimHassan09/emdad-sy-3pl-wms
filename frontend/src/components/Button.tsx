@@ -1,4 +1,10 @@
-import { ButtonHTMLAttributes, forwardRef } from 'react';
+/**
+ * Admin Button — thin adapter over `@ds` Button with legacy variant aliases.
+ * `primary` / `brand` → DS primary; keeps existing Admin call sites stable.
+ */
+
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { Button as DsButton, cn } from '@ds';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'brand';
 type Size = 'sm' | 'md';
@@ -7,40 +13,30 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
   loading?: boolean;
+  children?: ReactNode;
 }
 
-const VARIANT_CLASSES: Record<Variant, string> = {
-  primary:
-    'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-emerald-300 disabled:bg-emerald-300',
-  secondary:
-    'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 focus:ring-emerald-300',
-  danger: 'bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-300 disabled:bg-rose-300',
-  ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 focus:ring-emerald-300',
-  /** Modal create/save/confirm — matches Apply filters green; hover #059669. */
-  brand:
-    '!rounded-xl border border-[#10B981] bg-[#10B981] px-3 py-1.5 text-sm font-semibold text-white shadow-sm ' +
-    'hover:border-[#059669] hover:bg-[#059669] hover:text-white ' +
-    'focus:ring-emerald-300 disabled:border-[#10B981]/40 disabled:bg-[#10B981]/40 disabled:text-white/90',
-};
-
-const SIZE_CLASSES: Record<Size, string> = {
-  sm: 'px-2 py-0.5 text-xs',
-  md: 'px-3 py-1.5 text-xs',
+const VARIANT_MAP: Record<Variant, 'primary' | 'secondary' | 'danger' | 'ghost'> = {
+  primary: 'primary',
+  brand: 'primary',
+  secondary: 'secondary',
+  danger: 'danger',
+  ghost: 'ghost',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ variant = 'primary', size = 'md', loading, disabled, className = '', children, ...rest }, ref) => (
-    <button
+    <DsButton
       ref={ref}
-      disabled={loading || disabled}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-md font-medium shadow-sm transition focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:cursor-not-allowed ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${className}`}
+      variant={VARIANT_MAP[variant]}
+      size={size === 'sm' ? 'sm' : 'md'}
+      loading={loading}
+      disabled={disabled}
+      className={cn(className)}
       {...rest}
     >
-      {loading && (
-        <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
-      )}
       {children}
-    </button>
+    </DsButton>
   ),
 );
 Button.displayName = 'Button';

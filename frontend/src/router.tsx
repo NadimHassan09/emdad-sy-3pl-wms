@@ -1,9 +1,20 @@
-import { lazy } from 'react';
+import { lazy, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 
 import { RequireAuth } from './auth/RequireAuth';
 import { RoleHomeRedirect } from './auth/RoleHomeRedirect';
 import { Layout } from './components/Layout';
+import { isOmsCodReturnsUiEnabled } from './lib/oms-cod-returns-ui';
+
+const omsCodReturnsElement = (page: ReactNode) =>
+  isOmsCodReturnsUiEnabled() ? page : <Navigate to="/oms/dashboard" replace />;
+
+const omsCodReturnsRedirect = (enabledTarget: string) => (
+  <Navigate
+    to={isOmsCodReturnsUiEnabled() ? enabledTarget : '/oms/dashboard'}
+    replace
+  />
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Lazy page imports — each page becomes a separate JS chunk at build time.
@@ -27,14 +38,19 @@ const LocationsPage           = lazyPage(() => import('./pages/LocationsPage'), 
 const WarehousesPage          = lazyPage(() => import('./pages/WarehousesPage'),          'WarehousesPage');
 const InventoryPage           = lazyPage(() => import('./pages/InventoryPage'),           'InventoryPage');
 const InventoryProductDetailPage = lazyPage(() => import('./pages/InventoryProductDetailPage'), 'InventoryProductDetailPage');
-const InventoryLedgerPage     = lazyPage(() => import('./pages/InventoryLedgerPage'),     'InventoryLedgerPage');
 const InventoryLedgerEntryPage = lazyPage(() => import('./pages/InventoryLedgerEntryPage'), 'InventoryLedgerEntryPage');
 const InventoryLedgerReferencePage = lazyPage(() => import('./pages/InventoryLedgerReferencePage'), 'InventoryLedgerReferencePage');
 const AdjustmentsPage         = lazyPage(() => import('./pages/AdjustmentsPage'),         'AdjustmentsPage');
 const AdjustmentDetailPage    = lazyPage(() => import('./pages/AdjustmentDetailPage'),    'AdjustmentDetailPage');
 const InboundListPage         = lazyPage(() => import('./pages/InboundListPage'),         'InboundListPage');
+const InboundCreatePage       = lazyPage(() => import('./pages/orders/InboundCreatePage'), 'InboundCreatePage');
 const InboundDetailPage       = lazyPage(() => import('./pages/InboundDetailPage'),       'InboundDetailPage');
 const OutboundListPage        = lazyPage(() => import('./pages/OutboundListPage'),        'OutboundListPage');
+const OutboundCreatePage      = lazyPage(() => import('./pages/orders/OutboundCreatePage'), 'OutboundCreatePage');
+const OmsOrdersListPage       = lazyPage(() => import('./pages/OmsOrdersListPage'),       'OmsOrdersListPage');
+const OmsOrderCreatePage      = lazyPage(() => import('./pages/OmsOrderCreatePage'),      'OmsOrderCreatePage');
+const OmsOrderDetailPage      = lazyPage(() => import('./pages/OmsOrderDetailPage'),      'OmsOrderDetailPage');
+const OmsDashboardPage        = lazyPage(() => import('./pages/OmsDashboardPage'),        'OmsDashboardPage');
 const OutboundDetailPage      = lazyPage(() => import('./pages/OutboundDetailPage'),      'OutboundDetailPage');
 const TasksListPage           = lazyPage(() => import('./pages/TasksListPage'),           'TasksListPage');
 const TaskDetailPage          = lazyPage(() => import('./pages/TaskDetailPage'),          'TaskDetailPage');
@@ -55,6 +71,16 @@ const CapacityUtilizationReportPage = lazyPage(() => import('./pages/reports/Inv
 const ReturnRateReportPage          = lazyPage(() => import('./pages/reports/InventoryIntelligenceReportPages'), 'ReturnRateReportPage');
 const RevenueByClientReportPage     = lazyPage(() => import('./pages/reports/FinanceReportPages'),           'RevenueByClientReportPage');
 const ReceivablesAgingReportPage    = lazyPage(() => import('./pages/reports/FinanceReportPages'),           'ReceivablesAgingReportPage');
+const MerchantOrdersReportPage      = lazyPage(() => import('./pages/reports/OmsReportPages'),               'MerchantOrdersReportPage');
+const SalesReportPage               = lazyPage(() => import('./pages/reports/OmsReportPages'),               'SalesReportPage');
+const DeliveryReportPage            = lazyPage(() => import('./pages/reports/OmsReportPages'),               'DeliveryReportPage');
+const AllocationReportPage          = lazyPage(() => import('./pages/reports/OmsReportPages'),               'AllocationReportPage');
+const InventoryReservedReportPage   = lazyPage(() => import('./pages/reports/OmsReportPages'),               'InventoryReservedReportPage');
+const OmsCodPage                    = lazyPage(() => import('./pages/OmsCodReturnsPages'),                   'OmsCodPage');
+const OmsCodDetailPage              = lazyPage(() => import('./pages/OmsCodDetailPage'),                     'OmsCodDetailPage');
+const OmsReturnsPage                = lazyPage(() => import('./pages/OmsCodReturnsPages'),                   'OmsReturnsPage');
+const OmsReturnDetailPage           = lazyPage(() => import('./pages/OmsReturnDetailPage'),                  'OmsReturnDetailPage');
+const OmsReturnPlanEditPage         = lazyPage(() => import('./pages/oms/OmsReturnPlanEditPage'),            'OmsReturnPlanEditPage');
 const ClientsPage             = lazyPage(() => import('./pages/ClientsPage'),             'ClientsPage');
 const CompanyDetailPage       = lazyPage(() => import('./pages/CompanyDetailPage'),       'CompanyDetailPage');
 const WarehouseUsersPage      = lazyPage(() => import('./pages/UsersPage'),               'WarehouseUsersPage');
@@ -62,18 +88,18 @@ const ClientUsersPage         = lazyPage(() => import('./pages/UsersPage'),     
 const WarehouseUserDetailPage = lazyPage(() => import('./pages/UserDetailPage'),         'WarehouseUserDetailPage');
 const ClientUserDetailPage    = lazyPage(() => import('./pages/UserDetailPage'),          'ClientUserDetailPage');
 const NotificationsPage         = lazyPage(() => import('./modules/notifications/NotificationsPage'), 'NotificationsPage');
+const ProfilePage               = lazyPage(() => import('./pages/ProfilePage'),               'ProfilePage');
 const LoginPage               = lazyPage(() => import('./pages/LoginPage'),               'LoginPage');
 const AuditLogsPage           = lazyPage(() => import('./pages/AuditLogsPage'),           'AuditLogsPage');
+const FinalContractPage     = lazyPage(() => import('./pages/FinalContractPage'),     'FinalContractPage');
+const ContractsPage           = lazyPage(() => import('./pages/ContractsPage'),           'ContractsPage');
 const SettingsLayout          = lazyPage(() => import('./pages/settings/SettingsLayout'), 'SettingsLayout');
 const BackupHistoryPage       = lazyPage(() => import('./pages/settings/BackupHistoryPage'), 'BackupHistoryPage');
-const BackupUploadPage        = lazyPage(() => import('./pages/settings/BackupUploadPage'), 'BackupUploadPage');
-const BackupRestorePage       = lazyPage(() => import('./pages/settings/BackupRestorePage'), 'BackupRestorePage');
-const BackupFactoryResetPage  = lazyPage(() => import('./pages/settings/BackupFactoryResetPage'), 'BackupFactoryResetPage');
 const BackupSchedulesPage     = lazyPage(() => import('./pages/settings/BackupSchedulesPage'), 'BackupSchedulesPage');
 const BackupRetentionPage     = lazyPage(() => import('./pages/settings/BackupRetentionPage'), 'BackupRetentionPage');
 const BackupHealthPage        = lazyPage(() => import('./pages/settings/BackupHealthPage'), 'BackupHealthPage');
-const BackupStoragePolicyPage = lazyPage(() => import('./pages/settings/BackupStoragePolicyPage'), 'BackupStoragePolicyPage');
 const BackupGoogleDrivePage   = lazyPage(() => import('./pages/settings/BackupGoogleDrivePage'), 'BackupGoogleDrivePage');
+const ShippingCompaniesPage   = lazyPage(() => import('./pages/shipping/ShippingCompaniesPage'), 'ShippingCompaniesPage');
 const CycleCountListPage      = lazyPage(() => import('./pages/cycle-count/CycleCountListPage'), 'CycleCountListPage');
 const CycleCountDetailPage    = lazyPage(() => import('./pages/cycle-count/CycleCountDetailPage'), 'CycleCountDetailPage');
 const CycleCountExecutePage   = lazyPage(() => import('./pages/cycle-count/CycleCountExecutePage'), 'CycleCountExecutePage');
@@ -82,10 +108,14 @@ const ReturnsListPage         = lazyPage(() => import('./pages/returns/ReturnsLi
 const ReturnDetailPage        = lazyPage(() => import('./pages/returns/ReturnDetailPage'), 'ReturnDetailPage');
 const ReturnProcessPage       = lazyPage(() => import('./pages/returns/ReturnProcessPage'), 'ReturnProcessPage');
 const BillingPlansPage          = lazyPage(() => import('./pages/billing/BillingPlansPage'), 'BillingPlansPage');
+const BillingPlanCreatePage     = lazyPage(() => import('./pages/billing/BillingPlanCreatePage'), 'BillingPlanCreatePage');
 const BillingPlanDetailPage     = lazyPage(() => import('./pages/billing/BillingPlanDetailPage'), 'BillingPlanDetailPage');
+const BillingPlanEditPage       = lazyPage(() => import('./pages/billing/BillingPlanEditPage'), 'BillingPlanEditPage');
+const BillingPlanTemplatesPage  = lazyPage(() => import('./pages/billing/BillingPlanTemplatesPage'), 'BillingPlanTemplatesPage');
 const BillingInvoicesPage       = lazyPage(() => import('./pages/billing/BillingInvoicesPage'), 'BillingInvoicesPage');
 const BillingInvoiceDetailPage  = lazyPage(() => import('./pages/billing/BillingInvoiceDetailPage'), 'BillingInvoiceDetailPage');
 const BillingDashboardPage      = lazyPage(() => import('./pages/billing/BillingDashboardPage'), 'BillingDashboardPage');
+const FormsPage                 = lazyPage(() => import('./pages/forms/FormsPage'), 'FormsPage');
 
 /** Data router required for `useBlocker` (task execution exit guard). */
 export const router = createBrowserRouter([
@@ -108,19 +138,43 @@ export const router = createBrowserRouter([
       { path: 'inventory', element: <Navigate to="/inventory/stock" replace /> },
       { path: 'inventory/ledger/line/:ledgerId/:createdAt', element: <InventoryLedgerEntryPage /> },
       { path: 'inventory/ledger/:referenceType/:referenceId', element: <InventoryLedgerReferencePage /> },
-      { path: 'inventory/ledger', element: <InventoryLedgerPage /> },
+      { path: 'inventory/ledger', element: <Navigate to="/inventory/stock" replace /> },
       { path: 'inventory/product/:productId', element: <InventoryProductDetailPage /> },
       { path: 'inventory/stock', element: <InventoryPage /> },
       { path: 'adjustments', element: <Navigate to="/inventory/adjustments" replace /> },
       { path: 'inventory/adjustments', element: <AdjustmentsPage /> },
       { path: 'inventory/adjustments/:id', element: <AdjustmentDetailPage /> },
       { path: 'inbound', element: <Navigate to="/orders/inbound" replace /> },
+      { path: 'inbound/create', element: <Navigate to="/orders/inbound/new" replace /> },
       { path: 'outbound', element: <Navigate to="/orders/outbound" replace /> },
+      { path: 'outbound/create', element: <Navigate to="/orders/outbound/new" replace /> },
       { path: 'orders', element: <Navigate to="/orders/inbound" replace /> },
       { path: 'orders/inbound', element: <InboundListPage /> },
+      { path: 'orders/inbound/new', element: <InboundCreatePage /> },
+      { path: 'orders/inbound/:id/edit', element: <InboundCreatePage /> },
       { path: 'orders/inbound/:id', element: <InboundDetailPage /> },
       { path: 'orders/outbound', element: <OutboundListPage /> },
+      { path: 'orders/outbound/new', element: <OutboundCreatePage /> },
+      { path: 'orders/outbound/:id/edit', element: <OutboundCreatePage /> },
+      { path: 'orders/directed-outbound', element: <Navigate to="/orders/outbound" replace /> },
       { path: 'orders/outbound/:id', element: <OutboundDetailPage /> },
+      { path: 'orders/oms', element: <OmsOrdersListPage /> },
+      { path: 'orders/oms/new', element: <OmsOrderCreatePage /> },
+      { path: 'orders/oms/:id', element: <OmsOrderDetailPage /> },
+      { path: 'oms', element: <Navigate to="/oms/dashboard" replace /> },
+      { path: 'oms/dashboard', element: <OmsDashboardPage /> },
+      { path: 'oms/cod', element: omsCodReturnsElement(<OmsCodPage />) },
+      { path: 'oms/cod/:id', element: omsCodReturnsElement(<OmsCodDetailPage />) },
+      { path: 'oms/returns', element: omsCodReturnsElement(<OmsReturnsPage />) },
+      { path: 'oms/returns/:id/edit', element: omsCodReturnsElement(<OmsReturnPlanEditPage />) },
+      { path: 'oms/returns/:id', element: omsCodReturnsElement(<OmsReturnDetailPage />) },
+      { path: 'oms/orders/:id', element: <OmsOrderDetailPage /> },
+      { path: 'reports/oms/cod', element: omsCodReturnsRedirect('/oms/cod') },
+      { path: 'reports/oms/returns', element: omsCodReturnsRedirect('/oms/returns') },
+      { path: 'contracts', element: <Navigate to="/contracts/grn" replace /> },
+      { path: 'contracts/grn', element: <ContractsPage /> },
+      { path: 'contracts/dn', element: <ContractsPage /> },
+      { path: 'contracts/final-contract', element: <FinalContractPage /> },
       { path: 'tasks', element: <TasksListPage /> },
       { path: 'tasks/:id/execute', element: <TaskExecutePage /> },
       { path: 'tasks/:id', element: <TaskDetailPage /> },
@@ -132,6 +186,7 @@ export const router = createBrowserRouter([
       { path: 'returns/:id/process', element: <ReturnProcessPage /> },
       { path: 'returns/:id', element: <ReturnDetailPage /> },
       { path: 'internal', element: <InternalTransferPage /> },
+      { path: 'directed-outbound', element: <Navigate to="/orders/outbound" replace /> },
       {
         path: 'reports',
         element: <ReportsLayout />,
@@ -151,14 +206,25 @@ export const router = createBrowserRouter([
           { path: 'inbound-accuracy', element: <InboundAccuracyReportPage /> },
           { path: 'outbound-fill-rate', element: <OutboundFillRateReportPage /> },
           { path: 'sla-compliance', element: <SlaComplianceReportPage /> },
+          { path: 'cod-report', element: omsCodReturnsRedirect('/oms/cod') },
+          { path: 'merchant-orders', element: <MerchantOrdersReportPage /> },
+          { path: 'sales-report', element: <SalesReportPage /> },
+          { path: 'returns-report', element: omsCodReturnsRedirect('/oms/returns') },
+          { path: 'delivery-report', element: <DeliveryReportPage /> },
+          { path: 'allocation-report', element: <AllocationReportPage /> },
+          { path: 'inventory-reserved', element: <InventoryReservedReportPage /> },
         ],
       },
       { path: 'clients', element: <ClientsPage /> },
       { path: 'clients/:id', element: <CompanyDetailPage /> },
+      { path: 'forms', element: <FormsPage /> },
       { path: 'billing', element: <Navigate to="/billing/dashboard" replace /> },
       { path: 'billing/dashboard', element: <BillingDashboardPage /> },
       { path: 'billing/plans', element: <BillingPlansPage /> },
+      { path: 'billing/plans/new', element: <BillingPlanCreatePage /> },
+      { path: 'billing/plans/:clientId/edit', element: <BillingPlanEditPage /> },
       { path: 'billing/plans/:clientId', element: <BillingPlanDetailPage /> },
+      { path: 'billing/templates', element: <BillingPlanTemplatesPage /> },
       { path: 'billing/invoices', element: <BillingInvoicesPage /> },
       { path: 'billing/invoices/:id', element: <BillingInvoiceDetailPage /> },
       { path: 'users', element: <Navigate to="/users/warehouse_users" replace /> },
@@ -168,20 +234,38 @@ export const router = createBrowserRouter([
       { path: 'users/client_users/:id', element: <ClientUserDetailPage /> },
       { path: 'audit-logs', element: <AuditLogsPage /> },
       { path: 'notifications', element: <NotificationsPage /> },
+      { path: 'profile', element: <ProfilePage /> },
       {
-        path: 'settings',
+        path: 'backups',
         element: <SettingsLayout />,
         children: [
-          { index: true, element: <Navigate to="/settings/backups" replace /> },
-          { path: 'backups', element: <BackupHistoryPage /> },
-          { path: 'backups/upload', element: <BackupUploadPage /> },
-          { path: 'backups/restore', element: <BackupRestorePage /> },
-          { path: 'backups/factory-reset', element: <BackupFactoryResetPage /> },
-          { path: 'backups/schedules', element: <BackupSchedulesPage /> },
-          { path: 'backups/retention', element: <BackupRetentionPage /> },
-          { path: 'backups/health', element: <BackupHealthPage /> },
-          { path: 'backups/storage-policy', element: <BackupStoragePolicyPage /> },
-          { path: 'backups/google-drive', element: <BackupGoogleDrivePage /> },
+          { index: true, element: <BackupHistoryPage /> },
+          { path: 'upload', element: <Navigate to="/backups" replace /> },
+          { path: 'restore', element: <Navigate to="/backups" replace /> },
+          { path: 'factory-reset', element: <Navigate to="/backups" replace /> },
+          { path: 'schedules', element: <BackupSchedulesPage /> },
+          { path: 'retention', element: <BackupRetentionPage /> },
+          { path: 'health', element: <BackupHealthPage /> },
+          { path: 'storage-policy', element: <Navigate to="/backups" replace /> },
+          { path: 'google-drive', element: <BackupGoogleDrivePage /> },
+        ],
+      },
+      { path: 'shipping', element: <Navigate to="/shipping/companies" replace /> },
+      { path: 'shipping/companies', element: <ShippingCompaniesPage /> },
+      {
+        path: 'settings',
+        children: [
+          { index: true, element: <Navigate to="/backups" replace /> },
+          { path: 'backups', element: <Navigate to="/backups" replace /> },
+          { path: 'backups/upload', element: <Navigate to="/backups" replace /> },
+          { path: 'backups/restore', element: <Navigate to="/backups" replace /> },
+          { path: 'backups/factory-reset', element: <Navigate to="/backups" replace /> },
+          { path: 'backups/schedules', element: <Navigate to="/backups/schedules" replace /> },
+          { path: 'backups/retention', element: <Navigate to="/backups/retention" replace /> },
+          { path: 'backups/health', element: <Navigate to="/backups/health" replace /> },
+          { path: 'backups/storage-policy', element: <Navigate to="/backups" replace /> },
+          { path: 'backups/google-drive', element: <Navigate to="/backups/google-drive" replace /> },
+          { path: '*', element: <Navigate to="/backups" replace /> },
         ],
       },
       { path: '*', element: <RoleHomeRedirect /> },

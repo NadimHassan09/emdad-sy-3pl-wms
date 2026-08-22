@@ -6,6 +6,12 @@ export interface ClientOutboundOrderRow {
   status: string;
   requiredShipDate: string;
   createdAt: string;
+  recipientName?: string | null;
+  city?: string | null;
+  paymentMethod?: string | null;
+  codAmount?: string | null;
+  codStatus?: string | null;
+  allocationStatus?: string | null;
   _count?: { lines: number };
 }
 
@@ -30,6 +36,8 @@ export interface ClientOutboundOrderLine {
     status: string;
     trackingType: string;
     uom: string | null;
+    imagePath?: string | null;
+    imageUrl?: string | null;
   };
 }
 

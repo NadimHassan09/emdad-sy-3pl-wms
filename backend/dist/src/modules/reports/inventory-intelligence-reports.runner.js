@@ -19,7 +19,6 @@ const prisma_service_1 = require("../../common/prisma/prisma.service");
 const inventory_service_1 = require("../inventory/inventory.service");
 const outbound_service_1 = require("../outbound/outbound.service");
 const SAMPLE_CAP = 2000;
-const STORAGE_LOCATION_TYPES = ['internal', 'fridge', 'quarantine'];
 function fmtQty(n) {
     const v = Number(n);
     if (!Number.isFinite(v))
@@ -180,76 +179,69 @@ let InventoryIntelligenceReportsRunner = class InventoryIntelligenceReportsRunne
         return paginate(rows, query.limit, query.offset);
     }
     async capacityUtilization(user, query) {
-        const warehouseId = query.warehouseId?.trim();
-        if (!warehouseId)
-            return { items: [], total: 0 };
         const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
         const stockWhere = {
-            warehouseId,
             quantityOnHand: { gt: 0 },
             ...(companyId ? { companyId } : {}),
+            product: { status: { not: 'archived' } },
         };
-        const [totalLocations, occupiedLocations, stockRows] = await Promise.all([
-            this.prisma.location.count({
-                where: {
-                    warehouseId,
-                    type: { in: STORAGE_LOCATION_TYPES },
-                    status: 'active',
-                },
-            }),
-            this.prisma.location.count({
-                where: {
-                    warehouseId,
-                    type: { in: STORAGE_LOCATION_TYPES },
-                    status: 'active',
-                    currentStock: { some: { quantityOnHand: { gt: 0 } } },
-                },
-            }),
-            this.prisma.currentStock.findMany({
-                where: stockWhere,
-                select: {
-                    locationId: true,
-                    productId: true,
-                    quantityOnHand: true,
-                    location: { select: { fullPath: true, name: true } },
-                },
-                take: SAMPLE_CAP,
-            }),
-        ]);
-        const consumedPercent = totalLocations > 0 ? Math.round((occupiedLocations / totalLocations) * 100) : 0;
-        const summary = {
-            id: 'summary',
-            location: '— Warehouse summary —',
-            type: '—',
-            skuCount: '',
-            totalQty: '',
-            utilization: `${consumedPercent}% (${occupiedLocations} / ${totalLocations} locations)`,
+        const stockRows = await this.prisma.currentStock.findMany({
+            where: stockWhere,
+            select: {
+                companyId: true,
+                quantityOnHand: true,
+                product: { select: { volumeCbm: true } },
+                company: { select: { id: true, name: true } },
+            },
+            take: SAMPLE_CAP,
+        });
+        const planWhere = {
+            active: true,
+            ...(companyId ? { companyId } : {}),
         };
-        const byLocation = new Map();
+        const plans = await this.prisma.billingPlan.findMany({
+            where: planWhere,
+            select: { companyId: true, reservedVolume: true, company: { select: { name: true } } },
+        });
+        const usedByCompany = new Map();
         for (const row of stockRows) {
-            const cur = byLocation.get(row.locationId) ?? {
-                path: row.location.fullPath,
-                type: row.location.name,
-                skuSet: new Set(),
-                qty: 0,
+            const cbm = Number(row.product.volumeCbm ?? 0);
+            const qty = Math.max(0, Number(row.quantityOnHand));
+            const cur = usedByCompany.get(row.companyId) ?? {
+                name: row.company.name,
+                used: 0,
             };
-            cur.skuSet.add(row.productId);
-            cur.qty += Number(row.quantityOnHand);
-            byLocation.set(row.locationId, cur);
+            cur.used += qty * (Number.isFinite(cbm) ? cbm : 0);
+            usedByCompany.set(row.companyId, cur);
         }
-        const locationRows = [...byLocation.entries()]
-            .map(([id, v]) => ({
-            id,
-            location: v.path,
-            type: v.type,
-            skuCount: String(v.skuSet.size),
-            totalQty: fmtQty(v.qty),
-            utilization: totalLocations
-                ? `${Math.round((byLocation.size / totalLocations) * 100)}% active slots`
-                : '—',
-        }))
+        const reservedByCompany = new Map();
+        for (const plan of plans) {
+            const cur = reservedByCompany.get(plan.companyId) ?? {
+                name: plan.company.name,
+                reserved: 0,
+            };
+            cur.reserved += Number(plan.reservedVolume);
+            reservedByCompany.set(plan.companyId, cur);
+        }
+        const companyIds = new Set([...usedByCompany.keys(), ...reservedByCompany.keys()]);
+        const items = [...companyIds]
+            .map((id) => {
+            const used = usedByCompany.get(id)?.used ?? 0;
+            const reserved = reservedByCompany.get(id)?.reserved ?? 0;
+            const name = usedByCompany.get(id)?.name ?? reservedByCompany.get(id)?.name ?? id;
+            const remaining = Math.max(0, reserved - used);
+            const pct = reserved > 0 ? Math.min(100, Math.round((used / reserved) * 1000) / 10) : 0;
+            return {
+                id,
+                location: name,
+                type: 'inventory_cbm',
+                skuCount: fmtQty(used),
+                totalQty: fmtQty(reserved),
+                utilization: `${pct}% (remaining ${fmtQty(remaining)} CBM)`,
+            };
+        })
             .sort((a, b) => String(a.location).localeCompare(String(b.location)));
-        return paginate([summary, ...locationRows], query.limit, query.offset);
+        return paginate(items, query.limit, query.offset);
     }
     async returnRate(user, query) {
         const warehouseId = query.warehouseId?.trim();

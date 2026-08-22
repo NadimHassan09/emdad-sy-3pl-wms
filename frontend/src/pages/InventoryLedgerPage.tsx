@@ -4,26 +4,29 @@ import { useNavigate } from 'react-router-dom';
 
 import { CompaniesApi } from '../api/companies';
 import { InventoryApi, LedgerRow } from '../api/inventory';
-import { BarcodeScanIcon } from '../components/BarcodeScanIcon';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { BarcodeScanModal } from '../components/BarcodeScanModal';
-import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { Column, DataTable } from '../components/DataTable';
 import { FilterPanel } from '../components/FilterPanel';
+import { FilterScanButton } from '../components/FilterScanButton';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
+import {
+  CHUNK_SIZE_STANDARD,
+  useChunkedServerPagination,
+} from '../hooks/useChunkedServerPagination';
 import { useFilters } from '../hooks/useFilters';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import {
-  fmtLedgerQty,
   fmtSignedDelta,
   ledgerEntryDetailPath,
   ledgerMovementCategory,
   ledgerMovementLabel,
-  ledgerQuantityDisplay,
+  ledgerSignedChange,
 } from '../lib/ledger-display';
 
 type LedgerSearchCategory = 'name' | 'sku' | 'barcode';
@@ -31,7 +34,8 @@ type LedgerSearchCategory = 'name' | 'sku' | 'barcode';
 type LedgerDraft = {
   searchQuery: string;
   searchCategory: LedgerSearchCategory;
-  movementType: '' | 'inbound' | 'outbound' | 'adjustment';
+  movementType: '' | 'inbound' | 'outbound' | 'return';
+  includeInternal: boolean;
   companyId: string;
   createdFrom: string;
   createdTo: string;
@@ -43,6 +47,7 @@ function ledgerSearchParams(filters: LedgerDraft, warehouseId: string | undefine
     warehouseId: warehouseId || undefined,
     companyId: filters.companyId.trim() || undefined,
     movementType: filters.movementType || undefined,
+    includeInternal: filters.includeInternal || undefined,
     createdFrom: filters.createdFrom.trim() || undefined,
     createdTo: filters.createdTo.trim() || undefined,
   };
@@ -76,6 +81,7 @@ export function InventoryLedgerPage() {
       searchQuery: '',
       searchCategory: 'name',
       movementType: '',
+      includeInternal: false,
       companyId: '',
       createdFrom: '',
       createdTo: '',
@@ -111,19 +117,29 @@ export function InventoryLedgerPage() {
     [appliedFilters, wid],
   );
 
-  const ledger = useQuery({
-    queryKey: [...QK.ledger, ledgerParams],
-    queryFn: () => InventoryApi.ledger({ limit: 500, ...ledgerParams }),
+  const pagination = useChunkedServerPagination<LedgerRow>({
+    chunkSize: CHUNK_SIZE_STANDARD,
+    filterKey: ledgerParams,
+    fetchChunk: (offset, limit) => InventoryApi.ledger({ ...ledgerParams, offset, limit }),
+    rtQueryKeyPrefix: QK.ledger,
+    chunkQueryKeyPrefix: 'ledger-chunk',
     enabled: !!wid,
   });
 
-  const ledgerRows = useMemo(() => ledger.data?.items ?? [], [ledger.data?.items]);
+  const totalPages = Math.max(1, Math.ceil(pagination.total / pagination.pageSize));
 
   const columns: Column<LedgerRow>[] = useMemo(
     () => [
       {
         header: t('Product', 'المنتج'),
-        accessor: (r) => <span className="font-medium text-slate-900">{r.product.name}</span>,
+        accessor: (r) => <span className="font-medium text-text-strong">{r.product.name}</span>,
+      },
+      {
+        header: t('SKU', 'رمز الصنف'),
+        accessor: (r) => (
+          <span className="font-mono text-xs text-text-muted">{r.product.sku}</span>
+        ),
+        width: '120px',
       },
       {
         header: t('Client', 'العميل'),
@@ -133,7 +149,7 @@ export function InventoryLedgerPage() {
       {
         header: t('Movement type', 'نوع الحركة'),
         accessor: (r) => (
-          <span className="text-sm font-medium text-slate-800">
+          <span className="text-sm font-medium text-text-strong">
             {ledgerMovementLabel(ledgerMovementCategory(r.movementType))}
           </span>
         ),
@@ -145,36 +161,18 @@ export function InventoryLedgerPage() {
         width: '160px',
       },
       {
-        header: t('Before quantity', 'الكمية قبل'),
+        header: t('Quantity', 'الكمية'),
         accessor: (r) => {
-          const { before } = ledgerQuantityDisplay(r);
-          return <span className="font-mono text-slate-700">{fmtLedgerQty(before)}</span>;
-        },
-        width: '110px',
-        className: 'text-right',
-      },
-      {
-        header: t('Δ Qty', 'فرق الكمية'),
-        accessor: (r) => {
-          const { delta } = ledgerQuantityDisplay(r);
+          const delta = ledgerSignedChange(r);
           const pos = delta > 0;
           const neg = delta < 0;
           return (
             <span
-              className={`font-mono font-semibold ${pos ? 'text-emerald-600' : neg ? 'text-rose-600' : 'text-slate-600'}`}
+              className={`font-mono font-semibold ${pos ? 'text-status-success-fg' : neg ? 'text-status-danger-fg' : 'text-text-body'}`}
             >
               {fmtSignedDelta(delta)}
             </span>
           );
-        },
-        width: '100px',
-        className: 'text-right',
-      },
-      {
-        header: t('After quantity', 'الكمية بعد'),
-        accessor: (r) => {
-          const { after } = ledgerQuantityDisplay(r);
-          return <span className="font-mono text-slate-700">{fmtLedgerQty(after)}</span>;
         },
         width: '110px',
         className: 'text-right',
@@ -184,26 +182,41 @@ export function InventoryLedgerPage() {
   );
 
   return (
-    <>
+    <AdminListPageShell
+      icon="fa-book"
+      title={t('Inventory ledger', 'سجل المخزون')}
+      isArabic={isArabic}
+    >
       {!wid ? (
-        <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>
+        <p className="text-sm text-text-body">Resolve warehouse configuration…</p>
       ) : null}
 
       <FilterPanel
         title={t('Ledger filters', 'فلاتر السجل')}
         onApply={applyFilters}
         onReset={resetFilters}
-        loading={ledger.isFetching}
+        loading={pagination.isFetching}
         applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
         resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
+        compact={
+          <TextField
+            label={t('Search', 'بحث')}
+            value={draftFilters.searchQuery}
+            onChange={(e) => setDraft({ searchQuery: e.target.value })}
+            placeholder={t('Contains…', 'يحتوي على…')}
+            className={draftFilters.searchCategory !== 'name' ? 'font-mono text-xs' : undefined}
+          />
+        }
+        activeCount={[appliedFilters.searchQuery, appliedFilters.movementType, appliedFilters.companyId, appliedFilters.createdFrom, appliedFilters.createdTo].filter((v) => String(v).trim()).length + (appliedFilters.includeInternal ? 1 : 0)}
+        advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
+        collapseLabel={t('Collapsed', 'إخفاء')}
       >
-      <div className="flex min-w-0 flex-wrap items-end gap-3">
         <TextField
           label={t('Search', 'بحث')}
           value={draftFilters.searchQuery}
           onChange={(e) => setDraft({ searchQuery: e.target.value })}
           placeholder={t('Contains…', 'يحتوي على…')}
-          className={`min-w-[7.5rem] flex-1 basis-32 ${draftFilters.searchCategory !== 'name' ? 'font-mono text-xs' : ''}`}
+          className={draftFilters.searchCategory !== 'name' ? 'font-mono text-xs' : undefined}
         />
         <SelectField
           label={t('Search by', 'البحث حسب')}
@@ -213,18 +226,13 @@ export function InventoryLedgerPage() {
             setDraft({ searchCategory: e.target.value as LedgerSearchCategory })
           }
           options={searchCategoryOptions}
-          className="min-w-[6.5rem] max-w-[10.5rem] flex-[0.85] basis-28"
         />
-        <Button
-          type="button"
-          variant="secondary"
-          className="h-[34px] shrink-0 px-2.5"
-          title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
-          aria-label={t('Scan barcode', 'مسح الباركود')}
+        <FilterScanButton
+          label={t('Barcode', 'الباركود')}
           onClick={() => setScanOpen(true)}
-        >
-          <BarcodeScanIcon className="h-5 w-5" />
-        </Button>
+          title={t('Scan a barcode with the device camera', 'امسح باركود باستخدام كاميرا الجهاز')}
+          ariaLabel={t('Scan barcode', 'مسح الباركود')}
+        />
         <SelectField
           label={t('Movement type', 'نوع الحركة')}
           name="movementType"
@@ -233,46 +241,60 @@ export function InventoryLedgerPage() {
             setDraft({ movementType: e.target.value as LedgerDraft['movementType'] })
           }
           options={[
-            { value: '', label: t('All movement types', 'كل أنواع الحركات') },
+            { value: '', label: t('All (filtered)', 'الكل (مفلتر)') },
             { value: 'inbound', label: t('Inbound', 'وارد') },
             { value: 'outbound', label: t('Outbound', 'صادر') },
-            { value: 'adjustment', label: t('Adjustments', 'تعديلات') },
+            { value: 'return', label: t('Return', 'مرتجع') },
           ]}
-          className="min-w-[7rem] flex-1 basis-32"
         />
+        <label className="flex cursor-pointer items-start gap-2.5 pt-6">
+          <input
+            type="checkbox"
+            checked={draftFilters.includeInternal}
+            onChange={(e) => setDraft({ includeInternal: e.target.checked })}
+            className="mt-0.5 h-4 w-4 rounded border-border-strong text-brand-600 focus:ring-brand-500"
+          />
+          <span className="text-sm text-text-body">
+            <span className="font-medium text-text-strong">
+              {t('Show internal operations', 'إظهار العمليات الداخلية')}
+            </span>
+            <span className="mt-0.5 block text-xs text-text-muted">
+              {t(
+                'Adjustments, transfers, scrap, and QC',
+                'التعديلات والتحويلات والإتلاف وفحص الجودة',
+              )}
+            </span>
+          </span>
+        </label>
         <Combobox
           label={t('Client', 'العميل')}
           value={draftFilters.companyId}
           onChange={(v) => setDraft({ companyId: v })}
           options={clientFilterOptions}
           placeholder={t('All clients', 'كل العملاء')}
-          className="min-w-[7rem] flex-1 basis-32"
         />
         <TextField
           label={t('Created from', 'تاريخ الإنشاء من')}
           type="date"
           value={draftFilters.createdFrom}
           onChange={(e) => setDraft({ createdFrom: e.target.value })}
-          className="min-w-[7rem] max-w-[10.5rem] flex-[0.8] basis-28"
         />
         <TextField
           label={t('Created to', 'تاريخ الإنشاء إلى')}
           type="date"
           value={draftFilters.createdTo}
           onChange={(e) => setDraft({ createdTo: e.target.value })}
-          className="min-w-[7rem] max-w-[10.5rem] flex-[0.8] basis-28"
         />
-      </div>
       </FilterPanel>
 
       <DataTable
-        title={t('Inventory ledger', 'سجل المخزون')}
         columns={columns}
-        rows={ledgerRows}
+        rows={pagination.rows}
         rowKey={ledgerRowKey}
-        loading={ledger.isLoading || !wid}
+        loading={pagination.isInitialLoading || !wid}
         empty={wid ? 'No ledger rows for the current filters.' : 'Warehouse not resolved yet.'}
         onRowClick={(r) => navigate(ledgerEntryDetailPath(r.id, r.createdAt, r.companyId))}
+        serverPagination={pagination.serverPagination}
         labels={{
           rowsSuffix: t('rows', 'صف'),
           resultsSuffix: t('results', 'نتيجة'),
@@ -282,9 +304,12 @@ export function InventoryLedgerPage() {
           rowsPerPageAria: t('Rows per page', 'عدد الصفوف لكل صفحة'),
         }}
       />
-      <p className="mt-2 text-xs text-slate-500">
-        {ledger.data
-          ? `${ledgerRows.length} movement(s) · ${ledger.data.total} row(s) from server`
+      <p className="mt-2 text-xs text-text-muted">
+        {pagination.total > 0
+          ? t(
+              `${pagination.total} movement(s) · page ${pagination.page} of ${totalPages}`,
+              `${pagination.total} حركة · صفحة ${pagination.page} من ${totalPages}`,
+            )
           : ''}
       </p>
 
@@ -299,6 +324,6 @@ export function InventoryLedgerPage() {
         }}
         onCameraError={(msg) => toast.error(msg)}
       />
-    </>
+    </AdminListPageShell>
   );
 }

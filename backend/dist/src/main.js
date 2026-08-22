@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 require("reflect-metadata");
 const node_crypto_1 = require("node:crypto");
+const node_path_1 = require("node:path");
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const core_1 = require("@nestjs/core");
@@ -164,6 +165,12 @@ async function bootstrap() {
     app.useGlobalInterceptors(new response_interceptor_1.ResponseInterceptor());
     app.useGlobalFilters(new all_exceptions_filter_1.AllExceptionsFilter());
     app.setGlobalPrefix('api');
+    const mediaRoot = (0, node_path_1.join)(process.cwd(), 'storage', 'media');
+    app.use('/api/client/media', express_1.default.static(mediaRoot, {
+        fallthrough: true,
+        maxAge: isProd ? '7d' : 0,
+        index: false,
+    }));
     const port = parseInt(config.get('PORT') ?? '3000', 10);
     await app.listen(port);
     lifecycle.markReady();

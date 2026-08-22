@@ -18,6 +18,8 @@ const company_access_service_1 = require("../../common/company-access/company-ac
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const adjustments_service_1 = require("../adjustments/adjustments.service");
+const realtime_service_1 = require("../realtime/realtime.service");
+const realtime_ops_payload_1 = require("../realtime/realtime-ops.payload");
 const cycle_count_variance_constants_1 = require("./cycle-count-variance.constants");
 const VARIANCE_DETAIL_INCLUDE = {
     product: { select: { id: true, sku: true, name: true, uom: true } },
@@ -37,11 +39,13 @@ let CycleCountVarianceService = class CycleCountVarianceService {
     companyAccess;
     adjustments;
     audit;
-    constructor(prisma, companyAccess, adjustments, audit) {
+    realtime;
+    constructor(prisma, companyAccess, adjustments, audit, realtime) {
         this.prisma = prisma;
         this.companyAccess = companyAccess;
         this.adjustments = adjustments;
         this.audit = audit;
+        this.realtime = realtime;
     }
     listReasonCodes() {
         return {
@@ -246,6 +250,9 @@ let CycleCountVarianceService = class CycleCountVarianceService {
                     },
                 },
             });
+        }).then((created) => {
+            this.realtime.emitAdjustmentCreated(count.companyId, (0, realtime_ops_payload_1.adjustmentPayload)(created));
+            return created;
         });
     }
     async postReconciliation(user, cycleCountId) {
@@ -378,6 +385,7 @@ exports.CycleCountVarianceService = CycleCountVarianceService = __decorate([
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         company_access_service_1.CompanyAccessService,
         adjustments_service_1.AdjustmentsService,
-        audit_log_service_1.AuditLogService])
+        audit_log_service_1.AuditLogService,
+        realtime_service_1.RealtimeService])
 ], CycleCountVarianceService);
 //# sourceMappingURL=cycle-count-variance.service.js.map

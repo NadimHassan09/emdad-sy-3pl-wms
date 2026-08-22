@@ -11,26 +11,57 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientOutboundOrdersService = void 0;
 const common_1 = require("@nestjs/common");
+const client_1 = require("@prisma/client");
 const client_auth_principal_1 = require("../../../common/auth/client-auth-principal");
 const outbound_service_1 = require("../../outbound/outbound.service");
+const client_list_outbound_query_dto_1 = require("./dto/client-list-outbound-query.dto");
+function toProductImageUrl(imagePath) {
+    if (!imagePath?.trim())
+        return null;
+    return `/media/${imagePath.replace(/^\/+/, '')}`;
+}
 let ClientOutboundOrdersService = class ClientOutboundOrdersService {
     outbound;
     constructor(outbound) {
         this.outbound = outbound;
     }
     async findOne(client, id) {
-        return this.outbound.findById(id, (0, client_auth_principal_1.clientAuthPrincipal)(client));
+        const order = await this.outbound.findById(id, (0, client_auth_principal_1.clientAuthPrincipal)(client));
+        return {
+            ...order,
+            lines: order.lines.map((line) => ({
+                ...line,
+                product: {
+                    ...line.product,
+                    imageUrl: toProductImageUrl(line.product.imagePath),
+                },
+            })),
+        };
     }
     async list(client, query) {
-        return this.outbound.list((0, client_auth_principal_1.clientAuthPrincipal)(client), {
-            ...query,
+        const principal = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        const base = {
+            limit: query.limit,
+            offset: query.offset,
+            orderSearch: query.orderSearch,
             companyId: client.companyId,
-        });
+        };
+        if (query.status === 'in_progress') {
+            base.statusIn = client_list_outbound_query_dto_1.CLIENT_OUTBOUND_IN_PROGRESS_STATUSES;
+        }
+        else if (query.status === 'shipped') {
+            base.statusIn = [client_1.OutboundOrderStatus.shipped, client_1.OutboundOrderStatus.delivered];
+        }
+        else if (query.status) {
+            base.status = query.status;
+        }
+        return this.outbound.list(principal, base);
     }
     async create(client, dto) {
-        return this.outbound.create((0, client_auth_principal_1.clientAuthPrincipal)(client), dto, {
-            pendingClientApproval: true,
-        });
+        return this.outbound.create((0, client_auth_principal_1.clientAuthPrincipal)(client), { ...dto, executionMode: 'admin', executionPlan: undefined }, { pendingClientApproval: true });
+    }
+    async findByExternalReference(client, externalReference) {
+        return this.outbound.findByExternalReference((0, client_auth_principal_1.clientAuthPrincipal)(client), client.companyId, externalReference);
     }
 };
 exports.ClientOutboundOrdersService = ClientOutboundOrdersService;

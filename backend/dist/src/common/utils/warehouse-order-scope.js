@@ -47,11 +47,11 @@ async function inboundIdsVisibleForWarehouse(prisma, warehouseId, baseWhere) {
         select: { id: true },
     });
     const idSet = new Set([...receivedHere.map((r) => r.referenceId), ...neverReceivedOrders.map((o) => o.id)].filter(Boolean));
-    const preWorkflowRows = await prisma.inboundOrder.findMany({
-        where: { ...baseWhere, status: { in: ['draft', 'pending_approval'] } },
+    const alwaysVisibleRows = await prisma.inboundOrder.findMany({
+        where: { ...baseWhere, status: { in: ['draft', 'pending_approval', 'cancelled'] } },
         select: { id: true },
     });
-    for (const o of preWorkflowRows)
+    for (const o of alwaysVisibleRows)
         idSet.add(o.id);
     return idSet.size ? { id: { in: [...idSet] } } : { id: { in: [] } };
 }
@@ -90,11 +90,11 @@ async function outboundIdsVisibleForWarehouse(prisma, warehouseId, baseWhere) {
         select: { id: true },
     });
     const idSet = new Set([...pickedHere.map((r) => r.referenceId), ...neverPickedOrders.map((o) => o.id)].filter(Boolean));
-    const preWorkflowOutRows = await prisma.outboundOrder.findMany({
-        where: { ...baseWhere, status: { in: ['draft', 'pending_approval'] } },
+    const alwaysVisibleOutRows = await prisma.outboundOrder.findMany({
+        where: { ...baseWhere, status: { in: ['draft', 'pending_approval', 'cancelled'] } },
         select: { id: true },
     });
-    for (const o of preWorkflowOutRows)
+    for (const o of alwaysVisibleOutRows)
         idSet.add(o.id);
     return idSet.size ? { id: { in: [...idSet] } } : { id: { in: [] } };
 }

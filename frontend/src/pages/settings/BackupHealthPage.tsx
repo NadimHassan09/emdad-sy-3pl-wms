@@ -1,10 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate } from 'react-router-dom';
-
-import { BackupsApi, type BackupHealthSeverity } from '../../api/backups';
+import { Alert, Badge, SectionContainer } from '@ds';
 import { BackupHealthAuditPanel } from '../../components/backups/BackupHealthAuditPanel';
 import { Button } from '../../components/Button';
-import { PANEL_CARD_CLASS, PANEL_TITLE_CLASS } from '../../components/FilterPanel';
 import { QK } from '../../constants/query-keys';
 import { useAuth } from '../../auth/AuthContext';
 import { useBackupAdminAccess } from '../../hooks/useBackupAdminAccess';
@@ -18,23 +16,23 @@ import {
 import { useWmsTranslation } from '../../lib/ui-i18n';
 import { useToast } from '../../components/ToastProvider';
 
+import { BackupsApi, type BackupHealthSeverity } from '../../api/backups';
+
 function healthStatusClass(status: BackupHealthSeverity): string {
   switch (status) {
     case 'healthy':
-      return 'border-emerald-300 bg-emerald-50 text-emerald-900';
+      return 'border-status-success-border bg-status-success-bg text-status-success-fg';
     case 'warning':
-      return 'border-amber-300 bg-amber-50 text-amber-900';
+      return 'border-status-warning-border bg-status-warning-bg text-status-warning-fg';
     case 'critical':
-      return 'border-rose-300 bg-rose-50 text-rose-900';
+      return 'border-status-danger-border bg-status-danger-bg text-status-danger-fg';
     default:
-      return 'border-slate-200 bg-slate-50 text-slate-900';
+      return 'border-border bg-surface-card-muted text-text-strong';
   }
 }
 
-function alertClass(severity: 'warning' | 'critical'): string {
-  return severity === 'critical'
-    ? 'border-rose-200 bg-rose-50 text-rose-900'
-    : 'border-amber-200 bg-amber-50 text-amber-900';
+function alertVariant(severity: 'warning' | 'critical'): 'warning' | 'error' {
+  return severity === 'critical' ? 'error' : 'warning';
 }
 
 function formatHours(value: number | null | undefined): string {
@@ -51,6 +49,12 @@ function deriveDriveHealthKey(
   if (drive.pendingSyncCount > 0) return 'pending';
   if (drive.lastSyncedAt) return 'healthy';
   return 'idle';
+}
+
+function driveHealthSeverity(key: ReturnType<typeof deriveDriveHealthKey>): BackupHealthSeverity {
+  if (key === 'healthy' || key === 'idle') return 'healthy';
+  if (key === 'pending' || key === 'disabled') return 'warning';
+  return 'critical';
 }
 
 const GDRIVE_ALERT_CODES = new Set([
@@ -104,12 +108,10 @@ export function BackupHealthPage() {
 
   return (
     <div className="space-y-4">
-      <section className={PANEL_CARD_CLASS}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <h2 className={PANEL_TITLE_CLASS}>
-            {t(['Backup health dashboard', 'لوحة صحة النسخ الاحتياطي'])}
-          </h2>
-          {isSuperAdmin ? (
+      <SectionContainer
+        title={t(['Backup health dashboard', 'لوحة صحة النسخ الاحتياطي'])}
+        actions={
+          isSuperAdmin ? (
             <Button
               type="button"
               size="sm"
@@ -122,13 +124,14 @@ export function BackupHealthPage() {
                 ? t(['Evaluating…', 'جارٍ التقييم…'])
                 : t(['Evaluate alerts now', 'تقييم التنبيهات الآن'])}
             </Button>
-          ) : null}
-        </div>
+          ) : undefined
+        }
+      >
         {healthQuery.isLoading ? (
-          <p className="text-sm text-slate-500">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+          <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
         ) : health ? (
           <>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div
                 className={`rounded-xl border-2 p-4 ${healthStatusClass(health.healthStatus)}`}
               >
@@ -139,104 +142,99 @@ export function BackupHealthPage() {
                   {localizedBackupHealthStatus(health.healthStatus, t)}
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs text-slate-500">
+              <div className="rounded-xl border border-border bg-surface-card p-4">
+                <p className="text-xs text-text-muted">
                   {t(['Last successful backup', 'آخر نسخة ناجحة'])}
                 </p>
-                <p className="mt-1 font-semibold text-slate-900">
+                <p className="mt-1 font-semibold text-text-strong">
                   {formatBackupTimestamp(health.lastSuccessfulBackupAt)}
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs text-slate-500">
+              <div className="rounded-xl border border-border bg-surface-card p-4">
+                <p className="text-xs text-text-muted">
                   {t(['Last failed backup', 'آخر نسخة فاشلة'])}
                 </p>
-                <p className="mt-1 font-semibold text-slate-900">
+                <p className="mt-1 font-semibold text-text-strong">
                   {formatBackupTimestamp(health.lastFailedBackupAt)}
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs text-slate-500">{t(['Backup count', 'عدد النسخ'])}</p>
-                <p className="mt-1 text-2xl font-semibold">{health.backupCount}</p>
+              <div className="rounded-xl border border-border bg-surface-card p-4">
+                <p className="text-xs text-text-muted">{t(['Backup count', 'عدد النسخ'])}</p>
+                <p className="mt-1 text-2xl font-semibold text-text-strong">{health.backupCount}</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs text-slate-500">{t(['Storage used', 'التخزين المستخدم'])}</p>
-                <p className="mt-1 text-2xl font-semibold">
+              <div className="rounded-xl border border-border bg-surface-card p-4">
+                <p className="text-xs text-text-muted">{t(['Storage used', 'التخزين المستخدم'])}</p>
+                <p className="mt-1 text-2xl font-semibold text-text-strong">
                   {formatBackupBytes(health.storageUsedBytes)}
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs text-slate-500">
+              <div className="rounded-xl border border-border bg-surface-card p-4">
+                <p className="text-xs text-text-muted">
                   {t(['Next scheduled backup', 'النسخة المجدولة القادمة'])}
                 </p>
-                <p className="mt-1 font-semibold text-slate-900">
+                <p className="mt-1 font-semibold text-text-strong">
                   {formatBackupTimestamp(health.nextScheduledBackupAt)}
                 </p>
               </div>
             </div>
 
-            <h3 className="mt-6 text-sm font-semibold text-slate-800">
+            <h3 className="mt-6 text-sm font-semibold text-text-strong">
               {t(['Metrics', 'المقاييس'])}
             </h3>
             <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-lg border border-slate-200 p-3">
-                <dt className="text-xs text-slate-500">
+              <div className="rounded-lg border border-border p-3">
+                <dt className="text-xs text-text-muted">
                   {t(['Hours since success', 'ساعات منذ النجاح'])}
                 </dt>
-                <dd className="font-semibold">
+                <dd className="font-semibold text-text-strong">
                   {formatHours(health.metrics.hoursSinceLastSuccessfulBackup)}
                 </dd>
               </div>
-              <div className="rounded-lg border border-slate-200 p-3">
-                <dt className="text-xs text-slate-500">
+              <div className="rounded-lg border border-border p-3">
+                <dt className="text-xs text-text-muted">
                   {t(['Hours since failure', 'ساعات منذ الفشل'])}
                 </dt>
-                <dd className="font-semibold">
+                <dd className="font-semibold text-text-strong">
                   {formatHours(health.metrics.hoursSinceLastFailedBackup)}
                 </dd>
               </div>
-              <div className="rounded-lg border border-slate-200 p-3">
-                <dt className="text-xs text-slate-500">
+              <div className="rounded-lg border border-border p-3">
+                <dt className="text-xs text-text-muted">
                   {t(['Oldest backup age', 'عمر أقدم نسخة'])}
                 </dt>
-                <dd className="font-semibold">
+                <dd className="font-semibold text-text-strong">
                   {formatHours(health.metrics.oldestBackupAgeHours)}
                 </dd>
               </div>
-              <div className="rounded-lg border border-slate-200 p-3">
-                <dt className="text-xs text-slate-500">
+              <div className="rounded-lg border border-border p-3">
+                <dt className="text-xs text-text-muted">
                   {t(['Recent failure count', 'إخفاقات حديثة'])}
                 </dt>
-                <dd className="font-semibold">{health.metrics.recentFailureCount}</dd>
+                <dd className="font-semibold text-text-strong">{health.metrics.recentFailureCount}</dd>
               </div>
             </dl>
           </>
         ) : null}
-      </section>
+      </SectionContainer>
 
       {drive ? (
-        <section className={PANEL_CARD_CLASS}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className={PANEL_TITLE_CLASS}>
-                {t(['Google Drive DR status', 'حالة Google Drive للتعافي'])}
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                {t([
-                  'Off-site backup sync health. Manage connection under Settings → Backups → Google Drive.',
-                  'صحة مزامنة النسخ خارج الموقع. إدارة الاتصال من الإعدادات → النسخ → Google Drive.',
-                ])}
-              </p>
-            </div>
+        <SectionContainer
+          title={t(['Google Drive DR status', 'حالة Google Drive للتعافي'])}
+          description={t([
+            'Off-site backup sync health. Manage connection under Settings → Backups → Google Drive.',
+            'صحة مزامنة النسخ خارج الموقع. إدارة الاتصال من الإعدادات → النسخ → Google Drive.',
+          ])}
+          actions={
             <Link
-              to="/settings/backups/google-drive"
-              className="text-sm font-medium text-sky-700 hover:text-sky-900"
+              to="/backups/google-drive"
+              className="text-sm font-medium text-text-link hover:underline"
             >
               {t(['Open Google Drive settings', 'فتح إعدادات Google Drive'])}
             </Link>
-          </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className={`rounded-xl border-2 p-4 ${healthStatusClass(driveKey === 'healthy' || driveKey === 'idle' ? 'healthy' : driveKey === 'pending' ? 'warning' : driveKey === 'disabled' ? 'healthy' : 'critical')}`}>
+          }
+        >
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className={`rounded-xl border-2 p-4 ${healthStatusClass(driveHealthSeverity(driveKey))}`}>
               <p className="text-xs font-medium uppercase tracking-wide opacity-80">
                 {t(['Drive sync', 'مزامنة Drive'])}
               </p>
@@ -244,62 +242,64 @@ export function BackupHealthPage() {
                 {localizedGoogleDriveSyncStatus(driveKey, t)}
               </p>
             </div>
-            <div className="rounded-lg border border-slate-200 p-3">
-              <dt className="text-xs text-slate-500">{t(['Configured', 'مُعدّ'])}</dt>
-              <dd className="font-semibold">{drive.configured ? t(['Yes', 'نعم']) : t(['No', 'لا'])}</dd>
+            <div className="rounded-lg border border-border p-3">
+              <dt className="text-xs text-text-muted">{t(['Configured', 'مُعدّ'])}</dt>
+              <dd className="font-semibold text-text-strong">{drive.configured ? t(['Yes', 'نعم']) : t(['No', 'لا'])}</dd>
             </div>
-            <div className="rounded-lg border border-slate-200 p-3">
-              <dt className="text-xs text-slate-500">{t(['Connected', 'متصل'])}</dt>
-              <dd className="font-semibold">{drive.connected ? t(['Yes', 'نعم']) : t(['No', 'لا'])}</dd>
+            <div className="rounded-lg border border-border p-3">
+              <dt className="text-xs text-text-muted">{t(['Connected', 'متصل'])}</dt>
+              <dd className="font-semibold text-text-strong">{drive.connected ? t(['Yes', 'نعم']) : t(['No', 'لا'])}</dd>
             </div>
-            <div className="rounded-lg border border-slate-200 p-3">
-              <dt className="text-xs text-slate-500">{t(['Last sync', 'آخر مزامنة'])}</dt>
-              <dd className="font-semibold">{formatBackupTimestamp(drive.lastSyncedAt)}</dd>
+            <div className="rounded-lg border border-border p-3">
+              <dt className="text-xs text-text-muted">{t(['Last sync', 'آخر مزامنة'])}</dt>
+              <dd className="font-semibold text-text-strong">{formatBackupTimestamp(drive.lastSyncedAt)}</dd>
             </div>
-            <div className="rounded-lg border border-slate-200 p-3">
-              <dt className="text-xs text-slate-500">{t(['Pending syncs', 'مزامنات معلّقة'])}</dt>
-              <dd className="font-semibold">{drive.pendingSyncCount}</dd>
+            <div className="rounded-lg border border-border p-3">
+              <dt className="text-xs text-text-muted">{t(['Pending syncs', 'مزامنات معلّقة'])}</dt>
+              <dd className="font-semibold text-text-strong">{drive.pendingSyncCount}</dd>
             </div>
-            <div className="rounded-lg border border-slate-200 p-3">
-              <dt className="text-xs text-slate-500">{t(['Failed syncs', 'مزامنات فاشلة'])}</dt>
-              <dd className="font-semibold">{drive.failedSyncCount}</dd>
+            <div className="rounded-lg border border-border p-3">
+              <dt className="text-xs text-text-muted">{t(['Failed syncs', 'مزامنات فاشلة'])}</dt>
+              <dd className="font-semibold text-text-strong">{drive.failedSyncCount}</dd>
             </div>
-            <div className="rounded-lg border border-slate-200 p-3">
-              <dt className="text-xs text-slate-500">
+            <div className="rounded-lg border border-border p-3">
+              <dt className="text-xs text-text-muted">
                 {t(['Hours since last sync', 'ساعات منذ آخر مزامنة'])}
               </dt>
-              <dd className="font-semibold">{formatHours(drive.hoursSinceLastSync)}</dd>
+              <dd className="font-semibold text-text-strong">{formatHours(drive.hoursSinceLastSync)}</dd>
             </div>
           </div>
-        </section>
+        </SectionContainer>
       ) : null}
 
       {health && visibleAlerts.length > 0 ? (
-        <section className={PANEL_CARD_CLASS}>
-          <h2 className={PANEL_TITLE_CLASS}>{t(['Active alerts', 'تنبيهات نشطة'])}</h2>
-          <ul className="mt-3 space-y-2">
+        <SectionContainer title={t(['Active alerts', 'تنبيهات نشطة'])}>
+          <ul className="space-y-2">
             {visibleAlerts.map((alert) => (
-              <li
-                key={`${alert.code}-${alert.severity}`}
-                className={`rounded-lg border px-4 py-3 text-sm ${alertClass(alert.severity)}`}
-              >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs font-medium">{alert.code}</span>
-                  <span className="rounded-full bg-white/60 px-2 py-0.5 text-xs font-semibold uppercase">
-                    {alert.severity}
-                  </span>
-                </div>
-                <p className="mt-1">{alert.message}</p>
+              <li key={`${alert.code}-${alert.severity}`}>
+                <Alert
+                  variant={alertVariant(alert.severity)}
+                  compact
+                  title={
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs font-medium">{alert.code}</span>
+                      <Badge tone={alert.severity === 'critical' ? 'danger' : 'warning'} size="xs">
+                        {alert.severity}
+                      </Badge>
+                    </span>
+                  }
+                  description={alert.message}
+                />
               </li>
             ))}
           </ul>
-        </section>
+        </SectionContainer>
       ) : health ? (
-        <section className={PANEL_CARD_CLASS}>
-          <p className="text-sm text-slate-500">
+        <SectionContainer>
+          <p className="text-sm text-text-muted">
             {t(['No active alerts.', 'لا توجد تنبيهات نشطة.'])}
           </p>
-        </section>
+        </SectionContainer>
       ) : null}
 
       <BackupHealthAuditPanel />

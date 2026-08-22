@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+
+import { Alert, Card } from '@ds';
 
 import {
   CompaniesApi,
@@ -9,28 +11,37 @@ import {
   type CreateCompanyPayload,
   type UpdateCompanyPayload,
 } from '../api/companies';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { Button } from '../components/Button';
+import { CustomerLifecycleModal } from '../components/clients/CustomerLifecycleModal';
 import { DataTable, type Column } from '../components/DataTable';
-import { FilterPanel } from '../components/FilterPanel';
+import { ImageUploadField } from '../components/ImageUploadField';
 import { Modal } from '../components/Modal';
 import { SelectField } from '../components/SelectField';
 import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
+import { useAuth } from '../auth/AuthContext';
 import { useFilters } from '../hooks/useFilters';
+import { adminMediaSrc } from '../lib/admin-media';
+import {
+  sanitizeCompanyPayload,
+  validateCompanyForm,
+  type CompanyFormErrors,
+} from '../lib/company-form-validation';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
-
-type ClientSearchCategory = 'name' | 'tradeName' | 'email' | 'phone' | 'city' | 'country';
+import { useDebounced } from '../lib/useDebounced';
 
 type ClientListFilters = {
   search: string;
-  searchCategory: ClientSearchCategory;
 };
 
 const TEXTAREA_CLASS =
-  'mt-1 block w-full min-h-[72px] rounded-md border border-slate-300 px-3 py-1.5 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200';
+  'mt-1 block w-full min-h-[72px] rounded-md border border-border-strong px-3 py-1.5 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200';
+const TEXTAREA_ERROR_CLASS =
+  'mt-1 block w-full min-h-[72px] rounded-md border border-status-danger-border px-3 py-1.5 text-sm shadow-sm focus:border-status-danger-border focus:outline-none focus:ring-2 focus:ring-status-danger-border/40';
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
@@ -55,22 +66,31 @@ function FieldTextarea({
   value,
   onChange,
   id,
+  error,
+  required,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   id: string;
+  error?: string;
+  required?: boolean;
 }) {
   return (
     <label htmlFor={id} className="block">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <span className="text-sm font-medium text-text-body">
+        {label}
+        {required ? <span className="text-status-error-fg"> *</span> : null}
+      </span>
       <textarea
         id={id}
-        className={TEXTAREA_CLASS}
+        className={error ? TEXTAREA_ERROR_CLASS : TEXTAREA_CLASS}
         value={value}
         spellCheck
+        aria-invalid={error ? true : undefined}
         onChange={(e) => onChange(e.target.value)}
       />
+      {error ? <span className="mt-1 block text-xs text-status-error-fg">{error}</span> : null}
     </label>
   );
 }
@@ -82,18 +102,37 @@ export function ClientsPage() {
   const t = (en: string, ar: string) => (isArabic ? ar : en);
   const qc = useQueryClient();
   const toast = useToast();
-  const [createOpen, setCreateOpen] = useState(false);
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'super_admin';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [createOpen, setCreateOpen] = useState(() => searchParams.get('create') === '1');
   const [editRow, setEditRow] = useState<CompanyListRow | null>(null);
+  const [lifecycleRow, setLifecycleRow] = useState<CompanyListRow | null>(null);
   const [openActionId, setOpenActionId] = useState<string | null>(null);
   const [createForm, setCreateForm] = useState<CreateCompanyPayload>(emptyCreate);
+  const [createErrors, setCreateErrors] = useState<CompanyFormErrors>({});
+  const [editErrors, setEditErrors] = useState<CompanyFormErrors>({});
+  const [createLogoFile, setCreateLogoFile] = useState<File | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [editLogoVersion, setEditLogoVersion] = useState(() => Date.now());
 
-  const initialClientFilters = useMemo<ClientListFilters>(
-    () => ({ search: '', searchCategory: 'name' }),
-    [],
-  );
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(initialClientFilters);
+  const initialClientFilters = useMemo<ClientListFilters>(() => ({ search: '' }), []);
+  const { draftFilters, appliedFilters, setDraft, applyPatch } = useFilters(initialClientFilters);
+  const debouncedSearch = useDebounced(draftFilters.search, 300);
   const [editForm, setEditForm] = useState<UpdateCompanyPayload>({});
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1') return;
+    setCreateOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('create');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (debouncedSearch === appliedFilters.search) return;
+    applyPatch({ search: debouncedSearch });
+  }, [debouncedSearch, appliedFilters.search, applyPatch]);
 
   useEffect(() => {
     if (!openActionId) return;
@@ -114,7 +153,7 @@ export function ClientsPage() {
 
   const companiesKey = QK.companies;
 
-  const { data: rows = [], isLoading, isFetching, error } = useQuery({
+  const { data: rows = [], isLoading, error } = useQuery({
     queryKey: companiesKey,
     queryFn: () => CompaniesApi.list({ includeAll: true }),
   });
@@ -122,23 +161,19 @@ export function ClientsPage() {
   const invalidate = () => qc.invalidateQueries({ queryKey: companiesKey });
 
   const createMut = useMutation({
-    mutationFn: () => {
-      const p: CreateCompanyPayload = {
-        name: createForm.name.trim(),
-        contactEmail: createForm.contactEmail.trim(),
-        country: (createForm.country ?? 'SA').trim() || 'SA',
-      };
-      if (createForm.tradeName?.trim()) p.tradeName = createForm.tradeName.trim();
-      if (createForm.city?.trim()) p.city = createForm.city.trim();
-      if (createForm.contactPhone?.trim()) p.contactPhone = createForm.contactPhone.trim();
-      if (createForm.address?.trim()) p.address = createForm.address.trim();
-      if (createForm.notes?.trim()) p.notes = createForm.notes.trim();
-      return CompaniesApi.create(p);
+    mutationFn: async (payload: CreateCompanyPayload) => {
+      const company = await CompaniesApi.create(payload);
+      if (createLogoFile) {
+        await CompaniesApi.uploadLogo(company.id, createLogoFile);
+      }
+      return company;
     },
     onSuccess: () => {
       toast.success('Company created.');
       setCreateOpen(false);
       setCreateForm(emptyCreate);
+      setCreateLogoFile(null);
+      setCreateErrors({});
       setOpenActionId(null);
       invalidate();
     },
@@ -146,34 +181,13 @@ export function ClientsPage() {
   });
 
   const updateMut = useMutation({
-    mutationFn: () => {
-      if (!editRow) throw new Error('No row');
-      return CompaniesApi.update(editRow.id, editForm);
-    },
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateCompanyPayload }) =>
+      CompaniesApi.update(id, payload),
     onSuccess: () => {
       toast.success('Company saved.');
       setEditRow(null);
       setEditForm({});
-      setOpenActionId(null);
-      invalidate();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const suspendMut = useMutation({
-    mutationFn: (id: string) => CompaniesApi.suspend(id),
-    onSuccess: () => {
-      toast.success('Client suspended.');
-      setOpenActionId(null);
-      invalidate();
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  const removeMut = useMutation({
-    mutationFn: (id: string) => CompaniesApi.remove(id),
-    onSuccess: () => {
-      toast.success('Company deleted.');
+      setEditErrors({});
       setOpenActionId(null);
       invalidate();
     },
@@ -182,6 +196,8 @@ export function ClientsPage() {
 
   const openEdit = (r: CompanyListRow) => {
     setEditRow(r);
+    setEditErrors({});
+    setEditLogoVersion(Date.now());
     setEditForm({
       name: r.name,
       tradeName: r.tradeName ?? '',
@@ -198,6 +214,8 @@ export function ClientsPage() {
   const closeCreate = () => {
     if (!createMut.isPending) {
       setCreateForm(emptyCreate);
+      setCreateLogoFile(null);
+      setCreateErrors({});
       setCreateOpen(false);
     }
   };
@@ -206,31 +224,113 @@ export function ClientsPage() {
     if (!updateMut.isPending) {
       setEditRow(null);
       setEditForm({});
+      setEditErrors({});
     }
   };
 
   const submitCreate = (e: FormEvent) => {
     e.preventDefault();
-    createMut.mutate();
+    const fields = {
+      name: createForm.name,
+      tradeName: createForm.tradeName,
+      contactEmail: createForm.contactEmail,
+      country: createForm.country ?? '',
+      city: createForm.city ?? '',
+      contactPhone: createForm.contactPhone,
+      address: createForm.address,
+      notes: createForm.notes,
+    };
+    const errors = validateCompanyForm(fields, { isArabic, requireCity: true });
+    setCreateErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error(t('Please fix the highlighted fields.', 'يرجى تصحيح الحقول المحددة.'));
+      return;
+    }
+    const clean = sanitizeCompanyPayload(fields);
+    createMut.mutate({
+      name: clean.name,
+      contactEmail: clean.contactEmail,
+      country: clean.country,
+      city: clean.city,
+      ...(clean.tradeName ? { tradeName: clean.tradeName } : {}),
+      ...(clean.contactPhone ? { contactPhone: clean.contactPhone } : {}),
+      ...(clean.address ? { address: clean.address } : {}),
+      ...(clean.notes ? { notes: clean.notes } : {}),
+    });
   };
 
   const submitEdit = (e: FormEvent) => {
     e.preventDefault();
-    updateMut.mutate();
+    if (!editRow) return;
+    const fields = {
+      name: editForm.name ?? '',
+      tradeName: editForm.tradeName,
+      contactEmail: editForm.contactEmail ?? '',
+      country: editForm.country ?? '',
+      city: editForm.city ?? '',
+      contactPhone: editForm.contactPhone,
+      address: editForm.address,
+      notes: editForm.notes,
+    };
+    const errors = validateCompanyForm(fields, { isArabic, requireCity: true });
+    setEditErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error(t('Please fix the highlighted fields.', 'يرجى تصحيح الحقول المحددة.'));
+      return;
+    }
+    const clean = sanitizeCompanyPayload(fields);
+    updateMut.mutate({
+      id: editRow.id,
+      payload: {
+        name: clean.name,
+        contactEmail: clean.contactEmail,
+        country: clean.country,
+        city: clean.city,
+        tradeName: clean.tradeName ?? null,
+        contactPhone: clean.contactPhone ?? null,
+        address: clean.address ?? null,
+        notes: clean.notes ?? null,
+        status: editForm.status,
+      },
+    });
   };
 
   const columns: Column<CompanyListRow>[] = useMemo(
     () => [
-      { header: t('Name', 'الاسم'), accessor: (r) => <span className="text-slate-800">{r.name}</span> },
-      { header: t('Trade name', 'الاسم التجاري'), accessor: (r) => <span className="text-slate-600">{r.tradeName ?? '—'}</span> },
-      { header: t('Email', 'البريد الإلكتروني'), accessor: (r) => <span className="text-slate-700">{r.contactEmail}</span> },
-      { header: t('Phone', 'الهاتف'), accessor: (r) => <span className="text-slate-600">{r.contactPhone ?? '—'}</span> },
-      { header: t('City', 'المدينة'), accessor: (r) => <span className="text-slate-600">{r.city ?? '—'}</span> },
-      { header: t('Country', 'الدولة'), accessor: (r) => <span className="text-slate-600">{r.country ?? '—'}</span> },
+      {
+        header: t('Name', 'الاسم'),
+        accessor: (r) => {
+          const logoSrc = adminMediaSrc(r.logoUrl);
+          return (
+            <div className="flex items-center gap-3">
+              {logoSrc ? (
+                <img
+                  src={logoSrc}
+                  alt=""
+                  className="h-9 w-9 shrink-0 rounded-lg border border-border object-cover"
+                />
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-text-faint">
+                  <i className="fa-solid fa-building text-xs" aria-hidden="true" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="truncate font-semibold text-text-strong">{r.name}</div>
+                <div className="truncate text-xs text-text-muted">{r.tradeName || '—'}</div>
+              </div>
+            </div>
+          );
+        },
+      },
+      { header: t('Trade name', 'الاسم التجاري'), accessor: (r) => <span className="text-text-body">{r.tradeName ?? '—'}</span> },
+      { header: t('Email', 'البريد الإلكتروني'), accessor: (r) => <span className="text-text-body">{r.contactEmail}</span> },
+      { header: t('Phone', 'الهاتف'), accessor: (r) => <span className="text-text-body">{r.contactPhone ?? '—'}</span> },
+      { header: t('City', 'المدينة'), accessor: (r) => <span className="text-text-body">{r.city ?? '—'}</span> },
+      { header: t('Country', 'الدولة'), accessor: (r) => <span className="text-text-body">{r.country ?? '—'}</span> },
       {
         header: t('Billing', 'الفوترة'),
         accessor: (r) => (
-          <span className="text-slate-600">
+          <span className="text-text-body">
             {r.billingCycle} · {r.paymentTermsDays}d
           </span>
         ),
@@ -243,8 +343,7 @@ export function ClientsPage() {
         header: t('Actions', 'الإجراءات'),
         className: 'min-w-[120px] text-right',
         accessor: (r) => {
-          const busy =
-            suspendMut.isPending || removeMut.isPending || updateMut.isPending || createMut.isPending;
+          const busy = updateMut.isPending || createMut.isPending;
           return (
             <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
               <AnchoredDropdown
@@ -254,7 +353,7 @@ export function ClientsPage() {
                 trigger={
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-card-muted"
                     disabled={busy}
                     data-client-action-trigger="true"
                     onClick={() => setOpenActionId((cur) => (cur === r.id ? null : r.id))}
@@ -270,50 +369,35 @@ export function ClientsPage() {
               >
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                  className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-card-muted"
                   data-client-action-menu-button="true"
                   onClick={() => {
                     setOpenActionId(null);
                     openEdit(r);
                   }}
                 >
-                  Edit
+                  {t('Edit', 'تعديل')}
                 </button>
-                {r.status === 'active' ? (
+                {r.status !== 'purged' ? (
                   <button
                     type="button"
-                    className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                    className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-card-muted"
                     data-client-action-menu-button="true"
                     onClick={() => {
-                      if (window.confirm(`Suspend operations for "${r.name}"?`)) suspendMut.mutate(r.id);
+                      setOpenActionId(null);
+                      setLifecycleRow(r);
                     }}
                   >
-                    Suspend
+                    {t('Manage account status', 'إدارة حالة الحساب')}
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
-                  data-client-action-menu-button="true"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Permanently delete "${r.name}"? This only succeeds if there are no linked products, orders, or users. Otherwise the server will reject the request.`,
-                      )
-                    ) {
-                      removeMut.mutate(r.id);
-                    }
-                  }}
-                >
-                  Delete
-                </button>
               </AnchoredDropdown>
             </div>
           );
         },
       },
     ],
-    [suspendMut.isPending, removeMut.isPending, updateMut.isPending, createMut.isPending, openActionId, isArabic],
+    [updateMut.isPending, createMut.isPending, openActionId, isArabic],
   );
 
   const errMsg = error instanceof Error ? error.message : null;
@@ -321,75 +405,54 @@ export function ClientsPage() {
     const q = appliedFilters.search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => {
-      const value = (() => {
-        switch (appliedFilters.searchCategory) {
-          case 'tradeName':
-            return r.tradeName ?? '';
-          case 'email':
-            return r.contactEmail ?? '';
-          case 'phone':
-            return r.contactPhone ?? '';
-          case 'city':
-            return r.city ?? '';
-          case 'country':
-            return r.country ?? '';
-          case 'name':
-          default:
-            return r.name ?? '';
-        }
-      })();
-      return value.toLowerCase().includes(q);
+      const haystack = [
+        r.name,
+        r.tradeName,
+        r.contactEmail,
+        r.contactPhone,
+        r.city,
+        r.country,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
     });
-  }, [rows, appliedFilters.search, appliedFilters.searchCategory]);
+  }, [rows, appliedFilters.search]);
 
   return (
-    <>
-      {errMsg ? <p className="mb-4 text-sm text-rose-600">{errMsg}</p> : null}
+    <AdminListPageShell
+      icon="fa-building"
+      title={t('Clients', 'العملاء')}
+      subtitle={t('Manage client companies', 'إدارة شركات العملاء')}
+      isArabic={isArabic}
+      actions={
+        <Button type="button" variant="brand" onClick={() => setCreateOpen(true)}>
+          {t('+ New company', '+ شركة جديدة')}
+        </Button>
+      }
+    >
+      {errMsg ? <Alert variant="error" title={errMsg} className="mb-4" /> : null}
 
-      <FilterPanel
-        title={t('Client filters', 'فلاتر العملاء')}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={isFetching}
-        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
-        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
-      >
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-full min-w-[10rem] max-w-[25%] flex-1 basis-32">
-            <TextField
-              label={t('Search', 'بحث')}
-              value={draftFilters.search}
-              onChange={(e) => setDraft({ search: e.target.value })}
-              placeholder={t('Search client...', 'ابحث عن عميل...')}
-            />
-          </div>
-          <SelectField
-            label={t('Search by', 'البحث حسب')}
-            name="clientSearchCategory"
-            value={draftFilters.searchCategory}
-            onChange={(e) =>
-              setDraft({ searchCategory: e.target.value as ClientSearchCategory })
-            }
-            options={[
-              { value: 'name', label: t('Company name', 'اسم الشركة') },
-              { value: 'tradeName', label: t('Trade name', 'الاسم التجاري') },
-              { value: 'email', label: t('Email', 'البريد الإلكتروني') },
-              { value: 'phone', label: t('Phone', 'الهاتف') },
-              { value: 'city', label: t('City', 'المدينة') },
-              { value: 'country', label: t('Country', 'الدولة') },
-            ]}
-            className="min-w-[8.75rem] max-w-[11rem] shrink-0"
+      <Card padding="md">
+        <div className="relative w-full">
+          <i
+            className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+            aria-hidden
+          />
+          <input
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder={t(
+              'Search name, email, phone, city…',
+              'ابحث بالاسم أو البريد أو الهاتف أو المدينة…',
+            )}
+            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
           />
         </div>
-      </FilterPanel>
+      </Card>
 
       <DataTable
-        title={t('Clients', 'العملاء')}
-        actions={
-          <Button type="button" variant="brand" onClick={() => setCreateOpen(true)}>
-            {t('+ New company', '+ شركة جديدة')}
-          </Button>
-        }
         columns={columns}
         rows={filteredRows}
         rowKey={(r) => r.id}
@@ -433,19 +496,37 @@ export function ClientsPage() {
           </>
         }
       >
-        <form id="create-company" onSubmit={submitCreate} className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1">
+        <form id="create-company" onSubmit={submitCreate} className="max-h-[calc(100vh-220px)] space-y-3 overflow-y-auto pr-1" noValidate>
+          <ImageUploadField
+            label={t('Company logo', 'شعار الشركة')}
+            hint={t('Optional. Images are compressed before saving.', 'اختياري. يتم ضغط الصور قبل الحفظ.')}
+            file={createLogoFile}
+            onFileChange={setCreateLogoFile}
+            rounded="xl"
+            size="sm"
+            isArabic={isArabic}
+            disabled={createMut.isPending}
+          />
           <TextField
             label={t('Name', 'الاسم')}
             required
             name="name"
             value={createForm.name}
-            onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+            error={createErrors.name}
+            onChange={(e) => {
+              setCreateForm((f) => ({ ...f, name: e.target.value }));
+              setCreateErrors((err) => ({ ...err, name: undefined }));
+            }}
           />
           <TextField
             label={t('Trade name (optional)', 'الاسم التجاري (اختياري)')}
             name="tradeName"
             value={createForm.tradeName ?? ''}
-            onChange={(e) => setCreateForm((f) => ({ ...f, tradeName: e.target.value }))}
+            error={createErrors.tradeName}
+            onChange={(e) => {
+              setCreateForm((f) => ({ ...f, tradeName: e.target.value }));
+              setCreateErrors((err) => ({ ...err, tradeName: undefined }));
+            }}
           />
           <TextField
             label={t('Contact email', 'البريد الإلكتروني للتواصل')}
@@ -453,39 +534,67 @@ export function ClientsPage() {
             required
             name="contactEmail"
             value={createForm.contactEmail}
-            onChange={(e) => setCreateForm((f) => ({ ...f, contactEmail: e.target.value }))}
+            error={createErrors.contactEmail}
+            onChange={(e) => {
+              setCreateForm((f) => ({ ...f, contactEmail: e.target.value }));
+              setCreateErrors((err) => ({ ...err, contactEmail: undefined }));
+            }}
           />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <TextField
               label={t('Country', 'الدولة')}
+              required
               name="country"
               value={createForm.country ?? ''}
-              onChange={(e) => setCreateForm((f) => ({ ...f, country: e.target.value }))}
+              error={createErrors.country}
+              hint={t('ISO code or country name', 'رمز ISO أو اسم الدولة')}
+              onChange={(e) => {
+                setCreateForm((f) => ({ ...f, country: e.target.value }));
+                setCreateErrors((err) => ({ ...err, country: undefined }));
+              }}
             />
             <TextField
               label={t('City', 'المدينة')}
+              required
               name="city"
               value={createForm.city ?? ''}
-              onChange={(e) => setCreateForm((f) => ({ ...f, city: e.target.value }))}
+              error={createErrors.city}
+              onChange={(e) => {
+                setCreateForm((f) => ({ ...f, city: e.target.value }));
+                setCreateErrors((err) => ({ ...err, city: undefined }));
+              }}
             />
           </div>
           <TextField
             label={t('Phone (optional)', 'الهاتف (اختياري)')}
             name="contactPhone"
             value={createForm.contactPhone ?? ''}
-            onChange={(e) => setCreateForm((f) => ({ ...f, contactPhone: e.target.value }))}
+            error={createErrors.contactPhone}
+            hint={t('International format, e.g. +9665…', 'بصيغة دولية، مثال +9665…')}
+            onChange={(e) => {
+              setCreateForm((f) => ({ ...f, contactPhone: e.target.value }));
+              setCreateErrors((err) => ({ ...err, contactPhone: undefined }));
+            }}
           />
           <FieldTextarea
             id="create-address"
             label={t('Address (optional)', 'العنوان (اختياري)')}
             value={createForm.address ?? ''}
-            onChange={(v) => setCreateForm((f) => ({ ...f, address: v }))}
+            error={createErrors.address}
+            onChange={(v) => {
+              setCreateForm((f) => ({ ...f, address: v }));
+              setCreateErrors((err) => ({ ...err, address: undefined }));
+            }}
           />
           <FieldTextarea
             id="create-notes"
             label={t('Notes (optional)', 'ملاحظات (اختياري)')}
             value={createForm.notes ?? ''}
-            onChange={(v) => setCreateForm((f) => ({ ...f, notes: v }))}
+            error={createErrors.notes}
+            onChange={(v) => {
+              setCreateForm((f) => ({ ...f, notes: v }));
+              setCreateErrors((err) => ({ ...err, notes: undefined }));
+            }}
           />
         </form>
       </Modal>
@@ -517,7 +626,45 @@ export function ClientsPage() {
           </>
         }
       >
-        <form id="edit-company" onSubmit={submitEdit} className="space-y-3">
+        <form id="edit-company" onSubmit={submitEdit} className="space-y-3" noValidate>
+          <ImageUploadField
+            label={t('Company logo', 'شعار الشركة')}
+            hint={t('Images are compressed before saving.', 'يتم ضغط الصور قبل الحفظ.')}
+            previewUrl={adminMediaSrc(editRow?.logoUrl, editLogoVersion)}
+            rounded="xl"
+            size="sm"
+            uploading={logoUploading}
+            isArabic={isArabic}
+            disabled={updateMut.isPending}
+            onUpload={async (file) => {
+              if (!editRow) return;
+              setLogoUploading(true);
+              try {
+                const res = await CompaniesApi.uploadLogo(editRow.id, file);
+                setEditRow(res.company);
+                setEditLogoVersion(Date.now());
+                invalidate();
+              } finally {
+                setLogoUploading(false);
+              }
+            }}
+            onRemove={
+              editRow?.logoUrl
+                ? async () => {
+                    if (!editRow) return;
+                    setLogoUploading(true);
+                    try {
+                      await CompaniesApi.deleteLogo(editRow.id);
+                      setEditRow({ ...editRow, logoUrl: null });
+                      setEditLogoVersion(Date.now());
+                      invalidate();
+                    } finally {
+                      setLogoUploading(false);
+                    }
+                  }
+                : undefined
+            }
+          />
           <SelectField
             label={t('Status', 'الحالة')}
             name="status"
@@ -529,57 +676,99 @@ export function ClientsPage() {
           />
           <TextField
             label={t('Name', 'الاسم')}
+            required
             name="edit-name"
             value={editForm.name ?? ''}
-            onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+            error={editErrors.name}
+            onChange={(e) => {
+              setEditForm((f) => ({ ...f, name: e.target.value }));
+              setEditErrors((err) => ({ ...err, name: undefined }));
+            }}
           />
           <TextField
             label={t('Trade name', 'الاسم التجاري')}
             name="edit-tradeName"
             value={editForm.tradeName ?? ''}
-            onChange={(e) => setEditForm((f) => ({ ...f, tradeName: e.target.value }))}
+            error={editErrors.tradeName}
+            onChange={(e) => {
+              setEditForm((f) => ({ ...f, tradeName: e.target.value }));
+              setEditErrors((err) => ({ ...err, tradeName: undefined }));
+            }}
           />
           <TextField
             label={t('Contact email', 'البريد الإلكتروني للتواصل')}
             type="email"
+            required
             name="edit-contactEmail"
             value={editForm.contactEmail ?? ''}
-            onChange={(e) => setEditForm((f) => ({ ...f, contactEmail: e.target.value }))}
+            error={editErrors.contactEmail}
+            onChange={(e) => {
+              setEditForm((f) => ({ ...f, contactEmail: e.target.value }));
+              setEditErrors((err) => ({ ...err, contactEmail: undefined }));
+            }}
           />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <TextField
               label={t('Country', 'الدولة')}
+              required
               name="edit-country"
               value={editForm.country ?? ''}
-              onChange={(e) => setEditForm((f) => ({ ...f, country: e.target.value }))}
+              error={editErrors.country}
+              onChange={(e) => {
+                setEditForm((f) => ({ ...f, country: e.target.value }));
+                setEditErrors((err) => ({ ...err, country: undefined }));
+              }}
             />
             <TextField
               label={t('City', 'المدينة')}
+              required
               name="edit-city"
               value={editForm.city ?? ''}
-              onChange={(e) => setEditForm((f) => ({ ...f, city: e.target.value }))}
+              error={editErrors.city}
+              onChange={(e) => {
+                setEditForm((f) => ({ ...f, city: e.target.value }));
+                setEditErrors((err) => ({ ...err, city: undefined }));
+              }}
             />
           </div>
           <TextField
             label={t('Phone', 'الهاتف')}
             name="edit-phone"
             value={editForm.contactPhone ?? ''}
-            onChange={(e) => setEditForm((f) => ({ ...f, contactPhone: e.target.value }))}
+            error={editErrors.contactPhone}
+            onChange={(e) => {
+              setEditForm((f) => ({ ...f, contactPhone: e.target.value }));
+              setEditErrors((err) => ({ ...err, contactPhone: undefined }));
+            }}
           />
           <FieldTextarea
             id="edit-address"
             label={t('Address', 'العنوان')}
             value={editForm.address ?? ''}
-            onChange={(v) => setEditForm((f) => ({ ...f, address: v }))}
+            error={editErrors.address}
+            onChange={(v) => {
+              setEditForm((f) => ({ ...f, address: v }));
+              setEditErrors((err) => ({ ...err, address: undefined }));
+            }}
           />
           <FieldTextarea
             id="edit-notes"
             label={t('Notes', 'ملاحظات')}
             value={editForm.notes ?? ''}
-            onChange={(v) => setEditForm((f) => ({ ...f, notes: v }))}
+            error={editErrors.notes}
+            onChange={(v) => {
+              setEditForm((f) => ({ ...f, notes: v }));
+              setEditErrors((err) => ({ ...err, notes: undefined }));
+            }}
           />
         </form>
       </Modal>
-    </>
+
+      <CustomerLifecycleModal
+        company={lifecycleRow}
+        isSuperAdmin={isSuperAdmin}
+        onClose={() => setLifecycleRow(null)}
+      />
+    </AdminListPageShell>
   );
 }

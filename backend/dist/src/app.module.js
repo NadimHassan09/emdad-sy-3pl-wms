@@ -44,6 +44,12 @@ const notifications_module_1 = require("./modules/notifications/notifications.mo
 const realtime_module_1 = require("./modules/realtime/realtime.module");
 const reports_module_1 = require("./modules/reports/reports.module");
 const forms_module_1 = require("./modules/forms/forms.module");
+const final_contracts_module_1 = require("./modules/final-contracts/final-contracts.module");
+const oms_module_1 = require("./modules/oms/oms.module");
+const cod_module_1 = require("./modules/cod/cod.module");
+const oms_returns_module_1 = require("./modules/oms-returns/oms-returns.module");
+const shipping_module_1 = require("./modules/shipping/shipping.module");
+const pdf_module_1 = require("./pdf/pdf.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -95,6 +101,12 @@ exports.AppModule = AppModule = __decorate([
             realtime_module_1.RealtimeModule,
             reports_module_1.ReportsModule,
             forms_module_1.FormsModule,
+            final_contracts_module_1.FinalContractsModule,
+            oms_module_1.OmsModule,
+            cod_module_1.CodModule,
+            oms_returns_module_1.OmsReturnsModule,
+            shipping_module_1.ShippingModule,
+            pdf_module_1.PdfModule,
         ],
         providers: [
             { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard },

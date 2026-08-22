@@ -101,10 +101,13 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     }
 
     if (!tenantScope.activeCompanyId) {
-      this.log.warn(
-        `Internal socket ${client.id} rejected: provide auth.companyId for an authorized tenant.`,
+      // System-wide rooms only (no tenant selected yet — e.g. super_admin).
+      client.join(INTERNAL_MASTER_DATA_ROOM);
+      client.join(userRoomName(principal.userId));
+      this.presence.handleConnect(client, principal);
+      this.log.debug(
+        `Internal socket ${client.id} joined ${INTERNAL_MASTER_DATA_ROOM} (no tenant scope)`,
       );
-      client.disconnect(true);
       return;
     }
 

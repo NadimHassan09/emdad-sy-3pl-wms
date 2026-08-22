@@ -11,9 +11,11 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ListCompaniesQueryDto = void 0;
 const class_validator_1 = require("class-validator");
+const client_1 = require("@prisma/client");
 const query_transform_1 = require("../../../common/transformers/query-transform");
 class ListCompaniesQueryDto {
     search;
+    status;
     includeAll;
 }
 exports.ListCompaniesQueryDto = ListCompaniesQueryDto;
@@ -22,6 +24,12 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], ListCompaniesQueryDto.prototype, "search", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(client_1.CompanyStatus),
+    __metadata("design:type", String)
+], ListCompaniesQueryDto.prototype, "status", void 0);
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, query_transform_1.QueryBoolOptional)(),

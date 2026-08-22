@@ -19,6 +19,7 @@ const outbound_service_1 = require("../outbound/outbound.service");
 const report_export_service_1 = require("./framework/report-export.service");
 const reports_framework_service_1 = require("./framework/reports-framework.service");
 const finance_reports_runner_1 = require("./finance-reports.runner");
+const oms_reports_runner_1 = require("./oms-reports.runner");
 const inventory_intelligence_reports_runner_1 = require("./inventory-intelligence-reports.runner");
 const operational_reports_runner_1 = require("./operational-reports.runner");
 const reports_policy_config_1 = require("./reports-policy.config");
@@ -77,7 +78,8 @@ let ReportsService = class ReportsService {
     operationalReports;
     inventoryIntelligenceReports;
     financeReports;
-    constructor(inventory, inbound, outbound, dashboard, companies, policy, framework, exportService, operationalReports, inventoryIntelligenceReports, financeReports) {
+    omsReports;
+    constructor(inventory, inbound, outbound, dashboard, companies, policy, framework, exportService, operationalReports, inventoryIntelligenceReports, financeReports, omsReports) {
         this.inventory = inventory;
         this.inbound = inbound;
         this.outbound = outbound;
@@ -89,6 +91,7 @@ let ReportsService = class ReportsService {
         this.operationalReports = operationalReports;
         this.inventoryIntelligenceReports = inventoryIntelligenceReports;
         this.financeReports = financeReports;
+        this.omsReports = omsReports;
     }
     getPolicy() {
         return this.policy.snapshot();
@@ -159,6 +162,14 @@ let ReportsService = class ReportsService {
             case 'revenue-by-client':
             case 'receivables-aging':
                 return this.runFinanceReport(user, reportId, query);
+            case 'cod-report':
+            case 'merchant-orders':
+            case 'sales-report':
+            case 'returns-report':
+            case 'delivery-report':
+            case 'allocation-report':
+            case 'inventory-reserved':
+                return this.runOmsReport(user, reportId, query);
             default:
                 throw new common_1.NotFoundException('Unknown report.');
         }
@@ -185,6 +196,16 @@ let ReportsService = class ReportsService {
     }
     async runFinanceReport(user, reportId, query) {
         const page = await this.financeReports.run(user, reportId, query);
+        return {
+            items: page.items,
+            total: page.total,
+            limit: query.limit,
+            offset: query.offset,
+            truncated: query.offset + page.items.length < page.total,
+        };
+    }
+    async runOmsReport(user, reportId, query) {
+        const page = await this.omsReports.run(user, reportId, query);
         return {
             items: page.items,
             total: page.total,
@@ -255,7 +276,7 @@ let ReportsService = class ReportsService {
             client: r.company.name,
             movement: r.movementType,
             status: 'Done',
-            quantity: fmtQty(r.quantity),
+            quantity: r.quantityChange ?? fmtQty(r.quantity),
             reference: `${r.referenceType} ${String(r.referenceId).slice(0, 8)}…`,
             operator: r.operator.fullName,
             lot: r.lot?.lotNumber ?? '',
@@ -388,6 +409,20 @@ let ReportsService = class ReportsService {
                 return Number(row.revenue ?? 0);
             case 'receivables-aging':
                 return Number(row.amount ?? 0);
+            case 'cod-report':
+                return Number(row.codAmount ?? 0);
+            case 'merchant-orders':
+                return Number(row.lineCount ?? 0);
+            case 'sales-report':
+                return Number(row.total ?? 0);
+            case 'returns-report':
+                return Number(row.codAmount ?? 0);
+            case 'delivery-report':
+                return 1;
+            case 'allocation-report':
+                return Number(row.reservationCount ?? 0);
+            case 'inventory-reserved':
+                return Number(row.quantity ?? 0);
             default:
                 return Number(row.totalCount ?? row.count ?? 0);
         }
@@ -425,6 +460,7 @@ exports.ReportsService = ReportsService = __decorate([
         report_export_service_1.ReportExportService,
         operational_reports_runner_1.OperationalReportsRunner,
         inventory_intelligence_reports_runner_1.InventoryIntelligenceReportsRunner,
-        finance_reports_runner_1.FinanceReportsRunner])
+        finance_reports_runner_1.FinanceReportsRunner,
+        oms_reports_runner_1.OmsReportsRunner])
 ], ReportsService);
 //# sourceMappingURL=reports.service.js.map

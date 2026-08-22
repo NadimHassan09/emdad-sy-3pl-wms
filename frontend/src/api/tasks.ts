@@ -10,6 +10,8 @@ export interface WarehouseTaskListItem {
   id: string;
   taskType: string;
   status: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
   /** Server-computed frontier flag for workflow ordering. */
   is_current_runnable?: boolean;
   /** Null when runnable; stable code when blocked (ordering or skills). */
@@ -22,6 +24,7 @@ export interface WarehouseTaskListItem {
     warehouseId: string;
   };
   assignments?: Array<{
+    assignedAt?: string | null;
     worker?: {
       id: string;
       displayName: string;
@@ -64,6 +67,10 @@ export const TasksApi = {
       .then((r) => r.data);
   },
 
+  /**
+   * Start task execution. Admins (super_admin / wh_manager) may omit workerId when the task
+   * has no assignment; operators must have an assignment or pass workerId.
+   */
   start(id: string, workerId?: string, companyIdOverride?: string) {
     return api
       .post<TaskMutationEnvelope>(`/tasks/${id}/start`, { workerId }, companyHeaders(companyIdOverride))
@@ -89,6 +96,18 @@ export const TasksApi = {
         { execution_state_patch },
         companyHeaders(companyIdOverride),
       )
+      .then((r) => r.data);
+  },
+
+  patchPlan(id: string, plan_patch: Record<string, unknown>, companyIdOverride?: string) {
+    return api
+      .put<TaskMutationEnvelope>(`/tasks/${id}/plan`, { plan_patch }, companyHeaders(companyIdOverride))
+      .then((r) => r.data);
+  },
+
+  adminConfirm(id: string, body: unknown, companyIdOverride?: string) {
+    return api
+      .post<TaskMutationEnvelope>(`/tasks/${id}/admin-confirm`, body, companyHeaders(companyIdOverride))
       .then((r) => r.data);
   },
 

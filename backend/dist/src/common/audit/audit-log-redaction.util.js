@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.redactAuditState = redactAuditState;
-const SENSITIVE_KEY = /^(password|passwordhash|passwd|token|accesstoken|refreshtoken|secret|authorization|jwt|apikey|api_key|cookie|setcookie)$/i;
+const SENSITIVE_KEY = /^(password|passwordhash|passwd|token|accesstoken|refreshtoken|secret|secrethash|authorization|jwt|apikey|api_key|apisecret|cookie|setcookie)$/i;
 const BEARER_RE = /bearer\s+[a-z0-9\-._~+/]+=*/gi;
 const KV_SECRET_RE = /(password|token|secret|authorization)\s*[:=]\s*([^\s,;]+)/gi;
 const MAX_DEPTH = 10;

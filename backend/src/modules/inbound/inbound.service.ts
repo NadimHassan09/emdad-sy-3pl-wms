@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InboundOrderStatus, Prisma } from '@prisma/client';
+import { InboundOrderStatus, Prisma, WarehouseTaskStatus, WarehouseTaskType } from '@prisma/client';
 
 import { readCompanyIdCatalogFilter } from '../../common/auth/company-read-scope';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
@@ -28,6 +28,9 @@ import {
   assertDiscreteUomPositiveIntegerQuantity,
 } from '../../common/utils/discrete-uom-quantity';
 import { AuditLogService } from '../../common/audit/audit-log.service';
+import {
+  assertReceivingQuantitiesWithinExpected,
+} from '../warehouse-workflow/receiving-qty.validation';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { setTenantRlsContext, withTenantRls } from '../../common/prisma/tenant-rls';
 import { StockHelpers } from '../inventory/stock.helpers';
@@ -37,10 +40,23 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { BillingAccessService } from '../billing/billing-access.service';
 import { adminInboundListItem } from '../realtime/realtime-client.payload';
 import { WorkflowBootstrapService } from '../warehouse-workflow/workflow-bootstrap.service';
+import { WarehouseTasksService } from '../warehouse-workflow/warehouse-tasks.service';
+import {
+  assertInboundAdminPlanComplete,
+  normalizeExecutionMode,
+  parseInboundExecutionPlan,
+} from '../orders/execution-plan.util';
+import {
+  assertInboundAdminStageAction,
+  nextInboundAdminAction,
+} from './inbound-admin-stages';
+import { waitForOpenWarehouseTask } from '../outbound/outbound-admin-task.helpers';
 import { ConfirmInboundBodyDto } from './dto/confirm-inbound-body.dto';
 import { CreateInboundOrderDto } from './dto/create-inbound.dto';
 import { ListInboundQueryDto } from './dto/list-inbound-query.dto';
 import { ReceiveLineDto } from './dto/receive-line.dto';
+import { UpdateInboundPlanDto } from './dto/update-inbound-plan.dto';
+import { toAvatarPublicUrl } from '../media/avatar-url';
 
 const ORDER_INCLUDE = {
   company: { select: { id: true, name: true } },
@@ -57,6 +73,7 @@ const ORDER_INCLUDE = {
           trackingType: true,
           uom: true,
           expiryTracking: true,
+          imagePath: true,
         },
       },
     },
@@ -75,12 +92,24 @@ function isInboundConfirmable(status: InboundOrderStatus): boolean {
   return INBOUND_CONFIRMABLE.includes(status);
 }
 
-// Orders in these states are not yet confirmed/complete, so an admin may permanently delete them.
-const INBOUND_DELETABLE: InboundOrderStatus[] = [
-  InboundOrderStatus.draft,
-  InboundOrderStatus.pending_approval,
-  InboundOrderStatus.cancelled,
-];
+/** Plan edits after confirm are allowed until any quantity has been received. */
+function isInboundPlanEditable(
+  status: InboundOrderStatus,
+  lines: Array<{ receivedQuantity: Prisma.Decimal }>,
+): boolean {
+  if (isInboundConfirmable(status)) return true;
+  if (
+    status !== InboundOrderStatus.confirmed &&
+    status !== InboundOrderStatus.in_progress
+  ) {
+    return false;
+  }
+  return lines.every((l) => l.receivedQuantity.lte(0));
+}
+
+// Only cancelled orders may be permanently deleted by an admin. Every other
+// status must be cancelled first.
+const INBOUND_DELETABLE: InboundOrderStatus[] = [InboundOrderStatus.cancelled];
 
 @Injectable()
 export class InboundService {
@@ -89,6 +118,7 @@ export class InboundService {
     private readonly stock: StockHelpers,
     private readonly config: ConfigService,
     private readonly workflowBootstrap: WorkflowBootstrapService,
+    private readonly tasks: WarehouseTasksService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
     private readonly companyAccess: CompanyAccessService,
@@ -125,6 +155,22 @@ export class InboundService {
 
     assertCalendarDateNotBeforeToday(dto.expectedArrivalDate, 'Expected arrival date');
 
+    // Client portal submissions are completed by admin (dock / putaway / confirm).
+    // Allow executionMode=admin without a full plan; admin fills it via updatePlan.
+    const clientSubmission = !!opts?.pendingClientApproval;
+    const executionMode = clientSubmission
+      ? 'admin'
+      : normalizeExecutionMode(dto.executionMode);
+    let executionPlan: Prisma.InputJsonValue | undefined;
+    if (dto.executionPlan && !clientSubmission) {
+      const parsed = parseInboundExecutionPlan(dto.executionPlan);
+      if (!parsed) throw new BadRequestException('Invalid executionPlan.');
+      if (executionMode === 'admin') assertInboundAdminPlanComplete(parsed);
+      executionPlan = parsed as unknown as Prisma.InputJsonValue;
+    } else if (executionMode === 'admin' && !clientSubmission) {
+      throw new BadRequestException('Admin execution requires executionPlan on create.');
+    }
+
     const productById = new Map(products.map((p) => [p.id, p]));
     const lineCreates: Prisma.InboundOrderLineCreateWithoutOrderInput[] = [];
     for (let idx = 0; idx < dto.lines.length; idx++) {
@@ -155,6 +201,11 @@ export class InboundService {
         expectedArrivalDate: new Date(dto.expectedArrivalDate),
         clientReference: dto.clientReference,
         notes: dto.notes,
+        sourceType: dto.sourceType,
+        storeChannel: dto.storeChannel,
+        externalReference: dto.externalReference,
+        executionMode,
+        executionPlan,
         createdBy: user.id,
         lines: {
           create: lineCreates,
@@ -162,6 +213,32 @@ export class InboundService {
       },
       include: ORDER_INCLUDE,
     });
+
+    if (executionPlan && order.lines.length > 0) {
+      const parsed = parseInboundExecutionPlan(executionPlan)!;
+      const byProduct = new Map(order.lines.map((l) => [l.productId, l.id]));
+      const used = new Set<string>();
+      parsed.lines = parsed.lines.map((pl) => {
+        let orderLineId = pl.orderLineId;
+        if (!orderLineId || !order.lines.some((l) => l.id === orderLineId)) {
+          const match = order.lines.find(
+            (l) => l.productId === pl.productId && !used.has(l.id),
+          );
+          orderLineId = match?.id;
+          if (match) used.add(match.id);
+        } else {
+          used.add(orderLineId);
+        }
+        void byProduct;
+        return { ...pl, orderLineId };
+      });
+      parsed.planUpdatedAt = new Date().toISOString();
+      await tx.inboundOrder.update({
+        where: { id: order.id },
+        data: { executionPlan: parsed as unknown as Prisma.InputJsonValue },
+      });
+      order.executionPlan = parsed as unknown as Prisma.JsonValue;
+    }
     this.realtime.emitInboundOrderCreated(order.companyId, {
       orderId: order.id,
       status: order.status,
@@ -194,7 +271,10 @@ export class InboundService {
     });
   }
 
-  async list(user: AuthPrincipal, query: ListInboundQueryDto) {
+  private async buildListWhere(
+    user: AuthPrincipal,
+    query: ListInboundQueryDto & { statusIn?: InboundOrderStatus[] },
+  ): Promise<Prisma.InboundOrderWhereInput> {
     const baseAnd: Prisma.InboundOrderWhereInput[] = [];
     const where: Prisma.InboundOrderWhereInput = {};
 
@@ -202,12 +282,17 @@ export class InboundService {
     if (companyId) {
       where.companyId = companyId;
     }
-    if (query.status) where.status = query.status;
+    if (query.statusIn?.length) {
+      where.status = { in: query.statusIn };
+    } else if (query.status) {
+      where.status = query.status;
+    }
 
     if (query.orderSearch?.trim()) {
       const t = query.orderSearch.trim();
       const orParts: Prisma.InboundOrderWhereInput[] = [
         { orderNumber: { contains: t, mode: 'insensitive' } },
+        { company: { name: { contains: t, mode: 'insensitive' } } },
       ];
       if (FULL_UUID.test(t)) orParts.push({ id: t });
       baseAnd.push({ OR: orParts });
@@ -228,6 +313,101 @@ export class InboundService {
     }
 
     if (baseAnd.length > 0) where.AND = baseAnd;
+    return where;
+  }
+
+  /** Same filters as list(), capped for CSV export (no pagination window). */
+  async listForExport(
+    user: AuthPrincipal,
+    query: ListInboundQueryDto,
+    opts: { maxRows: number },
+  ) {
+    const where = await this.buildListWhere(user, query);
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const total = await tx.inboundOrder.count({ where });
+      const rows = await tx.inboundOrder.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          company: { select: { id: true, name: true } },
+          lines: {
+            select: { expectedQuantity: true },
+          },
+        },
+        take: opts.maxRows,
+      });
+      return {
+        items: rows,
+        total,
+        truncated: total > rows.length,
+      };
+    });
+  }
+
+  resolveImportCompanyId(user: AuthPrincipal, companyId?: string): string {
+    return this.companyAccess.resolveWriteCompanyId(user, companyId);
+  }
+
+  async findByExternalReference(
+    user: AuthPrincipal,
+    companyId: string,
+    externalReference: string,
+  ) {
+    this.companyAccess.assertCompanyAccess(user, companyId);
+    return withTenantRls(this.prisma, user, async (tx) =>
+      tx.inboundOrder.findFirst({
+        where: {
+          companyId,
+          externalReference: { equals: externalReference, mode: 'insensitive' },
+        },
+        select: { id: true, orderNumber: true },
+      }),
+    );
+  }
+
+  async findProductsBySkus(companyId: string, skus: string[]) {
+    const upper = skus.map((s) => s.trim().toUpperCase()).filter(Boolean);
+    if (upper.length === 0) return [];
+    return this.prisma.product.findMany({
+      where: {
+        companyId,
+        OR: upper.map((sku) => ({ sku: { equals: sku, mode: 'insensitive' as const } })),
+      },
+      select: { id: true, sku: true, companyId: true, status: true, uom: true },
+    });
+  }
+
+  /**
+   * Reuse create-path business checks without writing (import validate phase).
+   */
+  async assertImportCreateReady(user: AuthPrincipal, dto: CreateInboundOrderDto): Promise<void> {
+    const companyId = this.companyAccess.resolveWriteCompanyId(user, dto.companyId);
+    await this.billingAccess.assertOperationalBilling(companyId);
+    assertCalendarDateNotBeforeToday(dto.expectedArrivalDate, 'Expected arrival date');
+    const productIds = Array.from(new Set(dto.lines.map((l) => l.productId)));
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, companyId: true, status: true, uom: true },
+    });
+    if (products.length !== productIds.length) {
+      throw new NotFoundException('One or more products not found.');
+    }
+    const wrongCompany = products.find((p) => p.companyId !== companyId);
+    if (wrongCompany) {
+      throw new BadRequestException(
+        'All line products must belong to the same company as the order.',
+      );
+    }
+    for (const p of products) assertProductOrderableForOrders(p.status);
+    const productById = new Map(products.map((p) => [p.id, p]));
+    for (const l of dto.lines) {
+      const p = productById.get(l.productId)!;
+      assertDiscreteUomPositiveIntegerQuantity(p.uom, l.expectedQuantity, 'Expected quantity');
+    }
+  }
+
+  async list(user: AuthPrincipal, query: ListInboundQueryDto & { statusIn?: InboundOrderStatus[] }) {
+    const where = await this.buildListWhere(user, query);
 
     return withTenantRls(this.prisma, user, async (tx) => {
       const [items, total] = await Promise.all([
@@ -235,7 +415,7 @@ export class InboundService {
           where,
           orderBy: { createdAt: 'desc' },
           include: {
-            company: { select: { id: true, name: true } },
+            company: { select: { id: true, name: true, logoPath: true } },
             _count: { select: { lines: true } },
             lines: {
               select: { id: true, productId: true, expectedQuantity: true, receivedQuantity: true, lineNumber: true },
@@ -246,7 +426,19 @@ export class InboundService {
         }),
         tx.inboundOrder.count({ where }),
       ]);
-      return { items, total, limit: query.limit, offset: query.offset };
+      return {
+        items: items.map((o) => ({
+          ...o,
+          company: {
+            id: o.company.id,
+            name: o.company.name,
+            logoUrl: toAvatarPublicUrl(o.company.logoPath),
+          },
+        })),
+        total,
+        limit: query.limit,
+        offset: query.offset,
+      };
     });
   }
 
@@ -260,6 +452,253 @@ export class InboundService {
       this.companyAccess.validateResourceOwnership(user, order);
       return order;
     });
+  }
+
+  async updatePlan(user: AuthPrincipal, id: string, dto: UpdateInboundPlanDto) {
+    const order = await this.findById(id, user);
+    if (!isInboundPlanEditable(order.status, order.lines)) {
+      throw new InvalidStateException(
+        `Plan can only be updated before receiving starts (current: ${order.status}).`,
+      );
+    }
+    const executionMode = normalizeExecutionMode(dto.executionMode ?? order.executionMode);
+    let executionPlan: Prisma.InputJsonValue | undefined | null = undefined;
+    if (dto.executionPlan !== undefined) {
+      const parsed = parseInboundExecutionPlan(dto.executionPlan);
+      if (!parsed) throw new BadRequestException('Invalid executionPlan.');
+      const used = new Set<string>();
+      parsed.lines = parsed.lines.map((pl) => {
+        let orderLineId = pl.orderLineId;
+        if (!orderLineId || !order.lines.some((l) => l.id === orderLineId)) {
+          const match = order.lines.find(
+            (l) => l.productId === pl.productId && !used.has(l.id),
+          );
+          orderLineId = match?.id;
+          if (match) used.add(match.id);
+        } else {
+          used.add(orderLineId);
+        }
+        return { ...pl, orderLineId };
+      });
+      parsed.planUpdatedAt = new Date().toISOString();
+      if (executionMode === 'admin') assertInboundAdminPlanComplete(parsed);
+      executionPlan = parsed as unknown as Prisma.InputJsonValue;
+    } else if (executionMode === 'admin') {
+      const existing = parseInboundExecutionPlan(order.executionPlan);
+      if (!existing) throw new BadRequestException('Admin mode requires executionPlan.');
+      assertInboundAdminPlanComplete(existing);
+    }
+
+    if (dto.expectedArrivalDate) {
+      assertCalendarDateNotBeforeToday(dto.expectedArrivalDate, 'Expected arrival date');
+    }
+
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const updated = await tx.inboundOrder.update({
+        where: { id },
+        data: {
+          executionMode,
+          ...(executionPlan !== undefined ? { executionPlan } : {}),
+          ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+          ...(dto.expectedArrivalDate
+            ? { expectedArrivalDate: new Date(dto.expectedArrivalDate) }
+            : {}),
+        },
+        include: ORDER_INCLUDE,
+      });
+      return updated;
+    });
+  }
+
+  /**
+   * Admin Approve — bootstrap only (Rule 1 / Rule 3).
+   * Starts receiving task; does NOT post receive or putaway.
+   * Requires TASK_ONLY_FLOWS so Approve cannot use legacy confirm-only shortcuts incorrectly.
+   */
+  async approveAdmin(user: AuthPrincipal, orderId: string) {
+    const order = await this.findById(orderId, user);
+    if (normalizeExecutionMode(order.executionMode) !== 'admin') {
+      throw new BadRequestException('Approve requires executionMode=admin.');
+    }
+    if (!taskOnlyFlows(this.config)) {
+      throw new BadRequestException(
+        'Admin Approve requires TASK_ONLY_FLOWS=true so approval only starts receiving.',
+      );
+    }
+    assertInboundAdminStageAction(order.status, 'approve');
+    const plan = parseInboundExecutionPlan(order.executionPlan);
+    if (!plan) throw new BadRequestException('Approve requires a saved executionPlan.');
+    assertInboundAdminPlanComplete(plan);
+
+    const stagingByLineId: Record<string, string> = {};
+    for (const line of order.lines) {
+      stagingByLineId[line.id] = plan.receivingDockId;
+    }
+    return this.confirm(user, orderId, {
+      warehouseId: plan.warehouseId,
+      stagingByLineId,
+    });
+  }
+
+  async completeReceivingAdmin(user: AuthPrincipal, orderId: string) {
+    const order = await this.findById(orderId, user);
+    if (normalizeExecutionMode(order.executionMode) !== 'admin') {
+      throw new BadRequestException('complete-receiving requires executionMode=admin.');
+    }
+    assertInboundAdminStageAction(order.status, 'complete_receiving');
+
+    const receiving = await waitForOpenWarehouseTask(
+      this.prisma,
+      'inbound_order',
+      orderId,
+      WarehouseTaskType.receiving,
+    );
+    try {
+      await this.tasks.adminConfirm(receiving.id, user, {
+        task_type: 'receiving',
+        lines: order.lines.map((l) => {
+          const lotPayload =
+            l.product?.trackingType === 'lot' && l.expectedLotNumber?.trim()
+              ? { capture_lot_number: l.expectedLotNumber.trim() }
+              : {};
+          return {
+            inbound_order_line_id: l.id,
+            received_qty: String(l.expectedQuantity),
+            ...lotPayload,
+          };
+        }),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new BadRequestException(`Receiving complete failed: ${msg}`);
+    }
+
+    const updated = await this.findById(orderId, user);
+    this.realtime.emitInboundOrderUpdated(updated.companyId, {
+      orderId: updated.id,
+      status: updated.status,
+      reason: 'admin_complete_receiving',
+      listItem: adminInboundListItem(updated),
+    });
+    return updated;
+  }
+
+  async completePutawayAdmin(user: AuthPrincipal, orderId: string) {
+    const order = await this.findById(orderId, user);
+    if (normalizeExecutionMode(order.executionMode) !== 'admin') {
+      throw new BadRequestException('complete-putaway requires executionMode=admin.');
+    }
+    assertInboundAdminStageAction(order.status, 'complete_putaway');
+    const plan = parseInboundExecutionPlan(order.executionPlan);
+    if (!plan) throw new BadRequestException('Putaway requires a saved executionPlan.');
+
+    const putaway = await waitForOpenWarehouseTask(
+      this.prisma,
+      'inbound_order',
+      orderId,
+      WarehouseTaskType.putaway,
+    );
+    const putawayLines: Array<{
+      inbound_order_line_id: string;
+      putaway_quantity: string;
+      destination_location_id: string;
+    }> = [];
+    for (const ol of order.lines) {
+      const planLine =
+        plan.lines.find((p) => p.orderLineId === ol.id) ??
+        plan.lines.find((p) => p.productId === ol.productId);
+      for (const s of planLine?.putaway ?? []) {
+        putawayLines.push({
+          inbound_order_line_id: ol.id,
+          putaway_quantity: String(s.qty),
+          destination_location_id: s.locationId,
+        });
+      }
+    }
+    if (putawayLines.length === 0) {
+      throw new BadRequestException('Putaway complete failed: no destination splits in plan.');
+    }
+    try {
+      await this.tasks.adminConfirm(putaway.id, user, {
+        task_type: 'putaway',
+        lines: putawayLines,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new BadRequestException(`Putaway complete failed: ${msg}`);
+    }
+
+    const updated = await this.findById(orderId, user);
+    this.realtime.emitInboundOrderUpdated(updated.companyId, {
+      orderId: updated.id,
+      status: updated.status,
+      reason: 'admin_complete_putaway',
+      listItem: adminInboundListItem(updated),
+    });
+    return updated;
+  }
+
+  /**
+   * Deprecated full facade. Advances exactly one next Admin stage (Rule 4 interim).
+   */
+  async executeAdmin(user: AuthPrincipal, orderId: string) {
+    const order = await this.findById(orderId, user);
+    if (normalizeExecutionMode(order.executionMode) !== 'admin') {
+      throw new BadRequestException('execute-admin requires executionMode=admin.');
+    }
+
+    let openTask: 'receiving' | 'putaway' | null = null;
+    if (!isInboundConfirmable(order.status)) {
+      const receivingOpen = await this.prisma.warehouseTask.findFirst({
+        where: {
+          taskType: WarehouseTaskType.receiving,
+          status: {
+            in: [
+              WarehouseTaskStatus.pending,
+              WarehouseTaskStatus.assigned,
+              WarehouseTaskStatus.in_progress,
+            ],
+          },
+          workflowInstance: { referenceType: 'inbound_order', referenceId: orderId },
+        },
+        select: { id: true },
+      });
+      if (receivingOpen) openTask = 'receiving';
+      else {
+        const putawayOpen = await this.prisma.warehouseTask.findFirst({
+          where: {
+            taskType: WarehouseTaskType.putaway,
+            status: {
+              in: [
+                WarehouseTaskStatus.pending,
+                WarehouseTaskStatus.assigned,
+                WarehouseTaskStatus.in_progress,
+              ],
+            },
+            workflowInstance: { referenceType: 'inbound_order', referenceId: orderId },
+          },
+          select: { id: true },
+        });
+        if (putawayOpen) openTask = 'putaway';
+      }
+    }
+
+    const next = nextInboundAdminAction(order.status, openTask);
+    if (!next) {
+      throw new BadRequestException(
+        `No Admin stage action available for status ${order.status}. Use stage endpoints.`,
+      );
+    }
+    switch (next) {
+      case 'approve':
+        return this.approveAdmin(user, orderId);
+      case 'complete_receiving':
+        return this.completeReceivingAdmin(user, orderId);
+      case 'complete_putaway':
+        return this.completePutawayAdmin(user, orderId);
+      default:
+        throw new BadRequestException(`Unknown Admin stage action: ${next}`);
+    }
   }
 
   async confirm(user: AuthPrincipal, id: string, body?: ConfirmInboundBodyDto) {
@@ -276,6 +715,14 @@ export class InboundService {
     if (order.lines.length === 0) {
       throw new BadRequestException('Add at least one line before confirming this order.');
     }
+    // Unified Order Execution: Confirm/Release requires the same complete plan (no operational prompts).
+    const releasePlan = parseInboundExecutionPlan(order.executionPlan);
+    if (!releasePlan) {
+      throw new BadRequestException(
+        'A complete execution plan is required before confirmation or release.',
+      );
+    }
+    assertInboundAdminPlanComplete(releasePlan);
     if (taskOnlyFlows(this.config)) {
       if (!body?.warehouseId || !body.stagingByLineId) {
         throw new BadRequestException(
@@ -373,13 +820,25 @@ export class InboundService {
 
   async cancel(id: string, user: AuthPrincipal) {
     const order = await this.findById(id, user);
-    if (!['draft', 'pending_approval', 'confirmed'].includes(order.status)) {
+    // An order can be cancelled any time before it is finished.
+    if (
+      order.status === InboundOrderStatus.completed ||
+      order.status === InboundOrderStatus.cancelled
+    ) {
       throw new InvalidStateException(
-        `Inbound orders can only be cancelled while in draft, pending approval, or confirmed (current: ${order.status}).`,
+        `Inbound orders cannot be cancelled once ${order.status} (current: ${order.status}).`,
       );
     }
-    const cancelled = await withTenantRls(this.prisma, user, async (tx) =>
-      tx.inboundOrder.update({
+    const previousStatus = order.status;
+    const cancelled = await withTenantRls(this.prisma, user, async (tx) => {
+      // Cancelling mid-workflow tears down all remaining work for this order:
+      // deleting the workflow instance cascades its nodes, tasks, assignments
+      // and events. Any stock already received is intentionally left untouched —
+      // cancellation never moves inventory or changes product quantities.
+      await tx.workflowInstance.deleteMany({
+        where: { referenceType: 'inbound_order', referenceId: id },
+      });
+      return tx.inboundOrder.update({
         where: { id },
         data: {
           status: 'cancelled',
@@ -387,6 +846,16 @@ export class InboundService {
           cancelledBy: user.id,
         },
         include: ORDER_INCLUDE,
+      });
+    });
+    await this.audit.log(
+      this.audit.fromPrincipal(user, {
+        action: 'INBOUND_ORDER_CANCELLED',
+        resourceType: 'inbound_order',
+        resourceId: cancelled.id,
+        companyId: cancelled.companyId,
+        previousState: { status: previousStatus },
+        newState: { status: cancelled.status, cancelledBy: user.id },
       }),
     );
     this.realtime.emitInboundOrderUpdated(cancelled.companyId, {
@@ -407,7 +876,7 @@ export class InboundService {
     const order = await this.findById(id, user);
     if (!INBOUND_DELETABLE.includes(order.status)) {
       throw new InvalidStateException(
-        `Only draft, pending-approval, or cancelled inbound orders can be deleted (current: ${order.status}).`,
+        `Only cancelled inbound orders can be deleted. Cancel the order first (current: ${order.status}).`,
       );
     }
 
@@ -505,6 +974,15 @@ export class InboundService {
         'Receive quantity',
       );
 
+      const delta = new Prisma.Decimal(dto.quantity);
+      assertReceivingQuantitiesWithinExpected({
+        expected: line.expectedQuantity,
+        receivedQty: delta,
+        damagedQty: new Prisma.Decimal(0),
+        priorReceived: line.receivedQuantity,
+        lineId: line.id,
+      });
+
       const location = await tx.location.findUnique({
         where: { id: dto.locationId },
         select: { id: true, warehouseId: true, type: true, status: true },
@@ -517,7 +995,6 @@ export class InboundService {
             'Deferred putaway mode: receive only to a receiving dock location (`input`). Inventory posts on putaway task.',
           );
         }
-        const delta = new Prisma.Decimal(dto.quantity);
         await tx.inboundOrderLine.update({
           where: { id: lineId },
           data: { receivedQuantity: { increment: delta } },
@@ -595,7 +1072,7 @@ export class InboundService {
         }
       }
 
-      const stockMeta = await this.stock.upsertPositiveWithMeta(tx, {
+      await this.stock.upsertPositive(tx, {
         companyId: order.companyId,
         productId: line.productId,
         locationId: dto.locationId,
@@ -612,8 +1089,6 @@ export class InboundService {
           toLocationId: dto.locationId,
           movementType: 'inbound_receive',
           quantity: new Prisma.Decimal(dto.quantity),
-          quantityBefore: stockMeta.before,
-          quantityAfter: stockMeta.after,
           referenceType: 'inbound_order',
           referenceId: orderId,
           operatorId: user.id,

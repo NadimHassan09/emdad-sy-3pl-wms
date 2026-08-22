@@ -1,7 +1,7 @@
 /**
- * Topbar — the sticky application chrome bar.
+ * Topbar — sticky application chrome bar.
  *
- * Dark forest green chrome — gradient #072019 → #08231B.
+ * Light glass surface (Client Portal) — --topbar-* tokens.
  * TopbarUserMenu: profile avatar opens a portaled dropdown (language + sign out).
  */
 
@@ -18,10 +18,12 @@ import { createPortal } from 'react-dom';
 import { Button } from './Button';
 import { cn } from './cn';
 import { FILTER_RESET_BUTTON_CLASS } from './filter-button-styles';
+import {
+  clampTopbarDropdownLeft,
+  topbarDropdownTop,
+} from './topbar-dropdown-utils';
 
 const MENU_WIDTH = 240;
-const MENU_TOP = 100;
-const VIEWPORT_PAD = 16;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Topbar root
@@ -37,19 +39,18 @@ export function Topbar({ children, transparent, className, ...rest }: TopbarProp
     <header
       data-topbar
       className={cn(
-        'z-[var(--z-topbar)] w-full shrink-0 overflow-hidden rounded-xl md:rounded-[var(--radius-card)]',
+        'z-[var(--z-topbar)] w-full shrink-0',
         'flex min-h-[var(--topbar-h)] items-center gap-2',
-        'px-4 py-2 sm:px-5',
-        transparent ? 'bg-transparent' : '',
+        'px-4 py-2 sm:px-6',
+        transparent ? 'bg-transparent' : 'backdrop-blur-md',
         className,
       )}
       style={
         transparent
           ? undefined
           : {
-              backgroundColor: 'var(--sidebar-topbar-bg)',
-              backgroundImage: 'var(--sidebar-topbar-bg-gradient)',
-              borderBottom: '1px solid var(--sidebar-border)',
+              backgroundColor: 'var(--topbar-bg)',
+              borderBottom: '1px solid var(--topbar-border)',
             }
       }
       {...rest}
@@ -110,12 +111,12 @@ export function TopbarMobileMenuButton({
       className={cn(
         'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg md:hidden',
         'transition-colors duration-fast',
-        'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30',
       )}
       style={{
-        backgroundColor: 'var(--sidebar-hover-bg)',
-        color: 'var(--sidebar-text)',
-        border: '1px solid var(--sidebar-border)',
+        backgroundColor: 'var(--topbar-hover-bg)',
+        color: 'var(--topbar-text-muted)',
+        border: '1px solid var(--topbar-border)',
       }}
     >
       <svg
@@ -145,6 +146,8 @@ export interface TopbarUserMenuProps {
   onSignOut?: () => void;
   signOutLabel?: string;
   languageLabel?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 function UserAvatar({ connected }: { connected?: boolean }) {
@@ -155,7 +158,7 @@ function UserAvatar({ connected }: { connected?: boolean }) {
         style={{
           background: 'linear-gradient(135deg, #10b981, #059669)',
           color: '#fff',
-          border: '1.5px solid rgba(255,255,255,0.25)',
+          border: '1.5px solid rgba(16,185,129,0.25)',
         }}
         aria-hidden="true"
       >
@@ -172,7 +175,7 @@ function UserAvatar({ connected }: { connected?: boolean }) {
       {connected && (
         <span
           className="absolute bottom-0 end-0 h-2.5 w-2.5 rounded-full border-2"
-          style={{ borderColor: '#072019', backgroundColor: '#10b981' }}
+          style={{ borderColor: '#ffffff', backgroundColor: '#10b981' }}
           aria-hidden="true"
         />
       )}
@@ -181,17 +184,7 @@ function UserAvatar({ connected }: { connected?: boolean }) {
 }
 
 function clampMenuLeft(triggerRect: DOMRect, menuWidth: number): number {
-  const isRtl = document.documentElement.dir === 'rtl';
-  let left: number;
-
-  if (isRtl) {
-    left = triggerRect.left;
-  } else {
-    left = triggerRect.right - menuWidth;
-  }
-
-  const maxLeft = window.innerWidth - menuWidth - VIEWPORT_PAD;
-  return Math.max(VIEWPORT_PAD, Math.min(left, maxLeft));
+  return clampTopbarDropdownLeft(triggerRect, menuWidth);
 }
 
 function TopbarUserMenuDropdown({
@@ -319,11 +312,20 @@ export function TopbarUserMenu({
   onSignOut,
   signOutLabel = 'Sign out',
   languageLabel = 'Language',
+  open: openProp,
+  onOpenChange,
 }: TopbarUserMenuProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : internalOpen;
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
+
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
 
   const close = () => setOpen(false);
 
@@ -333,7 +335,7 @@ export function TopbarUserMenu({
     function updatePosition() {
       const rect = triggerRef.current!.getBoundingClientRect();
       setMenuPos({
-        top: MENU_TOP,
+        top: topbarDropdownTop(rect),
         left: clampMenuLeft(rect, MENU_WIDTH),
       });
     }
@@ -368,27 +370,27 @@ export function TopbarUserMenu({
         className={cn(
           'flex items-center gap-2.5 rounded-xl py-1.5 pe-2 ps-1.5',
           'transition-colors duration-fast',
-          'hover:bg-white/10',
-          'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30',
-          open && 'bg-white/10',
+          'hover:bg-slate-100',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/30',
+          open && 'bg-slate-100',
         )}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(!open)}
       >
         <UserAvatar connected={connected} />
         <div className="hidden min-w-0 sm:flex sm:flex-col items-start text-start max-w-[160px]">
           <span
             className="truncate w-full text-sm font-medium leading-tight"
-            style={{ color: 'var(--sidebar-text)' }}
+            style={{ color: 'var(--topbar-text)' }}
           >
             {name}
           </span>
           {role && (
             <span
               className="truncate w-full text-xs leading-tight"
-              style={{ color: 'var(--sidebar-text-muted)' }}
+              style={{ color: 'var(--topbar-text-muted)' }}
             >
               {role}
             </span>
@@ -400,7 +402,7 @@ export function TopbarUserMenu({
             'hidden sm:block h-3 w-3 shrink-0 transition-transform duration-fast',
             open && 'rotate-180',
           )}
-          style={{ color: 'var(--sidebar-text-muted)' }}
+          style={{ color: 'var(--topbar-text-muted)' }}
           fill="none"
           stroke="currentColor"
           strokeWidth="1.5"
@@ -445,9 +447,9 @@ export function TopbarLanguageToggle({ value, onChange }: TopbarLanguageTogglePr
       aria-label="Language direction selector"
       className="h-8 px-2 text-xs font-semibold rounded-lg transition-colors duration-fast focus:outline-none"
       style={{
-        backgroundColor: 'var(--sidebar-hover-bg)',
-        color: 'var(--sidebar-text)',
-        border: '1px solid var(--sidebar-border)',
+        backgroundColor: 'var(--topbar-hover-bg)',
+        color: 'var(--topbar-text)',
+        border: '1px solid var(--topbar-border)',
         borderRadius: '8px',
       }}
     >

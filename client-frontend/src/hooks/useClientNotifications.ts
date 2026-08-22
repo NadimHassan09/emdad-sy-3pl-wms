@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { useNotificationSoundEffect } from '../../../shared/design-system/lib/use-notification-sound-effect';
+import { useNotificationSoundEffect } from '../../../shared/design-system-next/lib/use-notification-sound-effect';
 
 import {
   fetchClientNotifications,
@@ -17,7 +17,6 @@ export function useClientNotifications() {
   const query = useQuery({
     queryKey: CLIENT_NOTIFICATIONS_QUERY_KEY,
     queryFn: () => fetchClientNotifications(),
-    refetchInterval: 60_000,
   });
 
   const unreadCount = query.data?.unreadCount ?? 0;

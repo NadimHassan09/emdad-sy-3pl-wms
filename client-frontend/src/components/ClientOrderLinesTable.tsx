@@ -1,12 +1,9 @@
-import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 
 import { Button } from '@ds';
-import type { Column } from '@wms/components/DataTable';
-import { DataTable } from '@wms/components/DataTable';
-import type { ComboboxOption } from '@wms/components/Combobox';
-import { Combobox } from '@wms/components/Combobox';
-import { TextField } from '@wms/components/TextField';
+import type { ComboboxOption } from '@ds';
+import { Combobox } from '@ds';
+import { TextField } from '@ds';
 
 import type { ClientProductRow } from '../services/clientProductsService';
 
@@ -36,6 +33,7 @@ type ClientOrderLinesTableProps = {
   renderProductFooter?: (productId: string) => ReactNode;
 };
 
+/** Compact draft-lines editor — no list pagination (create/edit modals). */
 export function ClientOrderLinesTable({
   title,
   productHeader,
@@ -55,97 +53,87 @@ export function ClientOrderLinesTable({
   quantityError,
   renderProductFooter,
 }: ClientOrderLinesTableProps) {
-  const columns: Column<ClientOrderDraftLineRow>[] = useMemo(
-    () => [
-      {
-        header: productHeader,
-        accessor: (row) => {
-          const product = row.productId ? productsById.get(row.productId) : undefined;
-          return (
-            <div className="min-w-[220px]">
-              <Combobox
-                value={row.productId}
-                onChange={(v) => onUpdateLine(row.lineKey, { productId: v })}
-                options={productOptions}
-                placeholder={pickProductPlaceholder}
-                disabled={loading}
-                clearable={false}
-                dropdownInFlow
-              />
-              {product ? (
-                <p className="mt-1 text-[11px] text-slate-600">
-                  {onHandLabel}{' '}
-                  <span className="font-mono font-semibold text-slate-900">{formatOnHand(product)}</span>{' '}
-                  <span className="uppercase text-slate-700">{product.uom}</span>
-                </p>
-              ) : null}
-              {row.productId && renderProductFooter?.(row.productId)}
-            </div>
-          );
-        },
-      },
-      {
-        header: quantityHeader,
-        accessor: (row) => (
-          <TextField
-            type="number"
-            min={0}
-            step="0.0001"
-            required
-            value={row.quantity}
-            onChange={(e) => onUpdateLine(row.lineKey, { quantity: e.target.value })}
-            error={quantityError?.(row)}
-            className="min-w-[120px]"
-          />
-        ),
-        width: '160px',
-      },
-      {
-        header: '',
-        accessor: (row) =>
-          lines.length > 1 ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              disabled={loading}
-              onClick={() => onRemoveLine(row.lineKey)}
-            >
-              {removeLabel}
-            </Button>
-          ) : (
-            <span className="text-slate-400">—</span>
-          ),
-        width: '100px',
-      },
-    ],
-    [
-      productHeader,
-      lines.length,
-      productOptions,
-      productsById,
-      pickProductPlaceholder,
-      quantityHeader,
-      removeLabel,
-      loading,
-      onUpdateLine,
-      onRemoveLine,
-      formatOnHand,
-      onHandLabel,
-      quantityError,
-      renderProductFooter,
-    ],
-  );
-
   return (
-    <DataTable
-      title={title}
-      actions={toolbar}
-      columns={columns}
-      rows={lines}
-      rowKey={(r) => r.lineKey}
-      empty={emptyMessage}
-      loading={loading}
-    />
+    <div className="overflow-hidden rounded-xl border border-border bg-surface-card">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle px-3 py-2.5">
+        <h3 className="text-sm font-semibold text-text-strong">{title}</h3>
+        {toolbar}
+      </div>
+      {lines.length === 0 ? (
+        <p className="px-3 py-6 text-center text-sm text-text-muted">{emptyMessage}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-card-muted text-[10px] font-bold uppercase tracking-[0.06em] text-text-muted">
+              <tr>
+                <th className="px-3 py-2 text-start">{productHeader}</th>
+                <th className="px-3 py-2 text-start w-[160px]">{quantityHeader}</th>
+                <th className="px-3 py-2 text-start w-[100px]" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {lines.map((row) => {
+                const product = row.productId ? productsById.get(row.productId) : undefined;
+                return (
+                  <tr key={row.lineKey}>
+                    <td className="px-3 py-2.5 align-top">
+                      <div className="min-w-[220px]">
+                        <Combobox
+                          value={row.productId}
+                          onChange={(v) => onUpdateLine(row.lineKey, { productId: v })}
+                          options={productOptions}
+                          placeholder={pickProductPlaceholder}
+                          disabled={loading}
+                          clearable={false}
+                          dropdownInFlow
+                        />
+                        {product ? (
+                          <p className="mt-1 text-[11px] text-text-muted">
+                            {onHandLabel}{' '}
+                            <span className="font-mono font-semibold text-text-strong">
+                              {formatOnHand(product)}
+                            </span>{' '}
+                            <span className="uppercase text-text-body">{product.uom}</span>
+                          </p>
+                        ) : null}
+                        {row.productId ? renderProductFooter?.(row.productId) : null}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 align-top">
+                      <TextField
+                        type="number"
+                        min={0}
+                        step="0.0001"
+                        required
+                        aria-label={quantityHeader}
+                        value={row.quantity}
+                        onChange={(e) => onUpdateLine(row.lineKey, { quantity: e.target.value })}
+                        error={quantityError?.(row)}
+                        className="min-w-[120px]"
+                      />
+                    </td>
+                    <td className="px-3 py-2.5 align-top">
+                      {lines.length > 1 ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="danger"
+                          disabled={loading}
+                          onClick={() => onRemoveLine(row.lineKey)}
+                        >
+                          {removeLabel}
+                        </Button>
+                      ) : (
+                        <span className="text-text-faint">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

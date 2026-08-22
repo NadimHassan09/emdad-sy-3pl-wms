@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
+import { Alert } from '@ds';
 
 import {
   BackupsApi,
@@ -93,12 +94,12 @@ export function CreateBackupModal({ open, loading, onClose, onSubmit }: Props) {
       title={t(['Create backup', 'إنشاء نسخة احتياطية'])}
       footer={
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+          <Button type="button" variant="danger" onClick={onClose} disabled={loading}>
             {t(['Cancel', 'إلغاء'])}
           </Button>
           <Button
             type="button"
-            variant="primary"
+            variant="brand"
             onClick={handleSubmit}
             loading={loading}
             disabled={drivePolicyBlocked}
@@ -110,7 +111,7 @@ export function CreateBackupModal({ open, loading, onClose, onSubmit }: Props) {
       }
     >
       <div className="space-y-4" data-testid="create-backup-modal">
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-text-body">
           {t([
             'Start a manual database backup. Progress appears in backup history.',
             'ابدأ نسخة احتياطية يدوية لقاعدة البيانات. يظهر التقدم في سجل النسخ الاحتياطي.',
@@ -142,9 +143,9 @@ export function CreateBackupModal({ open, loading, onClose, onSubmit }: Props) {
               data-testid="create-backup-policy"
             />
 
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-text-muted">
               {t(['Selected policy:', 'السياسة المختارة:'])}{' '}
-              <span className="font-medium text-slate-700">
+              <span className="font-medium text-text-body">
                 {localizedBackupStoragePolicyLabel(storagePolicy, t)}
               </span>
             </p>
@@ -152,18 +153,18 @@ export function CreateBackupModal({ open, loading, onClose, onSubmit }: Props) {
         ) : null}
 
         {gdriveUiEnabled && drivePolicyBlocked ? (
-          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            {t([
+          <Alert
+            variant="warning"
+            compact
+            description={t([
               'Connect Google Drive under Settings → Backups → Google Drive before using Drive storage policies.',
               'اربط Google Drive من الإعدادات → النسخ الاحتياطي → Google Drive قبل استخدام سياسات تخزين Drive.',
             ])}
-          </p>
+          />
         ) : null}
 
         {error ? (
-          <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-            {error}
-          </p>
+          <Alert variant="error" compact description={error} />
         ) : null}
       </div>
     </Modal>

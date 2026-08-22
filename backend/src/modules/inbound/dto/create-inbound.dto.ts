@@ -3,13 +3,17 @@ import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsEnum,
+  IsIn,
   IsNumber,
+  IsObject,
   IsOptional,
   IsPositive,
   IsString,
   Length,
   ValidateNested,
 } from 'class-validator';
+import { InboundSourceType } from '@prisma/client';
 
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 
@@ -46,6 +50,27 @@ export class CreateInboundOrderDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsIn(['admin', 'workers'])
+  executionMode?: 'admin' | 'workers';
+
+  /** Admin planning blob — validated in service when executionMode=admin. */
+  @IsOptional()
+  @IsObject()
+  executionPlan?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsEnum(InboundSourceType)
+  sourceType?: InboundSourceType;
+
+  @IsOptional()
+  @IsString()
+  storeChannel?: string;
+
+  @IsOptional()
+  @IsString()
+  externalReference?: string;
 
   @IsArray()
   @ArrayMinSize(1)

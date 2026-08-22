@@ -1,0 +1,182 @@
+{
+  "type": "run_end",
+  "status": "failed",
+  "summary": "The Tasks screen is broken by a page code error during loading, so the screen cannot finish opening after a normal click.\nFix the Tasks page render error, likely in the filter panel code for that route, then retest that /tasks opens normally and shows its heading or table.\nevidence: console_error: useState is not defined\nevidence: console_error: React Router caught the following error during render useState is not defined",
+  "one_liner": "Opening the Tasks page triggers a front-end crash, so the page does not load and the run ends stuck.",
+  "final_state": {},
+  "reason": "AP determined agent is stuck \u2014 no viable actions remain",
+  "duration": 112.6,
+  "bifurcated": true,
+  "total_runs": 2,
+  "context": {
+    "memory": {
+      "oms_orders_heading_check": {
+        "extracted_value": "true",
+        "operator": "equals",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'true' -> 'true'; equals 'true' -> PASS",
+        "analyzer_type": "textual_visual",
+        "step": 3,
+        "query": "whether the orders page heading is present",
+        "condition": "the page loaded with an OMS orders heading",
+        "human_description": "Checking whether the orders page heading is present",
+        "expected_value": "true",
+        "code_js": "!!el(40) && /orders/i.test(el(40).textContent)",
+        "wrapped_js": "(els) => {\n  const __m = {40: 0};\n  const el = (i) => els[__m[i]];\n  const __v = (!!el(40) && /orders/i.test(el(40).textContent));\n  return (typeof __v === 'boolean' ? String(__v) : __v);\n}",
+        "locators": [
+          "internal:role=heading[name=\"Inbound orders\"i]"
+        ],
+        "needs_unit_conversion": false
+      },
+      "orders_table_check": {
+        "extracted_value": "true",
+        "operator": "equals",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'true' -> 'true'; equals 'true' -> PASS",
+        "analyzer_type": "textual_visual",
+        "step": 3,
+        "query": "whether the orders table is present",
+        "condition": "the page loaded with a table",
+        "human_description": "Checking whether the orders table is present",
+        "expected_value": "true",
+        "code_js": "el(64) !== null",
+        "wrapped_js": "(els) => {\n  const __m = {64: 0};\n  const el = (i) => els[__m[i]];\n  const __v = (el(64) !== null);\n  return (typeof __v === 'boolean' ? String(__v) : __v);\n}",
+        "locators": [
+          "internal:text=\"Order #ClientStatusExpected arrivalLinesCreatedActionsINB-2026-00031Acme\"i"
+        ],
+        "needs_unit_conversion": false
+      },
+      "inbound_page_loaded_check": {
+        "extracted_value": "https://staging-admin.emdadsy.com/orders/inbound",
+        "operator": "equals",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'https://staging-admin.emdadsy.com/orders/inbound' -> 'https://staging-admin.emdadsy.com/orders/inbound'; equals 'https://staging-admin.emdadsy.com/orders/inbound' -> PASS",
+        "analyzer_type": "url",
+        "step": 3,
+        "query": "the page loaded on https://staging-admin.emdadsy.com/orders/inbound",
+        "condition": "the page loaded on https://staging-admin.emdadsy.com/orders/inbound",
+        "human_description": "Reading the current page URL",
+        "expected_value": "https://staging-admin.emdadsy.com/orders/inbound"
+      },
+      "outbound_page_loaded_check": {
+        "extracted_value": "https://staging-admin.emdadsy.com/orders/outbound",
+        "operator": "equals",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'https://staging-admin.emdadsy.com/orders/outbound' -> 'https://staging-admin.emdadsy.com/orders/outbound'; equals 'https://staging-admin.emdadsy.com/orders/outbound' -> PASS",
+        "analyzer_type": "url",
+        "step": 7,
+        "query": "the page loaded on https://staging-admin.emdadsy.com/orders/outbound",
+        "condition": "the page loaded on https://staging-admin.emdadsy.com/orders/outbound",
+        "human_description": "Reading the current page URL",
+        "expected_value": "https://staging-admin.emdadsy.com/orders/outbound"
+      }
+    },
+    "variables": {
+      "secrets.user.admin_email": {
+        "value": "superadmin@emdad.example",
+        "secret": true,
+        "syntax": "{{secrets.user.admin_email}}",
+        "type": "secret"
+      },
+      "secrets.user.admin_password": {
+        "value": "demo123",
+        "secret": true,
+        "syntax": "{{secrets.user.admin_password}}",
+        "type": "secret"
+      },
+      "admin_final": {
+        "syntax": "{{admin_final}}",
+        "value": "",
+        "type": "text",
+        "secret": false,
+        "source": "runtime"
+      },
+      "oms_orders_heading_check": {
+        "syntax": "{{oms_orders_heading_check}}",
+        "value": "true",
+        "type": "memory",
+        "secret": false
+      },
+      "orders_table_check": {
+        "syntax": "{{orders_table_check}}",
+        "value": "true",
+        "type": "memory",
+        "secret": false
+      },
+      "inbound_page_loaded_check": {
+        "syntax": "{{inbound_page_loaded_check}}",
+        "value": "https://staging-admin.emdadsy.com/orders/inbound",
+        "type": "memory",
+        "secret": false
+      },
+      "outbound_page_loaded_check": {
+        "syntax": "{{outbound_page_loaded_check}}",
+        "value": "https://staging-admin.emdadsy.com/orders/outbound",
+        "type": "memory",
+        "secret": false
+      }
+    },
+    "pointer": "(failed) signed in to the staging admin site on staging-admin.emdadsy.com; Opening the Tasks page triggers a front-end crash, so the page does not load and the run ends stuck."
+  },
+  "credits_consumed": 35.27761,
+  "session_dir": "/root/.testmuai/kaneai/sessions/8c7a27ba-56e5-4b8f-a5f7-19d65cab53b8",
+  "run_dir": "/root/.testmuai/kaneai/sessions/8c7a27ba-56e5-4b8f-a5f7-19d65cab53b8/runs/0",
+  "result_code": 740,
+  "reason_code": "assertion_error.confirmed_product_bug",
+  "per_flow_metadata": [
+    {
+      "result_code": "100",
+      "reason_code": "success.complete",
+      "error_message": null,
+      "summary": "Signed in to the staging admin site using the provided email and password.\nWaited for the site to finish loading and confirm access to the dashboard.\nReached the staging admin dashboard successfully.",
+      "one_liner": "signed in to the staging admin site on staging-admin.emdadsy.com",
+      "credits_consumed": 10.627215
+    },
+    {
+      "result_code": "740",
+      "reason_code": "assertion_error.confirmed_product_bug",
+      "error_message": "AP determined agent is stuck \u2014 no viable actions remain",
+      "summary": "The Tasks screen is broken by a page code error during loading, so the screen cannot finish opening after a normal click.\nFix the Tasks page render error, likely in the filter panel code for that route, then retest that /tasks opens normally and shows its heading or table.\nevidence: console_error: useState is not defined\nevidence: console_error: React Router caught the following error during render useState is not defined",
+      "one_liner": "Opening the Tasks page triggers a front-end crash, so the page does not load and the run ends stuck.",
+      "credits_consumed": 24.650395000000003
+    }
+  ],
+  "run_id": "run-0",
+  "verdict": {
+    "confirmed": true,
+    "status": "failed",
+    "family": "application_issue",
+    "category": "script_error",
+    "category_proposal": "",
+    "severity": "major",
+    "root_cause": "The Tasks screen is broken by a page code error during loading, so the screen cannot finish opening after a normal click.",
+    "agent_fault_assessment": "The agent did not cause this outcome. It followed the required navigation path and successfully loaded OMS Orders, Inbound, and Outbound before clicking the Tasks link exactly as instructed. The failure began only after that normal navigation, when the app itself threw a render-time JavaScript error on the Tasks page, leaving the agent with no usable page state to continue.",
+    "bug_title": "Tasks page crashes with useState is not defined",
+    "signals": [
+      {
+        "excerpt": "useState is not defined",
+        "kind": "console_error",
+        "step": "1-9"
+      },
+      {
+        "excerpt": "React Router caught the following error during render useState is not defined",
+        "kind": "console_error",
+        "step": "1-9"
+      }
+    ],
+    "confidence": 0.98,
+    "suggestion": "Fix the Tasks page render error, likely in the filter panel code for that route, then retest that /tasks opens normally and shows its heading or table.",
+    "one_liner": "Opening the Tasks page triggers a front-end crash, so the page does not load and the run ends stuck.",
+    "relevant_steps": [
+      9
+    ],
+    "culprit_step": "1-9",
+    "credits_consumed": 3.043825,
+    "mode": "terminal"
+  },
+  "test_url": "https://test-manager.lambdatest.com/projects/01M0GDK7AFN1DN6NRMEAY1DSB9/test-cases/01M0GH6SKXW6Z9YJFK0XW1WKJZ/dashboard/share/US_V7E7QPUTHE7C7AX8K6P5ULZ2VPP98XDUIKV8DQPRARQZIVPPEXQNGQNM2NHBG5GM?type=summary&agentView=true&fqdn=summary-page"
+}

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, StockStatus } from '@prisma/client';
 
 import { InsufficientStockException } from '../../common/errors/domain-exceptions';
 import { InventoryConsistencyService } from './inventory-consistency.service';
@@ -31,7 +31,8 @@ export interface QuantityMeta {
 /**
  * Atomic stock helpers inside a DB transaction.
  * Prefer upsertPositiveWithMeta / decrementWithMeta so callers can populate
- * inventory_ledger.quantity_before / quantity_after at write time.
+ * Stock mutation helpers. QuantityMeta (before/after on-hand) is for stock
+ * concurrency checks only — do not copy onto inventory_ledger rows.
  */
 @Injectable()
 export class StockHelpers {
@@ -144,6 +145,48 @@ export class StockHelpers {
   /** Legacy — prefer upsertPositiveWithMeta when writing ledger audit columns. */
   async upsertPositive(tx: Tx, m: PositiveMovement): Promise<void> {
     await this.upsertPositiveWithMeta(tx, m);
+  }
+
+  /**
+   * Set the availability status of a stock row (company/product/location/lot).
+   * Drives whether the slice participates in picking/allocation:
+   * only `available` rows are eligible (FEFO + availability reads filter on it).
+   * Used by receiving (-> awaiting_putaway) and putaway (-> available/quarantined).
+   */
+  async setStockStatus(
+    tx: Tx,
+    m: {
+      companyId: string;
+      productId: string;
+      locationId: string;
+      lotId?: string | null;
+      status: StockStatus;
+    },
+  ): Promise<void> {
+    const lotId = m.lotId ?? null;
+    if (lotId) {
+      await tx.$executeRaw`
+        UPDATE current_stock
+           SET status = ${m.status}::stock_status,
+               last_movement_at = NOW()
+         WHERE company_id = ${m.companyId}::uuid
+           AND product_id = ${m.productId}::uuid
+           AND location_id = ${m.locationId}::uuid
+           AND lot_id = ${lotId}::uuid
+           AND package_id IS NULL
+      `;
+    } else {
+      await tx.$executeRaw`
+        UPDATE current_stock
+           SET status = ${m.status}::stock_status,
+               last_movement_at = NOW()
+         WHERE company_id = ${m.companyId}::uuid
+           AND product_id = ${m.productId}::uuid
+           AND location_id = ${m.locationId}::uuid
+           AND lot_id IS NULL
+           AND package_id IS NULL
+      `;
+    }
   }
 
   /** Decrease stock; returns qty on hand before vs after decrement. */

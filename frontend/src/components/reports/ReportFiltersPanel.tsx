@@ -16,7 +16,7 @@ const TASK_TYPE_OPTIONS = [
   { value: 'putaway', label: 'Putaway', labelAr: 'تخزين' },
   { value: 'pick', label: 'Pick', labelAr: 'التقاط' },
   { value: 'pack', label: 'Pack', labelAr: 'تغليف' },
-  { value: 'dispatch', label: 'Delivery', labelAr: 'تسليم' },
+  { value: 'dispatch', label: 'Dispatch', labelAr: 'إرسال' },
   { value: 'routing', label: 'Routing', labelAr: 'توجيه' },
 ];
 
@@ -93,8 +93,38 @@ export function ReportFiltersPanel({
       loading={loading}
       applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
       resetLabel={t('Reset filters', 'إعادة تعيين')}
-    >
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+      showMoreLabel={t('Show more', 'عرض المزيد')}
+      showLessLabel={t('Show less', 'عرض أقل')}
+      compact={
+        report.filterKeys.includes('client') ? (
+          <Combobox
+            label={t('Client', 'العميل')}
+            value={draft.companyId}
+            onChange={(v) => onChange({ companyId: v })}
+            options={clientOptions}
+            placeholder={t('All clients', 'كل العملاء')}
+          />
+        ) : report.filterKeys.includes('warehouse') ? (
+          <SelectField
+            label={t('Warehouse', 'المستودع')}
+            value={draft.warehouseId}
+            onChange={(e) => onChange({ warehouseId: e.target.value })}
+            options={warehouseOptions}
+          />
+        ) : (
+          <TextField
+            label={t('SKU search', 'بحث برمز الصنف')}
+            value={draft.sku}
+            onChange={(e) => onChange({ sku: e.target.value })}
+            placeholder={t('Filter by SKU…', 'تصفية برمز الصنف…')}
+            className="font-mono text-xs"
+          />
+        )
+      }
+      activeCount={[draft.warehouseId, draft.companyId, draft.status, draft.sku, draft.taskType, draft.groupBy, draft.employeeId, draft.dateFrom, draft.dateTo].filter((v) => String(v ?? '').trim()).length}
+      advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
+      collapseLabel={t('Collapsed', 'إخفاء')}
+      >
         {report.filterKeys.includes('warehouse') && (
           <SelectField
             label={t('Warehouse', 'المستودع')}
@@ -118,6 +148,22 @@ export function ReportFiltersPanel({
             value={draft.status}
             onChange={(e) => onChange({ status: e.target.value })}
             options={statusOptions}
+          />
+        )}
+        {report.filterKeys.includes('dateRange') && (
+          <TextField
+            label={t('From date', 'من تاريخ')}
+            type="date"
+            value={draft.dateFrom}
+            onChange={(e) => onChange({ dateFrom: e.target.value })}
+          />
+        )}
+        {report.filterKeys.includes('dateRange') && (
+          <TextField
+            label={t('To date', 'إلى تاريخ')}
+            type="date"
+            value={draft.dateTo}
+            onChange={(e) => onChange({ dateTo: e.target.value })}
           />
         )}
         {report.filterKeys.includes('sku') && (
@@ -169,7 +215,6 @@ export function ReportFiltersPanel({
             placeholder={t('All workers', 'كل العمال')}
           />
         )}
-      </div>
     </FilterPanel>
   );
 }

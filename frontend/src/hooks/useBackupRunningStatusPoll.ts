@@ -6,7 +6,9 @@ import { QK } from '../constants/query-keys';
 import { isBackupRunning } from '../lib/backup-display';
 
 /**
- * Polls GET /backups/:id/status every 3s for running/pending jobs visible in the table.
+ * Fallback poll for running/pending backup rows when socket push is unavailable.
+ * Primary path: `system.version` → backups module refetch (Architecture 2.2).
+ * This poll is a degraded fallback when socket sync is unavailable.
  */
 export function useBackupRunningStatusPoll(rows: BackupSummary[]) {
   const runningIds = useMemo(
@@ -18,8 +20,9 @@ export function useBackupRunningStatusPoll(rows: BackupSummary[]) {
     queries: runningIds.map((id) => ({
       queryKey: QK.backups.status(id),
       queryFn: () => BackupsApi.status(id),
-      refetchInterval: 3_000,
-      staleTime: 0,
+      // Slow safety net only — realtime push owns progress updates.
+      refetchInterval: 15_000,
+      staleTime: 5_000,
     })),
   });
 

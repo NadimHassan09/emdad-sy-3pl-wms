@@ -1,21 +1,17 @@
-import { ReactNode } from 'react';
+/** Thin Admin wrapper — SoT is `@ds` AppPageHeader. */
+import type { ReactNode } from 'react';
+import { AppPageHeader } from '@ds';
 
 interface PageHeaderProps {
   title: string;
   description?: string;
   actions?: ReactNode;
+  /** Font Awesome solid icon class without the `fa-solid` prefix. */
+  icon?: string;
 }
 
-export function PageHeader({ title, description, actions }: PageHeaderProps) {
+export function PageHeader({ title, description, actions, icon }: PageHeaderProps) {
   return (
-    <div className="mb-4 flex flex-col items-stretch gap-3 sm:mb-5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-      <div className="min-w-0">
-        <h1 className="text-lg font-semibold text-slate-900 sm:text-xl">{title}</h1>
-        {description && <p className="mt-0.5 text-sm text-slate-500">{description}</p>}
-      </div>
-      {actions && (
-        <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap sm:justify-end">{actions}</div>
-      )}
-    </div>
+    <AppPageHeader title={title} description={description} actions={actions} icon={icon} />
   );
 }

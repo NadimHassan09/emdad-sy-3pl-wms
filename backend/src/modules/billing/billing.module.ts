@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AuditModule } from '../../common/audit/audit.module';
+import { PdfModule } from '../../pdf/pdf.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import {
   BillingAccessService,
@@ -20,9 +21,10 @@ import { BillingInvoicesService } from './billing-invoices.service';
 import { BillingPlansService } from './billing-plans.service';
 import { BillingUsageProcessorService } from './billing-usage-processor.service';
 import { BillingUsageService } from './billing-usage.service';
+import { OrderManualChargesService } from './order-manual-charges.service';
 
 @Module({
-  imports: [AuditModule, RealtimeModule],
+  imports: [AuditModule, RealtimeModule, PdfModule],
   controllers: [BillingController],
   providers: [
     BillingAuditService,
@@ -40,6 +42,7 @@ import { BillingUsageService } from './billing-usage.service';
     BillingDashboardService,
     BillingNotificationsService,
     BillingExpiryReminderService,
+    OrderManualChargesService,
   ],
   exports: [
     BillingAccessService,
@@ -49,6 +52,7 @@ import { BillingUsageService } from './billing-usage.service';
     BillingCyclesService,
     BillingInvoicesService,
     BillingUsageService,
+    OrderManualChargesService,
   ],
 })
 export class BillingModule {}

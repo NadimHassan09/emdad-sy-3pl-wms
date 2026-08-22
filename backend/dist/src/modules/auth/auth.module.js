@@ -15,8 +15,10 @@ const audit_module_1 = require("../../common/audit/audit.module");
 const company_access_module_1 = require("../../common/company-access/company-access.module");
 const crypto_module_1 = require("../../common/crypto/crypto.module");
 const prisma_module_1 = require("../../common/prisma/prisma.module");
+const media_module_1 = require("../media/media.module");
 const auth_controller_1 = require("./auth.controller");
 const auth_service_1 = require("./auth.service");
+const google_oauth_service_1 = require("./google-oauth.service");
 const refresh_session_service_1 = require("./refresh-session.service");
 const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard");
 const roles_guard_1 = require("../../common/auth/roles.guard");
@@ -42,10 +44,12 @@ exports.AuthModule = AuthModule = __decorate([
             audit_module_1.AuditModule,
             prisma_module_1.PrismaModule,
             crypto_module_1.CryptoModule,
+            media_module_1.MediaModule,
         ],
         controllers: [auth_controller_1.AuthController],
         providers: [
             auth_service_1.AuthService,
+            google_oauth_service_1.GoogleOAuthService,
             refresh_session_service_1.RefreshSessionService,
             jwt_strategy_1.JwtStrategy,
             roles_guard_1.RolesGuard,
@@ -54,6 +58,7 @@ exports.AuthModule = AuthModule = __decorate([
         ],
         exports: [
             auth_service_1.AuthService,
+            google_oauth_service_1.GoogleOAuthService,
             refresh_session_service_1.RefreshSessionService,
             jwt_1.JwtModule,
             roles_guard_1.RolesGuard,

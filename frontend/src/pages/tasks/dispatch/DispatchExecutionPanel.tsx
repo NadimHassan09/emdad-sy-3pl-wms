@@ -7,9 +7,11 @@ import { TaskDetailsCard } from '../../../components/tasks/TaskDetailsCard';
 import type { OutboundOrder, OutboundOrderLine } from '../../../api/outbound';
 import { TasksApi } from '../../../api/tasks';
 import { WorkflowsApi } from '../../../api/workflows';
+import { BarcodeScanModal } from '../../../components/BarcodeScanModal';
 import { Button } from '../../../components/Button';
 import { Combobox } from '../../../components/Combobox';
 import { TextField } from '../../../components/TextField';
+import { WedgeScanField } from '../../../components/WedgeScanField';
 import { QK } from '../../../constants/query-keys';
 import { TaskLinesFilterCard } from '../../../components/tasks/TaskLinesFilterCard';
 import {
@@ -20,10 +22,10 @@ import type { TaskLineFilters } from '../../../lib/task-line-filters';
 import { useTaskProgressSave } from '../../../hooks/useTaskProgressSave';
 import { useToast } from '../../../components/ToastProvider';
 import {
-  displayWarehouseLabel,
   formatTaskDateOnly,
   outboundOrderTitle,
 } from '../../../lib/task-details-helpers';
+import { useWarehouseLabel } from '../../../hooks/useWarehouseLabel';
 import { taskTypeIconClass } from '../../../lib/task-type-icons';
 import { useWmsTranslation } from '../../../lib/ui-i18n';
 import {
@@ -41,7 +43,9 @@ import {
   defaultPackages,
   filterDispatchLines,
   resolveDispatchDestinationFromQueue,
+  findDispatchLineByProductScan,
   findLocationById,
+  findPackageByLabel,
   findWorkflowTimelineTask,
   initialDispatchLines,
   readTaskExecutionState,
@@ -99,6 +103,7 @@ export function DispatchExecutionPanel({
 }: Props) {
   const { t } = useWmsTranslation();
   const toast = useToast();
+  const { warehouseLabel } = useWarehouseLabel();
   const savedDraft = readDispatchDraft(executionState);
   const packPackagesFromSibling = readPackDraftPackages(packExecutionState);
 
@@ -207,6 +212,8 @@ export function DispatchExecutionPanel({
     DEFAULT_TASK_LINE_FILTERS,
   );
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [wedgeScan, setWedgeScan] = useState('');
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   const patchDraft = useCallback((patch: Partial<DispatchExecutionDraft>) => {
     setDraft((prev) => ({ ...prev, ...patch }));
@@ -349,6 +356,48 @@ export function DispatchExecutionPanel({
     [draft.packages, patchPackage, toast],
   );
 
+  const handleWedgeScan = useCallback(
+    (code: string) => {
+      const trimmed = code.trim();
+      if (!trimmed) return;
+      setCameraOpen(false);
+
+      const pkg = findPackageByLabel(trimmed, draft.packages);
+      if (pkg) {
+        if (addPackageToShipment(pkg.id)) setWedgeScan('');
+        return;
+      }
+
+      const lineId = findDispatchLineByProductScan(trimmed, lineIds, lineMeta);
+      if (lineId) {
+        const line = draft.lines.find((l) => l.outboundOrderLineId === lineId);
+        const remaining = line
+          ? Math.max(0, parseQty(line.pickedQty) - parseQty(line.shipQty))
+          : 0;
+        const qty = remaining > 0 ? remaining : 1;
+        if (addProductToShipment(lineId, qty)) setWedgeScan('');
+        return;
+      }
+
+      toast.error(
+        t([
+          'No matching package or product on this shipment.',
+          'لا طرد أو منتج مطابق على هذه الشحنة.',
+        ]),
+      );
+    },
+    [
+      addPackageToShipment,
+      addProductToShipment,
+      draft.lines,
+      draft.packages,
+      lineIds,
+      lineMeta,
+      t,
+      toast,
+    ],
+  );
+
   function completeBlockers(): string[] {
     const issues: string[] = [];
     const sourceId = effectiveSourceId ?? draft.sourceLocationId;
@@ -361,8 +410,8 @@ export function DispatchExecutionPanel({
               'موقع التغليف المصدر غير متاح من مهام التغليف/التقاط بعد.',
             ])
           : t([
-              'Source delivery location is not available from the pick task yet.',
-              'موقع التسليم المصدر غير متاح من مهمة التقاط بعد.',
+              'Dispatch source is not available from the pick task yet.',
+              'مصدر الإرسال غير متاح من مهمة التقاط بعد.',
             ]),
       );
     }
@@ -453,7 +502,7 @@ export function DispatchExecutionPanel({
         {
           iconClass: 'fa-solid fa-warehouse',
           label: t(['Warehouse', 'المستودع']),
-          value: displayWarehouseLabel(warehouseId),
+          value: warehouseLabel(warehouseId),
         },
       ]}
       summary={outbound?.destinationAddress?.trim() || undefined}
@@ -526,11 +575,11 @@ export function DispatchExecutionPanel({
       />
 
       {!effectiveSourceId && (requiresPacking ? packingLocations : outputDocks).length > 0 ? (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
-          <p className="text-sm font-semibold text-amber-950">
+        <section className="rounded-2xl border border-status-warning-border bg-status-warning-bg/80 p-4">
+          <p className="text-sm font-semibold text-status-warning-fg">
             {requiresPacking
               ? t(['Select packing source', 'اختر موقع التغليف المصدر'])
-              : t(['Select delivery source', 'اختر موقع التسليم المصدر'])}
+              : t(['Select dispatch source', 'اختر مصدر الإرسال'])}
           </p>
           <div className="mt-2">
             <Combobox
@@ -546,7 +595,7 @@ export function DispatchExecutionPanel({
               placeholder={
                 requiresPacking
                   ? t(['Packing location…', 'موقع التغليف…'])
-                  : t(['Delivery area…', 'منطقة التسليم…'])
+                  : t(['Staging area…', 'منطقة التجهيز…'])
               }
               emptyMessage={t(['No locations match.', 'لا مواقع مطابقة.'])}
             />
@@ -555,8 +604,8 @@ export function DispatchExecutionPanel({
       ) : null}
 
       {!effectiveDestId && eligibleDispatchDockLocations(outputDocks).length > 0 ? (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
-          <p className="text-sm font-semibold text-amber-950">
+        <section className="rounded-2xl border border-status-warning-border bg-status-warning-bg/80 p-4">
+          <p className="text-sm font-semibold text-status-warning-fg">
             {t(['Select dispatch dock', 'اختر رصيف الإرسال'])}
           </p>
           <div className="mt-2">
@@ -577,9 +626,31 @@ export function DispatchExecutionPanel({
 
       {lineFiltersCard}
 
-      <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-border bg-surface-card p-4 text-text-strong">
+        <WedgeScanField
+          label={t(['Scan to add to shipment', 'امسح للإضافة إلى الشحنة'])}
+          value={wedgeScan}
+          onChange={setWedgeScan}
+          onScan={handleWedgeScan}
+          onCameraClick={() => setCameraOpen(true)}
+          placeholder={t(['Package label, SKU, or barcode + Enter', 'ملصق طرد أو SKU أو باركود ثم Enter'])}
+          scanTitle={t(['Scan with camera', 'مسح بالكاميرا'])}
+          scanAriaLabel={t(['Scan with camera', 'مسح بالكاميرا'])}
+          hint={t([
+            'Gun scan tries package label first, then product. Camera is secondary.',
+            'مسح الماسح يجرّب ملصق الطرد أولاً ثم المنتج. الكاميرا مسار ثانوي.',
+          ])}
+        />
+      </div>
+      <BarcodeScanModal
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onScan={handleWedgeScan}
+      />
+
+      <section className="rounded-2xl border border-border-subtle bg-surface-card p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-slate-800">
+          <p className="text-sm font-semibold text-text-strong">
             {t(['Shipment verification', 'التحقق من الشحنة'])}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -600,7 +671,7 @@ export function DispatchExecutionPanel({
           </div>
         </div>
         {draft.packages.some((p) => p.scanned) ? (
-          <p className="mt-2 text-xs text-emerald-700">
+          <p className="mt-2 text-xs text-brand-700">
             {t([
               `${draft.packages.filter((p) => p.scanned).length} of ${draft.packages.length} package(s) loaded`,
               `تم تحميل ${draft.packages.filter((p) => p.scanned).length} من ${draft.packages.length} طرد`,
@@ -608,14 +679,14 @@ export function DispatchExecutionPanel({
           </p>
         ) : null}
         {filteredDispatchLines.length === 0 && draft.lines.length > 0 ? (
-          <p className="mt-3 text-center text-sm text-slate-500">
+          <p className="mt-3 text-center text-sm text-text-muted">
             {t(['No lines match the current filters.', 'لا أسطر تطابق الفلاتر الحالية.'])}
           </p>
         ) : null}
         <div className="-mx-1 mt-3 overflow-x-auto">
           <table className="min-w-[720px] w-full text-left text-sm">
             <thead>
-              <tr className="border-b bg-slate-50 text-xs uppercase text-slate-500">
+              <tr className="border-b bg-surface-card-muted text-xs uppercase text-text-muted">
                 <th className="px-3 py-2">{t(['Product', 'المنتج'])}</th>
                 <th className="px-3 py-2">SKU</th>
                 <th className="px-3 py-2">{t(['Picked', 'مُلتقط'])}</th>
@@ -627,13 +698,13 @@ export function DispatchExecutionPanel({
               {filteredDispatchLines.map((l) => {
                 const ol = lineMeta.get(l.outboundOrderLineId);
                 return (
-                  <tr key={l.outboundOrderLineId} className="border-b border-slate-100">
+                  <tr key={l.outboundOrderLineId} className="border-b border-border-subtle">
                     <td className="px-3 py-2 text-xs font-medium">{ol?.product?.name ?? '—'}</td>
                     <td className="px-3 py-2 font-mono text-xs">{ol?.product?.sku ?? '—'}</td>
                     <td className="px-3 py-2 font-mono text-xs">{l.pickedQty}</td>
                     <td className="px-3 py-2">
                       <input
-                        className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-xs"
+                        className="w-20 rounded border border-border px-2 py-1 font-mono text-xs"
                         value={l.shipQty}
                         onChange={(e) => patchLine(l.outboundOrderLineId, { shipQty: e.target.value })}
                       />
@@ -645,7 +716,7 @@ export function DispatchExecutionPanel({
                         onChange={(e) =>
                           patchLine(l.outboundOrderLineId, { verified: e.target.checked })
                         }
-                        className="rounded border-slate-300"
+                        className="rounded border-border"
                       />
                     </td>
                   </tr>
@@ -656,8 +727,8 @@ export function DispatchExecutionPanel({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-        <p className="text-sm font-semibold text-slate-800">{t(['Carrier handoff', 'تسليم الناقل'])}</p>
+      <section className="rounded-2xl border border-border-subtle bg-surface-card p-4 shadow-sm">
+        <p className="text-sm font-semibold text-text-strong">{t(['Carrier handoff', 'تسليم الناقل'])}</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <TextField label={t(['Carrier', 'الناقل'])} value={draft.carrier} onChange={(e) => patchDraft({ carrier: e.target.value })} />
           <TextField
@@ -676,17 +747,17 @@ export function DispatchExecutionPanel({
             onChange={(e) => patchDraft({ vehicleInfo: e.target.value })}
           />
         </div>
-        <label className="mt-3 block text-xs font-medium text-slate-600">
+        <label className="mt-3 block text-xs font-medium text-text-body">
           {t(['Dispatch notes', 'ملاحظات الإرسال'])}
           <textarea
-            className="mt-1 min-h-[72px] w-full rounded-lg border border-slate-300 p-2 text-sm"
+            className="mt-1 min-h-[72px] w-full rounded-lg border border-border p-2 text-sm"
             value={draft.dispatchNotes}
             onChange={(e) => patchDraft({ dispatchNotes: e.target.value })}
           />
         </label>
       </section>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface-card/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
         <div className="mx-auto flex max-w-4xl flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button
             type="button"
@@ -754,48 +825,48 @@ function MovementHero({
   const dst = destLoc ? locationDisplay(destLoc) : null;
   const sourceTitle = requiresPacking
     ? t(['Source · Packing', 'المصدر · تغليف'])
-    : t(['Source · Delivery area', 'المصدر · منطقة التسليم']);
+    : t(['Source · Staging', 'المصدر · تجهيز']);
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-gradient-to-r from-violet-50 via-white to-emerald-50 p-4 shadow-sm">
-      <p className="text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+    <section className="rounded-2xl border border-border bg-gradient-to-r from-surface-card-muted via-surface-card to-surface-card p-4 shadow-sm">
+      <p className="text-center text-[10px] font-semibold uppercase tracking-wide text-text-muted">
         {t(['Movement path', 'مسار الحركة'])}
       </p>
       <div className="mt-3 grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-        <div className="rounded-xl border border-violet-200 bg-white p-4 text-center">
-          <p className="text-[10px] font-semibold uppercase text-violet-800">{sourceTitle}</p>
+        <div className="rounded-xl border border-border bg-surface-card p-4 text-center">
+          <p className="text-[10px] font-semibold uppercase text-text-muted">{sourceTitle}</p>
           {src ? (
             <>
-              <p className="mt-2 font-mono text-2xl font-bold text-slate-900">{src.shortLabel}</p>
-              <p className="mt-1 text-xs text-slate-500">{src.fullPath}</p>
+              <p className="mt-2 font-mono text-2xl font-bold text-text-strong">{src.shortLabel}</p>
+              <p className="mt-1 text-xs text-text-muted">{src.fullPath}</p>
             </>
           ) : (
             <>
-              <p className="mt-2 text-sm font-medium text-slate-600">
+              <p className="mt-2 text-sm font-medium text-text-body">
                 {t(['To be selected by the system', 'سيُختار تلقائياً من النظام'])}
               </p>
-              <p className="mt-2 text-[10px] text-slate-500">{sourceHint}</p>
+              <p className="mt-2 text-[10px] text-text-muted">{sourceHint}</p>
             </>
           )}
         </div>
-        <div className="hidden text-3xl text-emerald-600 sm:block" aria-hidden>
+        <div className="hidden text-3xl text-status-success-fg sm:block" aria-hidden>
           →
         </div>
-        <div className="rounded-xl border border-emerald-200 bg-white p-4 text-center">
-          <p className="text-[10px] font-semibold uppercase text-emerald-800">
+        <div className="rounded-xl border border-border bg-surface-card p-4 text-center">
+          <p className="text-[10px] font-semibold uppercase text-brand-700">
             {t(['Destination · Dispatch', 'الوجهة · إرسال'])}
           </p>
           {dst ? (
             <>
-              <p className="mt-2 font-mono text-2xl font-bold text-slate-900">{dst.shortLabel}</p>
-              <p className="mt-1 text-xs text-slate-500">{dst.fullPath}</p>
+              <p className="mt-2 font-mono text-2xl font-bold text-text-strong">{dst.shortLabel}</p>
+              <p className="mt-1 text-xs text-text-muted">{dst.fullPath}</p>
             </>
           ) : (
             <>
-              <p className="mt-2 text-sm font-medium text-slate-600">
+              <p className="mt-2 text-sm font-medium text-text-body">
                 {t(['To be selected by the system', 'سيُختار تلقائياً من النظام'])}
               </p>
-              <p className="mt-2 text-[10px] text-slate-500">{destHint}</p>
+              <p className="mt-2 text-[10px] text-text-muted">{destHint}</p>
             </>
           )}
         </div>

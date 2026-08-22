@@ -13,6 +13,7 @@ exports.CreateOutboundOrderDto = exports.CreateOutboundOrderLineDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
+const shipping_config_dto_1 = require("../../shipping/dto/shipping-config.dto");
 class CreateOutboundOrderLineDto {
     productId;
     requestedQuantity;
@@ -33,14 +34,17 @@ __decorate([
     (0, is_uuid_loose_1.IsUuidLoose)(),
     __metadata("design:type", String)
 ], CreateOutboundOrderLineDto.prototype, "specificLotId", void 0);
-class CreateOutboundOrderDto {
+class CreateOutboundOrderDto extends shipping_config_dto_1.ShippingConfigDto {
     companyId;
     destinationAddress;
     requiredShipDate;
     carrier;
     clientReference;
     notes;
+    externalReference;
     requiresPacking;
+    executionMode;
+    executionPlan;
     lines;
 }
 exports.CreateOutboundOrderDto = CreateOutboundOrderDto;
@@ -74,9 +78,24 @@ __decorate([
 ], CreateOutboundOrderDto.prototype, "notes", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateOutboundOrderDto.prototype, "externalReference", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], CreateOutboundOrderDto.prototype, "requiresPacking", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['admin', 'workers']),
+    __metadata("design:type", String)
+], CreateOutboundOrderDto.prototype, "executionMode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], CreateOutboundOrderDto.prototype, "executionPlan", void 0);
 __decorate([
     (0, class_validator_1.IsArray)(),
     (0, class_validator_1.ArrayMinSize)(1),

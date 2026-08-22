@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Alert, Card } from '@ds';
+
 import { CompaniesApi } from '../api/companies';
 import {
   UsersApi,
@@ -11,11 +13,11 @@ import {
   type UserRole,
   type UserStatus,
 } from '../api/users';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { AnchoredDropdown } from '../components/AnchoredDropdown';
 import { Button } from '../components/Button';
 import { Combobox } from '../components/Combobox';
 import { DataTable, type Column } from '../components/DataTable';
-import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
@@ -25,12 +27,13 @@ import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
 import { useServerPagination } from '../hooks/useServerPagination';
 import { WorkerProfilePanel } from '../components/users/WorkerProfilePanel';
+import { adminMediaSrc } from '../lib/admin-media';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
+import { useDebounced } from '../lib/useDebounced';
 import { workerProfileStatusText } from '../lib/worker-profile';
 
 type UserListFilters = {
   search: string;
-  role: string;
 };
 
 export type UsersPageVariant = 'warehouse' | 'client';
@@ -78,14 +81,14 @@ function formatLastLogin(iso: string | null | undefined): string {
 function activityPill(u: UserListRow, onlineUserIds?: Set<string>) {
   if (u.status !== 'active') {
     return (
-      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-slate-100 text-slate-600">
+      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-surface-card-muted text-text-body">
         Offline
       </span>
     );
   }
   if (onlineUserIds?.has(u.id)) {
     return (
-      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-emerald-50 text-emerald-700">
+      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-status-success-bg text-status-success-fg">
         Online
       </span>
     );
@@ -93,7 +96,7 @@ function activityPill(u: UserListRow, onlineUserIds?: Set<string>) {
   const iso = u.lastActivityAt;
   if (iso == null || iso === '') {
     return (
-      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-slate-100 text-slate-600">
+      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-surface-card-muted text-text-body">
         Offline
       </span>
     );
@@ -101,7 +104,7 @@ function activityPill(u: UserListRow, onlineUserIds?: Set<string>) {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) {
     return (
-      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-slate-100 text-slate-600">
+      <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-surface-card-muted text-text-body">
         Offline
       </span>
     );
@@ -110,7 +113,7 @@ function activityPill(u: UserListRow, onlineUserIds?: Set<string>) {
   return (
     <span
       className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
-        online ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+        online ? 'bg-status-success-bg text-status-success-fg' : 'bg-surface-card-muted text-text-body'
       }`}
     >
       {online ? 'Online' : 'Offline'}
@@ -135,7 +138,7 @@ function statusPill(status: string) {
   return (
     <span
       className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
-        active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+        active ? 'bg-status-success-bg text-status-success-fg' : 'bg-surface-card-muted text-text-body'
       }`}
     >
       {status}
@@ -171,9 +174,14 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
   const [editRole, setEditRole] = useState<UserRole>('wh_operator');
   const [editStatus, setEditStatus] = useState<UserStatus>('active');
   const [editCompanyId, setEditCompanyId] = useState('');
-  const initialUserFilters = useMemo<UserListFilters>(() => ({ search: '', role: '' }), []);
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(initialUserFilters);
+  const initialUserFilters = useMemo<UserListFilters>(() => ({ search: '' }), []);
+  const { draftFilters, appliedFilters, setDraft, applyPatch } = useFilters(initialUserFilters);
+  const debouncedSearch = useDebounced(draftFilters.search, 300);
+
+  useEffect(() => {
+    if (debouncedSearch === appliedFilters.search) return;
+    applyPatch({ search: debouncedSearch });
+  }, [debouncedSearch, appliedFilters.search, applyPatch]);
 
   useEffect(() => {
     if (!openActionId) return;
@@ -196,9 +204,8 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     () => ({
       kind: apiKind,
       search: appliedFilters.search.trim() || undefined,
-      role: (appliedFilters.role as UserRole) || undefined,
     }),
-    [apiKind, appliedFilters.search, appliedFilters.role],
+    [apiKind, appliedFilters.search],
   );
 
   const pagination = useServerPagination<UserListRow>({
@@ -211,9 +218,26 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
 
   const presenceQuery = useQuery({
     queryKey: QK.presenceOnlineUsers,
-    queryFn: () => new Set<string>(),
-    staleTime: Infinity,
-    initialData: () => new Set<string>(),
+    queryFn: async () => {
+      const { getAccessToken } = await import('../auth/authStorage');
+      const { getApiBaseUrl } = await import('../api/apiBaseUrl');
+      const token = getAccessToken();
+      if (!token) return new Set<string>();
+      const res = await fetch(`${getApiBaseUrl()}/realtime/presence/online`, {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+      });
+      if (!res.ok) return new Set<string>();
+      const body = (await res.json()) as { data?: { userIds?: string[] } };
+      return new Set(body.data?.userIds ?? []);
+    },
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    // Prefer socket-hydrated cache; only fetch if empty/missing.
+    initialData: () => qc.getQueryData<Set<string>>(QK.presenceOnlineUsers),
+    initialDataUpdatedAt: () =>
+      qc.getQueryState(QK.presenceOnlineUsers)?.dataUpdatedAt,
   });
   const onlineUserIds = presenceQuery.data;
 
@@ -306,12 +330,35 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
 
   const { systemColumns, clientColumns } = useMemo(() => {
     const lead: Column<UserListRow>[] = [
-      { header: t('Email', 'البريد الإلكتروني'), accessor: (u) => <span className="text-slate-800">{u.email}</span> },
-      { header: t('Name', 'الاسم'), accessor: (u) => <span className="text-slate-700">{u.fullName}</span> },
-      { header: t('Phone', 'الهاتف'), accessor: (u) => <span className="text-slate-600">{u.phone ?? '—'}</span> },
+      {
+        header: t('Name', 'الاسم'),
+        accessor: (u) => {
+          const avatarSrc = adminMediaSrc(u.avatarUrl);
+          return (
+            <div className="flex items-center gap-3">
+              {avatarSrc ? (
+                <img
+                  src={avatarSrc}
+                  alt=""
+                  className="h-9 w-9 shrink-0 rounded-lg border border-border object-cover"
+                />
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-sunken text-text-faint">
+                  <i className="fa-solid fa-user text-xs" aria-hidden="true" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="truncate font-semibold text-text-strong">{u.fullName}</div>
+                <div className="truncate text-xs text-text-muted">{u.email}</div>
+              </div>
+            </div>
+          );
+        },
+      },
+      { header: t('Phone', 'الهاتف'), accessor: (u) => <span className="text-text-body">{u.phone ?? '—'}</span> },
       {
         header: t('Role', 'الدور'),
-        accessor: (u) => <span className="text-slate-700">{roleLabel(u.role)}</span>,
+        accessor: (u) => <span className="text-text-body">{roleLabel(u.role)}</span>,
       },
       {
         header: t('Status', 'الحالة'),
@@ -320,14 +367,14 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       {
         header: t('Worker profile', 'ملف العامل'),
         accessor: (u) => {
-          if (u.role !== 'wh_operator') return <span className="text-slate-400">—</span>;
+          if (u.role !== 'wh_operator') return <span className="text-text-faint">—</span>;
           const label = workerProfileStatusText(u.workerProfile, u.status, t);
           const cls =
             label === t('Linked', 'مرتبط')
-              ? 'bg-emerald-50 text-emerald-700'
+              ? 'bg-status-success-bg text-status-success-fg'
               : label === t('Not linked', 'غير مرتبط')
-                ? 'bg-amber-50 text-amber-800'
-                : 'bg-slate-100 text-slate-600';
+                ? 'bg-status-warning-bg text-status-warning-fg'
+                : 'bg-surface-card-muted text-text-body';
           return (
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${cls}`}>
               {label}
@@ -339,12 +386,12 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     ];
     const companyCol: Column<UserListRow> = {
       header: t('Company', 'الشركة'),
-      accessor: (u) => <span className="text-slate-600">{u.companyName ?? '—'}</span>,
+      accessor: (u) => <span className="text-text-body">{u.companyName ?? '—'}</span>,
     };
     const tail: Column<UserListRow>[] = [
       {
         header: t('Last login', 'آخر تسجيل دخول'),
-        accessor: (u) => <span className="text-slate-500">{formatLastLogin(u.lastLoginAt)}</span>,
+        accessor: (u) => <span className="text-text-muted">{formatLastLogin(u.lastLoginAt)}</span>,
       },
       {
         header: t('Activity', 'النشاط'),
@@ -363,7 +410,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
                 trigger={
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-card-muted"
                     disabled={busy}
                     data-user-action-trigger="true"
                     onClick={() => setOpenActionId((cur) => (cur === u.id ? null : u.id))}
@@ -379,7 +426,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
               >
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                  className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-card-muted"
                   data-user-action-menu-button="true"
                   onClick={() => {
                     setOpenActionId(null);
@@ -391,7 +438,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
                 {u.status === 'active' ? (
                   <button
                     type="button"
-                    className="block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100"
+                    className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-card-muted"
                     data-user-action-menu-button="true"
                     onClick={() => {
                       if (
@@ -408,7 +455,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
                 ) : null}
                 <button
                   type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-rose-700 transition hover:bg-rose-50"
+                  className="block w-full px-3 py-2 text-left text-sm text-status-error-fg transition hover:bg-status-error-bg"
                   data-user-action-menu-button="true"
                   onClick={() => {
                     if (
@@ -446,10 +493,6 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     variant === 'warehouse'
       ? t('Warehouse users', 'مستخدمو المستودع')
       : t('Client users', 'مستخدمو العملاء');
-  const filterTitle =
-    variant === 'warehouse'
-      ? t('Warehouse user filters', 'فلاتر مستخدمي المستودع')
-      : t('Client user filters', 'فلاتر مستخدمي العملاء');
   const emptyMessage =
     variant === 'warehouse'
       ? t('No warehouse users yet.', 'لا يوجد مستخدمو مستودع بعد.')
@@ -511,57 +554,41 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
   const errMsg = pagination.error instanceof Error ? pagination.error.message : null;
 
   return (
-    <>
-      {errMsg ? <p className="mb-4 text-sm text-rose-600">{errMsg}</p> : null}
+    <AdminListPageShell
+      icon="fa-users"
+      title={pageTitle}
+      isArabic={isArabic}
+      actions={
+        <Button
+          type="button"
+          variant="brand"
+          onClick={() => {
+            resetCreateForm();
+            setCreateOpen(true);
+          }}
+        >
+          {t('+ New user', '+ مستخدم جديد')}
+        </Button>
+      }
+    >
+      {errMsg ? <Alert variant="error" title={errMsg} className="mb-4" /> : null}
 
-      <FilterPanel
-        title={filterTitle}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
-        resetLabel={t('Reset filters', 'إعادة تعيين الفلاتر')}
-      >
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="w-full min-w-[10rem] max-w-[25%] flex-1 basis-32">
-            <TextField
-              label={t('Search', 'بحث')}
-              value={draftFilters.search}
-              onChange={(e) => setDraft({ search: e.target.value })}
-              placeholder={t('Search by name or email', 'ابحث بالاسم أو البريد الإلكتروني')}
-            />
-          </div>
-          <div className="w-full min-w-[10rem] max-w-[25%] flex-1 basis-32">
-            <SelectField
-              label={t('Role', 'الدور')}
-              name="roleFilter"
-              value={draftFilters.role}
-              onChange={(e) => setDraft({ role: e.target.value })}
-              options={[
-                { value: '', label: t('All roles', 'كل الأدوار') },
-                ...(variant === 'warehouse'
-                  ? SYSTEM_ROLE_EDIT.map((r) => ({ value: r.value, label: r.label }))
-                  : CLIENT_ROLE_OPTIONS.map((r) => ({ value: r.value, label: r.label }))),
-              ]}
-            />
-          </div>
+      <Card padding="md">
+        <div className="relative w-full">
+          <i
+            className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-text-faint"
+            aria-hidden
+          />
+          <input
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder={t('Search by name or email…', 'ابحث بالاسم أو البريد الإلكتروني…')}
+            className="input-premium w-full rounded-lg border border-border-strong bg-surface-sunken py-2 pl-9 pr-4 text-sm text-text-strong placeholder:text-text-faint"
+          />
         </div>
-      </FilterPanel>
+      </Card>
 
       <DataTable
-        title={pageTitle}
-        actions={
-          <Button
-            type="button"
-            variant="brand"
-            onClick={() => {
-              resetCreateForm();
-              setCreateOpen(true);
-            }}
-          >
-            {t('+ New user', '+ مستخدم جديد')}
-          </Button>
-        }
         columns={tableColumns}
         rows={pagination.rows}
         rowKey={(u) => u.id}
@@ -774,7 +801,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
               hint={t('Leave blank to keep the current password.', 'اتركه فارغا للاحتفاظ بكلمة المرور الحالية.')}
             />
             {editUser.kind === 'system' && editRole === 'wh_operator' ? (
-              <div className="border-t border-slate-100 pt-2">
+              <div className="border-t border-border-subtle pt-2">
                 <WorkerProfilePanel
                   user={{ ...editUser, role: editRole, status: editStatus }}
                   t={t}
@@ -785,7 +812,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
           </form>
         </Modal>
       )}
-    </>
+    </AdminListPageShell>
   );
 }
 

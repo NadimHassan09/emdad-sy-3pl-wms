@@ -48,6 +48,11 @@ export class BillingDashboardService {
           take: 1,
           select: { id: true, endsAt: true },
         },
+        billingPlans: {
+          orderBy: [{ active: 'desc' }, { updatedAt: 'desc' }],
+          take: 1,
+          select: { id: true },
+        },
       },
     });
 
@@ -57,6 +62,7 @@ export class BillingDashboardService {
       status: c.status,
       lastCycleEndedAt: c.billingCycles[0]?.endsAt?.toISOString() ?? null,
       restrictedSince: c.updatedAt.toISOString(),
+      billingPlanId: c.billingPlans[0]?.id ?? null,
     }));
   }
 
@@ -64,7 +70,7 @@ export class BillingDashboardService {
   async listRecentInvoices(user: AuthPrincipal, limit = 5) {
     const take = Math.min(Math.max(limit, 1), 20);
     const where: Prisma.InvoiceWhereInput = {
-      status: { in: ['open', 'paid'] },
+      status: { in: ['unpaid', 'open', 'paid'] },
     };
     if (user.tenantScope === 'restricted') {
       where.companyId = { in: user.authorizedCompanyIds };
@@ -162,10 +168,12 @@ export class BillingDashboardService {
       ...(tenantCompanyIds ? { companyId: { in: tenantCompanyIds } } : {}),
     };
 
-    const [outstanding, monthRevenue, openCount, overdueCount, suspendedCount] =
-      await Promise.all([
+    const [outstanding, monthRevenue, unpaidCount, suspendedCount] = await Promise.all([
         this.prisma.invoice.aggregate({
-          where: { ...invoiceWhere, status: { in: ['open', 'overdue'] } },
+          where: {
+            ...invoiceWhere,
+            status: { in: ['unpaid', 'open', 'overdue'] },
+          },
           _sum: { totalAmount: true },
         }),
         this.prisma.invoice.aggregate({
@@ -177,10 +185,10 @@ export class BillingDashboardService {
           _sum: { totalAmount: true },
         }),
         this.prisma.invoice.count({
-          where: { ...invoiceWhere, status: 'open' },
-        }),
-        this.prisma.invoice.count({
-          where: { ...invoiceWhere, status: 'overdue' },
+          where: {
+            ...invoiceWhere,
+            status: { in: ['unpaid', 'open', 'overdue'] },
+          },
         }),
         this.prisma.company.count({
           where: {
@@ -193,8 +201,8 @@ export class BillingDashboardService {
     return {
       outstandingAmount: (outstanding._sum.totalAmount ?? new Prisma.Decimal(0)).toString(),
       currentMonthRevenue: (monthRevenue._sum.totalAmount ?? new Prisma.Decimal(0)).toString(),
-      openInvoiceCount: openCount,
-      overdueInvoiceCount: overdueCount,
+      openInvoiceCount: unpaidCount,
+      overdueInvoiceCount: 0,
       suspendedAccountCount: suspendedCount,
     };
   }
@@ -216,6 +224,11 @@ export class BillingDashboardService {
         name: true,
         status: true,
         updatedAt: true,
+        billingPlans: {
+          orderBy: [{ active: 'desc' }, { updatedAt: 'desc' }],
+          take: 1,
+          select: { id: true },
+        },
       },
     });
 
@@ -224,6 +237,7 @@ export class BillingDashboardService {
       companyName: c.name,
       status: c.status,
       suspendedSince: c.updatedAt.toISOString(),
+      billingPlanId: c.billingPlans[0]?.id ?? null,
     }));
   }
 }

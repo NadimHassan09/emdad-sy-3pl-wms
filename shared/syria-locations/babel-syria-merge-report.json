@@ -1,0 +1,46 @@
+{
+  "babelSyncedAt": "2026-08-21T21:17:17.538Z",
+  "syriaGovernoratesBefore": 14,
+  "babelCities": 10,
+  "babelAreas": 218,
+  "babelNeighbourhoods": 5421,
+  "addedGovernorates": [],
+  "addedDistricts": [
+    "إدلب › مدينة إدلب",
+    "القنيطرة › مدينة القنيطرة",
+    "اللاذقية › مدينة اللاذقية",
+    "حلب › مدينة حلب",
+    "حماة › مدينة حماة",
+    "حمص › القصير",
+    "حمص › مدينة حمص",
+    "درعا › مدينة درعا",
+    "دمشق › محافظة دمشق",
+    "ريف دمشق › قدسيا\r\n",
+    "طرطوس › مدينة طرطوس"
+  ],
+  "addedNeighbourhoods": 799,
+  "babelCoverageCheck": {
+    "missingCities": [],
+    "missingAreas": [],
+    "missingNeighbourhoods": []
+  },
+  "syriaGovernoratesAfter": 14,
+  "governorates": [
+    "إدلب",
+    "الحسكة",
+    "الرقة",
+    "السويداء",
+    "القنيطرة",
+    "اللاذقية",
+    "حلب",
+    "حماة",
+    "حمص",
+    "درعا",
+    "دمشق",
+    "دير الزور",
+    "ريف دمشق",
+    "طرطوس"
+  ],
+  "indexEntries": 5421,
+  "ok": true
+}

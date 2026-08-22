@@ -37,7 +37,7 @@ export function TableCardHeader({
       {(title || description) && (
         <div className="min-w-0">
           {title && (
-            <TitleTag className="text-base font-semibold text-slate-900 sm:text-lg">{title}</TitleTag>
+            <TitleTag className="text-base font-bold text-slate-900 sm:text-lg">{title}</TitleTag>
           )}
           {description && (
             <p className="mt-1 text-sm leading-relaxed text-slate-500">{description}</p>

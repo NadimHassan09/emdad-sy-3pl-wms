@@ -9,27 +9,27 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BillingAccessService = exports.BillingVolumeCapacityService = exports.WAREHOUSE_ALLOCATABLE_CAPACITY_RATIO = void 0;
+exports.BillingAccessService = exports.BillingVolumeCapacityService = exports.BILLING_BLOCKED_STATUSES = exports.WAREHOUSE_ALLOCATABLE_CAPACITY_RATIO = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const billing_exceptions_1 = require("../../common/errors/billing-exceptions");
 exports.WAREHOUSE_ALLOCATABLE_CAPACITY_RATIO = 0.9;
+exports.BILLING_BLOCKED_STATUSES = [
+    client_1.CompanyStatus.restricted,
+    client_1.CompanyStatus.suspended,
+    client_1.CompanyStatus.archived,
+    client_1.CompanyStatus.closed,
+    client_1.CompanyStatus.offboarding,
+    client_1.CompanyStatus.purged,
+];
 let BillingVolumeCapacityService = class BillingVolumeCapacityService {
     prisma;
     constructor(prisma) {
         this.prisma = prisma;
     }
     async getTotalWarehouseVolume() {
-        const agg = await this.prisma.location.aggregate({
-            where: {
-                status: 'active',
-                type: { in: ['internal', 'fridge', 'quarantine'] },
-                maxCbm: { not: null },
-            },
-            _sum: { maxCbm: true },
-        });
-        return agg._sum.maxCbm ?? new client_1.Prisma.Decimal(0);
+        return new client_1.Prisma.Decimal(0);
     }
     async getTotalWarehouseWeight() {
         const agg = await this.prisma.location.aggregate({
@@ -79,22 +79,7 @@ let BillingVolumeCapacityService = class BillingVolumeCapacityService {
         });
         return agg._sum.reservedVolume ?? new client_1.Prisma.Decimal(0);
     }
-    async assertVolumeAllocation(requestedVolume, excludePlanId) {
-        const total = await this.getTotalWarehouseVolume();
-        if (total.lte(0))
-            return;
-        const allocatable = total.mul(exports.WAREHOUSE_ALLOCATABLE_CAPACITY_RATIO);
-        const allocated = await this.getAllocatedVolume(excludePlanId);
-        const requested = new client_1.Prisma.Decimal(requestedVolume);
-        const nextTotal = allocated.add(requested);
-        if (nextTotal.gt(allocatable)) {
-            throw new billing_exceptions_1.VolumeAllocationExceededException(`Total reserved volume (${nextTotal.toFixed(4)} CBM) exceeds the 90% allocatable capacity (${allocatable.toFixed(4)} CBM of ${total.toFixed(4)} CBM).`, {
-                totalWarehouseVolume: total.toString(),
-                allocatableCapacity: allocatable.toString(),
-                currentlyAllocated: allocated.toString(),
-                requestedVolume: requested.toString(),
-            });
-        }
+    async assertVolumeAllocation(_requestedVolume, _excludePlanId) {
     }
 };
 exports.BillingVolumeCapacityService = BillingVolumeCapacityService;
@@ -115,7 +100,7 @@ let BillingAccessService = class BillingAccessService {
         if (!company) {
             return { operationalAllowed: false, accountStatus: 'no_plan', daysRemaining: null };
         }
-        if (company.status === client_1.CompanyStatus.restricted) {
+        if (exports.BILLING_BLOCKED_STATUSES.includes(company.status)) {
             return { operationalAllowed: false, accountStatus: 'restricted', daysRemaining: null };
         }
         const plan = await this.prisma.billingPlan.findFirst({
@@ -150,7 +135,7 @@ let BillingAccessService = class BillingAccessService {
         if (!company) {
             throw new billing_exceptions_1.BillingPlanRequiredException('Company not found.');
         }
-        if (company.status === client_1.CompanyStatus.restricted) {
+        if (exports.BILLING_BLOCKED_STATUSES.includes(company.status)) {
             throw new billing_exceptions_1.BillingCycleExpiredException();
         }
         const plan = await this.prisma.billingPlan.findFirst({

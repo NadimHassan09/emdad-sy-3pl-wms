@@ -4,6 +4,10 @@ import { PieChart, type PieSlice } from '../PieChart';
 import { buildReportChartData, buildTimelineChartData, chartColor } from '../../lib/reports/chart-data';
 import type { ReportChartKind, ReportDefinition, ReportRow } from '../../lib/reports/types';
 
+const CHART_PANEL_CLASS = 'rounded-2xl border border-border bg-surface-panel p-5 shadow-soft';
+const CHART_TITLE_CLASS = 'mb-4 text-sm font-semibold text-text-strong';
+const CHART_STROKE = 'var(--color-brand-600)';
+
 type Props = {
   report: ReportDefinition;
   rows: ReportRow[];
@@ -32,7 +36,7 @@ export function ReportChartPanel({ report, rows, isArabic, chartKind = 'bar' }: 
 
   if (chartKind === 'pie') {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className={CHART_PANEL_CLASS}>
         <PieChart
           title={isArabic ? 'توزيع تشغيلي' : 'Operational distribution'}
           slices={pieSlices}
@@ -44,20 +48,20 @@ export function ReportChartPanel({ report, rows, isArabic, chartKind = 'bar' }: 
 
   if (chartKind === 'line') {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-sm font-semibold text-slate-900">
+      <div className={CHART_PANEL_CLASS}>
+        <h3 className={CHART_TITLE_CLASS}>
           {isArabic ? 'اتجاه النشاط' : 'Activity trend'}
         </h3>
         <svg viewBox="0 0 400 160" className="h-52 w-full" role="img" aria-label={chart.title}>
           {chart.lines.length < 2 ? (
-            <text x="200" y="80" textAnchor="middle" className="fill-slate-400 text-xs">
+            <text x="200" y="80" textAnchor="middle" className="fill-text-faint text-xs">
               {isArabic ? 'بيانات غير كافية للرسم' : 'Insufficient points for trend'}
             </text>
           ) : (
             <>
               <polyline
                 fill="none"
-                stroke="#059669"
+                stroke={CHART_STROKE}
                 strokeWidth="2"
                 points={chart.lines
                   .map((p, i) => {
@@ -70,7 +74,7 @@ export function ReportChartPanel({ report, rows, isArabic, chartKind = 'bar' }: 
               {chart.lines.map((p, i) => {
                 const x = 20 + (i / Math.max(chart.lines.length - 1, 1)) * 360;
                 const y = 150 - (p.value / max) * 130;
-                return <circle key={p.label} cx={x} cy={y} r="4" fill="#059669" />;
+                return <circle key={p.label} cx={x} cy={y} r="4" fill={CHART_STROKE} />;
               })}
             </>
           )}
@@ -81,17 +85,17 @@ export function ReportChartPanel({ report, rows, isArabic, chartKind = 'bar' }: 
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-sm font-semibold text-slate-900">
+      <div className={CHART_PANEL_CLASS}>
+        <h3 className={CHART_TITLE_CLASS}>
           {isArabic ? 'توزيع تشغيلي' : 'Operational distribution'}
         </h3>
-        <div className="flex h-56 items-end gap-2 border-b border-slate-100 pb-2">
+        <div className="flex h-56 items-end gap-2 border-b border-border-subtle pb-2">
           {chart.bars.length === 0 ? (
-            <p className="text-sm text-slate-500">{isArabic ? 'لا توجد بيانات' : 'No data'}</p>
+            <p className="text-sm text-text-muted">{isArabic ? 'لا توجد بيانات' : 'No data'}</p>
           ) : (
             chart.bars.map((b, i) => (
               <div key={b.label} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-                <span className="text-[10px] font-medium text-slate-600 tabular-nums">{b.value}</span>
+                <span className="text-[10px] font-medium text-text-body tabular-nums">{b.value}</span>
                 <div
                   className="w-full max-w-[2.5rem] rounded-t-md transition-all"
                   style={{
@@ -100,7 +104,7 @@ export function ReportChartPanel({ report, rows, isArabic, chartKind = 'bar' }: 
                   }}
                   title={`${b.label}: ${b.value}`}
                 />
-                <span className="max-w-full truncate text-[9px] text-slate-500" title={b.label}>
+                <span className="max-w-full truncate text-[9px] text-text-muted" title={b.label}>
                   {b.label}
                 </span>
               </div>
@@ -109,19 +113,19 @@ export function ReportChartPanel({ report, rows, isArabic, chartKind = 'bar' }: 
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-sm font-semibold text-slate-900">
+      <div className={CHART_PANEL_CLASS}>
+        <h3 className={CHART_TITLE_CLASS}>
           {isArabic ? 'اتجاه النشاط' : 'Activity trend'}
         </h3>
         <svg viewBox="0 0 400 160" className="h-44 w-full" role="img" aria-label={chart.title}>
           {chart.lines.length < 2 ? (
-            <text x="200" y="80" textAnchor="middle" className="fill-slate-400 text-xs">
+            <text x="200" y="80" textAnchor="middle" className="fill-text-faint text-xs">
               {isArabic ? 'بيانات غير كافية للرسم' : 'Insufficient points for trend'}
             </text>
           ) : (
             <polyline
               fill="none"
-              stroke="#059669"
+              stroke={CHART_STROKE}
               strokeWidth="2"
               points={chart.lines
                 .map((p, i) => {

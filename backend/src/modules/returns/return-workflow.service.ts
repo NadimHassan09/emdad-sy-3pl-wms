@@ -23,6 +23,7 @@ import {
   isReturnInspectable,
   isReturnInventoryApplicable,
 } from './returns.constants';
+import { RealtimeService } from '../realtime/realtime.service';
 
 const ORDER_INCLUDE = {
   company: { select: { id: true, name: true } },
@@ -47,6 +48,7 @@ export class ReturnWorkflowService {
     private readonly companyAccess: CompanyAccessService,
     private readonly inventory: ReturnInventoryService,
     private readonly audit: AuditLogService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   async inspectLine(
@@ -215,6 +217,13 @@ export class ReturnWorkflowService {
         where: { id: returnOrderId },
         include: ORDER_INCLUDE,
       });
+    }).then((updated) => {
+      this.realtime.emitInventoryChanged(order.companyId, {
+        source: 'return_inventory_post',
+        orderId: returnOrderId,
+        productId: line.productId,
+      });
+      return updated;
     });
   }
 

@@ -37,6 +37,7 @@ import type {
 import type { ResolveTaskDto } from './dto/resolve-task.dto';
 import { WorkflowOrchestrationService } from './workflow-orchestration.service';
 import { BillingInvoiceCalculationService } from '../billing/billing-invoice-calculation.service';
+import { DocumentGenerationService } from '../../pdf/document-generation.service';
 import { billingTriggerForWarehouseTask } from '../billing/billing-recalculation-triggers.util';
 import { TaskCompleteBody, safeParseTaskComplete, taskProgressRequestSchema } from './task-payload.schema';
 import { canTransitionTask } from './task-transitions';
@@ -48,7 +49,7 @@ import {
   RUNN_BLOCKED_SKILL_GAP,
 } from './task-runnable.util';
 
-type ExecState = { reservations: ReservationSnapshot[] };
+type ExecState = { reservations: ReservationSnapshot[]; consumed: boolean };
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
@@ -67,6 +68,7 @@ export class WarehouseTasksService {
     private readonly companyAccess: CompanyAccessService,
     private readonly audit: AuditLogService,
     private readonly billingInvoiceCalc: BillingInvoiceCalculationService,
+    private readonly documentGeneration: DocumentGenerationService,
   ) {}
 
   private assertTaskWorkflowTenant(
@@ -74,6 +76,27 @@ export class WarehouseTasksService {
     workflowCompanyId: string,
   ): void {
     this.companyAccess.assertSameCompany(user, workflowCompanyId);
+  }
+
+  /** Warehouse managers and super admins may execute tasks without a worker assignment. */
+  private isAdminActor(user: AuthPrincipal): boolean {
+    return user.role === UserRole.super_admin || user.role === UserRole.wh_manager;
+  }
+
+  private mergePlanPatch(
+    current: Record<string, unknown>,
+    patch: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const next = { ...current };
+    for (const [key, val] of Object.entries(patch)) {
+      const cur = next[key];
+      if (isRecord(cur) && isRecord(val)) {
+        next[key] = { ...cur, ...val };
+      } else {
+        next[key] = val;
+      }
+    }
+    return next;
   }
 
   async list(
@@ -129,6 +152,8 @@ export class WarehouseTasksService {
       id: true,
       taskType: true,
       status: true,
+      startedAt: true,
+      completedAt: true,
       updatedAt: true,
       ...(includeRunnability ? { workflowInstanceId: true } : {}),
       workflowInstance: {
@@ -152,6 +177,7 @@ export class WarehouseTasksService {
         orderBy: { assignedAt: 'desc' },
         take: 1,
         select: {
+          assignedAt: true,
           unassignedAt: true,
           workerId: true,
           worker: {
@@ -458,10 +484,13 @@ export class WarehouseTasksService {
   }
 
   private parseExecState(raw: unknown): ExecState {
-    if (!isRecord(raw)) return { reservations: [] };
+    if (!isRecord(raw)) return { reservations: [], consumed: false };
+    // `consumed`/`shipped` marks a snapshot whose stock has already been shipped: it is
+    // retained for historical display but must never be released or re-shipped again.
+    const consumed = raw.consumed === true || raw.shipped === true;
     const r = raw.reservations;
-    if (!Array.isArray(r)) return { reservations: [] };
-    return { reservations: r as ReservationSnapshot[] };
+    if (!Array.isArray(r)) return { reservations: [], consumed };
+    return { reservations: r as ReservationSnapshot[], consumed };
   }
 
   /**
@@ -499,7 +528,7 @@ export class WarehouseTasksService {
       }
 
       const pickExec = this.parseExecState(pick.executionState);
-      if (!pickExec.reservations.length) {
+      if (!pickExec.reservations.length || pickExec.consumed) {
         throw new BadRequestException('Dispatch bound pick has no reservation snapshot.');
       }
       return pick;
@@ -514,9 +543,10 @@ export class WarehouseTasksService {
       select: { id: true, executionState: true },
     });
 
-    const withReservations = completedPicks.filter(
-      (p) => this.parseExecState(p.executionState).reservations.length > 0,
-    );
+    const withReservations = completedPicks.filter((p) => {
+      const ex = this.parseExecState(p.executionState);
+      return ex.reservations.length > 0 && !ex.consumed;
+    });
 
     if (withReservations.length === 1) return withReservations[0];
     if (withReservations.length === 0) {
@@ -538,6 +568,8 @@ export class WarehouseTasksService {
   ): Promise<boolean> {
     const exec = this.parseExecState(executionState);
     if (exec.reservations.length === 0) return false;
+    // Already-shipped (consumed) snapshots are kept for history and must not be released.
+    if (exec.consumed) return false;
     await this.effects.releaseReservations(tx, exec.reservations);
     await tx.warehouseTask.update({
       where: { id: taskId },
@@ -677,7 +709,10 @@ export class WarehouseTasksService {
     const reqs = task.requiredSkills ?? [];
     if (!reqs.length) return;
     const wid = task.assignments[0]?.workerId;
-    if (!wid) this.rejectNotRunnable(RUNN_BLOCKED_ASSIGNMENT_REQUIRED);
+    if (!wid) {
+      if (this.isAdminActor(user)) return;
+      this.rejectNotRunnable(RUNN_BLOCKED_ASSIGNMENT_REQUIRED);
+    }
     const ok = await this.workerMeetsRequiredSkills(wid!, reqs, new Date());
     if (!ok) this.rejectNotRunnable(RUNN_BLOCKED_SKILL_GAP);
   }
@@ -774,10 +809,33 @@ export class WarehouseTasksService {
       });
       if (!task) throw new NotFoundException('Task not found.');
 
-      const activeWorker = workerId ?? task.assignments[0]?.workerId;
-      if (!activeWorker) throw new BadRequestException('Assign a worker before starting.');
+      const assignment = task.assignments[0];
+      const activeWorker = workerId ?? assignment?.workerId;
+      const adminWithoutWorker =
+        this.isAdminActor(user) && !workerId && !assignment?.workerId;
 
-      await this.assertFrontierAndSkillsTx(tx, task, workerId ? [workerId] : [activeWorker]);
+      if (!activeWorker && !adminWithoutWorker) {
+        throw new BadRequestException('Assign a worker before starting.');
+      }
+
+      if (adminWithoutWorker) {
+        await this.assertFrontierOnlyTx(tx, task);
+      } else {
+        await this.assertFrontierAndSkillsTx(tx, task, workerId ? [workerId] : [activeWorker!]);
+      }
+
+      // Persist the executing worker as the active assignment so the tasks list and
+      // audit trail show who performed the task (start with a worker == implicit assign).
+      if (workerId && assignment?.workerId !== workerId) {
+        await this.ensureWorker(workerId, user);
+        await tx.taskAssignment.updateMany({
+          where: { taskId, unassignedAt: null },
+          data: { unassignedAt: new Date() },
+        });
+        await tx.taskAssignment.create({
+          data: { taskId, workerId, assignedById: user.id },
+        });
+      }
 
       if (task.status === WarehouseTaskStatus.pending) {
         await this.bumpStatus(tx, taskId, task.lockVersion, WarehouseTaskStatus.in_progress, {
@@ -833,6 +891,7 @@ export class WarehouseTasksService {
           wf.companyId,
           wf.warehouseId,
           lines,
+          parsed.outbound_order_id,
         );
         await tx.warehouseTask.update({
           where: { id: taskId },
@@ -841,7 +900,15 @@ export class WarehouseTasksService {
           },
         });
       }
-      await this.appendEvent(tx, taskId, 'started', user.id, { workerId: activeWorker });
+      await this.appendEvent(
+        tx,
+        taskId,
+        'started',
+        user.id,
+        adminWithoutWorker
+          ? { performedByKind: 'admin', performedByUserId: user.id }
+          : { workerId: activeWorker },
+      );
       const started = await tx.warehouseTask.findUniqueOrThrow({
         where: { id: taskId },
         include: { workflowInstance: true },
@@ -857,7 +924,7 @@ export class WarehouseTasksService {
           newState: {
             status: WarehouseTaskStatus.in_progress,
             taskType: task.taskType,
-            workerId: activeWorker,
+            ...(activeWorker ? { workerId: activeWorker } : { performedByKind: 'admin' }),
           },
         }),
       );
@@ -910,32 +977,60 @@ export class WarehouseTasksService {
       if (task.taskType !== body.task_type) {
         throw new BadRequestException('task_type does not match target task.');
       }
-      if (task.status !== WarehouseTaskStatus.in_progress) {
+
+      const assignment = task.assignments[0];
+      const adminWithoutWorker = this.isAdminActor(user) && !assignment;
+      const canAdminCompleteFromOpen =
+        adminWithoutWorker &&
+        (task.status === WarehouseTaskStatus.pending ||
+          task.status === WarehouseTaskStatus.assigned);
+
+      let workingTask = task;
+
+      if (workingTask.status !== WarehouseTaskStatus.in_progress) {
         // Allow repeated pick completion requests to be idempotent after the task is already completed.
         if (
-          task.taskType === 'pick' &&
+          workingTask.taskType === 'pick' &&
           body.task_type === 'pick' &&
-          task.status === WarehouseTaskStatus.completed
+          workingTask.status === WarehouseTaskStatus.completed
         ) {
           idempotentPickNoop = true;
           return;
         }
         if (
-          task.taskType === WarehouseTaskType.dispatch &&
+          workingTask.taskType === WarehouseTaskType.dispatch &&
           body.task_type === 'dispatch' &&
-          task.status === WarehouseTaskStatus.completed
+          workingTask.status === WarehouseTaskStatus.completed
         ) {
           idempotentDispatchNoop = true;
           return;
         }
-        throw new BadRequestException('Task must be in_progress to complete.');
+        if (!canAdminCompleteFromOpen) {
+          throw new BadRequestException('Task must be in_progress to complete.');
+        }
       }
 
-      const assignmentIds = task.assignments.map((a) => a.workerId);
-      await this.assertFrontierAndSkillsTx(tx, task, assignmentIds);
+      if (canAdminCompleteFromOpen) {
+        await this.bumpStatus(tx, taskId, workingTask.lockVersion, WarehouseTaskStatus.in_progress, {
+          startedAt: new Date(),
+        });
+        workingTask = {
+          ...workingTask,
+          status: WarehouseTaskStatus.in_progress,
+          lockVersion: workingTask.lockVersion + 1,
+          startedAt: new Date(),
+        };
+      }
 
-      const exec = this.parseExecState(task.executionState);
-      const companyId = task.workflowInstance.companyId;
+      const assignmentIds = workingTask.assignments.map((a) => a.workerId);
+      if (adminWithoutWorker) {
+        await this.assertFrontierOnlyTx(tx, workingTask);
+      } else {
+        await this.assertFrontierAndSkillsTx(tx, workingTask, assignmentIds);
+      }
+
+      const exec = this.parseExecState(workingTask.executionState);
+      const companyId = workingTask.workflowInstance.companyId;
       billingCompanyId = companyId;
       billingTaskType = body.task_type;
 
@@ -998,6 +1093,15 @@ export class WarehouseTasksService {
           await this.effects.applyPackRecord(tx, outboundId, body);
           break;
         }
+        case 'shipping_details': {
+          const pl = task.payload as { outbound_order_id?: string };
+          const outboundId = pl.outbound_order_id;
+          if (!outboundId) {
+            throw new BadRequestException('shipping_details task missing outbound_order_id.');
+          }
+          await this.effects.applyShippingDetailsTaskComplete(tx, outboundId, body, user.id);
+          break;
+        }
         case 'dispatch': {
           const { outbound_order_id: outboundId, pick_task_id: explicitPickTaskId } =
             parseDispatchTaskPayloadAllowLegacy(task.payload);
@@ -1025,11 +1129,18 @@ export class WarehouseTasksService {
             pickExec.reservations,
             body,
           );
-          // Prevent stale pick snapshots from being re-released after successful ship.
+          // Mark the bound pick snapshot as consumed (shipped) rather than deleting it.
+          // This prevents the slices from being re-released/re-shipped while keeping the
+          // reservation snapshot for the completed pick task's read-only view.
           if (boundPick) {
             await tx.warehouseTask.update({
               where: { id: boundPick.id },
-              data: { executionState: Prisma.DbNull },
+              data: {
+                executionState: {
+                  reservations: pickExec.reservations,
+                  consumed: true,
+                } as object as Prisma.InputJsonValue,
+              },
             });
           }
           break;
@@ -1041,12 +1152,16 @@ export class WarehouseTasksService {
       }
 
       const clearExec = body.task_type !== 'pick';
-      await this.bumpStatus(tx, taskId, task.lockVersion, WarehouseTaskStatus.completed, {
+      await this.bumpStatus(tx, taskId, workingTask.lockVersion, WarehouseTaskStatus.completed, {
         completedAt: new Date(),
         completedById: user.id,
         ...(clearExec ? { executionState: Prisma.DbNull } : {}),
       });
-      await this.appendEvent(tx, taskId, 'completed', user.id, { task_type: task.taskType });
+      await this.appendEvent(tx, taskId, 'completed', user.id, {
+        task_type: task.taskType,
+        performedByKind: assignment ? 'worker' : 'admin',
+        performedByUserId: user.id,
+      });
 
       const finalized = await tx.warehouseTask.findUniqueOrThrow({
         where: { id: taskId },
@@ -1156,6 +1271,14 @@ export class WarehouseTasksService {
         if (trigger) {
           void this.billingInvoiceCalc.recalculateForCompany(billingCompanyId, trigger);
         }
+      }
+
+      // Immutable document generation (post-commit, error-safe, idempotent):
+      // GRN right after a Receiving task; Delivery Note once Dispatch is shipped.
+      if (billingTaskType === WarehouseTaskType.receiving) {
+        void this.documentGeneration.generateGrnForReceiving(taskId);
+      } else if (billingTaskType === WarehouseTaskType.dispatch && outboundCompleted) {
+        void this.documentGeneration.generateDnForDispatch(taskId);
       }
     }
 
@@ -1403,6 +1526,64 @@ export class WarehouseTasksService {
     });
     await this.cacheInv.afterTaskMutation();
     return this.loadTaskEnvelope(taskId, user);
+  }
+
+  /** Merge JSON into `payload` while task is pending or assigned (order workspace plan drafts). */
+  async patchPlan(
+    taskId: string,
+    user: AuthPrincipal,
+    body: { plan_patch: Record<string, unknown> },
+  ) {
+    const patch = body.plan_patch;
+    if (!isRecord(patch)) {
+      throw new BadRequestException('plan_patch must be an object.');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockTask(tx, taskId);
+      const task = await tx.warehouseTask.findUnique({
+        where: { id: taskId },
+        include: {
+          workflowInstance: true,
+          assignments: { where: { unassignedAt: null }, take: 1 },
+        },
+      });
+      if (!task) throw new NotFoundException('Task not found.');
+      this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
+      if (!this.isAdminActor(user)) {
+        await this.assertOperatorAssignedToTask(user, task);
+      }
+      if (
+        task.status !== WarehouseTaskStatus.pending &&
+        task.status !== WarehouseTaskStatus.assigned
+      ) {
+        throw new BadRequestException('plan updates require task status pending or assigned.');
+      }
+      const cur =
+        task.payload && typeof task.payload === 'object' && !Array.isArray(task.payload)
+          ? (task.payload as Record<string, unknown>)
+          : {};
+      const next = this.mergePlanPatch(cur, patch);
+      await tx.warehouseTask.update({
+        where: { id: taskId },
+        data: {
+          payload: next as object as Prisma.InputJsonValue,
+        },
+      });
+      await this.appendEvent(tx, taskId, 'plan_updated', user.id, {
+        keys: Object.keys(patch),
+      });
+    });
+    await this.cacheInv.afterTaskMutation();
+    return this.loadTaskEnvelope(taskId, user);
+  }
+
+  /** Admin shortcut: start without worker then complete in one HTTP call. */
+  async adminConfirm(taskId: string, user: AuthPrincipal, body: unknown) {
+    if (!this.isAdminActor(user)) {
+      throw new ForbiddenException('Only warehouse managers may admin-confirm tasks.');
+    }
+    await this.start(taskId, user);
+    return this.complete(taskId, user, body);
   }
 
   async leaseAcquire(taskId: string, user: AuthPrincipal, minutesRaw?: number) {

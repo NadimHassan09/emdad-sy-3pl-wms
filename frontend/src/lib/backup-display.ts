@@ -1,3 +1,4 @@
+import type { Tone } from '@ds';
 import type { BackupJobStatus, BackupJobType, BackupManifest, BackupStoragePolicyValue, BackupSummary } from '../api/backups';
 
 export function formatBackupTimestamp(value: string | null | undefined): string {
@@ -38,15 +39,15 @@ export function formatBackupType(type: BackupJobType): string {
 export function backupStatusBadgeClass(status: BackupJobStatus): string {
   switch (status) {
     case 'completed':
-      return 'bg-emerald-50 text-emerald-800 ring-emerald-600/20';
+      return 'bg-status-success-bg text-status-success-fg ring-status-success-border';
     case 'running':
-      return 'bg-blue-50 text-blue-800 ring-blue-600/20';
+      return 'bg-status-info-bg text-status-info-fg ring-status-info-border';
     case 'pending':
-      return 'bg-amber-50 text-amber-800 ring-amber-600/20';
+      return 'bg-status-warning-bg text-status-warning-fg ring-status-warning-border';
     case 'failed':
-      return 'bg-rose-50 text-rose-800 ring-rose-600/20';
+      return 'bg-status-danger-bg text-status-danger-fg ring-status-danger-border';
     default:
-      return 'bg-slate-50 text-slate-700 ring-slate-600/20';
+      return 'bg-status-neutral-bg text-status-neutral-fg ring-status-neutral-border';
   }
 }
 
@@ -55,8 +56,30 @@ export function formatBackupStorage(manifest: BackupManifest | null | undefined)
   return env ? `VPS (${env})` : 'VPS (local)';
 }
 
-export function backupCreatedByLabel(row: Pick<BackupSummary, 'triggeredBy'>): string {
+export function backupCreatedByLabel(
+  row: Pick<BackupSummary, 'triggeredBy' | 'type'>,
+): string {
+  if (row.type === 'scheduled') return 'system';
   return row.triggeredBy.fullName?.trim() || row.triggeredBy.email || row.triggeredBy.id;
+}
+
+export function backupTypeTone(type: BackupJobType): Tone {
+  switch (type) {
+    case 'manual':
+      return 'brand';
+    case 'scheduled':
+      return 'info';
+    case 'upload':
+      return 'accent';
+    case 'pre_snapshot':
+      return 'warning';
+    case 'restore':
+      return 'success';
+    case 'factory_reset':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
 }
 
 export function isBackupRunning(status: BackupJobStatus): boolean {
@@ -94,13 +117,13 @@ export type GdriveSyncStatus = 'pending' | 'synced' | 'failed' | null;
 export function gdriveSyncBadgeClass(status: GdriveSyncStatus): string {
   switch (status) {
     case 'synced':
-      return 'bg-emerald-50 text-emerald-800 ring-emerald-600/20';
+      return 'bg-status-success-bg text-status-success-fg ring-status-success-border';
     case 'pending':
-      return 'bg-amber-50 text-amber-800 ring-amber-600/20';
+      return 'bg-status-warning-bg text-status-warning-fg ring-status-warning-border';
     case 'failed':
-      return 'bg-rose-50 text-rose-800 ring-rose-600/20';
+      return 'bg-status-danger-bg text-status-danger-fg ring-status-danger-border';
     default:
-      return 'bg-slate-50 text-slate-500 ring-slate-400/20';
+      return 'bg-status-neutral-bg text-status-neutral-fg ring-status-neutral-border';
   }
 }
 

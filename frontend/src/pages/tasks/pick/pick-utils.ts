@@ -41,13 +41,12 @@ export function pickLineFiltersAfterScan(
   current: PickLineFilters,
   field: 'product' | 'location',
   code: string,
-  allLocations: Location[],
+  resolvedLocationPath?: string,
 ): PickLineFilters {
   const trimmed = code.trim();
   if (!trimmed) return current;
   if (field === 'location') {
-    const hit = matchLocationByScan(trimmed, allLocations);
-    return { ...current, location: hit?.fullPath ?? trimmed };
+    return { ...current, location: resolvedLocationPath ?? trimmed };
   }
   return { ...current, product: trimmed };
 }
@@ -153,7 +152,7 @@ export function initialPickDrafts(
         lotId: r.lotId,
         productId: r.productId,
         requiredQty: r.quantity,
-        pickedQty: r.quantity,
+        pickedQty: '',
         locationVerified: false,
         productVerified: false,
         notes: '',
@@ -165,10 +164,9 @@ export function initialPickDrafts(
 
 export function sortDraftsByLocationPath(
   drafts: PickLineDraft[],
-  locations: Location[],
+  locationById: Map<string, Location>,
 ): PickLineDraft[] {
-  const pathOf = (id: string) =>
-    locations.find((l) => l.id === id)?.fullPath ?? id;
+  const pathOf = (id: string) => locationById.get(id)?.fullPath ?? id;
   return [...drafts].sort((a, b) => pathOf(a.locationId).localeCompare(pathOf(b.locationId)));
 }
 
@@ -195,15 +193,15 @@ export function pickLineStatusLabel(status: PickLineStatus): string {
 export function pickLineStatusClass(status: PickLineStatus): string {
   switch (status) {
     case 'complete':
-      return 'bg-emerald-100 text-emerald-800';
+      return 'bg-status-success-bg text-brand-700';
     case 'ready':
-      return 'bg-sky-100 text-sky-800';
+      return 'bg-surface-card-muted text-brand-700';
     case 'short':
-      return 'bg-rose-100 text-rose-900';
+      return 'bg-status-danger-bg text-status-danger-fg';
     case 'scanning':
-      return 'bg-amber-100 text-amber-900';
+      return 'bg-status-warning-bg text-status-warning-fg';
     default:
-      return 'bg-slate-100 text-slate-600';
+      return 'bg-surface-card-muted text-text-body';
   }
 }
 
@@ -222,14 +220,14 @@ export function filterPickDrafts(
   drafts: PickLineDraft[],
   filters: PickLineFilters,
   lineMeta: Map<string, OutboundOrderLine>,
-  allLocations: Location[],
+  locationById: Map<string, Location>,
   lotNumberById: Map<string, string>,
 ): PickLineDraft[] {
   return drafts.filter((d) => {
     const status = computePickLineStatus(d);
     if (filters.status && status !== filters.status) return false;
     const ol = lineMeta.get(d.outboundOrderLineId);
-    const loc = allLocations.find((l) => l.id === d.locationId);
+    const loc = locationById.get(d.locationId);
     const lot =
       d.lotId != null ? (lotNumberById.get(d.lotId) ?? d.lotId.slice(0, 8)) : undefined;
     if (!matchesPickProductFilter(filters.product, ol)) return false;

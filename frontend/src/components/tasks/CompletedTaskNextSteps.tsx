@@ -1,0 +1,131 @@
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+
+import { WorkflowsApi, type WorkflowTimelineTask } from '../../api/workflows';
+import { QK } from '../../constants/query-keys';
+import { useWmsTranslation } from '../../lib/ui-i18n';
+import {
+  findNextTaskAfterCurrent,
+  prettyWorkflowTaskType,
+  taskDetailHref,
+} from '../../lib/workflow-next-task';
+import { Button } from '../Button';
+import { Card } from '@ds';
+
+function ArrowRightIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 10h12m0 0-4.5-4.5M16 10l-4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+const BTN_LG = '!px-4 !py-2 !text-sm';
+
+/**
+ * Navigation helper rendered after a task is completed so the operator/admin can jump
+ * straight to the next step *of the same order's workflow* without bouncing back to the
+ * order page. When the workflow's final step is done, no "Next task" button is shown.
+ */
+export function CompletedTaskNextSteps({
+  referenceType,
+  referenceId,
+  currentTaskId,
+  companyIdOverride,
+}: {
+  referenceType: 'inbound_order' | 'outbound_order';
+  referenceId: string;
+  currentTaskId: string;
+  companyIdOverride?: string;
+}) {
+  const { t } = useWmsTranslation();
+  const navigate = useNavigate();
+
+  const timeline = useQuery({
+    queryKey: QK.workflows.workflowTimelineByRef(referenceId),
+    queryFn: () => WorkflowsApi.getTimeline(referenceType, referenceId, companyIdOverride),
+    enabled: !!referenceId,
+  });
+
+  const tasks = timeline.data?.tasks ?? [];
+  // Next step belongs to THIS order only: the step that follows the current task in
+  // workflow order, regardless of its status. When the current task is the last step in
+  // the workflow there is no next task (button hidden).
+  const nextTask: WorkflowTimelineTask | undefined = findNextTaskAfterCurrent(
+    tasks,
+    referenceType,
+    currentTaskId,
+  );
+
+  const orderHref =
+    referenceType === 'inbound_order'
+      ? `/orders/inbound/${referenceId}`
+      : `/orders/outbound/${referenceId}`;
+
+  const pipelineHint =
+    referenceType === 'inbound_order' && nextTask?.taskType === 'qc'
+      ? t([
+          'Typical inbound path after receive: Quality check → Putaway.',
+          'المسار المعتاد بعد الاستلام: فحص الجودة ← التخزين.',
+        ])
+      : null;
+
+  return (
+    <Card className="border-border bg-surface-card-muted p-4">
+      <div className="flex items-center gap-2 text-sm font-semibold text-text-strong">
+        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-cta text-white">
+          <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="m4.5 10.5 3.2 3.2L15.5 6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+        {t(['Task completed — what’s next?', 'اكتملت المهمة — ما التالي؟'])}
+      </div>
+
+      <p className="mt-1 text-xs text-text-body">
+        {nextTask
+          ? t([
+              'Continue to the next step of this same order.',
+              'تابع إلى الخطوة التالية لنفس هذا الطلب.',
+            ])
+          : t([
+              'This was the final step — the order workflow is complete.',
+              'كانت هذه الخطوة الأخيرة — اكتمل سير عمل الطلب.',
+            ])}
+      </p>
+      {pipelineHint ? <p className="mt-1 text-xs text-text-muted">{pipelineHint}</p> : null}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2.5">
+        {nextTask ? (
+          <Button
+            type="button"
+            className={BTN_LG}
+            onClick={() => navigate(taskDetailHref(nextTask.id, companyIdOverride))}
+          >
+            {t([
+              `Next task: ${prettyWorkflowTaskType(nextTask.taskType, t)}`,
+              `المهمة التالية: ${prettyWorkflowTaskType(nextTask.taskType, t)}`,
+            ])}
+            <ArrowRightIcon />
+          </Button>
+        ) : null}
+
+        <Button
+          type="button"
+          variant="secondary"
+          className={BTN_LG}
+          onClick={() => navigate(orderHref)}
+        >
+          {t(['Back to order', 'العودة إلى الطلب'])}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          className={BTN_LG}
+          onClick={() => navigate('/tasks')}
+        >
+          {t(['All tasks', 'كل المهام'])}
+        </Button>
+      </div>
+    </Card>
+  );
+}

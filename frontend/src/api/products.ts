@@ -22,7 +22,9 @@ export interface Product {
   weightKg?: string | number | null;
   status: 'active' | 'suspended' | 'archived';
   createdAt: string;
-  company?: { id: string; name: string };
+  /** Public media path for product image (list API). */
+  imageUrl?: string | null;
+  company?: { id: string; name: string; logoUrl?: string | null };
   /** Sum of `quantity_on_hand` across stock rows (from list API). */
   totalOnHand?: string;
   totalReserved?: string;

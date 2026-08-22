@@ -47,10 +47,10 @@
     --color-brand-300:  #6ee7b7;
     --color-brand-400:  #34d399;
     --color-brand-500:  #10b981;
-    --color-brand-600:  #1a7a44; /* canonical sidebar/active green */
-    --color-brand-700:  #146135;
-    --color-brand-800:  #0f4d29;
-    --color-brand-900:  #093d20;
+    --color-brand-600:  #059669; /* emerald-600 — primary CTAs (Client Portal) */
+    --color-brand-700:  #047857;
+    --color-brand-800:  #065f46;
+    --color-brand-900:  #064e3b;
 
     --color-accent-50:  #eff6ff;
     --color-accent-100: #dbeafe;
@@ -160,8 +160,8 @@
      * 5. SURFACE TOKENS — composed from palettes above.
      * Use these in components instead of raw color refs whenever possible.
      * ----------------------------------------------------------------------- */
-    /* Very slightly green-tinted page canvas — matches WMS reference design */
-    --surface-app-bg:        #F5FEFA;
+    /* Page canvas — matches Client Portal slate-50 */
+    --surface-app-bg:        #F9FAFB;
     --surface-card:          var(--color-neutral-0);
     --surface-card-muted:    var(--color-neutral-50);
     --surface-elevated:      var(--color-neutral-0);
@@ -277,7 +277,7 @@
     --shadow-xl:   0 20px 25px -5px rgb(15 23 42 / 0.12),
                    0 8px 10px -6px rgb(15 23 42 / 0.10);
     --shadow-2xl:  0 25px 50px -12px rgb(15 23 42 / 0.25);
-    --shadow-focus: 0 0 0 3px rgb(26 122 68 / 0.25);
+    --shadow-focus: 0 0 0 3px rgb(16 185 129 / 0.25);
     --shadow-focus-danger: 0 0 0 3px rgb(220 38 38 / 0.25);
     --shadow-inset: inset 0 0 0 1px var(--surface-border);
 
@@ -319,10 +319,10 @@
      * 12. LAYOUT CONSTANTS
      * Tight enterprise chrome — matches reference dashboard density.
      * ----------------------------------------------------------------------- */
-    --topbar-h:             52px;
-    --sidebar-w:            180px;     /* 75% of prior 240px expanded width */
-    --sidebar-compact-w:    39px;      /* 75% of prior 52px icon-only rail */
-    --sidebar-w-mobile:     13.125rem; /* 75% of prior 17.5rem mobile drawer */
+    --topbar-h:             64px;
+    --sidebar-w:            256px;     /* matches Client Portal w-64 */
+    --sidebar-compact-w:    72px;
+    --sidebar-w-mobile:     16rem;
     --content-max-w:        1440px;
 
     /* -------------------------------------------------------------------------
@@ -330,8 +330,8 @@
      * Layered surfaces create visual hierarchy without heavy shadows.
      * Use elevation numbers to communicate depth, not arbitrary shadow values.
      * ----------------------------------------------------------------------- */
-    /* Page canvas — very slightly green-tinted, matching the WMS reference design. */
-    --surface-page:      #F5FEFA;
+    /* Page canvas — Client Portal slate-50. */
+    --surface-page:      #F9FAFB;
     /* Default card / panel surface. */
     --surface-card:      var(--color-neutral-0);
     /* Subtly raised — toolbars, table headers, sticky filter bars. */
@@ -362,28 +362,31 @@
     --border-subtle:     var(--color-neutral-100);
 
     /* -------------------------------------------------------------------------
-     * 14. DARK SIDEBAR / CHROME TOKENS
-     * Forest green navigation chrome — sidebar + topbar dark mode.
+     * 14. SIDEBAR / TOPBAR CHROME TOKENS
+     * Matches Client Portal: slate-950 sidebar + light glass topbar.
      * Used exclusively by Sidebar.tsx and Topbar.tsx.
      * ----------------------------------------------------------------------- */
-    --sidebar-bg:           #0f3328;              /* fallback solid (deepest green) */
-    --sidebar-bg-gradient:  linear-gradient(
-                              180deg,
-                              #071f18 0%,
-                              #0c2d23 28%,
-                              #123d30 58%,
-                              #1a5240 100%
-                            );
-    --sidebar-topbar-bg:    #072019;              /* topbar fallback */
-    --sidebar-topbar-bg-gradient: linear-gradient(90deg, #072019 0%, #08231b 100%);
-    --sidebar-brand-bg:     transparent;         /* logo strip — shows sidebar gradient */
-    --sidebar-text:         #d1fae5;              /* emerald-100 — default nav text */
-    --sidebar-text-muted:   rgba(209,250,229,0.6);/* emerald-100 @ 60% — section labels */
-    --sidebar-border:       rgba(255,255,255,0.08);/* inner borders */
-    --sidebar-active-bg:    #10b981;              /* active item fill (brand-500 emerald) */
-    --sidebar-active-text:  #ffffff;
-    --sidebar-hover-bg:     rgba(255,255,255,0.08);/* hover tint on dark bg */
-    --sidebar-icon-muted:   rgba(209,250,229,0.5);/* muted icon color */
+    --sidebar-bg:           #020617;              /* slate-950 */
+    --sidebar-bg-gradient:  none;
+    --sidebar-topbar-bg:    rgba(255, 255, 255, 0.72);
+    --sidebar-topbar-bg-gradient: none;
+    --sidebar-brand-bg:     transparent;
+    --sidebar-text:         #94a3b8;              /* slate-400 — default nav text */
+    --sidebar-text-muted:   #475569;              /* slate-600 — section labels */
+    --sidebar-border:       #1e293b;              /* slate-800 */
+    --sidebar-active-bg:    rgba(16, 185, 129, 0.10); /* emerald-500/10 */
+    --sidebar-active-text:  #34d399;              /* emerald-400 */
+    --sidebar-hover-bg:     rgba(255, 255, 255, 0.05);
+    --sidebar-icon-muted:   #64748b;              /* slate-500 */
+    --sidebar-active-accent: #10b981;             /* left-edge / dot indicator */
+
+    /* Light topbar (glass) — text/chrome for Topbar.tsx */
+    --topbar-bg:            rgba(255, 255, 255, 0.72);
+    --topbar-border:        rgba(226, 232, 240, 0.6);
+    --topbar-text:          #0f172a;
+    --topbar-text-muted:    #64748b;
+    --topbar-hover-bg:      #f1f5f9;
+    --topbar-icon:          #64748b;
 
     /* Z-index aliases for layout chrome (complements the named z-index scale). */
     --z-topbar:   var(--z-fixed);    /* 40 — topbar stays above sticky elements */

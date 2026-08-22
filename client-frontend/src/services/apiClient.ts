@@ -2,9 +2,9 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 import { clearStoredBearer, getStoredBearer } from './authStorage';
 import { isSuccessEnvelope } from '../types/api';
+import { getClientApiBaseUrl } from './apiBaseUrl';
 
-const baseURL =
-  import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? 'http://localhost:3000/api/client';
+const baseURL = getClientApiBaseUrl();
 
 let onUnauthorized: (() => void) | null = null;
 
@@ -22,6 +22,14 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = getStoredBearer();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    // Let the browser set multipart boundary.
+    if (typeof config.headers.delete === 'function') {
+      config.headers.delete('Content-Type');
+    } else {
+      delete (config.headers as Record<string, unknown>)['Content-Type'];
+    }
   }
   return config;
 });

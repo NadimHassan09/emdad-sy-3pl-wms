@@ -1,0 +1,104 @@
+<section class="meta-grid meta-grid--2">
+  <div class="meta-block">
+    <div class="meta-block__title">API type</div>
+    <div class="meta-block__value">{{scopeLabel}}</div>
+    <div class="meta-block__sub">Same documentation for every {{scope}} key</div>
+  </div>
+  <div class="meta-block">
+    <div class="meta-block__title">Environment</div>
+    <div class="meta-block__value">Production</div>
+    <div class="meta-block__sub">{{baseUrl}}</div>
+  </div>
+</section>
+
+<p>{{summary}}</p>
+<p>
+  Credentials belong to one company. Do not send companyId, clientId, or tenantId —
+  the server resolves the company from the API key. Never put real secrets in this
+  file; use <strong>YOUR_API_KEY</strong> and <strong>YOUR_API_SECRET</strong>.
+</p>
+
+<h2>Authentication</h2>
+<p>Send both headers on every request:</p>
+<pre>X-API-Key: YOUR_API_KEY
+X-API-Secret: YOUR_API_SECRET
+Content-Type: application/json</pre>
+<p>Equivalent form:</p>
+<pre>{{authAlternative}}</pre>
+<p>Rate limit: 60 requests per minute per IP. Invalid credentials are locked after repeated failures.</p>
+
+<h2>Response format</h2>
+<pre>{
+  "success": true,
+  "data": { ... }
+}</pre>
+<p>Errors:</p>
+<pre>{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "...",
+    "fields": { "sku": "Unknown SKU(s): ABC" }
+  }
+}</pre>
+<p>Common codes: VALIDATION_ERROR, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, TOO_MANY_REQUESTS, CONFLICT.</p>
+
+<h2>{{title}}</h2>
+<p>Create: <strong>{{createPath}}</strong> at <strong>{{baseUrl}}</strong></p>
+<p>Read: <strong>{{getPath}}</strong></p>
+<p>Idempotency: send a unique <code>externalOrderId</code>. Repeating the same value returns the existing order with <code>idempotentReplay: true</code>.</p>
+{{#if isOms}}
+<p>
+  The order enters <strong>confirmed_waiting_for_admin_approval</strong> (Waiting for Admin Approval).
+  It does not auto-approve, create a carrier shipment, picking, packing, or dispatch.
+</p>
+<p>Address: Governorate and City/Area are required (same names as the Client Portal). Neighborhood and street are optional. Coordinates are resolved automatically. If geocoding fails, the order is not created.</p>
+<p>Identify products by SKU, not internal IDs.</p>
+{{/if}}
+{{#if isInbound}}
+<p>Creates an inbound order in <strong>pending_approval</strong>. Warehouse receiving is not started automatically.</p>
+{{/if}}
+{{#if isOutbound}}
+<p>Creates an outbound order in <strong>pending_approval</strong>. Picking, packing, and shipping are not started automatically.</p>
+{{/if}}
+
+<h3>Example request</h3>
+<pre>curl -X POST {{baseUrl}}{{createEndpoint}} \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "X-API-Secret: YOUR_API_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{{bodyExample}}'</pre>
+
+<h3>Example success response</h3>
+<pre>{{responseExample}}</pre>
+
+<h3>Fields</h3>
+<table class="doc-table">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Required</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{#each fields}}
+    <tr>
+      <td><code>{{name}}</code></td>
+      <td>{{required}}</td>
+      <td>{{description}}</td>
+    </tr>
+    {{/each}}
+  </tbody>
+</table>
+
+<h2>Workflow after API creation</h2>
+<ol>
+  {{#each workflow}}
+  <li>{{this}}</li>
+  {{/each}}
+</ol>
+
+<h2>Scopes</h2>
+<p>Each key has exactly one scope. An OMS key cannot call inbound or outbound endpoints.</p>
+<p>Revoke or disable a key immediately from the Client Portal APIs page. Regenerating a secret invalidates the previous secret.</p>

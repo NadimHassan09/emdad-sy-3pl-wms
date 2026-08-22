@@ -17,6 +17,7 @@ export type ClientDashboardOverview = {
     usedWeightKg: string;
     reservedVolumeCbm: string | null;
     reservedWeightKg: string | null;
+    remainingVolumeCbm?: string | null;
     utilizationPercent: number | null;
   };
   billing: {

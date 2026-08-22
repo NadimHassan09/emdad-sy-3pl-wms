@@ -15,6 +15,12 @@ interface BarcodeImageModalProps {
   contextLabel?: string;
 }
 
+function cssVar(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
 export function BarcodeImageModal({ open, onClose, value, productName, contextLabel }: BarcodeImageModalProps) {
   const titleSuffix = (contextLabel ?? productName ?? '').trim() || '—';
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -35,8 +41,8 @@ export function BarcodeImageModal({ open, onClose, value, productName, contextLa
           height: 96,
           displayValue: true,
           margin: 16,
-          background: '#ffffff',
-          lineColor: '#0f172a',
+          background: cssVar('--surface-panel', '#ffffff'),
+          lineColor: cssVar('--text-strong', '#0f172a'),
           fontSize: 16,
         });
       } catch {
@@ -91,7 +97,7 @@ export function BarcodeImageModal({ open, onClose, value, productName, contextLa
       widthClass="max-w-lg"
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={onClose}>
+          <Button type="button" variant="danger" onClick={onClose}>
             Close
           </Button>
           <Button type="button" onClick={downloadPng} disabled={!!error}>
@@ -102,15 +108,15 @@ export function BarcodeImageModal({ open, onClose, value, productName, contextLa
     >
       <div className="flex flex-col items-center gap-4 py-2">
         {error ? (
-          <p className="text-center text-sm text-rose-600">{error}</p>
+          <p className="text-center text-sm text-status-danger-fg">{error}</p>
         ) : (
           <canvas
             ref={onCanvasRef}
-            className="max-w-full rounded border border-slate-200 bg-white"
+            className="max-w-full rounded border border-border bg-surface-panel"
           />
         )}
         {!error ? (
-          <p className="text-center font-mono text-xs text-slate-600">{value.trim()}</p>
+          <p className="text-center font-mono text-xs text-text-muted">{value.trim()}</p>
         ) : null}
       </div>
     </Modal>

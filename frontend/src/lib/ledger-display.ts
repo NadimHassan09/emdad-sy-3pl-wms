@@ -13,49 +13,10 @@ function parseQty(s: string | null | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/**
- * Stock bucket semantics: Δ = after − before when both snapshots exist (authoritative).
- * Otherwise infer missing ends from signed `quantityChange` when possible.
- */
-export function ledgerQuantityDisplay(row: LedgerRow): {
-  before: string | null;
-  after: string | null;
-  delta: number;
-} {
-  let beforeN = parseQty(row.quantityBefore);
-  let afterN = parseQty(row.quantityAfter);
-  const signedChange = parseQty(row.quantityChange);
-
-  if (beforeN !== null && afterN !== null) {
-    const delta = afterN - beforeN;
-    return {
-      before: beforeN.toString(),
-      after: afterN.toString(),
-      delta,
-    };
-  }
-
-  if (signedChange !== null) {
-    if (afterN !== null && beforeN === null) {
-      beforeN = afterN - signedChange;
-    } else if (beforeN !== null && afterN === null) {
-      afterN = beforeN + signedChange;
-    } else if (beforeN === null && afterN === null) {
-      return { before: null, after: null, delta: signedChange };
-    }
-    return {
-      before: beforeN !== null ? beforeN.toString() : null,
-      after: afterN !== null ? afterN.toString() : null,
-      delta: signedChange,
-    };
-  }
-
-  return {
-    before: beforeN !== null ? beforeN.toString() : null,
-    after: afterN !== null ? afterN.toString() : null,
-    delta:
-      beforeN !== null && afterN !== null ? afterN - beforeN : 0,
-  };
+/** Prefer API `quantityChange` (already signed). Do not re-sign from movement type. */
+export function ledgerSignedChange(row: LedgerRow): number {
+  const n = parseQty(row.quantityChange);
+  return n ?? 0;
 }
 
 export function fmtSignedDelta(n: number): string {
@@ -65,33 +26,30 @@ export function fmtSignedDelta(n: number): string {
   return '0';
 }
 
-export type LedgerMovementCategory = 'inbound' | 'outbound' | 'adjustment';
+export type LedgerMovementCategory =
+  | 'inbound'
+  | 'outbound'
+  | 'return'
+  | 'adjustment'
+  | 'transfer'
+  | 'scrap'
+  | 'qc';
 
-const MOVEMENT_INBOUND = new Set([
-  'inbound',
-  'inbound_receive',
-  'return_receive',
-  'transit_in',
-]);
-
+const MOVEMENT_INBOUND = new Set(['inbound', 'inbound_receive', 'transit_in']);
 const MOVEMENT_OUTBOUND = new Set(['outbound', 'outbound_pick', 'transit_out']);
-
-const MOVEMENT_ADJUSTMENT = new Set([
-  'adjustment',
-  'putaway',
-  'qc_quarantine',
-  'qc_release',
-  'adjustment_positive',
-  'adjustment_negative',
-  'scrap',
-  'internal_transfer',
-]);
+const MOVEMENT_RETURN = new Set(['return', 'return_receive']);
+const MOVEMENT_TRANSFER = new Set(['transfer', 'internal_transfer']);
+const MOVEMENT_SCRAP = new Set(['scrap']);
+const MOVEMENT_QC = new Set(['qc', 'qc_quarantine', 'qc_release']);
 
 export function ledgerMovementCategory(raw: string): LedgerMovementCategory {
   const k = raw.trim();
   if (MOVEMENT_INBOUND.has(k)) return 'inbound';
   if (MOVEMENT_OUTBOUND.has(k)) return 'outbound';
-  if (MOVEMENT_ADJUSTMENT.has(k)) return 'adjustment';
+  if (MOVEMENT_RETURN.has(k)) return 'return';
+  if (MOVEMENT_TRANSFER.has(k)) return 'transfer';
+  if (MOVEMENT_SCRAP.has(k)) return 'scrap';
+  if (MOVEMENT_QC.has(k)) return 'qc';
   return 'adjustment';
 }
 
@@ -101,11 +59,28 @@ export function ledgerMovementLabel(cat: LedgerMovementCategory): string {
       return 'Inbound';
     case 'outbound':
       return 'Outbound';
+    case 'return':
+      return 'Return';
+    case 'transfer':
+      return 'Transfer';
+    case 'scrap':
+      return 'Scrap';
+    case 'qc':
+      return 'QC';
     case 'adjustment':
-      return 'Adjustments';
+      return 'Adjustment';
     default:
       return cat;
   }
+}
+
+/** @deprecated Prefer ledgerSignedChange — kept for any leftover call sites during migration. */
+export function ledgerQuantityDisplay(row: LedgerRow): {
+  before: string | null;
+  after: string | null;
+  delta: number;
+} {
+  return { before: null, after: null, delta: ledgerSignedChange(row) };
 }
 
 /** Dedupe key: same lot + same from/to endpoints (one stock bucket movement). */
@@ -118,8 +93,6 @@ export type MergedLotLocationLine = {
   key: string;
   lotNumber: string;
   locationDescription: string;
-  before: string | null;
-  after: string | null;
   delta: number;
 };
 
@@ -136,16 +109,11 @@ export function mergeLedgerLinesByLotAndLocation(lines: LedgerRow[]): MergedLotL
   for (const [key, group] of groups) {
     group.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     const first = group[0]!;
-    const last = group[group.length - 1]!;
-    const open = ledgerQuantityDisplay(first);
-    const close = ledgerQuantityDisplay(last);
-    const delta = group.reduce((s, r) => s + ledgerQuantityDisplay(r).delta, 0);
+    const delta = group.reduce((s, r) => s + ledgerSignedChange(r), 0);
     out.push({
       key,
       lotNumber: first.lot?.lotNumber ?? '—',
       locationDescription: describeLedgerLocations(first),
-      before: open.before,
-      after: close.after,
       delta,
     });
   }

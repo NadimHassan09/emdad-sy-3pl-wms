@@ -6,14 +6,22 @@ import { Column, DataTable } from '../../../components/DataTable';
 import { TaskDetailsCard } from '../../../components/tasks/TaskDetailsCard';
 import { formatTaskDateTime, inboundOrderTitle } from '../../../lib/task-details-helpers';
 import { taskTypeIconClass } from '../../../lib/task-type-icons';
-import { taskTypeTitle } from '../../../workflow/task-ui-matrix';
-import { LocationsApi } from '../../../api/locations';
+import { useWmsTranslation } from '../../../lib/ui-i18n';
+import {
+  localizedReceivingLineStatus,
+  localizedReceivingStatusFilterOptions,
+  localizedTaskLineSearchPlaceholder,
+  localizedTaskTypeTitle,
+} from '../../../lib/ui-labels/task-execution';
 import { ProductsApi } from '../../../api/products';
 import { AnchoredDropdown } from '../../../components/AnchoredDropdown';
+import { BarcodeScanModal } from '../../../components/BarcodeScanModal';
 import { Button } from '../../../components/Button';
 import { TaskLinesFilterCard } from '../../../components/tasks/TaskLinesFilterCard';
+import { WedgeScanField } from '../../../components/WedgeScanField';
 import { useToast } from '../../../components/ToastProvider';
 import { QK } from '../../../constants/query-keys';
+import { useResolvedLocations } from '../../../hooks/useResolvedLocations';
 import { Alert } from '@ds';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
 import { ProductSpecsValidationModal } from './ProductSpecsValidationModal';
@@ -23,23 +31,23 @@ import type {
   ReceivingExecutionDraft,
   ReceivingLineFilters,
   ReceivingLineRow,
-  ReceivingLineStatus,
 } from './receiving-types';
 import { DEFAULT_RECEIVING_LINE_FILTERS } from './receiving-types';
 import type { Product, ProductLot } from '../../../api/products';
 import {
   buildDiscrepancyNotes,
   computeLineStatus,
+  computeMissingQty,
   computeReceivingSummary,
   filterReceivingLines,
   isLikelyFirstInbound,
   lineDraftFromInboundOrderLine,
   lineStatusClass,
-  lineStatusLabel,
   parseQty,
   productRequiresExpiry,
   receivingExpectedLotDisplay,
   resolveLineExpiryDisplay,
+  validateReceivingLineQuantities,
 } from './receiving-utils';
 import { buildReceivingPrintInput, openReceivingPrintPdf } from './receiving-print';
 
@@ -114,6 +122,7 @@ export function ReceivingExecutionPanel({
   busy,
   readOnly = false,
 }: Props) {
+  const { t } = useWmsTranslation();
   const toast = useToast();
   const isMdUp = useMediaQuery('(min-width: 768px)');
   const [openLineActionId, setOpenLineActionId] = useState<string | null>(null);
@@ -144,11 +153,11 @@ export function ReceivingExecutionPanel({
     enabled: !!inboundOrderId,
   });
 
-  const locationsForDock = useQuery({
-    queryKey: [...QK.locationsFlatAll(false), warehouseId, 'recv-dock'],
-    queryFn: () => LocationsApi.list(warehouseId, false),
-    enabled: !!warehouseId && lines.length > 0,
-  });
+  const stagingLocationIds = useMemo(
+    () => lines.map((l) => l.staging_location_id?.trim() ?? '').filter(Boolean),
+    [lines],
+  );
+  const { locationById: stagingLocationsById } = useResolvedLocations(stagingLocationIds);
 
   const priorInbound = useQuery({
     queryKey: [...QK.inboundOrders, 'prior', inbound.data?.companyId],
@@ -291,9 +300,9 @@ export function ReceivingExecutionPanel({
   const dockPath = useMemo(() => {
     const sid = lines[0]?.staging_location_id?.trim();
     if (!sid) return '—';
-    const loc = (locationsForDock.data ?? []).find((x) => x.id === sid);
+    const loc = stagingLocationsById.get(sid);
     return loc ? `${loc.fullPath}${loc.barcode ? ` · ${loc.barcode}` : ''}` : sid.slice(0, 8) + '…';
-  }, [lines, locationsForDock.data]);
+  }, [lines, stagingLocationsById]);
 
   const summary = useMemo(
     () => computeReceivingSummary(lines, lineDrafts),
@@ -306,11 +315,24 @@ export function ReceivingExecutionPanel({
       const lid = row.inbound_order_line_id;
       const expected = parseQty(row.expected_qty);
       const d = lineDrafts[lid] ?? emptyLineDraft();
+      const qtyErr = validateReceivingLineQuantities(expected, d.receivedQty, d.damagedQty);
+      if (qtyErr) {
+        issues.push(`${olLabel(lineMap, lid)}: ${qtyErr}`);
+        continue;
+      }
       const received = parseQty(d.receivedQty);
       const damaged = parseQty(d.damagedQty);
       const status = computeLineStatus(expected, received, damaged);
-      if (status === 'overage') issues.push(`Overage on line ${lid.slice(0, 8)}…`);
-      if (status === 'shortage' && received + damaged > 0) issues.push(`Shortage on ${olLabel(lineMap, lid)}`);
+      if (status === 'overage') {
+        issues.push(
+          t([`Overage on line ${lid.slice(0, 8)}…`, `زيادة على السطر ${lid.slice(0, 8)}…`]),
+        );
+      }
+      if (status === 'shortage' && received + damaged > 0) {
+        issues.push(
+          t([`Shortage on ${olLabel(lineMap, lid)}`, `نقص على ${olLabel(lineMap, lid)}`]),
+        );
+      }
       const ol = lineMap.get(lid);
       const lots = ol?.productId ? lotsByProductId.get(ol.productId) : undefined;
       if (
@@ -318,11 +340,16 @@ export function ReceivingExecutionPanel({
         received + damaged > 0 &&
         !resolveLineExpiryDisplay(ol, d, lots).trim()
       ) {
-        issues.push(`Expiry date required for ${olLabel(lineMap, lid)}`);
+        issues.push(
+          t([
+            `Expiry date required for ${olLabel(lineMap, lid)}`,
+            `تاريخ انتهاء الصلاحية مطلوب لـ ${olLabel(lineMap, lid)}`,
+          ]),
+        );
       }
     }
     return issues;
-  }, [lines, lineDrafts, lineMap, lotsByProductId, productsById]);
+  }, [lines, lineDrafts, lineMap, lotsByProductId, productsById, t]);
 
   function olLabel(map: Map<string, InboundOrderLine>, lid: string): string {
     return map.get(lid)?.product?.sku ?? lid.slice(0, 8);
@@ -335,11 +362,64 @@ export function ReceivingExecutionPanel({
     companyIdOverride,
   });
 
+  const [wedgeScan, setWedgeScan] = useState('');
+  const [cameraOpen, setCameraOpen] = useState(false);
+
   function patchLine(lid: string, patch: Partial<LineReceiveDraft>) {
     setLineDrafts((prev) => ({
       ...prev,
       [lid]: { ...(prev[lid] ?? emptyLineDraft()), ...patch },
     }));
+  }
+
+  function receiveExpectedForLine(lid: string) {
+    const line = lines.find((l) => l.inbound_order_line_id === lid);
+    if (!line) return;
+    patchLine(lid, { receivedQty: String(line.expected_qty), damagedQty: '' });
+  }
+
+  function matchLineByScan(code: string): ReceivingLineRow | undefined {
+    const norm = code.trim().toLowerCase();
+    if (!norm) return undefined;
+    return lines.find((l) => {
+      const ol = lineMap.get(l.inbound_order_line_id);
+      const sku = (ol?.product?.sku ?? '').trim().toLowerCase();
+      const barcode = (ol?.product?.barcode ?? '').trim().toLowerCase();
+      return sku === norm || barcode === norm || sku.includes(norm) || barcode.includes(norm);
+    });
+  }
+
+  function handleWedgeScan(code: string) {
+    const hit = matchLineByScan(code);
+    if (!hit) {
+      toast.error(t(['No line matches this barcode/SKU.', 'لا يوجد سطر يطابق هذا الباركود/SKU.']));
+      setWedgeScan('');
+      return;
+    }
+    const lid = hit.inbound_order_line_id;
+    receiveExpectedForLine(lid);
+    toast.success(
+      t([
+        `Received expected for ${lineMap.get(lid)?.product?.sku ?? lid.slice(0, 8)}`,
+        `تم استلام المتوقع لـ ${lineMap.get(lid)?.product?.sku ?? lid.slice(0, 8)}`,
+      ]),
+    );
+    setWedgeScan('');
+    const nextIncomplete = lines.find((l) => {
+      if (l.inbound_order_line_id === lid) return false;
+      const d = lineDrafts[l.inbound_order_line_id] ?? emptyLineDraft();
+      const expected = parseQty(l.expected_qty);
+      return parseQty(d.receivedQty) + parseQty(d.damagedQty) < expected;
+    });
+    if (nextIncomplete) {
+      const ol = lineMap.get(nextIncomplete.inbound_order_line_id);
+      toast.success(
+        t([
+          `Next: ${ol?.product?.sku ?? nextIncomplete.inbound_order_line_id.slice(0, 8)}`,
+          `التالي: ${ol?.product?.sku ?? nextIncomplete.inbound_order_line_id.slice(0, 8)}`,
+        ]),
+      );
+    }
   }
 
   useEffect(() => {
@@ -362,7 +442,7 @@ export function ReceivingExecutionPanel({
   function handleComplete(e: FormEvent) {
     e.preventDefault();
     if (validationIssues.length > 0) {
-      toast.error('Resolve validation issues before completing.');
+      toast.error(t(['Resolve validation issues before completing.', 'عالج مشاكل التحقق قبل الإكمال.']));
       return;
     }
 
@@ -372,7 +452,10 @@ export function ReceivingExecutionPanel({
       if (!ol || ol.product?.trackingType !== 'lot') continue;
       if (!ol.expectedLotNumber?.trim()) {
         toast.error(
-          `Missing expected lot on inbound line for ${ol.product?.sku ?? 'lot-tracked product'}.`,
+          t([
+            `Missing expected Lot on inbound line for ${ol.product?.sku ?? 'lot-tracked product'}.`,
+            `Lot المتوقع مفقود على سطر الوارد لـ ${ol.product?.sku ?? 'منتج متتبع بـ Lot'}.`,
+          ]),
         );
         return;
       }
@@ -408,9 +491,11 @@ export function ReceivingExecutionPanel({
               : '';
         const disc = buildDiscrepancyNotes(d);
         const mergedDisc = [disc, attrNote].filter(Boolean).join(' · ');
+        const damagedRaw = (d.damagedQty ?? '').trim();
         return {
           inbound_order_line_id: lid,
           received_qty: (d.receivedQty ?? '0').trim() || '0',
+          ...(damagedRaw !== '' ? { damaged_qty: damagedRaw } : {}),
           ...lotPayload,
           ...(mergedDisc ? { discrepancy_notes: mergedDisc } : {}),
         };
@@ -422,7 +507,7 @@ export function ReceivingExecutionPanel({
 
   const handleExportPrint = () => {
     if (lines.length === 0) {
-      toast.error('No lines to export.');
+      toast.error(t(['No lines to export.', 'لا توجد أسطر للتصدير.']));
       return;
     }
     const ok = openReceivingPrintPdf(
@@ -437,15 +522,15 @@ export function ReceivingExecutionPanel({
         lines,
         lineMap,
         lineDrafts,
-        locations: locationsForDock.data ?? [],
+        locations: [...stagingLocationsById.values()],
       }),
     );
-    if (!ok) toast.error('Allow pop-ups to print or save as PDF.');
+    if (!ok) toast.error(t(['Allow pop-ups to print or save as PDF.', 'اسمح بالنوافذ المنبثقة للطباعة أو حفظ PDF.']));
   };
 
   const receivingDetailsCard = (
     <TaskDetailsCard
-      taskTypeLabel={taskTypeTitle('receiving')}
+      taskTypeLabel={localizedTaskTypeTitle('receiving', t)}
       iconClass={taskTypeIconClass('receiving')}
       primaryTitle={inboundOrderTitle(
         inbound.data?.orderNumber,
@@ -456,22 +541,22 @@ export function ReceivingExecutionPanel({
       fields={[
         {
           iconClass: 'fa-solid fa-building',
-          label: 'Client',
+          label: t(['Client', 'العميل']),
           value: inbound.data?.company?.name ?? '—',
         },
         {
           iconClass: 'fa-solid fa-user',
-          label: 'Worker',
+          label: t(['Worker', 'العامل']),
           value: assignedWorkerLabel,
         },
         {
           iconClass: 'fa-solid fa-warehouse',
-          label: 'Dock',
+          label: t(['Dock', 'الرصيف']),
           value: dockPath,
         },
         {
           iconClass: 'fa-solid fa-calendar',
-          label: 'Expected arrival',
+          label: t(['Expected arrival', 'الوصول المتوقع']),
           value: arrivalLabel,
         },
       ]}
@@ -503,8 +588,8 @@ export function ReceivingExecutionPanel({
       }}
       resultCount={filteredLines.length}
       totalCount={lines.length}
-      statusOptions={RECEIVING_LINE_STATUS_OPTIONS}
-      searchPlaceholder="SKU, product name, barcode, or lot"
+      statusOptions={localizedReceivingStatusFilterOptions(t)}
+      searchPlaceholder={localizedTaskLineSearchPlaceholder(t)}
     />
   );
 
@@ -534,7 +619,7 @@ export function ReceivingExecutionPanel({
       {receivingDetailsCard}
 
       {validationIssues.length > 0 ? (
-        <Alert variant="warning" title="Validation attention needed">
+        <Alert variant="warning" title={t(['Validation attention needed', 'يلزم انتباه للتحقق'])}>
           <ul className="mt-1 list-inside list-disc text-sm">
             {validationIssues.slice(0, 5).map((msg) => (
               <li key={msg}>{msg}</li>
@@ -544,6 +629,30 @@ export function ReceivingExecutionPanel({
       ) : null}
 
       <SummaryCards summary={summary} />
+
+      <div className="rounded-xl border border-border bg-surface-card p-4 text-text-strong">
+        <WedgeScanField
+          label={t(['Scan to receive expected', 'امسح لاستلام المتوقع'])}
+          value={wedgeScan}
+          onChange={setWedgeScan}
+          onScan={handleWedgeScan}
+          onCameraClick={() => setCameraOpen(true)}
+          placeholder={t(['SKU or barcode + Enter', 'SKU أو باركود ثم Enter'])}
+          hint={t([
+            'Gun / keyboard wedge: scan a line barcode to fill expected qty, then advance.',
+            'الماسح: امسح باركود السطر لملء الكمية المتوقعة ثم الانتقال للتالي.',
+          ])}
+        />
+      </div>
+      <BarcodeScanModal
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onScan={(code) => {
+          setCameraOpen(false);
+          handleWedgeScan(code);
+        }}
+      />
+
       {showExportPdf && !isMdUp ? (
         <div className="flex justify-end">
           <Button
@@ -553,7 +662,7 @@ export function ReceivingExecutionPanel({
             disabled={lines.length === 0}
             onClick={handleExportPrint}
           >
-            Export PDF
+            {t(['Export PDF', 'تصدير PDF'])}
           </Button>
         </div>
       ) : null}
@@ -562,10 +671,10 @@ export function ReceivingExecutionPanel({
 
       {!isMdUp ? (
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-slate-800">Receive lines</h2>
+        <h2 className="text-sm font-semibold text-text-strong">{t(['Receive Lines', 'أسطر الاستلام'])}</h2>
         {filteredLines.length === 0 ? (
-          <p className="rounded-xl border border-slate-100 bg-white px-4 py-6 text-center text-sm text-slate-500 shadow-sm">
-            No lines match the current filters.
+          <p className="rounded-xl border border-border-subtle bg-surface-card px-4 py-6 text-center text-sm text-text-muted shadow-sm">
+            {t(['No lines match the current filters.', 'لا أسطر تطابق الفلاتر الحالية.'])}
           </p>
         ) : null}
         {filteredLines.map((l) => {
@@ -574,21 +683,25 @@ export function ReceivingExecutionPanel({
           const d = lineDrafts[lid] ?? emptyLineDraft();
           const expected = parseQty(l.expected_qty);
           const status = computeLineStatus(expected, parseQty(d.receivedQty), parseQty(d.damagedQty));
+          const qtyErr = validateReceivingLineQuantities(expected, d.receivedQty, d.damagedQty);
+          const qtyInputClass = qtyErr
+            ? 'mt-0.5 w-full rounded-lg border border-status-danger-border px-2 py-2 text-sm font-mono'
+            : 'mt-0.5 w-full rounded-lg border border-border px-2 py-2 text-sm font-mono';
           return (
             <div
               key={lid}
-              className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm"
+              className="rounded-2xl border border-border-subtle bg-surface-card p-4 shadow-sm"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="font-medium text-slate-900">{ol?.product?.name ?? '—'}</p>
-                  <p className="font-mono text-xs text-slate-500">{ol?.product?.sku}</p>
+                  <p className="font-medium text-text-strong">{ol?.product?.name ?? '—'}</p>
+                  <p className="font-mono text-xs text-text-muted">{ol?.product?.sku}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   <span
                     className={`rounded-full px-2 py-0.5 text-xs font-semibold ${lineStatusClass(status)}`}
                   >
-                    {lineStatusLabel(status)}
+                    {localizedReceivingLineStatus(status, t)}
                   </span>
                   <ReceivingLineActionsMenu
                     lineLabel={ol?.product?.sku ?? 'line'}
@@ -614,43 +727,48 @@ export function ReceivingExecutionPanel({
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <span className="text-slate-500">Expected</span>
+                  <span className="text-text-muted">{t(['Expected', 'المتوقع'])}</span>
                   <p className="font-mono font-medium">{l.expected_qty}</p>
                 </div>
                 <div>
-                  <span className="text-slate-500">Received</span>
+                  <span className="text-text-muted">{t(['Received', 'مستلم'])}</span>
                   <input
                     type="text"
                     inputMode="decimal"
-                    className="mt-0.5 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm font-mono"
+                    className={qtyInputClass}
                     value={d.receivedQty}
                     onChange={(e) => patchLine(lid, { receivedQty: e.target.value })}
+                    aria-invalid={qtyErr ? true : undefined}
                   />
                 </div>
                 <div>
-                  <span className="text-slate-500">Damaged</span>
+                  <span className="text-text-muted">{t(['Damaged', 'تالف'])}</span>
                   <input
                     type="text"
                     inputMode="decimal"
-                    className="mt-0.5 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm font-mono"
+                    className={qtyInputClass}
                     value={d.damagedQty}
                     onChange={(e) => patchLine(lid, { damagedQty: e.target.value })}
+                    aria-invalid={qtyErr ? true : undefined}
                   />
                 </div>
                 <div>
-                  <span className="text-slate-500">Missing</span>
-                  <p className="font-mono font-medium text-slate-700">
-                    {Math.max(0, expected - parseQty(d.receivedQty) - parseQty(d.damagedQty))}
+                  <span className="text-text-muted">{t(['Missing', 'ناقص'])}</span>
+                  <p className="font-mono font-medium text-text-body">
+                    {computeMissingQty(expected, parseQty(d.receivedQty), parseQty(d.damagedQty))}
                   </p>
                 </div>
               </div>
+              {!readOnly && qtyErr ? (
+                <p className="mt-2 text-xs text-status-danger-fg">{qtyErr}</p>
+              ) : null}
               {productRequiresExpiry(ol, ol?.productId ? productsById.get(ol.productId) : undefined) ? (
-                <label className="mt-2 block text-xs text-slate-600">
-                  Expiry date <span className="text-rose-600">*</span>
+                <label className="mt-2 block text-xs text-text-body">
+                  {t(['Expiry date', 'تاريخ انتهاء الصلاحية'])} <span className="text-status-danger-fg">*</span>
                   <input
                     type="date"
                     required
-                    className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
+                    className="mt-1 w-full rounded-lg border border-border px-2 py-2 text-sm"
                     value={d.expiry || lineExpiryByLineId[lid] || ''}
                     onChange={(e) => patchLine(lid, { expiry: e.target.value })}
                   />
@@ -709,12 +827,17 @@ export function ReceivingExecutionPanel({
               completed: true,
             },
           }));
-          toast.success(`Attributes validated for ${product?.sku ?? 'product'}`);
+          toast.success(
+            t([
+              `Attributes validated for ${product?.sku ?? 'product'}`,
+              `تم التحقق من المواصفات لـ ${product?.sku ?? 'المنتج'}`,
+            ]),
+          );
         }}
         onClose={() => setSpecsModalProductId(null)}
       />
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface-card/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:z-auto sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
         <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button
             type="button"
@@ -730,10 +853,10 @@ export function ReceivingExecutionPanel({
               })
             }
           >
-            Save progress
+            {t(['Save progress', 'حفظ التقدم'])}
           </Button>
           <Button type="submit" className="min-h-[52px] flex-1 text-base" loading={busy}>
-            Complete receiving
+            {t(['Complete receiving', 'إكمال الاستلام'])}
           </Button>
         </div>
       </div>
@@ -741,34 +864,25 @@ export function ReceivingExecutionPanel({
   );
 }
 
-const RECEIVING_LINE_STATUS_OPTIONS: { value: ReceivingLineStatus | ''; label: string }[] = [
-  { value: '', label: 'All statuses' },
-  { value: 'pending', label: lineStatusLabel('pending') },
-  { value: 'partial', label: lineStatusLabel('partial') },
-  { value: 'complete', label: lineStatusLabel('complete') },
-  { value: 'shortage', label: lineStatusLabel('shortage') },
-  { value: 'overage', label: lineStatusLabel('overage') },
-  { value: 'damaged', label: lineStatusLabel('damaged') },
-];
-
 function SummaryCards({ summary }: { summary: ReturnType<typeof computeReceivingSummary> }) {
+  const { t } = useWmsTranslation();
   const cards = [
-    { label: 'SKUs', value: String(summary.totalSkus) },
-    { label: 'Expected', value: String(summary.expectedTotal) },
-    { label: 'Received', value: String(summary.receivedTotal), accent: true },
-    { label: 'Damaged', value: String(summary.damagedTotal) },
-    { label: 'Remaining', value: String(summary.remainingTotal) },
-    { label: 'Complete', value: `${summary.completionPct}%` },
+    { label: 'SKU', value: String(summary.totalSkus) },
+    { label: t(['Expected', 'المتوقع']), value: String(summary.expectedTotal) },
+    { label: t(['Received', 'مستلم']), value: String(summary.receivedTotal), accent: true },
+    { label: t(['Damaged', 'تالف']), value: String(summary.damagedTotal) },
+    { label: t(['Remaining', 'المتبقي']), value: String(summary.remainingTotal) },
+    { label: t(['Complete', 'مكتمل']), value: `${summary.completionPct}%` },
   ];
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
       {cards.map((c) => (
         <div
           key={c.label}
-          className={`rounded-xl border p-3 ${c.accent ? 'border-emerald-200 bg-emerald-50' : 'border-slate-100 bg-white'}`}
+          className={`rounded-xl border p-3 ${c.accent ? 'border-border bg-surface-active' : 'border-border-subtle bg-surface-card'}`}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{c.label}</p>
-          <p className={`mt-1 text-lg font-semibold ${c.accent ? 'text-emerald-800' : 'text-slate-900'}`}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{c.label}</p>
+          <p className={`mt-1 text-lg font-semibold ${c.accent ? 'text-brand-700' : 'text-text-strong'}`}>
             {c.value}
           </p>
         </div>
@@ -798,10 +912,11 @@ function ReceivingLineActionsMenu({
   onClose: () => void;
   onPatch: (patch: Partial<LineReceiveDraft>) => void;
 }) {
+  const { t } = useWmsTranslation();
   const menuBtn = (label: string, onClick: () => void, className = '') => (
     <button
       type="button"
-      className={`block w-full px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 ${className}`}
+      className={`block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-hover ${className}`}
       data-receiving-line-action-menu-button="true"
       onClick={onClick}
     >
@@ -817,13 +932,13 @@ function ReceivingLineActionsMenu({
       trigger={
         <button
           type="button"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-100"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border text-text-body transition hover:bg-surface-hover"
           data-receiving-line-action-trigger="true"
           onClick={(e) => {
             e.stopPropagation();
             onToggle();
           }}
-          aria-label={`Actions for ${lineLabel}`}
+          aria-label={t([`Actions for ${lineLabel}`, `إجراءات ${lineLabel}`])}
           aria-expanded={open}
           aria-haspopup="menu"
         >
@@ -834,24 +949,31 @@ function ReceivingLineActionsMenu({
       }
     >
       {showValidateSpecs && onValidateSpecs
-        ? menuBtn('Validate specs', () => {
+        ? menuBtn(t(['Validate specs', 'التحقق من المواصفات']), () => {
             onValidateSpecs();
             onClose();
           })
         : null}
-      {menuBtn('Edit note', () => {
-        const next = window.prompt(`Note for ${lineLabel}`, draft.notes);
+      {menuBtn(t(['Edit note', 'تعديل الملاحظة']), () => {
+        const next = window.prompt(
+          t([`Note for ${lineLabel}`, `ملاحظة لـ ${lineLabel}`]),
+          draft.notes,
+        );
         if (next !== null) onPatch({ notes: next });
         onClose();
       })}
-      {menuBtn('Receive expected qty', () => {
+      {menuBtn(t(['Receive expected qty', 'استلام الكمية المتوقعة']), () => {
         onPatch({ receivedQty: expectedQty, damagedQty: '' });
         onClose();
       })}
-      {menuBtn('Clear line', () => {
-        onPatch({ receivedQty: '', damagedQty: '', notes: '' });
-        onClose();
-      }, 'text-rose-700 hover:bg-rose-50')}
+      {menuBtn(
+        t(['Clear line', 'مسح السطر']),
+        () => {
+          onPatch({ receivedQty: '', damagedQty: '', notes: '' });
+          onClose();
+        },
+        'text-status-danger-fg hover:bg-status-danger-bg',
+      )}
     </AnchoredDropdown>
   );
 }
@@ -885,12 +1007,13 @@ function ReceivingLinesTable({
   readOnly?: boolean;
   onPatchLine?: (lid: string, patch: Partial<LineReceiveDraft>) => void;
 }) {
+  const { t } = useWmsTranslation();
   const columns: Column<ReceivingLineRow>[] = [
     {
-      header: 'Product',
+      header: t(['Product', 'المنتج']),
       accessor: (l) => {
         const ol = lineMap.get(l.inbound_order_line_id);
-        return <span className="font-medium text-slate-800">{ol?.product?.name ?? '—'}</span>;
+        return <span className="font-medium text-text-strong">{ol?.product?.name ?? '—'}</span>;
       },
     },
     {
@@ -915,59 +1038,95 @@ function ReceivingLinesTable({
       },
     },
     {
-      header: 'Expected',
+      header: t(['Expected', 'المتوقع']),
       accessor: (l) => <span className="font-mono tabular-nums">{l.expected_qty}</span>,
       className: 'whitespace-nowrap',
     },
     {
-      header: 'Received',
+      header: t(['Received', 'مستلم']),
       accessor: (l) => {
         const lid = l.inbound_order_line_id;
         const d = lineDrafts[lid] ?? emptyLineDraft();
+        const qtyErr = validateReceivingLineQuantities(
+          parseQty(l.expected_qty),
+          d.receivedQty,
+          d.damagedQty,
+        );
         return readOnly ? (
           <span className="font-mono tabular-nums">{d.receivedQty || '—'}</span>
         ) : (
-          <input
-            className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm"
-            value={d.receivedQty}
-            onChange={(e) => onPatchLine?.(lid, { receivedQty: e.target.value })}
-            onClick={(e) => e.stopPropagation()}
-          />
+          <div className="inline-flex items-center gap-1">
+            <input
+              className={
+                qtyErr
+                  ? 'w-20 rounded border border-status-danger-border px-2 py-1 font-mono text-sm'
+                  : 'w-20 rounded border border-border px-2 py-1 font-mono text-sm'
+              }
+              value={d.receivedQty}
+              onChange={(e) => onPatchLine?.(lid, { receivedQty: e.target.value })}
+              onClick={(e) => e.stopPropagation()}
+              aria-invalid={qtyErr ? true : undefined}
+            />
+            <button
+              type="button"
+              className="rounded border border-border bg-surface-card-muted px-1.5 py-1 text-[10px] font-semibold text-brand-700 hover:bg-status-success-bg"
+              title={t(['Receive expected qty', 'استلام الكمية المتوقعة'])}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPatchLine?.(lid, { receivedQty: String(l.expected_qty), damagedQty: '' });
+              }}
+            >
+              {t(['Fill', 'تعبئة'])}
+            </button>
+          </div>
         );
       },
       className: 'whitespace-nowrap',
     },
     {
-      header: 'Damaged',
+      header: t(['Damaged', 'تالف']),
       accessor: (l) => {
         const lid = l.inbound_order_line_id;
         const d = lineDrafts[lid] ?? emptyLineDraft();
+        const qtyErr = validateReceivingLineQuantities(
+          parseQty(l.expected_qty),
+          d.receivedQty,
+          d.damagedQty,
+        );
         return readOnly ? (
           <span className="font-mono tabular-nums">{d.damagedQty || '—'}</span>
         ) : (
           <input
-            className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm"
+            className={
+              qtyErr
+                ? 'w-20 rounded border border-status-danger-border px-2 py-1 font-mono text-sm'
+                : 'w-20 rounded border border-border px-2 py-1 font-mono text-sm'
+            }
             value={d.damagedQty}
             onChange={(e) => onPatchLine?.(lid, { damagedQty: e.target.value })}
             onClick={(e) => e.stopPropagation()}
+            aria-invalid={qtyErr ? true : undefined}
           />
         );
       },
       className: 'whitespace-nowrap',
     },
     {
-      header: 'Missing',
+      header: t(['Missing', 'ناقص']),
       accessor: (l) => {
         const lid = l.inbound_order_line_id;
         const d = lineDrafts[lid] ?? emptyLineDraft();
         const expected = parseQty(l.expected_qty);
-        const missing = Math.max(0, expected - parseQty(d.receivedQty) - parseQty(d.damagedQty));
-        return <span className="font-mono tabular-nums">{missing}</span>;
+        const missing = computeMissingQty(expected, parseQty(d.receivedQty), parseQty(d.damagedQty));
+        const qtyErr = validateReceivingLineQuantities(expected, d.receivedQty, d.damagedQty);
+        return (
+          <span className={`font-mono tabular-nums ${qtyErr ? 'text-status-danger-fg' : ''}`}>{missing}</span>
+        );
       },
       className: 'whitespace-nowrap',
     },
     {
-      header: 'Status',
+      header: t(['Status', 'الحالة']),
       accessor: (l) => {
         const lid = l.inbound_order_line_id;
         const d = lineDrafts[lid] ?? emptyLineDraft();
@@ -978,21 +1137,21 @@ function ReceivingLinesTable({
         );
         return (
           <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${lineStatusClass(status)}`}>
-            {lineStatusLabel(status)}
+            {localizedReceivingLineStatus(status, t)}
           </span>
         );
       },
       className: 'whitespace-nowrap',
     },
     {
-      header: 'Expiry',
+      header: t(['Expiry', 'انتهاء الصلاحية']),
       accessor: (l) => {
         const lid = l.inbound_order_line_id;
         const ol = lineMap.get(lid);
         const d = lineDrafts[lid] ?? emptyLineDraft();
         const displayExpiry = lineExpiryByLineId[lid] ?? d.expiry;
         if (!productRequiresExpiry(ol, ol?.productId ? productsById.get(ol.productId) : undefined)) {
-          return <span className="text-slate-400">—</span>;
+          return <span className="text-text-muted">—</span>;
         }
         return readOnly ? (
           <span className="font-mono text-xs tabular-nums">{displayExpiry || '—'}</span>
@@ -1000,7 +1159,7 @@ function ReceivingLinesTable({
           <input
             type="date"
             required
-            className="w-[9.5rem] rounded border border-slate-300 px-2 py-1 text-sm"
+            className="w-[9.5rem] rounded border border-border px-2 py-1 text-sm"
             value={d.expiry || displayExpiry}
             onChange={(e) => onPatchLine?.(lid, { expiry: e.target.value })}
             onClick={(e) => e.stopPropagation()}
@@ -1012,7 +1171,7 @@ function ReceivingLinesTable({
     ...(!readOnly && onPatchLine && onOpenLineActionId
       ? [
           {
-            header: 'Actions',
+            header: t(['Actions', 'إجراءات']),
             accessor: (l: ReceivingLineRow) => {
               const lid = l.inbound_order_line_id;
               const ol = lineMap.get(lid);
@@ -1050,7 +1209,7 @@ function ReceivingLinesTable({
 
   return (
     <DataTable
-      title="Receive lines"
+      title={t(['Receive Lines', 'أسطر الاستلام'])}
       actions={
         onExportPrint ? (
           <Button
@@ -1060,7 +1219,7 @@ function ReceivingLinesTable({
             disabled={lines.length === 0}
             onClick={() => onExportPrint()}
           >
-            Export PDF
+            {t(['Export PDF', 'تصدير PDF'])}
           </Button>
         ) : undefined
       }
@@ -1069,8 +1228,8 @@ function ReceivingLinesTable({
       rowKey={(l) => l.inbound_order_line_id}
       empty={
         totalLineCount === 0
-          ? 'No lines on this task.'
-          : 'No lines match the current filters.'
+          ? t(['No lines on this task.', 'لا أسطر على هذه المهمة.'])
+          : t(['No lines match the current filters.', 'لا أسطر تطابق الفلاتر الحالية.'])
       }
     />
   );

@@ -34,18 +34,8 @@ const LEDGER_ROW_INCLUDE = {
     lot: { select: { id: true, lotNumber: true } },
     operator: { select: { id: true, fullName: true } },
 };
-const BUSINESS_LEDGER_MOVEMENTS = [
-    client_1.MovementType.inbound_receive,
-    client_1.MovementType.outbound_pick,
-    client_1.MovementType.adjustment_positive,
-    client_1.MovementType.adjustment_negative,
-];
 function toBusinessMovementType(movementType) {
-    if (movementType === client_1.MovementType.inbound_receive)
-        return 'inbound';
-    if (movementType === client_1.MovementType.outbound_pick)
-        return 'outbound';
-    return 'adjustment';
+    return (0, ledger_mapper_1.toLedgerDisplayMovement)(movementType);
 }
 function businessGroupKey(row) {
     const parts = row.idempotencyKey?.split(':') ?? [];
@@ -212,6 +202,16 @@ let InventoryService = class InventoryService {
             const items = pageRows.map((r) => ({
                 productId: r.product_id,
                 totalQuantity: r.total_quantity,
+                onHand: r.total_quantity,
+                reserved: r.reserved_quantity,
+                available: r.available_quantity,
+                lastMovement: r.last_movement_at
+                    ? {
+                        at: r.last_movement_at,
+                        quantityChange: r.last_quantity_change ?? '0',
+                        movementType: r.last_movement_type ?? 'inbound_receive',
+                    }
+                    : null,
                 product: {
                     id: r.product_id,
                     sku: r.sku,
@@ -227,7 +227,7 @@ let InventoryService = class InventoryService {
     async stock(user, query) {
         const where = await this.resolveCurrentStockWhere(user, query);
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
-            const [items, total] = await Promise.all([
+            const [items, total, agg, availAgg] = await Promise.all([
                 tx.currentStock.findMany({
                     where,
                     include: {
@@ -243,8 +243,29 @@ let InventoryService = class InventoryService {
                     skip: query.offset,
                 }),
                 tx.currentStock.count({ where }),
+                tx.currentStock.aggregate({
+                    where,
+                    _sum: {
+                        quantityOnHand: true,
+                        quantityReserved: true,
+                    },
+                }),
+                tx.currentStock.aggregate({
+                    where: { AND: [where, { status: 'available' }] },
+                    _sum: { quantityAvailable: true },
+                }),
             ]);
-            return { items, total, limit: query.limit, offset: query.offset };
+            return {
+                items,
+                total,
+                limit: query.limit,
+                offset: query.offset,
+                totals: {
+                    quantityOnHand: (agg._sum.quantityOnHand ?? 0).toString(),
+                    quantityReserved: (agg._sum.quantityReserved ?? 0).toString(),
+                    quantityAvailable: (availAgg._sum.quantityAvailable ?? 0).toString(),
+                },
+            };
         });
     }
     async ledger(user, query) {
@@ -259,6 +280,85 @@ let InventoryService = class InventoryService {
             return { items, total, limit: query.limit, offset: query.offset };
         });
     }
+    async balanceHistory(user, query) {
+        const companyId = (0, company_read_scope_1.readCompanyIdFilterRequired)(this.companyAccess, user, query.companyId);
+        const fromDay = query.from;
+        const toDay = query.to;
+        if (fromDay > toDay) {
+            throw new common_1.BadRequestException('from must be on or before to');
+        }
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const stockWhere = {
+                productId: query.productId,
+                ...(companyId ? { companyId } : {}),
+                ...(query.warehouseId ? { warehouseId: query.warehouseId } : {}),
+            };
+            const agg = await tx.currentStock.aggregate({
+                where: stockWhere,
+                _sum: { quantityOnHand: true },
+            });
+            const currentOnHand = Number(agg._sum.quantityOnHand ?? 0);
+            const warehouseCond = query.warehouseId
+                ? client_1.Prisma.sql `AND (
+            il.from_location_id IN (
+              SELECT id FROM locations
+               WHERE warehouse_id = ${query.warehouseId}::uuid AND status = 'active'
+            )
+            OR il.to_location_id IN (
+              SELECT id FROM locations
+               WHERE warehouse_id = ${query.warehouseId}::uuid AND status = 'active'
+            )
+          )`
+                : client_1.Prisma.sql ``;
+            const companyCond = companyId
+                ? client_1.Prisma.sql `AND il.company_id = ${companyId}::uuid`
+                : client_1.Prisma.sql ``;
+            const deltaRows = await tx.$queryRaw(client_1.Prisma.sql `
+        SELECT to_char(date_trunc('day', il.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
+               SUM(${(0, ledger_list_query_1.ledgerSignedQuantitySql)('il')})::text AS delta
+          FROM inventory_ledger il
+         WHERE il.product_id = ${query.productId}::uuid
+           ${companyCond}
+           ${warehouseCond}
+           AND il.movement_type IN (
+             'inbound_receive'::movement_type,
+             'outbound_pick'::movement_type,
+             'return_receive'::movement_type,
+             'adjustment_positive'::movement_type,
+             'adjustment_negative'::movement_type,
+             'scrap'::movement_type
+           )
+           AND il.created_at >= ${new Date(`${fromDay}T00:00:00.000Z`)}::timestamptz
+         GROUP BY 1
+         ORDER BY 1 ASC
+      `);
+            const deltaByDay = new Map(deltaRows.map((r) => [r.day, Number(r.delta)]));
+            const sumAfter = (dayInclusive) => {
+                let s = 0;
+                for (const [day, d] of deltaByDay) {
+                    if (day > dayInclusive)
+                        s += d;
+                }
+                return s;
+            };
+            const points = [];
+            const cursor = new Date(`${fromDay}T00:00:00.000Z`);
+            const end = new Date(`${toDay}T00:00:00.000Z`);
+            while (cursor <= end) {
+                const day = cursor.toISOString().slice(0, 10);
+                const balance = currentOnHand - sumAfter(day);
+                points.push({ day, balance: Math.round(balance * 10000) / 10000 });
+                cursor.setUTCDate(cursor.getUTCDate() + 1);
+            }
+            return {
+                productId: query.productId,
+                currentOnHand: String(currentOnHand),
+                from: fromDay,
+                to: toDay,
+                points,
+            };
+        });
+    }
     mapLedgerEntrySiblingRow(row) {
         return {
             id: row.id,
@@ -271,8 +371,8 @@ let InventoryService = class InventoryService {
             toLocationId: row.to_location_id,
             movementType: row.movement_type,
             quantity: new client_1.Prisma.Decimal(row.quantity),
-            quantityBefore: row.quantity_before != null ? new client_1.Prisma.Decimal(row.quantity_before) : null,
-            quantityAfter: row.quantity_after != null ? new client_1.Prisma.Decimal(row.quantity_after) : null,
+            quantityBefore: null,
+            quantityAfter: null,
             referenceType: row.reference_type,
             referenceId: row.reference_id,
             operatorId: row.operator_id,
@@ -304,8 +404,8 @@ let InventoryService = class InventoryService {
             referenceId: row.reference_id,
             quantity: new client_1.Prisma.Decimal(Math.abs(signedDelta)).toString(),
             quantityChange: signedDelta.toString(),
-            quantityBefore: row.quantity_before != null ? new client_1.Prisma.Decimal(row.quantity_before).toString() : null,
-            quantityAfter: row.quantity_after != null ? new client_1.Prisma.Decimal(row.quantity_after).toString() : null,
+            quantityBefore: null,
+            quantityAfter: null,
             fromLocationId: null,
             toLocationId: null,
             locationId: null,
@@ -380,9 +480,9 @@ let InventoryService = class InventoryService {
                             referenceType: head.referenceType,
                             referenceId: head.referenceId,
                             quantity: qty,
-                            quantityChange: qty,
+                            quantityChange: (0, ledger_mapper_1.ledgerSignedQuantity)(head.movementType, new client_1.Prisma.Decimal(qty)),
                             quantityBefore: null,
-                            quantityAfter: qty,
+                            quantityAfter: null,
                             fromLocationId: null,
                             toLocationId: slice.locationId,
                             locationId: slice.locationId,
@@ -432,8 +532,8 @@ let InventoryService = class InventoryService {
             referenceId: row.referenceId,
             quantity: row.quantity.toString(),
             quantityChange: (0, ledger_mapper_1.ledgerSignedQuantity)(row.movementType, row.quantity),
-            quantityBefore: row.quantityBefore?.toString() ?? null,
-            quantityAfter: row.quantityAfter?.toString() ?? null,
+            quantityBefore: null,
+            quantityAfter: null,
             fromLocationId: row.fromLocationId,
             toLocationId: row.toLocationId,
             locationId,
@@ -523,8 +623,6 @@ let InventoryService = class InventoryService {
                         toLocationId: dto.toLocationId,
                         movementType: 'internal_transfer',
                         quantity: qty,
-                        quantityBefore: dec.before,
-                        quantityAfter: inc.after,
                         referenceType: 'transfer',
                         referenceId,
                         operatorId: user.id,
@@ -573,7 +671,7 @@ let InventoryService = class InventoryService {
             throw e;
         }
     }
-    async availability(user, productId, companyIdParam) {
+    async availability(user, productId, companyIdParam, outboundOrderId) {
         const companyId = this.companyAccess.resolveWriteCompanyId(user, companyIdParam);
         const agg = await this.prisma.currentStock.aggregate({
             where: { companyId, productId, status: 'available' },
@@ -583,12 +681,41 @@ let InventoryService = class InventoryService {
                 quantityAvailable: true,
             },
         });
-        return {
+        const onHand = agg._sum.quantityOnHand ?? new client_1.Prisma.Decimal(0);
+        const reserved = agg._sum.quantityReserved ?? new client_1.Prisma.Decimal(0);
+        const available = agg._sum.quantityAvailable ?? new client_1.Prisma.Decimal(0);
+        const base = {
             productId,
             companyId,
-            onHand: (agg._sum.quantityOnHand ?? new client_1.Prisma.Decimal(0)).toString(),
-            reserved: (agg._sum.quantityReserved ?? new client_1.Prisma.Decimal(0)).toString(),
-            available: (agg._sum.quantityAvailable ?? new client_1.Prisma.Decimal(0)).toString(),
+            onHand: onHand.toString(),
+            reserved: reserved.toString(),
+            available: available.toString(),
+        };
+        if (!outboundOrderId)
+            return base;
+        const order = await this.prisma.outboundOrder.findFirst({
+            where: { id: outboundOrderId, companyId },
+            select: { id: true },
+        });
+        if (!order) {
+            throw new common_1.NotFoundException('Outbound order not found for availability credit.');
+        }
+        const ownAgg = await this.prisma.stockReservation.aggregate({
+            where: {
+                outboundOrderId,
+                productId,
+                companyId,
+                status: 'active',
+            },
+            _sum: { quantity: true },
+        });
+        const reservedByThisOrder = ownAgg._sum.quantity ?? new client_1.Prisma.Decimal(0);
+        const availableForOrder = available.plus(reservedByThisOrder);
+        return {
+            ...base,
+            available: availableForOrder.toString(),
+            reservedByThisOrder: reservedByThisOrder.toString(),
+            availableForOrder: availableForOrder.toString(),
         };
     }
 };

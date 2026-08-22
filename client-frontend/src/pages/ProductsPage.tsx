@@ -1,107 +1,121 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 
-import { Alert, Button } from '@ds';
-import type { Column } from '@wms/components/DataTable';
-import { DataTable } from '@wms/components/DataTable';
-import { FILTER_PRIMARY_BUTTON_CLASS, FilterPanel } from '@wms/components/FilterPanel';
-import { TextField } from '@wms/components/TextField';
-import { useFilters } from '@wms/hooks/useFilters';
+import { Alert, Badge, Button, EmptyState, Skeleton } from '@ds';
 import {
   CHUNK_SIZE_STANDARD,
   useChunkedServerPagination,
-} from '@wms/hooks/useChunkedServerPagination';
+} from '../hooks/useChunkedServerPagination';
+import { useCachedState } from '../hooks/useCachedState';
 
 import { useAuth } from '../auth/AuthContext';
-import { CreateClientProductModal } from '../components/CreateClientProductModal';
+import { AnchoredDropdown } from '../components/AnchoredDropdown';
+import { Card } from '../design-v2/Card';
+import { ListPageHeader } from '../design-v2/ListPageHeader';
+import { TableFooterPagination } from '../design-v2/TableFooterPagination';
+import { useDebouncedValue } from '../design-v2/useDebouncedValue';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import { isClientArabic } from '../lib/client-ui-language';
 import { isClientAdmin } from '../lib/rbac';
 import {
-  createClientProduct,
+  deleteClientProduct,
   fetchClientProducts,
   type ClientProductRow,
 } from '../services/clientProductsService';
-
-const UOM_LABELS: Record<string, { en: string; ar: string }> = {
-  piece: { en: 'Piece', ar: 'قطعة' },
-  kg: { en: 'Kilogram', ar: 'كيلوغرام' },
-  litre: { en: 'Litre', ar: 'لتر' },
-  carton: { en: 'Carton', ar: 'كرتون' },
-  pallet: { en: 'Pallet', ar: 'باليت' },
-  box: { en: 'Box', ar: 'صندوق' },
-  roll: { en: 'Roll', ar: 'لفة' },
-};
-
-type ProductListDraft = {
-  name: string;
-  sku: string;
-  barcode: string;
-};
+import { clientMediaSrc } from '../lib/client-media';
 
 function productsLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
-    Products: 'المنتجات',
-    'Product catalog': 'كتالوج المنتجات',
-    'Your product catalog for inbound and outbound orders.': 'كتالوج منتجاتك لطلبات الوارد والصادر.',
-    '+ New product': '+ منتج جديد',
-    'Product filters': 'فلاتر المنتجات',
-    'Apply filters': 'تطبيق الفلاتر',
-    'Reset filters': 'إعادة تعيين الفلاتر',
-    Name: 'الاسم',
+    Inventory: 'المخزون',
+    'Sellable stock and catalog': 'المخزون القابل للبيع والكتالوج',
+    'New product': 'منتج جديد',
+    'Search name or SKU...': 'ابحث بالاسم أو رمز SKU...',
+    Product: 'المنتج',
     SKU: 'رمز SKU',
-    Barcode: 'الباركود',
-    UoM: 'وحدة القياس',
+    Available: 'المتاح',
+    Reserved: 'المحجوز',
+    'On hand': 'المتواجد',
     Status: 'الحالة',
-    'On hand': 'المتوفر',
+    Actions: 'الإجراءات',
+    Edit: 'تعديل',
+    Delete: 'حذف',
+    'Open actions': 'فتح الإجراءات',
+    'Permanently delete this product? This cannot be undone.':
+      'حذف هذا المنتج نهائياً؟ لا يمكن التراجع.',
+    'Product deleted.': 'تم حذف المنتج.',
+    'Could not delete product.': 'تعذر حذف المنتج.',
     'No products found.': 'لا توجد منتجات.',
+    'No products match your search.': 'لا توجد منتجات مطابقة لبحثك.',
+    'Add your first catalog product to track sellable stock.':
+      'أضف أول منتج في الكتالوج لتتبع المخزون القابل للبيع.',
+    'Create first product': 'إنشاء أول منتج',
     'Could not load products': 'تعذر تحميل المنتجات',
-    'Product created.': 'تم إنشاء المنتج.',
-    rows: 'صف',
-    results: 'نتيجة',
-    of: 'من',
-    Previous: 'السابق',
-    Next: 'التالي',
-    'Rows per page': 'عدد الصفوف لكل صفحة',
-    'Contains…': 'يحتوي على…',
+    Retry: 'إعادة المحاولة',
+    'In stock': 'متوفر',
+    'Low stock': 'مخزون منخفض',
+    'Out of stock': 'نفد المخزون',
   };
   return ar[label] ?? label;
 }
 
-function productStatusClass(status: ClientProductRow['status']): string {
-  if (status === 'active') return 'bg-emerald-50 text-emerald-700';
-  if (status === 'suspended') return 'bg-amber-50 text-amber-800';
-  return 'bg-slate-100 text-slate-600';
+function stockHealth(
+  available: number,
+  threshold: number,
+): 'available' | 'low' | 'out' {
+  if (available <= 0) return 'out';
+  const lowAt = threshold > 0 ? threshold : 5;
+  if (available <= lowAt) return 'low';
+  return 'available';
 }
+
+const fmtQty = (s: string | null | undefined): string => {
+  if (s == null) return '—';
+  const n = Number(s);
+  if (Number.isNaN(n)) return s;
+  return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+};
+
+const menuItemClass =
+  'flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-text-body transition hover:bg-surface-hover hover:text-brand-700 dark:hover:text-brand-400';
+
+const menuItemDangerClass =
+  'flex w-full items-center gap-2 px-3 py-2 text-start text-sm text-status-danger-fg transition hover:bg-status-danger-bg';
 
 export function ProductsPage(): ReactElement {
   const { user } = useAuth();
-  const canCreateProducts = isClientAdmin(user?.role);
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [createSuccess, setCreateSuccess] = useState<string | null>(null);
+  const canManageProducts = isClientAdmin(user?.role);
+  const [search, setSearch] = useCachedState('search', '');
+  const [openActionId, setOpenActionId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const isArabic = isClientArabic();
   const t = (label: string) => productsLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
+  const debouncedSearch = useDebouncedValue(search, 300);
 
-  const initialFilters = useMemo<ProductListDraft>(
-    () => ({ name: '', sku: '', barcode: '' }),
-    [],
-  );
+  useEffect(() => {
+    if (!openActionId) return;
+    const onPointerDown = (ev: PointerEvent) => {
+      const target = ev.target as Element | null;
+      if (!target) return;
+      if (
+        target.closest('[data-product-action-trigger="true"]') ||
+        target.closest('[data-product-action-menu="true"]') ||
+        target.closest('[data-product-action-menu-button="true"]')
+      ) {
+        return;
+      }
+      setOpenActionId(null);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => window.removeEventListener('pointerdown', onPointerDown);
+  }, [openActionId]);
 
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(initialFilters);
-
-  const filterKey = useMemo(
-    () => ({
-      productName: appliedFilters.name.trim() || undefined,
-      sku: appliedFilters.sku.trim() || undefined,
-      productBarcode: appliedFilters.barcode.trim() || undefined,
-    }),
-    [appliedFilters],
-  );
+  const filterKey = useMemo(() => ({ search: debouncedSearch.trim() || undefined }), [debouncedSearch]);
 
   const pagination = useChunkedServerPagination<ClientProductRow>({
     chunkSize: CHUNK_SIZE_STANDARD,
@@ -111,184 +125,269 @@ export function ProductsPage(): ReactElement {
     chunkQueryKeyPrefix: 'client-products-chunk',
   });
 
-  const createMut = useMutation({
-    mutationFn: createClientProduct,
-    onSuccess: (created) => {
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteClientProduct(id),
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['client', 'products'] });
-      setCreateOpen(false);
-      setCreateError(null);
-      setCreateSuccess(`${t('Product created.')} (${created.sku})`);
+      setActionError(null);
+      setActionSuccess(t('Product deleted.'));
+      setOpenActionId(null);
     },
-    onError: (err: Error) => setCreateError(err.message),
+    onError: (err: Error) => {
+      setActionSuccess(null);
+      setActionError(err.message || t('Could not delete product.'));
+      setOpenActionId(null);
+    },
   });
 
-  const columns: Column<ClientProductRow>[] = useMemo(
-    () => [
-      { header: t('Name'), accessor: (p) => p.name },
-      {
-        header: t('SKU'),
-        accessor: (p) => <span className="font-mono text-xs">{p.sku}</span>,
-        width: '200px',
-      },
-      {
-        header: t('Barcode'),
-        accessor: (p) =>
-          p.barcode ? (
-            <span className="font-mono text-xs">{p.barcode}</span>
-          ) : (
-            <span className="text-slate-400">—</span>
-          ),
-        width: '200px',
-      },
-      {
-        header: t('UoM'),
-        accessor: (p) => {
-          const u = UOM_LABELS[p.uom];
-          return u ? (isArabic ? u.ar : u.en) : p.uom;
-        },
-        width: '110px',
-      },
-      {
-        header: t('Status'),
-        accessor: (p) => (
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${productStatusClass(p.status)}`}
-          >
-            {p.status}
-          </span>
-        ),
-        width: '110px',
-      },
-      {
-        header: t('On hand'),
-        accessor: (p) => (
-          <span className="block text-right font-mono font-semibold">{p.totalOnHand ?? '0'}</span>
-        ),
-        width: '120px',
-        className: 'text-right',
-      },
-    ],
-    [isArabic],
-  );
-
   return (
-    <>
-      <p className="mb-3 text-sm text-slate-600">
-        {t('Your product catalog for inbound and outbound orders.')}
-      </p>
-
-      {createSuccess && (
-        <Alert
-          variant="success"
-          compact
-          description={createSuccess}
-          className="mb-4"
-          action={
-            <Alert.Action variant="success" onClick={() => setCreateSuccess(null)}>
-              OK
-            </Alert.Action>
-          }
-        />
-      )}
-
-      {pagination.isError && (
-        <Alert
-          variant="error"
-          title={t('Could not load products')}
-          description="Check your connection and try refreshing the page."
-          action={
-            <Alert.Action variant="error" onClick={() => pagination.refetch()}>
-              Retry
-            </Alert.Action>
-          }
-          className="mb-3"
-        />
-      )}
-
-      <FilterPanel
-        title={t('Product filters')}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={pagination.isFetching}
-        applyLabel={t('Apply filters')}
-        resetLabel={t('Reset filters')}
-      >
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <TextField
-            label={t('Name')}
-            value={draftFilters.name}
-            onChange={(e) => setDraft({ name: e.target.value })}
-            placeholder={t('Contains…')}
-          />
-          <TextField
-            label={t('SKU')}
-            value={draftFilters.sku}
-            onChange={(e) => setDraft({ sku: e.target.value })}
-            className="font-mono text-xs"
-            placeholder={t('Contains…')}
-          />
-          <TextField
-            label={t('Barcode')}
-            value={draftFilters.barcode}
-            onChange={(e) => setDraft({ barcode: e.target.value })}
-            className="font-mono text-xs"
-            placeholder={t('Contains…')}
-          />
-        </div>
-      </FilterPanel>
-
-      <DataTable
-        title={t('Product catalog')}
-        titleAs="h1"
+    <div className="space-y-5 animate-enter">
+      <ListPageHeader
+        icon="fa-boxes-stacked"
+        title={t('Inventory')}
+        subtitle={t('Sellable stock and catalog')}
         actions={
-          canCreateProducts ? (
+          canManageProducts ? (
             <Button
               variant="primary"
               size="md"
               disabled={!billingAccess.operationalAllowed}
               title={
-                billingAccess.operationalAllowed
-                  ? undefined
-                  : billingAccess.actionBlockedReason
+                !billingAccess.operationalAllowed
+                  ? billingAccess.restriction.actionBlockedReason
+                  : undefined
               }
-              onClick={() => {
-                setCreateError(null);
-                setCreateSuccess(null);
-                setCreateOpen(true);
-              }}
-              className={FILTER_PRIMARY_BUTTON_CLASS}
+              onClick={() => navigate('/products/new')}
+              startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
             >
-              {t('+ New product')}
+              {t('New product')}
             </Button>
-          ) : undefined
+          ) : null
         }
-        columns={columns}
-        rows={pagination.rows}
-        rowKey={(p) => p.id}
-        loading={pagination.isInitialLoading}
-        empty={t('No products found.')}
-        serverPagination={pagination.serverPagination}
-        labels={{
-          rowsSuffix: t('rows'),
-          resultsSuffix: t('results'),
-          ofWord: t('of'),
-          previous: t('Previous'),
-          next: t('Next'),
-          rowsPerPageAria: t('Rows per page'),
-        }}
       />
 
-      <CreateClientProductModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        loading={createMut.isPending}
-        submitError={createError}
-        isArabic={isArabic}
-        onSubmit={(input) => {
-          setCreateError(null);
-          createMut.mutate(input);
-        }}
-      />
-    </>
+      {actionSuccess ? (
+        <Alert variant="success" title={actionSuccess} onDismiss={() => setActionSuccess(null)} />
+      ) : null}
+      {actionError ? (
+        <Alert variant="error" title={actionError} onDismiss={() => setActionError(null)} />
+      ) : null}
+
+      {pagination.isError ? (
+        <Alert
+          variant="error"
+          title={t('Could not load products')}
+          action={
+            <Alert.Action variant="error" onClick={() => pagination.refetch()}>
+              {t('Retry')}
+            </Alert.Action>
+          }
+        />
+      ) : null}
+
+      <Card className="p-4">
+        <div className="relative">
+          <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-text-faint text-xs" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('Search name or SKU...')}
+            className="w-full pl-9 pr-4 py-2 bg-surface-sunken border border-border-strong text-text-strong placeholder:text-text-faint rounded-lg text-sm input-premium"
+          />
+        </div>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
+              <tr>
+                <th className="px-5 py-3 text-left">{t('Product')}</th>
+                <th className="px-5 py-3 text-left">{t('SKU')}</th>
+                <th className="px-5 py-3 text-right">{t('Available')}</th>
+                <th className="px-5 py-3 text-right">{t('Reserved')}</th>
+                <th className="px-5 py-3 text-right">{t('On hand')}</th>
+                <th className="px-5 py-3 text-left">{t('Status')}</th>
+                <th className="px-5 py-3 text-right">{t('Actions')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-subtle">
+              {pagination.isInitialLoading ? (
+                Array.from({ length: 6 }).map((_, rowIdx) => (
+                  <tr key={`sk-${rowIdx}`}>
+                    {Array.from({ length: 7 }).map((__, colIdx) => (
+                      <td key={colIdx} className="px-5 py-3.5">
+                        <Skeleton height={14} width={colIdx === 0 ? '70%' : '50%'} />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : pagination.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-6">
+                    <EmptyState
+                      size="sm"
+                      icon={<i className="fa-solid fa-boxes-stacked text-2xl" aria-hidden="true" />}
+                      title={
+                        debouncedSearch.trim()
+                          ? t('No products match your search.')
+                          : t('No products found.')
+                      }
+                      description={
+                        debouncedSearch.trim()
+                          ? undefined
+                          : t('Add your first catalog product to track sellable stock.')
+                      }
+                      action={
+                        canManageProducts &&
+                        billingAccess.operationalAllowed &&
+                        !debouncedSearch.trim() ? (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => navigate('/products/new')}
+                            startIcon={<i className="fa-solid fa-plus text-xs" aria-hidden="true" />}
+                          >
+                            {t('Create first product')}
+                          </Button>
+                        ) : undefined
+                      }
+                    />
+                  </td>
+                </tr>
+              ) : (
+                pagination.rows.map((p) => {
+                  const reserved = Number(p.totalReserved ?? 0);
+                  const onHand = Number(p.totalOnHand ?? 0);
+                  const available =
+                    p.totalAvailable != null
+                      ? Number(p.totalAvailable)
+                      : Math.max(0, onHand - reserved);
+                  const health = stockHealth(available, Number(p.minStockThreshold) || 0);
+                  const healthTone =
+                    health === 'out' ? 'danger' : health === 'low' ? 'warning' : 'success';
+                  const healthLabel =
+                    health === 'out'
+                      ? t('Out of stock')
+                      : health === 'low'
+                        ? t('Low stock')
+                        : t('In stock');
+                  const canDelete =
+                    canManageProducts &&
+                    billingAccess.operationalAllowed &&
+                    Boolean(p.deletable);
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => navigate(`/products/${p.id}`)}
+                      className="hover:bg-surface-hover transition-colors group cursor-pointer"
+                    >
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          {clientMediaSrc(p.imageUrl) ? (
+                            <img
+                              src={clientMediaSrc(p.imageUrl) ?? undefined}
+                              alt=""
+                              className="w-9 h-9 rounded-lg object-cover border border-border shrink-0"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-lg bg-surface-sunken flex items-center justify-center text-text-faint shrink-0">
+                              <i className="fa-solid fa-box text-xs" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-semibold text-text-strong truncate">{p.name}</div>
+                            <div className="text-xs text-text-muted truncate">{p.description || '—'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-text-body font-mono text-xs">{p.sku}</td>
+                      <td className="px-5 py-3.5 text-right font-semibold tabular-nums text-text-strong">
+                        {fmtQty(p.totalAvailable ?? String(available))}
+                      </td>
+                      <td className="px-5 py-3.5 text-right tabular-nums text-text-muted">
+                        {fmtQty(p.totalReserved)}
+                      </td>
+                      <td className="px-5 py-3.5 text-right tabular-nums text-text-body">
+                        {fmtQty(p.totalOnHand ?? String(onHand))}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <Badge tone={healthTone} dot>
+                          {healthLabel}
+                        </Badge>
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
+                          <AnchoredDropdown
+                            open={openActionId === p.id}
+                            align="end"
+                            menuRootProps={{ 'data-product-action-menu': 'true' }}
+                            trigger={
+                              <button
+                                type="button"
+                                data-product-action-trigger="true"
+                                className="w-8 h-8 rounded-lg border border-border text-text-muted hover:bg-surface-hover hover:text-text-strong transition-colors inline-flex items-center justify-center"
+                                onClick={() =>
+                                  setOpenActionId((cur) => (cur === p.id ? null : p.id))
+                                }
+                                aria-label={t('Open actions')}
+                                aria-expanded={openActionId === p.id}
+                                aria-haspopup="menu"
+                              >
+                                <i className="fa-solid fa-ellipsis" />
+                              </button>
+                            }
+                          >
+                            {canManageProducts ? (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                data-product-action-menu-button="true"
+                                className={menuItemClass}
+                                onClick={() => {
+                                  setOpenActionId(null);
+                                  navigate(`/products/${p.id}/edit`);
+                                }}
+                              >
+                                <i className="fa-solid fa-pen text-xs text-text-faint w-4" />
+                                {t('Edit')}
+                              </button>
+                            ) : null}
+                            {canDelete ? (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                data-product-action-menu-button="true"
+                                className={menuItemDangerClass}
+                                disabled={deleteMut.isPending}
+                                onClick={() => {
+                                  if (
+                                    !window.confirm(
+                                      t('Permanently delete this product? This cannot be undone.'),
+                                    )
+                                  ) {
+                                    return;
+                                  }
+                                  deleteMut.mutate(p.id);
+                                }}
+                              >
+                                <i className="fa-solid fa-trash text-xs w-4" />
+                                {t('Delete')}
+                              </button>
+                            ) : null}
+                          </AnchoredDropdown>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+        <TableFooterPagination pagination={pagination.serverPagination} isArabic={isArabic} />
+      </Card>
+    </div>
   );
 }

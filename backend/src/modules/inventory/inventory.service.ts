@@ -24,7 +24,7 @@ import { transferPayload } from '../realtime/realtime-ops.payload';
 import { InternalTransferDto } from './dto/internal-transfer.dto';
 import { LedgerEntryQueryDto } from './dto/ledger-entry-query.dto';
 import { LedgerQueryDto, StockQueryDto } from './dto/stock-query.dto';
-import { ledgerSignedQuantity } from './ledger-mapper';
+import { ledgerSignedQuantity, toLedgerDisplayMovement } from './ledger-mapper';
 import { StockHelpers } from './stock.helpers';
 import {
   buildStockByProductSqlContext,
@@ -37,6 +37,7 @@ import {
   ledgerBusinessGroupPageSql,
   ledgerBusinessGroupsCountSql,
   ledgerEntrySiblingRowsSql,
+  ledgerSignedQuantitySql,
   type LedgerEntrySiblingRow,
   type LedgerGroupPageRow,
 } from './ledger-list.query';
@@ -46,7 +47,15 @@ export interface AvailabilityResult {
   companyId: string;
   onHand: string;
   reserved: string;
+  /** Global free stock (on_hand - reserved). */
   available: string;
+  /**
+   * When outboundOrderId was provided: this order's active soft-hold for the product.
+   * Usable qty for the order = available + reservedByThisOrder.
+   */
+  reservedByThisOrder?: string;
+  /** When outboundOrderId was provided: available + reservedByThisOrder. */
+  availableForOrder?: string;
 }
 
 const UUID_LIKE =
@@ -70,17 +79,10 @@ type LocationForLabel = {
   barcode: string;
 };
 
-const BUSINESS_LEDGER_MOVEMENTS: MovementType[] = [
-  MovementType.inbound_receive,
-  MovementType.outbound_pick,
-  MovementType.adjustment_positive,
-  MovementType.adjustment_negative,
-];
-
-function toBusinessMovementType(movementType: MovementType): 'inbound' | 'outbound' | 'adjustment' {
-  if (movementType === MovementType.inbound_receive) return 'inbound';
-  if (movementType === MovementType.outbound_pick) return 'outbound';
-  return 'adjustment';
+function toBusinessMovementType(
+  movementType: MovementType,
+): ReturnType<typeof toLedgerDisplayMovement> {
+  return toLedgerDisplayMovement(movementType);
 }
 
 function businessGroupKey(row: {
@@ -283,6 +285,16 @@ export class InventoryService {
       const items = pageRows.map((r) => ({
         productId: r.product_id,
         totalQuantity: r.total_quantity,
+        onHand: r.total_quantity,
+        reserved: r.reserved_quantity,
+        available: r.available_quantity,
+        lastMovement: r.last_movement_at
+          ? {
+              at: r.last_movement_at,
+              quantityChange: r.last_quantity_change ?? '0',
+              movementType: r.last_movement_type ?? 'inbound_receive',
+            }
+          : null,
         product: {
           id: r.product_id,
           sku: r.sku,
@@ -306,7 +318,7 @@ export class InventoryService {
     const where = await this.resolveCurrentStockWhere(user, query);
 
     return withTenantRls(this.prisma, user, async (tx) => {
-      const [items, total] = await Promise.all([
+      const [items, total, agg, availAgg] = await Promise.all([
         tx.currentStock.findMany({
           where,
           include: {
@@ -322,9 +334,36 @@ export class InventoryService {
           skip: query.offset,
         }),
         tx.currentStock.count({ where }),
+        // Aggregate over the FULL matching set (not just the current page) so the
+        // UI never under-counts a product whose stock spans more bins than fit on
+        // one page. These totals are the canonical on-hand/reserved/available for
+        // the requested scope and must match every other product-quantity view.
+        tx.currentStock.aggregate({
+          where,
+          _sum: {
+            quantityOnHand: true,
+            quantityReserved: true,
+          },
+        }),
+        // Available excludes receiving-area stock awaiting putaway: only
+        // `available` status slices can be picked/allocated to outbound.
+        tx.currentStock.aggregate({
+          where: { AND: [where, { status: 'available' }] },
+          _sum: { quantityAvailable: true },
+        }),
       ]);
 
-      return { items, total, limit: query.limit, offset: query.offset };
+      return {
+        items,
+        total,
+        limit: query.limit,
+        offset: query.offset,
+        totals: {
+          quantityOnHand: (agg._sum.quantityOnHand ?? 0).toString(),
+          quantityReserved: (agg._sum.quantityReserved ?? 0).toString(),
+          quantityAvailable: (availAgg._sum.quantityAvailable ?? 0).toString(),
+        },
+      };
     });
   }
 
@@ -354,6 +393,109 @@ export class InventoryService {
     });
   }
 
+  /**
+   * Daily on-hand stock level for one product over a date window.
+   * Reconstructs from current on-hand minus signed ledger deltas after each day.
+   */
+  async balanceHistory(
+    user: AuthPrincipal,
+    query: {
+      productId: string;
+      companyId?: string;
+      warehouseId?: string;
+      from: string;
+      to: string;
+    },
+  ) {
+    const companyId = readCompanyIdFilterRequired(
+      this.companyAccess,
+      user,
+      query.companyId,
+    );
+    const fromDay = query.from;
+    const toDay = query.to;
+    if (fromDay > toDay) {
+      throw new BadRequestException('from must be on or before to');
+    }
+
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const stockWhere: Prisma.CurrentStockWhereInput = {
+        productId: query.productId,
+        ...(companyId ? { companyId } : {}),
+        ...(query.warehouseId ? { warehouseId: query.warehouseId } : {}),
+      };
+      const agg = await tx.currentStock.aggregate({
+        where: stockWhere,
+        _sum: { quantityOnHand: true },
+      });
+      const currentOnHand = Number(agg._sum.quantityOnHand ?? 0);
+
+      const warehouseCond = query.warehouseId
+        ? Prisma.sql`AND (
+            il.from_location_id IN (
+              SELECT id FROM locations
+               WHERE warehouse_id = ${query.warehouseId}::uuid AND status = 'active'
+            )
+            OR il.to_location_id IN (
+              SELECT id FROM locations
+               WHERE warehouse_id = ${query.warehouseId}::uuid AND status = 'active'
+            )
+          )`
+        : Prisma.sql``;
+      const companyCond = companyId
+        ? Prisma.sql`AND il.company_id = ${companyId}::uuid`
+        : Prisma.sql``;
+
+      // Deltas from start of window through now (needed to walk balances).
+      const deltaRows = await tx.$queryRaw<Array<{ day: string; delta: string }>>(Prisma.sql`
+        SELECT to_char(date_trunc('day', il.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
+               SUM(${ledgerSignedQuantitySql('il')})::text AS delta
+          FROM inventory_ledger il
+         WHERE il.product_id = ${query.productId}::uuid
+           ${companyCond}
+           ${warehouseCond}
+           AND il.movement_type IN (
+             'inbound_receive'::movement_type,
+             'outbound_pick'::movement_type,
+             'return_receive'::movement_type,
+             'adjustment_positive'::movement_type,
+             'adjustment_negative'::movement_type,
+             'scrap'::movement_type
+           )
+           AND il.created_at >= ${new Date(`${fromDay}T00:00:00.000Z`)}::timestamptz
+         GROUP BY 1
+         ORDER BY 1 ASC
+      `);
+
+      const deltaByDay = new Map(deltaRows.map((r) => [r.day, Number(r.delta)]));
+      const sumAfter = (dayInclusive: string): number => {
+        let s = 0;
+        for (const [day, d] of deltaByDay) {
+          if (day > dayInclusive) s += d;
+        }
+        return s;
+      };
+
+      const points: Array<{ day: string; balance: number }> = [];
+      const cursor = new Date(`${fromDay}T00:00:00.000Z`);
+      const end = new Date(`${toDay}T00:00:00.000Z`);
+      while (cursor <= end) {
+        const day = cursor.toISOString().slice(0, 10);
+        const balance = currentOnHand - sumAfter(day);
+        points.push({ day, balance: Math.round(balance * 10000) / 10000 });
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+
+      return {
+        productId: query.productId,
+        currentOnHand: String(currentOnHand),
+        from: fromDay,
+        to: toDay,
+        points,
+      };
+    });
+  }
+
   private mapLedgerEntrySiblingRow(row: LedgerEntrySiblingRow): LedgerRowWithRelations {
     return {
       id: row.id,
@@ -366,10 +508,8 @@ export class InventoryService {
       toLocationId: row.to_location_id,
       movementType: row.movement_type,
       quantity: new Prisma.Decimal(row.quantity),
-      quantityBefore:
-        row.quantity_before != null ? new Prisma.Decimal(row.quantity_before) : null,
-      quantityAfter:
-        row.quantity_after != null ? new Prisma.Decimal(row.quantity_after) : null,
+      quantityBefore: null,
+      quantityAfter: null,
       referenceType: row.reference_type as LedgerRowWithRelations['referenceType'],
       referenceId: row.reference_id,
       operatorId: row.operator_id,
@@ -402,10 +542,8 @@ export class InventoryService {
       referenceId: row.reference_id,
       quantity: new Prisma.Decimal(Math.abs(signedDelta)).toString(),
       quantityChange: signedDelta.toString(),
-      quantityBefore:
-        row.quantity_before != null ? new Prisma.Decimal(row.quantity_before).toString() : null,
-      quantityAfter:
-        row.quantity_after != null ? new Prisma.Decimal(row.quantity_after).toString() : null,
+      quantityBefore: null as string | null,
+      quantityAfter: null as string | null,
       fromLocationId: null as string | null,
       toLocationId: null as string | null,
       locationId: null as string | null,
@@ -496,9 +634,9 @@ export class InventoryService {
               referenceType: head.referenceType,
               referenceId: head.referenceId,
               quantity: qty,
-              quantityChange: qty,
+              quantityChange: ledgerSignedQuantity(head.movementType, new Prisma.Decimal(qty)),
               quantityBefore: null,
-              quantityAfter: qty,
+              quantityAfter: null,
               fromLocationId: null,
               toLocationId: slice.locationId,
               locationId: slice.locationId,
@@ -556,8 +694,8 @@ export class InventoryService {
       referenceId: row.referenceId,
       quantity: row.quantity.toString(),
       quantityChange: ledgerSignedQuantity(row.movementType, row.quantity),
-      quantityBefore: row.quantityBefore?.toString() ?? null,
-      quantityAfter: row.quantityAfter?.toString() ?? null,
+      quantityBefore: null,
+      quantityAfter: null,
       fromLocationId: row.fromLocationId,
       toLocationId: row.toLocationId,
       locationId,
@@ -660,8 +798,6 @@ export class InventoryService {
             toLocationId: dto.toLocationId,
             movementType: 'internal_transfer',
             quantity: qty,
-            quantityBefore: dec.before,
-            quantityAfter: inc.after,
             referenceType: 'transfer',
             referenceId,
             operatorId: user.id,
@@ -728,11 +864,15 @@ export class InventoryService {
    * Aggregated stock availability for a single (company, product) tuple.
    * Used by the outbound creation modal to validate quantities client-side
    * before submitting (the backend create endpoint re-validates server-side).
+   *
+   * When `outboundOrderId` is set, credits that outbound's own active soft-holds
+   * so linked OMS→Outbound plans do not treat their own reservation as unavailable.
    */
   async availability(
     user: AuthPrincipal,
     productId: string,
     companyIdParam?: string,
+    outboundOrderId?: string,
   ): Promise<AvailabilityResult> {
     const companyId = this.companyAccess.resolveWriteCompanyId(user, companyIdParam);
 
@@ -745,14 +885,46 @@ export class InventoryService {
       },
     });
 
-    return {
+    const onHand = agg._sum.quantityOnHand ?? new Prisma.Decimal(0);
+    const reserved = agg._sum.quantityReserved ?? new Prisma.Decimal(0);
+    const available = agg._sum.quantityAvailable ?? new Prisma.Decimal(0);
+
+    const base: AvailabilityResult = {
       productId,
       companyId,
-      onHand: (agg._sum.quantityOnHand ?? new Prisma.Decimal(0)).toString(),
-      reserved: (agg._sum.quantityReserved ?? new Prisma.Decimal(0)).toString(),
-      available: (
-        agg._sum.quantityAvailable ?? new Prisma.Decimal(0)
-      ).toString(),
+      onHand: onHand.toString(),
+      reserved: reserved.toString(),
+      available: available.toString(),
+    };
+
+    if (!outboundOrderId) return base;
+
+    const order = await this.prisma.outboundOrder.findFirst({
+      where: { id: outboundOrderId, companyId },
+      select: { id: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Outbound order not found for availability credit.');
+    }
+
+    const ownAgg = await this.prisma.stockReservation.aggregate({
+      where: {
+        outboundOrderId,
+        productId,
+        companyId,
+        status: 'active',
+      },
+      _sum: { quantity: true },
+    });
+    const reservedByThisOrder = ownAgg._sum.quantity ?? new Prisma.Decimal(0);
+    const availableForOrder = available.plus(reservedByThisOrder);
+
+    return {
+      ...base,
+      // Surface usable qty as `available` so existing clients credit own soft-holds.
+      available: availableForOrder.toString(),
+      reservedByThisOrder: reservedByThisOrder.toString(),
+      availableForOrder: availableForOrder.toString(),
     };
   }
 }

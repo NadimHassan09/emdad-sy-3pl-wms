@@ -2,23 +2,56 @@ import { api, type PageResult } from './client';
 
 export type BillingCycleStatus = 'active' | 'expired' | 'renewed';
 
+export type BillingPlanType = 'custom' | 'template';
+
+export type BillingApplyMode = 'immediate' | 'next_cycle';
+
 export type BillingPlanRow = {
   id: string;
   companyId: string;
   active: boolean;
+  /** When true, expired cycles automatically start the next billing cycle. */
+  autoRenew?: boolean;
   cycleLengthDays: number;
   fixedSubscriptionFee: string;
   inboundOrderFee: string;
   outboundOrderFee: string;
+  outboundBaseFee: string;
+  outboundIncludedItems: number;
+  outboundAdditionalItemFee: string;
   packagingFee: string;
   qualityCheckFee: string;
   excessVolumeFeePerDay: string;
   excessWeightFeePerDay: string;
   reservedVolume: string;
   reservedWeight: string;
+  /** Present when template/custom billing modes are enabled on the API. */
+  planType?: BillingPlanType;
+  templateId?: string | null;
+  templateName?: string | null;
+  pendingChanges?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 };
+
+export type BillingPlanTemplateRow = {
+  id: string;
+  name: string;
+  reservedVolume: string;
+  fixedSubscriptionFee: string;
+  cycleLengthDays: number;
+  active?: boolean;
+};
+
+export type CreateBillingPlanTemplatePayload = {
+  name: string;
+  reservedVolume: number;
+  fixedSubscriptionFee: number;
+  cycleLengthDays: number;
+  active?: boolean;
+};
+
+export type UpdateBillingPlanTemplatePayload = Partial<CreateBillingPlanTemplatePayload>;
 
 export type BillingCycleRow = {
   id: string;
@@ -32,6 +65,11 @@ export type BillingCycleRow = {
 };
 
 export type BillingCapacitySummary = {
+  usedStorageCbm: string;
+  reservedStorageCbm: string;
+  remainingStorageCbm: string;
+  storageUsagePercent: number;
+  /** Legacy aliases mapped to inventory-based storage */
   totalWarehouseVolumeCbm: string;
   allocatableCapacityCbm: string;
   allocatedVolumeCbm: string;
@@ -42,6 +80,16 @@ export type BillingCapacitySummary = {
   remainingAllocatableKg: string;
   allocationRatio: number;
   sparePoolRatio: number;
+  basis?: 'inventory_product_cbm';
+};
+
+export type CompanyStorageSummary = {
+  companyId: string;
+  usedStorageCbm: string;
+  reservedStorageCbm: string;
+  remainingStorageCbm: string;
+  storageUsagePercent: number;
+  basis: 'inventory_product_cbm';
 };
 
 export type BillingDashboardSummary = {
@@ -63,7 +111,16 @@ export type BillingExpiringBuckets = {
 
 export type BillingCyclePreview = {
   companyId: string;
-  plan: { id: string; cycleLengthDays: number; reservedVolume: string; reservedWeight: string; fixedSubscriptionFee: string };
+  plan: {
+    id: string;
+    cycleLengthDays: number;
+    reservedVolume: string;
+    reservedWeight: string;
+    fixedSubscriptionFee: string;
+    outboundBaseFee: string;
+    outboundIncludedItems: number;
+    outboundAdditionalItemFee: string;
+  };
   cycle: { id: string; startsAt: string; endsAt: string; status: string; daysRemaining: number; rateSnapshot: unknown };
   usage: { usedVolumeCbm: string; usedWeightKg: string; allocatedVolumeCbm: string; allocatedWeightKg: string };
   preview: {
@@ -74,6 +131,9 @@ export type BillingCyclePreview = {
     tax: string;
     discount: string;
     grandTotal: string;
+    vatPercentage: string;
+    discountType: 'fixed' | 'percentage' | null;
+    discountValue: string | null;
     lines: BillingInvoiceLineRow[];
   } | null;
 };
@@ -81,10 +141,14 @@ export type BillingCyclePreview = {
 export type CreateBillingPlanPayload = {
   companyId: string;
   active?: boolean;
+  autoRenew?: boolean;
   cycleLengthDays: number;
   fixedSubscriptionFee?: number;
   inboundOrderFee?: number;
   outboundOrderFee?: number;
+  outboundBaseFee?: number;
+  outboundIncludedItems?: number;
+  outboundAdditionalItemFee?: number;
   packagingFee?: number;
   qualityCheckFee?: number;
   excessVolumeFeePerDay?: number;
@@ -92,13 +156,23 @@ export type CreateBillingPlanPayload = {
   reservedVolume?: number;
   reservedWeight?: number;
   cycleStartsAt?: string;
+  planType?: BillingPlanType;
+  templateId?: string | null;
 };
 
 export type UpdateBillingPlanPayload = Partial<
   Omit<CreateBillingPlanPayload, 'companyId' | 'cycleStartsAt'>
->;
+> & {
+  planType?: BillingPlanType;
+  templateId?: string | null;
+  applyMode?: BillingApplyMode;
+};
 
-export type BillingInvoiceStatus = 'draft' | 'open' | 'paid' | 'cancelled' | 'overdue';
+export type BillingInvoiceStatus = 'draft' | 'unpaid' | 'paid' | 'cancelled' | 'open' | 'overdue';
+
+export type BillingInvoiceSource = 'cycle' | 'ad_hoc';
+
+export type BillingInvoiceLineSource = 'system' | 'manual' | 'order';
 
 export type BillingInvoiceLineType =
   | 'subscription'
@@ -107,14 +181,20 @@ export type BillingInvoiceLineType =
   | 'packaging'
   | 'quality_check'
   | 'excess_volume'
-  | 'excess_weight';
+  | 'excess_weight'
+  | 'manual'
+  | 'order_charge';
 
 export type BillingInvoiceLineRow = {
   id: string;
   type: BillingInvoiceLineType;
+  lineSource: BillingInvoiceLineSource;
+  description: string | null;
   quantity: string;
   unitPrice: string;
   totalPrice: string;
+  orderChargeId?: string | null;
+  createdAt?: string;
 };
 
 export type BillingInvoiceCycleSummary = {
@@ -131,6 +211,9 @@ export type BillingRateSnapshot = {
   fixedSubscriptionFee: string;
   inboundOrderFee: string;
   outboundOrderFee: string;
+  outboundBaseFee: string;
+  outboundIncludedItems: number;
+  outboundAdditionalItemFee: string;
   packagingFee: string;
   qualityCheckFee: string;
   excessVolumeFeePerDay: string;
@@ -143,15 +226,66 @@ export type BillingRateSnapshot = {
 export type BillingInvoiceRow = {
   id: string;
   companyId: string;
-  billingCycleId: string;
+  billingCycleId: string | null;
+  invoiceSource: BillingInvoiceSource;
   invoiceNumber: string;
   status: BillingInvoiceStatus;
+  subtotalAmount: string;
+  discountType: 'fixed' | 'percentage' | null;
+  discountValue: string | null;
+  discountAmount: string;
+  vatPercentage: string;
+  vatAmount: string;
+  grandTotal: string;
   totalAmount: string;
   issuedAt: string | null;
+  dueDate: string | null;
   createdAt: string;
   updatedAt: string;
-  billingCycle?: BillingInvoiceCycleSummary;
+  billingCycle?: BillingInvoiceCycleSummary | null;
   lines?: BillingInvoiceLineRow[];
+};
+
+export type BillingPlanDetailResponse = {
+  company: { id: string; name: string; status: string };
+  plan: BillingPlanRow | null;
+  currentCycle: BillingCycleRow | null;
+  cycles: BillingCycleRow[];
+  invoices: BillingInvoiceRow[];
+};
+
+export type OrderManualChargeRow = {
+  id: string;
+  companyId: string;
+  referenceType: string;
+  referenceId: string;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+  totalPrice: string;
+  createdBy: string | null;
+  createdAt: string;
+};
+
+export type CreateManualInvoiceLinePayload = {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+export type CreateAdHocInvoicePayload = {
+  companyId: string;
+  invoiceDate: string;
+  dueDate: string;
+  lines: CreateManualInvoiceLinePayload[];
+};
+
+export type UpdateInvoicePayload = {
+  invoiceDate?: string;
+  dueDate?: string;
+  discountType?: 'fixed' | 'percentage' | null;
+  discountValue?: number | null;
+  vatPercentage?: number;
 };
 
 export type BillingPlanOverviewItem = {
@@ -159,10 +293,12 @@ export type BillingPlanOverviewItem = {
   companyId: string;
   companyName: string;
   companyStatus: string;
+  companyLogoUrl?: string | null;
   currentCycle: BillingCycleRow | null;
   cycleStart: string | null;
   cycleEnd: string | null;
   daysRemaining: number | null;
+  nextRenewalDate?: string | null;
   cycleStatus: 'active' | 'renewed' | 'expired' | 'none';
   billingStatus: 'operational' | 'restricted' | 'inactive';
 };
@@ -173,6 +309,10 @@ export type ListBillingPlansParams = {
   cycleStatus?: '' | 'active' | 'renewed' | 'expired' | 'none';
   daysRemaining?: '' | 'critical' | 'warning' | 'healthy' | 'expired' | 'none';
   billingStatus?: '' | 'operational' | 'restricted' | 'inactive';
+  planStatus?: '' | 'active' | 'inactive';
+  planType?: '' | 'custom' | 'template';
+  cycleStartFrom?: string;
+  cycleStartTo?: string;
   expiryFrom?: string;
   expiryTo?: string;
   sort_by?:
@@ -209,6 +349,7 @@ export type BillingOverdueClientRow = {
   status: string;
   lastCycleEndedAt: string | null;
   restrictedSince: string;
+  billingPlanId?: string | null;
 };
 
 export type BillingRecentInvoiceRow = {
@@ -226,6 +367,7 @@ export type BillingSuspendedAccountRow = {
   companyName: string;
   status: string;
   suspendedSince: string;
+  billingPlanId?: string | null;
 };
 
 export type BillingExpiringCycleRow = {
@@ -252,7 +394,6 @@ export const BillingApi = {
     return data;
   },
 
-  /** Detail pages — all plans for one client (unpaginated slice). */
   async listPlans(companyId?: string): Promise<BillingPlanRow[]> {
     const { data } = await api.get<PageResult<BillingPlanOverviewItem>>('/billing/plans', {
       params: { companyId, limit: 100, offset: 0 },
@@ -275,6 +416,98 @@ export const BillingApi = {
     return data;
   },
 
+  async suspendPlan(id: string): Promise<BillingPlanRow> {
+    return BillingApi.updatePlan(id, { active: false });
+  },
+
+  async resumePlan(id: string): Promise<BillingPlanRow> {
+    return BillingApi.updatePlan(id, { active: true });
+  },
+
+  async renewPlan(id: string): Promise<{
+    mode: 'deferred' | 'reactivated';
+    plan: BillingPlanRow;
+    cycle: BillingCycleRow;
+  }> {
+    const { data } = await api.post<{
+      mode: 'deferred' | 'reactivated';
+      plan: BillingPlanRow;
+      cycle: BillingCycleRow;
+    }>(`/billing/plans/${id}/renew`);
+    return data;
+  },
+
+  /**
+   * Client billing workspace payload (plan + cycles + invoices).
+   * Composed from existing list/detail endpoints until a dedicated API exists.
+   */
+  async getPlanDetailByClient(companyId: string): Promise<BillingPlanDetailResponse> {
+    const [plansPage, cycles, invoicesPage, companyRes] = await Promise.all([
+      BillingApi.listPlansPage({ companyId, limit: 20, offset: 0 }),
+      BillingApi.listCycles(companyId),
+      BillingApi.listInvoicesPage({
+        companyId,
+        limit: 50,
+        offset: 0,
+        sort_by: 'createdAt',
+        sort_dir: 'desc',
+      }),
+      api.get<{ id: string; name: string; status: string }>(`/companies/${companyId}`),
+    ]);
+
+    const overview =
+      plansPage.items.find((row) => row.plan.active) ?? plansPage.items[0] ?? null;
+    const company = companyRes.data;
+
+    return {
+      company: overview
+        ? {
+            id: overview.companyId,
+            name: overview.companyName,
+            status: overview.companyStatus,
+          }
+        : { id: company.id, name: company.name, status: company.status },
+      plan: overview?.plan ?? null,
+      currentCycle: overview?.currentCycle ?? null,
+      cycles,
+      invoices: invoicesPage.items,
+    };
+  },
+
+  /** Templates API is not available on this backend build yet. */
+  async listTemplates(_params?: { activeOnly?: boolean }): Promise<BillingPlanTemplateRow[]> {
+    return [];
+  },
+
+  async createTemplate(
+    _payload: CreateBillingPlanTemplatePayload,
+  ): Promise<BillingPlanTemplateRow> {
+    throw new Error('Billing plan templates are not available yet.');
+  },
+
+  async updateTemplate(
+    _id: string,
+    _payload: UpdateBillingPlanTemplatePayload,
+  ): Promise<BillingPlanTemplateRow> {
+    throw new Error('Billing plan templates are not available yet.');
+  },
+
+  async deleteTemplate(_id: string): Promise<void> {
+    throw new Error('Billing plan templates are not available yet.');
+  },
+
+  async listCompaniesWithoutPlan(_search?: string): Promise<Array<{ id: string; name: string }>> {
+    const { data } = await api.get<Array<{ id: string; name: string; status?: string }>>(
+      '/companies',
+      { params: { includeAll: true } },
+    );
+    const plans = await BillingApi.listPlansPage({ limit: 500, offset: 0 });
+    const withPlan = new Set(plans.items.map((row) => row.companyId));
+    return data
+      .filter((c) => !withPlan.has(c.id))
+      .map((c) => ({ id: c.id, name: c.name }));
+  },
+
   async listCycles(companyId?: string): Promise<BillingCycleRow[]> {
     const params = companyId ? { companyId } : {};
     const { data } = await api.get<BillingCycleRow[]>('/billing/cycles', { params });
@@ -288,6 +521,13 @@ export const BillingApi = {
 
   async getCapacitySummary(): Promise<BillingCapacitySummary> {
     const { data } = await api.get<BillingCapacitySummary>('/billing/capacity');
+    return data;
+  },
+
+  async getCompanyStorage(companyId: string): Promise<CompanyStorageSummary> {
+    const { data } = await api.get<CompanyStorageSummary>(
+      `/billing/companies/${companyId}/storage`,
+    );
     return data;
   },
 
@@ -308,6 +548,74 @@ export const BillingApi = {
   async getInvoice(id: string): Promise<BillingInvoiceRow> {
     const { data } = await api.get<BillingInvoiceRow>(`/billing/invoices/${id}`);
     return data;
+  },
+
+  async createAdHocInvoice(payload: CreateAdHocInvoicePayload): Promise<BillingInvoiceRow> {
+    const { data } = await api.post<BillingInvoiceRow>('/billing/invoices/ad-hoc', payload);
+    return data;
+  },
+
+  async updateInvoice(id: string, payload: UpdateInvoicePayload): Promise<BillingInvoiceRow> {
+    const { data } = await api.patch<BillingInvoiceRow>(`/billing/invoices/${id}`, payload);
+    return data;
+  },
+
+  async issueInvoice(id: string): Promise<BillingInvoiceRow> {
+    const { data } = await api.post<BillingInvoiceRow>(`/billing/invoices/${id}/issue`);
+    return data;
+  },
+
+  async addManualLine(
+    invoiceId: string,
+    payload: CreateManualInvoiceLinePayload,
+  ): Promise<BillingInvoiceLineRow> {
+    const { data } = await api.post(`/billing/invoices/${invoiceId}/lines`, payload);
+    return data;
+  },
+
+  async updateManualLine(
+    invoiceId: string,
+    lineId: string,
+    payload: Partial<CreateManualInvoiceLinePayload>,
+  ): Promise<BillingInvoiceLineRow> {
+    const { data } = await api.patch(`/billing/invoices/${invoiceId}/lines/${lineId}`, payload);
+    return data;
+  },
+
+  async removeManualLine(invoiceId: string, lineId: string): Promise<void> {
+    await api.delete(`/billing/invoices/${invoiceId}/lines/${lineId}`);
+  },
+
+  async downloadInvoicePdf(id: string): Promise<Blob> {
+    const { data } = await api.get<Blob>(`/billing/invoices/${id}/pdf`, {
+      responseType: 'blob',
+    });
+    return data;
+  },
+
+  async listOrderCharges(
+    referenceType: string,
+    referenceId: string,
+  ): Promise<OrderManualChargeRow[]> {
+    const { data } = await api.get<OrderManualChargeRow[]>('/billing/order-charges', {
+      params: { referenceType, referenceId },
+    });
+    return data;
+  },
+
+  async createOrderCharge(payload: {
+    referenceType: string;
+    referenceId: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+  }): Promise<OrderManualChargeRow> {
+    const { data } = await api.post<OrderManualChargeRow>('/billing/order-charges', payload);
+    return data;
+  },
+
+  async deleteOrderCharge(id: string): Promise<void> {
+    await api.delete(`/billing/order-charges/${id}`);
   },
 
   async listExpiringSoon(limit = 5): Promise<BillingExpiringCycleRow[]> {
@@ -360,7 +668,7 @@ export const BillingApi = {
 
   async updateInvoiceStatus(
     id: string,
-    status: 'paid' | 'cancelled' | 'open',
+    status: 'paid' | 'cancelled' | 'unpaid',
   ): Promise<BillingInvoiceRow> {
     const { data } = await api.patch<BillingInvoiceRow>(`/billing/invoices/${id}/status`, {
       status,

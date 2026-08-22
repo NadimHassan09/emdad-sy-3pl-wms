@@ -1,7 +1,7 @@
 import type { WarehouseKpi } from '../../lib/reports/types';
 
 const kpiCardClass =
-  'rounded-xl border border-slate-100 bg-white p-3 shadow-sm transition-[box-shadow,border-color] duration-fast hover:border-slate-200 hover:shadow-md sm:p-4';
+  'rounded-xl border border-border-subtle bg-surface-panel p-3 shadow-soft transition-[box-shadow,border-color] duration-fast hover:border-border hover:shadow-md sm:p-4';
 
 type Props = {
   kpis: WarehouseKpi[];
@@ -15,8 +15,8 @@ export function ReportKpiGrid({ kpis, isArabic = false, loading }: Props) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className={`${kpiCardClass} animate-pulse`}>
-            <div className="h-4 w-24 rounded bg-slate-100" />
-            <div className="mt-3 h-8 w-16 rounded bg-slate-200" />
+            <div className="h-4 w-24 rounded bg-surface-card-muted" />
+            <div className="mt-3 h-8 w-16 rounded bg-border" />
           </div>
         ))}
       </div>
@@ -29,12 +29,12 @@ export function ReportKpiGrid({ kpis, isArabic = false, loading }: Props) {
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {kpis.map((kpi) => (
         <div key={kpi.id} className={kpiCardClass}>
-          <div className="text-xs text-slate-500">{isArabic ? kpi.labelAr : kpi.label}</div>
-          <div className="mt-1 text-xl font-bold tabular-nums tracking-tight text-emerald-900">
+          <div className="text-xs text-text-muted">{isArabic ? kpi.labelAr : kpi.label}</div>
+          <div className="mt-1 text-xl font-bold tabular-nums tracking-tight text-brand-800 dark:text-brand-300">
             {kpi.value}
           </div>
           {(kpi.hint || kpi.hintAr) && (
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-text-faint">
               {isArabic ? (kpi.hintAr ?? kpi.hint) : (kpi.hint ?? kpi.hintAr)}
             </p>
           )}

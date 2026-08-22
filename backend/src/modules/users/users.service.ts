@@ -19,6 +19,7 @@ import { assertInternalAdmin } from '../../common/auth/internal-rbac';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PasswordService } from '../../common/crypto/password.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { toAvatarPublicUrl } from '../media/avatar-url';
 import { RealtimeService } from '../realtime/realtime.service';
 import { userRealtimePayload } from '../realtime/realtime-master-data.payload';
 import { CreateUserDto, CreateSystemRoleUi } from './dto/create-user.dto';
@@ -40,6 +41,7 @@ const USER_LIST_SELECT = {
   role: true,
   status: true,
   companyId: true,
+  avatarPath: true,
   createdAt: true,
   updatedAt: true,
   lastLoginAt: true,
@@ -58,6 +60,7 @@ export type UserListRow = {
   companyId: string | null;
   companyName: string | null;
   kind: 'system' | 'client';
+  avatarUrl: string | null;
   workerProfile: UserWorkerProfileSummary | null;
   createdAt: Date;
   updatedAt: Date;
@@ -460,6 +463,13 @@ export class UsersService {
 
       const row = this.toListRow(u);
       this.realtime.emitUserUpdated(this.serializeUserForRealtime(row));
+      if (dto.status === UserStatus.inactive || dto.role !== undefined) {
+        this.realtime.emitAuthSessionChanged(id, {
+          type: 'forced_logout',
+          userId: id,
+          reason: dto.status === UserStatus.inactive ? 'user_deactivated' : 'role_changed',
+        });
+      }
       return row;
     });
   }
@@ -492,6 +502,11 @@ export class UsersService {
         await tx.user.delete({ where: { id } });
       });
       this.realtime.emitUserDeleted(id, u.companyId);
+      this.realtime.emitAuthSessionChanged(id, {
+        type: 'forced_logout',
+        userId: id,
+        reason: 'user_deleted',
+      });
       return { id, deleted: true as const };
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
@@ -709,6 +724,7 @@ export class UsersService {
       companyId: u.companyId,
       companyName: u.company?.name ?? null,
       kind: u.companyId ? 'client' : 'system',
+      avatarUrl: toAvatarPublicUrl(u.avatarPath),
       workerProfile: toWorkerProfileSummary(u.worker),
       createdAt: u.createdAt,
       updatedAt: u.updatedAt,

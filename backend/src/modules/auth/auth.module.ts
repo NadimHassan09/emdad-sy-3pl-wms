@@ -7,8 +7,10 @@ import { AuditModule } from '../../common/audit/audit.module';
 import { CompanyAccessModule } from '../../common/company-access/company-access.module';
 import { CryptoModule } from '../../common/crypto/crypto.module';
 import { PrismaModule } from '../../common/prisma/prisma.module';
+import { MediaModule } from '../media/media.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { GoogleOAuthService } from './google-oauth.service';
 import { RefreshSessionService } from './refresh-session.service';
 import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { RolesGuard } from '../../common/auth/roles.guard';
@@ -32,10 +34,12 @@ import { UserActivityService } from './user-activity.service';
     AuditModule,
     PrismaModule,
     CryptoModule,
+    MediaModule,
   ],
   controllers: [AuthController],
   providers: [
     AuthService,
+    GoogleOAuthService,
     RefreshSessionService,
     JwtStrategy,
     RolesGuard,
@@ -44,6 +48,7 @@ import { UserActivityService } from './user-activity.service';
   ],
   exports: [
     AuthService,
+    GoogleOAuthService,
     RefreshSessionService,
     JwtModule,
     RolesGuard,

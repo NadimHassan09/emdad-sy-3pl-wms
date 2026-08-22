@@ -8,7 +8,9 @@ export type BillingRecalcTrigger =
   | 'usage_changed'
   | 'cycle_started'
   | 'scheduled_usage'
-  | 'manual_preview';
+  | 'manual_preview'
+  | 'order_manual_charge'
+  | 'plan_rates_updated';
 
 export const ALL_BILLING_LINE_TYPES: BillingInvoiceLineType[] = [
   'subscription',

@@ -14,6 +14,7 @@ const prisma_module_1 = require("../../common/prisma/prisma.module");
 const auth_module_1 = require("../auth/auth.module");
 const billing_module_1 = require("../billing/billing.module");
 const inventory_module_1 = require("../inventory/inventory.module");
+const oms_module_1 = require("../oms/oms.module");
 const workflow_bootstrap_service_1 = require("./workflow-bootstrap.service");
 const workflow_orchestration_service_1 = require("./workflow-orchestration.service");
 const warehouse_tasks_service_1 = require("./warehouse-tasks.service");
@@ -28,12 +29,25 @@ const sla_escalation_service_1 = require("./sla-escalation.service");
 const sla_audit_service_1 = require("./sla-audit.service");
 const workflow_recovery_service_1 = require("./workflow-recovery.service");
 const workflow_engine_service_1 = require("./workflow-engine.service");
+const pdf_module_1 = require("../../pdf/pdf.module");
+const shipping_handoff_hook_service_1 = require("../outbound/shipping-handoff-hook.service");
+const shipping_module_1 = require("../shipping/shipping.module");
 let WarehouseWorkflowModule = class WarehouseWorkflowModule {
 };
 exports.WarehouseWorkflowModule = WarehouseWorkflowModule;
 exports.WarehouseWorkflowModule = WarehouseWorkflowModule = __decorate([
     (0, common_1.Module)({
-        imports: [prisma_module_1.PrismaModule, inventory_module_1.InventoryModule, redis_module_1.RedisModule, auth_module_1.AuthModule, audit_module_1.AuditModule, billing_module_1.BillingModule],
+        imports: [
+            prisma_module_1.PrismaModule,
+            inventory_module_1.InventoryModule,
+            redis_module_1.RedisModule,
+            auth_module_1.AuthModule,
+            audit_module_1.AuditModule,
+            billing_module_1.BillingModule,
+            pdf_module_1.PdfModule,
+            shipping_module_1.ShippingModule,
+            (0, common_1.forwardRef)(() => oms_module_1.OmsModule),
+        ],
         controllers: [
             workflow_controller_1.WorkflowController,
             warehouse_tasks_controller_1.WarehouseTasksController,
@@ -51,8 +65,14 @@ exports.WarehouseWorkflowModule = WarehouseWorkflowModule = __decorate([
             sla_audit_service_1.SlaAuditService,
             workflow_recovery_service_1.WorkflowRecoveryService,
             workflow_execution_gate_guard_1.WorkflowExecutionGateGuard,
+            shipping_handoff_hook_service_1.ShippingHandoffHookService,
         ],
-        exports: [workflow_bootstrap_service_1.WorkflowBootstrapService, warehouse_tasks_service_1.WarehouseTasksService, workflow_orchestration_service_1.WorkflowOrchestrationService],
+        exports: [
+            workflow_bootstrap_service_1.WorkflowBootstrapService,
+            warehouse_tasks_service_1.WarehouseTasksService,
+            workflow_orchestration_service_1.WorkflowOrchestrationService,
+            shipping_handoff_hook_service_1.ShippingHandoffHookService,
+        ],
     })
 ], WarehouseWorkflowModule);
 //# sourceMappingURL=warehouse-workflow.module.js.map

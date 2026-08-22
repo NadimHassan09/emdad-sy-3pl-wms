@@ -1,0 +1,9 @@
+{
+  "status": "failed",
+  "one_liner": "The run got stuck because the final dispatch button was available but did not complete the outbound order.",
+  "summary": "The page showed the last dispatch step as ready, but pressing the dispatch-complete button did not move the order forward.\nInvestigate the final dispatch action on the outbound detail page. Verify that clicking \"Mark Dispatch as Complete\" actually sends its request, is not blocked by hidden validation or overlays, and updates the status from Waiting for Dispatch.\nevidence: objective_contradiction: [step 1-19] (OK) : click: Clicking Mark Dispatch as Complete button\nevidence: objective_contradiction: [step 1-20] (OK) : click: Clicking Mark Dispatch as Complete button\nevidence: objective_contradiction: [step 1-21] (OK) : press_key: PRIMARY: press the Enter key on the focused \"Mark Dispatch as Complete\" button",
+  "reason": "AP determined agent is stuck \u2014 no viable actions remain",
+  "duration": 254,
+  "final_state": {},
+  "test_url": "https://test-manager.lambdatest.com/projects/01M0GDK7AFN1DN6NRMEAY1DSB9/test-cases/01M0GJ7P9YCX0586PYQAV8GAXP/dashboard/share/US_31SRZ4FF0Y1Y3OABD9KFLRORL28TSWQ2INLVQY907BTC4Y5IYAFNC8OGCKH635D4?type=summary&agentView=true&fqdn=summary-page"
+}

@@ -34,6 +34,24 @@ export class ListBillingPlansQueryDto extends PaginationDto {
   @IsIn(['operational', 'restricted', 'inactive'])
   billingStatus?: 'operational' | 'restricted' | 'inactive';
 
+  /** Filter by plan active flag (UI Active / Inactive). */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(['active', 'inactive'])
+  planStatus?: 'active' | 'inactive';
+
+  /** Filter cycles starting on or after this date (YYYY-MM-DD). */
+  @EmptyToUndefined()
+  @IsOptional()
+  @Matches(DAY, { message: 'cycleStartFrom must be YYYY-MM-DD' })
+  cycleStartFrom?: string;
+
+  /** Filter cycles starting on or before this date (YYYY-MM-DD). */
+  @EmptyToUndefined()
+  @IsOptional()
+  @Matches(DAY, { message: 'cycleStartTo must be YYYY-MM-DD' })
+  cycleStartTo?: string;
+
   /** Filter cycles ending on or after this date (YYYY-MM-DD). */
   @EmptyToUndefined()
   @IsOptional()

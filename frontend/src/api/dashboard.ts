@@ -60,15 +60,25 @@ export function normalizeOpenTasksByType(
 ): OpenTasksByTypeRow[] {
   if (!Array.isArray(raw)) return [];
 
+  const labelOverrides: Record<string, string> = {
+    receiving: 'Receiving',
+    dispatch: 'Dispatch',
+  };
+
   return raw
     .map((row) => {
       const openCount = safeCount(row.openCount ?? row.open_count);
       const inProgressCount = safeCount(
         row.inProgressCount ?? row.in_progress_count ?? row.inProgress ?? row.in_progress,
       );
+      const key = String(row.key ?? '');
+      const rawLabel = String(row.label ?? row.key ?? '');
+      const label =
+        labelOverrides[key] ??
+        (rawLabel === 'Delivery' ? 'Dispatch' : rawLabel === 'Receive' ? 'Receiving' : rawLabel);
       return {
-        key: String(row.key ?? ''),
-        label: String(row.label ?? row.key ?? ''),
+        key,
+        label,
         openCount,
         inProgressCount: Math.min(inProgressCount, openCount),
       };
@@ -81,6 +91,7 @@ export type DashboardOverview = {
     totalItemsInStock: number;
     itemsInCatalog: number;
     totalCustomers: number;
+    activeUsers?: number;
   };
   openOrders: {
     inbound: number;
@@ -88,6 +99,10 @@ export type DashboardOverview = {
   };
   openTasksByType: OpenTasksByTypeRow[];
   capacity: {
+    usedStorageCbm: string;
+    reservedStorageCbm: string;
+    remainingStorageCbm: string;
+    storageUsagePercent: number;
     occupiedLocations: number;
     totalStorageLocations: number;
     consumedPercent: number;

@@ -20,10 +20,11 @@ export function useBackupMaintenanceWatch(enabled: boolean, trackedJobId: string
     enabled,
     refetchInterval: (query) => {
       const data = query.state.data;
-      if (data?.maintenance || trackedJobId) return 2_000;
-      return 8_000;
+      // Slow fallback; realtime `backup.job.progress` drives active-op refresh.
+      if (data?.maintenance || trackedJobId) return 15_000;
+      return 30_000;
     },
-    staleTime: 0,
+    staleTime: 5_000,
   });
 
   const jobId = trackedJobId ?? activeQuery.data?.activeJobId ?? null;
@@ -32,8 +33,8 @@ export function useBackupMaintenanceWatch(enabled: boolean, trackedJobId: string
     queryKey: QK.backups.status(jobId ?? 'none'),
     queryFn: () => BackupsApi.status(jobId!),
     enabled: enabled && !!jobId && (maintenanceVisible || !!activeQuery.data?.maintenance),
-    refetchInterval: 2_000,
-    staleTime: 0,
+    refetchInterval: 15_000,
+    staleTime: 5_000,
   });
 
   useEffect(() => {

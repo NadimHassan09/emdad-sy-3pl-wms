@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { InboundQcStatus, MovementType, Prisma, ProductTrackingType } from '@prisma/client';
+import { BadRequestException, Inject, Injectable, Optional, forwardRef } from '@nestjs/common';
+import { InboundQcStatus, MovementType, Prisma, ProductTrackingType, StockStatus } from '@prisma/client';
 
 import { isQuarantineStorageLocationType } from '../../common/constants/storage-location-types';
 import {
@@ -13,6 +13,8 @@ import {
 } from '../../common/utils/discrete-uom-quantity';
 import { LedgerIdempotencyService } from '../inventory/ledger-idempotency.service';
 import { StockHelpers } from '../inventory/stock.helpers';
+import { OmsOutboundSyncService } from '../oms/oms-outbound-sync.service';
+import { ShippingHandoffHookService } from '../outbound/shipping-handoff-hook.service';
 import { OrderNotificationTarget } from '../notifications/notifications.service';
 import { TaskCompleteBody } from './task-payload.schema';
 import { findWarehouseStockFefo } from './task-allocation.helper';
@@ -55,7 +57,16 @@ export class TaskInventoryEffectsService {
   constructor(
     private readonly stock: StockHelpers,
     private readonly ledgerDedup: LedgerIdempotencyService,
+    private readonly shippingHandoff: ShippingHandoffHookService,
+    @Optional()
+    @Inject(forwardRef(() => OmsOutboundSyncService))
+    private readonly omsSync?: OmsOutboundSyncService,
   ) {}
+
+  /** @deprecated Auto carrier send removed — Send Shipment is explicit in shipping-details stage. */
+  private scheduleReadyForShippingHook(_orderId: string): void {
+    // no-op: carrier API is only called via POST .../shipping-details/send
+  }
 
   async buildPickReservations(
     tx: Prisma.TransactionClient,
@@ -67,7 +78,26 @@ export class TaskInventoryEffectsService {
       requestedQty: Prisma.Decimal;
       specificLotId: string | null;
     }>,
+    outboundOrderId?: string,
   ): Promise<ReservationSnapshot[]> {
+    if (outboundOrderId) {
+      const existing = await tx.stockReservation.findMany({
+        where: { outboundOrderId, status: 'active' },
+        include: { location: { select: { warehouseId: true } } },
+      });
+      if (existing.length > 0) {
+        return existing.map((r) => ({
+          outboundOrderLineId: r.outboundOrderLineId ?? '',
+          companyId: r.companyId,
+          productId: r.productId,
+          locationId: r.locationId,
+          warehouseId: r.location.warehouseId,
+          lotId: r.lotId,
+          quantity: r.quantity.toString(),
+        }));
+      }
+    }
+
     const planned: ReservationSnapshot[] = [];
 
     for (const line of sortPickLinesForLocking(lines)) {
@@ -227,13 +257,24 @@ export class TaskInventoryEffectsService {
         }
       }
 
-      const stockMeta = await this.stock.upsertPositiveWithMeta(tx, {
+      await this.stock.upsertPositive(tx, {
         companyId,
         productId: line.productId,
         locationId: stagingLocationId,
         warehouseId: location.warehouseId,
         lotId,
         quantity: qty.toString(),
+      });
+
+      // Two-phase inbound: received goods raise on-hand at the staging bin but
+      // stay NOT available for picking/allocation until putaway confirms the
+      // final bin. FEFO + availability reads only consider `available` rows.
+      await this.stock.setStockStatus(tx, {
+        companyId,
+        productId: line.productId,
+        locationId: stagingLocationId,
+        lotId,
+        status: StockStatus.awaiting_putaway,
       });
 
       const idemKey = `bm:inbound:${inboundOrderId}:${line.productId}:task:${taskId}:line:${line.id}`;
@@ -245,8 +286,6 @@ export class TaskInventoryEffectsService {
         toLocationId: stagingLocationId,
         movementType: MovementType.inbound_receive,
         quantity: qty,
-        quantityBefore: stockMeta.before,
-        quantityAfter: stockMeta.after,
         referenceType: 'inbound_order',
         referenceId: inboundOrderId,
         operatorId,
@@ -360,6 +399,17 @@ export class TaskInventoryEffectsService {
         lotId,
         quantity: qty.toString(),
       });
+
+      // Two-phase inbound: confirming the final bin makes the stock available.
+      // QC-hold putaway lands in a quarantine/scrap bin and stays quarantined
+      // (not pickable); normal putaway becomes available for outbound allocation.
+      await this.stock.setStockStatus(tx, {
+        companyId,
+        productId: src.productId,
+        locationId: l.destination_location_id,
+        lotId,
+        status: quarantineBinsOnly ? StockStatus.quarantined : StockStatus.available,
+      });
     }
   }
 
@@ -415,12 +465,13 @@ export class TaskInventoryEffectsService {
       select: { requiresPacking: true },
     });
 
+    const nextStatus =
+      order?.requiresPacking === false ? 'waiting_for_shipping_method' : 'packing';
     await tx.outboundOrder.update({
       where: { id: orderId },
-      data: {
-        status: order?.requiresPacking === false ? 'ready_to_ship' : 'packing',
-      },
+      data: { status: nextStatus },
     });
+    await this.omsSync?.syncFromOutbound(tx, orderId);
   }
 
   async applyDispatchShip(
@@ -481,23 +532,28 @@ export class TaskInventoryEffectsService {
         toLocationId: null,
         movementType: MovementType.outbound_pick,
         quantity: new Prisma.Decimal(r.quantity),
-        quantityBefore: meta.before,
-        quantityAfter: meta.after,
         referenceType: 'outbound_order',
         referenceId: outboundOrderId,
         operatorId,
       });
     }
 
+    await tx.stockReservation.updateMany({
+      where: { outboundOrderId, status: 'active' },
+      data: { status: 'fulfilled' },
+    });
+
     await tx.outboundOrder.update({
       where: { id: outboundOrderId },
       data: {
+        allocationStatus: 'fulfilled',
         status: 'shipped',
         shippedAt: new Date(),
         carrier: body.carrier ?? order.carrier,
         trackingNumber: body.tracking ?? order.trackingNumber,
       },
     });
+    await this.omsSync?.syncFromOutbound(tx, outboundOrderId, operatorId);
 
     return {
       companyId: order.companyId,
@@ -547,8 +603,81 @@ export class TaskInventoryEffectsService {
     }
     await tx.outboundOrder.update({
       where: { id: outboundOrderId },
-      data: { status: 'ready_to_ship' },
+      data: { status: 'waiting_for_shipping_method' },
     });
+    await this.omsSync?.syncFromOutbound(tx, outboundOrderId);
+  }
+
+  /**
+   * Worker/admin completion of shipping_details task.
+   * Manual: may transition to ready_to_ship.
+   * Carrier: only if a created carrier shipment already exists (Admin Send first).
+   */
+  async applyShippingDetailsTaskComplete(
+    tx: Prisma.TransactionClient,
+    outboundOrderId: string,
+    body: Extract<TaskCompleteBody, { task_type: 'shipping_details' }>,
+    actorUserId: string,
+  ): Promise<void> {
+    const order = await tx.outboundOrder.findUnique({
+      where: { id: outboundOrderId },
+      include: {
+        carrierShipments: {
+          where: { status: 'created' },
+          take: 1,
+        },
+      },
+    });
+    if (!order) throw new BadRequestException('Outbound order not found.');
+    if (order.status !== 'waiting_for_shipping_details') {
+      throw new BadRequestException(
+        `shipping_details complete requires waiting_for_shipping_details (current: ${order.status}).`,
+      );
+    }
+
+    const data: Prisma.OutboundOrderUpdateInput = {};
+    if (body.shippingReceiverLat !== undefined) {
+      data.shippingReceiverLat =
+        body.shippingReceiverLat == null ? null : body.shippingReceiverLat;
+    }
+    if (body.shippingReceiverLng !== undefined) {
+      data.shippingReceiverLng =
+        body.shippingReceiverLng == null ? null : body.shippingReceiverLng;
+    }
+    if (body.shippingPackageType !== undefined) {
+      data.shippingPackageType = body.shippingPackageType;
+    }
+    if (body.shippingContents !== undefined) data.shippingContents = body.shippingContents;
+    if (body.shippingDeliveryType !== undefined) {
+      data.shippingDeliveryType = body.shippingDeliveryType;
+    }
+    if (body.shippingPickupType !== undefined) {
+      data.shippingPickupType = body.shippingPickupType;
+    }
+    if (body.shippingPayer !== undefined) data.shippingPayer = body.shippingPayer;
+    if (body.shippingWeightKg !== undefined) {
+      data.shippingWeightKg =
+        body.shippingWeightKg == null ? null : body.shippingWeightKg;
+    }
+    if (body.shippingPhoneCountry !== undefined) {
+      data.shippingPhoneCountry = body.shippingPhoneCountry;
+    }
+
+    const isCarrier = order.shippingMethod === 'carrier';
+    if (isCarrier && order.carrierShipments.length === 0) {
+      throw new BadRequestException(
+        'Carrier shipment must be sent by Admin before completing Shipping Details.',
+      );
+    }
+
+    await tx.outboundOrder.update({
+      where: { id: outboundOrderId },
+      data: {
+        ...data,
+        status: 'ready_to_ship',
+      },
+    });
+    await this.omsSync?.syncFromOutbound(tx, outboundOrderId, actorUserId);
   }
 
   /** Row lock on the outbound order for pick complete / dispatch ship (prevents concurrent order-line races). */

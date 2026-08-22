@@ -1,14 +1,30 @@
 import { PageResult, api } from './client';
+import type { OrderExecutionMode, OutboundExecutionPlan } from '../lib/execution-plan';
+import type {
+  CarrierShipment,
+  ShippingConfigPayload,
+  ShippingDeliveryType,
+  ShippingMethod,
+  ShippingPackageType,
+  ShippingPayer,
+  ShippingPickupType,
+} from './shipping';
 
 export type OutboundOrderStatus =
   | 'draft'
   | 'pending_approval'
   | 'pending_stock'
   | 'confirmed'
+  | 'allocated'
   | 'picking'
   | 'packing'
+  | 'waiting_for_shipping_details'
   | 'ready_to_ship'
+  | 'out_for_delivery'
   | 'shipped'
+  | 'externally_fulfilled'
+  | 'delivered'
+  | 'returned'
   | 'cancelled';
 
 export interface OutboundOrderLine {
@@ -27,7 +43,26 @@ export interface OutboundOrderLine {
     barcode?: string | null;
     trackingType: 'none' | 'lot' | 'package';
     uom: string;
+    imagePath?: string | null;
+    weightKg?: string | number | null;
+    volumeCbm?: string | number | null;
+    lengthCm?: string | number | null;
+    widthCm?: string | number | null;
+    heightCm?: string | number | null;
   };
+}
+
+export interface OutboundStockReservation {
+  id: string;
+  productId: string;
+  locationId: string;
+  lotId: string | null;
+  outboundOrderLineId: string | null;
+  quantity: string;
+  status: 'active' | 'released' | 'fulfilled' | string;
+  product?: { id: string; sku: string; name: string };
+  location?: { id: string; fullPath: string; barcode?: string | null };
+  lot?: { id: string; lotNumber: string } | null;
 }
 
 export interface OutboundOrder {
@@ -36,21 +71,53 @@ export interface OutboundOrder {
   orderNumber: string;
   status: OutboundOrderStatus;
   destinationAddress: string;
+  city?: string | null;
+  district?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
   requiredShipDate: string;
   carrier: string | null;
   trackingNumber: string | null;
+  clientReference?: string | null;
   notes: string | null;
   requiresPacking: boolean;
   confirmedAt: string | null;
   shippedAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
-  lines: OutboundOrderLine[];
-  company?: { id: string; name: string };
+  currency?: string | null;
+  executionMode?: OrderExecutionMode | null;
+  executionPlan?: OutboundExecutionPlan | null;
+  /** Present when this outbound is the warehouse execution for an OMS order. */
+  omsOrder?: { id: string; orderNumber: string } | null;
+  shippingMethod?: ShippingMethod | null;
+  shippingProviderCode?: string | null;
+  shippingReceiverLat?: string | number | null;
+  shippingReceiverLng?: string | number | null;
+  shippingPackageType?: ShippingPackageType | null;
+  shippingContents?: string | null;
+  shippingDeliveryType?: ShippingDeliveryType | null;
+  shippingPickupType?: ShippingPickupType | null;
+  shippingPayer?: ShippingPayer | null;
+  shippingWeightKg?: string | number | null;
+  shippingVolumeCbm?: string | number | null;
+  shippingPackages?: Array<{
+    lines: Array<{ productId: string; quantity: number }>;
+    lengthCm: number;
+    widthCm: number;
+    heightCm: number;
+  }> | null;
+  shippingPhoneCountry?: string | null;
+  babelNeighbourhoodId?: number | null;
+  codAmount?: string | number | null;
+  carrierShipments?: CarrierShipment[];
+  lines?: OutboundOrderLine[];
+  stockReservations?: OutboundStockReservation[];
+  company?: { id: string; name: string; logoUrl?: string | null };
   _count?: { lines: number };
 }
 
-export interface CreateOutboundOrderInput {
+export interface CreateOutboundOrderInput extends ShippingConfigPayload {
   companyId?: string;
   destinationAddress: string;
   requiredShipDate: string;
@@ -58,6 +125,8 @@ export interface CreateOutboundOrderInput {
   notes?: string;
   /** Default true when omitted. */
   requiresPacking?: boolean;
+  executionMode?: OrderExecutionMode;
+  executionPlan?: OutboundExecutionPlan;
   lines: Array<{
     productId: string;
     requestedQuantity: number;
@@ -70,6 +139,72 @@ export interface ConfirmOutboundBody {
   warehouseId?: string;
 }
 
+export type QuickDirectedOutboundReasonCode =
+  | 'consumption'
+  | 'damage'
+  | 'sample'
+  | 'scrap'
+  | 'other';
+
+export interface QuickDirectedPickSlice {
+  locationId: string;
+  locationLabel: string;
+  quantity: string;
+  lotNumber: string | null;
+}
+
+export interface QuickDirectedOutboundResult {
+  orderId: string;
+  orderNumber: string;
+  status: OutboundOrderStatus;
+  product: {
+    id: string;
+    sku: string;
+    name: string;
+    barcode: string | null;
+    uom: string;
+  };
+  totalQuantity: string;
+  reasonCode: QuickDirectedOutboundReasonCode;
+  directedPick: QuickDirectedPickSlice[];
+  messageEn: string;
+  messageAr: string;
+}
+
+export interface QuickDirectedOutboundInput {
+  warehouseId: string;
+  companyId?: string;
+  productCode: string;
+  quantity: number;
+  reasonCode: QuickDirectedOutboundReasonCode;
+}
+
+export type OutboundImportRowError = {
+  rowNumber: number;
+  externalReference: string | null;
+  reason: string;
+};
+
+export type OutboundImportValidateResult = {
+  batchId: string;
+  totalRows: number;
+  orderCount: number;
+  validOrders: number;
+  invalidOrders: number;
+  duplicateInFile: number;
+  duplicateInDb: number;
+  errors: OutboundImportRowError[];
+};
+
+export type OutboundImportExecuteResult = {
+  batchId: string;
+  imported: number;
+  failed: number;
+  skippedDuplicates: number;
+  createdOrderNumbers: string[];
+  errors: OutboundImportRowError[];
+};
+
 export const OutboundApi = {
   async list(params: {
     warehouseId?: string;
@@ -78,6 +213,7 @@ export const OutboundApi = {
     orderSearch?: string;
     createdFrom?: string;
     createdTo?: string;
+    quickDirectedOnly?: boolean;
     limit?: number;
     offset?: number;
   } = {}): Promise<PageResult<OutboundOrder>> {
@@ -86,6 +222,60 @@ export const OutboundApi = {
     });
     return data;
   },
+
+  /** Downloads CSV for the current outbound list filters (server-side filtered). */
+  async exportDownload(params: {
+    warehouseId?: string;
+    companyId?: string;
+    orderSearch?: string;
+    status?: OutboundOrderStatus;
+    createdFrom?: string;
+    createdTo?: string;
+    quickDirectedOnly?: boolean;
+  } = {}): Promise<void> {
+    const response = await api.get<Blob>('/outbound-orders/export', {
+      params,
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? `outbound-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+
+  async downloadImportTemplate(): Promise<void> {
+    const response = await api.get<Blob>('/outbound-orders/import/template', {
+      responseType: 'blob',
+    });
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = 'outbound-orders-import-template.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+
+  validateImport(file: File): Promise<OutboundImportValidateResult> {
+    const body = new FormData();
+    body.append('file', file);
+    return api
+      .post<OutboundImportValidateResult>('/outbound-orders/import/validate', body)
+      .then((r) => r.data);
+  },
+
+  importOrders(file: File): Promise<OutboundImportExecuteResult> {
+    const body = new FormData();
+    body.append('file', file);
+    return api
+      .post<OutboundImportExecuteResult>('/outbound-orders/import', body)
+      .then((r) => r.data);
+  },
+
   async get(id: string): Promise<OutboundOrder> {
     const { data } = await api.get<OutboundOrder>(`/outbound-orders/${id}`);
     return data;
@@ -93,6 +283,131 @@ export const OutboundApi = {
   async create(input: CreateOutboundOrderInput): Promise<OutboundOrder> {
     const headers = input.companyId ? { 'X-Company-Id': input.companyId } : undefined;
     const { data } = await api.post<OutboundOrder>('/outbound-orders', input, { headers });
+    return data;
+  },
+  async updatePlan(
+    id: string,
+    body: ShippingConfigPayload & {
+      executionMode?: OrderExecutionMode;
+      executionPlan?: OutboundExecutionPlan;
+      requiredShipDate?: string;
+      notes?: string;
+      destinationAddress?: string;
+      requiresPacking?: boolean;
+    },
+  ): Promise<OutboundOrder> {
+    const { data } = await api.patch<OutboundOrder>(`/outbound-orders/${id}/plan`, body);
+    return data;
+  },
+  async approve(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/approve`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async completePicking(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/complete-picking`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async completePacking(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/complete-packing`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async completeDispatch(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/complete-dispatch`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async selectShippingMethod(
+    id: string,
+    body: ShippingConfigPayload & {
+      shippingMethod: string;
+      shippingProviderCode?: string;
+      carrier?: string | null;
+      trackingNumber?: string | null;
+      city?: string | null;
+      district?: string | null;
+      addressLine1?: string | null;
+      addressLine2?: string | null;
+      currency?: string | null;
+      shippingPackages?: Array<{
+        lines: Array<{ productId: string; quantity: number }>;
+        lengthCm: number;
+        widthCm: number;
+        heightCm: number;
+      }> | null;
+    },
+    companyIdOverride?: string,
+  ): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/select-shipping-method`,
+      body,
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async saveShippingDetails(
+    id: string,
+    body: ShippingConfigPayload & {
+      carrier?: string | null;
+      trackingNumber?: string | null;
+      city?: string | null;
+      district?: string | null;
+      addressLine1?: string | null;
+      addressLine2?: string | null;
+      currency?: string | null;
+      shippingPackages?: Array<{
+        lines: Array<{ productId: string; quantity: number }>;
+        lengthCm: number;
+        widthCm: number;
+        heightCm: number;
+      }> | null;
+    },
+    companyIdOverride?: string,
+  ): Promise<OutboundOrder> {
+    const { data } = await api.patch<OutboundOrder>(
+      `/outbound-orders/${id}/shipping-details`,
+      body,
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async sendShippingDetails(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/shipping-details/send`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  async completeShippingDetails(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/complete-shipping-details`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
+    return data;
+  },
+  /** @deprecated Prefer stage endpoints; backend advances one stage only. */
+  async executeAdmin(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+    const { data } = await api.post<OutboundOrder>(
+      `/outbound-orders/${id}/execute-admin`,
+      {},
+      { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
+    );
     return data;
   },
   async confirm(id: string, body?: ConfirmOutboundBody, companyIdOverride?: string): Promise<OutboundOrder> {
@@ -107,6 +422,15 @@ export const OutboundApi = {
   },
   async remove(id: string): Promise<{ id: string; deleted: boolean }> {
     const { data } = await api.delete<{ id: string; deleted: boolean }>(`/outbound-orders/${id}`);
+    return data;
+  },
+  async quickDirected(input: QuickDirectedOutboundInput): Promise<QuickDirectedOutboundResult> {
+    const headers = input.companyId ? { 'X-Company-Id': input.companyId } : undefined;
+    const { data } = await api.post<QuickDirectedOutboundResult>(
+      '/outbound-orders/quick-directed',
+      input,
+      { headers },
+    );
     return data;
   },
 };

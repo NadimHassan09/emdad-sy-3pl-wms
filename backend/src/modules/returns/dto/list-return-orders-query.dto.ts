@@ -42,6 +42,12 @@ export class ListReturnOrdersQueryDto extends PaginationDto {
   @IsIn(STATUSES)
   status?: ReturnOrderStatus;
 
+  /** Client portal: `oms` = online-order returns; `outbound` = warehouse outbound returns. */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(['oms', 'outbound'])
+  source?: 'oms' | 'outbound';
+
   /** Exposed for service order-search UUID matching. */
   static readonly fullUuidPattern = FULL_UUID;
 }

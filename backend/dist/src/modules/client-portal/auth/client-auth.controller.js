@@ -14,11 +14,24 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientAuthController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
+const throttler_1 = require("@nestjs/throttler");
+const multer_1 = require("multer");
 const public_decorator_1 = require("../../../common/auth/public.decorator");
 const client_user_decorator_1 = require("./client-user.decorator");
 const client_auth_service_1 = require("./client-auth.service");
 const client_login_dto_1 = require("./dto/client-login.dto");
 const jwt_client_auth_guard_1 = require("./jwt-client-auth.guard");
+const MAX_AVATAR_BYTES = 8 * 1024 * 1024;
+function assertUploadedImage(file) {
+    if (!file?.buffer?.length) {
+        throw new common_1.BadRequestException('Please choose an image file to upload.');
+    }
+    if (!file.mimetype?.startsWith('image/')) {
+        throw new common_1.BadRequestException('Only image files are allowed.');
+    }
+    return file;
+}
 let ClientAuthController = class ClientAuthController {
     auth;
     constructor(auth) {
@@ -37,10 +50,17 @@ let ClientAuthController = class ClientAuthController {
     me(user) {
         return this.auth.getMe(user);
     }
+    uploadAvatar(user, file) {
+        return this.auth.uploadAvatar(user, assertUploadedImage(file));
+    }
+    deleteAvatar(user) {
+        return this.auth.deleteAvatar(user);
+    }
 };
 exports.ClientAuthController = ClientAuthController;
 __decorate([
     (0, public_decorator_1.Public)(),
+    (0, throttler_1.SkipThrottle)(),
     (0, common_1.Post)('login'),
     (0, common_1.HttpCode)(200),
     __param(0, (0, common_1.Body)()),
@@ -68,6 +88,30 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], ClientAuthController.prototype, "me", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Post)('avatar'),
+    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
+        storage: (0, multer_1.memoryStorage)(),
+        limits: { fileSize: MAX_AVATAR_BYTES },
+    })),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.UploadedFile)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], ClientAuthController.prototype, "uploadAvatar", null);
+__decorate([
+    (0, public_decorator_1.Public)(),
+    (0, common_1.Delete)('avatar'),
+    (0, common_1.HttpCode)(204),
+    (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], ClientAuthController.prototype, "deleteAvatar", null);
 exports.ClientAuthController = ClientAuthController = __decorate([
     (0, common_1.Controller)('client/auth'),
     __metadata("design:paramtypes", [client_auth_service_1.ClientAuthService])

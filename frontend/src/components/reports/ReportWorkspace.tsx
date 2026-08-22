@@ -166,11 +166,11 @@ export function ReportWorkspace({ reportId, isArabic = false }: Props) {
       groupByControl={
         showGroupBy ? (
           <>
-            <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden />
-            <label className="flex items-center gap-2 text-xs text-slate-600">
+            <span className="mx-1 h-5 w-px bg-border" aria-hidden />
+            <label className="flex items-center gap-2 text-xs text-text-body">
               <span className="font-semibold uppercase tracking-wide">{tr('Group by')}</span>
               <select
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs"
+                className="rounded-lg border border-border bg-surface-panel px-2 py-1.5 text-xs text-text-body"
                 value={fw.draftFilters.groupBy}
                 onChange={(e) => fw.setDraft({ groupBy: e.target.value })}
               >

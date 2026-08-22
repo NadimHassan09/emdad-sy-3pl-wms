@@ -34,6 +34,8 @@ export interface ClientInboundOrderLine {
     trackingType: string;
     uom: string | null;
     expiryTracking: boolean;
+    imageUrl?: string | null;
+    imagePath?: string | null;
   };
 }
 

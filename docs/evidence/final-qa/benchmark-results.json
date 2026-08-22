@@ -1,0 +1,666 @@
+{
+  "startedAt": "2026-06-12T18:02:35.660Z",
+  "finishedAt": "2026-06-12T18:02:58.610Z",
+  "samples": 15,
+  "controllers": 37,
+  "endpointsBenchmarked": 36,
+  "overallLatency": {
+    "n": 36,
+    "avg": 41,
+    "min": 19,
+    "max": 199,
+    "p95": 157,
+    "p99": 199
+  },
+  "controllerSummary": [
+    {
+      "controller": "inventory",
+      "endpoints": 2,
+      "avgMs": 94
+    },
+    {
+      "controller": "ops",
+      "endpoints": 2,
+      "avgMs": 85
+    },
+    {
+      "controller": "client",
+      "endpoints": 7,
+      "avgMs": 59
+    },
+    {
+      "controller": "outbound",
+      "endpoints": 1,
+      "avgMs": 44
+    },
+    {
+      "controller": "cycle-count",
+      "endpoints": 1,
+      "avgMs": 41
+    },
+    {
+      "controller": "warehouses",
+      "endpoints": 1,
+      "avgMs": 38
+    },
+    {
+      "controller": "dashboard",
+      "endpoints": 1,
+      "avgMs": 34
+    },
+    {
+      "controller": "backups",
+      "endpoints": 4,
+      "avgMs": 30
+    },
+    {
+      "controller": "auth",
+      "endpoints": 1,
+      "avgMs": 28
+    },
+    {
+      "controller": "products",
+      "endpoints": 1,
+      "avgMs": 28
+    },
+    {
+      "controller": "locations",
+      "endpoints": 1,
+      "avgMs": 27
+    },
+    {
+      "controller": "returns",
+      "endpoints": 1,
+      "avgMs": 27
+    },
+    {
+      "controller": "tasks",
+      "endpoints": 1,
+      "avgMs": 27
+    },
+    {
+      "controller": "inbound",
+      "endpoints": 1,
+      "avgMs": 26
+    },
+    {
+      "controller": "users",
+      "endpoints": 1,
+      "avgMs": 26
+    },
+    {
+      "controller": "adjustments",
+      "endpoints": 1,
+      "avgMs": 25
+    },
+    {
+      "controller": "billing",
+      "endpoints": 3,
+      "avgMs": 24
+    },
+    {
+      "controller": "notifications",
+      "endpoints": 1,
+      "avgMs": 24
+    },
+    {
+      "controller": "audit-logs",
+      "endpoints": 1,
+      "avgMs": 23
+    },
+    {
+      "controller": "reports",
+      "endpoints": 3,
+      "avgMs": 22
+    },
+    {
+      "controller": "companies",
+      "endpoints": 1,
+      "avgMs": 21
+    }
+  ],
+  "benchmarks": [
+    {
+      "label": "auth/me",
+      "url": "https://admin.emdadsy.com/api/auth/me",
+      "status": 200,
+      "payloadBytes": 248,
+      "error": null,
+      "n": 15,
+      "avg": 28,
+      "min": 20.99454400000002,
+      "max": 33.993709999999965,
+      "p95": 34,
+      "p99": 34
+    },
+    {
+      "label": "dashboard/overview",
+      "url": "https://admin.emdadsy.com/api/dashboard/overview",
+      "status": 200,
+      "payloadBytes": 1123,
+      "error": null,
+      "n": 15,
+      "avg": 34,
+      "min": 25.426328000000012,
+      "max": 56.35571099999993,
+      "p95": 56,
+      "p99": 56
+    },
+    {
+      "label": "products/list",
+      "url": "https://admin.emdadsy.com/api/products?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 683,
+      "error": null,
+      "n": 15,
+      "avg": 28,
+      "min": 23.26219600000013,
+      "max": 36.15276899999981,
+      "p95": 36,
+      "p99": 36
+    },
+    {
+      "label": "locations/list",
+      "url": "https://admin.emdadsy.com/api/locations?warehouseId=00000000-0000-4000-8000-000000000010&limit=25",
+      "status": 200,
+      "payloadBytes": 994,
+      "error": null,
+      "n": 15,
+      "avg": 27,
+      "min": 21.60204700000031,
+      "max": 34.748593000000255,
+      "p95": 35,
+      "p99": 35
+    },
+    {
+      "label": "warehouses/list",
+      "url": "https://admin.emdadsy.com/api/warehouses?limit=25",
+      "status": 400,
+      "payloadBytes": 92,
+      "error": null,
+      "n": 15,
+      "avg": 38,
+      "min": 15.734679000000142,
+      "max": 225.0153919999998,
+      "p95": 225,
+      "p99": 225
+    },
+    {
+      "label": "inventory/stock",
+      "url": "https://admin.emdadsy.com/api/inventory/stock?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 7459,
+      "error": null,
+      "n": 15,
+      "avg": 31,
+      "min": 20.361660999999913,
+      "max": 53.97163899999987,
+      "p95": 54,
+      "p99": 54
+    },
+    {
+      "label": "inventory/ledger",
+      "url": "https://admin.emdadsy.com/api/inventory/ledger?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 6524,
+      "error": null,
+      "n": 15,
+      "avg": 157,
+      "min": 21.69214699999975,
+      "max": 850.6785880000007,
+      "p95": 851,
+      "p99": 851
+    },
+    {
+      "label": "inbound/list",
+      "url": "https://admin.emdadsy.com/api/inbound-orders?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 4613,
+      "error": null,
+      "n": 15,
+      "avg": 26,
+      "min": 19.659967999999935,
+      "max": 32.81972299999961,
+      "p95": 33,
+      "p99": 33
+    },
+    {
+      "label": "outbound/list",
+      "url": "https://admin.emdadsy.com/api/outbound-orders?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 752,
+      "error": null,
+      "n": 15,
+      "avg": 44,
+      "min": 21.363735999999335,
+      "max": 198.2471770000002,
+      "p95": 198,
+      "p99": 198
+    },
+    {
+      "label": "returns/list",
+      "url": "https://admin.emdadsy.com/api/return-orders?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 68,
+      "error": null,
+      "n": 15,
+      "avg": 27,
+      "min": 21.19759400000021,
+      "max": 46.112019999999575,
+      "p95": 46,
+      "p99": 46
+    },
+    {
+      "label": "tasks/list",
+      "url": "https://admin.emdadsy.com/api/tasks?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 6372,
+      "error": null,
+      "n": 15,
+      "avg": 27,
+      "min": 22.604153000000224,
+      "max": 34.851682999999866,
+      "p95": 35,
+      "p99": 35
+    },
+    {
+      "label": "cycle-count/counts",
+      "url": "https://admin.emdadsy.com/api/cycle-count/counts?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 68,
+      "error": null,
+      "n": 15,
+      "avg": 41,
+      "min": 20.788383000000067,
+      "max": 288.169304,
+      "p95": 288,
+      "p99": 288
+    },
+    {
+      "label": "adjustments/list",
+      "url": "https://admin.emdadsy.com/api/adjustments?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 2076,
+      "error": null,
+      "n": 15,
+      "avg": 25,
+      "min": 20.242691000001287,
+      "max": 31.778487999999925,
+      "p95": 32,
+      "p99": 32
+    },
+    {
+      "label": "companies/list",
+      "url": "https://admin.emdadsy.com/api/companies?limit=25",
+      "status": 400,
+      "payloadBytes": 92,
+      "error": null,
+      "n": 15,
+      "avg": 21,
+      "min": 15.78143799999998,
+      "max": 45.47958699999981,
+      "p95": 45,
+      "p99": 45
+    },
+    {
+      "label": "users/list",
+      "url": "https://admin.emdadsy.com/api/users?limit=25&kind=system",
+      "status": 200,
+      "payloadBytes": 1925,
+      "error": null,
+      "n": 15,
+      "avg": 26,
+      "min": 21.96617999999944,
+      "max": 35.200104999999894,
+      "p95": 35,
+      "p99": 35
+    },
+    {
+      "label": "reports/policy",
+      "url": "https://admin.emdadsy.com/api/reports/policy",
+      "status": 200,
+      "payloadBytes": 432,
+      "error": null,
+      "n": 15,
+      "avg": 19,
+      "min": 17.64398700000129,
+      "max": 22.096439000000828,
+      "p95": 22,
+      "p99": 22
+    },
+    {
+      "label": "reports/inventory/run",
+      "url": "https://admin.emdadsy.com/api/reports/inventory/run?limit=25&offset=0&warehouseId=00000000-0000-4000-8000-000000000010&companyId=00000000-0000-4000-8000-000000000001",
+      "status": 200,
+      "payloadBytes": 2503,
+      "error": null,
+      "n": 15,
+      "avg": 23,
+      "min": 17.77676799999972,
+      "max": 29.742479000000458,
+      "p95": 30,
+      "p99": 30
+    },
+    {
+      "label": "reports/warehouse-analysis/run",
+      "url": "https://admin.emdadsy.com/api/reports/warehouse-analysis/run?limit=25&offset=0&warehouseId=00000000-0000-4000-8000-000000000010&companyId=00000000-0000-4000-8000-000000000001",
+      "status": 200,
+      "payloadBytes": 357,
+      "error": null,
+      "n": 15,
+      "avg": 23,
+      "min": 18.44286099999954,
+      "max": 45.48051699999996,
+      "p95": 45,
+      "p99": 45
+    },
+    {
+      "label": "billing/summary",
+      "url": "https://admin.emdadsy.com/api/billing/dashboard/summary",
+      "status": 200,
+      "payloadBytes": 146,
+      "error": null,
+      "n": 15,
+      "avg": 25,
+      "min": 20.52936200000113,
+      "max": 34.46082000000024,
+      "p95": 34,
+      "p99": 34
+    },
+    {
+      "label": "billing/invoices",
+      "url": "https://admin.emdadsy.com/api/billing/invoices?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 68,
+      "error": null,
+      "n": 15,
+      "avg": 22,
+      "min": 19.16887499999939,
+      "max": 24.981894000000466,
+      "p95": 25,
+      "p99": 25
+    },
+    {
+      "label": "billing/plans",
+      "url": "https://admin.emdadsy.com/api/billing/plans?limit=25",
+      "status": 200,
+      "payloadBytes": 68,
+      "error": null,
+      "n": 15,
+      "avg": 26,
+      "min": 18.768694000000323,
+      "max": 63.161825000001045,
+      "p95": 63,
+      "p99": 63
+    },
+    {
+      "label": "backups/health",
+      "url": "https://admin.emdadsy.com/api/backups/health",
+      "status": 200,
+      "payloadBytes": 890,
+      "error": null,
+      "n": 15,
+      "avg": 30,
+      "min": 26.054149999999936,
+      "max": 36.54642100000092,
+      "p95": 37,
+      "p99": 37
+    },
+    {
+      "label": "backups/list",
+      "url": "https://admin.emdadsy.com/api/backups?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 2315,
+      "error": null,
+      "n": 15,
+      "avg": 48,
+      "min": 21.4640959999997,
+      "max": 357.32900599999994,
+      "p95": 357,
+      "p99": 357
+    },
+    {
+      "label": "backups/schedules",
+      "url": "https://admin.emdadsy.com/api/backups/schedules",
+      "status": 200,
+      "payloadBytes": 36,
+      "error": null,
+      "n": 15,
+      "avg": 22,
+      "min": 14.549252000000706,
+      "max": 63.79975800000102,
+      "p95": 64,
+      "p99": 64
+    },
+    {
+      "label": "backups/retention/policies",
+      "url": "https://admin.emdadsy.com/api/backups/retention/policies",
+      "status": 200,
+      "payloadBytes": 141,
+      "error": null,
+      "n": 15,
+      "avg": 20,
+      "min": 15.979849000001195,
+      "max": 22.6794430000009,
+      "p95": 23,
+      "p99": 23
+    },
+    {
+      "label": "audit-logs/list",
+      "url": "https://admin.emdadsy.com/api/audit-logs?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 979,
+      "error": null,
+      "n": 15,
+      "avg": 23,
+      "min": 19.355406999999104,
+      "max": 29.320926000000327,
+      "p95": 29,
+      "p99": 29
+    },
+    {
+      "label": "notifications/list",
+      "url": "https://admin.emdadsy.com/api/notifications?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 464,
+      "error": null,
+      "n": 15,
+      "avg": 24,
+      "min": 19.65701700000136,
+      "max": 30.79170300000078,
+      "p95": 31,
+      "p99": 31
+    },
+    {
+      "label": "ops/health/live",
+      "url": "https://admin.emdadsy.com/api/ops/health/live",
+      "status": 200,
+      "payloadBytes": 78,
+      "error": null,
+      "n": 15,
+      "avg": 147,
+      "min": 14.925073000000339,
+      "max": 1164.028166,
+      "p95": 1164,
+      "p99": 1164
+    },
+    {
+      "label": "ops/health/ready",
+      "url": "https://admin.emdadsy.com/api/ops/health/ready",
+      "status": 200,
+      "payloadBytes": 164,
+      "error": null,
+      "n": 15,
+      "avg": 22,
+      "min": 18.033618999999817,
+      "max": 31.053844000000026,
+      "p95": 31,
+      "p99": 31
+    },
+    {
+      "label": "client/dashboard",
+      "url": "https://client.emdadsy.com/api/client/dashboard/overview",
+      "status": 200,
+      "payloadBytes": 369,
+      "error": null,
+      "n": 15,
+      "avg": 36,
+      "min": 22.730382999998255,
+      "max": 99.28194200000144,
+      "p95": 99,
+      "p99": 99
+    },
+    {
+      "label": "client/products",
+      "url": "https://client.emdadsy.com/api/client/products?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 683,
+      "error": null,
+      "n": 15,
+      "avg": 34,
+      "min": 26.02720799999952,
+      "max": 69.61834499999895,
+      "p95": 70,
+      "p99": 70
+    },
+    {
+      "label": "client/stock",
+      "url": "https://client.emdadsy.com/api/client/stock?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 234,
+      "error": null,
+      "n": 15,
+      "avg": 199,
+      "min": 22.990143999999418,
+      "max": 2557.0094659999995,
+      "p95": 2557,
+      "p99": 2557
+    },
+    {
+      "label": "client/inbound",
+      "url": "https://client.emdadsy.com/api/client/inbound-orders?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 4613,
+      "error": null,
+      "n": 15,
+      "avg": 62,
+      "min": 21.818608000001404,
+      "max": 445.495805999999,
+      "p95": 445,
+      "p99": 445
+    },
+    {
+      "label": "client/outbound",
+      "url": "https://client.emdadsy.com/api/client/outbound-orders?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 752,
+      "error": null,
+      "n": 15,
+      "avg": 25,
+      "min": 20.262869999998657,
+      "max": 37.343284999999014,
+      "p95": 37,
+      "p99": 37
+    },
+    {
+      "label": "client/billing",
+      "url": "https://client.emdadsy.com/api/client/billing/summary",
+      "status": 200,
+      "payloadBytes": 265,
+      "error": null,
+      "n": 15,
+      "avg": 36,
+      "min": 17.33670600000187,
+      "max": 207.13524400000097,
+      "p95": 207,
+      "p99": 207
+    },
+    {
+      "label": "client/notifications",
+      "url": "https://client.emdadsy.com/api/client/notifications?limit=25&offset=0",
+      "status": 200,
+      "payloadBytes": 1129,
+      "error": null,
+      "n": 15,
+      "avg": 23,
+      "min": 18.882042999997793,
+      "max": 31.87276700000075,
+      "p95": 32,
+      "p99": 32
+    }
+  ],
+  "security": [
+    {
+      "label": "no-auth-products",
+      "url": "https://admin.emdadsy.com/api/products?limit=1",
+      "status": 401,
+      "pass": true,
+      "bodyLen": 74
+    },
+    {
+      "label": "no-auth-backups",
+      "url": "https://admin.emdadsy.com/api/backups/health",
+      "status": 401,
+      "pass": true,
+      "bodyLen": 74
+    },
+    {
+      "label": "client-on-admin",
+      "url": "https://admin.emdadsy.com/api/products?limit=1",
+      "status": 401,
+      "pass": true,
+      "bodyLen": 74
+    },
+    {
+      "label": "operator-backups-deny",
+      "url": "https://admin.emdadsy.com/api/backups/health",
+      "status": 403,
+      "pass": true,
+      "bodyLen": 77
+    },
+    {
+      "label": "operator-audit-deny",
+      "url": "https://admin.emdadsy.com/api/audit-logs?limit=1",
+      "status": 403,
+      "pass": true,
+      "bodyLen": 77
+    },
+    {
+      "label": "operator-reports-deny",
+      "url": "https://admin.emdadsy.com/api/reports/policy",
+      "status": 403,
+      "pass": true,
+      "bodyLen": 77
+    },
+    {
+      "label": "operator-tasks-allow",
+      "url": "https://admin.emdadsy.com/api/tasks?limit=1",
+      "status": 200,
+      "pass": true,
+      "bodyLen": 687
+    },
+    {
+      "label": "operator-billing-read",
+      "url": "https://admin.emdadsy.com/api/billing/dashboard/summary",
+      "status": 200,
+      "pass": true,
+      "bodyLen": 146
+    },
+    {
+      "label": "tenant-spoof-company",
+      "url": "https://admin.emdadsy.com/api/inbound-orders?limit=5",
+      "status": 404,
+      "pass": true,
+      "bodyLen": 77
+    },
+    {
+      "label": "malformed-jwt",
+      "url": "https://admin.emdadsy.com/api/auth/me",
+      "status": 401,
+      "pass": true,
+      "bodyLen": 0
+    }
+  ],
+  "securityPass": 10,
+  "securityTotal": 10
+}

@@ -4,6 +4,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().max(65535).default(3000),
   CORS_ORIGINS: z.string().min(1).default('http://localhost:5173'),
+  // Comma-separated list of trusted external landing-page origins allowed to POST /api/forms/submit.
+  LANDING_FORM_CORS_ORIGINS: z.string().optional(),
   JWT_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16).optional(),
   HTTP_JSON_BODY_LIMIT: z.string().optional(),
@@ -16,6 +18,8 @@ const envSchema = z.object({
   OPS_DIAGNOSTICS_ENABLED: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
   OPS_PROBE_SECRET: z.string().min(16).optional(),
   AUDIT_RETENTION_DAYS: z.coerce.number().int().min(0).max(3650).optional(),
+  // Minimum days a customer must remain ARCHIVED before becoming eligible for permanent purge.
+  CUSTOMER_PURGE_RETENTION_DAYS: z.coerce.number().int().min(0).max(3650).optional(),
   AUDIT_QUERY_MAX_LIMIT: z.coerce.number().int().min(1).max(100).optional(),
   AUDIT_QUERY_MAX_OFFSET: z.coerce.number().int().min(0).max(50_000).optional(),
   AUDIT_QUERY_MAX_DATE_RANGE_DAYS: z.coerce.number().int().min(1).max(366).optional(),
@@ -59,6 +63,42 @@ const envSchema = z.object({
   BACKUP_ENCRYPTION_KEY: z.string().min(16).optional(),
   BACKUP_GDRIVE_STARTUP_STRICT: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
   CRON_LEADER_ENABLED: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+  // PDF document generation (GRN / Delivery Note).
+  DOCUMENT_STORAGE_DIR: z.string().min(1).optional(),
+  // Compressed product / avatar images (default: storage/media under cwd).
+  MEDIA_STORAGE_DIR: z.string().min(1).optional(),
+  MEDIA_MAX_UPLOAD_BYTES: z.coerce.number().int().positive().optional(),
+  DOCUMENT_DEFAULT_LANG: z.enum(['en', 'ar']).optional(),
+  PUPPETEER_EXECUTABLE_PATH: z.string().min(1).optional(),
+  DOC_BRAND_NAME: z.string().min(1).optional(),
+  DOC_BRAND_NAME_AR: z.string().min(1).optional(),
+  DOC_BRAND_TAGLINE: z.string().min(1).optional(),
+  DOC_BRAND_TAGLINE_AR: z.string().min(1).optional(),
+  DOC_BRAND_PHONE: z.string().min(1).optional(),
+  DOC_BRAND_EMAIL: z.string().min(1).optional(),
+  DOC_BRAND_WEBSITE: z.string().min(1).optional(),
+  DOC_BRAND_ADDRESS_EN: z.string().min(1).optional(),
+  DOC_BRAND_ADDRESS_AR: z.string().min(1).optional(),
+  // OMS — when true, reserve stock on order create (admin OMS) and on warehouse confirm (client portal).
+  ALLOCATE_ON_ORDER_CREATE: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+  // Realtime Architecture 2.2
+  REALTIME_SYNC_MODE: z.enum(['legacy', 'dual', 'canonical']).optional(),
+  REALTIME_MERGE_WINDOW_MS: z.coerce.number().int().min(0).max(5000).optional(),
+  REALTIME_EMIT_DEBOUNCE_MS: z.coerce.number().int().min(0).max(5000).optional(),
+  // Login brute-force lockout (IP-based). Disable on staging with LOGIN_BRUTE_FORCE_ENABLED=false.
+  LOGIN_BRUTE_FORCE_ENABLED: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+  LOGIN_BRUTE_FORCE_MAX_FAILURES: z.coerce.number().int().min(1).max(100).optional(),
+  LOGIN_BRUTE_FORCE_WINDOW_MS: z.coerce.number().int().min(1000).max(3_600_000).optional(),
+  // Google Sign-In (linked accounts only — never auto-provisions users).
+  GOOGLE_OAUTH_ENABLED: z.enum(['true', 'false', '1', '0', 'yes', 'no', 'on', 'off']).optional(),
+  GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_OAUTH_REDIRECT_URI: z.string().optional(),
+  GOOGLE_OAUTH_STATE_SECRET: z.string().optional(),
+  GOOGLE_OAUTH_FRONTEND_ORIGIN: z.string().optional(),
+  GOOGLE_OAUTH_SUCCESS_URL: z.string().optional(),
+  GOOGLE_OAUTH_FAILURE_URL: z.string().optional(),
+  GOOGLE_OAUTH_LINK_SUCCESS_URL: z.string().optional(),
 });
 
 function envBool(raw: unknown): boolean {

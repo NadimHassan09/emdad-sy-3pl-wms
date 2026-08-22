@@ -13,11 +13,11 @@ import { TasksApi } from '../../../api/tasks';
 import { BarcodeScanModal } from '../../../components/BarcodeScanModal';
 import { Button } from '../../../components/Button';
 import { Combobox } from '../../../components/Combobox';
+import { WedgeScanField } from '../../../components/WedgeScanField';
 import { PickLinesFilterCard } from './PickLinesFilterCard';
 import { useToast } from '../../../components/ToastProvider';
 import { locationTypeLabel } from '../../../lib/location-types';
 import {
-  displayWarehouseLabel,
   formatTaskDateOnly,
   formatTaskDateTime,
   outboundOrderTitle,
@@ -26,6 +26,7 @@ import { taskTypeIconClass } from '../../../lib/task-type-icons';
 import { useWmsTranslation } from '../../../lib/ui-i18n';
 import { localizedPickLineStatus, localizedTaskTypeTitle } from '../../../lib/ui-labels/task-execution';
 import { useMediaQuery } from '../../../hooks/useMediaQuery';
+import { useWarehouseLabel } from '../../../hooks/useWarehouseLabel';
 import { openPickPrintPdf } from './pick-print';
 import type { PickExecutionDraft, PickLineDraft, PickReservationRow } from './pick-types';
 import {
@@ -88,6 +89,7 @@ export function PickExecutionPanel({
 }: Props) {
   const { t } = useWmsTranslation();
   const toast = useToast();
+  const { warehouseLabel } = useWarehouseLabel();
   const isMdUp = useMediaQuery('(min-width: 768px)');
   const savedDraft = readPickDraft(executionState);
 
@@ -111,6 +113,7 @@ export function PickExecutionPanel({
   );
   const [packingDestinationId, setPackingDestinationId] = useState(savedDraft?.packingDestinationId ?? '');
   const [packingBarcodeDraft, setPackingBarcodeDraft] = useState('');
+  const [nextBinScan, setNextBinScan] = useState('');
 
   const reservationLocationIds = useMemo(
     () => [...new Set(reservations.map((r) => r.locationId))],
@@ -134,23 +137,38 @@ export function PickExecutionPanel({
     setPackingDestinationId(dropOffLocations[0]!.id);
   }, [dropOffLocations, packingDestinationId]);
 
+  // Keep the freshest locationById available to the reset effect without making
+  // it a dependency — otherwise the effect would re-run (and wipe typed input)
+  // on every render where the Map identity changes.
+  const locationByIdRef = useRef(locationById);
+  locationByIdRef.current = locationById;
+
   const skipReservationReset = useRef(true);
   useEffect(() => {
     if (skipReservationReset.current) {
       skipReservationReset.current = false;
       return;
     }
+    // Only rebuild drafts when the actual reservation set changes. Sorting by the
+    // latest known locations happens in the dedicated effect below.
     setDrafts(
       sortDraftsByLocationPath(
         initialPickDrafts(reservations, savedDraft?.lines),
-        locationById,
+        locationByIdRef.current,
       ),
     );
-  }, [reservationsFingerprint, locationById]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reservationsFingerprint]);
 
   useEffect(() => {
     if (locationById.size === 0) return;
-    setDrafts((prev) => sortDraftsByLocationPath(prev, locationById));
+    setDrafts((prev) => {
+      const sorted = sortDraftsByLocationPath(prev, locationById);
+      // Preserve identity (and avoid an extra render) when order is unchanged.
+      const unchanged =
+        sorted.length === prev.length && sorted.every((d, i) => d.rowKey === prev[i]?.rowKey);
+      return unchanged ? prev : sorted;
+    });
   }, [locationById]);
 
   const lineMeta = useMemo(() => {
@@ -326,6 +344,16 @@ export function PickExecutionPanel({
       toast.error(t(['Resolve short picks before completing.', 'عالج نقص التقاط قبل الإكمال.']));
       return;
     }
+    const hasPending = drafts.some((d) => computePickLineStatus(d) === 'pending');
+    if (hasPending) {
+      toast.error(
+        t([
+          'Enter the picked quantity for every line before completing.',
+          'أدخل الكمية المُلتقطة لكل سطر قبل الإكمال.',
+        ]),
+      );
+      return;
+    }
     if (!reservations.length) {
       toast.error(t(['No pick reservations on this task.', 'لا توجد حجوزات تقاط لهذه المهمة.']));
       return;
@@ -403,7 +431,7 @@ export function PickExecutionPanel({
         {
           iconClass: 'fa-solid fa-warehouse',
           label: t(['Warehouse', 'المستودع']),
-          value: displayWarehouseLabel(warehouseId),
+          value: warehouseLabel(warehouseId),
         },
       ]}
       summary={
@@ -420,12 +448,53 @@ export function PickExecutionPanel({
 
   if (readOnly) {
     if (!reservations.length) {
+      const historyLines = outbound?.lines ?? [];
       return (
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-          {t([
-            'No pick reservation snapshot is available for this task.',
-            'لا توجد لقطة حجز تقاط متاحة لهذه المهمة.',
-          ])}
+        <div className="space-y-4">
+          {pickDetailsCard}
+          <div className="rounded-md border border-border bg-surface-card-muted px-3 py-2 text-sm text-text-body">
+            {t([
+              'Per-bin pick reservation details are not retained for this completed task. Showing the order line summary instead.',
+              'لم يتم الاحتفاظ بتفاصيل حجز الالتقاط لكل موقع لهذه المهمة المكتملة. يتم عرض ملخص أسطر الطلب بدلاً من ذلك.',
+            ])}
+          </div>
+          {historyLines.length > 0 ? (
+            <DataTable
+              title={t(['Pick lines', 'أسطر التقاط'])}
+              columns={
+                [
+                  {
+                    header: 'SKU',
+                    accessor: (l) => <span className="font-mono text-xs">{l.product?.sku ?? '—'}</span>,
+                    width: '120px',
+                  },
+                  {
+                    header: t(['Product', 'المنتج']),
+                    accessor: (l) => (
+                      <span className="font-medium text-text-strong">{l.product?.name ?? '—'}</span>
+                    ),
+                  },
+                  {
+                    header: t(['Required', 'المطلوب']),
+                    accessor: (l) => (
+                      <span className="font-mono tabular-nums text-xs">{l.requestedQuantity}</span>
+                    ),
+                    width: '90px',
+                  },
+                  {
+                    header: t(['Picked', 'مُلتقط']),
+                    accessor: (l) => (
+                      <span className="font-mono tabular-nums text-xs">{l.pickedQuantity}</span>
+                    ),
+                    width: '90px',
+                  },
+                ] as Column<OutboundOrderLine>[]
+              }
+              rows={historyLines}
+              rowKey={(l) => l.id}
+              empty={t(['No pick lines.', 'لا أسطر تقاط.'])}
+            />
+          ) : null}
         </div>
       );
     }
@@ -462,7 +531,7 @@ export function PickExecutionPanel({
 
   if (!reservations.length) {
     return (
-      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+      <div className="rounded-md border border-status-warning-border bg-status-warning-bg px-3 py-2 text-sm text-status-warning-fg">
         {t([
           'No pick reservations yet. Start the task to allocate inventory (FEFO/FIFO).',
           'لا توجد حجوزات تقاط بعد. ابدأ المهمة لتخصيص المخزون (FEFO/FIFO).',
@@ -476,24 +545,70 @@ export function PickExecutionPanel({
       {pickDetailsCard}
 
       {nextLoc && computePickLineStatus(drafts[nextIncompleteIndex]!) !== 'complete' ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
-            {t(['Next bin', 'Bin التالي'])}
-          </p>
-          <p className="font-mono text-2xl font-bold text-slate-900">{locationDisplay(nextLoc).shortLabel}</p>
-          <p className="text-xs text-slate-600">{locationDisplay(nextLoc).fullPath}</p>
+        <div className="rounded-xl border border-border bg-surface-card px-4 py-3 space-y-3 text-text-strong">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-brand-700">
+              {t(['Next bin', 'Bin التالي'])}
+            </p>
+            <p className="font-mono text-2xl font-bold text-text-strong">{locationDisplay(nextLoc).shortLabel}</p>
+            <p className="text-xs text-text-body">{locationDisplay(nextLoc).fullPath}</p>
+          </div>
+          <WedgeScanField
+            label={t(['Scan to confirm bin', 'امسح لتأكيد الصندوق'])}
+            value={nextBinScan}
+            onChange={setNextBinScan}
+            onScan={(code) => {
+              const norm = code.trim().toLowerCase();
+              const loc = nextLoc;
+              const match =
+                (loc.barcode ?? '').trim().toLowerCase() === norm ||
+                locationDisplay(loc).shortLabel.toLowerCase() === norm ||
+                (loc.fullPath ?? '').toLowerCase().includes(norm) ||
+                (loc.name ?? '').toLowerCase() === norm;
+              if (!match) {
+                toast.error(t(['Scanned bin does not match Next bin.', 'الصندوق الممسوح لا يطابق التالي.']));
+                setNextBinScan('');
+                return;
+              }
+              const draft = drafts[nextIncompleteIndex];
+              if (draft) {
+                patchDraft(draft.rowKey, {
+                  pickedQty: draft.requiredQty,
+                  exceptionType: 'none',
+                });
+                toast.success(t(['Bin confirmed — qty filled.', 'تم تأكيد الصندوق — تم تعبئة الكمية.']));
+              }
+              setNextBinScan('');
+            }}
+            placeholder={t(['Bin barcode + Enter', 'باركود الصندوق ثم Enter'])}
+          />
+          {nextLocDraft ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                patchDraft(nextLocDraft.rowKey, {
+                  pickedQty: nextLocDraft.requiredQty,
+                  exceptionType: 'none',
+                })
+              }
+            >
+              {t(['Pick required qty', 'التقاط الكمية المطلوبة'])}
+            </Button>
+          ) : null}
         </div>
       ) : null}
 
       <SummaryCards summary={summary} />
 
-      <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      <div className="rounded-xl border border-border-subtle bg-surface-card p-4 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
           {requiresPacking
             ? t(['Drop-off (packing)', 'تسليم (تغليف)'])
             : t(['Drop-off (delivery area)', 'تسليم (منطقة التسليم)'])}
         </p>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-text-muted">
           {requiresPacking
             ? t([
                 'Where picked units are consolidated before the pack task.',
@@ -505,7 +620,7 @@ export function PickExecutionPanel({
               ])}
         </p>
         {dropOffLocations.length === 0 ? (
-          <p className="mt-2 text-xs text-amber-800">
+          <p className="mt-2 text-xs text-status-warning-fg">
             {requiresPacking
               ? t(['No packing locations in this warehouse.', 'لا توجد مواقع تغليف في هذا المستودع.'])
               : t([
@@ -533,7 +648,7 @@ export function PickExecutionPanel({
             <div className="flex flex-wrap gap-2">
               <input
                 type="text"
-                className="min-h-[44px] flex-1 rounded-lg border border-slate-300 px-3 text-sm"
+                className="min-h-[44px] flex-1 rounded-lg border border-border px-3 text-sm"
                 placeholder={
                   requiresPacking
                     ? t(['Packing location Barcode', 'Barcode موقع التغليف'])
@@ -585,7 +700,7 @@ export function PickExecutionPanel({
         onPatch={patchDraft}
       />
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface-card/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
         <div className="mx-auto flex max-w-4xl flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button
             type="button"
@@ -636,10 +751,10 @@ function SummaryCards({ summary }: { summary: ReturnType<typeof computePickSumma
       {cards.map((c) => (
         <div
           key={c.label}
-          className={`rounded-xl border p-3 ${c.accent ? 'border-emerald-200 bg-emerald-50' : 'border-slate-100 bg-white'}`}
+          className={`rounded-xl border p-3 ${c.accent ? 'border-border bg-surface-active' : 'border-border-subtle bg-surface-card'}`}
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{c.label}</p>
-          <p className={`mt-1 text-lg font-semibold ${c.accent ? 'text-emerald-800' : 'text-slate-900'}`}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">{c.label}</p>
+          <p className={`mt-1 text-lg font-semibold ${c.accent ? 'text-brand-700' : 'text-text-strong'}`}>
             {c.value}
           </p>
         </div>
@@ -681,7 +796,7 @@ function PickLinesTable({
       header: t(['Product', 'المنتج']),
       accessor: (d) => {
         const ol = lineMeta.get(d.outboundOrderLineId);
-        return <span className="font-medium text-slate-800">{ol?.product?.name ?? '—'}</span>;
+        return <span className="font-medium text-text-strong">{ol?.product?.name ?? '—'}</span>;
       },
       width: '160px',
     },
@@ -699,10 +814,10 @@ function PickLinesTable({
         const loc = locationById.get(d.locationId);
         return (
           <div>
-            <span className="font-mono text-sm font-bold text-slate-900">
+            <span className="font-mono text-sm font-bold text-text-strong">
               {locationDisplay(loc).shortLabel}
             </span>
-            <p className="text-[10px] text-slate-500">{locationDisplay(loc).fullPath}</p>
+            <p className="text-[10px] text-text-muted">{locationDisplay(loc).fullPath}</p>
           </div>
         );
       },
@@ -728,7 +843,7 @@ function PickLinesTable({
           <span className="font-mono tabular-nums">{d.pickedQty}</span>
         ) : (
           <input
-            className="w-20 rounded border border-slate-300 px-2 py-1 font-mono text-sm"
+            className="w-20 rounded border border-border px-2 py-1 font-mono text-sm"
             value={d.pickedQty}
             onChange={(e) => {
               const n = parseQty(e.target.value);

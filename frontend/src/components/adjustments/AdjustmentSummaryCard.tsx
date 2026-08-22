@@ -14,11 +14,11 @@ export function AdjustmentDetailField({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
         <i className={`${iconClass} text-[11px] text-brand-600/80`} aria-hidden="true" />
         <span>{label}</span>
       </div>
-      <div className="mt-1.5 text-sm font-semibold text-slate-900">{value}</div>
+      <div className="mt-1.5 text-sm font-semibold text-text-strong">{value}</div>
     </div>
   );
 }
@@ -39,16 +39,16 @@ export function AdjustmentSummaryCard({
         : `${lines[0]!.product.sku} +${lines.length - 1}`;
 
   return (
-    <section className="mb-6 overflow-hidden rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+    <section className="mb-6 overflow-hidden rounded-2xl border border-border-subtle bg-surface-card p-6 shadow-sm">
       <div className="flex items-start gap-4">
         <div
-          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-100 to-slate-50 ring-4 ring-slate-50"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-surface-card-muted to-surface-card ring-4 ring-surface-card-muted"
           aria-hidden="true"
         >
-          <i className="fa-solid fa-sliders text-xl text-slate-500" />
+          <i className="fa-solid fa-sliders text-xl text-text-muted" />
         </div>
         <div className="min-w-0 flex-1 pt-0.5">
-          <h2 className="text-lg font-semibold leading-tight text-slate-900">
+          <h2 className="text-lg font-semibold leading-tight text-text-strong">
             {t('Adjustment information', 'معلومات التعديل')}
           </h2>
         </div>
@@ -85,7 +85,7 @@ export function AdjustmentSummaryCard({
           label={t('Reason', 'السبب')}
           value={
             adjustment.reason === ADJUSTMENT_REASON_PENDING ? (
-              <span className="font-normal italic text-slate-400">{t('(pending)', '(قيد الانتظار)')}</span>
+              <span className="font-normal italic text-text-muted">{t('(pending)', '(قيد الانتظار)')}</span>
             ) : (
               adjustment.reason
             )

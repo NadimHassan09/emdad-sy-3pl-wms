@@ -1,9 +1,11 @@
-import { useMemo, useState, type ReactElement } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, type ReactElement } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { Alert, Button, EmptyState } from '@ds';
 
+import { ClientPageIntro } from '../components/ClientPageIntro';
+import { useCachedState } from '../hooks/useCachedState';
 import { isClientArabic } from '../lib/client-ui-language';
 import { CLIENT_NOTIFICATIONS_QUERY_KEY } from '../hooks/useClientNotifications';
 import {
@@ -15,6 +17,7 @@ import {
 } from '../services/clientNotificationsService';
 
 const PAGE_SIZE = 20;
+const UNREAD_FILTER_STORAGE_KEY = 'client-notifications-filter';
 
 function notificationsLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
@@ -31,8 +34,11 @@ function notificationsLabel(label: string, isArabic: boolean): string {
     'Loading notifications…': 'جاري تحميل الإشعارات…',
     Previous: 'السابق',
     Next: 'التالي',
-    'Page': 'صفحة',
+    Page: 'صفحة',
     of: 'من',
+    Today: 'اليوم',
+    Yesterday: 'أمس',
+    Earlier: 'أقدم',
   };
   return ar[label] ?? label;
 }
@@ -49,16 +55,72 @@ function formatNotificationTime(iso: string, isArabic: boolean): string {
   return new Date(iso).toLocaleDateString();
 }
 
+function dayBucket(iso: string, t: (s: string) => string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startThat = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startToday - startThat) / 86_400_000);
+  if (diffDays === 0) return t('Today');
+  if (diffDays === 1) return t('Yesterday');
+  return t('Earlier');
+}
+
 type FilterMode = 'all' | 'unread' | 'read';
+
+function parseFilterMode(raw: string | null): FilterMode {
+  if (raw === 'unread' || raw === 'read' || raw === 'all') return raw;
+  return 'all';
+}
+
+function readStoredFilter(): FilterMode {
+  try {
+    return parseFilterMode(window.localStorage.getItem(UNREAD_FILTER_STORAGE_KEY));
+  } catch {
+    return 'all';
+  }
+}
 
 export function NotificationsPage(): ReactElement {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const isArabic = isClientArabic();
   const t = (label: string) => notificationsLabel(label, isArabic);
 
-  const [page, setPage] = useState(0);
-  const [filter, setFilter] = useState<FilterMode>('all');
+  const [page, setPage] = useCachedState('page', 0);
+  const filterFromUrl = parseFilterMode(searchParams.get('filter'));
+  const initialFilter: FilterMode = (() => {
+    const fromUrl = parseFilterMode(
+      typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('filter')
+        : null,
+    );
+    return fromUrl !== 'all' ? fromUrl : readStoredFilter();
+  })();
+  const [filter, setFilter] = useCachedState<FilterMode>('filter', initialFilter);
+
+  useEffect(() => {
+    if (filterFromUrl !== filter && searchParams.has('filter')) {
+      setFilter(filterFromUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync URL → state only when URL filter changes
+  }, [filterFromUrl]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(UNREAD_FILTER_STORAGE_KEY, filter);
+    } catch {
+      /* ignore */
+    }
+    const next = new URLSearchParams(searchParams);
+    if (filter === 'all') next.delete('filter');
+    else next.set('filter', filter);
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- persist filter; avoid looping on searchParams identity
+  }, [filter, setSearchParams]);
 
   const listQuery = useQuery({
     queryKey: ['client', 'notifications', 'page', page, PAGE_SIZE],
@@ -77,7 +139,6 @@ export function NotificationsPage(): ReactElement {
     mutationFn: () => markAllClientNotificationsRead(),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['client', 'notifications'] });
-      void queryClient.invalidateQueries({ queryKey: CLIENT_NOTIFICATIONS_QUERY_KEY });
     },
   });
 
@@ -87,6 +148,17 @@ export function NotificationsPage(): ReactElement {
     if (filter === 'read') return items.filter((n) => n.isRead);
     return items;
   }, [listQuery.data?.items, filter]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, ClientNotification[]>();
+    for (const item of filteredItems) {
+      const key = dayBucket(item.createdAt, t);
+      const list = map.get(key) ?? [];
+      list.push(item);
+      map.set(key, list);
+    }
+    return [...map.entries()];
+  }, [filteredItems, isArabic]);
 
   const total = listQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -102,40 +174,48 @@ export function NotificationsPage(): ReactElement {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900 sm:text-xl">{t('Notifications')}</h1>
-          {unreadCount > 0 ? (
-            <p className="text-sm text-slate-500">
-              {unreadCount} {t('Unread').toLowerCase()}
-            </p>
-          ) : null}
-        </div>
-        {unreadCount > 0 ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => void markAllMutation.mutateAsync()}
-            disabled={markAllMutation.isPending}
-          >
-            {t('Mark all read')}
-          </Button>
-        ) : null}
-      </div>
+      <ClientPageIntro
+        title={t('Notifications')}
+        description={
+          unreadCount > 0 ? (
+            <span className="inline-flex items-center gap-2">
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-cta px-1.5 text-[11px] font-bold text-white">
+                {unreadCount}
+              </span>
+              <span>{t('Unread')}</span>
+            </span>
+          ) : undefined
+        }
+        actions={
+          unreadCount > 0 ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void markAllMutation.mutateAsync()}
+              disabled={markAllMutation.isPending}
+            >
+              {t('Mark all read')}
+            </Button>
+          ) : undefined
+        }
+      />
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5" role="tablist" aria-label={t('Notifications')}>
         {(['all', 'unread', 'read'] as const).map((mode) => (
           <button
             key={mode}
             type="button"
-            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+            role="tab"
+            aria-selected={filter === mode}
+            className={`min-h-8 rounded-full px-3 py-1 text-xs font-semibold transition ${
               filter === mode
-                ? 'bg-emerald-600 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'bg-cta text-white'
+                : 'bg-surface-sunken text-text-body hover:bg-surface-hover'
             }`}
             onClick={() => setFilter(mode)}
           >
             {t(mode === 'all' ? 'All' : mode === 'unread' ? 'Unread' : 'Read')}
+            {mode === 'unread' && unreadCount > 0 ? ` · ${unreadCount}` : ''}
           </button>
         ))}
       </div>
@@ -152,48 +232,78 @@ export function NotificationsPage(): ReactElement {
         />
       ) : null}
 
-      <section className="card">
+      <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-card)] shadow-[var(--shadow-xs)]">
         {listQuery.isPending ? (
-          <p className="muted">{t('Loading notifications…')}</p>
+          <div className="space-y-2 p-3.5" aria-busy="true">
+            <div className="h-14 animate-pulse rounded-lg bg-skeleton-base" />
+            <div className="h-14 animate-pulse rounded-lg bg-skeleton-base" />
+            <div className="h-14 animate-pulse rounded-lg bg-skeleton-base" />
+            <span className="sr-only">{t('Loading notifications…')}</span>
+          </div>
         ) : filteredItems.length === 0 ? (
-          <EmptyState
-            icon={<i className="fa-regular fa-bell text-2xl" aria-hidden="true" />}
-            title={t('No notifications yet')}
-            description={t('Notifications from your warehouse team appear here.')}
-          />
+          <div className="p-6">
+            <EmptyState
+              icon={<i className="fa-regular fa-bell text-2xl" aria-hidden="true" />}
+              title={t('No notifications yet')}
+              description={t('Notifications from your warehouse team appear here.')}
+            />
+          </div>
         ) : (
-          <ul className="divide-y divide-slate-100">
-            {filteredItems.map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  className={`flex w-full flex-col gap-1 px-1 py-4 text-start transition hover:bg-slate-50 ${
-                    !item.isRead ? 'bg-emerald-50/30' : ''
-                  }`}
-                  onClick={() => void onItemClick(item)}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <span
-                      className={`text-sm leading-snug ${
-                        item.isRead ? 'font-medium text-slate-800' : 'font-semibold text-slate-900'
-                      }`}
-                    >
-                      {item.title}
-                    </span>
-                    <span className="shrink-0 text-[10px] text-slate-400 tabular-nums">
-                      {formatNotificationTime(item.createdAt, isArabic)}
-                    </span>
-                  </div>
-                  <p className="text-xs leading-relaxed text-slate-600">{item.body}</p>
-                </button>
-              </li>
+          <div className="divide-y divide-[var(--border-subtle)]">
+            {grouped.map(([bucket, items]) => (
+              <div key={bucket}>
+                <div className="bg-[var(--surface-raised)] px-3.5 py-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                    {bucket}
+                  </p>
+                </div>
+                <ul className="m-0 list-none p-0">
+                  {items.map((item) => (
+                    <li key={item.id} className="border-t border-[var(--border-subtle)] first:border-t-0">
+                      <button
+                        type="button"
+                        className={`flex w-full gap-3 px-3.5 py-3 text-start transition hover:bg-[var(--surface-hover)] ${
+                          !item.isRead ? 'bg-brand-50/50 dark:bg-white/[0.03]' : ''
+                        }`}
+                        onClick={() => void onItemClick(item)}
+                      >
+                        <span
+                          className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                            item.isRead ? 'bg-transparent' : 'bg-brand-500 dark:bg-brand-400'
+                          }`}
+                          aria-hidden="true"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <span
+                              className={`text-sm leading-snug ${
+                                item.isRead
+                                  ? 'font-medium text-[var(--text-base)]'
+                                  : 'font-semibold text-[var(--text-strong)]'
+                              }`}
+                            >
+                              {item.title}
+                            </span>
+                            <span className="shrink-0 text-[10px] tabular-nums text-[var(--text-faint)]">
+                              {formatNotificationTime(item.createdAt, isArabic)}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-xs leading-relaxed text-[var(--text-muted)]">
+                            {item.body}
+                          </p>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
 
         {total > PAGE_SIZE ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
-            <p className="text-xs text-slate-500">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border-subtle)] px-3.5 py-2.5">
+            <p className="text-xs text-[var(--text-muted)]">
               {t('Page')} {page + 1} {t('of')} {totalPages}
             </p>
             <div className="flex gap-2">

@@ -24,22 +24,19 @@ const pillClass = (active: boolean) =>
   [
     'inline-flex items-center rounded-xl px-4 py-2 text-sm font-medium transition',
     active
-      ? 'bg-emerald-500 text-white shadow-sm hover:bg-emerald-600'
-      : 'border border-slate-200 text-slate-600 hover:bg-slate-50',
+      ? 'bg-surface-sunken text-text-strong'
+      : 'text-text-muted hover:bg-surface-hover hover:text-text-strong',
   ].join(' ');
 
 /**
- * Horizontal pill navigation — matches Inbound Orders section sub-nav styling.
+ * Horizontal pill navigation — OMS Online-orders style (soft active pill).
  */
 export function PillSubNav({ items, ariaLabel, className = 'mb-4' }: PillSubNavProps) {
   if (items.length < 2) return null;
 
   return (
-    <nav
-      aria-label={ariaLabel}
-      className={`rounded-xl border border-slate-100 bg-white p-3 shadow-sm ${className}`}
-    >
-      <div className="flex flex-wrap gap-2" role="list">
+    <nav aria-label={ariaLabel} className={className}>
+      <div className="flex flex-wrap gap-1" role="list">
         {items.map((item) => {
           if ('to' in item) {
             const active = item.active;

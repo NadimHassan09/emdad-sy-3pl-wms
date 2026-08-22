@@ -22,6 +22,7 @@ const prisma_service_1 = require("../../common/prisma/prisma.service");
 const task_inventory_effects_service_1 = require("./task-inventory-effects.service");
 const workflow_orchestration_service_1 = require("./workflow-orchestration.service");
 const billing_invoice_calculation_service_1 = require("../billing/billing-invoice-calculation.service");
+const document_generation_service_1 = require("../../pdf/document-generation.service");
 const billing_recalculation_triggers_util_1 = require("../billing/billing-recalculation-triggers.util");
 const task_payload_schema_1 = require("./task-payload.schema");
 const task_transitions_1 = require("./task-transitions");
@@ -40,7 +41,8 @@ let WarehouseTasksService = class WarehouseTasksService {
     companyAccess;
     audit;
     billingInvoiceCalc;
-    constructor(prisma, effects, cacheInv, orchestration, taskReadCache, realtime, notifications, companyAccess, audit, billingInvoiceCalc) {
+    documentGeneration;
+    constructor(prisma, effects, cacheInv, orchestration, taskReadCache, realtime, notifications, companyAccess, audit, billingInvoiceCalc, documentGeneration) {
         this.prisma = prisma;
         this.effects = effects;
         this.cacheInv = cacheInv;
@@ -51,9 +53,26 @@ let WarehouseTasksService = class WarehouseTasksService {
         this.companyAccess = companyAccess;
         this.audit = audit;
         this.billingInvoiceCalc = billingInvoiceCalc;
+        this.documentGeneration = documentGeneration;
     }
     assertTaskWorkflowTenant(user, workflowCompanyId) {
         this.companyAccess.assertSameCompany(user, workflowCompanyId);
+    }
+    isAdminActor(user) {
+        return user.role === client_1.UserRole.super_admin || user.role === client_1.UserRole.wh_manager;
+    }
+    mergePlanPatch(current, patch) {
+        const next = { ...current };
+        for (const [key, val] of Object.entries(patch)) {
+            const cur = next[key];
+            if (isRecord(cur) && isRecord(val)) {
+                next[key] = { ...cur, ...val };
+            }
+            else {
+                next[key] = val;
+            }
+        }
+        return next;
     }
     async list(user, query) {
         const where = await this.buildListWhere(user, query);
@@ -89,6 +108,8 @@ let WarehouseTasksService = class WarehouseTasksService {
             id: true,
             taskType: true,
             status: true,
+            startedAt: true,
+            completedAt: true,
             updatedAt: true,
             ...(includeRunnability ? { workflowInstanceId: true } : {}),
             workflowInstance: {
@@ -112,6 +133,7 @@ let WarehouseTasksService = class WarehouseTasksService {
                 orderBy: { assignedAt: 'desc' },
                 take: 1,
                 select: {
+                    assignedAt: true,
                     unassignedAt: true,
                     workerId: true,
                     worker: {
@@ -345,11 +367,12 @@ let WarehouseTasksService = class WarehouseTasksService {
     }
     parseExecState(raw) {
         if (!isRecord(raw))
-            return { reservations: [] };
+            return { reservations: [], consumed: false };
+        const consumed = raw.consumed === true || raw.shipped === true;
         const r = raw.reservations;
         if (!Array.isArray(r))
-            return { reservations: [] };
-        return { reservations: r };
+            return { reservations: [], consumed };
+        return { reservations: r, consumed };
     }
     async resolvePickTaskForDispatchCompletion(tx, args) {
         const { workflowInstanceId, explicitPickTaskId } = args;
@@ -367,7 +390,7 @@ let WarehouseTasksService = class WarehouseTasksService {
                 throw new common_1.BadRequestException('Dispatch pick binding invalid: referenced pick task not found in this workflow.');
             }
             const pickExec = this.parseExecState(pick.executionState);
-            if (!pickExec.reservations.length) {
+            if (!pickExec.reservations.length || pickExec.consumed) {
                 throw new common_1.BadRequestException('Dispatch bound pick has no reservation snapshot.');
             }
             return pick;
@@ -380,7 +403,10 @@ let WarehouseTasksService = class WarehouseTasksService {
             },
             select: { id: true, executionState: true },
         });
-        const withReservations = completedPicks.filter((p) => this.parseExecState(p.executionState).reservations.length > 0);
+        const withReservations = completedPicks.filter((p) => {
+            const ex = this.parseExecState(p.executionState);
+            return ex.reservations.length > 0 && !ex.consumed;
+        });
         if (withReservations.length === 1)
             return withReservations[0];
         if (withReservations.length === 0) {
@@ -391,6 +417,8 @@ let WarehouseTasksService = class WarehouseTasksService {
     async releaseTaskHeldReservations(tx, taskId, executionState) {
         const exec = this.parseExecState(executionState);
         if (exec.reservations.length === 0)
+            return false;
+        if (exec.consumed)
             return false;
         await this.effects.releaseReservations(tx, exec.reservations);
         await tx.warehouseTask.update({
@@ -483,8 +511,11 @@ let WarehouseTasksService = class WarehouseTasksService {
         if (!reqs.length)
             return;
         const wid = task.assignments[0]?.workerId;
-        if (!wid)
+        if (!wid) {
+            if (this.isAdminActor(user))
+                return;
             this.rejectNotRunnable(task_runnable_util_1.RUNN_BLOCKED_ASSIGNMENT_REQUIRED);
+        }
         const ok = await this.workerMeetsRequiredSkills(wid, reqs, new Date());
         if (!ok)
             this.rejectNotRunnable(task_runnable_util_1.RUNN_BLOCKED_SKILL_GAP);
@@ -572,11 +603,19 @@ let WarehouseTasksService = class WarehouseTasksService {
             });
             if (!task)
                 throw new common_1.NotFoundException('Task not found.');
-            const activeWorker = workerId ?? task.assignments[0]?.workerId;
-            if (!activeWorker)
+            const assignment = task.assignments[0];
+            const activeWorker = workerId ?? assignment?.workerId;
+            const adminWithoutWorker = this.isAdminActor(user) && !workerId && !assignment?.workerId;
+            if (!activeWorker && !adminWithoutWorker) {
                 throw new common_1.BadRequestException('Assign a worker before starting.');
-            await this.assertFrontierAndSkillsTx(tx, task, workerId ? [workerId] : [activeWorker]);
-            if (workerId && task.assignments[0]?.workerId !== workerId) {
+            }
+            if (adminWithoutWorker) {
+                await this.assertFrontierOnlyTx(tx, task);
+            }
+            else {
+                await this.assertFrontierAndSkillsTx(tx, task, workerId ? [workerId] : [activeWorker]);
+            }
+            if (workerId && assignment?.workerId !== workerId) {
                 await this.ensureWorker(workerId, user);
                 await tx.taskAssignment.updateMany({
                     where: { taskId, unassignedAt: null },
@@ -629,7 +668,7 @@ let WarehouseTasksService = class WarehouseTasksService {
                         specificLotId: ol.specificLotId,
                     };
                 });
-                const reservations = await this.effects.buildPickReservations(tx, wf.companyId, wf.warehouseId, lines);
+                const reservations = await this.effects.buildPickReservations(tx, wf.companyId, wf.warehouseId, lines, parsed.outbound_order_id);
                 await tx.warehouseTask.update({
                     where: { id: taskId },
                     data: {
@@ -637,7 +676,9 @@ let WarehouseTasksService = class WarehouseTasksService {
                     },
                 });
             }
-            await this.appendEvent(tx, taskId, 'started', user.id, { workerId: activeWorker });
+            await this.appendEvent(tx, taskId, 'started', user.id, adminWithoutWorker
+                ? { performedByKind: 'admin', performedByUserId: user.id }
+                : { workerId: activeWorker });
             const started = await tx.warehouseTask.findUniqueOrThrow({
                 where: { id: taskId },
                 include: { workflowInstance: true },
@@ -651,7 +692,7 @@ let WarehouseTasksService = class WarehouseTasksService {
                 newState: {
                     status: client_1.WarehouseTaskStatus.in_progress,
                     taskType: task.taskType,
-                    workerId: activeWorker,
+                    ...(activeWorker ? { workerId: activeWorker } : { performedByKind: 'admin' }),
                 },
             }));
         });
@@ -698,25 +739,49 @@ let WarehouseTasksService = class WarehouseTasksService {
             if (task.taskType !== body.task_type) {
                 throw new common_1.BadRequestException('task_type does not match target task.');
             }
-            if (task.status !== client_1.WarehouseTaskStatus.in_progress) {
-                if (task.taskType === 'pick' &&
+            const assignment = task.assignments[0];
+            const adminWithoutWorker = this.isAdminActor(user) && !assignment;
+            const canAdminCompleteFromOpen = adminWithoutWorker &&
+                (task.status === client_1.WarehouseTaskStatus.pending ||
+                    task.status === client_1.WarehouseTaskStatus.assigned);
+            let workingTask = task;
+            if (workingTask.status !== client_1.WarehouseTaskStatus.in_progress) {
+                if (workingTask.taskType === 'pick' &&
                     body.task_type === 'pick' &&
-                    task.status === client_1.WarehouseTaskStatus.completed) {
+                    workingTask.status === client_1.WarehouseTaskStatus.completed) {
                     idempotentPickNoop = true;
                     return;
                 }
-                if (task.taskType === client_1.WarehouseTaskType.dispatch &&
+                if (workingTask.taskType === client_1.WarehouseTaskType.dispatch &&
                     body.task_type === 'dispatch' &&
-                    task.status === client_1.WarehouseTaskStatus.completed) {
+                    workingTask.status === client_1.WarehouseTaskStatus.completed) {
                     idempotentDispatchNoop = true;
                     return;
                 }
-                throw new common_1.BadRequestException('Task must be in_progress to complete.');
+                if (!canAdminCompleteFromOpen) {
+                    throw new common_1.BadRequestException('Task must be in_progress to complete.');
+                }
             }
-            const assignmentIds = task.assignments.map((a) => a.workerId);
-            await this.assertFrontierAndSkillsTx(tx, task, assignmentIds);
-            const exec = this.parseExecState(task.executionState);
-            const companyId = task.workflowInstance.companyId;
+            if (canAdminCompleteFromOpen) {
+                await this.bumpStatus(tx, taskId, workingTask.lockVersion, client_1.WarehouseTaskStatus.in_progress, {
+                    startedAt: new Date(),
+                });
+                workingTask = {
+                    ...workingTask,
+                    status: client_1.WarehouseTaskStatus.in_progress,
+                    lockVersion: workingTask.lockVersion + 1,
+                    startedAt: new Date(),
+                };
+            }
+            const assignmentIds = workingTask.assignments.map((a) => a.workerId);
+            if (adminWithoutWorker) {
+                await this.assertFrontierOnlyTx(tx, workingTask);
+            }
+            else {
+                await this.assertFrontierAndSkillsTx(tx, workingTask, assignmentIds);
+            }
+            const exec = this.parseExecState(workingTask.executionState);
+            const companyId = workingTask.workflowInstance.companyId;
             billingCompanyId = companyId;
             billingTaskType = body.task_type;
             switch (body.task_type) {
@@ -753,6 +818,15 @@ let WarehouseTasksService = class WarehouseTasksService {
                     await this.effects.applyPackRecord(tx, outboundId, body);
                     break;
                 }
+                case 'shipping_details': {
+                    const pl = task.payload;
+                    const outboundId = pl.outbound_order_id;
+                    if (!outboundId) {
+                        throw new common_1.BadRequestException('shipping_details task missing outbound_order_id.');
+                    }
+                    await this.effects.applyShippingDetailsTaskComplete(tx, outboundId, body, user.id);
+                    break;
+                }
                 case 'dispatch': {
                     const { outbound_order_id: outboundId, pick_task_id: explicitPickTaskId } = parseDispatchTaskPayloadAllowLegacy(task.payload);
                     await this.lockWorkflowInstance(tx, task.workflowInstanceId);
@@ -770,7 +844,12 @@ let WarehouseTasksService = class WarehouseTasksService {
                     if (boundPick) {
                         await tx.warehouseTask.update({
                             where: { id: boundPick.id },
-                            data: { executionState: client_1.Prisma.DbNull },
+                            data: {
+                                executionState: {
+                                    reservations: pickExec.reservations,
+                                    consumed: true,
+                                },
+                            },
                         });
                     }
                     break;
@@ -781,12 +860,16 @@ let WarehouseTasksService = class WarehouseTasksService {
                     break;
             }
             const clearExec = body.task_type !== 'pick';
-            await this.bumpStatus(tx, taskId, task.lockVersion, client_1.WarehouseTaskStatus.completed, {
+            await this.bumpStatus(tx, taskId, workingTask.lockVersion, client_1.WarehouseTaskStatus.completed, {
                 completedAt: new Date(),
                 completedById: user.id,
                 ...(clearExec ? { executionState: client_1.Prisma.DbNull } : {}),
             });
-            await this.appendEvent(tx, taskId, 'completed', user.id, { task_type: task.taskType });
+            await this.appendEvent(tx, taskId, 'completed', user.id, {
+                task_type: task.taskType,
+                performedByKind: assignment ? 'worker' : 'admin',
+                performedByUserId: user.id,
+            });
             const finalized = await tx.warehouseTask.findUniqueOrThrow({
                 where: { id: taskId },
                 include: { workflowInstance: true },
@@ -878,6 +961,12 @@ let WarehouseTasksService = class WarehouseTasksService {
                 if (trigger) {
                     void this.billingInvoiceCalc.recalculateForCompany(billingCompanyId, trigger);
                 }
+            }
+            if (billingTaskType === client_1.WarehouseTaskType.receiving) {
+                void this.documentGeneration.generateGrnForReceiving(taskId);
+            }
+            else if (billingTaskType === client_1.WarehouseTaskType.dispatch && outboundCompleted) {
+                void this.documentGeneration.generateDnForDispatch(taskId);
             }
         }
         return this.loadTaskEnvelope(taskId, user);
@@ -1087,6 +1176,54 @@ let WarehouseTasksService = class WarehouseTasksService {
         });
         await this.cacheInv.afterTaskMutation();
         return this.loadTaskEnvelope(taskId, user);
+    }
+    async patchPlan(taskId, user, body) {
+        const patch = body.plan_patch;
+        if (!isRecord(patch)) {
+            throw new common_1.BadRequestException('plan_patch must be an object.');
+        }
+        await this.prisma.$transaction(async (tx) => {
+            await this.lockTask(tx, taskId);
+            const task = await tx.warehouseTask.findUnique({
+                where: { id: taskId },
+                include: {
+                    workflowInstance: true,
+                    assignments: { where: { unassignedAt: null }, take: 1 },
+                },
+            });
+            if (!task)
+                throw new common_1.NotFoundException('Task not found.');
+            this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
+            if (!this.isAdminActor(user)) {
+                await this.assertOperatorAssignedToTask(user, task);
+            }
+            if (task.status !== client_1.WarehouseTaskStatus.pending &&
+                task.status !== client_1.WarehouseTaskStatus.assigned) {
+                throw new common_1.BadRequestException('plan updates require task status pending or assigned.');
+            }
+            const cur = task.payload && typeof task.payload === 'object' && !Array.isArray(task.payload)
+                ? task.payload
+                : {};
+            const next = this.mergePlanPatch(cur, patch);
+            await tx.warehouseTask.update({
+                where: { id: taskId },
+                data: {
+                    payload: next,
+                },
+            });
+            await this.appendEvent(tx, taskId, 'plan_updated', user.id, {
+                keys: Object.keys(patch),
+            });
+        });
+        await this.cacheInv.afterTaskMutation();
+        return this.loadTaskEnvelope(taskId, user);
+    }
+    async adminConfirm(taskId, user, body) {
+        if (!this.isAdminActor(user)) {
+            throw new common_1.ForbiddenException('Only warehouse managers may admin-confirm tasks.');
+        }
+        await this.start(taskId, user);
+        return this.complete(taskId, user, body);
     }
     async leaseAcquire(taskId, user, minutesRaw) {
         const minutes = Math.min(Math.max(minutesRaw ?? 30, 5), 480);
@@ -1452,7 +1589,8 @@ exports.WarehouseTasksService = WarehouseTasksService = __decorate([
         notifications_service_1.NotificationsService,
         company_access_service_1.CompanyAccessService,
         audit_log_service_1.AuditLogService,
-        billing_invoice_calculation_service_1.BillingInvoiceCalculationService])
+        billing_invoice_calculation_service_1.BillingInvoiceCalculationService,
+        document_generation_service_1.DocumentGenerationService])
 ], WarehouseTasksService);
 function parsePickPayload(raw) {
     if (!isRecord(raw))

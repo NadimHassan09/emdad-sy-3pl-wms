@@ -59,6 +59,24 @@ export async function findActiveWorkflowForReference(
   });
 }
 
+/** Any finished instance for this reference — blocks a second bootstrap. */
+export async function findFinishedWorkflowForReference(
+  tx: Prisma.TransactionClient,
+  referenceType: WorkflowReferenceType,
+  referenceId: string,
+) {
+  return tx.workflowInstance.findFirst({
+    where: {
+      referenceType,
+      referenceId,
+      status: {
+        in: [WorkflowInstanceStatus.completed, WorkflowInstanceStatus.cancelled],
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
 export async function loadWorkflowBootstrapBundle(
   tx: Prisma.TransactionClient,
   workflowInstanceId: string,

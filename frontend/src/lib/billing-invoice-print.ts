@@ -12,24 +12,18 @@ import {
 } from './billing-invoice-display';
 import { esc, openTaskPrintHtml } from './task-print-html';
 
-const LINE_TYPE_ORDER: BillingInvoiceLineType[] = [
-  'subscription',
-  'inbound',
-  'outbound',
-  'packaging',
-  'quality_check',
-  'excess_volume',
-  'excess_weight',
-];
+const LINE_TYPE_ORDER: BillingInvoiceLineType[] = ['subscription'];
 
 const LINE_TYPE_LABELS: Record<BillingInvoiceLineType, string> = {
   subscription: 'Fixed subscription',
   inbound: 'Inbound totals',
-  outbound: 'Outbound totals',
+  outbound: 'Outbound totals (tiered)',
   packaging: 'Packaging totals',
   quality_check: 'Quality check totals',
   excess_volume: 'Volume charges',
   excess_weight: 'Weight charges',
+  manual: 'Manual charges',
+  order_charge: 'Order charges (VAS)',
 };
 
 export type BillingInvoicePrintInput = {
@@ -119,14 +113,7 @@ export function buildBillingInvoicePrintHtml(data: BillingInvoicePrintInput): st
   const snapshotGrid = data.snapshot
     ? [
         snapshotField('Fixed subscription fee', formatDecimal(data.snapshot.fixedSubscriptionFee)),
-        snapshotField('Inbound order fee', formatDecimal(data.snapshot.inboundOrderFee, 4)),
-        snapshotField('Outbound order fee', formatDecimal(data.snapshot.outboundOrderFee, 4)),
-        snapshotField('Packaging fee', formatDecimal(data.snapshot.packagingFee, 4)),
-        snapshotField('Quality check fee', formatDecimal(data.snapshot.qualityCheckFee, 4)),
-        snapshotField('Excess volume / day', formatDecimal(data.snapshot.excessVolumeFeePerDay, 4)),
-        snapshotField('Excess weight / day', formatDecimal(data.snapshot.excessWeightFeePerDay, 4)),
         snapshotField('Reserved volume', `${formatDecimal(data.snapshot.reservedVolume, 4)} CBM`),
-        snapshotField('Reserved weight', `${formatDecimal(data.snapshot.reservedWeight, 4)} kg`),
         data.snapshot.snapshottedAt
           ? snapshotField('Snapshotted at', formatDate(data.snapshot.snapshottedAt))
           : '',

@@ -16,11 +16,13 @@ function backendClusterApp({
   outFile,
   errorFile,
   defaultInstances,
+  env = {},
 }) {
   return {
     name,
     cwd,
     script: 'dist/src/main.js',
+    interpreter: '/usr/bin/node',
     instances: resolveInstances(defaultInstances),
     exec_mode: 'cluster',
     autorestart: true,
@@ -34,6 +36,7 @@ function backendClusterApp({
     env_file: '.env',
     env: {
       CRON_LEADER_ENABLED: 'true',
+      ...env,
     },
     out_file: outFile,
     error_file: errorFile,

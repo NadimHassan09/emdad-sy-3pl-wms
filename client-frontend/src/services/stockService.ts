@@ -6,6 +6,9 @@ export interface ClientStockRow {
   productName: string;
   sku: string;
   totalQuantity: string;
+  onHand: string;
+  reserved: string;
+  available: string;
   uom: string;
   expiryDate: string | null;
 }

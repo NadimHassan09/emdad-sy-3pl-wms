@@ -9,9 +9,11 @@ import {
   WarehousesApi,
 } from '../api/warehouses';
 import { useAuth } from '../auth/AuthContext';
+import { AdminListPageShell } from '../components/AdminListPageShell';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
+import { FilterCheckboxField } from '../components/FilterCheckboxField';
 import { FilterPanel } from '../components/FilterPanel';
 import { Modal } from '../components/Modal';
 import { SelectField } from '../components/SelectField';
@@ -20,7 +22,7 @@ import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import { useFilters } from '../hooks/useFilters';
 import { COUNTRIES, OTHER_COUNTRY } from '../lib/geography';
-import { AppPageHeader } from '@ds';
+import { Badge } from '@ds';
 
 type StatusFilter = '' | WarehouseStatus;
 
@@ -127,13 +129,9 @@ export function WarehousesPage() {
     {
       header: 'Status',
       accessor: (w) => (
-        <span
-          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            w.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
-          }`}
-        >
+        <Badge tone={w.status === 'active' ? 'success' : 'neutral'} size="xs">
           {w.status}
-        </span>
+        </Badge>
       ),
       width: '110px',
     },
@@ -161,24 +159,37 @@ export function WarehousesPage() {
             )}
           </div>
         ) : (
-          <span className="text-xs text-slate-400">—</span>
+          <span className="text-xs text-text-faint">—</span>
         ),
       width: '260px',
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <AppPageHeader
-        title="Warehouses"
-        description="Physical warehouse sites used for inventory, locations, and order workflows."
-      />
-
+    <AdminListPageShell
+      icon="fa-warehouse"
+      title="Warehouses"
+      subtitle="Physical warehouse sites used for inventory, locations, and order workflows."
+      actions={
+        canMutate ? (
+          <Button onClick={() => setOpenCreate(true)}>+ New warehouse</Button>
+        ) : undefined
+      }
+    >
       <FilterPanel
         title="Warehouse filters"
         onApply={applyFilters}
         onReset={resetFilters}
         loading={list.isFetching}
+        compact={
+          <TextField
+            label="Search"
+            value={draftFilters.search}
+            onChange={(e) => setDraft({ search: e.target.value })}
+            placeholder="Code, name, city, or country"
+          />
+        }
+        activeCount={[appliedFilters.search, appliedFilters.status].filter((v) => String(v).trim()).length + (appliedFilters.includeInactive ? 1 : 0)}
       >
         <TextField
           label="Search"
@@ -196,24 +207,16 @@ export function WarehousesPage() {
             { value: 'inactive', label: 'Inactive' },
           ]}
         />
-        <label className="flex items-center gap-2 self-end pb-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={draftFilters.includeInactive}
-            onChange={(e) => setDraft({ includeInactive: e.target.checked })}
-          />
-          Include inactive in API fetch
-        </label>
+        <FilterCheckboxField
+          label="Include inactive"
+          description="Include inactive in API fetch"
+          checked={draftFilters.includeInactive}
+          onChange={(includeInactive) => setDraft({ includeInactive })}
+        />
       </FilterPanel>
 
       <DataTable
-        title="Warehouse sites"
         description="Operators can activate or deactivate warehouses. Deactivation requires all locations to be archived."
-        actions={
-          canMutate ? (
-            <Button onClick={() => setOpenCreate(true)}>+ New warehouse</Button>
-          ) : undefined
-        }
         columns={columns}
         rows={filteredRows}
         rowKey={(w) => w.id}
@@ -246,13 +249,13 @@ export function WarehousesPage() {
         onConfirm={() => deactivateWh && deactivateMut.mutate(deactivateWh.id)}
       >
         {deactivateWh ? (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-text-body">
             Deactivate <span className="font-mono font-semibold">{deactivateWh.code}</span> —{' '}
             {deactivateWh.name}? This warehouse will no longer appear in default operational lists.
           </p>
         ) : null}
       </ConfirmModal>
-    </div>
+    </AdminListPageShell>
   );
 }
 
@@ -336,7 +339,7 @@ function CreateWarehouseModal({ open, onClose, loading, onSubmit }: CreateWareho
       title="New warehouse"
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
+          <Button type="button" variant="danger" onClick={handleClose} disabled={loading}>
             Cancel
           </Button>
           <Button form="create-wh" type="submit" loading={loading}>
@@ -429,7 +432,7 @@ function EditWarehouseModal({
       title={`Edit ${warehouse.code}`}
       footer={
         <>
-          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+          <Button type="button" variant="danger" onClick={onClose} disabled={loading}>
             Cancel
           </Button>
           <Button type="submit" form="edit-wh" loading={loading}>

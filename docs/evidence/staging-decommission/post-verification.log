@@ -1,0 +1,19 @@
+=== 2026-06-12T17:06:13Z Post-decommission verification ===
+--- Health live ---
+{"success":true,"data":{"status":"ok","timestamp":"2026-06-12T17:06:13.368Z"}}
+--- Health ready ---
+{"success":true,"data":{"status":"ok","checks":{"db":"ok","redis":"disabled","websocket":"ok","process":"ok","queues":"ok"},"timestamp":"2026-06-12T17:06:13.482Z"}}
+--- Admin SPA ---
+admin=200 time=0.062026s
+--- Client SPA ---
+client=200 time=0.063075s
+--- Staging admin (expect fail) ---
+staging-admin=200
+--- PM2 ---
+PM2 emdad-wms-backend online
+--- nginx ---
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+--- Disk ---
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1        96G   13G   84G  13% /

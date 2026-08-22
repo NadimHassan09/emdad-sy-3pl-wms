@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
+import { Alert, ListPageHeader } from '@ds';
 import {
   ReturnsApi,
   type ReturnOrder,
@@ -10,7 +11,6 @@ import {
 import { Button } from '../../components/Button';
 import { Column, DataTable } from '../../components/DataTable';
 import { ConfirmModal } from '../../components/ConfirmModal';
-import { PageHeader } from '../../components/PageHeader';
 import { StatusBadge } from '../../components/StatusBadge';
 import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
@@ -179,30 +179,52 @@ export function ReturnDetailPage() {
   );
 
   if (detail.isLoading) {
-    return <p className="text-sm text-slate-500">{t('Loading…', 'جاري التحميل…')}</p>;
+    return (
+      <div className="space-y-5 animate-enter pb-8">
+        <Link
+          to="/returns"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+        >
+          <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+          {t('Back to returns', 'العودة إلى الإرجاعات')}
+        </Link>
+        <p className="text-sm text-text-muted">{t('Loading…', 'جاري التحميل…')}</p>
+      </div>
+    );
   }
 
   if (!order) {
-    return <p className="text-sm text-red-600">{t('Return not found.', 'الإرجاع غير موجود.')}</p>;
+    return (
+      <div className="space-y-5 animate-enter pb-8">
+        <Link
+          to="/returns"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+        >
+          <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+          {t('Back to returns', 'العودة إلى الإرجاعات')}
+        </Link>
+        <Alert variant="error" title={t('Return not found.', 'الإرجاع غير موجود.')} />
+      </div>
+    );
   }
 
   const summary = (o: ReturnOrder) => (
-    <div className="mb-4 grid gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+    <div className="mb-4 grid gap-3 rounded-lg border border-border bg-surface-sunken/80 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
       <div>
-        <span className="text-xs text-slate-500">{t('Client', 'العميل')}</span>
+        <span className="text-xs text-text-muted">{t('Client', 'العميل')}</span>
         <p className="font-medium">{o.company.name}</p>
       </div>
       <div>
-        <span className="text-xs text-slate-500">{t('Warehouse', 'المستودع')}</span>
+        <span className="text-xs text-text-muted">{t('Warehouse', 'المستودع')}</span>
         <p className="font-medium">{o.warehouse?.code ?? '—'}</p>
       </div>
       <div>
-        <span className="text-xs text-slate-500">{t('Outbound', 'الصادر')}</span>
+        <span className="text-xs text-text-muted">{t('Outbound', 'الصادر')}</span>
         <p>
           {o.originalOutbound ? (
             <Link
               to={`/orders/outbound/${o.originalOutbound.id}`}
-              className="font-mono text-sky-800 hover:underline"
+              className="font-mono text-text-link hover:underline"
             >
               {o.originalOutbound.orderNumber}
             </Link>
@@ -212,38 +234,44 @@ export function ReturnDetailPage() {
         </p>
       </div>
       <div>
-        <span className="text-xs text-slate-500">{t('Status', 'الحالة')}</span>
+        <span className="text-xs text-text-muted">{t('Status', 'الحالة')}</span>
         <p>
           <StatusBadge status={o.status} />
         </p>
       </div>
       {o.notes ? (
         <div className="sm:col-span-2 lg:col-span-4">
-          <span className="text-xs text-slate-500">{t('Notes', 'ملاحظات')}</span>
+          <span className="text-xs text-text-muted">{t('Notes', 'ملاحظات')}</span>
           <p className="whitespace-pre-wrap">{o.notes}</p>
         </div>
       ) : null}
       <div>
-        <span className="text-xs text-slate-500">{t('Created', 'أُنشئ')}</span>
+        <span className="text-xs text-text-muted">{t('Created', 'أُنشئ')}</span>
         <p>{formatDt(o.createdAt, locale)}</p>
       </div>
       <div>
-        <span className="text-xs text-slate-500">{t('Completed', 'اكتمل')}</span>
+        <span className="text-xs text-text-muted">{t('Completed', 'اكتمل')}</span>
         <p>{formatDt(o.completedAt, locale)}</p>
       </div>
     </div>
   );
 
   return (
-    <div className="pb-8">
-      <PageHeader
+    <div className="space-y-5 animate-enter pb-8">
+      <Link
+        to="/returns"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-text-muted transition-colors hover:text-text-strong"
+      >
+        <i className="fa-solid fa-arrow-left rtl:rotate-180 text-xs" aria-hidden="true" />
+        {t('Back to returns', 'العودة إلى الإرجاعات')}
+      </Link>
+
+      <ListPageHeader
+        icon="fa-rotate-left"
         title={order.orderNumber}
-        description={order.company.name}
+        subtitle={order.company.name}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Link to="/returns">
-              <Button variant="ghost">{t('Back', 'رجوع')}</Button>
-            </Link>
             {canProcess ? (
               <Link to={`/returns/${id}/process`}>
                 <Button variant="primary">{t('Process', 'معالجة')}</Button>
@@ -281,7 +309,7 @@ export function ReturnDetailPage() {
 
       {summary(order)}
 
-      <h2 className="mb-2 text-sm font-semibold text-slate-800">{t('Lines', 'البنود')}</h2>
+      <h2 className="mb-2 text-sm font-semibold text-text-strong">{t('Lines', 'البنود')}</h2>
       <DataTable columns={lineCols} rows={order.lines} rowKey={(l) => l.id} />
 
       <ConfirmModal

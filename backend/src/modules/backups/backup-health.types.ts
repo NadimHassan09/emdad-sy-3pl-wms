@@ -73,4 +73,13 @@ export type BackupHealthResponse = {
   metrics: BackupHealthMetrics;
   healthStatus: BackupHealthSeverity;
   alerts: BackupHealthAlert[];
+  /** Real VPS volume breakdown for Storage Overview. */
+  diskStorage: {
+    usedBytes: number;
+    reservedBytes: number;
+    availableBytes: number;
+    totalBytes: number;
+    mountPath: string;
+    emdadPaths: string[];
+  };
 };

@@ -13,24 +13,51 @@ exports.ClientInboundOrdersService = void 0;
 const common_1 = require("@nestjs/common");
 const client_auth_principal_1 = require("../../../common/auth/client-auth-principal");
 const inbound_service_1 = require("../../inbound/inbound.service");
+const client_list_inbound_query_dto_1 = require("./dto/client-list-inbound-query.dto");
+function toProductImageUrl(imagePath) {
+    if (!imagePath?.trim())
+        return null;
+    return `/media/${imagePath.replace(/^\/+/, '')}`;
+}
 let ClientInboundOrdersService = class ClientInboundOrdersService {
     inbound;
     constructor(inbound) {
         this.inbound = inbound;
     }
     async findOne(client, id) {
-        return this.inbound.findById(id, (0, client_auth_principal_1.clientAuthPrincipal)(client));
+        const order = await this.inbound.findById(id, (0, client_auth_principal_1.clientAuthPrincipal)(client));
+        return {
+            ...order,
+            lines: order.lines.map((line) => ({
+                ...line,
+                product: {
+                    ...line.product,
+                    imageUrl: toProductImageUrl(line.product.imagePath),
+                },
+            })),
+        };
     }
     async list(client, query) {
-        return this.inbound.list((0, client_auth_principal_1.clientAuthPrincipal)(client), {
-            ...query,
+        const principal = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        const base = {
+            limit: query.limit,
+            offset: query.offset,
+            orderSearch: query.orderSearch,
             companyId: client.companyId,
-        });
+        };
+        if (query.status === 'in_progress') {
+            base.statusIn = client_list_inbound_query_dto_1.CLIENT_INBOUND_IN_PROGRESS_STATUSES;
+        }
+        else if (query.status) {
+            base.status = query.status;
+        }
+        return this.inbound.list(principal, base);
     }
     async create(client, dto) {
-        return this.inbound.create((0, client_auth_principal_1.clientAuthPrincipal)(client), dto, {
-            pendingClientApproval: true,
-        });
+        return this.inbound.create((0, client_auth_principal_1.clientAuthPrincipal)(client), { ...dto, executionMode: 'admin', executionPlan: undefined }, { pendingClientApproval: true });
+    }
+    async findByExternalReference(client, externalReference) {
+        return this.inbound.findByExternalReference((0, client_auth_principal_1.clientAuthPrincipal)(client), client.companyId, externalReference);
     }
 };
 exports.ClientInboundOrdersService = ClientInboundOrdersService;

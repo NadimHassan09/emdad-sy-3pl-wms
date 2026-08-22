@@ -1,24 +1,72 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Header,
+  Param,
+  Post,
+  Query,
+  Res,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
+import type { Response } from 'express';
+import { memoryStorage } from 'multer';
 
 import { CreateInboundOrderDto } from '../../inbound/dto/create-inbound.dto';
 
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { ParseUuidLoosePipe } from '../../../common/pipes/parse-uuid-loose.pipe';
-import { ListInboundQueryDto } from '../../inbound/dto/list-inbound-query.dto';
 import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
+import { InboundClientImportService } from '../order-import/inbound-client-import.service';
 import { ClientInboundOrdersService } from './client-inbound-orders.service';
+import { ClientListInboundQueryDto } from './dto/client-list-inbound-query.dto';
 
 @Public()
 @UseGuards(JwtClientAuthGuard)
 @Controller('client/inbound-orders')
 export class ClientInboundOrdersController {
-  constructor(private readonly inbound: ClientInboundOrdersService) {}
+  constructor(
+    private readonly inbound: ClientInboundOrdersService,
+    private readonly importSvc: InboundClientImportService,
+  ) {}
 
   @Get()
-  list(@ClientUser() client: ClientPrincipal, @Query() query: ListInboundQueryDto) {
+  list(@ClientUser() client: ClientPrincipal, @Query() query: ClientListInboundQueryDto) {
     return this.inbound.list(client, query);
+  }
+
+  @Get('import/template')
+  @Header('Cache-Control', 'no-store')
+  importTemplate(@Res({ passthrough: true }) res: Response) {
+    const result = this.importSvc.getImportTemplate();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    return result.body;
+  }
+
+  @Post('import')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  async importOrders(
+    @ClientUser() client: ClientPrincipal,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Excel or CSV file is required.');
+    }
+    return this.importSvc.importFile(client, file.buffer, file.originalname);
   }
 
   @Get(':id')

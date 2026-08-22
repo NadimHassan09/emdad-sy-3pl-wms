@@ -13,6 +13,7 @@ exports.WorkflowOrchestrationService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
+const oms_warehouse_guards_1 = require("../oms/oms-warehouse-guards");
 const execution_state_location_util_1 = require("./execution-state-location.util");
 const task_sla_defaults_1 = require("./task-sla-defaults");
 let WorkflowOrchestrationService = class WorkflowOrchestrationService {
@@ -277,7 +278,7 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
                         select: { requiresPacking: true },
                     });
                     if (order?.requiresPacking === false) {
-                        await this.enqueueDispatchTaskIfNeeded(tx, wf.id, orderId, completedTask.id);
+                        await this.spawnShippingDetailsIfNeeded(tx, wf.id, orderId);
                     }
                     else {
                         await this.spawnPackIfNeeded(tx, wf.id, orderId);
@@ -286,8 +287,11 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
                 break;
             case client_1.WarehouseTaskType.pack:
                 if (body.task_type === 'pack') {
-                    await this.enqueueDispatchTaskIfNeeded(tx, wf.id, orderId);
+                    await this.spawnShippingDetailsIfNeeded(tx, wf.id, orderId);
                 }
+                break;
+            case client_1.WarehouseTaskType.shipping_details:
+                await this.enqueueDispatchTaskIfNeeded(tx, wf.id, orderId);
                 break;
             case client_1.WarehouseTaskType.dispatch:
                 if (body.task_type === 'dispatch') {
@@ -343,6 +347,52 @@ let WorkflowOrchestrationService = class WorkflowOrchestrationService {
                 payload: {
                     outbound_order_id: orderId,
                     outbound_order_line_ids: order.lines.map((l) => l.id),
+                },
+            },
+        });
+    }
+    async spawnShippingDetailsIfNeeded(tx, instanceId, orderId) {
+        const existing = await tx.warehouseTask.findFirst({
+            where: {
+                workflowInstanceId: instanceId,
+                taskType: client_1.WarehouseTaskType.shipping_details,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+        if (existing &&
+            [client_1.WarehouseTaskStatus.pending, client_1.WarehouseTaskStatus.assigned, client_1.WarehouseTaskStatus.in_progress].includes(existing.status)) {
+            return;
+        }
+        if (existing?.status === client_1.WarehouseTaskStatus.completed) {
+            return;
+        }
+        const order = await tx.outboundOrder.findUnique({
+            where: { id: orderId },
+            select: { id: true, status: true },
+        });
+        if (!order)
+            throw new common_1.BadRequestException('Outbound order missing for shipping_details spawn.');
+        if (!(0, oms_warehouse_guards_1.outboundAllowsShippingDetailsSpawn)(order.status)) {
+            return;
+        }
+        const seq = await this.nextNodeSequence(tx, instanceId);
+        const node = await tx.workflowNode.create({
+            data: {
+                instanceId,
+                stepKind: client_1.WorkflowStepKind.shipping_details,
+                sequence: seq,
+                status: 'pending',
+            },
+        });
+        await tx.warehouseTask.create({
+            data: {
+                workflowInstanceId: instanceId,
+                workflowNodeId: node.id,
+                taskType: client_1.WarehouseTaskType.shipping_details,
+                status: client_1.WarehouseTaskStatus.pending,
+                slaMinutes: (0, task_sla_defaults_1.defaultSlaMinutesForTaskType)(client_1.WarehouseTaskType.shipping_details),
+                payload: {
+                    outbound_order_id: orderId,
                 },
             },
         });

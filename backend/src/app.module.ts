@@ -35,6 +35,13 @@ import { WarehouseWorkflowModule } from './modules/warehouse-workflow/warehouse-
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { FormsModule } from './modules/forms/forms.module';
+import { FinalContractsModule } from './modules/final-contracts/final-contracts.module';
+import { OmsModule } from './modules/oms/oms.module';
+import { CodModule } from './modules/cod/cod.module';
+import { OmsReturnsModule } from './modules/oms-returns/oms-returns.module';
+import { ShippingModule } from './modules/shipping/shipping.module';
+import { PdfModule } from './pdf/pdf.module';
 
 @Module({
   imports: [
@@ -82,6 +89,13 @@ import { ReportsModule } from './modules/reports/reports.module';
     WarehouseWorkflowModule,
     RealtimeModule,
     ReportsModule,
+    FormsModule,
+    FinalContractsModule,
+    OmsModule,
+    CodModule,
+    OmsReturnsModule,
+    ShippingModule,
+    PdfModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

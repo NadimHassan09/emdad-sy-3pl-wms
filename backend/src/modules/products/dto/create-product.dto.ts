@@ -16,7 +16,7 @@ import {
 
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 
-/** Lot tracking remains server-enforced (`trackingType: lot`). `expiryTracking` is optional (defaults true if omitted). */
+/** Lot tracking remains server-enforced (`trackingType: lot`). `expiryTracking` is optional (defaults false if omitted). */
 export class CreateProductDto {
   @IsUuidLoose()
   companyId!: string;

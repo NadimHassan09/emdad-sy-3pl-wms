@@ -8,6 +8,7 @@ export const DEFAULT_SLA_MINUTES_BY_TASK_TYPE: Partial<Record<WarehouseTaskType,
   [WarehouseTaskType.putaway_quarantine]: 2880,
   [WarehouseTaskType.pick]: 480,
   [WarehouseTaskType.pack]: 240,
+  [WarehouseTaskType.shipping_details]: 480,
   [WarehouseTaskType.dispatch]: 360,
 };
 

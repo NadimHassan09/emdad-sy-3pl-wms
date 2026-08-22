@@ -3,7 +3,6 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import { type AddAdjustmentLineInput } from '../../api/adjustments';
 import { InventoryApi, type StockRow } from '../../api/inventory';
-import { LocationsApi } from '../../api/locations';
 import { ProductsApi, type ProductListQuery } from '../../api/products';
 import { BarcodeScanIcon } from '../BarcodeScanIcon';
 import { BarcodeScanModal } from '../BarcodeScanModal';
@@ -13,7 +12,13 @@ import { SelectField } from '../SelectField';
 import { TextField } from '../TextField';
 import { useToast } from '../ToastProvider';
 import { QK } from '../../constants/query-keys';
-import { isAdjustmentStockLocationType } from '../../lib/location-types';
+import { useResolvedLocations } from '../../hooks/useResolvedLocations';
+import {
+  buildAdjustmentStockLocationOptions,
+  uniqueStockLocationIds,
+} from '../../lib/inventory-location-options';
+import type { LocalizedMessage } from '../../lib/ui-i18n';
+import { localizedLocationTypeLabel } from '../../lib/ui-labels/locations';
 
 type ProductSearchCategory = 'name' | 'sku' | 'barcode';
 
@@ -59,6 +64,16 @@ export function AddAdjustmentLineForm({
     typeof window !== 'undefined' &&
     (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = (en: string, ar: string) => (isArabic ? ar : en);
+  const resolveMsg = (msg: LocalizedMessage): string => {
+    if (typeof msg === 'string') return msg;
+    if (Array.isArray(msg)) {
+      const [en, ar] = msg as readonly [string, string];
+      return isArabic ? ar : en;
+    }
+    const obj = msg as { en: string; ar: string };
+    return isArabic ? obj.ar : obj.en;
+  };
+  const typeLabelFn = (type: string) => localizedLocationTypeLabel(type, resolveMsg);
   const toast = useToast();
   const [productSearchCategory, setProductSearchCategory] = useState<ProductSearchCategory>('name');
   const [productSearch, setProductSearch] = useState('');
@@ -120,17 +135,6 @@ export function AddAdjustmentLineForm({
     staleTime: 60_000,
   });
 
-  const locs = useQuery({
-    queryKey: QK.locationsFlat(scope.warehouseId, false),
-    queryFn: () => LocationsApi.list(scope.warehouseId),
-    staleTime: 5 * 60_000,
-  });
-
-  const adjustmentLocations = useMemo(
-    () => (locs.data ?? []).filter((l) => isAdjustmentStockLocationType(l.type)),
-    [locs.data],
-  );
-
   const stockByProduct = useQuery({
     queryKey: [
       ...QK.inventoryStock,
@@ -151,10 +155,24 @@ export function AddAdjustmentLineForm({
     staleTime: 30_000,
   });
 
-  const adjustmentLocationsWithProduct = useMemo(() => {
-    const ids = new Set((stockByProduct.data?.items ?? []).map((r) => r.locationId));
-    return adjustmentLocations.filter((l) => ids.has(l.id));
-  }, [adjustmentLocations, stockByProduct.data?.items]);
+  const stockLocationIds = useMemo(
+    () => uniqueStockLocationIds(stockByProduct.data?.items ?? []),
+    [stockByProduct.data?.items],
+  );
+
+  const { locationById } = useResolvedLocations(
+    productId && stockByProduct.isFetched ? stockLocationIds : [],
+  );
+
+  const adjustmentLocationsWithProduct = useMemo(
+    () =>
+      buildAdjustmentStockLocationOptions({
+        stockItems: stockByProduct.data?.items ?? [],
+        locationById,
+        typeLabel: typeLabelFn,
+      }),
+    [stockByProduct.data?.items, locationById, isArabic],
+  );
 
   const validProductLocationIds = useMemo(
     () => new Set(adjustmentLocationsWithProduct.map((l) => l.id)),
@@ -221,7 +239,7 @@ export function AddAdjustmentLineForm({
       body.lotId = lotId;
     }
 
-    const loc = adjustmentLocations.find((l) => l.id === locationId);
+    const loc = locationById.get(locationId);
     const lotLabel =
       productMeta.trackingType === 'lot' && lotId
         ? (lots.data ?? []).find((lot) => lot.id === lotId)?.lotNumber
@@ -242,9 +260,9 @@ export function AddAdjustmentLineForm({
   };
 
   return (
-    <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+    <div className="space-y-3 rounded-md border border-border bg-surface-card p-3 shadow-sm">
       <form onSubmit={submit} className="space-y-3">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">
           {t('Add line', 'إضافة بند')}
         </div>
         <div className="grid w-full grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(8.75rem,11rem)_auto]">
@@ -301,8 +319,8 @@ export function AddAdjustmentLineForm({
             disabled={!productId || stockByProduct.isPending}
             options={adjustmentLocationsWithProduct.map((l) => ({
               value: l.id,
-              label: l.fullPath,
-              hint: `${l.type} · ${l.barcode}`,
+              label: l.label,
+              hint: l.hint,
             }))}
             placeholder={
               !productId
@@ -344,12 +362,12 @@ export function AddAdjustmentLineForm({
         )}
 
         {showOnHandPanel ? (
-          <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-            <span className="font-medium text-slate-600">{t('Quantity:', 'الكمية:')}</span>{' '}
+          <div className="rounded border border-border bg-surface-card-muted px-3 py-2 text-xs text-text-body">
+            <span className="font-medium text-text-body">{t('Quantity:', 'الكمية:')}</span>{' '}
             {stockQtyPending ? (
-              <span className="text-slate-400">…</span>
+              <span className="text-text-muted">…</span>
             ) : stockRow ? (
-              <span className="font-mono font-semibold text-slate-900">
+              <span className="font-mono font-semibold text-text-strong">
                 {(() => {
                   const n = Number(stockRow.quantityOnHand);
                   return Number.isFinite(n)
@@ -358,11 +376,11 @@ export function AddAdjustmentLineForm({
                 })()}
               </span>
             ) : (
-              <span className="font-mono text-slate-500">—</span>
+              <span className="font-mono text-text-muted">—</span>
             )}
-            <span className="text-slate-500"> · </span>
-            <span className="font-medium text-slate-600">{t('UOM:', 'وحدة القياس:')}</span>{' '}
-            <span className="uppercase text-slate-800">{quantityUom}</span>
+            <span className="text-text-muted"> · </span>
+            <span className="font-medium text-text-body">{t('UOM:', 'وحدة القياس:')}</span>{' '}
+            <span className="uppercase text-text-strong">{quantityUom}</span>
           </div>
         ) : null}
 

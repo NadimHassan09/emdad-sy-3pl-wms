@@ -24,9 +24,13 @@ type Props = {
 const emptyCreate = (companyId = ''): CreateBillingPlanPayload => ({
   companyId,
   cycleLengthDays: 30,
+  autoRenew: true,
   fixedSubscriptionFee: 0,
   inboundOrderFee: 0,
   outboundOrderFee: 0,
+  outboundBaseFee: 0,
+  outboundIncludedItems: 0,
+  outboundAdditionalItemFee: 0,
   packagingFee: 0,
   qualityCheckFee: 0,
   excessVolumeFeePerDay: 0,
@@ -66,10 +70,16 @@ export function BillingPlanFormModal({
     setForm({
       companyId: plan.companyId,
       active: plan.active,
+      autoRenew: plan.autoRenew !== false,
+      planType: plan.planType ?? 'custom',
+      templateId: plan.templateId ?? undefined,
       cycleLengthDays: plan.cycleLengthDays,
       fixedSubscriptionFee: Number(plan.fixedSubscriptionFee),
       inboundOrderFee: Number(plan.inboundOrderFee),
       outboundOrderFee: Number(plan.outboundOrderFee),
+      outboundBaseFee: Number(plan.outboundBaseFee ?? plan.outboundOrderFee),
+      outboundIncludedItems: plan.outboundIncludedItems ?? 0,
+      outboundAdditionalItemFee: Number(plan.outboundAdditionalItemFee ?? 0),
       packagingFee: Number(plan.packagingFee),
       qualityCheckFee: Number(plan.qualityCheckFee),
       excessVolumeFeePerDay: Number(plan.excessVolumeFeePerDay),
@@ -101,7 +111,7 @@ export function BillingPlanFormModal({
       widthClass="max-w-2xl"
       footer={
         <>
-          <Button type="button" variant="secondary" className={MODAL_CANCEL_BUTTON_CLASS} onClick={onClose}>
+          <Button type="button" variant="danger" className={MODAL_CANCEL_BUTTON_CLASS} onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" form="billing-plan-form" variant="brand" disabled={saving}>
@@ -148,12 +158,38 @@ export function BillingPlanFormModal({
           onChange={(e) => setForm((f) => ({ ...f, inboundOrderFee: numField(e.target.value) ?? 0 }))}
         />
         <TextField
-          label="Outbound order fee"
+          label="Outbound base fee (per order)"
           type="number"
           min={0}
-          step="0.0001"
-          value={String(form.outboundOrderFee ?? '')}
-          onChange={(e) => setForm((f) => ({ ...f, outboundOrderFee: numField(e.target.value) ?? 0 }))}
+          step="0.01"
+          value={String(form.outboundBaseFee ?? form.outboundOrderFee ?? '')}
+          onChange={(e) =>
+            setForm((f) => ({
+              ...f,
+              outboundBaseFee: numField(e.target.value) ?? 0,
+              outboundOrderFee: numField(e.target.value) ?? 0,
+            }))
+          }
+        />
+        <TextField
+          label="Outbound included items (per order)"
+          type="number"
+          min={0}
+          step="1"
+          value={String(form.outboundIncludedItems ?? 0)}
+          onChange={(e) =>
+            setForm((f) => ({ ...f, outboundIncludedItems: Number(e.target.value) || 0 }))
+          }
+        />
+        <TextField
+          label="Outbound fee per additional item"
+          type="number"
+          min={0}
+          step="0.01"
+          value={String(form.outboundAdditionalItemFee ?? '')}
+          onChange={(e) =>
+            setForm((f) => ({ ...f, outboundAdditionalItemFee: numField(e.target.value) ?? 0 }))
+          }
         />
         <TextField
           label="Packaging fee"
@@ -211,12 +247,27 @@ export function BillingPlanFormModal({
               checked={form.active ?? true}
               onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
             />
-            <span className="text-sm text-slate-700">Plan active</span>
+            <span className="text-sm text-text-body">Plan active</span>
           </label>
         ) : null}
 
+        <label className="flex items-start gap-2 sm:col-span-2">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={form.autoRenew ?? true}
+            onChange={(e) => setForm((f) => ({ ...f, autoRenew: e.target.checked }))}
+          />
+          <span className="text-sm text-text-body">
+            Auto-renewal
+            <span className="mt-0.5 block text-xs text-text-muted">
+              Automatically start the next cycle when the current one ends.
+            </span>
+          </span>
+        </label>
+
         {mode === 'edit' ? (
-          <p className="sm:col-span-2 text-xs text-slate-500">
+          <p className="sm:col-span-2 text-xs text-text-muted">
             Rate changes apply to future billing cycles only. The current cycle invoice uses snapshotted rates.
           </p>
         ) : null}

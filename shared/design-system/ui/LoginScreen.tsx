@@ -135,7 +135,10 @@ export function LoginScreen({
 
           <form className="mt-8 space-y-4" onSubmit={onSubmit}>
             <div>
-              <label htmlFor="login-email" className="sr-only">
+              <label
+                htmlFor="login-email"
+                className="mb-1.5 block text-sm font-medium text-neutral-700"
+              >
                 {emailLabel}
               </label>
               <LoginField
@@ -150,7 +153,10 @@ export function LoginScreen({
             </div>
 
             <div>
-              <label htmlFor="login-password" className="sr-only">
+              <label
+                htmlFor="login-password"
+                className="mb-1.5 block text-sm font-medium text-neutral-700"
+              >
                 {passwordLabel}
               </label>
               <LoginField
@@ -202,7 +208,7 @@ export function LoginScreen({
                 'hover:bg-[#146135] active:scale-[0.99]',
                 'disabled:cursor-not-allowed disabled:opacity-60',
               )}
-              style={{ backgroundColor: '#187440' }}
+              style={{ backgroundColor: 'var(--color-brand-600, #059669)' }}
             >
               {loading ? submittingLabel : submitLabel}
             </button>
@@ -218,7 +224,7 @@ export function LoginScreen({
           style={{
             backgroundColor: '#072019',
             backgroundImage:
-              'linear-gradient(145deg, #072019 0%, #0a2d23 42%, #146135 88%, #1a7a44 100%)',
+              'linear-gradient(145deg, #064e3b 0%, #065f46 42%, #047857 88%, #059669 100%)',
           }}
         >
           <button

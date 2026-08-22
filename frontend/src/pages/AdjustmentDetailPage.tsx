@@ -89,7 +89,7 @@ export function AdjustmentDetailPage() {
         header: t('Barcode', 'الباركود'),
         accessor: (l) =>
           !l.product.barcode?.trim() ? (
-            <span className="text-slate-400">—</span>
+            <span className="text-text-muted">—</span>
           ) : (
             <span className="font-mono text-[11px]">{l.product.barcode}</span>
           ),
@@ -127,16 +127,16 @@ export function AdjustmentDetailPage() {
   );
 
   if (!id) return null;
-  if (!wid) return <p className="text-sm text-slate-600">Resolve warehouse configuration…</p>;
-  if (detail.isLoading) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (!wid) return <p className="text-sm text-text-body">Resolve warehouse configuration…</p>;
+  if (detail.isLoading) return <p className="text-sm text-text-muted">Loading…</p>;
   if (detail.isError || !adj)
-    return <p className="text-sm text-rose-600">Adjustment not found.</p>;
+    return <p className="text-sm text-status-danger-fg">Adjustment not found.</p>;
 
   const isDraft = adj.status === 'draft';
 
   return (
     <>
-      <div className="mb-2 text-sm text-slate-500">
+      <div className="mb-2 text-sm text-text-muted">
         <Link to="/inventory/adjustments" className="hover:underline">
           ← {t('All adjustments', 'كل التعديلات')}
         </Link>

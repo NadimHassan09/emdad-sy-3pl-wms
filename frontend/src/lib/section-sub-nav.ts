@@ -9,6 +9,7 @@ import {
   normalizeInternalRole,
   type InternalRole,
 } from './rbac';
+import { isOmsCodReturnsPath, isOmsCodReturnsUiEnabled } from './oms-cod-returns-ui';
 
 export type SectionSubNavItemConfig = {
   labelKey: string;
@@ -26,9 +27,11 @@ function tasksListTaskTypeMatch(pathname: string, search: string, taskType: stri
   return pathname === '/tasks' && taskTypeFromSearch(search) === taskType;
 }
 
-/** Inbound/outbound order detail — sub-nav tabs are list-only. */
+/** Inbound/outbound detail, create, and plan-edit — sub-nav tabs are list-only. */
 function isOrdersDetailPath(pathname: string): boolean {
-  return /^\/orders\/(inbound|outbound)\/[^/]+$/.test(pathname);
+  if (/^\/orders\/(inbound|outbound)\/new$/.test(pathname)) return true;
+  if (/^\/orders\/(inbound|outbound)\/[^/]+(?:\/edit)?$/.test(pathname)) return true;
+  return /^\/orders\/oms\/[^/]+$/.test(pathname);
 }
 
 export type SectionSubNavConfig = {
@@ -45,12 +48,10 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
       {
         labelKey: 'Stock',
         to: '/inventory/stock',
-        match: (p) => p === '/inventory/stock' || p.startsWith('/inventory/product/'),
-      },
-      {
-        labelKey: 'Ledger',
-        to: '/inventory/ledger',
-        match: (p) => p.startsWith('/inventory/ledger'),
+        match: (p) =>
+          p === '/inventory/stock' ||
+          p.startsWith('/inventory/product/') ||
+          p.startsWith('/inventory/ledger'),
       },
       {
         labelKey: 'Adjustments',
@@ -61,7 +62,8 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
   },
   {
     ariaLabelKey: 'Orders navigation',
-    matchSection: (p) => p.startsWith('/orders') && !isOrdersDetailPath(p),
+    matchSection: (p) =>
+      p.startsWith('/orders') && !isOrdersDetailPath(p) && !p.startsWith('/orders/oms'),
     items: [
       {
         labelKey: 'Inbound orders',
@@ -72,6 +74,34 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
         labelKey: 'Outbound orders',
         to: '/orders/outbound',
         match: (p) => p.startsWith('/orders/outbound'),
+      },
+    ],
+  },
+  {
+    ariaLabelKey: 'OMS navigation',
+    matchSection: (p) =>
+      p.startsWith('/oms') ||
+      (p.startsWith('/orders/oms') && !/^\/orders\/oms\/[^/]+$/.test(p)),
+    items: [
+      {
+        labelKey: 'OMS Dashboard',
+        to: '/oms/dashboard',
+        match: (p) => p === '/oms/dashboard' || p === '/oms',
+      },
+      {
+        labelKey: 'OMS Orders',
+        to: '/orders/oms',
+        match: (p) => p === '/orders/oms' || p.startsWith('/orders/oms/') || p.startsWith('/oms/orders'),
+      },
+      {
+        labelKey: 'COD',
+        to: '/oms/cod',
+        match: (p) => p === '/oms/cod' || p.startsWith('/oms/cod/'),
+      },
+      {
+        labelKey: 'OMS Returns',
+        to: '/oms/returns',
+        match: (p) => p === '/oms/returns' || p.startsWith('/oms/returns/'),
       },
     ],
   },
@@ -90,14 +120,24 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
         match: (p, s) => p.startsWith('/tasks') && !taskTypeFromSearch(s),
       },
       {
-        labelKey: 'Receive',
+        labelKey: 'Receiving',
         to: '/tasks?taskType=receiving',
         match: (p, s) => tasksListTaskTypeMatch(p, s, 'receiving'),
+      },
+      {
+        labelKey: 'Quality check',
+        to: '/tasks?taskType=qc',
+        match: (p, s) => tasksListTaskTypeMatch(p, s, 'qc'),
       },
       {
         labelKey: 'Putaway',
         to: '/tasks?taskType=putaway',
         match: (p, s) => tasksListTaskTypeMatch(p, s, 'putaway'),
+      },
+      {
+        labelKey: 'Quarantine putaway',
+        to: '/tasks?taskType=putaway_quarantine',
+        match: (p, s) => tasksListTaskTypeMatch(p, s, 'putaway_quarantine'),
       },
       {
         labelKey: 'Pick',
@@ -110,7 +150,12 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
         match: (p, s) => tasksListTaskTypeMatch(p, s, 'pack'),
       },
       {
-        labelKey: 'Delivery',
+        labelKey: 'Shipping details',
+        to: '/tasks?taskType=shipping_details',
+        match: (p, s) => tasksListTaskTypeMatch(p, s, 'shipping_details'),
+      },
+      {
+        labelKey: 'Dispatch',
         to: '/tasks?taskType=dispatch',
         match: (p, s) => tasksListTaskTypeMatch(p, s, 'dispatch'),
       },
@@ -119,6 +164,27 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
         to: '/internal',
         match: (p) => p === '/internal',
         roles: ['super_admin', 'wh_manager'],
+      },
+    ],
+  },
+  {
+    ariaLabelKey: 'Contracts navigation',
+    matchSection: (p) => p.startsWith('/contracts'),
+    items: [
+      {
+        labelKey: 'GRN',
+        to: '/contracts/grn',
+        match: (p) => p.startsWith('/contracts/grn'),
+      },
+      {
+        labelKey: 'Delivery note',
+        to: '/contracts/dn',
+        match: (p) => p.startsWith('/contracts/dn'),
+      },
+      {
+        labelKey: 'Final contract',
+        to: '/contracts/final-contract',
+        match: (p) => p.startsWith('/contracts/final-contract'),
       },
     ],
   },
@@ -204,6 +270,7 @@ export function filterSectionSubNavItems(
 ): SectionSubNavItemConfig[] {
   const role = user?.role;
   return items.filter((item) => {
+    if (!isOmsCodReturnsUiEnabled() && isOmsCodReturnsPath(item.to)) return false;
     if (item.roles) {
       const normalized = normalizeInternalRole(role);
       if (!normalized || !item.roles.includes(normalized)) return false;
@@ -225,12 +292,26 @@ export function sectionSubNavLabel(label: string, isArabic: boolean): string {
     'Orders navigation': 'تنقل الطلبات',
     'Inbound orders': 'طلبات الوارد',
     'Outbound orders': 'طلبات الصادر',
+    'Quick outbound': 'إخراج سريع',
+    'OMS navigation': 'تنقل OMS',
+    'OMS Dashboard': 'لوحة OMS',
+    'OMS Orders': 'طلبات OMS',
+    COD: 'COD',
+    'OMS Returns': 'مرتجعات OMS',
+    'Contracts navigation': 'تنقل العقود',
+    GRN: 'GRN',
+    'Delivery note': 'إشعار تسليم',
+    'Final contract': 'العقد النهائي',
     'Tasks navigation': 'تنقل المهام',
     Tasks: 'المهام',
+    Receiving: 'استلام',
     Receive: 'استلام',
+    'Quality check': 'فحص الجودة',
     Putaway: 'تخزين',
+    'Quarantine putaway': 'تخزين الحجر الصحي',
     Pick: 'التقاط',
     Pack: 'تغليف',
+    Dispatch: 'إرسال',
     Delivery: 'تسليم',
     'Internal transfer': 'نقل داخلي',
     'Returns navigation': 'تنقل الإرجاعات',

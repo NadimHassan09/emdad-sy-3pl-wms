@@ -15,6 +15,7 @@ const company_access_service_1 = require("../../common/company-access/company-ac
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const billing_invoice_calculation_service_1 = require("./billing-invoice-calculation.service");
 const billing_usage_service_1 = require("./billing-usage.service");
+const billing_invoices_service_1 = require("./billing-invoices.service");
 let BillingPreviewService = class BillingPreviewService {
     prisma;
     companyAccess;
@@ -36,6 +37,9 @@ let BillingPreviewService = class BillingPreviewService {
                 reservedVolume: true,
                 reservedWeight: true,
                 fixedSubscriptionFee: true,
+                outboundBaseFee: true,
+                outboundIncludedItems: true,
+                outboundAdditionalItemFee: true,
             },
         });
         if (!plan)
@@ -61,21 +65,7 @@ let BillingPreviewService = class BillingPreviewService {
         await this.invoiceCalc.recalculateForCompany(companyId, 'manual_preview');
         const invoice = await this.prisma.invoice.findFirst({
             where: { billingCycleId: cycle.id, status: 'draft' },
-            select: {
-                id: true,
-                invoiceNumber: true,
-                status: true,
-                totalAmount: true,
-                lines: {
-                    select: {
-                        id: true,
-                        type: true,
-                        quantity: true,
-                        unitPrice: true,
-                        totalPrice: true,
-                    },
-                },
-            },
+            select: billing_invoices_service_1.INVOICE_SELECT,
         });
         const usageTotals = await this.usage.getCompanyUsage(companyId);
         const daysRemaining = Math.max(0, Math.ceil((cycle.endsAt.getTime() - now.getTime()) / 86_400_000));
@@ -101,10 +91,13 @@ let BillingPreviewService = class BillingPreviewService {
                     invoiceId: invoice.id,
                     invoiceNumber: invoice.invoiceNumber,
                     status: invoice.status,
-                    subtotal: invoice.totalAmount.toString(),
-                    tax: '0',
-                    discount: '0',
-                    grandTotal: invoice.totalAmount.toString(),
+                    subtotal: invoice.subtotalAmount.toString(),
+                    tax: invoice.vatAmount.toString(),
+                    discount: invoice.discountAmount.toString(),
+                    grandTotal: invoice.grandTotal.toString(),
+                    vatPercentage: invoice.vatPercentage.toString(),
+                    discountType: invoice.discountType,
+                    discountValue: invoice.discountValue?.toString() ?? null,
                     lines: invoice.lines.map((l) => ({
                         ...l,
                         quantity: l.quantity.toString(),

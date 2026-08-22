@@ -4,7 +4,9 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsIn,
   IsNumber,
+  IsObject,
   IsOptional,
   IsPositive,
   IsString,
@@ -12,6 +14,7 @@ import {
 } from 'class-validator';
 
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
+import { ShippingConfigDto } from '../../shipping/dto/shipping-config.dto';
 
 export class CreateOutboundOrderLineDto {
   @IsUuidLoose()
@@ -26,7 +29,7 @@ export class CreateOutboundOrderLineDto {
   specificLotId?: string;
 }
 
-export class CreateOutboundOrderDto {
+export class CreateOutboundOrderDto extends ShippingConfigDto {
   @IsOptional()
   @IsUuidLoose()
   companyId?: string;
@@ -49,10 +52,22 @@ export class CreateOutboundOrderDto {
   @IsString()
   notes?: string;
 
+  @IsOptional()
+  @IsString()
+  externalReference?: string;
+
   /** When false, pick drops to delivery area and dispatch follows pick (no pack task). */
   @IsOptional()
   @IsBoolean()
   requiresPacking?: boolean;
+
+  @IsOptional()
+  @IsIn(['admin', 'workers'])
+  executionMode?: 'admin' | 'workers';
+
+  @IsOptional()
+  @IsObject()
+  executionPlan?: Record<string, unknown>;
 
   @IsArray()
   @ArrayMinSize(1)

@@ -15,10 +15,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientProductsController = void 0;
 const common_1 = require("@nestjs/common");
 const public_decorator_1 = require("../../../common/auth/public.decorator");
+const parse_uuid_loose_pipe_1 = require("../../../common/pipes/parse-uuid-loose.pipe");
 const client_user_decorator_1 = require("../auth/client-user.decorator");
 const jwt_client_auth_guard_1 = require("../auth/jwt-client-auth.guard");
 const list_products_query_dto_1 = require("../../products/dto/list-products-query.dto");
 const client_create_product_dto_1 = require("./dto/client-create-product.dto");
+const client_update_product_dto_1 = require("./dto/client-update-product.dto");
 const client_products_service_1 = require("./client-products.service");
 let ClientProductsController = class ClientProductsController {
     products;
@@ -28,8 +30,17 @@ let ClientProductsController = class ClientProductsController {
     list(client, query) {
         return this.products.list(client, query);
     }
+    getById(client, id) {
+        return this.products.findById(client, id);
+    }
     create(client, dto) {
         return this.products.create(client, dto);
+    }
+    update(client, id, dto) {
+        return this.products.update(client, id, dto);
+    }
+    remove(client, id) {
+        return this.products.remove(client, id);
     }
 };
 exports.ClientProductsController = ClientProductsController;
@@ -42,6 +53,14 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ClientProductsController.prototype, "list", null);
 __decorate([
+    (0, common_1.Get)(':id'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ClientProductsController.prototype, "getById", null);
+__decorate([
     (0, common_1.Post)(),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Body)()),
@@ -49,6 +68,23 @@ __decorate([
     __metadata("design:paramtypes", [Object, client_create_product_dto_1.ClientCreateProductDto]),
     __metadata("design:returntype", void 0)
 ], ClientProductsController.prototype, "create", null);
+__decorate([
+    (0, common_1.Patch)(':id'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, client_update_product_dto_1.ClientUpdateProductDto]),
+    __metadata("design:returntype", void 0)
+], ClientProductsController.prototype, "update", null);
+__decorate([
+    (0, common_1.Delete)(':id'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ClientProductsController.prototype, "remove", null);
 exports.ClientProductsController = ClientProductsController = __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),

@@ -24,6 +24,8 @@ const realtime_master_data_payload_1 = require("../realtime/realtime-master-data
 const product_audit_util_1 = require("./product-audit.util");
 const product_barcode_util_1 = require("./product-barcode.util");
 const product_delete_references_util_1 = require("./product-delete-references.util");
+const product_volume_util_1 = require("./product-volume.util");
+const avatar_url_1 = require("../media/avatar-url");
 const SKU_RETRY_LIMIT = 5;
 const BARCODE_RETRY_LIMIT = 8;
 const INTERNAL_ROLES = new Set([
@@ -83,6 +85,14 @@ let ProductsService = class ProductsService {
                         await (0, product_barcode_util_1.assertCompanyBarcodeAvailable)(tx, companyId, clientBarcode);
                     }
                     const barcode = clientBarcode || (await this.allocateUniqueBarcode(companyId, tx));
+                    const lengthCm = dto.lengthCm != null ? new client_1.Prisma.Decimal(dto.lengthCm) : undefined;
+                    const widthCm = dto.widthCm != null ? new client_1.Prisma.Decimal(dto.widthCm) : undefined;
+                    const heightCm = dto.heightCm != null ? new client_1.Prisma.Decimal(dto.heightCm) : undefined;
+                    const volumeCbm = (0, product_volume_util_1.resolveProductVolumeCbmFromDims)({
+                        lengthCm: lengthCm ?? null,
+                        widthCm: widthCm ?? null,
+                        heightCm: heightCm ?? null,
+                    });
                     return tx.product.create({
                         data: {
                             companyId,
@@ -92,17 +102,12 @@ let ProductsService = class ProductsService {
                             description: dto.description,
                             trackingType: 'lot',
                             uom: dto.uom ?? 'piece',
-                            expiryTracking: dto.expiryTracking ?? true,
+                            expiryTracking: dto.expiryTracking ?? false,
                             minStockThreshold: dto.minStockThreshold ?? 0,
-                            lengthCm: dto.lengthCm != null
-                                ? new client_1.Prisma.Decimal(dto.lengthCm)
-                                : undefined,
-                            widthCm: dto.widthCm != null
-                                ? new client_1.Prisma.Decimal(dto.widthCm)
-                                : undefined,
-                            heightCm: dto.heightCm != null
-                                ? new client_1.Prisma.Decimal(dto.heightCm)
-                                : undefined,
+                            lengthCm,
+                            widthCm,
+                            heightCm,
+                            volumeCbm,
                             weightKg: dto.weightKg != null
                                 ? new client_1.Prisma.Decimal(dto.weightKg)
                                 : undefined,
@@ -155,6 +160,7 @@ let ProductsService = class ProductsService {
                     { name: { contains: q, mode: 'insensitive' } },
                     { sku: { contains: q, mode: 'insensitive' } },
                     { barcode: { contains: q, mode: 'insensitive' } },
+                    { company: { name: { contains: q, mode: 'insensitive' } } },
                 ],
             });
         }
@@ -184,7 +190,7 @@ let ProductsService = class ProductsService {
                     orderBy: { createdAt: 'desc' },
                     take: query.limit,
                     skip: query.offset,
-                    include: { company: { select: { id: true, name: true } } },
+                    include: { company: { select: { id: true, name: true, logoPath: true } } },
                 }),
                 tx.product.count({ where }),
             ]);
@@ -205,7 +211,7 @@ let ProductsService = class ProductsService {
             ]));
             const referencedProductIds = new Set();
             if (ids.length > 0) {
-                const [inboundRefs, outboundRefs, adjustmentRefs, ledgerRefs] = await Promise.all([
+                const [inboundRefs, outboundRefs, omsRefs, adjustmentRefs, ledgerRefs] = await Promise.all([
                     tx.inboundOrderLine.groupBy({
                         by: ['productId'],
                         where: (0, product_delete_references_util_1.inboundLinesBlockingProductDeleteWhere)(ids),
@@ -213,6 +219,10 @@ let ProductsService = class ProductsService {
                     tx.outboundOrderLine.groupBy({
                         by: ['productId'],
                         where: (0, product_delete_references_util_1.outboundLinesBlockingProductDeleteWhere)(ids),
+                    }),
+                    tx.omsOrderLine.groupBy({
+                        by: ['productId'],
+                        where: (0, product_delete_references_util_1.omsLinesBlockingProductDeleteWhere)(ids),
                     }),
                     tx.stockAdjustmentLine.groupBy({
                         by: ['productId'],
@@ -226,6 +236,7 @@ let ProductsService = class ProductsService {
                 for (const row of [
                     ...inboundRefs,
                     ...outboundRefs,
+                    ...omsRefs,
                     ...adjustmentRefs,
                     ...ledgerRefs,
                 ]) {
@@ -238,8 +249,16 @@ let ProductsService = class ProductsService {
                 const reserved = agg?.reserved ?? new client_1.Prisma.Decimal(0);
                 const stockZero = onHand.equals(0) && reserved.equals(0);
                 const hasReferences = referencedProductIds.has(p.id);
+                const { imagePath, company, ...rest } = p;
                 return {
-                    ...p,
+                    ...rest,
+                    imagePath,
+                    imageUrl: (0, avatar_url_1.toAvatarPublicUrl)(imagePath),
+                    company: {
+                        id: company.id,
+                        name: company.name,
+                        logoUrl: (0, avatar_url_1.toAvatarPublicUrl)(company.logoPath),
+                    },
                     totalOnHand: onHand.toString(),
                     totalReserved: reserved.toString(),
                     deletable: stockZero && !hasReferences && p.status !== 'archived',
@@ -311,6 +330,16 @@ let ProductsService = class ProductsService {
         if (dto.weightKg !== undefined) {
             data.weightKg =
                 dto.weightKg === null ? null : new client_1.Prisma.Decimal(dto.weightKg);
+        }
+        if (dto.lengthCm !== undefined ||
+            dto.widthCm !== undefined ||
+            dto.heightCm !== undefined) {
+            data.volumeCbm = (0, product_volume_util_1.resolveProductVolumeCbmFromDims)({
+                lengthCm: dto.lengthCm,
+                widthCm: dto.widthCm,
+                heightCm: dto.heightCm,
+                previous: product,
+            });
         }
         if (Object.keys(data).length === 0) {
             return this.findById(id, user);
@@ -425,7 +454,7 @@ let ProductsService = class ProductsService {
         if (product.status === 'archived') {
             throw new common_1.BadRequestException('Archived products cannot be hard-deleted from this action.');
         }
-        const [onHandAgg, resAgg, inboundLines, outboundLines, adjLines, ledger] = await this.prisma.$transaction([
+        const [onHandAgg, resAgg, inboundLines, outboundLines, omsLines, adjLines, ledger] = await this.prisma.$transaction([
             this.prisma.currentStock.aggregate({
                 where: { productId: id },
                 _sum: { quantityOnHand: true },
@@ -440,6 +469,9 @@ let ProductsService = class ProductsService {
             this.prisma.outboundOrderLine.count({
                 where: (0, product_delete_references_util_1.outboundLinesBlockingProductDeleteWhere)(id),
             }),
+            this.prisma.omsOrderLine.count({
+                where: (0, product_delete_references_util_1.omsLinesBlockingProductDeleteWhere)(id),
+            }),
             this.prisma.stockAdjustmentLine.count({ where: { productId: id } }),
             this.prisma.inventoryLedger.count({ where: { productId: id } }),
         ]);
@@ -448,7 +480,11 @@ let ProductsService = class ProductsService {
         if (onHand.greaterThan(0) || reserved.greaterThan(0)) {
             throw new common_1.ConflictException('Cannot delete product while on-hand or reserved quantity is greater than zero.');
         }
-        if (inboundLines > 0 || outboundLines > 0 || adjLines > 0 || ledger > 0) {
+        if (inboundLines > 0 ||
+            outboundLines > 0 ||
+            omsLines > 0 ||
+            adjLines > 0 ||
+            ledger > 0) {
             throw new common_1.ConflictException('Cannot delete product that appears on orders, adjustments, or inventory history. Archive it instead.');
         }
         await this.prisma.$transaction(async (tx) => {

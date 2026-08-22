@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "one_liner": "approved order OMS-2026-02724 on staging-admin.emdadsy.com",
+  "summary": "Opened order OMS-2026-02724 on staging-admin.emdadsy.com and checked its current OMS status.\nRecorded the OMS status before approval as \"Confirmed \u2014 Waiting for Admin Approval\".\nApproved the order, with a shipping fee of 5 applied as required by the task.\nRecorded the OMS status after approval as \"Processing\" and captured the linked outbound reference \"ecaccd89-0023-4537-85db-68e588b456ca\".\nOpened the linked outbound order and recorded its status as \"Planned\".\nFinished on the outbound order page, with the OMS order moved to Processing and the outbound created in an early warehouse status.",
+  "reason": "Objective completed",
+  "duration": 357.2,
+  "final_state": {
+    "url": "https://staging-admin.emdadsy.com/orders/outbound/ecaccd89-0023-4537-85db-68e588b456ca",
+    "oms_status_before": "Confirmed \u2014 Waiting for Admin Approval",
+    "oms_status_after": "Processing",
+    "outbound_ref": "ecaccd89-0023-4537-85db-68e588b456ca",
+    "outbound_status": "Planned"
+  },
+  "test_url": "https://test-manager.lambdatest.com/projects/01M0GDK7AFN1DN6NRMEAY1DSB9/test-cases/01M0GHTVDXCDG4ECJA5MRSNQMT/dashboard/share/US_988UQZN8ZLQ1UKKAJ92Y5EQWLV1ZP19LGP8ZCD2W5KE8J77WBKW1MUKU2YSDP3NN?type=summary&agentView=true&fqdn=summary-page"
+}

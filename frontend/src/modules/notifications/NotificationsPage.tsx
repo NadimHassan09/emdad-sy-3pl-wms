@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { Button } from '../../components/Button';
 import { QK } from '../../constants/query-keys';
+import { useCachedState } from '../../hooks/useCachedState';
 import {
   adminNotificationHref,
   formatAdminNotificationTime,
@@ -51,8 +52,8 @@ export function NotificationsPage() {
     (window.localStorage.getItem('wms-ui-language') === 'AR' || document.documentElement.dir === 'rtl');
   const t = pageLabel(isArabic);
 
-  const [page, setPage] = useState(0);
-  const [filter, setFilter] = useState<NotificationReadFilter>('all');
+  const [page, setPage] = useCachedState('page', 0);
+  const [filter, setFilter] = useCachedState<NotificationReadFilter>('filter', 'all');
 
   const listQuery = useQuery({
     queryKey: QK.notifications.list({ page, filter, pageSize: PAGE_SIZE }),
@@ -97,47 +98,42 @@ export function NotificationsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold text-slate-900 sm:text-xl">{t('Notifications')}</h1>
-          {unreadCount > 0 ? (
-            <p className="text-sm text-slate-500">
-              {unreadCount} {t('Unread').toLowerCase()}
-            </p>
-          ) : null}
-        </div>
-        {unreadCount > 0 ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => void markAllMutation.mutateAsync()}
-            disabled={markAllMutation.isPending}
-          >
-            {t('Mark all read')}
-          </Button>
-        ) : null}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
+    <AdminListPageShell
+      icon="fa-bell"
+      title={t('Notifications')}
+      subtitle={unreadCount > 0 ? `${unreadCount} ${t('Unread').toLowerCase()}` : undefined}
+      isArabic={isArabic}
+      className="mx-auto max-w-7xl space-y-5 animate-enter"
+    >
+      <div className="flex flex-wrap items-center gap-2">
         {(['all', 'unread', 'read'] as const).map((mode) => (
           <button
             key={mode}
             type="button"
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
               filter === mode
-                ? 'bg-emerald-600 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'bg-brand-600 text-white'
+                : 'bg-surface-card-muted text-text-body hover:bg-surface-hover'
             }`}
             onClick={() => onFilterChange(mode)}
           >
             {t(mode === 'all' ? 'All' : mode === 'unread' ? 'Unread' : 'Read')}
           </button>
         ))}
+        {unreadCount > 0 ? (
+          <button
+            type="button"
+            className="ms-auto rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => void markAllMutation.mutateAsync()}
+            disabled={markAllMutation.isPending}
+          >
+            {t('Mark all read')}
+          </button>
+        ) : null}
       </div>
 
       {listQuery.isError ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <div className="rounded-lg border border-status-danger-border bg-status-danger-bg px-4 py-3 text-sm text-status-danger-fg">
           <p className="font-medium">{t('Could not load notifications')}</p>
           <Button variant="secondary" size="sm" className="mt-2" onClick={() => listQuery.refetch()}>
             {t('Retry')}
@@ -145,41 +141,56 @@ export function NotificationsPage() {
         </div>
       ) : null}
 
-      <section className="card">
+      <section className="overflow-hidden rounded-[var(--radius-card)] border border-border-subtle bg-surface-card shadow-xs">
         {listQuery.isPending ? (
-          <p className="muted">{t('Loading notifications…')}</p>
+          <div className="space-y-2 p-3.5" aria-busy="true">
+            <div className="h-14 animate-pulse rounded-lg bg-skeleton-base" />
+            <div className="h-14 animate-pulse rounded-lg bg-skeleton-base" />
+            <div className="h-14 animate-pulse rounded-lg bg-skeleton-base" />
+            <span className="sr-only">{t('Loading notifications…')}</span>
+          </div>
         ) : items.length === 0 ? (
-          <div className="py-8 text-center">
-            <i className="fa-regular fa-bell mb-3 text-3xl text-slate-300" aria-hidden="true" />
-            <p className="font-medium text-slate-800">{t('No notifications yet')}</p>
-            <p className="mt-1 text-sm text-slate-500">
+          <div className="px-3.5 py-8 text-center">
+            <i className="fa-regular fa-bell mb-3 text-3xl text-text-faint" aria-hidden="true" />
+            <p className="font-medium text-text-body">{t('No notifications yet')}</p>
+            <p className="mt-1 text-sm text-text-muted">
               {t('Alerts from orders, billing, and warehouse workflows appear here.')}
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="m-0 list-none divide-y divide-border-subtle p-0">
             {items.map((item) => (
               <li key={item.id}>
                 <button
                   type="button"
-                  className={`flex w-full flex-col gap-1 px-1 py-4 text-start transition hover:bg-slate-50 ${
-                    !item.isRead ? 'bg-emerald-50/40' : ''
+                  className={`flex w-full gap-3 px-3.5 py-3 text-start transition hover:bg-surface-hover ${
+                    !item.isRead ? 'bg-brand-50/50 dark:bg-white/[0.03]' : ''
                   }`}
                   onClick={() => void onItemClick(item)}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <span
-                      className={`text-sm leading-snug ${
-                        item.isRead ? 'font-medium text-slate-800' : 'font-semibold text-slate-900'
-                      }`}
-                    >
-                      {item.title}
-                    </span>
-                    <span className="shrink-0 text-[10px] text-slate-400 tabular-nums">
-                      {formatAdminNotificationTime(item.createdAt, isArabic)}
-                    </span>
+                  <span
+                    className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
+                      item.isRead ? 'bg-transparent' : 'bg-brand-500 dark:bg-brand-400'
+                    }`}
+                    aria-hidden="true"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <span
+                        className={`text-sm leading-snug ${
+                          item.isRead
+                            ? 'font-medium text-text-body'
+                            : 'font-semibold text-text-strong'
+                        }`}
+                      >
+                        {item.title}
+                      </span>
+                      <span className="shrink-0 text-[10px] tabular-nums text-text-faint">
+                        {formatAdminNotificationTime(item.createdAt, isArabic)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 text-xs leading-relaxed text-text-muted">{item.body}</p>
                   </div>
-                  <p className="text-xs leading-relaxed text-slate-600">{item.body}</p>
                 </button>
               </li>
             ))}
@@ -187,8 +198,8 @@ export function NotificationsPage() {
         )}
 
         {total > PAGE_SIZE ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
-            <p className="text-xs text-slate-500">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-subtle px-3.5 py-2.5">
+            <p className="text-xs text-text-muted">
               {t('Page')} {page + 1} {t('of')} {totalPages}
             </p>
             <div className="flex gap-2">
@@ -212,6 +223,6 @@ export function NotificationsPage() {
           </div>
         ) : null}
       </section>
-    </div>
+    </AdminListPageShell>
   );
 }

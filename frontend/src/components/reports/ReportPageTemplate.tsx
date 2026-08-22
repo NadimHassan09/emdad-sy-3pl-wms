@@ -53,7 +53,9 @@ type Props = {
 function toolbarBtn(active: boolean) {
   return cn(
     'rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors',
-    active ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+    active
+      ? 'bg-brand-600 text-white'
+      : 'bg-surface-card-muted text-text-body hover:bg-surface-hover',
   );
 }
 
@@ -91,10 +93,10 @@ export function ReportPageTemplate({
       {kpiSection}
 
       <section className={PANEL_CARD_CLASS}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle pb-4">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-            <p className="mt-1 max-w-3xl text-sm text-slate-500">{description}</p>
+            <h2 className="text-lg font-semibold text-text-strong">{title}</h2>
+            <p className="mt-1 max-w-3xl text-sm text-text-muted">{description}</p>
           </div>
         </div>
 
@@ -102,7 +104,7 @@ export function ReportPageTemplate({
           <button type="button" className={toolbarBtn(filtersOpen)} onClick={onToggleFilters}>
             {labels.filters}
           </button>
-          <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden />
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden />
           {supportedViews.map((mode) => (
             <button
               key={mode}
@@ -115,7 +117,7 @@ export function ReportPageTemplate({
           ))}
           {showChartKind && viewMode === 'graph' && onChartKindChange ? (
             <>
-              <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden />
+              <span className="mx-1 h-5 w-px bg-border" aria-hidden />
               {(['bar', 'line', 'pie'] as const).map((kind) => (
                 <button
                   key={kind}
@@ -178,7 +180,7 @@ export function ReportPageTemplate({
       {filtersOpen && filtersPanel}
 
       <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-slate-500">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-text-muted">
           {workspaceTitle}
         </h2>
         {generationError ? (

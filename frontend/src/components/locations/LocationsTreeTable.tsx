@@ -12,8 +12,8 @@ import { AnchoredDropdown } from '../AnchoredDropdown';
 const COL_COUNT = 8;
 
 const TH_CLASS =
-  'whitespace-nowrap bg-slate-50 px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500';
-const TD_CLASS = 'px-3 py-3 align-middle text-sm text-slate-700';
+  'whitespace-nowrap bg-surface-card-muted px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-text-muted';
+const TD_CLASS = 'px-3 py-3 align-middle text-sm text-text-body';
 
 function collectSubtreeIdsFromFlat(flat: Location[], rootId: string): string[] {
   const byParent = new Map<string | null, string[]>();
@@ -41,12 +41,12 @@ function subtreeTouchesBlocker(flat: Location[], rootId: string, block: Set<stri
 function LocationStatusPill({ status }: { status: string }) {
   const cls =
     status === 'active'
-      ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
+      ? 'bg-status-success-bg text-status-success-fg ring-status-success-border'
       : status === 'blocked'
-        ? 'bg-amber-50 text-amber-900 ring-amber-200'
+        ? 'bg-status-warning-bg text-status-warning-fg ring-status-warning-border'
         : status === 'archived'
-          ? 'bg-slate-100 text-slate-600 ring-slate-200'
-          : 'bg-slate-50 text-slate-600 ring-slate-200';
+          ? 'bg-status-neutral-bg text-status-neutral-fg ring-status-neutral-border'
+          : 'bg-status-neutral-bg text-status-neutral-fg ring-status-neutral-border';
   const label =
     status === 'blocked' ? 'Suspended' : status === 'archived' ? 'Archived' : status;
   return (
@@ -65,7 +65,7 @@ function LocationRowMenuItem({
 }: ComponentPropsWithoutRef<'button'> & { danger?: boolean }) {
   const base =
     'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50';
-  const dc = danger ? 'text-rose-800 hover:bg-rose-50' : 'text-slate-700 hover:bg-slate-50';
+  const dc = danger ? 'text-status-danger-fg hover:bg-status-danger-bg' : 'text-text-body hover:bg-surface-hover';
   return <button type="button" className={`${base} ${dc} ${className}`.trim()} {...rest} />;
 }
 
@@ -131,14 +131,14 @@ function LocationTableRow({
 
   return (
     <>
-      <tr className="border-t border-slate-100 transition-colors hover:bg-slate-50/80">
+      <tr className="border-t border-border-subtle transition-colors hover:bg-surface-hover">
         <td className={`${TD_CLASS} w-10`}>
           {hasChildren ? (
             <button
               type="button"
               aria-expanded={expanded}
               aria-label={expanded ? 'Collapse branch' : 'Expand branch'}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition hover:bg-surface-hover"
               onClick={() => onToggleBranch(node.id)}
             >
               <svg
@@ -155,7 +155,7 @@ function LocationTableRow({
             <span className="inline-block h-8 w-8" aria-hidden />
           )}
         </td>
-        <td className={`${TD_CLASS} min-w-[10rem] font-medium text-slate-900`}>{node.name}</td>
+        <td className={`${TD_CLASS} min-w-[10rem] font-medium text-text-strong`}>{node.name}</td>
         <td className={TD_CLASS}>
           <span
             className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${locationTypePillClass(node.type)}`}
@@ -164,14 +164,14 @@ function LocationTableRow({
             {locationTypeLabel(node.type)}
           </span>
         </td>
-        <td className={`${TD_CLASS} max-w-[14rem] truncate text-slate-600`} title={node.fullPath}>
+        <td className={`${TD_CLASS} max-w-[14rem] truncate text-text-muted`} title={node.fullPath}>
           {node.fullPath}
         </td>
-        <td className={`${TD_CLASS} font-mono text-xs text-slate-800`}>{node.barcode}</td>
+        <td className={`${TD_CLASS} font-mono text-xs text-text-body`}>{node.barcode}</td>
         <td className={TD_CLASS}>
-          {full ? <LocationStatusPill status={full.status} /> : <span className="text-slate-400">—</span>}
+          {full ? <LocationStatusPill status={full.status} /> : <span className="text-text-faint">—</span>}
         </td>
-        <td className={`${TD_CLASS} hidden text-xs text-slate-500 lg:table-cell`} title="Max weight / volume">
+        <td className={`${TD_CLASS} hidden text-xs text-text-muted lg:table-cell`} title="Max weight / volume">
           {capacity}
         </td>
         <td className={`${TD_CLASS} w-[4.5rem] text-right`}>
@@ -188,7 +188,7 @@ function LocationTableRow({
                   aria-label="Location actions"
                   disabled={actionBusy}
                   data-location-action-trigger="true"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition hover:bg-slate-100 disabled:opacity-40"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted transition hover:bg-surface-hover disabled:opacity-40"
                   onClick={() => setOpenActionId(menuOpen ? null : node.id)}
                 >
                   <svg viewBox="0 0 20 20" className="h-5 w-5" fill="currentColor" aria-hidden>
@@ -268,13 +268,13 @@ function LocationTableRow({
       </tr>
 
       {hasChildren && expanded ? (
-        <tr className="border-t border-slate-100 bg-slate-50/60">
+        <tr className="border-t border-border-subtle bg-surface-card-muted">
           <td colSpan={COL_COUNT} className="p-0">
-            <div className="border-t border-slate-100/80 px-2 py-2 sm:px-4 sm:py-3">
-              <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            <div className="border-t border-border-subtle px-2 py-2 sm:px-4 sm:py-3">
+              <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wide text-text-faint">
                 Child locations
               </p>
-              <div className="overflow-x-auto rounded-lg border border-slate-200/80 bg-white">
+              <div className="overflow-x-auto rounded-lg border border-border bg-surface-panel">
                 <table className="min-w-full border-collapse text-sm">
                   <thead>
                     <tr>
@@ -393,7 +393,7 @@ export function LocationsTreeTable({
   }, [openActionId]);
 
   return (
-    <div className="overflow-visible rounded-xl border border-slate-100 bg-white shadow-sm">
+    <div className="overflow-visible rounded-xl border border-border-subtle bg-surface-panel shadow-soft">
       <div className="overflow-x-auto overflow-y-visible">
         <table className="min-w-full border-collapse text-sm">
           <thead>
@@ -433,11 +433,11 @@ export function LocationsTreeTable({
           </tbody>
         </table>
       </div>
-      <div className="relative z-0 flex flex-col gap-2 border-t border-slate-100 px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+      <div className="relative z-0 flex flex-col gap-2 border-t border-border-subtle px-3 py-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-text-body">
           <select
             aria-label="Rows per page"
-            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 outline-none transition focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/20"
+            className="rounded-md border border-border bg-surface-panel px-2 py-1 text-sm text-text-body outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
             value={rowsPerPage}
             onChange={(e) => {
               setRowsPerPage(Number(e.target.value));
@@ -450,14 +450,14 @@ export function LocationsTreeTable({
               </option>
             ))}
           </select>
-          <span className="text-xs text-slate-600">
+          <span className="text-xs text-text-muted">
             {startDisplay}-{endDisplay} of {totalRows} locations
           </span>
         </div>
         <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
           <button
             type="button"
-            className="flex-1 rounded-md border border-[#10B981] bg-white px-3 py-1.5 text-sm font-medium text-[#10B981] transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400 sm:flex-none"
+            className="flex-1 rounded-md border border-brand-500 bg-surface-panel px-3 py-1.5 text-sm font-medium text-brand-600 transition hover:bg-surface-active disabled:cursor-not-allowed disabled:border-border disabled:text-text-faint sm:flex-none"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1 || totalRows === 0}
           >
@@ -465,7 +465,7 @@ export function LocationsTreeTable({
           </button>
           <button
             type="button"
-            className="flex-1 rounded-md border border-[#10B981] bg-[#10B981] px-3 py-1.5 text-sm font-medium text-white transition hover:bg-[#059669] disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-300 sm:flex-none"
+            className="flex-1 rounded-md border border-brand-500 bg-brand-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:border-border disabled:bg-border-strong sm:flex-none"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages || totalRows === 0}
           >

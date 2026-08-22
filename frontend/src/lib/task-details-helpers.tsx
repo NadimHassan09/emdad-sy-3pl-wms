@@ -23,7 +23,7 @@ export function inboundOrderTitle(
   if (!orderNumber) return fallback;
   if (href) {
     return (
-      <Link to={href} className="hover:text-emerald-700">
+      <Link to={href} className="hover:text-brand-700">
         {orderNumber}
       </Link>
     );
@@ -39,15 +39,10 @@ export function outboundOrderTitle(
   if (!orderNumber) return fallback;
   if (href) {
     return (
-      <Link to={href} className="hover:text-emerald-700">
+      <Link to={href} className="hover:text-brand-700">
         {orderNumber}
       </Link>
     );
   }
   return orderNumber;
-}
-
-export function displayWarehouseLabel(warehouseId: string): string {
-  const t = warehouseId.trim();
-  return t.length ? t : '—';
 }

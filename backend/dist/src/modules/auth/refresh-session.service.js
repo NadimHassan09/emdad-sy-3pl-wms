@@ -72,7 +72,7 @@ let RefreshSessionService = class RefreshSessionService {
                             toJti: newJti,
                         },
                     });
-                    return { familyId, jti: newJti, idempotent: false };
+                    return { familyId, jti: newJti, idempotent: false, expiresAt: session.expiresAt };
                 }
             }
             const prior = await tx.authRefreshRotation.findUnique({
@@ -84,7 +84,7 @@ let RefreshSessionService = class RefreshSessionService {
                 },
             });
             if (prior) {
-                return { familyId, jti: prior.toJti, idempotent: true };
+                return { familyId, jti: prior.toJti, idempotent: true, expiresAt: session.expiresAt };
             }
             await this.revokeAllSessionsForUserTx(tx, userId, { bumpTokenVersion: true });
             throw new common_1.UnauthorizedException('Refresh token reuse detected. All sessions have been invalidated. Please log in again.');

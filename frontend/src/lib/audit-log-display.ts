@@ -15,10 +15,10 @@ export function auditActionTone(action: string): AuditActionTone {
 }
 
 const TONE_CLASS: Record<AuditActionTone, string> = {
-  success: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
-  warning: 'bg-amber-50 text-amber-900 ring-amber-200',
-  danger: 'bg-rose-50 text-rose-800 ring-rose-200',
-  neutral: 'bg-slate-100 text-slate-700 ring-slate-200',
+  success: 'bg-status-success-bg text-status-success-fg ring-status-success-border',
+  warning: 'bg-status-warning-bg text-status-warning-fg ring-status-warning-border',
+  danger: 'bg-status-danger-bg text-status-danger-fg ring-status-danger-border',
+  neutral: 'bg-surface-card-muted text-text-body ring-border',
 };
 
 export function auditActionBadgeClass(action: string): string {

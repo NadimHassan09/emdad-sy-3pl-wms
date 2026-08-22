@@ -10,13 +10,16 @@ import { Button } from '../components/Button';
 import { Column, DataTable } from '../components/DataTable';
 import { Combobox } from '../components/Combobox';
 import { PageHeader } from '../components/PageHeader';
+import { CompletedTaskNextSteps } from '../components/tasks/CompletedTaskNextSteps';
+import { TaskDocumentActions } from '../components/documents/TaskDocumentActions';
 import { TaskDetailsCard } from '../components/tasks/TaskDetailsCard';
-import { StatusBadge } from '../components/StatusBadge';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
+import { Alert, StatusBadge } from '@ds';
 import { QK } from '../constants/query-keys';
 import { useAuth } from '../auth/AuthContext';
 import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
+import { useWarehouseLabel } from '../hooks/useWarehouseLabel';
 import { applyTaskMutationEnvelope } from '../lib/task-mutation-cache';
 import { isOperatorRole } from '../lib/rbac';
 import { taskAssignedWorkerLabel } from '../lib/task-worker-label';
@@ -29,6 +32,7 @@ import { PutawayExecutionPanel } from './tasks/putaway/PutawayExecutionPanel';
 import type { PutawayLineRow } from './tasks/putaway/putaway-types';
 import { ReceivingExecutionPanel } from './tasks/receiving/ReceivingExecutionPanel';
 import type { ReceivingLineRow } from './tasks/receiving/receiving-types';
+import { ShippingDetailsExecutionPanel } from './tasks/shipping-details/ShippingDetailsExecutionPanel';
 import { taskTypeIconClass } from '../lib/task-type-icons';
 import { useWmsTranslation } from '../lib/ui-i18n';
 import { localizedTaskTypeTitle } from '../lib/ui-labels/task-execution';
@@ -100,6 +104,7 @@ export function TaskExecutionView() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const isWorkerAccount = isOperatorRole(user?.role);
+  const selfWorkerId = (MOCK_WORKER_ID || user?.workerId || '').trim();
   const { effective } = useWorkflowUx();
   const { warehouseId: defaultWid } = useDefaultWarehouseId();
   const [workerId, setWorkerId] = useState('');
@@ -109,6 +114,12 @@ export function TaskExecutionView() {
   const [retryReason, setRetryReason] = useState('');
   const [operatorNotes, setOperatorNotes] = useState('');
   const [syncedOperatorNotes, setSyncedOperatorNotes] = useState('');
+  const [assignExpanded, setAssignExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!selfWorkerId) return;
+    setWorkerId((cur) => cur || selfWorkerId);
+  }, [selfWorkerId]);
 
   const task = useQuery({
     queryKey: id ? QK.tasks.detail(id) : [],
@@ -137,7 +148,7 @@ export function TaskExecutionView() {
     enabled:
       !!referenceId &&
       wf?.referenceType === 'outbound_order' &&
-      ['pick', 'pack', 'dispatch'].includes(taskType),
+      ['pick', 'pack', 'shipping_details', 'dispatch'].includes(taskType),
   });
 
   const workers = useQuery({
@@ -187,7 +198,10 @@ export function TaskExecutionView() {
   });
 
   const mutateStart = useMutation({
-    mutationFn: () => TasksApi.start(id, workerId.trim() || undefined, companyIdOverride),
+    mutationFn: () => {
+      const wid = (workerId.trim() || selfWorkerId || undefined) as string | undefined;
+      return TasksApi.start(id, wid, companyIdOverride);
+    },
     onSuccess: (env) => {
       toast.success(t(['Started', 'تم البدء']));
       envelopeTouch(qc, id, env, warehouseId);
@@ -346,12 +360,12 @@ export function TaskExecutionView() {
   );
 
   if (!id) return null;
-  if (task.isLoading) return <p className="text-sm text-slate-500">{t(['Loading task…', 'جاري تحميل المهمة…'])}</p>;
+  if (task.isLoading) return <p className="text-sm text-text-muted">{t(['Loading task…', 'جاري تحميل المهمة…'])}</p>;
   if (task.isError) {
     return (
-      <p className="text-sm text-rose-600">
-        {(task.error as Error).message ?? t(['Could not load task.', 'تعذّر تحميل المهمة.'])}
-      </p>
+      <Alert variant="error" title={t(['Could not load task.', 'تعذّر تحميل المهمة.'])}>
+        {(task.error as Error).message}
+      </Alert>
     );
   }
   if (!task.data) return null;
@@ -381,16 +395,22 @@ export function TaskExecutionView() {
 
   const orderLink =
     wf?.referenceType === 'inbound_order' && referenceId ? (
-      <Link className="text-primary-700 hover:underline" to={`/orders/inbound/${referenceId}`}>
+      <Link className="text-brand-700 hover:underline" to={`/orders/inbound/${referenceId}`}>
         {t(['Inbound order', 'طلب وارد'])}
       </Link>
     ) : wf?.referenceType === 'outbound_order' && referenceId ? (
-      <Link className="text-primary-700 hover:underline" to={`/orders/outbound/${referenceId}`}>
+      <Link className="text-brand-700 hover:underline" to={`/orders/outbound/${referenceId}`}>
         {t(['Outbound order', 'طلب صادر'])}
       </Link>
     ) : null;
 
   const showAssignBar = sts !== 'completed' && sts !== 'cancelled';
+
+  const assignedToSelf = !!selfWorkerId && assignedWorkerId === selfWorkerId;
+  const unassigned = !assignedWorkerId;
+  /** One-click Start when self is assignee or unassigned with a known self worker id. */
+  const selfStartMode = assignedToSelf || (unassigned && !!selfWorkerId);
+  const canAssignOthers = !isWorkerAccount;
 
   const structuredPanelTypes = new Set([
     'receiving',
@@ -399,6 +419,7 @@ export function TaskExecutionView() {
     'putaway_quarantine',
     'pick',
     'pack',
+    'shipping_details',
     'dispatch',
   ]);
   const usesStructuredPanel = structuredPanelTypes.has(taskType);
@@ -408,13 +429,13 @@ export function TaskExecutionView() {
       {!usesStructuredPanel ? (
         <>
           <PageHeader title={localizedTaskTypeTitle(taskType, t)} />
-          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-text-body">
             <StatusBadge status={sts} />
             {!isCompleted ? (
               runnable ? (
-              <span className="text-xs font-semibold text-emerald-700">{t(['Runnable', 'قابل للتشغيل'])}</span>
+              <span className="text-xs font-semibold text-brand-700">{t(['Runnable', 'قابل للتشغيل'])}</span>
             ) : (
-              <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{t(['Not runnable', 'غير قابل للتشغيل'])}</span>
+              <span className="rounded bg-surface-card-muted px-2 py-0.5 text-xs text-text-body">{t(['Not runnable', 'غير قابل للتشغيل'])}</span>
               )
             ) : null}
       </div>
@@ -423,23 +444,24 @@ export function TaskExecutionView() {
       ) : null}
 
       {assigneeGateMessage ? (
-        <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
+        <Alert variant="error" title={t(['Assignment blocked', 'التعيين محظور'])}>
           {assigneeGateMessage}
-        </p>
+        </Alert>
       ) : null}
 
       {!runnable && canOperate ? (
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          {runnabilityBlockedHint(blockedCode, t)}{' '}
-          {t(['Use the order timeline to find the active step.', 'استخدم خط زمن الطلب لإيجاد الخطوة النشطة.'])}
-        </p>
+        <Alert variant="warning" title={t(['Task not runnable', 'المهمة غير قابلة للتشغيل'])}>
+          <p>
+            {runnabilityBlockedHint(blockedCode, t)}{' '}
+            {t(['Open the order to see the active workflow step.', 'افتح الطلب لرؤية خطوة سير العمل النشطة.'])}
+          </p>
+          {orderLink ? <div className="mt-2">{orderLink}</div> : null}
+        </Alert>
       ) : null}
 
       {sts === 'retry_pending' ? (
-        <div className="space-y-2 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm">
-          <div className="font-medium text-rose-900">
-            {t(['retry_pending — manager retry', 'retry_pending — إعادة محاولة المدير'])}
-          </div>
+        <Alert variant="error" title={t(['retry_pending — manager retry', 'retry_pending — إعادة محاولة المدير'])}>
+          <div className="space-y-2">
           <TextField
             label={t(['Reason (optional)', 'السبب (اختياري)'])}
             value={retryReason}
@@ -448,18 +470,17 @@ export function TaskExecutionView() {
           <Button type="button" onClick={() => mutateRetry.mutate()} loading={mutateRetry.isPending}>
             {t(['Resume after retry', 'استئناف بعد إعادة المحاولة'])}
           </Button>
-        </div>
+          </div>
+        </Alert>
       ) : null}
 
       {sts === 'blocked' ? (
-        <div className="space-y-2 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm">
-          <div className="font-medium text-rose-900">
-            {t(['blocked — manager resolve', 'blocked — حل المدير'])}
-          </div>
-          <label className="block text-xs font-semibold text-slate-700">
+        <Alert variant="error" title={t(['blocked — manager resolve', 'blocked — حل المدير'])}>
+          <div className="space-y-2">
+          <label className="block text-xs font-semibold text-text-body">
             {t(['Resolution', 'القرار'])}
             <select
-              className="mt-1 w-full max-w-md rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"
+              className="mt-1 w-full max-w-md rounded border border-border bg-surface-card px-2 py-1.5 text-sm"
               value={resolveResolution}
               onChange={(e) => setResolveResolution(e.target.value as ResolveTaskResolution)}
             >
@@ -489,17 +510,18 @@ export function TaskExecutionView() {
           >
             {t(['Apply resolution', 'تطبيق القرار'])}
           </Button>
-        </div>
+          </div>
+        </Alert>
       ) : null}
 
       {sts === 'in_progress' && runnable && executionAllowed && !isWorkerAccount ? (
-        <div className="space-y-3 rounded-md border border-slate-200 bg-white p-3 text-sm">
+        <div className="space-y-3 rounded-md border border-border bg-surface-card p-3 text-sm">
           <label className="block space-y-1">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <span className="text-xs font-semibold uppercase tracking-wide text-text-body">
               {t(['Operator notes', 'ملاحظات المشغّل'])}
             </span>
             <textarea
-              className="min-h-[72px] w-full rounded border border-slate-300 p-2 text-sm"
+              className="min-h-[72px] w-full rounded border border-border p-2 text-sm"
               value={operatorNotes}
               spellCheck
               onChange={(e) => setOperatorNotes(e.target.value)}
@@ -518,66 +540,95 @@ export function TaskExecutionView() {
               {t(['Save notes', 'حفظ الملاحظات'])}
             </Button>
             {operatorNotes !== syncedOperatorNotes ? (
-              <span className="text-[10px] text-amber-700">{t(['Unsaved changes', 'تغييرات غير محفوظة'])}</span>
+              <span className="text-[10px] text-status-warning-fg">{t(['Unsaved changes', 'تغييرات غير محفوظة'])}</span>
             ) : (
-              <span className="text-[10px] text-slate-400">{t(['All changes saved', 'كل التغييرات محفوظة'])}</span>
+              <span className="text-[10px] text-text-muted">{t(['All changes saved', 'كل التغييرات محفوظة'])}</span>
             )}
           </div>
           {syncedOperatorNotes.trim() ? (
-            <div className="rounded border border-slate-100 bg-slate-50 p-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <div className="rounded border border-border-subtle bg-surface-card-muted p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 {t(['Saved notes', 'الملاحظات المحفوظة'])}
               </div>
-              <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{syncedOperatorNotes}</p>
+              <p className="mt-2 whitespace-pre-wrap text-sm text-text-strong">{syncedOperatorNotes}</p>
             </div>
           ) : null}
         </div>
       ) : null}
 
       {showAssignBar ? (
-        <div className="flex flex-wrap items-end gap-2 rounded-md border border-slate-200 bg-white p-3">
-          <div className="w-full text-sm text-slate-700">
-            <span className="text-slate-500">{t(['Assigned worker:', 'العامل المعيّن:'])}</span>{' '}
-            <span className="font-medium text-slate-900">{taskAssignedWorkerLabel(taskRow.assignments)}</span>
+        <div className="flex flex-wrap items-end gap-2 rounded-md border border-border bg-surface-card p-3">
+          <div className="w-full text-sm text-text-body">
+            <span className="text-text-muted">{t(['Assigned worker:', 'العامل المعيّن:'])}</span>{' '}
+            <span className="font-medium text-text-strong">{taskAssignedWorkerLabel(taskRow.assignments)}</span>
           </div>
-          <div className="min-w-[260px] flex-[2]">
-            <Combobox
-              label={t(['Assign worker', 'تعيين عامل'])}
-              value={workerId}
-              onChange={setWorkerId}
-              options={workerOptions}
-              placeholder={
-                workers.isLoading
-                  ? t(['Loading workers…', 'جاري تحميل العمال…'])
-                  : t(['Select worker…', 'اختر عاملاً…'])
-              }
-              disabled={workers.isLoading || !!workers.isError}
-              emptyMessage={
-                workers.isError
-                  ? t(['Could not load workers', 'تعذّر تحميل العمال'])
-                  : warehouseId
-                    ? t(['No workers for this warehouse', 'لا يوجد عمال لهذا المستودع'])
-                    : t(['No workers', 'لا يوجد عمال'])
-              }
-            />
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => mutateAssign.mutate()}
-            disabled={!workerId.trim() || mutateAssign.isPending || !!workers.isError}
-          >
-            {t(['Assign', 'تعيين'])}
-          </Button>
-          <Button
-            type="button"
-            onClick={() => mutateStart.mutate()}
-            disabled={!runnable || !executionAllowed}
-          >
-            {t(['Start', 'بدء'])}
-          </Button>
+
+          {selfStartMode && !assignExpanded ? (
+            <>
+              <Button
+                type="button"
+                onClick={() => mutateStart.mutate()}
+                disabled={!runnable || !executionAllowed || mutateStart.isPending}
+              >
+                {t(['Start', 'بدء'])}
+              </Button>
+              {canAssignOthers ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setAssignExpanded(true)}
+                >
+                  {t(['Assign someone else', 'تعيين شخص آخر'])}
+                </Button>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <div className="min-w-[260px] flex-[2]">
+                <Combobox
+                  label={t(['Assign worker', 'تعيين عامل'])}
+                  value={workerId}
+                  onChange={setWorkerId}
+                  options={workerOptions}
+                  placeholder={
+                    workers.isLoading
+                      ? t(['Loading workers…', 'جاري تحميل العمال…'])
+                      : t(['Select worker…', 'اختر عاملاً…'])
+                  }
+                  disabled={workers.isLoading || !!workers.isError}
+                  emptyMessage={
+                    workers.isError
+                      ? t(['Could not load workers', 'تعذّر تحميل العمال'])
+                      : warehouseId
+                        ? t(['No workers for this warehouse', 'لا يوجد عمال لهذا المستودع'])
+                        : t(['No workers', 'لا يوجد عمال'])
+                  }
+                />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => mutateAssign.mutate()}
+                disabled={!workerId.trim() || mutateAssign.isPending || !!workers.isError}
+              >
+                {t(['Assign', 'تعيين'])}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => mutateStart.mutate()}
+                disabled={!runnable || !executionAllowed || mutateStart.isPending}
+              >
+                {t(['Start', 'بدء'])}
+              </Button>
+              {selfStartMode && assignExpanded ? (
+                <Button type="button" variant="secondary" onClick={() => setAssignExpanded(false)}>
+                  {t(['Hide assign', 'إخفاء التعيين'])}
+                </Button>
+              ) : null}
+            </>
+          )}
           {workers.isLoading || workers.isError ? (
-          <p className="w-full text-xs text-slate-500">
+          <p className="w-full text-xs text-text-muted">
             {workers.isLoading
               ? t(['Loading worker directory…', 'جاري تحميل دليل العمال…'])
                 : t(['Fix worker directory fetch errors above.', 'أصلح أخطاء جلب دليل العمال أعلاه.'])}
@@ -641,6 +692,41 @@ export function TaskExecutionView() {
         />
       ) : null}
 
+      {isCompleted &&
+      referenceId &&
+      taskType === 'receiving' &&
+      wf?.referenceType === 'inbound_order' ? (
+        <TaskDocumentActions
+          taskId={id}
+          taskType="receiving"
+          referenceType="inbound_order"
+          referenceId={referenceId}
+        />
+      ) : null}
+
+      {isCompleted &&
+      referenceId &&
+      taskType === 'dispatch' &&
+      wf?.referenceType === 'outbound_order' ? (
+        <TaskDocumentActions
+          taskId={id}
+          taskType="dispatch"
+          referenceType="outbound_order"
+          referenceId={referenceId}
+        />
+      ) : null}
+
+      {isCompleted &&
+      referenceId &&
+      (wf?.referenceType === 'inbound_order' || wf?.referenceType === 'outbound_order') ? (
+        <CompletedTaskNextSteps
+          referenceType={wf.referenceType}
+          referenceId={referenceId}
+          currentTaskId={id}
+          companyIdOverride={companyIdOverride}
+        />
+      ) : null}
+
       {taskType === 'qc' && showAssignBar && sts !== 'completed' ? (
         <TaskManagerSkipBlock taskType={taskType} taskId={id} />
       ) : null}
@@ -674,11 +760,8 @@ function TaskManagerSkipBlock({ taskType, taskId }: { taskType: string; taskId: 
   });
 
   return (
-    <div className="rounded-md border border-amber-200 bg-amber-50/50 p-4">
-      <div className="text-sm font-medium text-amber-950">
-        {t([`Manager skip (${taskType})`, `تخطي المدير (${taskType})`])}
-      </div>
-      <p className="mt-1 text-xs text-amber-900/90">
+    <Alert variant="warning" title={t([`Manager skip (${taskType})`, `تخطي المدير (${taskType})`])}>
+      <p className="text-xs">
         {t(['Requires wh_manager or super_admin.', 'يتطلب wh_manager أو super_admin.'])}
       </p>
       <TextField
@@ -699,7 +782,7 @@ function TaskManagerSkipBlock({ taskType, taskId }: { taskType: string; taskId: 
           ? t(['Skip QC', 'تخطي QC'])
           : t(['Skip pack', 'تخطي pack'])}
       </Button>
-    </div>
+    </Alert>
   );
 }
 
@@ -772,6 +855,19 @@ function defaultCompleteJsonBody(taskType: string): string {
       null,
       2,
     ),
+    shipping_details: JSON.stringify(
+      {
+        task_type: 'shipping_details',
+        shippingPackageType: 'box',
+        shippingWeightKg: '1',
+        shippingContents: 'Goods',
+        shippingDeliveryType: 'address',
+        shippingPickupType: 'address',
+        shippingPayer: 'sender',
+      },
+      null,
+      2,
+    ),
     dispatch: JSON.stringify(
       {
         task_type: 'dispatch',
@@ -812,12 +908,12 @@ function TaskJsonCompleteBlock({ taskType, taskId }: { taskType: string; taskId:
   });
 
   return (
-    <div className="rounded-md border border-slate-300 bg-slate-50/80 p-4">
-      <div className="text-sm font-medium text-slate-800">
+    <div className="rounded-md border border-border bg-surface-card-muted/80 p-4">
+      <div className="text-sm font-medium text-text-strong">
         {t(['Advanced — complete via JSON', 'متقدم — إكمال عبر JSON'])}
       </div>
       <textarea
-        className="mt-2 w-full rounded border border-slate-300 p-2 font-mono text-xs"
+        className="mt-2 w-full rounded border border-border p-2 font-mono text-xs"
         rows={12}
         spellCheck={false}
         value={jsonBody}
@@ -875,6 +971,7 @@ function ExecuteFormSwitcher(props: {
     readOnly = false,
   } = props;
   const { t } = useWmsTranslation();
+  const { warehouseLabel } = useWarehouseLabel();
 
   if (taskType === 'receiving' && isRecord(payload) && Array.isArray(payload.lines)) {
     return (
@@ -983,6 +1080,21 @@ function ExecuteFormSwitcher(props: {
     );
   }
 
+  if (taskType === 'shipping_details' && outboundOrderId) {
+    return (
+      <ShippingDetailsExecutionPanel
+        key={`${taskId}-shipping-details`}
+        taskId={taskId}
+        outboundOrderId={outboundOrderId}
+        companyIdOverride={companyIdOverride}
+        taskStatus={taskStatus}
+        submit={submit}
+        busy={busy}
+        readOnly={readOnly}
+      />
+    );
+  }
+
   if (taskType === 'dispatch' && isRecord(payload) && typeof payload.outbound_order_id === 'string') {
     const lineIds = outbound?.lines?.map((l) => l.id) ?? [];
     const requiresPacking = outbound?.requiresPacking !== false;
@@ -1012,7 +1124,7 @@ function ExecuteFormSwitcher(props: {
   }
 
   return (
-    <p className="text-sm text-slate-600">
+    <p className="text-sm text-text-body">
       {readOnly ? (
         <>
           {t(['No summary view for', 'لا يوجد عرض ملخص لـ'])}{' '}
@@ -1023,7 +1135,7 @@ function ExecuteFormSwitcher(props: {
           {t(['No structured form for', 'لا يوجد نموذج منظم لـ'])}{' '}
           <span className="font-mono">{taskType}</span>{' '}
           {t(['yet (warehouse', 'بعد (المستودع'])}{' '}
-          <span className="font-mono">{warehouseId || '—'}</span>).{' '}
+          <span className="font-mono">{warehouseLabel(warehouseId)}</span>).{' '}
           {t(['Use the supervisor JSON page.', 'استخدم صفحة JSON للمشرف.'])}
         </>
       )}
@@ -1149,7 +1261,7 @@ function QcExecuteForm({
             header: t(['Passed', 'ناجح']),
             accessor: (l: QcLineRow) => (
                 <input
-                className="w-24 rounded border border-slate-300 px-2 py-1 font-mono text-xs"
+                className="w-24 rounded border border-border px-2 py-1 font-mono text-xs"
                   value={passed[l.inbound_order_line_id] ?? ''}
                   onChange={(e) =>
                     setPassed((p) => ({ ...p, [l.inbound_order_line_id]: e.target.value }))
@@ -1162,7 +1274,7 @@ function QcExecuteForm({
             header: t(['Failed', 'فاشل']),
             accessor: (l: QcLineRow) => (
                 <input
-                className="w-24 rounded border border-slate-300 px-2 py-1 font-mono text-xs"
+                className="w-24 rounded border border-border px-2 py-1 font-mono text-xs"
                   value={failed[l.inbound_order_line_id] ?? ''}
                   onChange={(e) =>
                     setFailed((p) => ({ ...p, [l.inbound_order_line_id]: e.target.value }))

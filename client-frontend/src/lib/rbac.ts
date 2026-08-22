@@ -1,11 +1,14 @@
 import type { ClientPortalRole } from '../types/auth';
 
+export type ClientNavGroup = 'wms' | 'oms' | null;
+
 export type ClientNavItem = {
   label: string;
   labelAr: string;
   iconKey: string;
   to: string;
   exact?: boolean;
+  group?: ClientNavGroup;
 };
 
 const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
@@ -18,31 +21,73 @@ const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
     roles: ['client_admin', 'client_staff'],
   },
   {
-    label: 'Orders',
-    labelAr: 'الطلبات',
+    label: 'Online orders',
+    labelAr: 'الطلبات الإلكترونية',
+    iconKey: 'Orders',
+    to: '/ecommerce-orders',
+    group: 'oms',
+    roles: ['client_admin', 'client_staff'],
+  },
+  {
+    label: 'Cash on delivery',
+    labelAr: 'الدفع عند الاستلام',
+    iconKey: 'Billing',
+    to: '/my-profits',
+    group: 'oms',
+    roles: ['client_admin', 'client_staff'],
+  },
+  {
+    label: 'Returns',
+    labelAr: 'المرتجعات',
+    iconKey: 'Orders',
+    to: '/ecommerce-orders/returns',
+    group: 'oms',
+    roles: ['client_admin', 'client_staff'],
+  },
+  {
+    label: 'Inbound',
+    labelAr: 'الوارد',
     iconKey: 'Orders',
     to: '/inbound-orders',
+    group: 'wms',
     roles: ['client_admin', 'client_staff'],
   },
   {
-    label: 'Products',
-    labelAr: 'المنتجات',
+    label: 'Outbound',
+    labelAr: 'الصادر',
+    iconKey: 'Orders',
+    to: '/outbound-orders',
+    group: 'wms',
+    roles: ['client_admin', 'client_staff'],
+  },
+  {
+    label: 'Inventory',
+    labelAr: 'المخزون',
     iconKey: 'Products',
     to: '/products',
-    roles: ['client_admin'],
+    group: 'wms',
+    roles: ['client_admin', 'client_staff'],
   },
   {
-    label: 'Stock',
-    labelAr: 'المخزون',
-    iconKey: 'Stock',
-    to: '/stock',
-    roles: ['client_admin', 'client_staff'],
+    label: 'APIs',
+    labelAr: 'واجهات البرمجة',
+    iconKey: 'Apis',
+    to: '/apis',
+    roles: ['client_admin'],
   },
   {
     label: 'Billing',
     labelAr: 'الفوترة',
     iconKey: 'Billing',
     to: '/billing',
+    exact: true,
+    roles: ['client_admin'],
+  },
+  {
+    label: 'Invoices',
+    labelAr: 'الفواتير',
+    iconKey: 'Invoices',
+    to: '/invoices',
     roles: ['client_admin'],
   },
   {
@@ -56,21 +101,32 @@ const NAV_CATALOG: Array<ClientNavItem & { roles: ClientPortalRole[] }> = [
 
 function routeGroup(pathname: string): string {
   if (pathname === '/dashboard' || pathname === '/') return 'home';
-  if (pathname.startsWith('/inbound-orders') || pathname.startsWith('/outbound-orders')) return 'orders';
+  if (
+    pathname.startsWith('/inbound-orders') ||
+    pathname.startsWith('/outbound-orders') ||
+    pathname.startsWith('/ecommerce-orders') ||
+    pathname.startsWith('/my-profits') ||
+    pathname.startsWith('/cod-reports') ||
+    pathname.startsWith('/returns')
+  ) {
+    return 'orders';
+  }
   if (pathname.startsWith('/products')) return 'products';
-  if (pathname.startsWith('/stock')) return 'stock';
-  if (pathname.startsWith('/billing')) return 'billing';
+  if (pathname.startsWith('/billing') || pathname.startsWith('/invoices')) return 'billing';
   if (pathname.startsWith('/notifications')) return 'notifications';
+  if (pathname.startsWith('/profile')) return 'profile';
+  if (pathname.startsWith('/apis')) return 'apis';
   return 'other';
 }
 
 const ROUTE_GROUP_ROLES: Record<string, ClientPortalRole[]> = {
   home: ['client_admin', 'client_staff'],
   orders: ['client_admin', 'client_staff'],
-  products: ['client_admin'],
-  stock: ['client_admin', 'client_staff'],
+  products: ['client_admin', 'client_staff'],
   billing: ['client_admin'],
   notifications: ['client_admin', 'client_staff'],
+  profile: ['client_admin', 'client_staff'],
+  apis: ['client_admin'],
   other: ['client_admin', 'client_staff'],
 };
 
@@ -92,21 +148,24 @@ export function redirectPathForDeniedRoute(
   if (role !== 'client_admin' && role !== 'client_staff') return defaultClientHomePath();
   const group = routeGroup(pathname);
   if (role === 'client_staff') {
-    if (group === 'products') return '/stock';
     if (group === 'billing') return '/dashboard';
+    if (group === 'apis') return '/dashboard';
   }
   return defaultClientHomePath();
 }
 
 export function clientNavForRole(role: ClientPortalRole | string | undefined): ClientNavItem[] {
   if (role !== 'client_admin' && role !== 'client_staff') return [];
-  return NAV_CATALOG.filter((item) => item.roles.includes(role)).map(({ label, labelAr, iconKey, to, exact }) => ({
-    label,
-    labelAr,
-    iconKey,
-    to,
-    exact,
-  }));
+  return NAV_CATALOG.filter((item) => item.roles.includes(role)).map(
+    ({ label, labelAr, iconKey, to, exact, group }) => ({
+      label,
+      labelAr,
+      iconKey,
+      to,
+      exact,
+      group: group ?? null,
+    }),
+  );
 }
 
 export function isClientAdmin(role: ClientPortalRole | string | undefined): boolean {

@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
+import { setPostLoginReturnTo } from './authStorage';
 import { useAuth } from './AuthContext';
 
 export function RequireAuth({ children }: { children: ReactNode }) {
@@ -9,7 +10,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   if (booting) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-600">
+      <div className="flex min-h-screen items-center justify-center bg-surface-page text-sm text-text-body">
         Loading…
       </div>
     );
@@ -17,6 +18,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   if (!user) {
     const from = `${location.pathname}${location.search}`;
+    setPostLoginReturnTo(from);
     return <Navigate to="/login" replace state={{ from }} />;
   }
 

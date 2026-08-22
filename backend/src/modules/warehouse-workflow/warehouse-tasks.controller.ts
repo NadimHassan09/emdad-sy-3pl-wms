@@ -17,6 +17,7 @@ import { ResolveTaskDto } from './dto/resolve-task.dto';
 import { RetryTaskDto } from './dto/retry-task.dto';
 import { LeaseTaskDto } from './dto/lease-task.dto';
 import { PatchTaskProgressDto } from './dto/patch-task-progress.dto';
+import { PatchTaskPlanDto } from './dto/patch-task-plan.dto';
 import { SkipTaskDto } from './dto/skip-task.dto';
 import { WorkflowExecutionGateGuard } from './workflow-execution-gate.guard';
 
@@ -54,6 +55,16 @@ export class WarehouseTasksController {
     @Body() body: PatchTaskProgressDto,
   ) {
     return this.tasks.patchProgress(id, user, body);
+  }
+
+  @Put(':id/plan')
+  @UseGuards(WorkflowExecutionGateGuard)
+  patchPlan(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body() body: PatchTaskPlanDto,
+  ) {
+    return this.tasks.patchPlan(id, user, body);
   }
 
   @Post(':id/lease')
@@ -112,6 +123,17 @@ export class WarehouseTasksController {
     @Body() body: unknown,
   ) {
     return this.tasks.complete(id, user, body);
+  }
+
+  @Post(':id/admin-confirm')
+  @UseGuards(RolesGuard)
+  @Roles(AuthGroup.ADMIN)
+  adminConfirm(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.tasks.adminConfirm(id, user, body);
   }
 
   @Post(':id/cancel')

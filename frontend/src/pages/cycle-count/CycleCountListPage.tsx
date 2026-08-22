@@ -9,6 +9,7 @@ import {
   type CycleCountStatus,
 } from '../../api/cycle-count';
 import { WorkersApi } from '../../api/workers';
+import { AdminListPageShell } from '../../components/AdminListPageShell';
 import { Column, DataTable } from '../../components/DataTable';
 import { FilterPanel } from '../../components/FilterPanel';
 import { PillSubNav } from '../../components/PillSubNav';
@@ -176,11 +177,11 @@ export function CycleCountListPage() {
       header: t('Discrepancy', 'فرق'),
       accessor: (r) =>
         hasDiscrepancy(r) ? (
-          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-900">
+          <span className="rounded bg-status-warning-bg px-1.5 py-0.5 text-[11px] font-semibold text-status-warning-fg">
             {t('Review', 'مراجعة')}
           </span>
         ) : (
-          <span className="text-slate-400">—</span>
+          <span className="text-text-faint">—</span>
         ),
       width: '88px',
     },
@@ -214,8 +215,8 @@ export function CycleCountListPage() {
       header: t('Product', 'المنتج'),
       accessor: (r) => (
         <div>
-          <div className="font-medium text-slate-900">{r.product.name}</div>
-          <div className="font-mono text-[11px] text-slate-500">{r.product.sku}</div>
+          <div className="font-medium text-text-strong">{r.product.name}</div>
+          <div className="font-mono text-[11px] text-text-muted">{r.product.sku}</div>
         </div>
       ),
       width: '200px',
@@ -231,7 +232,7 @@ export function CycleCountListPage() {
         if (!r.nextDueAt) return '—';
         const overdue = isOverdue(r.nextDueAt);
         return (
-          <span className={overdue ? 'font-semibold text-red-700' : ''}>
+          <span className={overdue ? 'font-semibold text-status-error-fg' : ''}>
             {new Date(r.nextDueAt).toLocaleDateString()}
             {overdue ? ` (${t('overdue', 'متأخر')})` : ''}
           </span>
@@ -285,64 +286,16 @@ export function CycleCountListPage() {
     tab === 'sessions' ? countsPagination.isFetching : historyPagination.isFetching;
 
   return (
-    <div>
-      <FilterPanel
-        title={t('Filters', 'الفلاتر')}
-        onApply={applyFilters}
-        onReset={resetFilters}
-        loading={listLoading}
-        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
-        resetLabel={t('Reset filters', 'إعادة تعيين')}
-      >
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          {tab === 'sessions' ? (
-            <>
-              <SelectField
-                label={t('Status', 'الحالة')}
-                name="status"
-                value={draftFilters.status}
-                onChange={(e) => setDraft({ status: e.target.value })}
-                options={statusOptions}
-              />
-              <SelectField
-                label={t('Assigned worker', 'العامل')}
-                name="worker"
-                value={draftFilters.assignedWorkerId}
-                onChange={(e) => setDraft({ assignedWorkerId: e.target.value })}
-                options={workerOptions}
-              />
-              <SelectField
-                label={t('Discrepancy only', 'فروقات فقط')}
-                name="disc"
-                value={draftFilters.discrepancyOnly}
-                onChange={(e) => setDraft({ discrepancyOnly: e.target.value })}
-                options={yesNo}
-              />
-            </>
-          ) : (
-            <SelectField
-              label={t('Overdue only', 'متأخر فقط')}
-              name="overdue"
-              value={draftFilters.overdueOnly}
-              onChange={(e) => setDraft({ overdueOnly: e.target.value })}
-              options={yesNo}
-            />
-          )}
-          <TextField
-            label={t('Date from', 'من تاريخ')}
-            type="date"
-            value={draftFilters.dateFrom}
-            onChange={(e) => setDraft({ dateFrom: e.target.value })}
-          />
-          <TextField
-            label={t('Date to', 'إلى تاريخ')}
-            type="date"
-            value={draftFilters.dateTo}
-            onChange={(e) => setDraft({ dateTo: e.target.value })}
-          />
-        </div>
-      </FilterPanel>
-
+    <AdminListPageShell
+      icon="fa-clipboard-check"
+      title={t('Cycle count', 'الجرد الدوري')}
+      subtitle={t(
+        'Operational inventory verification — sessions, schedules, and discrepancies.',
+        'التحقق التشغيلي من المخزون — الجلسات والجداول والفروقات.',
+      )}
+      isArabic={isArabic}
+      showSectionNav
+    >
       <PillSubNav
         ariaLabel={t('Cycle count views', 'عروض الجرد الدوري')}
         items={[
@@ -361,13 +314,87 @@ export function CycleCountListPage() {
         ]}
       />
 
+      <FilterPanel
+        title={t('Filters', 'الفلاتر')}
+        onApply={applyFilters}
+        onReset={resetFilters}
+        loading={listLoading}
+        applyLabel={t('Apply filters', 'تطبيق الفلاتر')}
+        resetLabel={t('Reset filters', 'إعادة تعيين')}
+        compact={
+          tab === 'sessions' ? (
+            <SelectField
+              label={t('Status', 'الحالة')}
+              name="statusCompact"
+              value={draftFilters.status}
+              onChange={(e) => setDraft({ status: e.target.value })}
+              options={statusOptions}
+            />
+          ) : (
+            <SelectField
+              label={t('Overdue only', 'متأخر فقط')}
+              name="overdueCompact"
+              value={draftFilters.overdueOnly}
+              onChange={(e) => setDraft({ overdueOnly: e.target.value })}
+              options={yesNo}
+            />
+          )
+        }
+        activeCount={[appliedFilters.status, appliedFilters.overdueOnly, appliedFilters.assignedWorkerId, appliedFilters.discrepancyOnly, appliedFilters.dateFrom, appliedFilters.dateTo].filter((v) => String(v).trim() && String(v) !== 'no').length}
+        advancedLabel={t('Advanced Filtering', 'تصفية متقدمة')}
+        collapseLabel={t('Collapsed', 'إخفاء')}
+      >
+        {tab === 'sessions' ? (
+          <SelectField
+            label={t('Status', 'الحالة')}
+            name="status"
+            value={draftFilters.status}
+            onChange={(e) => setDraft({ status: e.target.value })}
+            options={statusOptions}
+          />
+        ) : (
+          <SelectField
+            label={t('Overdue only', 'متأخر فقط')}
+            name="overdue"
+            value={draftFilters.overdueOnly}
+            onChange={(e) => setDraft({ overdueOnly: e.target.value })}
+            options={yesNo}
+          />
+        )}
+        {tab === 'sessions' ? (
+          <SelectField
+            label={t('Assigned worker', 'العامل')}
+            name="worker"
+            value={draftFilters.assignedWorkerId}
+            onChange={(e) => setDraft({ assignedWorkerId: e.target.value })}
+            options={workerOptions}
+          />
+        ) : null}
+        {tab === 'sessions' ? (
+          <SelectField
+            label={t('Discrepancy only', 'فروقات فقط')}
+            name="disc"
+            value={draftFilters.discrepancyOnly}
+            onChange={(e) => setDraft({ discrepancyOnly: e.target.value })}
+            options={yesNo}
+          />
+        ) : null}
+          <TextField
+            label={t('Date from', 'من تاريخ')}
+            type="date"
+            value={draftFilters.dateFrom}
+            onChange={(e) => setDraft({ dateFrom: e.target.value })}
+          />
+          <TextField
+            label={t('Date to', 'إلى تاريخ')}
+            type="date"
+            value={draftFilters.dateTo}
+            onChange={(e) => setDraft({ dateTo: e.target.value })}
+          />
+      </FilterPanel>
+
       {tab === 'sessions' ? (
         <DataTable<CycleCountListItem>
-          title={t('Cycle count', 'الجرد الدوري')}
-          description={t(
-            'Operational inventory verification — sessions, schedules, and discrepancies.',
-            'التحقق التشغيلي من المخزون — الجلسات والجداول والفروقات.',
-          )}
           columns={sessionCols}
           rows={countsPagination.rows}
           loading={countsPagination.isInitialLoading}
@@ -378,7 +405,6 @@ export function CycleCountListPage() {
         />
       ) : (
         <DataTable<CycleCountProductHistoryRow>
-          title={t('Product schedule', 'جدول المنتجات')}
           columns={scheduleCols}
           rows={historyPagination.rows}
           loading={historyPagination.isInitialLoading}
@@ -387,6 +413,6 @@ export function CycleCountListPage() {
           rowKey={(r) => r.id}
         />
       )}
-    </div>
+    </AdminListPageShell>
   );
 }

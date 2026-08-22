@@ -148,6 +148,83 @@ const RECEIVABLES_AGING_COLUMNS: ReportExportColumn[] = [
   { id: 'agingBucket', header: 'Aging bucket' },
 ];
 
+const COD_REPORT_COLUMNS: ReportExportColumn[] = [
+  { id: 'orderNumber', header: 'Order #' },
+  { id: 'client', header: 'Client' },
+  { id: 'recipient', header: 'Recipient' },
+  { id: 'codAmount', header: 'COD amount' },
+  { id: 'codStatus', header: 'COD status' },
+  { id: 'currency', header: 'Currency' },
+  { id: 'collectedAt', header: 'Collected' },
+  { id: 'remittedAt', header: 'Remitted' },
+  { id: 'orderStatus', header: 'Order status' },
+  { id: 'createdAt', header: 'Created' },
+];
+
+const MERCHANT_ORDERS_COLUMNS: ReportExportColumn[] = [
+  { id: 'orderNumber', header: 'Order #' },
+  { id: 'client', header: 'Client' },
+  { id: 'status', header: 'Status' },
+  { id: 'recipient', header: 'Recipient' },
+  { id: 'city', header: 'City' },
+  { id: 'paymentMethod', header: 'Payment' },
+  { id: 'allocationStatus', header: 'Allocation' },
+  { id: 'lineCount', header: 'Lines' },
+  { id: 'createdAt', header: 'Created' },
+];
+
+const SALES_REPORT_COLUMNS: ReportExportColumn[] = [
+  { id: 'orderNumber', header: 'Order #' },
+  { id: 'client', header: 'Client' },
+  { id: 'subtotal', header: 'Subtotal' },
+  { id: 'shippingFee', header: 'Shipping' },
+  { id: 'total', header: 'Total' },
+  { id: 'currency', header: 'Currency' },
+  { id: 'paymentMethod', header: 'Payment' },
+  { id: 'deliveredAt', header: 'Delivered' },
+];
+
+const RETURNS_REPORT_COLUMNS: ReportExportColumn[] = [
+  { id: 'orderNumber', header: 'Order #' },
+  { id: 'client', header: 'Client' },
+  { id: 'recipient', header: 'Recipient' },
+  { id: 'returnedAt', header: 'Returned' },
+  { id: 'codAmount', header: 'COD amount' },
+  { id: 'paymentMethod', header: 'Payment' },
+];
+
+const DELIVERY_REPORT_COLUMNS: ReportExportColumn[] = [
+  { id: 'orderNumber', header: 'Order #' },
+  { id: 'client', header: 'Client' },
+  { id: 'status', header: 'Status' },
+  { id: 'carrier', header: 'Carrier' },
+  { id: 'trackingNumber', header: 'Tracking' },
+  { id: 'city', header: 'City' },
+  { id: 'outForDeliveryAt', header: 'Out for delivery' },
+  { id: 'deliveredAt', header: 'Delivered' },
+];
+
+const ALLOCATION_REPORT_COLUMNS: ReportExportColumn[] = [
+  { id: 'orderNumber', header: 'Order #' },
+  { id: 'client', header: 'Client' },
+  { id: 'orderStatus', header: 'Order status' },
+  { id: 'allocationStatus', header: 'Allocation' },
+  { id: 'reservationCount', header: 'Reservations' },
+  { id: 'allocatedAt', header: 'Allocated' },
+];
+
+const INVENTORY_RESERVED_COLUMNS: ReportExportColumn[] = [
+  { id: 'orderNumber', header: 'Order #' },
+  { id: 'client', header: 'Client' },
+  { id: 'sku', header: 'SKU' },
+  { id: 'product', header: 'Product' },
+  { id: 'location', header: 'Location' },
+  { id: 'lot', header: 'Lot' },
+  { id: 'quantity', header: 'Qty' },
+  { id: 'status', header: 'Status' },
+  { id: 'createdAt', header: 'Created' },
+];
+
 export const REPORT_REGISTRY: readonly ReportDefinitionConfig[] = [
   {
     id: 'warehouse-analysis',
@@ -302,6 +379,83 @@ export const REPORT_REGISTRY: readonly ReportDefinitionConfig[] = [
     supportsKpis: false,
     supportsAggregate: true,
     exportFileName: 'receivables-aging',
+  },
+  {
+    id: 'cod-report',
+    title: 'COD Report',
+    filterKeys: ['client', 'dateRange', 'status'],
+    exportColumns: COD_REPORT_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: false,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'cod-report',
+  },
+  {
+    id: 'merchant-orders',
+    title: 'Merchant Orders',
+    filterKeys: ['client', 'dateRange', 'status'],
+    exportColumns: MERCHANT_ORDERS_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: false,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'merchant-orders',
+  },
+  {
+    id: 'sales-report',
+    title: 'Sales Report',
+    filterKeys: ['client', 'dateRange'],
+    exportColumns: SALES_REPORT_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: false,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'sales-report',
+  },
+  {
+    id: 'returns-report',
+    title: 'Returns Report',
+    filterKeys: ['client', 'dateRange'],
+    exportColumns: RETURNS_REPORT_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: false,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'returns-report',
+  },
+  {
+    id: 'delivery-report',
+    title: 'Delivery Report',
+    filterKeys: ['client', 'dateRange', 'status'],
+    exportColumns: DELIVERY_REPORT_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: false,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'delivery-report',
+  },
+  {
+    id: 'allocation-report',
+    title: 'Allocation Report',
+    filterKeys: ['client', 'dateRange', 'status'],
+    exportColumns: ALLOCATION_REPORT_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: false,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'allocation-report',
+  },
+  {
+    id: 'inventory-reserved',
+    title: 'Inventory Reserved',
+    filterKeys: ['client', 'sku'],
+    exportColumns: INVENTORY_RESERVED_COLUMNS,
+    allowedRoles: ADMIN_REPORT_ROLES,
+    requiresWarehouse: false,
+    supportsKpis: false,
+    supportsAggregate: true,
+    exportFileName: 'inventory-reserved',
   },
 ] as const;
 

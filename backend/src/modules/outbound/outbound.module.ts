@@ -1,16 +1,26 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 
 import { AuditModule } from '../../common/audit/audit.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { OmsModule } from '../oms/oms.module';
+import { ShippingModule } from '../shipping/shipping.module';
 import { WarehouseWorkflowModule } from '../warehouse-workflow/warehouse-workflow.module';
 import { BillingModule } from '../billing/billing.module';
 import { OutboundController } from './outbound.controller';
+import { OutboundOrdersCsvService } from './outbound-orders-csv.service';
 import { OutboundService } from './outbound.service';
 
 @Module({
-  imports: [InventoryModule, WarehouseWorkflowModule, AuditModule, BillingModule],
+  imports: [
+    InventoryModule,
+    forwardRef(() => WarehouseWorkflowModule),
+    AuditModule,
+    BillingModule,
+    forwardRef(() => OmsModule),
+    forwardRef(() => ShippingModule),
+  ],
   controllers: [OutboundController],
-  providers: [OutboundService],
+  providers: [OutboundService, OutboundOrdersCsvService],
   exports: [OutboundService],
 })
 export class OutboundModule {}

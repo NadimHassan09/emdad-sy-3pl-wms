@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { Alert } from '@ds';
 
 import { BackupsApi, type BackupUploadResult } from '../../api/backups';
 import { formatBackupBytes } from '../../lib/backup-display';
@@ -77,8 +78,10 @@ export function BackupUploadDropzone({ onSuccess }: Props) {
         onDrop={onDrop}
         className={[
           'rounded-xl border-2 border-dashed p-8 text-center transition',
-          dragOver ? 'border-emerald-500 bg-emerald-50/50' : 'border-slate-200 bg-slate-50/40',
-          busy ? 'pointer-events-none opacity-70' : 'cursor-pointer hover:border-emerald-400',
+          dragOver
+            ? 'border-brand-400 bg-status-success-bg/50'
+            : 'border-border bg-surface-card-muted',
+          busy ? 'pointer-events-none opacity-70' : 'cursor-pointer hover:border-brand-300',
         ].join(' ')}
         onClick={() => !busy && inputRef.current?.click()}
         role="button"
@@ -98,11 +101,11 @@ export function BackupUploadDropzone({ onSuccess }: Props) {
             e.target.value = '';
           }}
         />
-        <i className="fa-solid fa-cloud-arrow-up mb-3 text-3xl text-emerald-600" aria-hidden />
-        <p className="text-sm font-medium text-slate-800">
+        <i className="fa-solid fa-cloud-arrow-up mb-3 text-3xl text-text-link" aria-hidden />
+        <p className="text-sm font-medium text-text-strong">
           {t(['Drag and drop a backup file here', 'اسحب ملف النسخة الاحتياطية وأفلته هنا'])}
         </p>
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-text-muted">
           {t([
             'or click to browse · .dump only · max 10 GB',
             'أو انقر للاختيار · .dump فقط · حد أقصى 10 GB',
@@ -111,18 +114,18 @@ export function BackupUploadDropzone({ onSuccess }: Props) {
       </div>
 
       {(state.phase === 'uploading' || state.phase === 'processing') && (
-        <div className="space-y-2 rounded-xl border border-slate-100 bg-white p-4">
+        <div className="space-y-2 rounded-xl border border-border-subtle bg-surface-card p-4">
           <div className="flex justify-between text-sm">
-            <span className="font-medium text-slate-700">{state.fileName}</span>
-            <span className="text-slate-500">
+            <span className="font-medium text-text-body">{state.fileName}</span>
+            <span className="text-text-muted">
               {state.phase === 'processing'
                 ? t(['Validating…', 'جارٍ التحقق…'])
                 : `${state.percent}%`}
             </span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+          <div className="h-2 overflow-hidden rounded-full bg-surface-sunken">
             <div
-              className="h-full rounded-full bg-emerald-500 transition-all"
+              className="h-full rounded-full bg-cta transition-all"
               style={{ width: `${state.percent}%` }}
             />
           </div>
@@ -130,41 +133,47 @@ export function BackupUploadDropzone({ onSuccess }: Props) {
       )}
 
       {state.phase === 'success' && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 text-sm text-emerald-900">
-          <p className="font-semibold">
-            {t(['Upload validated successfully', 'تم التحقق من الرفع بنجاح'])}
-          </p>
-          <dl className="mt-3 grid gap-2 font-mono text-xs sm:grid-cols-2">
-            <div>
-              <dt className="text-emerald-700">{t(['Job ID', 'معرّف المهمة'])}</dt>
-              <dd className="break-all">{state.result.jobId}</dd>
-            </div>
-            <div>
-              <dt className="text-emerald-700">{t(['Size', 'الحجم'])}</dt>
-              <dd>{formatBackupBytes(state.result.sizeBytes)}</dd>
-            </div>
-            <div className="sm:col-span-2">
-              <dt className="text-emerald-700">SHA-256</dt>
-              <dd className="break-all">{state.result.checksumSha256}</dd>
-            </div>
-          </dl>
-        </div>
+        <Alert
+          variant="success"
+          title={t(['Upload validated successfully', 'تم التحقق من الرفع بنجاح'])}
+          description={
+            <dl className="mt-1 grid gap-2 font-mono text-xs sm:grid-cols-2">
+              <div>
+                <dt className="text-status-success-fg">{t(['Job ID', 'معرّف المهمة'])}</dt>
+                <dd className="break-all">{state.result.jobId}</dd>
+              </div>
+              <div>
+                <dt className="text-status-success-fg">{t(['Size', 'الحجم'])}</dt>
+                <dd>{formatBackupBytes(state.result.sizeBytes)}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-status-success-fg">SHA-256</dt>
+                <dd className="break-all">{state.result.checksumSha256}</dd>
+              </div>
+            </dl>
+          }
+        />
       )}
 
       {state.phase === 'error' && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900">
-          <p className="font-semibold">{t(['Validation failed', 'فشل التحقق'])}</p>
-          {state.fileName ? <p className="mt-1 text-xs opacity-80">{state.fileName}</p> : null}
-          <p className="mt-2">{state.message}</p>
-          <Button
-            className="mt-3"
-            size="sm"
-            variant="secondary"
-            onClick={() => setState({ phase: 'idle' })}
-          >
-            {t(['Try again', 'حاول مجدداً'])}
-          </Button>
-        </div>
+        <Alert
+          variant="error"
+          title={t(['Validation failed', 'فشل التحقق'])}
+          description={
+            <>
+              {state.fileName ? <p className="mt-1 text-xs opacity-80">{state.fileName}</p> : null}
+              <p className="mt-2">{state.message}</p>
+              <Button
+                className="mt-3"
+                size="sm"
+                variant="secondary"
+                onClick={() => setState({ phase: 'idle' })}
+              >
+                {t(['Try again', 'حاول مجدداً'])}
+              </Button>
+            </>
+          }
+        />
       )}
     </div>
   );

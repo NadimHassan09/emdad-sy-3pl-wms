@@ -1,0 +1,306 @@
+{
+  "findings": [
+    {
+      "id": "AUTH-CLIENT",
+      "area": "Auth",
+      "status": "PASS",
+      "detail": "Client logged in → https://staging-client.emdadsy.com/dashboard",
+      "at": "2026-08-21T18:03:42.882Z"
+    },
+    {
+      "id": "API-PAGE",
+      "area": "APIs",
+      "status": "PASS",
+      "detail": "Client APIs page loads with credential management UI cues",
+      "at": "2026-08-21T18:03:45.569Z"
+    },
+    {
+      "id": "INV-CLIENT-LIST",
+      "area": "Billing",
+      "status": "PASS",
+      "detail": "Client invoices list visible cues: true",
+      "at": "2026-08-21T18:03:48.264Z"
+    },
+    {
+      "id": "INV-CLIENT-DETAIL",
+      "area": "Billing",
+      "status": "BLOCKED",
+      "detail": "No invoice links on client invoices list",
+      "at": "2026-08-21T18:03:48.270Z"
+    },
+    {
+      "id": "OMS-CREATE-UI",
+      "area": "OMS",
+      "status": "PASS",
+      "detail": "OMS create form sections present",
+      "at": "2026-08-21T18:03:51.467Z"
+    },
+    {
+      "id": "OMS-VAL-NAME",
+      "area": "Validation",
+      "status": "PASS",
+      "detail": "Name John123 → REJECTED_UI",
+      "at": "2026-08-21T18:03:52.875Z"
+    },
+    {
+      "id": "OMS-VAL-PHONE",
+      "area": "Validation",
+      "status": "PASS",
+      "detail": "Phone abc123 → REJECTED_UI (may validate on submit)",
+      "at": "2026-08-21T18:03:52.875Z"
+    },
+    {
+      "id": "OMS-ADDRESS-CONTROLS",
+      "area": "OMS",
+      "status": "PASS",
+      "detail": "Found 2 select/combobox controls on OMS create",
+      "at": "2026-08-21T18:03:52.877Z"
+    },
+    {
+      "id": "OMS-GEO-BOUNDARY",
+      "area": "OMS",
+      "status": "PASS",
+      "detail": "geo/boundary HTTP 200 (count=1)",
+      "geoCalls": [
+        {
+          "url": "https://staging-client.emdadsy.com/api/client/shipping/geo/boundary",
+          "status": 200,
+          "method": "GET"
+        }
+      ],
+      "at": "2026-08-21T18:03:57.982Z"
+    },
+    {
+      "id": "OMS-IMPORT-UI",
+      "area": "Import",
+      "status": "PASS",
+      "detail": "Import UI opened. reference cues=false forbidden-id cues=false",
+      "at": "2026-08-21T18:04:02.741Z"
+    },
+    {
+      "id": "OMS-IMPORT-IDS",
+      "area": "Import",
+      "status": "PASS",
+      "detail": "No obvious requirement for system UUID/order ID on import landing",
+      "at": "2026-08-21T18:04:02.742Z"
+    },
+    {
+      "id": "INB-CREATE-UI",
+      "area": "Inbound",
+      "status": "PASS",
+      "detail": "Inbound create/list cues at https://staging-client.emdadsy.com/inbound/new",
+      "at": "2026-08-21T18:04:05.506Z"
+    },
+    {
+      "id": "OUT-CREATE-UI",
+      "area": "Outbound",
+      "status": "PASS",
+      "detail": "Outbound create cues at https://staging-client.emdadsy.com/outbound/new",
+      "at": "2026-08-21T18:04:07.593Z"
+    },
+    {
+      "id": "AUTH-ADMIN",
+      "area": "Auth",
+      "status": "PASS",
+      "detail": "Admin logged in → https://staging-admin.emdadsy.com/dashboard/overview",
+      "at": "2026-08-21T18:04:11.712Z"
+    },
+    {
+      "id": "INV-ADMIN-LIST",
+      "area": "Billing",
+      "status": "PASS",
+      "detail": "Admin invoices list",
+      "at": "2026-08-21T18:04:14.433Z"
+    },
+    {
+      "id": "OUT-ADMIN-LIST",
+      "area": "Outbound",
+      "status": "PASS",
+      "detail": "Admin outbound list loaded",
+      "at": "2026-08-21T18:04:16.691Z"
+    },
+    {
+      "id": "SHIP-ADMIN-PAGE",
+      "area": "Shipping",
+      "status": "PASS",
+      "detail": "Shipping page at https://staging-admin.emdadsy.com/shipping/companies",
+      "at": "2026-08-21T18:04:18.899Z"
+    },
+    {
+      "id": "OMS-ADMIN-LIST",
+      "area": "OMS",
+      "status": "PASS",
+      "detail": "Admin OMS list",
+      "at": "2026-08-21T18:04:21.119Z"
+    },
+    {
+      "id": "API-GEO",
+      "area": "OMS",
+      "status": "PASS",
+      "detail": "Client geo boundary API HTTP 200",
+      "at": "2026-08-21T18:04:21.769Z"
+    },
+    {
+      "id": "API-CLIENT-OMS-LIST",
+      "area": "OMS",
+      "status": "PASS",
+      "detail": "Client OMS list HTTP 200",
+      "at": "2026-08-21T18:04:21.808Z"
+    },
+    {
+      "id": "API-KEYS-LIST",
+      "area": "APIs",
+      "status": "PASS",
+      "detail": "Tried /api/client/apis → HTTP 200",
+      "at": "2026-08-21T18:04:21.853Z"
+    },
+    {
+      "id": "COD-AMOUNT",
+      "area": "COD",
+      "status": "PASS",
+      "detail": "Create COD OMS OMS-2026-02729: subtotal=60 ship=10 cod=50",
+      "order": "OMS-2026-02729",
+      "at": "2026-08-21T18:04:22.084Z"
+    },
+    {
+      "id": "COD-TIMING-PRE",
+      "area": "COD",
+      "status": "PASS",
+      "detail": "No COD record before deliver for OMS-2026-02729 (list check)",
+      "at": "2026-08-21T18:04:22.140Z"
+    },
+    {
+      "id": "INV-API-STRUCTURE",
+      "area": "Billing",
+      "status": "draft",
+      "detail": "Invoice INV-2026-00012 status=draft lines=3 cues oms=false inbound=true outbound=true sub=true total=50",
+      "invoiceNumber": "INV-2026-00012",
+      "at": "2026-08-21T18:04:22.239Z"
+    },
+    {
+      "id": "INV-CLIENT-API",
+      "area": "Billing",
+      "status": "PASS",
+      "detail": "Client invoice list HTTP 200",
+      "at": "2026-08-21T18:04:22.289Z"
+    },
+    {
+      "id": "SHIP-PROVIDERS",
+      "area": "Shipping",
+      "status": "PASS",
+      "detail": "Providers HTTP 200 body cues={\"success\":true,\"data\":[{\"code\":\"BABEL_EXPRESS\",\"name\":\"Babel Express\",\"enabled\":true,\"status\":\"connected\",\"connected\":true,\"usernameMasked\":\"Yo********\",\"connectedBy\":{\"id\":\"00000000-0000-4000-8000-0",
+      "at": "2026-08-21T18:04:22.342Z"
+    },
+    {
+      "id": "OUT-READY",
+      "area": "Outbound",
+      "status": "PASS",
+      "detail": "OUT-2026-00370 status=ready_to_ship mode=workers",
+      "at": "2026-08-21T18:04:22.403Z"
+    },
+    {
+      "id": "OMS-IMPORT-TEMPLATE",
+      "area": "Import",
+      "status": "PASS",
+      "detail": "/api/client/oms/orders/import/template → 200",
+      "at": "2026-08-21T18:04:22.469Z"
+    }
+  ],
+  "net": [
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/billing/access",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/oms/orders/status-summary",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/oms/orders",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/oms/orders/status-summary",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/oms/orders/status-summary",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/billing/invoices",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/oms/cod-report",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/oms/cod-report",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/oms/cod-report",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/oms/returns",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/billing/access",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/billing/access",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/billing/invoices",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/billing/access",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/shipping/geo/boundary",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/billing/access",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/oms/orders",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/billing/access",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "https://staging-client.emdadsy.com/api/client/billing/access",
+      "status": 200,
+      "method": "GET"
+    }
+  ]
+}

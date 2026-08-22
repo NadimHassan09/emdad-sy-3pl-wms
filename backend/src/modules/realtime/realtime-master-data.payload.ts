@@ -44,6 +44,7 @@ export type UserListRealtimePayload = {
   companyId: string | null;
   companyName: string | null;
   kind: 'system' | 'client';
+  avatarUrl?: string | null;
   createdAt: string;
   updatedAt: string;
   lastLoginAt: string | null;

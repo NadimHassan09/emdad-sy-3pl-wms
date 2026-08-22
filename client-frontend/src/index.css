@@ -1,12 +1,58 @@
-@import '../../shared/design-system/globals.css';
+@import '../../shared/design-system-next/globals.css';
 
-/* CLIENT-UX-1 — tighter portal content density */
+/* Client portal chrome (glass / tabs). hover-lift + animate-enter live in @ds globals. */
+.glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px) saturate(1.8);
+}
+.input-premium:focus {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+  outline: none;
+}
+.tab-active {
+  position: relative;
+}
+.tab-active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #10b981;
+  border-radius: 2px 2px 0 0;
+}
+#client-portal-root,
+#client-portal-root body {
+  font-family: 'Inter', system-ui, sans-serif;
+  letter-spacing: -0.011em;
+}
+#client-portal-root ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+#client-portal-root ::-webkit-scrollbar-track {
+  background: transparent;
+}
+#client-portal-root ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+/* CLIENT PORTAL — premium density overrides */
 #client-portal-root .card__subtitle {
   margin-bottom: 0.75rem;
 }
 
 #client-portal-root .details__row {
   padding: 0.35rem 0;
+}
+
+#client-portal-root .card {
+  border-radius: var(--radius-card);
+  border-color: var(--border-subtle);
+  box-shadow: var(--shadow-xs);
 }
 
 /*
@@ -30,4 +76,3 @@
   max-height: min(90dvh, calc(100vh - 2rem)) !important;
   margin: 0 auto !important;
 }
-

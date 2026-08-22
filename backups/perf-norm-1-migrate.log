@@ -1,0 +1,64 @@
+Timing is on.
+ set_config  
+-------------
+ super_admin
+(1 row)
+
+Time: 0.603 ms
+              set_config              
+--------------------------------------
+ 00000000-0000-4000-8000-0000000000aa
+(1 row)
+
+Time: 0.120 ms
+CREATE TABLE
+Time: 13.318 ms
+TRUNCATE TABLE
+Time: 2.990 ms
+INSERT 0 5
+Time: 26.209 ms
+SELECT 1
+Time: 2.389 ms
+DO
+Time: 17.649 ms
+INSERT 0 1
+Time: 13.871 ms
+INSERT 0 1
+Time: 3.508 ms
+INSERT 0 1
+Time: 1.272 ms
+INSERT 0 11000
+Time: 1011.844 ms (00:01.012)
+INSERT 0 1
+Time: 3.361 ms
+SELECT 10263
+Time: 34.084 ms
+SELECT 10263
+Time: 211.771 ms
+INSERT 0 3
+Time: 3.604 ms
+DELETE 39756
+Time: 272.115 ms
+INSERT 0 1
+Time: 7.759 ms
+UPDATE 10263
+Time: 835.078 ms
+INSERT 0 5
+Time: 11.823 ms
+INSERT 0 1
+Time: 9.965 ms
+UPDATE 4283
+Time: 86.554 ms
+UPDATE 8
+Time: 2.287 ms
+UPDATE 0
+Time: 0.596 ms
+INSERT 0 2
+Time: 6.611 ms
+SELECT 194
+Time: 1.938 ms
+INSERT 0 1
+Time: 0.532 ms
+psql:/var/www/emdad-sy-3pl-wms/scripts/perf-norm-1-migrate.sql:258: ERROR:  update or delete on table "locations" violates foreign key constraint "inventory_ledger_from_location_id_fkey" on table "inventory_ledger"
+DETAIL:  Key (id)=(e45d2340-c1be-46cc-9595-2e4a24d10a30) is still referenced from table "inventory_ledger".
+Time: 51.934 ms

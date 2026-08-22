@@ -5,6 +5,7 @@ exports.isWorkflowActiveStatus = isWorkflowActiveStatus;
 exports.activeWorkflowWhere = activeWorkflowWhere;
 exports.lockWorkflowReferenceOrder = lockWorkflowReferenceOrder;
 exports.findActiveWorkflowForReference = findActiveWorkflowForReference;
+exports.findFinishedWorkflowForReference = findFinishedWorkflowForReference;
 exports.loadWorkflowBootstrapBundle = loadWorkflowBootstrapBundle;
 exports.isActiveWorkflowUniqueViolation = isActiveWorkflowUniqueViolation;
 const common_1 = require("@nestjs/common");
@@ -43,6 +44,18 @@ async function lockWorkflowReferenceOrder(tx, referenceType, referenceId) {
 async function findActiveWorkflowForReference(tx, referenceType, referenceId) {
     return tx.workflowInstance.findFirst({
         where: activeWorkflowWhere(referenceType, referenceId),
+        orderBy: { createdAt: 'desc' },
+    });
+}
+async function findFinishedWorkflowForReference(tx, referenceType, referenceId) {
+    return tx.workflowInstance.findFirst({
+        where: {
+            referenceType,
+            referenceId,
+            status: {
+                in: [client_1.WorkflowInstanceStatus.completed, client_1.WorkflowInstanceStatus.cancelled],
+            },
+        },
         orderBy: { createdAt: 'desc' },
     });
 }

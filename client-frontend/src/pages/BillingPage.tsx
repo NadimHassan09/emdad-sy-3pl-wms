@@ -1,418 +1,533 @@
-import type { ReactElement } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useMemo, type ReactElement, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
-
-import { Alert, EmptyState } from '@ds';
-import type { Column } from '@wms/components/DataTable';
-import { DataTable } from '@wms/components/DataTable';
-import { FilterPanel } from '@wms/components/FilterPanel';
-import { SelectField } from '@wms/components/SelectField';
 import {
-  CHUNK_SIZE_STANDARD,
-  useChunkedServerPagination,
-} from '@wms/hooks/useChunkedServerPagination';
-import { useFilters } from '@wms/hooks/useFilters';
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+} from 'recharts';
 
+import { Alert } from '@ds';
+
+import { Badge } from '../design-v2/Badge';
+import { Card } from '../design-v2/Card';
+import { formatDate, formatDecimal } from '../lib/billing-display';
+import { buildBillingRestrictionCopy } from '../lib/client-billing-restriction';
 import { isClientArabic } from '../lib/client-ui-language';
-import {
-  accountStatusClass,
-  accountStatusLabel,
-  formatCycleLabel,
-  formatDate,
-  formatDecimal,
-  humanizeInvoiceStatus,
-  invoiceStatusClass,
-  isCurrentCycleInvoice,
-} from '../lib/billing-display';
-import {
-  fetchClientBillingSummary,
-  fetchClientInvoicesPage,
-  type ClientInvoice,
-} from '../services/clientBillingService';
+import { CopyEmailButton } from '../components/CopyEmailButton';
+import { fetchClientBillingSummary } from '../services/clientBillingService';
+import { fetchClientDashboardOverview } from '../services/clientDashboardService';
+import { fetchClientInboundOrders } from '../services/clientInboundOrdersService';
+import { fetchClientOmsOrders } from '../services/clientOmsOrdersService';
+import { fetchClientOutboundOrders } from '../services/clientOutboundOrdersService';
+import { fetchClientReturns } from '../services/clientReturnsService';
+import { fetchStockPage } from '../services/stockService';
 
-const INVOICE_STATUS_OPTIONS = [
-  { value: '', label: 'All statuses' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'open', label: 'Open' },
-  { value: 'paid', label: 'Paid' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
+const SALES_EMAIL = 'sales@emdadsy.com';
+const CURRENCY = 'USD';
 
-type InvoiceListDraft = { status: string };
+const INCLUDED_FEATURES = ['OMS', 'WMS'] as const;
 
-const statCardClass =
-  'rounded-xl border border-slate-100 bg-white p-3 shadow-sm sm:p-4';
-
-function billingLabel(label: string, isArabic: boolean): string {
+function tLabel(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
   const ar: Record<string, string> = {
     Billing: 'الفوترة',
-    'Account status': 'حالة الحساب',
+    'Manage your subscription and resource usage': 'إدارة اشتراكك واستخدام الموارد',
+    'Could not load billing': 'تعذر تحميل الفوترة',
+    Retry: 'إعادة المحاولة',
+    'No active billing plan on file.': 'لا توجد خطة فوترة نشطة.',
+    'Contact your account manager to set up a subscription.':
+      'تواصل مع مدير حسابك لإعداد الاشتراك.',
+    'Important notices': 'تنبيهات مهمة',
+    'Current subscription': 'الاشتراك الحالي',
+    'Monthly Plan': 'الخطة الشهرية',
+    'Quarterly Plan': 'الخطة الربع سنوية',
+    'Yearly Plan': 'الخطة السنوية',
+    'Warehouse Plan': 'خطة المستودع',
     Active: 'نشط',
     Expiring: 'ينتهي قريبًا',
-    Restricted: 'مقيّد',
-    'Your billing cycle is ending soon. Contact your account manager to renew.':
-      'دورة الفوترة تنتهي قريبًا. تواصل مع مدير حسابك للتجديد.',
-    'Your account is restricted due to an expired billing cycle. Contact finance to restore access.':
-      'حسابك مقيّد بسبب انتهاء دورة الفوترة. تواصل مع المالية لاستعادة الوصول.',
-    'Current billing plan': 'خطة الفوترة الحالية',
-    'No active billing plan on file.': 'لا توجد خطة فوترة نشطة.',
-    'Cycle length': 'مدة الدورة',
+    Suspended: 'موقوف',
+    Monthly: 'شهري',
+    Quarterly: 'ربع سنوي',
+    Yearly: 'سنوي',
     days: 'يوم',
-    'Fixed subscription fee': 'رسوم الاشتراك الثابتة',
-    'Current cycle': 'الدورة الحالية',
-    'Days remaining': 'الأيام المتبقية',
-    'Reserved volume': 'الحجم المحجوز',
-    'Reserved weight': 'الوزن المحجوز',
-    CBM: 'م³',
-    kg: 'كغ',
-    'Current invoice': 'الفاتورة الحالية',
-    'No invoice for the current billing cycle yet.': 'لا توجد فاتورة للدورة الحالية بعد.',
-    'View invoice': 'عرض الفاتورة',
-    'Invoice history': 'سجل الفواتير',
-    'No invoices yet.': 'لا توجد فواتير بعد.',
-    'No invoices match this filter.': 'لا توجد فواتير تطابق هذا الفلتر.',
-    'Invoices are generated at the end of each billing cycle.':
-      'تُنشأ الفواتير في نهاية كل دورة فوترة.',
-    'Could not load billing': 'تعذر تحميل الفوترة',
-    'Invoice #': 'رقم الفاتورة',
-    Cycle: 'الدورة',
-    Amount: 'المبلغ',
-    Status: 'الحالة',
-    Issued: 'تاريخ الإصدار',
-    Created: 'تاريخ الإنشاء',
-    Current: 'الحالية',
-    rows: 'صف',
-    results: 'نتيجة',
-    of: 'من',
-    Previous: 'السابق',
-    Next: 'التالي',
-    'Rows per page': 'عدد الصفوف لكل صفحة',
-    'Invoice filters': 'فلاتر الفواتير',
-    'Apply filters': 'تطبيق الفلاتر',
-    'Reset filters': 'إعادة تعيين الفلاتر',
-    'All statuses': 'كل الحالات',
-    Draft: 'مسودة',
-    Open: 'مفتوحة',
-    Paid: 'مدفوعة',
-    Cancelled: 'ملغاة',
-    'Days until renewal': 'أيام حتى التجديد',
-    'Current invoice amount': 'مبلغ الفاتورة الحالية',
-    'Total invoices': 'إجمالي الفواتير',
-    'Contact your account manager to set up billing.':
-      'تواصل مع مدير حسابك لإعداد الفوترة.',
+    'Next billing': 'الفوترة التالية',
+    Price: 'السعر',
+    'Billing cycle': 'دورة الفوترة',
+    Capacity: 'السعة',
+    'Auto-renewal': 'التجديد التلقائي',
+    Limit: 'الحد',
+    Progress: 'التقدم',
+    On: 'مفعّل',
+    Off: 'متوقف',
+    'Upgrade plan': 'ترقية الخطة',
+    'Contact sales': 'تواصل مع المبيعات',
+    'Current resource usage': 'استخدام الموارد الحالي',
+    'Live utilization of your subscription': 'الاستخدام الحي لاشتراكك',
+    Inventory: 'المخزون',
+    'Total items': 'إجمالي الوحدات',
+    'Total SKUs': 'إجمالي المنتجات',
+    'Orders this billing cycle': 'طلبات دورة الفوترة الحالية',
+    'Total orders': 'إجمالي الطلبات',
+    Inbound: 'وارد',
+    Outbound: 'صادر',
+    'OMS orders this billing cycle': 'طلبات إلكترونية في دورة الفوترة',
+    'Total OMS orders': 'إجمالي الطلبات الإلكترونية',
+    'Returns this billing cycle': 'مرتجعات دورة الفوترة الحالية',
+    'Total returns': 'إجمالي المرتجعات',
+    'Warehouse capacity': 'سعة المستودع',
+    Used: 'مستخدم',
+    Remaining: 'متبقي',
+    'Subscription limits': 'حدود الاشتراك',
+    'Usage against your plan entitlements': 'الاستخدام مقابل استحقاقات خطتك',
+    'Warehouse volume': 'حجم المستودع',
+    Products: 'المنتجات',
+    Users: 'المستخدمون',
+    'Monthly orders': 'الطلبات الشهرية',
+    'Current usage': 'الاستخدام الحالي',
+    'Maximum limit': 'الحد الأقصى',
+    Unlimited: 'غير محدود',
+    'Next invoice preview': 'معاينة الفاتورة التالية',
+    'Estimated amount': 'المبلغ التقديري',
+    'Estimated billing date': 'تاريخ الفوترة التقديري',
+    'Payment method': 'طريقة الدفع',
+    'Manual settlement': 'تسوية يدوية',
+    'View all invoices': 'عرض كل الفواتير',
+    'Included features': 'الميزات المشمولة',
+    'What your subscription unlocks': 'ما يتيحه اشتراكك',
+    OMS: 'نظام الطلبات',
+    WMS: 'نظام المستودع',
+    'Inventory Management': 'إدارة المخزون',
+    'Returns Management': 'إدارة المرتجعات',
+    'Client Portal': 'بوابة العميل',
+    'Barcode Support': 'دعم الباركود',
+    Reporting: 'التقارير',
+    Notifications: 'الإشعارات',
+    'm³': 'م³',
   };
   return ar[label] ?? label;
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function accountBadgeStatus(status: string): string {
+  if (status === 'restricted') return 'suspended';
+  if (status === 'expiring') return 'pending';
+  return 'active';
+}
+
+function subscriptionStatusLabel(accountStatus: string, t: (s: string) => string): string {
+  if (accountStatus === 'restricted') return t('Suspended');
+  if (accountStatus === 'expiring') return t('Expiring');
+  return t('Active');
+}
+
+function cycleCadence(days: number | undefined, t: (s: string) => string): string {
+  if (days == null) return '—';
+  if (days === 30 || days === 31) return t('Monthly');
+  if (days === 90) return t('Quarterly');
+  if (days === 365 || days === 366) return t('Yearly');
+  return `${days} ${t('days')}`;
+}
+
+function planDisplayName(days: number | undefined, t: (s: string) => string): string {
+  if (days === 30 || days === 31) return t('Monthly Plan');
+  if (days === 90) return t('Quarterly Plan');
+  if (days === 365 || days === 366) return t('Yearly Plan');
+  return t('Warehouse Plan');
+}
+
+function inCycle(iso: string, start?: string | null, end?: string | null): boolean {
+  if (!start || !end) return true;
+  const t = new Date(iso).getTime();
+  return t >= new Date(start).getTime() && t <= new Date(end).getTime();
+}
+
+function SectionHeader({ title, subtitle }: { title: string; subtitle?: string }): ReactElement {
   return (
-    <div className="details__row">
-      <dt>{label}</dt>
-      <dd>{value}</dd>
+    <div className="mb-4">
+      <h2 className="text-base font-semibold text-text-strong">{title}</h2>
+      {subtitle ? <p className="text-xs text-text-muted mt-0.5">{subtitle}</p> : null}
     </div>
   );
 }
 
-function BillingStatWidget({ title, value, hint }: { title: string; value: string; hint?: string }) {
+function StatCard({
+  icon,
+  iconTone,
+  label,
+  children,
+}: {
+  icon: string;
+  iconTone: string;
+  label: string;
+  children: ReactNode;
+}): ReactElement {
   return (
-    <div className={statCardClass}>
-      <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">{title}</p>
-      <p className="mt-2 text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
-    </div>
+    <Card className="p-5" hover>
+      <div className="flex items-center gap-2 text-sm font-medium text-text-muted mb-3">
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${iconTone}`}>
+          <i className={`fa-solid ${icon} text-xs`} />
+        </div>
+        {label}
+      </div>
+      {children}
+    </Card>
   );
 }
 
 export function BillingPage(): ReactElement {
-  const navigate = useNavigate();
   const isArabic = isClientArabic();
-  const t = (label: string) => billingLabel(label, isArabic);
+  const t = (label: string) => tLabel(label, isArabic);
 
   const summaryQuery = useQuery({
     queryKey: ['client', 'billing', 'summary'],
     queryFn: fetchClientBillingSummary,
   });
 
-  const initialFilters = useMemo<InvoiceListDraft>(() => ({ status: '' }), []);
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(initialFilters);
+  const overviewQuery = useQuery({
+    queryKey: ['client', 'dashboard', 'overview'],
+    queryFn: fetchClientDashboardOverview,
+  });
 
-  const invoicePagination = useChunkedServerPagination<ClientInvoice>({
-    chunkSize: CHUNK_SIZE_STANDARD,
-    filterKey: useMemo(
-      () => ({ status: appliedFilters.status.trim() || undefined }),
-      [appliedFilters.status],
-    ),
-    fetchChunk: (offset, limit) =>
-      fetchClientInvoicesPage({
-        offset,
-        limit,
-        status: appliedFilters.status.trim() || undefined,
-      }),
-    rtQueryKeyPrefix: ['client', 'billing', 'invoices'],
-    chunkQueryKeyPrefix: 'client-billing-invoices-chunk',
+  const stockQuery = useQuery({
+    queryKey: ['client', 'billing', 'stock-usage'],
+    queryFn: () => fetchStockPage({ limit: 200, offset: 0 }),
   });
 
   const summary = summaryQuery.data;
-  const currentCycleId = summary?.currentCycle?.id;
+  const plan = summary?.plan ?? null;
+  const cycle = summary?.currentCycle ?? null;
+  const storage = overviewQuery.data?.storage;
+  const cycleStart = cycle?.startsAt;
+  const cycleEnd = cycle?.endsAt;
 
-  const tableLabels = {
-    rowsSuffix: t('rows'),
-    resultsSuffix: t('results'),
-    ofWord: t('of'),
-    previous: t('Previous'),
-    next: t('Next'),
-    rowsPerPageAria: t('Rows per page'),
-  };
+  const inboundQuery = useQuery({
+    queryKey: ['client', 'billing', 'inbound-cycle', cycleStart, cycleEnd],
+    queryFn: () => fetchClientInboundOrders({ limit: 200, offset: 0 }),
+    enabled: !!plan,
+  });
 
-  const columns: Column<ClientInvoice>[] = [
+  const outboundQuery = useQuery({
+    queryKey: ['client', 'billing', 'outbound-cycle', cycleStart, cycleEnd],
+    queryFn: () => fetchClientOutboundOrders({ limit: 200, offset: 0 }),
+    enabled: !!plan,
+  });
+
+  const omsQuery = useQuery({
+    queryKey: ['client', 'billing', 'oms-cycle', cycleStart, cycleEnd],
+    queryFn: () => fetchClientOmsOrders({ limit: 200, offset: 0 }),
+    enabled: !!plan,
+  });
+
+  const returnsQuery = useQuery({
+    queryKey: ['client', 'billing', 'returns-cycle', cycleStart, cycleEnd],
+    queryFn: () => fetchClientReturns({ limit: 200, offset: 0 }),
+    enabled: !!plan,
+  });
+
+  const notice =
+    summary != null
+      ? buildBillingRestrictionCopy(
+          summary.accountStatus === 'restricted'
+            ? 'restricted'
+            : summary.accountStatus === 'expiring'
+              ? 'expiring'
+              : plan
+                ? 'active'
+                : 'no_plan',
+          summary.daysRemaining,
+          isArabic,
+        )
+      : null;
+
+  const usedVolume = Number(storage?.usedVolumeCbm ?? 0);
+  const totalVolume = Number(
+    storage?.reservedVolumeCbm ?? summary?.reservedVolume ?? plan?.reservedVolume ?? 0,
+  );
+  const remainingVolume =
+    storage?.remainingVolumeCbm != null
+      ? Number(storage.remainingVolumeCbm)
+      : totalVolume > 0
+        ? Math.max(0, totalVolume - usedVolume)
+        : null;
+
+  const skuCount = stockQuery.data?.total ?? overviewQuery.data?.productsCount ?? 0;
+  const totalItems = useMemo(() => {
+    const rows = stockQuery.data?.items ?? [];
+    return rows.reduce((sum, row) => sum + (Number(row.onHand) || 0), 0);
+  }, [stockQuery.data]);
+
+  const inboundCycle = useMemo(() => {
+    const rows = inboundQuery.data?.items ?? [];
+    return rows.filter((r) => inCycle(r.createdAt, cycleStart, cycleEnd)).length;
+  }, [inboundQuery.data, cycleStart, cycleEnd]);
+
+  const outboundCycle = useMemo(() => {
+    const rows = outboundQuery.data?.items ?? [];
+    return rows.filter((r) => inCycle(r.createdAt, cycleStart, cycleEnd)).length;
+  }, [outboundQuery.data, cycleStart, cycleEnd]);
+
+  const omsCycle = useMemo(() => {
+    const rows = omsQuery.data?.items ?? [];
+    return rows.filter((r) => inCycle(r.createdAt, cycleStart, cycleEnd)).length;
+  }, [omsQuery.data, cycleStart, cycleEnd]);
+
+  const returnsCycle = useMemo(() => {
+    const rows = returnsQuery.data?.items ?? [];
+    return rows.filter((r) => inCycle(r.createdAt, cycleStart, cycleEnd)).length;
+  }, [returnsQuery.data, cycleStart, cycleEnd]);
+
+  const ordersTotal = inboundCycle + outboundCycle;
+
+  const capacityDonut = [
+    { name: t('Used'), value: Math.max(0, usedVolume), fill: 'var(--color-brand-500)' },
     {
-      header: t('Invoice #'),
-      accessor: (row) => (
-        <span className="font-mono" dir="ltr">
-          {row.invoiceNumber}
-        </span>
-      ),
-      width: '140px',
-    },
-    {
-      header: t('Cycle'),
-      accessor: (row) => formatCycleLabel(row.billingCycle),
-    },
-    {
-      header: t('Amount'),
-      accessor: (row) => formatDecimal(row.totalAmount),
-      width: '100px',
-    },
-    {
-      header: t('Status'),
-      accessor: (row) => (
-        <span className={invoiceStatusClass(row.status)}>{humanizeInvoiceStatus(row.status)}</span>
-      ),
-      className: 'w-1 whitespace-nowrap',
-    },
-    {
-      header: t('Issued'),
-      accessor: (row) => formatDate(row.issuedAt),
-      width: '120px',
-    },
-    {
-      header: t('Created'),
-      accessor: (row) => formatDate(row.createdAt),
-      width: '120px',
-    },
-    {
-      header: '',
-      accessor: (row) =>
-        isCurrentCycleInvoice(row, currentCycleId) ? (
-          <span className="badge badge-progress">{t('Current')}</span>
-        ) : null,
-      width: '90px',
+      name: t('Remaining'),
+      value: Math.max(0, remainingVolume ?? Math.max(0, totalVolume - usedVolume)),
+      fill: 'var(--border-strong)',
     },
   ];
 
-  const statusOptions = INVOICE_STATUS_OPTIONS.map((opt) => ({
-    value: opt.value,
-    label: t(opt.label === 'All statuses' ? 'All statuses' : opt.label),
-  }));
+  const estimatedDate = cycle?.endsAt ?? null;
+  // Avoid `mailto:` so browsers don't prompt to open other apps on the user's device.
+  const salesCopyText = SALES_EMAIL;
 
   return (
-    <div className="space-y-4">
-      <div className="card">
-        <h1 className="card__title">{t('Billing')}</h1>
+    <div className="space-y-5 animate-enter">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-white/5 flex items-center justify-center">
+          <i className="fa-solid fa-file-invoice-dollar text-brand-600 dark:text-brand-400" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-text-strong">{t('Billing')}</h1>
+          <p className="text-xs text-text-muted">{t('Manage your subscription and resource usage')}</p>
+        </div>
+      </div>
 
         {summaryQuery.isError ? (
-          <Alert variant="error" title={t('Could not load billing')} className="mb-4" />
+        <Alert
+          variant="error"
+          title={t('Could not load billing')}
+          action={
+            <Alert.Action variant="error" onClick={() => summaryQuery.refetch()}>
+              {t('Retry')}
+            </Alert.Action>
+          }
+        />
         ) : null}
 
-        {summaryQuery.isPending ? (
-          <p className="muted">Loading billing…</p>
-        ) : summary ? (
-          <>
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                alignItems: 'center',
-                gap: '0.75rem',
-                marginBottom: '1rem',
-              }}
-            >
-              <span className="muted">{t('Account status')}</span>
-              <span className={accountStatusClass(summary.accountStatus)}>
-                {t(accountStatusLabel(summary.accountStatus))}
-              </span>
+      {notice?.showBanner ? (
+        <Card
+          className={[
+            'p-4 border-l-[3px]',
+            notice.variant === 'error'
+              ? 'border-l-status-danger-fg bg-status-danger-bg'
+              : notice.variant === 'warning'
+                ? 'border-l-status-warning-fg bg-status-warning-bg'
+                : 'border-l-status-info-fg bg-status-info-bg',
+          ].join(' ')}
+        >
+          <div className="text-xs font-medium text-text-muted uppercase tracking-wide mb-1">
+            {t('Important notices')}
             </div>
-
-            {summary.accountStatus === 'expiring' ? (
-              <p className="banner banner--warn" role="status" style={{ marginBottom: '1rem' }}>
-                {t(
-                  'Your billing cycle is ending soon. Contact your account manager to renew.',
-                )}
-              </p>
+          <h3 className="text-sm font-semibold text-text-strong">{notice.title}</h3>
+          <p className="text-sm text-text-body mt-1">{notice.description}</p>
+        </Card>
             ) : null}
 
-            {summary.accountStatus === 'restricted' ? (
-              <p className="banner banner--error" role="alert" style={{ marginBottom: '1rem' }}>
-                {t(
-                  'Your account is restricted due to an expired billing cycle. Contact finance to restore access.',
-                )}
-              </p>
-            ) : null}
-
-            <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <BillingStatWidget
-                title={t('Days until renewal')}
-                value={
-                  summary.daysRemaining != null
-                    ? `${Math.max(0, summary.daysRemaining)} ${t('days')}`
-                    : '—'
-                }
-              />
-              <BillingStatWidget
-                title={t('Current invoice amount')}
-                value={
-                  summary.currentInvoice
-                    ? formatDecimal(summary.currentInvoice.totalAmount)
-                    : '—'
-                }
-                hint={
-                  summary.currentInvoice
-                    ? summary.currentInvoice.invoiceNumber
-                    : undefined
-                }
-              />
-              <BillingStatWidget
-                title={t('Total invoices')}
-                value={String(invoicePagination.serverPagination.total)}
-              />
-            </div>
-
-            <section style={{ marginBottom: '1.5rem' }}>
-              <h2 className="card__subtitle">{t('Current billing plan')}</h2>
-              {summary.plan ? (
-                <dl className="details">
-                  <DetailRow
-                    label={t('Fixed subscription fee')}
-                    value={formatDecimal(summary.plan.fixedSubscriptionFee)}
-                  />
-                  <DetailRow
-                    label={t('Cycle length')}
-                    value={`${summary.plan.cycleLengthDays} ${t('days')}`}
-                  />
-                  <DetailRow
-                    label={t('Reserved volume')}
-                    value={`${formatDecimal(summary.reservedVolume, 4)} ${t('CBM')}`}
-                  />
-                  <DetailRow
-                    label={t('Reserved weight')}
-                    value={`${formatDecimal(summary.reservedWeight, 4)} ${t('kg')}`}
-                  />
-                </dl>
-              ) : (
-                <EmptyState
-                  size="sm"
-                  title={t('No active billing plan on file.')}
-                  description={t('Contact your account manager to set up billing.')}
-                />
-              )}
-            </section>
-
-            <section style={{ marginBottom: '1.5rem' }}>
-              <h2 className="card__subtitle">{t('Current cycle')}</h2>
-              {summary.currentCycle ? (
-                <dl className="details">
-                  <DetailRow label={t('Current cycle')} value={formatCycleLabel(summary.currentCycle)} />
-                  <DetailRow
-                    label={t('Days remaining')}
-                    value={
-                      summary.daysRemaining != null ? String(Math.max(0, summary.daysRemaining)) : '—'
-                    }
-                  />
-                </dl>
-              ) : (
-                <p className="muted">—</p>
-              )}
-            </section>
-
-            <section style={{ marginBottom: '1.5rem' }}>
-              <h2 className="card__subtitle">{t('Current invoice')}</h2>
-              {summary.currentInvoice ? (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
-                  <span className="font-mono" dir="ltr">
-                    {summary.currentInvoice.invoiceNumber}
-                  </span>
-                  <span className={invoiceStatusClass(summary.currentInvoice.status)}>
-                    {humanizeInvoiceStatus(summary.currentInvoice.status)}
-                  </span>
-                  <span>{formatDecimal(summary.currentInvoice.totalAmount)}</span>
-                  <Link to={`/billing/invoices/${summary.currentInvoice.id}`}>
-                    {t('View invoice')}
-                  </Link>
+      {!summaryQuery.isPending && !plan ? (
+        <Card className="p-8 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-surface-sunken flex items-center justify-center mx-auto mb-4">
+            <i className="fa-solid fa-file-invoice-dollar text-2xl text-text-faint" />
+          </div>
+          <h3 className="text-base font-semibold text-text-strong">{t('No active billing plan on file.')}</h3>
+          <p className="text-sm text-text-muted mt-1">
+            {t('Contact your account manager to set up a subscription.')}
+          </p>
+          <CopyEmailButton
+            copyText={salesCopyText}
+            copiedLabel={t('Copied')}
+            className="inline-flex mt-4 items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-on-brand bg-cta hover:bg-cta-hover transition-colors cursor-pointer"
+          >
+            {t('Contact sales')}
+          </CopyEmailButton>
+        </Card>
+      ) : (
+        <>
+          {/* Section 1 — Current Subscription */}
+          <Card className="p-6 border-l-[3px] border-l-brand-500" hover>
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-text-muted uppercase tracking-wide mb-2">
+                {t('Current subscription')}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-2xl font-bold text-text-strong">
+                  {plan ? planDisplayName(plan.cycleLengthDays, t) : '…'}
+                </h2>
+                {summary ? (
+                  <Badge status={accountBadgeStatus(summary.accountStatus)}>
+                    {subscriptionStatusLabel(summary.accountStatus, t)}
+                  </Badge>
+                ) : null}
+              </div>
+              <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div>
+                  <div className="text-xs text-text-muted">{t('Price')}</div>
+                  <div className="text-lg font-bold text-text-strong mt-0.5">
+                    {plan ? formatDecimal(plan.fixedSubscriptionFee) : '—'}{' '}
+                    <span className="text-sm font-normal text-text-faint">{CURRENCY}</span>
+                  </div>
                 </div>
-              ) : (
-                <EmptyState
-                  size="sm"
-                  title={t('No invoice for the current billing cycle yet.')}
-                  description={t('Invoices are generated at the end of each billing cycle.')}
-                />
-              )}
-            </section>
+                <div>
+                  <div className="text-xs text-text-muted">{t('Billing cycle')}</div>
+                  <div className="text-sm font-semibold text-text-strong mt-1">
+                    {cycleCadence(plan?.cycleLengthDays, t)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-text-muted">{t('Next billing')}</div>
+                  <div className="text-sm font-semibold text-text-strong mt-1">
+                    {formatDate(estimatedDate)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-text-muted">{t('Capacity')}</div>
+                  <div className="text-sm font-semibold text-text-strong mt-1">
+                    {totalVolume > 0
+                      ? `${formatDecimal(totalVolume, 2)} ${t('m³')}`
+                      : '—'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
 
-            <section>
-              <h2 className="card__subtitle">{t('Invoice history')}</h2>
-
-              <FilterPanel
-                title={t('Invoice filters')}
-                className="mb-4"
-                onApply={applyFilters}
-                onReset={resetFilters}
-                loading={invoicePagination.isFetching}
-                applyLabel={t('Apply filters')}
-                resetLabel={t('Reset filters')}
+          {/* Section 2 — Current Resource Usage */}
+          <div>
+            <SectionHeader
+              title={t('Current resource usage')}
+              subtitle={t('Live utilization of your subscription')}
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <StatCard
+                icon="fa-boxes-stacked"
+                iconTone="bg-status-info-bg text-status-info-fg"
+                label={t('Inventory')}
               >
-                <SelectField
-                  label={t('Status')}
-                  value={draftFilters.status}
-                  options={statusOptions}
-                  onChange={(e) => setDraft({ status: e.target.value })}
-                />
-              </FilterPanel>
+                <div className="text-2xl font-bold text-text-strong">{formatDecimal(totalItems, 0)}</div>
+                <div className="text-xs text-text-muted mt-1">{t('Total items')}</div>
+                <div className="mt-3 pt-3 border-t border-border-subtle flex justify-between text-sm">
+                  <span className="text-text-muted">{t('Total SKUs')}</span>
+                  <span className="font-semibold text-text-strong">{skuCount}</span>
+                </div>
+              </StatCard>
 
-              <DataTable
-                columns={columns}
-                rows={invoicePagination.rows}
-                rowKey={(row) => row.id}
-                loading={invoicePagination.isInitialLoading}
-                onRowClick={(row) => navigate(`/billing/invoices/${row.id}`)}
-                empty={
-                  appliedFilters.status ? (
-                    <EmptyState
-                      size="sm"
-                      title={t('No invoices match this filter.')}
-                      secondaryAction={
-                        <button type="button" className="btn btn--ghost" onClick={resetFilters}>
-                          {t('Reset filters')}
-                        </button>
-                      }
-                    />
-                  ) : (
-                    <EmptyState
-                      size="sm"
-                      title={t('No invoices yet.')}
-                      description={t('Invoices are generated at the end of each billing cycle.')}
-                    />
-                  )
-                }
-                serverPagination={invoicePagination.serverPagination}
-                labels={tableLabels}
-              />
-            </section>
-          </>
-        ) : null}
-      </div>
+              <StatCard
+                icon="fa-truck-fast"
+                iconTone="bg-status-warning-bg text-status-warning-fg"
+                label={t('Orders this billing cycle')}
+              >
+                <div className="text-2xl font-bold text-text-strong">{ordersTotal}</div>
+                <div className="text-xs text-text-muted mt-1">{t('Total orders')}</div>
+                <div className="mt-3 pt-3 border-t border-border-subtle space-y-1.5 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">{t('Inbound')}</span>
+                    <span className="font-semibold text-text-strong">{inboundCycle}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-text-muted">{t('Outbound')}</span>
+                    <span className="font-semibold text-text-strong">{outboundCycle}</span>
+                  </div>
+                </div>
+              </StatCard>
+
+              <StatCard
+                icon="fa-cart-shopping"
+                iconTone="bg-brand-50 text-brand-700 dark:bg-white/5 dark:text-brand-400"
+                label={t('OMS orders this billing cycle')}
+              >
+                <div className="text-2xl font-bold text-text-strong">{omsCycle}</div>
+                <div className="text-xs text-text-muted mt-1">{t('Total OMS orders')}</div>
+              </StatCard>
+
+              <StatCard
+                icon="fa-rotate-left"
+                iconTone="bg-status-danger-bg text-status-danger-fg"
+                label={t('Returns this billing cycle')}
+              >
+                <div className="text-2xl font-bold text-text-strong">{returnsCycle}</div>
+                <div className="text-xs text-text-muted mt-1">{t('Total returns')}</div>
+              </StatCard>
+            </div>
+
+            <div className="mt-4">
+              <Card className="p-5">
+                <h3 className="text-sm font-semibold text-text-strong mb-4">{t('Warehouse capacity')}</h3>
+                <div className="h-44">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={capacityDonut}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={48}
+                        outerRadius={70}
+                        paddingAngle={2}
+                      >
+                        {capacityDonut.map((entry) => (
+                          <Cell key={entry.name} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value) => `${formatDecimal(Number(value), 2)} ${t('m³')}`}
+                        contentStyle={{
+                          borderRadius: 10,
+                          border: '1px solid var(--border-default)',
+                          background: 'var(--surface-panel)',
+                          color: 'var(--text-strong)',
+                          boxShadow: 'var(--shadow-md)',
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex justify-center gap-4 text-xs text-text-muted -mt-2">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-brand-500" />
+                    {t('Used')}: {formatDecimal(usedVolume, 2)} {t('m³')}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-border-strong" />
+                    {t('Remaining')}:{' '}
+                    {remainingVolume != null ? formatDecimal(remainingVolume, 2) : '—'} {t('m³')}
+                  </span>
+                </div>
+              </Card>
+            </div>
+          </div>
+
+          {/* Section 3 — Included Features */}
+          <div>
+            <SectionHeader
+              title={t('Included features')}
+              subtitle={t('What your subscription unlocks')}
+            />
+            <Card className="p-5">
+              <div className="flex flex-wrap gap-2">
+                {INCLUDED_FEATURES.map((feature) => (
+                  <span
+                    key={feature}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-brand-50 dark:bg-white/5 text-brand-800 dark:text-brand-400 border border-brand-100 dark:border-white/10"
+                  >
+                    <i className="fa-solid fa-check text-[10px]" />
+                    {t(feature)}
+                  </span>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 }

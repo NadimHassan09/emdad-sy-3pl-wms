@@ -1,7 +1,7 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
-import { UserRole, UserStatus } from '@prisma/client';
+import { CompanyStatus, UserRole, UserStatus } from '@prisma/client';
 import { Request } from 'express';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 
@@ -56,7 +56,7 @@ export class JwtClientStrategy extends PassportStrategy(Strategy, 'jwt-client') 
         role: true,
         status: true,
         companyId: true,
-        company: { select: { name: true } },
+        company: { select: { name: true, status: true } },
       },
     });
     if (!user || user.status !== UserStatus.active) {
@@ -64,6 +64,10 @@ export class JwtClientStrategy extends PassportStrategy(Strategy, 'jwt-client') 
     }
     if (user.companyId === null || !CLIENT_ROLES.includes(user.role)) {
       throw new UnauthorizedException('Session is no longer valid.');
+    }
+    // Immediately lock out users whose company has been suspended/archived/purged.
+    if (!user.company || user.company.status !== CompanyStatus.active) {
+      throw new ForbiddenException('Your account is currently inactive. Please contact support.');
     }
     return {
       id: user.id,

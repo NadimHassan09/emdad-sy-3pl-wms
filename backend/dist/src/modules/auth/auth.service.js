@@ -20,6 +20,9 @@ const password_service_1 = require("../../common/crypto/password.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const login_brute_force_service_1 = require("../../common/security/login-brute-force.service");
 const request_ip_util_1 = require("../../common/security/request-ip.util");
+const image_processing_service_1 = require("../media/image-processing.service");
+const media_storage_service_1 = require("../media/media-storage.service");
+const avatar_url_1 = require("../media/avatar-url");
 const realtime_service_1 = require("../realtime/realtime.service");
 const refresh_session_service_1 = require("./refresh-session.service");
 const CLIENT_ROLES = [client_1.UserRole.client_admin, client_1.UserRole.client_staff];
@@ -36,7 +39,9 @@ let AuthService = class AuthService {
     refreshSessions;
     realtime;
     loginBruteForce;
-    constructor(prisma, password, jwt, config, audit, refreshSessions, realtime, loginBruteForce) {
+    images;
+    storage;
+    constructor(prisma, password, jwt, config, audit, refreshSessions, realtime, loginBruteForce, images, storage) {
         this.prisma = prisma;
         this.password = password;
         this.jwt = jwt;
@@ -45,6 +50,8 @@ let AuthService = class AuthService {
         this.refreshSessions = refreshSessions;
         this.realtime = realtime;
         this.loginBruteForce = loginBruteForce;
+        this.images = images;
+        this.storage = storage;
     }
     async login(dto, req, res) {
         const ip = (0, request_ip_util_1.getClientIp)(req);
@@ -93,15 +100,51 @@ let AuthService = class AuthService {
             where: { id: user.id },
             data: loginData,
         });
+        const issued = await this.issueInternalSession({
+            id: user.id,
+            email: user.email,
+            fullName: user.fullName,
+            role: user.role,
+            companyId: user.companyId,
+            tokenVersion: user.tokenVersion,
+        }, {
+            rememberMe: Boolean(dto.rememberMe),
+            req,
+            res,
+            auditAction: 'AUTH_LOGIN_SUCCESS',
+            auditNewState: {
+                lastLoginAt: now.toISOString(),
+                lastActivityAt: now.toISOString(),
+                method: 'password',
+            },
+            skipLastLoginUpdate: true,
+        });
+        this.loginBruteForce.recordSuccess('internal', ip);
+        return issued;
+    }
+    async issueInternalSession(user, options) {
+        const now = new Date();
+        if (!options.skipLastLoginUpdate) {
+            await this.prisma.user.update({
+                where: { id: user.id },
+                data: { lastLoginAt: now, lastActivityAt: now },
+            });
+        }
         await this.audit.log(this.audit.fromPrincipal({ id: user.id, email: user.email, role: user.role, companyId: user.companyId }, {
-            action: 'AUTH_LOGIN_SUCCESS',
+            action: options.auditAction,
             resourceType: 'user',
             resourceId: user.id,
             previousState: { tokenVersion: user.tokenVersion },
-            newState: { lastLoginAt: now.toISOString(), lastActivityAt: now.toISOString() },
+            newState: {
+                lastLoginAt: now.toISOString(),
+                lastActivityAt: now.toISOString(),
+                ...(options.auditNewState ?? {}),
+            },
         }));
         const accessExpiresIn = this.config.get('JWT_ACCESS_EXPIRES_IN') ?? DEFAULT_ACCESS_EXPIRES;
-        const refreshExpiresIn = this.config.get('JWT_REFRESH_EXPIRES_IN') ?? DEFAULT_REFRESH_EXPIRES;
+        const refreshExpiresIn = options.rememberMe
+            ? '30d'
+            : this.config.get('JWT_REFRESH_EXPIRES_IN') ?? DEFAULT_REFRESH_EXPIRES;
         const accessMaxAgeMs = this.expiresInToMs(accessExpiresIn);
         const refreshMaxAgeMs = this.expiresInToMs(refreshExpiresIn);
         const refreshExpiresAt = new Date(Date.now() + refreshMaxAgeMs);
@@ -117,11 +160,10 @@ let AuthService = class AuthService {
             expiresIn: Math.max(60, Math.floor(accessMaxAgeMs / 1000)),
         });
         const refresh_token = await this.signRefreshToken(user.id, user.tokenVersion, session.familyId, session.jti, refreshMaxAgeMs);
-        if (res) {
-            this.setAccessCookie(res, access_token, accessMaxAgeMs);
-            this.setRefreshCookie(res, refresh_token, refreshMaxAgeMs);
+        if (options.res) {
+            this.setAccessCookie(options.res, access_token, accessMaxAgeMs);
+            this.setRefreshCookie(options.res, refresh_token, refreshMaxAgeMs);
         }
-        this.loginBruteForce.recordSuccess('internal', ip);
         this.realtime.emitAuthSessionChanged(user.id, { type: 'login', userId: user.id });
         return {
             access_token,
@@ -201,9 +243,8 @@ let AuthService = class AuthService {
             newState: { familyId: rotation.familyId, jti: rotation.jti, lastActivityAt: now.toISOString() },
         }));
         const accessExpiresIn = this.config.get('JWT_ACCESS_EXPIRES_IN') ?? DEFAULT_ACCESS_EXPIRES;
-        const refreshExpiresIn = this.config.get('JWT_REFRESH_EXPIRES_IN') ?? DEFAULT_REFRESH_EXPIRES;
         const accessMaxAgeMs = this.expiresInToMs(accessExpiresIn);
-        const refreshMaxAgeMs = this.expiresInToMs(refreshExpiresIn);
+        const refreshMaxAgeMs = Math.max(60_000, rotation.expiresAt.getTime() - Date.now());
         const accessPayload = {
             sub: user.id,
             email: user.email,
@@ -226,9 +267,10 @@ let AuthService = class AuthService {
             expires_in: Math.floor(accessMaxAgeMs / 1000),
         };
     }
-    async logout(req, res) {
+    async logout(req, res, options) {
+        const soft = Boolean(options?.soft);
         const rawRefresh = this.readRefreshToken(req);
-        if (rawRefresh) {
+        if (rawRefresh && !soft) {
             const payload = await this.tryVerifyRefreshToken(rawRefresh);
             if (payload?.sub) {
                 const prev = await this.prisma.user.findUnique({
@@ -252,14 +294,25 @@ let AuthService = class AuthService {
             }
         }
         if (res) {
-            this.clearAuthCookies(res);
+            if (soft) {
+                this.clearAccessCookie(res);
+            }
+            else {
+                this.clearAuthCookies(res);
+            }
         }
     }
     async getProfile(user) {
         const [dbUser, worker] = await Promise.all([
             this.prisma.user.findUnique({
                 where: { id: user.id },
-                select: { fullName: true },
+                select: {
+                    fullName: true,
+                    avatarPath: true,
+                    googleSub: true,
+                    googleEmail: true,
+                    googleLinkedAt: true,
+                },
             }),
             this.prisma.worker.findUnique({
                 where: { userId: user.id },
@@ -274,7 +327,60 @@ let AuthService = class AuthService {
             authGroup: (0, auth_groups_1.userRoleToAuthGroup)(user.role),
             tenantCompanyId: user.companyId,
             workerId: worker?.id ?? null,
+            avatarUrl: (0, avatar_url_1.toAvatarPublicUrl)(dbUser?.avatarPath),
+            googleLinked: Boolean(dbUser?.googleSub),
+            googleEmail: dbUser?.googleEmail ?? null,
+            googleLinkedAt: dbUser?.googleLinkedAt?.toISOString() ?? null,
         };
+    }
+    async uploadAvatar(user, file) {
+        const compressed = await this.images.compress(file.buffer, file.mimetype, 'avatar');
+        const existing = await this.prisma.user.findUnique({
+            where: { id: user.id },
+            select: { avatarPath: true },
+        });
+        const saved = await this.storage.write('avatars', user.id, compressed);
+        await this.storage.remove(existing?.avatarPath ?? null);
+        const updated = await this.prisma.user.update({
+            where: { id: user.id },
+            data: { avatarPath: saved.relativePath },
+            select: {
+                id: true,
+                email: true,
+                fullName: true,
+                role: true,
+                companyId: true,
+                avatarPath: true,
+            },
+        });
+        const worker = await this.prisma.worker.findUnique({
+            where: { userId: user.id },
+            select: { id: true },
+        });
+        return {
+            avatarUrl: (0, avatar_url_1.toAvatarPublicUrl)(updated.avatarPath),
+            user: {
+                id: updated.id,
+                email: updated.email,
+                fullName: updated.fullName,
+                role: updated.role,
+                authGroup: (0, auth_groups_1.userRoleToAuthGroup)(updated.role),
+                tenantCompanyId: updated.companyId,
+                workerId: worker?.id ?? null,
+                avatarUrl: (0, avatar_url_1.toAvatarPublicUrl)(updated.avatarPath),
+            },
+        };
+    }
+    async deleteAvatar(user) {
+        const existing = await this.prisma.user.findUnique({
+            where: { id: user.id },
+            select: { avatarPath: true },
+        });
+        await this.storage.remove(existing?.avatarPath ?? null);
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: { avatarPath: null },
+        });
     }
     expiresInToMs(expiresIn) {
         const t = expiresIn.trim().toLowerCase();
@@ -297,7 +403,7 @@ let AuthService = class AuthService {
         return {
             httpOnly: true,
             secure: this.isProduction(),
-            sameSite: 'strict',
+            sameSite: 'lax',
             domain: this.getCookieDomain(),
         };
     }
@@ -312,19 +418,28 @@ let AuthService = class AuthService {
         res.cookie(REFRESH_COOKIE_NAME, token, {
             ...this.buildCookieBase(),
             maxAge: maxAgeMs,
-            path: '/api/auth/refresh',
+            path: '/api/auth',
         });
     }
-    clearAuthCookies(res) {
+    clearAccessCookie(res) {
         const base = this.buildCookieBase();
         res.clearCookie(ACCESS_COOKIE_NAME, {
             ...base,
             path: '/',
         });
-        res.clearCookie(REFRESH_COOKIE_NAME, {
-            ...base,
-            path: '/api/auth/refresh',
-        });
+    }
+    clearRefreshCookie(res) {
+        const base = this.buildCookieBase();
+        for (const path of ['/api/auth', '/api/auth/refresh', '/']) {
+            res.clearCookie(REFRESH_COOKIE_NAME, {
+                ...base,
+                path,
+            });
+        }
+    }
+    clearAuthCookies(res) {
+        this.clearAccessCookie(res);
+        this.clearRefreshCookie(res);
     }
     readRefreshToken(req) {
         const c = req?.cookies?.[REFRESH_COOKIE_NAME];
@@ -383,6 +498,8 @@ exports.AuthService = AuthService = __decorate([
         audit_log_service_1.AuditLogService,
         refresh_session_service_1.RefreshSessionService,
         realtime_service_1.RealtimeService,
-        login_brute_force_service_1.LoginBruteForceService])
+        login_brute_force_service_1.LoginBruteForceService,
+        image_processing_service_1.ImageProcessingService,
+        media_storage_service_1.MediaStorageService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

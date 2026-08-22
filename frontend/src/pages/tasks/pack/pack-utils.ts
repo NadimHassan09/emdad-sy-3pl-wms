@@ -165,15 +165,15 @@ export function packLineStatusLabel(status: PackLineStatus): string {
 export function packLineStatusClass(status: PackLineStatus): string {
   switch (status) {
     case 'complete':
-      return 'bg-emerald-100 text-emerald-800';
+      return 'bg-status-success-bg text-brand-700';
     case 'packing':
     case 'verifying':
-      return 'bg-sky-100 text-sky-800';
+      return 'bg-surface-card-muted text-brand-700';
     case 'short':
     case 'overpack':
-      return 'bg-rose-100 text-rose-900';
+      return 'bg-status-danger-bg text-status-danger-fg';
     default:
-      return 'bg-slate-100 text-slate-600';
+      return 'bg-surface-card-muted text-text-body';
   }
 }
 

@@ -18,6 +18,7 @@ interface ErrorPayload {
     message: string;
     details?: unknown;
     requestId?: string;
+    fields?: Record<string, string>;
   };
 }
 
@@ -79,6 +80,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       let message = exception.message;
       let details: unknown;
       let customCode: string | undefined;
+      let fields: Record<string, string> | undefined;
       if (typeof response === 'string') {
         message = response;
       } else if (response && typeof response === 'object') {
@@ -88,6 +90,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
         if (typeof r.code === 'string' && r.code.trim()) {
           customCode = r.code.trim();
         }
+        if (r.fields && typeof r.fields === 'object' && !Array.isArray(r.fields)) {
+          fields = r.fields as Record<string, string>;
+        }
+      }
+      if (!customCode && Array.isArray(message)) {
+        customCode = 'VALIDATION_ERROR';
       }
       return {
         status,
@@ -100,6 +108,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
               isProd,
               status,
             ),
+            ...(fields ? { fields } : {}),
             ...(isProd ? {} : { details: this.sanitizeDetails(details) }),
             ...(requestId ? { requestId } : {}),
           },
@@ -283,6 +292,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private sanitizeMessage(message: string, isProd: boolean, status: number): string {
     const clean = this.redact(message);
     if (!isProd) return clean;
+    // 503 is an intentional operational signal (missing config / dependency down).
+    if (status === HttpStatus.SERVICE_UNAVAILABLE) return clean;
     if (status >= 500) return 'Internal server error.';
     return clean;
   }
@@ -295,7 +306,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   private redact(input: string): string {
     return input
-      .replace(/(password|token|secret|authorization)\s*[:=]\s*([^\s,;]+)/gi, '$1=[REDACTED]')
+      .replace(/(password|token|secret|authorization|api[_-]?secret|api[_-]?key)\s*[:=]\s*([^\s,;]+)/gi, '$1=[REDACTED]')
       .replace(/bearer\s+[a-z0-9\-._~+/]+=*/gi, 'bearer [REDACTED]');
   }
 

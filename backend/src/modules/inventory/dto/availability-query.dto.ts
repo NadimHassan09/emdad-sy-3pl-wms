@@ -9,4 +9,12 @@ export class AvailabilityQueryDto {
   @IsOptional()
   @IsUuidLoose()
   companyId?: string;
+
+  /**
+   * When set, `available` includes this outbound's own active soft-holds for the product
+   * (OMS→Outbound linked reservation reuse — do not treat own hold as unavailable).
+   */
+  @IsOptional()
+  @IsUuidLoose()
+  outboundOrderId?: string;
 }

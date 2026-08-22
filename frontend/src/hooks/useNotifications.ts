@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { useNotificationSoundEffect } from '../../../shared/design-system/lib/use-notification-sound-effect';
+import { useNotificationSoundEffect } from '../../../shared/design-system-next/lib/use-notification-sound-effect';
 import { QK } from '../constants/query-keys';
 import {
   fetchNotifications,

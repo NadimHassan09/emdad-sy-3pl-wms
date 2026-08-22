@@ -27,5 +27,10 @@
     }
   },
   "include": ["src/**/*", "prisma/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.unit.spec.ts",
+    "src/integration-tests/**"
+  ]
 }
