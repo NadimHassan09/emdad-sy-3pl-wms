@@ -13,8 +13,11 @@ const prisma_module_1 = require("../../common/prisma/prisma.module");
 const auth_module_1 = require("../auth/auth.module");
 const realtime_module_1 = require("../realtime/realtime.module");
 const bulk_shipping_service_1 = require("./bulk-shipping.service");
+const address_resolve_service_1 = require("./address-resolve.service");
+const babel_address_adapter_1 = require("./providers/babel-express/babel-address.adapter");
 const babel_express_adapter_1 = require("./providers/babel-express/babel-express.adapter");
 const babel_express_http_client_1 = require("./providers/babel-express/babel-express.http-client");
+const babel_geo_sync_service_1 = require("./providers/babel-express/babel-geo-sync.service");
 const shipping_controller_1 = require("./shipping.controller");
 const shipping_geo_service_1 = require("./shipping-geo.service");
 const shipping_provider_registry_1 = require("./shipping-provider.registry");
@@ -29,12 +32,24 @@ exports.ShippingModule = ShippingModule = __decorate([
         providers: [
             babel_express_http_client_1.BabelExpressHttpClient,
             babel_express_adapter_1.BabelExpressAdapter,
+            babel_address_adapter_1.BabelAddressAdapter,
+            babel_geo_sync_service_1.BabelGeoSyncService,
+            address_resolve_service_1.AddressResolveService,
             shipping_provider_registry_1.ShippingProviderRegistry,
             shipping_geo_service_1.ShippingGeoService,
             shipping_service_1.ShippingService,
             bulk_shipping_service_1.BulkShippingService,
         ],
-        exports: [shipping_service_1.ShippingService, shipping_provider_registry_1.ShippingProviderRegistry, bulk_shipping_service_1.BulkShippingService, shipping_geo_service_1.ShippingGeoService],
+        exports: [
+            shipping_service_1.ShippingService,
+            shipping_provider_registry_1.ShippingProviderRegistry,
+            bulk_shipping_service_1.BulkShippingService,
+            shipping_geo_service_1.ShippingGeoService,
+            babel_geo_sync_service_1.BabelGeoSyncService,
+            babel_express_adapter_1.BabelExpressAdapter,
+            babel_address_adapter_1.BabelAddressAdapter,
+            address_resolve_service_1.AddressResolveService,
+        ],
     })
 ], ShippingModule);
 //# sourceMappingURL=shipping.module.js.map

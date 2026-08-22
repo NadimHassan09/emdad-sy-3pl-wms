@@ -110,7 +110,11 @@ export function InternationalPhoneInput({
 
   const helper = showValidity
     ? value.isEmpty
-      ? null
+      ? required
+        ? isArabic
+          ? 'رقم الهاتف مطلوب.'
+          : 'Phone number is required.'
+        : null
       : value.isValid
         ? recipientPhoneSuccessMessage(isArabic)
         : value.state === 'typing'
@@ -120,8 +124,12 @@ export function InternationalPhoneInput({
       ? recipientPhoneSuccessMessage(isArabic)
       : null;
 
-  const showError = Boolean(helper && !value.isValid && value.state !== 'typing' && !value.isEmpty);
-  const showSuccess = Boolean(helper && value.isValid);
+  const showError = Boolean(
+    helper &&
+      ((required && value.isEmpty) ||
+        (!value.isValid && value.state !== 'typing' && !value.isEmpty)),
+  );
+  const showSuccess = Boolean(helper && value.isValid && !value.isEmpty);
 
   const pickCountry = (iso: string) => {
     setOpen(false);

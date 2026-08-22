@@ -902,9 +902,6 @@ let OutboundService = class OutboundService {
     }
     async selectShippingMethodAdmin(user, orderId, body) {
         const order = await this.findById(orderId, user);
-        if ((0, execution_plan_util_1.normalizeExecutionMode)(order.executionMode) !== 'admin') {
-            throw new common_1.BadRequestException('select-shipping-method requires executionMode=admin.');
-        }
         if (order.status !== client_1.OutboundOrderStatus.waiting_for_shipping_method &&
             order.status !== 'waiting_for_shipping_method') {
             throw new common_1.BadRequestException(`Shipping method can only be selected at waiting_for_shipping_method (current: ${order.status}).`);
@@ -964,10 +961,18 @@ let OutboundService = class OutboundService {
                     null
                     ? Number(order.shippingVolumeCbm)
                     : (0, shipping_config_util_1.calculateOrderVolume)(lineQty, volumeByProductId);
+            if (dto.shippingMethod === client_1.ShippingMethod.carrier) {
+                (0, shipping_config_util_1.assertShippingIntentReady)({
+                    shippingMethod: dto.shippingMethod,
+                    shippingProviderCode: dto.shippingProviderCode,
+                });
+            }
             const row = await tx.outboundOrder.update({
                 where: { id: orderId },
                 data: {
                     ...(0, shipping_config_util_1.shippingPrismaData)({
+                        shippingMethod: dto.shippingMethod,
+                        shippingProviderCode: dto.shippingProviderCode,
                         shippingReceiverLat: dto.shippingReceiverLat,
                         shippingReceiverLng: dto.shippingReceiverLng,
                         shippingPackageType: dto.shippingPackageType,
@@ -983,6 +988,9 @@ let OutboundService = class OutboundService {
                     ...(dto.trackingNumber !== undefined ? { trackingNumber: dto.trackingNumber } : {}),
                 },
                 include: ORDER_INCLUDE,
+            });
+            await tx.carrierShipment.deleteMany({
+                where: { outboundOrderId: orderId, status: client_1.CarrierShipmentStatus.failed },
             });
             if (this.omsEvents && row.omsOrder) {
                 await this.omsEvents.record(tx, {

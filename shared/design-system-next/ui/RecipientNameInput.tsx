@@ -40,9 +40,16 @@ export function RecipientNameInput({
   const inputId = id ?? useId();
   const [touched, setTouched] = useState(false);
   const normalized = normalizeRecipientName(value);
-  const invalid = Boolean(normalized) && !isValidRecipientName(value);
-  const showError = (touched || submitted) && invalid;
-  const error = showError ? recipientNameErrorMessage(isArabic) : null;
+  const emptyRequired = Boolean(required) && !normalized;
+  const invalidFormat = Boolean(normalized) && !isValidRecipientName(value);
+  const showError = (touched || submitted) && (emptyRequired || invalidFormat);
+  const error = showError
+    ? emptyRequired
+      ? isArabic
+        ? 'اسم المستلم مطلوب.'
+        : 'Recipient name is required.'
+      : recipientNameErrorMessage(isArabic)
+    : null;
 
   return (
     <label htmlFor={inputId} className="block min-w-0">

@@ -1,0 +1,101 @@
+{
+  "type": "run_end",
+  "status": "failed",
+  "summary": "After filling the form, the agent did not switch to the final submission step. It repeated a product-selection action and then had no recovery path to finish the order.\nUpdate the automation to treat the product row as complete once the product, quantity, and price are filled, then close any open suggestion list, scroll if needed, click Submit for approval, and only afterward look for the order reference and status.\nevidence: objective_contradiction: click: Clicking SKU-P9DZ6A-MP2IL03L product option in PRODUCTS listbox\nevidence: objective_contradiction: click: PRIMARY: product suggestion option; role=option; text=\"SKU-P9DZ6A-MP2IL03L \u2014 s23",
+  "one_liner": "The run stalled because the agent kept interacting with the product picker instead of clicking Submit for approval and capturing the new order details.",
+  "final_state": {},
+  "reason": "AP determined agent is stuck \u2014 no viable actions remain",
+  "duration": 303.2,
+  "bifurcated": true,
+  "total_runs": 2,
+  "context": {
+    "memory": {},
+    "variables": {
+      "secrets.user.client_email": {
+        "value": "client@acme.example",
+        "secret": true,
+        "syntax": "{{secrets.user.client_email}}",
+        "type": "secret"
+      },
+      "secrets.user.client_password": {
+        "value": "demo123",
+        "secret": true,
+        "syntax": "{{secrets.user.client_password}}",
+        "type": "secret"
+      },
+      "oms_order_ref": {
+        "syntax": "{{oms_order_ref}}",
+        "value": "",
+        "type": "text",
+        "secret": false,
+        "source": "runtime"
+      },
+      "oms_status_after_create": {
+        "syntax": "{{oms_status_after_create}}",
+        "value": "",
+        "type": "text",
+        "secret": false,
+        "source": "runtime"
+      }
+    },
+    "pointer": "(failed) signed in on staging-client.emdadsy.com; The run stalled because the agent kept interacting with the product picker instead of clicking Submit for approval and capturing the new order details."
+  },
+  "credits_consumed": 119.25863,
+  "session_dir": "/root/.testmuai/kaneai/sessions/f8360d3f-e11e-4ad2-8b70-dc90966ee341",
+  "run_dir": "/root/.testmuai/kaneai/sessions/f8360d3f-e11e-4ad2-8b70-dc90966ee341/runs/0",
+  "result_code": 330,
+  "reason_code": "stuck.ap_stuck",
+  "per_flow_metadata": [
+    {
+      "result_code": "100",
+      "reason_code": "success.complete",
+      "error_message": null,
+      "summary": "You asked to sign in to the staging client site.\nThe sign-in was completed using the provided email and password.\nThe run finished on the dashboard page, showing that login was successful.",
+      "one_liner": "signed in on staging-client.emdadsy.com",
+      "credits_consumed": 10.493025
+    },
+    {
+      "result_code": "330",
+      "reason_code": "stuck.ap_stuck",
+      "error_message": "AP determined agent is stuck \u2014 no viable actions remain",
+      "summary": "After filling the form, the agent did not switch to the final submission step. It repeated a product-selection action and then had no recovery path to finish the order.\nUpdate the automation to treat the product row as complete once the product, quantity, and price are filled, then close any open suggestion list, scroll if needed, click Submit for approval, and only afterward look for the order reference and status.\nevidence: objective_contradiction: click: Clicking SKU-P9DZ6A-MP2IL03L product option in PRODUCTS listbox\nevidence: objective_contradiction: click: PRIMARY: product suggestion option; role=option; text=\"SKU-P9DZ6A-MP2IL03L \u2014 s23",
+      "one_liner": "The run stalled because the agent kept interacting with the product picker instead of clicking Submit for approval and capturing the new order details.",
+      "credits_consumed": 108.765605
+    }
+  ],
+  "run_id": "run-0",
+  "verdict": {
+    "confirmed": false,
+    "status": "broken",
+    "family": "automation_bug",
+    "category": "agent_misstep",
+    "category_proposal": "",
+    "severity": "major",
+    "root_cause": "After filling the form, the agent did not switch to the final submission step. It repeated a product-selection action and then had no recovery path to finish the order.",
+    "agent_fault_assessment": "The agent's own actions caused the failed run. By the time of the last cited step, the order form already appears filled well enough to proceed, but the agent clicked the product suggestion again instead of moving on to the final submit action and then reading the created order details. There is no evidence of an application error, validation rejection, network failure, or browser/platform problem.",
+    "bug_title": "Agent re-clicks product suggestion instead of submitting completed order",
+    "signals": [
+      {
+        "excerpt": "click: Clicking SKU-P9DZ6A-MP2IL03L product option in PRODUCTS listbox",
+        "kind": "objective_contradiction",
+        "step": "1-20"
+      },
+      {
+        "excerpt": "click: PRIMARY: product suggestion option; role=option; text=\"SKU-P9DZ6A-MP2IL03L \u2014 s23",
+        "kind": "objective_contradiction",
+        "step": "1-29"
+      }
+    ],
+    "confidence": 0.91,
+    "suggestion": "Update the automation to treat the product row as complete once the product, quantity, and price are filled, then close any open suggestion list, scroll if needed, click Submit for approval, and only afterward look for the order reference and status.",
+    "one_liner": "The run stalled because the agent kept interacting with the product picker instead of clicking Submit for approval and capturing the new order details.",
+    "relevant_steps": [
+      20,
+      29
+    ],
+    "culprit_step": "1-29",
+    "credits_consumed": 7.18345,
+    "mode": "terminal"
+  },
+  "test_url": "https://test-manager.lambdatest.com/projects/01M0GDK7AFN1DN6NRMEAY1DSB9/test-cases/01M0GHGE1ZX89YNEWEVQH71TGA/dashboard/share/US_MUL7T2C6V9UHNIOLKMYQH0EFWHZBUKU9XVUCAD7AHH861UHQ5A01KZRFE8M6S4Q1?type=summary&agentView=true&fqdn=summary-page"
+}

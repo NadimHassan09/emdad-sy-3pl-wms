@@ -57,13 +57,13 @@ function assertCarrierShippingReady(fields) {
         return;
     }
     assertShippingIntentReady(fields);
-    if (fields.shippingReceiverLat == null || fields.shippingReceiverLng == null) {
-        throw new common_1.BadRequestException('Receiver lat/lng are required when shipping via a carrier.');
-    }
-    const lat = Number(fields.shippingReceiverLat);
-    const lng = Number(fields.shippingReceiverLng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        throw new common_1.BadRequestException('Receiver lat/lng must be valid numbers.');
+    const babelHood = fields.babelNeighbourhoodId != null ? Number(fields.babelNeighbourhoodId) : null;
+    const hasBabelHood = babelHood != null && Number.isFinite(babelHood) && babelHood > 0;
+    const lat = fields.shippingReceiverLat != null ? Number(fields.shippingReceiverLat) : NaN;
+    const lng = fields.shippingReceiverLng != null ? Number(fields.shippingReceiverLng) : NaN;
+    const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+    if (!hasBabelHood && !hasCoords) {
+        throw new common_1.BadRequestException('Babel neighbourhood id or receiver lat/lng is required when shipping via a carrier.');
     }
     if (!fields.shippingPackageType) {
         throw new common_1.BadRequestException('shippingPackageType is required when shipping via a carrier.');
@@ -164,6 +164,10 @@ function shippingPrismaData(fields) {
                     fields.shippingPhoneCountry.trim();
         }
     }
+    if (fields.babelNeighbourhoodId !== undefined) {
+        data.babelNeighbourhoodId =
+            fields.babelNeighbourhoodId == null ? null : Number(fields.babelNeighbourhoodId);
+    }
     return data;
 }
 function copyShippingFieldsFromOms(oms) {
@@ -180,6 +184,7 @@ function copyShippingFieldsFromOms(oms) {
         shippingWeightKg: oms.shippingWeightKg == null ? null : oms.shippingWeightKg.toString(),
         shippingVolumeCbm: oms.shippingVolumeCbm == null ? null : oms.shippingVolumeCbm.toString(),
         shippingPhoneCountry: oms.shippingPhoneCountry ?? null,
+        babelNeighbourhoodId: oms.babelNeighbourhoodId ?? null,
     };
 }
 const SHIPPING_PATCH_KEYS = [
@@ -195,6 +200,7 @@ const SHIPPING_PATCH_KEYS = [
     'shippingWeightKg',
     'shippingVolumeCbm',
     'shippingPhoneCountry',
+    'babelNeighbourhoodId',
 ];
 function hasShippingConfigPatch(fields) {
     return SHIPPING_PATCH_KEYS.some((k) => fields[k] !== undefined);

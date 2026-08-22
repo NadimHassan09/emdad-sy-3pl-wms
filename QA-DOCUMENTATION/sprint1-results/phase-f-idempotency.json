@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "one_liner": "opened OMS-2026-02724 and its linked outbound on staging-admin.emdadsy.com",
+  "summary": "Signed in to staging-admin with the provided admin account.\nOpened OMS order OMS-2026-02724 on staging-admin and checked its order details.\nFound that the order's warehouse status was ready_to_ship and that a second approve action was not available.\nOpened the linked outbound record from the OMS order.\nOn the outbound page, confirmed the status was Waiting for Dispatch and that the Mark Dispatch as Complete button was visible.\nFinished on the staging-admin outbound page as requested, without opening the tasks page.",
+  "reason": "Objective completed",
+  "duration": 178.3,
+  "final_state": {
+    "url": "https://staging-admin.emdadsy.com/orders/outbound/ecaccd89-0023-4537-85db-68e588b456ca",
+    "oms_status": "ready_to_ship",
+    "second_approve_possible": "false",
+    "outbound_status": "Waiting for Dispatch",
+    "mark_dispatch_as_complete_visible": "true"
+  }
+}

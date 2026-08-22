@@ -15,6 +15,8 @@ const class_validator_1 = require("class-validator");
 const client_1 = require("@prisma/client");
 const query_transform_1 = require("../../../common/transformers/query-transform");
 class UpdateShippingDetailsDto {
+    shippingMethod;
+    shippingProviderCode;
     shippingReceiverLat;
     shippingReceiverLng;
     shippingPackageType;
@@ -29,6 +31,19 @@ class UpdateShippingDetailsDto {
     trackingNumber;
 }
 exports.UpdateShippingDetailsDto = UpdateShippingDetailsDto;
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(client_1.ShippingMethod),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "shippingMethod", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(64),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "shippingProviderCode", void 0);
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),

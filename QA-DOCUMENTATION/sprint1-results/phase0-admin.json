@@ -1,0 +1,144 @@
+{
+  "type": "run_end",
+  "status": "failed",
+  "summary": "The test checked for the login fields at the wrong time or against the wrong screen. The app had already accepted the credentials and moved to the dashboard, so the checkpoint result did not match what actually happened.\nUpdate the test so the Email/Password visibility check runs on the login page before submission, and add a page-state or URL guard so the assertion cannot be evaluated after redirecting to the dashboard.\nevidence: objective_contradiction: type: Type \"{{secrets.user.admin_email}}\" into \"Email\"\nevidence: objective_contradiction: type: Type \"{{secrets.user.admin_password}}\" into \"Password\"\nevidence: objective_contradiction: analyze: Password is visible.\n  url: https://staging-admin.emdadsy.com/dashboard/overview",
+  "one_liner": "The run falsely failed because the visibility check for the login fields was evaluated after the app had already moved on, even though login succeeded.",
+  "final_state": {},
+  "reason": "Checkpoint assertion failed: \"Email and Password are visible.\"",
+  "duration": 66.6,
+  "bifurcated": true,
+  "total_runs": 1,
+  "context": {
+    "memory": {
+      "staging_admin_url_check": {
+        "extracted_value": "https://staging-admin.emdadsy.com/dashboard/overview",
+        "operator": "contains",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'https://staging-admin.emdadsy.com/dashboard/overview' -> 'https://staging-admin.emdadsy.com/dashboard/overview'; contains 'staging-admin.emdadsy.com/dashboard/overview' -> PASS",
+        "analyzer_type": "url",
+        "step": 7,
+        "query": "the URL is on staging-admin (dashboard/overview or tasks).",
+        "condition": "the URL is on staging-admin (dashboard/overview or tasks).",
+        "human_description": "Reading the current page URL",
+        "expected_value": "staging-admin.emdadsy.com/dashboard/overview"
+      },
+      "email_visible_check": {
+        "extracted_value": "false",
+        "operator": "equals",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'false' -> 'false'; equals 'true' -> FAIL",
+        "analyzer_type": "visual",
+        "step": 7,
+        "query": "Email is visible.",
+        "condition": "Email is visible.",
+        "human_description": "Checking whether the Email field is visible",
+        "expected_value": "true"
+      },
+      "password_visible_check": {
+        "extracted_value": "false",
+        "operator": "equals",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'false' -> 'false'; equals 'true' -> FAIL",
+        "analyzer_type": "visual",
+        "step": 7,
+        "query": "Password is visible.",
+        "condition": "Password is visible.",
+        "human_description": "Checking whether the Password field is visible",
+        "expected_value": "true"
+      }
+    },
+    "variables": {
+      "secrets.user.admin_email": {
+        "value": "superadmin@emdad.example",
+        "secret": true,
+        "syntax": "{{secrets.user.admin_email}}",
+        "type": "secret"
+      },
+      "secrets.user.admin_password": {
+        "value": "demo123",
+        "secret": true,
+        "syntax": "{{secrets.user.admin_password}}",
+        "type": "secret"
+      },
+      "staging_admin_url_check": {
+        "syntax": "{{staging_admin_url_check}}",
+        "value": "https://staging-admin.emdadsy.com/dashboard/overview",
+        "type": "memory",
+        "secret": false
+      },
+      "email_visible_check": {
+        "syntax": "{{email_visible_check}}",
+        "value": "false",
+        "type": "memory",
+        "secret": false
+      },
+      "password_visible_check": {
+        "syntax": "{{password_visible_check}}",
+        "value": "false",
+        "type": "memory",
+        "secret": false
+      }
+    },
+    "pointer": "(failed) The run falsely failed because the visibility check for the login fields was evaluated after the app had already moved on, even though login succeeded."
+  },
+  "credits_consumed": 19.33777,
+  "session_dir": "/root/.testmuai/kaneai/sessions/bc5d92e2-eb6c-44d4-9296-a858431564bc",
+  "run_dir": "/root/.testmuai/kaneai/sessions/bc5d92e2-eb6c-44d4-9296-a858431564bc/runs/0",
+  "result_code": 720,
+  "reason_code": "assertion_error.checkpoint_failed",
+  "per_flow_metadata": [
+    {
+      "result_code": "720",
+      "reason_code": "assertion_error.checkpoint_failed",
+      "error_message": "Checkpoint assertion failed: \"Email and Password are visible.\"",
+      "summary": "The test checked for the login fields at the wrong time or against the wrong screen. The app had already accepted the credentials and moved to the dashboard, so the checkpoint result did not match what actually happened.\nUpdate the test so the Email/Password visibility check runs on the login page before submission, and add a page-state or URL guard so the assertion cannot be evaluated after redirecting to the dashboard.\nevidence: objective_contradiction: type: Type \"{{secrets.user.admin_email}}\" into \"Email\"\nevidence: objective_contradiction: type: Type \"{{secrets.user.admin_password}}\" into \"Password\"\nevidence: objective_contradiction: analyze: Password is visible.\n  url: https://staging-admin.emdadsy.com/dashboard/overview",
+      "one_liner": "The run falsely failed because the visibility check for the login fields was evaluated after the app had already moved on, even though login succeeded.",
+      "credits_consumed": 19.33777
+    }
+  ],
+  "run_id": "run-0",
+  "verdict": {
+    "confirmed": false,
+    "status": "broken",
+    "family": "automation_bug",
+    "category": "state_transition_bug",
+    "category_proposal": "",
+    "severity": "major",
+    "root_cause": "The test checked for the login fields at the wrong time or against the wrong screen. The app had already accepted the credentials and moved to the dashboard, so the checkpoint result did not match what actually happened.",
+    "agent_fault_assessment": "The agent\u2019s actions do not indicate a product problem. It successfully navigated to the login page, typed into both fields, and later reached the dashboard. That means the Email and Password inputs were present and usable. The failure was caused by the automation/checkpoint logic judging the wrong page state, not by the app or by an incorrect user action.",
+    "bug_title": "Visibility checkpoint evaluated against stale login state",
+    "signals": [
+      {
+        "excerpt": "type: Type \"{{secrets.user.admin_email}}\" into \"Email\"",
+        "kind": "objective_contradiction",
+        "step": "step 0-3"
+      },
+      {
+        "excerpt": "type: Type \"{{secrets.user.admin_password}}\" into \"Password\"",
+        "kind": "objective_contradiction",
+        "step": "step 0-4"
+      },
+      {
+        "excerpt": "analyze: Password is visible.\n  url: https://staging-admin.emdadsy.com/dashboard/overview",
+        "kind": "objective_contradiction",
+        "step": "step 0-7"
+      }
+    ],
+    "confidence": 0.97,
+    "suggestion": "Update the test so the Email/Password visibility check runs on the login page before submission, and add a page-state or URL guard so the assertion cannot be evaluated after redirecting to the dashboard.",
+    "one_liner": "The run falsely failed because the visibility check for the login fields was evaluated after the app had already moved on, even though login succeeded.",
+    "relevant_steps": [
+      1,
+      3,
+      4,
+      7
+    ],
+    "culprit_step": "step 0-7",
+    "credits_consumed": 4.884475,
+    "mode": "terminal"
+  },
+  "test_url": "https://test-manager.lambdatest.com/projects/01M0GDK7AFN1DN6NRMEAY1DSB9/test-cases/01M0GH3ZPH4X95DD4EBVJNJ724/dashboard/share/US_WGMBQVS7E7YR25L0WH5D8835WTBNPZ0YQYWKZVWBJWOZYHXGIM4OSN39JMBHROZO?type=summary&agentView=true&fqdn=summary-page"
+}

@@ -38,15 +38,32 @@ let ExternalOmsService = class ExternalOmsService {
         }
         const coords = await this.resolveCoordinates(address.value);
         const products = await this.oms.resolveSkus(client.companyId, dto.lines.map((l) => l.sku));
+        const missing = {};
+        if (!dto.recipientName?.trim()) {
+            missing.recipientName = 'Recipient name is required.';
+        }
+        if (!dto.recipientPhone?.trim()) {
+            missing.recipientPhone = 'Recipient phone is required.';
+        }
+        if (!dto.paymentMethod) {
+            missing.paymentMethod = 'Payment method is required.';
+        }
+        const addressLine1 = address.value.neighborhood?.trim() || address.value.city;
+        if (!addressLine1) {
+            missing.address = 'Town/Neighborhood is required.';
+        }
+        if (Object.keys(missing).length) {
+            (0, api_validation_1.throwApiValidation)('Order payload is incomplete.', missing);
+        }
         try {
             const created = await this.oms.createFromApi(client, {
                 requiredShipDate: dto.requiredShipDate,
-                recipientName: dto.recipientName,
-                recipientPhone: dto.recipientPhone,
+                recipientName: dto.recipientName.trim(),
+                recipientPhone: dto.recipientPhone.trim(),
                 shippingPhoneCountry: dto.shippingPhoneCountry,
                 city: address.value.governorate,
                 district: address.value.city,
-                addressLine1: address.value.neighborhood ?? undefined,
+                addressLine1,
                 addressLine2: address.value.street ?? undefined,
                 notes: dto.notes,
                 storeChannel: dto.storeChannel,

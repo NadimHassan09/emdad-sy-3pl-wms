@@ -1,0 +1,147 @@
+{
+  "type": "run_end",
+  "status": "passed",
+  "summary": "Opened the Tasks page on the staging admin site to check its status.\nThe page showed an application error instead of the Tasks content.\nThe visible error message was \"Unexpected Application Error!\" followed by \"useState is not defined\".\nNo Tasks page heading or task table was visible on the final page.",
+  "one_liner": "checked the Tasks page on staging-admin.emdadsy.com",
+  "final_state": {
+    "url": "https://staging-admin.emdadsy.com/tasks",
+    "tasks_error": "Unexpected Application Error!\nuseState is not defined",
+    "tasks_ui_ok": "false",
+    "tasks_crashed_condition": "true"
+  },
+  "reason": "Objective completed",
+  "duration": 87.3,
+  "bifurcated": true,
+  "total_runs": 2,
+  "context": {
+    "memory": {
+      "tasks_crashed_condition": {
+        "extracted_value": "true",
+        "operator": "equals",
+        "transforms": [],
+        "json_path": null,
+        "reasoning": "value: 'true' -> 'true'; equals 'true' -> PASS",
+        "analyzer_type": "textual_visual",
+        "step": 2,
+        "query": "whether an error boundary is shown on the page",
+        "condition": "an error boundary or blank crash is shown",
+        "human_description": "Checking whether an error boundary or blank crash is shown",
+        "expected_value": "true",
+        "code_js": "!!(el(2)?.textContent?.match(/unexpected application error/i) && el(3)?.textContent?.trim())",
+        "wrapped_js": "(els) => {\n  const __m = {2: 0, 3: 1};\n  const el = (i) => els[__m[i]];\n  const __v = (!!(el(2)?.textContent?.match(/unexpected application error/i) && el(3)?.textContent?.trim()));\n  return (typeof __v === 'boolean' ? String(__v) : __v);\n}",
+        "locators": [
+          "internal:role=heading[name=\"Unexpected Application Error!\"i]",
+          "internal:role=heading[name=\"useState is not defined\"i]"
+        ],
+        "needs_unit_conversion": false
+      },
+      "tasks_error": {
+        "extracted_value": "Unexpected Application Error!\nuseState is not defined",
+        "operator": "contains",
+        "transforms": [
+          "strip"
+        ],
+        "json_path": null,
+        "reasoning": "value: 'Unexpected Application Error!\\nuseState is not defined' (stored, no comparison)",
+        "analyzer_type": "textual_visual",
+        "step": 2,
+        "query": "the visible error message text in the application error boundary",
+        "condition": "the visible error message text is stored as ",
+        "human_description": "Reading the visible error message from the page",
+        "expected_value": "",
+        "code_js": "el(2)?.textContent?.trim() + (el(3)?.textContent?.trim() ? '\\n' + el(3).textContent.trim() : '')",
+        "wrapped_js": "(els) => {\n  const __m = {2: 0, 3: 1};\n  const el = (i) => els[__m[i]];\n  const __v = (el(2)?.textContent?.trim() + (el(3)?.textContent?.trim() ? '\\n' + el(3).textContent.trim() : ''));\n  return (typeof __v === 'boolean' ? String(__v) : __v);\n}",
+        "locators": [
+          "internal:role=heading[name=\"Unexpected Application Error!\"i]",
+          "internal:role=heading[name=\"useState is not defined\"i]"
+        ],
+        "needs_unit_conversion": false
+      },
+      "tasks_ui_ok": {
+        "extracted_value": "false",
+        "operator": "equals",
+        "transforms": [
+          "strip"
+        ],
+        "json_path": null,
+        "reasoning": "value: 'false' (stored, no comparison)",
+        "analyzer_type": "textual_visual",
+        "step": 2,
+        "query": "whether a Tasks page heading or table is visible",
+        "condition": "whether a Tasks page heading or table is visible (yes/no) is stored as ",
+        "human_description": "Checking whether a Tasks page heading or table is visible",
+        "expected_value": "",
+        "code_js": "!!(el(2)?.textContent?.trim().match(/tasks/i) || document.querySelector('table, [role=\"table\"]'))",
+        "wrapped_js": "(els) => {\n  const __m = {2: 0};\n  const el = (i) => els[__m[i]];\n  const __v = (!!(el(2)?.textContent?.trim().match(/tasks/i) || document.querySelector('table, [role=\"table\"]')));\n  return (typeof __v === 'boolean' ? String(__v) : __v);\n}",
+        "locators": [
+          "internal:role=heading[name=\"Unexpected Application Error!\"i]"
+        ],
+        "needs_unit_conversion": false
+      }
+    },
+    "variables": {
+      "secrets.user.admin_email": {
+        "value": "superadmin@emdad.example",
+        "secret": true,
+        "syntax": "{{secrets.user.admin_email}}",
+        "type": "secret"
+      },
+      "secrets.user.admin_password": {
+        "value": "demo123",
+        "secret": true,
+        "syntax": "{{secrets.user.admin_password}}",
+        "type": "secret"
+      },
+      "tasks_error": {
+        "syntax": "{{tasks_error}}",
+        "value": "Unexpected Application Error!\nuseState is not defined",
+        "type": "memory",
+        "secret": false
+      },
+      "tasks_ui_ok": {
+        "syntax": "{{tasks_ui_ok}}",
+        "value": "false",
+        "type": "memory",
+        "secret": false
+      },
+      "tasks_crashed": {
+        "syntax": "{{tasks_crashed}}",
+        "value": "yes",
+        "type": "memory",
+        "secret": false
+      },
+      "tasks_crashed_condition": {
+        "syntax": "{{tasks_crashed_condition}}",
+        "value": "true",
+        "type": "memory",
+        "secret": false
+      }
+    },
+    "pointer": "(passed) logged in to staging-admin.emdadsy.com; checked the Tasks page on staging-admin.emdadsy.com"
+  },
+  "credits_consumed": 28.21438,
+  "session_dir": "/root/.testmuai/kaneai/sessions/d8470641-1bdd-487f-8775-db096fba19bb",
+  "run_dir": "/root/.testmuai/kaneai/sessions/d8470641-1bdd-487f-8775-db096fba19bb/runs/0",
+  "result_code": 100,
+  "reason_code": "success.complete",
+  "per_flow_metadata": [
+    {
+      "result_code": "100",
+      "reason_code": "success.complete",
+      "error_message": null,
+      "summary": "Signed in to the staging admin site using the provided admin email and password.\nReached the dashboard overview page successfully.\nThe task was completed and the user is now logged in.",
+      "one_liner": "logged in to staging-admin.emdadsy.com",
+      "credits_consumed": 10.3931
+    },
+    {
+      "result_code": "100",
+      "reason_code": "success.complete",
+      "error_message": null,
+      "summary": "Opened the Tasks page on the staging admin site to check its status.\nThe page showed an application error instead of the Tasks content.\nThe visible error message was \"Unexpected Application Error!\" followed by \"useState is not defined\".\nNo Tasks page heading or task table was visible on the final page.",
+      "one_liner": "checked the Tasks page on staging-admin.emdadsy.com",
+      "credits_consumed": 17.821279999999998
+    }
+  ],
+  "run_id": "run-0",
+  "test_url": "https://test-manager.lambdatest.com/projects/01M0GDK7AFN1DN6NRMEAY1DSB9/test-cases/01M0GHBDJY5NEGTN7NYS7D1FTN/dashboard/share/US_21WTZLFHL1M9PSXH5BBJ7SOGEK1IXBDNNUAMJH2OIBRK43B0OKTUWODF7N9J3JOW?type=summary&agentView=true&fqdn=summary-page"
+}

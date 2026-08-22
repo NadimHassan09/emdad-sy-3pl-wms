@@ -16,6 +16,7 @@ const client_1 = require("@prisma/client");
 class QuoteShippingRatesDto {
     receiverLat;
     receiverLng;
+    neighbourhoodId;
     packageType;
     weightKg;
     deliveryType;
@@ -28,15 +29,23 @@ class QuoteShippingRatesDto {
 }
 exports.QuoteShippingRatesDto = QuoteShippingRatesDto;
 __decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_transformer_1.Type)(() => Number),
     (0, class_validator_1.IsNumber)(),
     __metadata("design:type", Number)
 ], QuoteShippingRatesDto.prototype, "receiverLat", void 0);
 __decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_transformer_1.Type)(() => Number),
     (0, class_validator_1.IsNumber)(),
     __metadata("design:type", Number)
 ], QuoteShippingRatesDto.prototype, "receiverLng", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Object)
+], QuoteShippingRatesDto.prototype, "neighbourhoodId", void 0);
 __decorate([
     (0, class_validator_1.IsEnum)(client_1.ShippingPackageType),
     __metadata("design:type", String)

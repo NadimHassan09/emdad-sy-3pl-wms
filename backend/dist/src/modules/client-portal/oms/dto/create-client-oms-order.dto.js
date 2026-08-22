@@ -46,6 +46,10 @@ class CreateClientOmsOrderDto {
     city;
     district;
     addressLine1;
+    addressLine2;
+    shippingReceiverLat;
+    shippingReceiverLng;
+    babelNeighbourhoodId;
     notes;
     storeChannel;
     paymentMethod;
@@ -58,14 +62,14 @@ __decorate([
     __metadata("design:type", String)
 ], CreateClientOmsOrderDto.prototype, "requiredShipDate", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Recipient name is required.' }),
     (0, is_recipient_contact_1.IsRecipientName)(),
     __metadata("design:type", String)
 ], CreateClientOmsOrderDto.prototype, "recipientName", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Recipient phone is required.' }),
     (0, is_recipient_contact_1.IsRecipientPhone)(),
     __metadata("design:type", String)
 ], CreateClientOmsOrderDto.prototype, "recipientPhone", void 0);
@@ -75,20 +79,46 @@ __decorate([
     __metadata("design:type", String)
 ], CreateClientOmsOrderDto.prototype, "shippingPhoneCountry", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Governorate is required.' }),
+    (0, class_validator_1.MinLength)(1),
     __metadata("design:type", String)
 ], CreateClientOmsOrderDto.prototype, "city", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'City/Region is required.' }),
+    (0, class_validator_1.MinLength)(1),
     __metadata("design:type", String)
 ], CreateClientOmsOrderDto.prototype, "district", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Town/Neighborhood is required.' }),
+    (0, class_validator_1.MinLength)(1),
+    __metadata("design:type", String)
+], CreateClientOmsOrderDto.prototype, "addressLine1", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
-], CreateClientOmsOrderDto.prototype, "addressLine1", void 0);
+], CreateClientOmsOrderDto.prototype, "addressLine2", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 8 }),
+    __metadata("design:type", Number)
+], CreateClientOmsOrderDto.prototype, "shippingReceiverLat", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 8 }),
+    __metadata("design:type", Number)
+], CreateClientOmsOrderDto.prototype, "shippingReceiverLng", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], CreateClientOmsOrderDto.prototype, "babelNeighbourhoodId", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -100,8 +130,8 @@ __decorate([
     __metadata("design:type", String)
 ], CreateClientOmsOrderDto.prototype, "storeChannel", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsEnum)(client_1.OmsPaymentMethod),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Payment method is required.' }),
     __metadata("design:type", String)
 ], CreateClientOmsOrderDto.prototype, "paymentMethod", void 0);
 __decorate([

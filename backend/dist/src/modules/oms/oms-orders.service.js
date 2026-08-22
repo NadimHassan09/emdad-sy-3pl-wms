@@ -49,6 +49,22 @@ function assertAndNormalizeRecipientContact(dto) {
     }
     return result.value;
 }
+function assertOmsCreateContactAndAddressRequired(dto) {
+    if (!dto.recipientName?.trim()) {
+        throw new common_1.BadRequestException('Recipient name is required.');
+    }
+    if (!dto.recipientPhone?.trim()) {
+        throw new common_1.BadRequestException('Recipient phone is required.');
+    }
+    if (!dto.city?.trim() || !dto.district?.trim() || !dto.addressLine1?.trim()) {
+        throw new common_1.BadRequestException('Governorate, City/Region, and Town/Neighborhood are required.');
+    }
+}
+function assertOmsCreatePaymentMethodRequired(paymentMethod) {
+    if (!paymentMethod?.trim()) {
+        throw new common_1.BadRequestException('Payment method is required.');
+    }
+}
 const ORDER_INCLUDE = {
     company: { select: { id: true, name: true } },
     outboundOrder: { select: { id: true, orderNumber: true, status: true } },
@@ -268,6 +284,7 @@ let OmsOrdersService = class OmsOrdersService {
             shippingWeightKg: dto.shippingWeightKg,
             shippingVolumeCbm: dto.shippingVolumeCbm,
             shippingPhoneCountry: dto.shippingPhoneCountry,
+            babelNeighbourhoodId: dto.babelNeighbourhoodId,
         };
         (0, shipping_config_util_1.assertShippingIntentReady)(shippingFields);
         await this.assertSufficientStockForLines(companyId, dto.lines, products);
@@ -279,6 +296,16 @@ let OmsOrdersService = class OmsOrdersService {
         const bulkImport = opts?.bulkImport;
         const needsInformation = !!opts?.needsInformation;
         const provisionOutbound = !bulkImport && !!opts?.provisionOutbound && !dto.outboundOrderId;
+        if (!needsInformation) {
+            assertOmsCreateContactAndAddressRequired({
+                recipientName: contact.recipientName ?? dto.recipientName,
+                recipientPhone: contact.recipientPhone ?? dto.recipientPhone,
+                city: dto.city,
+                district: dto.district,
+                addressLine1: dto.addressLine1,
+            });
+            assertOmsCreatePaymentMethodRequired(dto.paymentMethod);
+        }
         if (dto.outboundOrderId) {
             await this.assertOutboundLinkable(user, dto.outboundOrderId, companyId);
         }
@@ -373,7 +400,7 @@ let OmsOrdersService = class OmsOrdersService {
         const derivedCod = dto.codAmount != null
             ? new client_1.Prisma.Decimal(dto.codAmount)
             : dto.paymentMethod === 'COD'
-                ? subtotal
+                ? linesSum
                 : null;
         const codStatus = (0, oms_order_mapper_1.deriveCodStatus)(dto.paymentMethod, derivedCod);
         const now = new Date();
@@ -615,7 +642,7 @@ let OmsOrdersService = class OmsOrdersService {
                     data: {
                         shippingFee: ship,
                         subtotal,
-                        codAmount: existing.paymentMethod === 'COD' ? subtotal : existing.codAmount ?? undefined,
+                        codAmount: existing.paymentMethod === 'COD' ? linesSum : existing.codAmount ?? undefined,
                     },
                 });
             }
@@ -745,14 +772,16 @@ let OmsOrdersService = class OmsOrdersService {
                 street: dto.addressLine2 !== undefined ? dto.addressLine2 : existing.addressLine2,
             });
             if (resolved.complete) {
+                const userLat = dto.shippingReceiverLat ?? existing.shippingReceiverLat;
+                const userLng = dto.shippingReceiverLng ?? existing.shippingReceiverLng;
                 incompletePatch = {
                     needsInformation: false,
                     city: resolved.city,
                     district: resolved.district,
                     addressLine1: resolved.addressLine1,
                     addressLine2: resolved.addressLine2,
-                    shippingReceiverLat: resolved.lat,
-                    shippingReceiverLng: resolved.lng,
+                    shippingReceiverLat: userLat != null ? Number(userLat) : resolved.lat,
+                    shippingReceiverLng: userLng != null ? Number(userLng) : resolved.lng,
                     destinationAddress: destination ||
                         (0, oms_order_mapper_1.composeDestinationAddress)({
                             addressLine1: resolved.addressLine1 ?? undefined,
@@ -902,7 +931,7 @@ let OmsOrdersService = class OmsOrdersService {
                     (dto.paymentMethod !== undefined ||
                         dto.subtotal !== undefined ||
                         dto.shippingFee !== undefined)
-                    ? nextSubtotal
+                    ? linesSum
                     : undefined;
             const row = await tx.omsOrder.update({
                 where: { id: existing.id },
@@ -959,26 +988,37 @@ let OmsOrdersService = class OmsOrdersService {
                 },
                 include: ORDER_INCLUDE,
             });
-            if (shippingPatch && row.outboundOrderId) {
+            if (row.outboundOrderId) {
+                const outboundSync = {
+                    recipientName: row.recipientName,
+                    recipientPhone: row.recipientPhone,
+                    city: row.city,
+                    district: row.district,
+                    addressLine1: row.addressLine1,
+                    addressLine2: row.addressLine2,
+                    shippingReceiverLat: row.shippingReceiverLat?.toString() ?? null,
+                    shippingReceiverLng: row.shippingReceiverLng?.toString() ?? null,
+                    ...(dto.carrier !== undefined ? { carrier: dto.carrier } : {}),
+                };
+                if (shippingPatch) {
+                    Object.assign(outboundSync, (0, shipping_config_util_1.shippingPrismaData)({
+                        shippingMethod: row.shippingMethod,
+                        shippingProviderCode: row.shippingProviderCode,
+                        shippingReceiverLat: row.shippingReceiverLat?.toString() ?? null,
+                        shippingReceiverLng: row.shippingReceiverLng?.toString() ?? null,
+                        shippingPackageType: row.shippingPackageType,
+                        shippingContents: row.shippingContents,
+                        shippingDeliveryType: row.shippingDeliveryType,
+                        shippingPickupType: row.shippingPickupType,
+                        shippingPayer: row.shippingPayer,
+                        shippingWeightKg: row.shippingWeightKg?.toString() ?? null,
+                        shippingVolumeCbm: row.shippingVolumeCbm?.toString() ?? null,
+                        shippingPhoneCountry: row.shippingPhoneCountry,
+                    }));
+                }
                 await tx.outboundOrder.update({
                     where: { id: row.outboundOrderId },
-                    data: {
-                        ...(0, shipping_config_util_1.shippingPrismaData)({
-                            shippingMethod: row.shippingMethod,
-                            shippingProviderCode: row.shippingProviderCode,
-                            shippingReceiverLat: row.shippingReceiverLat?.toString() ?? null,
-                            shippingReceiverLng: row.shippingReceiverLng?.toString() ?? null,
-                            shippingPackageType: row.shippingPackageType,
-                            shippingContents: row.shippingContents,
-                            shippingDeliveryType: row.shippingDeliveryType,
-                            shippingPickupType: row.shippingPickupType,
-                            shippingPayer: row.shippingPayer,
-                            shippingWeightKg: row.shippingWeightKg?.toString() ?? null,
-                            shippingVolumeCbm: row.shippingVolumeCbm?.toString() ?? null,
-                            shippingPhoneCountry: row.shippingPhoneCountry,
-                        }),
-                        ...(dto.carrier !== undefined ? { carrier: dto.carrier } : {}),
-                    },
+                    data: outboundSync,
                 });
             }
             await this.events.record(tx, {
@@ -1255,6 +1295,7 @@ let OmsOrdersService = class OmsOrdersService {
         }
         const existing = await this.resolveOrder(id, user);
         (0, oms_order_transitions_1.assertOmsTransition)(existing.status, 'delivery_revert', 'admin');
+        await this.cod.voidForDeliveryRevert(user, existing.id, reason);
         const updated = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             const row = await tx.omsOrder.update({
                 where: { id },

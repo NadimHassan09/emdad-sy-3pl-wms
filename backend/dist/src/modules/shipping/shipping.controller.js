@@ -14,22 +14,56 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ShippingController = void 0;
 const common_1 = require("@nestjs/common");
+const class_transformer_1 = require("class-transformer");
+const class_validator_1 = require("class-validator");
+const client_1 = require("@prisma/client");
 const auth_groups_1 = require("../../common/auth/auth-groups");
 const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
 const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard");
 const roles_decorator_1 = require("../../common/auth/roles.decorator");
 const roles_guard_1 = require("../../common/auth/roles.guard");
+const encryption_service_1 = require("../../common/crypto/encryption.service");
+const prisma_service_1 = require("../../common/prisma/prisma.service");
 const bulk_shipping_service_1 = require("./bulk-shipping.service");
+const address_resolve_service_1 = require("./address-resolve.service");
 const bulk_shipping_dto_1 = require("./dto/bulk-shipping.dto");
 const connect_shipping_provider_dto_1 = require("./dto/connect-shipping-provider.dto");
 const quote_shipping_rates_dto_1 = require("./dto/quote-shipping-rates.dto");
+const resolve_address_from_pin_dto_1 = require("./dto/resolve-address-from-pin.dto");
+const babel_express_adapter_1 = require("./providers/babel-express/babel-express.adapter");
+const babel_geo_sync_service_1 = require("./providers/babel-express/babel-geo-sync.service");
+const shipping_constants_1 = require("./shipping.constants");
 const shipping_service_1 = require("./shipping.service");
+class ResolveBabelNeighbourhoodDto {
+    lat;
+    lng;
+}
+__decorate([
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], ResolveBabelNeighbourhoodDto.prototype, "lat", void 0);
+__decorate([
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    __metadata("design:type", Number)
+], ResolveBabelNeighbourhoodDto.prototype, "lng", void 0);
 let ShippingController = class ShippingController {
     shipping;
     bulkShipping;
-    constructor(shipping, bulkShipping) {
+    babelGeo;
+    babelAdapter;
+    addressResolve;
+    prisma;
+    encryption;
+    constructor(shipping, bulkShipping, babelGeo, babelAdapter, addressResolve, prisma, encryption) {
         this.shipping = shipping;
         this.bulkShipping = bulkShipping;
+        this.babelGeo = babelGeo;
+        this.babelAdapter = babelAdapter;
+        this.addressResolve = addressResolve;
+        this.prisma = prisma;
+        this.encryption = encryption;
     }
     listProviders() {
         return this.shipping.listProviders();
@@ -53,6 +87,32 @@ let ShippingController = class ShippingController {
             return { found: false, geometry: null };
         }
         return { found: true, ...row };
+    }
+    syncBabelGeo() {
+        return this.babelGeo.syncFromBabel();
+    }
+    babelGeoMeta() {
+        return this.babelGeo.snapshotMeta();
+    }
+    babelCities() {
+        return this.babelGeo.listCities();
+    }
+    babelAreas(cityId) {
+        return this.babelGeo.listAreas(Number(cityId));
+    }
+    babelNeighbourhoods(areaId) {
+        return this.babelGeo.listNeighbourhoods(Number(areaId));
+    }
+    resolveAddressFromPin(body) {
+        return this.addressResolve.resolveFromPin(body.lat, body.lng);
+    }
+    async resolveNeighbourhood(body) {
+        const credentials = await this.requireBabelCredentials();
+        const found = await this.babelAdapter.findNeighbourhoodByCoordinates(credentials, body.lat, body.lng);
+        if (!found) {
+            return { found: false, neighbourhood: null };
+        }
+        return { found: true, neighbourhood: found };
     }
     quoteRates(body) {
         return this.shipping.quoteDestinationRates(body);
@@ -80,6 +140,23 @@ let ShippingController = class ShippingController {
     }
     getLabels(id) {
         return this.bulkShipping.getLabelsForJob(id);
+    }
+    async requireBabelCredentials() {
+        const provider = await this.prisma.shippingProvider.findUnique({
+            where: { code: shipping_constants_1.BABEL_EXPRESS_CODE },
+            include: { connection: true },
+        });
+        const conn = provider?.connection;
+        if (!conn ||
+            conn.status !== client_1.ShippingProviderConnectionStatus.connected ||
+            !conn.encryptedUsername ||
+            !conn.encryptedPassword) {
+            throw new Error('Babel Express is not connected.');
+        }
+        return {
+            username: this.encryption.decrypt(conn.encryptedUsername),
+            password: this.encryption.decrypt(conn.encryptedPassword),
+        };
     }
 };
 exports.ShippingController = ShippingController;
@@ -121,6 +198,52 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], ShippingController.prototype, "getBoundary", null);
+__decorate([
+    (0, common_1.Post)('babel/geo/sync'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ShippingController.prototype, "syncBabelGeo", null);
+__decorate([
+    (0, common_1.Get)('babel/geo/meta'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ShippingController.prototype, "babelGeoMeta", null);
+__decorate([
+    (0, common_1.Get)('babel/geo/cities'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ShippingController.prototype, "babelCities", null);
+__decorate([
+    (0, common_1.Get)('babel/geo/cities/:cityId/areas'),
+    __param(0, (0, common_1.Param)('cityId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ShippingController.prototype, "babelAreas", null);
+__decorate([
+    (0, common_1.Get)('babel/geo/areas/:areaId/neighbourhoods'),
+    __param(0, (0, common_1.Param)('areaId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], ShippingController.prototype, "babelNeighbourhoods", null);
+__decorate([
+    (0, common_1.Post)('address/resolve-from-pin'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [resolve_address_from_pin_dto_1.ResolveAddressFromPinDto]),
+    __metadata("design:returntype", void 0)
+], ShippingController.prototype, "resolveAddressFromPin", null);
+__decorate([
+    (0, common_1.Post)('babel/resolve-neighbourhood'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [ResolveBabelNeighbourhoodDto]),
+    __metadata("design:returntype", Promise)
+], ShippingController.prototype, "resolveNeighbourhood", null);
 __decorate([
     (0, common_1.Post)('rates'),
     __param(0, (0, common_1.Body)()),
@@ -185,6 +308,11 @@ exports.ShippingController = ShippingController = __decorate([
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard, internal_admin_guard_1.InternalAdminGuard),
     (0, roles_decorator_1.Roles)(auth_groups_1.AuthGroup.ADMIN),
     __metadata("design:paramtypes", [shipping_service_1.ShippingService,
-        bulk_shipping_service_1.BulkShippingService])
+        bulk_shipping_service_1.BulkShippingService,
+        babel_geo_sync_service_1.BabelGeoSyncService,
+        babel_express_adapter_1.BabelExpressAdapter,
+        address_resolve_service_1.AddressResolveService,
+        prisma_service_1.PrismaService,
+        encryption_service_1.EncryptionService])
 ], ShippingController);
 //# sourceMappingURL=shipping.controller.js.map

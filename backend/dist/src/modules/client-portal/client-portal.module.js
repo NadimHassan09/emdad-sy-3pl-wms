@@ -62,6 +62,7 @@ const client_returns_controller_1 = require("./returns/client-returns.controller
 const client_returns_service_1 = require("./returns/client-returns.service");
 const client_oms_returns_controller_1 = require("./oms-returns/client-oms-returns.controller");
 const client_oms_returns_service_1 = require("./oms-returns/client-oms-returns.service");
+const client_shipping_controller_1 = require("./shipping/client-shipping.controller");
 let ClientPortalModule = class ClientPortalModule {
 };
 exports.ClientPortalModule = ClientPortalModule;
@@ -111,6 +112,7 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             external_oms_controller_1.ExternalOmsController,
             external_inbound_controller_1.ExternalInboundController,
             external_outbound_controller_1.ExternalOutboundController,
+            client_shipping_controller_1.ClientShippingController,
         ],
         providers: [
             client_auth_service_1.ClientAuthService,
