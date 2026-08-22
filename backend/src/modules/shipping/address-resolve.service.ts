@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
-import locationIndex from '../../../data/syria-locations/syria-location-index.json';
-import { haversineDistanceKm } from '../geo-polygon.util';
+import locationIndex from '../../data/syria-locations/syria-location-index.json';
+import { haversineDistanceKm } from './geo-polygon.util';
 
 const SEP = '\u001f';
 const MAX_DISTANCE_KM = 1;
@@ -32,7 +32,7 @@ export type ResolveAddressFromPinResult =
     };
 
 type LocationIndexFile = {
-  neighborhoods?: Record<string, { lat?: number; lng?: number }>;
+  neighborhoods?: Record<string, { lat?: number | null; lng?: number | null }>;
 };
 
 /**
