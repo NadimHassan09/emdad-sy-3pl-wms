@@ -3,8 +3,9 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
+import { AuthPrincipal } from '../../../common/auth/current-user.types';
+import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
 import { calendarTodayYmdServerLocal } from '../../../common/utils/order-planning-date';
-import { ClientOutboundOrdersService } from '../outbound/client-outbound-orders.service';
 import { OutboundService } from '../../outbound/outbound.service';
 import {
   getOutboundClientImportTemplate,
@@ -27,10 +28,7 @@ function parsePositiveQty(raw: string): number | null {
 
 @Injectable()
 export class OutboundClientImportService {
-  constructor(
-    private readonly clientOutbound: ClientOutboundOrdersService,
-    private readonly outbound: OutboundService,
-  ) {}
+  constructor(private readonly outbound: OutboundService) {}
 
   getImportTemplate() {
     return getOutboundClientImportTemplate();
@@ -41,6 +39,21 @@ export class OutboundClientImportService {
     fileBuffer: Buffer,
     originalName?: string,
   ): Promise<ClientOrderImportSummary> {
+    return this.importFileForCompany(
+      clientAuthPrincipal(client),
+      client.companyId,
+      fileBuffer,
+      originalName,
+    );
+  }
+
+  async importFileForCompany(
+    user: AuthPrincipal,
+    companyIdRaw: string,
+    fileBuffer: Buffer,
+    originalName?: string,
+  ): Promise<ClientOrderImportSummary> {
+    const companyId = this.outbound.resolveImportCompanyId(user, companyIdRaw);
     const table = parseSpreadsheetTable(fileBuffer, originalName);
     const { dataRows } = assertImportTable(
       table,
@@ -66,7 +79,7 @@ export class OutboundClientImportService {
           .filter((s): s is string => !!s),
       ),
     );
-    const products = await this.outbound.findProductsBySkus(client.companyId, allSkus);
+    const products = await this.outbound.findProductsBySkus(companyId, allSkus);
     const skuToProduct = new Map(products.map((p) => [p.sku.trim().toUpperCase(), p]));
 
     for (const group of groups) {
@@ -92,7 +105,7 @@ export class OutboundClientImportService {
         continue;
       }
 
-      const existing = await this.clientOutbound.findByExternalReference(client, orderNumber);
+      const existing = await this.outbound.findByExternalReference(user, companyId, orderNumber);
       if (existing) {
         duplicate++;
         pushErr(`Duplicate order reference. Already exists as ${existing.orderNumber}.`, 'order_number');
@@ -152,14 +165,21 @@ export class OutboundClientImportService {
       }
 
       try {
-        const createdOrder = await this.clientOutbound.create(client, {
-          destinationAddress: destination,
-          requiredShipDate: shipDate,
-          notes: group.fields.notes || undefined,
-          externalReference: orderNumber,
-          clientReference: orderNumber,
-          lines,
-        });
+        const createdOrder = await this.outbound.create(
+          user,
+          {
+            companyId,
+            destinationAddress: destination,
+            requiredShipDate: shipDate,
+            notes: group.fields.notes || undefined,
+            externalReference: orderNumber,
+            clientReference: orderNumber,
+            lines,
+            executionMode: 'admin',
+            executionPlan: undefined,
+          },
+          { pendingClientApproval: true },
+        );
         created++;
         createdOrderNumbers.push(createdOrder.orderNumber);
       } catch (err) {

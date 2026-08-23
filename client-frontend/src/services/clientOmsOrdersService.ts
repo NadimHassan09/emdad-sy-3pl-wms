@@ -235,6 +235,54 @@ export async function cancelClientOmsOrder(id: string): Promise<ClientOmsOrderDe
   return data;
 }
 
+export async function cancelClientOmsOrdersBulk(
+  ids: string[],
+): Promise<{
+  requested: number;
+  cancelled: number;
+  failed: number;
+  cancelledOrders: Array<{ id: string; orderNumber: string }>;
+  failures: Array<{ id: string; orderNumber: string | null; error: string }>;
+}> {
+  const { data } = await apiClient.post('/oms/orders/cancel-bulk', { ids });
+  return data;
+}
+
+export type ClientOmsExportColumn = {
+  id: string;
+  labelEn: string;
+  labelAr: string;
+};
+
+export async function fetchClientOmsExportColumns(): Promise<ClientOmsExportColumn[]> {
+  const { data } = await apiClient.get<ClientOmsExportColumn[]>('/oms/orders/export/columns');
+  return data;
+}
+
+export async function downloadClientOmsExport(payload: {
+  columnIds: string[];
+  arabicHeaders?: boolean;
+  ids?: string[];
+  orderSearch?: string;
+  status?: string;
+  storeChannel?: string;
+  createdFrom?: string;
+  createdTo?: string;
+}): Promise<void> {
+  const response = await apiClient.post<Blob>('/oms/orders/export', payload, {
+    responseType: 'blob',
+  });
+  const disposition = response.headers['content-disposition'] as string | undefined;
+  const match = disposition?.match(/filename="([^"]+)"/);
+  const filename = match?.[1] ?? `oms-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+  const url = URL.createObjectURL(response.data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export async function fetchClientCodReport(params: {
   limit?: number;
   offset?: number;

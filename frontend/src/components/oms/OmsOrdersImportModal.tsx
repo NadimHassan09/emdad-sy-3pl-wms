@@ -1,16 +1,17 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRef, useState, type ChangeEvent } from 'react';
 
 import { Button } from '@ds';
 
+import { CompaniesApi } from '../../api/companies';
 import {
   OmsApi,
-  type OmsImportExecuteResult,
-  type OmsImportValidateResult,
 } from '../../api/oms';
+import { Combobox } from '../Combobox';
 import { Modal } from '../Modal';
 import { useToast } from '../ToastProvider';
 import { useWmsTranslation } from '../../lib/ui-i18n';
+import { QK } from '../../constants/query-keys';
 
 type Props = {
   open: boolean;
@@ -18,11 +19,21 @@ type Props = {
   onImported: () => void;
 };
 
-function errorsToCsv(errors: { rowNumber: number; externalReference: string | null; reason: string }[]): string {
+type ClientSummary = {
+  created?: number;
+  invalid?: number;
+  duplicate?: number;
+  createdOrderNumbers?: string[];
+  errors?: Array<{ rowNumber: number; orderNumber: string | null; error: string; field?: string | null }>;
+};
+
+function errorsToCsv(
+  errors: Array<{ rowNumber: number; externalReference?: string | null; orderNumber?: string | null; reason?: string; error?: string }>,
+): string {
   const lines = ['row_number,external_reference,reason'];
   for (const e of errors) {
-    const ref = (e.externalReference ?? '').replace(/"/g, '""');
-    const reason = e.reason.replace(/"/g, '""');
+    const ref = (e.externalReference ?? e.orderNumber ?? '').replace(/"/g, '""');
+    const reason = (e.reason ?? e.error ?? '').replace(/"/g, '""');
     lines.push(`${e.rowNumber},"${ref}","${reason}"`);
   }
   return `\uFEFF${lines.join('\n')}`;
@@ -42,40 +53,43 @@ export function OmsOrdersImportModal({ open, onClose, onImported }: Props) {
   const toast = useToast();
   const { t } = useWmsTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [companyId, setCompanyId] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [validation, setValidation] = useState<OmsImportValidateResult | null>(null);
-  const [result, setResult] = useState<OmsImportExecuteResult | null>(null);
+  const [result, setResult] = useState<(Record<string, any> & ClientSummary) | null>(null);
+
+  const companiesQuery = useQuery({
+    queryKey: QK.companies,
+    queryFn: () => CompaniesApi.list(),
+    staleTime: 10 * 60_000,
+    enabled: open,
+  });
+
+  const companyOptions =
+    companiesQuery.data?.map((c) => ({ value: c.id, label: c.name })) ?? [];
 
   const reset = () => {
+    setCompanyId('');
     setFile(null);
-    setValidation(null);
     setResult(null);
     if (inputRef.current) inputRef.current.value = '';
   };
 
   const close = () => {
-    if (validateMut.isPending || importMut.isPending) return;
+    if (importMut.isPending) return;
     reset();
     onClose();
   };
 
-  const validateMut = useMutation({
-    mutationFn: (f: File) => OmsApi.validateImport(f),
-    onSuccess: (data) => {
-      setValidation(data);
-      setResult(null);
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
   const importMut = useMutation({
-    mutationFn: (f: File) => OmsApi.importOrders(f),
+    mutationFn: (f: File) => OmsApi.importOrders(f, companyId),
     onSuccess: (data) => {
       setResult(data);
+      const imported = data.imported ?? data.created ?? 0;
+      const failed = data.failed ?? data.invalid ?? 0;
       toast.success(
         t([
-          `Imported ${data.imported} order(s). Failed: ${data.failed}.`,
-          `تم استيراد ${data.imported} طلب/طلبات. فشل: ${data.failed}.`,
+          `Imported ${imported} order(s). Failed: ${failed}.`,
+          `تم استيراد ${imported} طلب/طلبات. فشل: ${failed}.`,
         ]),
       );
       onImported();
@@ -86,11 +100,10 @@ export function OmsOrdersImportModal({ open, onClose, onImported }: Props) {
   const onFile = (e: ChangeEvent<HTMLInputElement>) => {
     const next = e.target.files?.[0] ?? null;
     setFile(next);
-    setValidation(null);
     setResult(null);
   };
 
-  const busy = validateMut.isPending || importMut.isPending;
+  const busy = importMut.isPending;
 
   return (
     <Modal
@@ -104,20 +117,12 @@ export function OmsOrdersImportModal({ open, onClose, onImported }: Props) {
             {t(['Close', 'إغلاق'])}
           </Button>
           <Button
-            variant="secondary"
-            disabled={!file || busy}
-            loading={validateMut.isPending}
-            onClick={() => file && validateMut.mutate(file)}
-          >
-            {t(['Validate', 'تحقق'])}
-          </Button>
-          <Button
             variant="primary"
-            disabled={!file || busy || (validation != null && validation.validOrders === 0)}
+            disabled={!file || !companyId || busy}
             loading={importMut.isPending}
             onClick={() => file && importMut.mutate(file)}
           >
-            {t(['Import valid orders', 'استيراد الطلبات الصالحة'])}
+            {t(['Import', 'استيراد'])}
           </Button>
         </div>
       }
@@ -125,121 +130,61 @@ export function OmsOrdersImportModal({ open, onClose, onImported }: Props) {
       <div className="space-y-4 text-sm text-text-body">
         <p>
           {t([
-            'Upload a CSV to create OMS orders in Confirmed — Waiting for Admin Approval. Orders are not approved and no outbound, tasks, stock reservation, or carrier shipment is created.',
-            'ارفع ملف CSV لإنشاء طلبات OMS بحالة مؤكد — بانتظار موافقة المسؤول. لن تتم الموافقة تلقائياً ولن يُنشأ صادر أو مهام أو حجز مخزون أو شحنة ناقلة.',
+            'Pick a client, download the client CSV/Excel template, then upload once. Same validation as the client portal (complete rows only).',
+            'اختر عميلًا، نزّل قالب العميل CSV/Excel، ثم ارفع الملف مرة واحدة. نفس قواعد التحقق في بوابة العميل (صفوف مكتملة فقط).',
           ])}
         </p>
-        <p className="text-xs text-text-muted">
-          {t([
-            'One row per product line. Rows sharing the same external_reference (+ company_id) become one multi-line order. shipping_method is always manual on import.',
-            'صف لكل منتج. الصفوف بنفس external_reference (+ company_id) تُجمَّع في طلب واحد متعدد الأسطر. طريقة الشحن عند الاستيراد دائماً يدوية.',
-          ])}
-        </p>
+
+        <div className="min-w-0">
+          <Combobox
+            label={t(['Client company', 'شركة العميل'])}
+            value={companyId}
+            onChange={setCompanyId}
+            options={companyOptions}
+            placeholder={t(['Select company…', 'اختر الشركة…'])}
+            disabled={busy}
+          />
+        </div>
 
         <div className="flex flex-wrap gap-2">
           <Button
             variant="secondary"
             size="sm"
+            disabled={!companyId || busy}
             onClick={() => {
               void OmsApi.downloadImportTemplate().catch((err: Error) => toast.error(err.message));
             }}
           >
-            {t(['Download CSV Template', 'تنزيل قالب CSV'])}
+            {t(['Download client template', 'تنزيل قالب العميل'])}
           </Button>
         </div>
 
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".csv,text/csv"
-          onChange={onFile}
-          className="block w-full text-sm"
-        />
-        {file ? (
-          <p className="text-xs text-text-muted">
-            {file.name} ({Math.round(file.size / 1024)} KB)
-          </p>
-        ) : null}
-
-        {validation ? (
-          <div className="rounded-lg border border-border bg-surface-sunken p-3">
-            <p className="font-semibold text-text-strong">{t(['Validation', 'التحقق'])}</p>
-            <ul className="mt-2 list-inside list-disc text-xs">
-              <li>
-                {t(['Total rows', 'إجمالي الصفوف'])}: {validation.totalRows}
-              </li>
-              <li>
-                {t(['Orders', 'الطلبات'])}: {validation.orderCount}
-              </li>
-              <li>
-                {t(['Valid orders', 'طلبات صالحة'])}: {validation.validOrders}
-              </li>
-              <li>
-                {t(['Invalid orders', 'طلبات غير صالحة'])}: {validation.invalidOrders}
-              </li>
-              <li>
-                {t(['Duplicates in DB', 'مكررات في قاعدة البيانات'])}: {validation.duplicateInDb}
-              </li>
-            </ul>
-            {validation.errors.length > 0 ? (
-              <div className="mt-3 max-h-40 overflow-auto rounded border border-border bg-surface-card p-2 text-xs">
-                {validation.errors.slice(0, 50).map((e, i) => (
-                  <p key={`${e.rowNumber}-${i}`}>
-                    Row {e.rowNumber}
-                    {e.externalReference ? ` (${e.externalReference})` : ''}: {e.reason}
-                  </p>
-                ))}
-                {validation.errors.length > 50 ? (
-                  <p>… +{validation.errors.length - 50} more</p>
-                ) : null}
-              </div>
-            ) : null}
-            {validation.errors.length > 0 ? (
-              <Button
-                className="mt-2"
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  downloadText('oms-import-validation-errors.csv', errorsToCsv(validation.errors))
-                }
-              >
-                {t(['Download errors CSV', 'تنزيل أخطاء CSV'])}
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
+        <div>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            disabled={!companyId || busy}
+            onChange={onFile}
+          />
+        </div>
 
         {result ? (
-          <div className="rounded-lg border border-status-success-border bg-status-success-bg p-3 text-status-success-fg">
-            <p className="font-semibold">
-              {t(['Import summary', 'ملخص الاستيراد'])}
+          <div className="rounded-lg border border-border-subtle bg-surface-card-muted/50 p-3 space-y-2">
+            <p>
+              {t(['Created', 'تم الإنشاء'])}: {result.imported ?? result.created ?? 0} ·{' '}
+              {t(['Failed', 'فشل'])}: {result.failed ?? result.invalid ?? 0} ·{' '}
+              {t(['Duplicates', 'مكررات'])}: {result.skippedDuplicates ?? result.duplicate ?? 0}
             </p>
-            <ul className="mt-2 list-inside list-disc text-xs">
-              <li>
-                {t(['Imported successfully', 'تم الاستيراد بنجاح'])}: {result.imported}
-              </li>
-              <li>
-                {t(['Failed', 'فشل'])}: {result.failed}
-              </li>
-              <li>
-                {t(['Skipped duplicates', 'تم تخطي المكررات'])}: {result.skippedDuplicates}
-              </li>
-            </ul>
-            {result.createdOrderNumbers.length > 0 ? (
-              <p className="mt-2 text-xs">
-                {result.createdOrderNumbers.slice(0, 12).join(', ')}
-                {result.createdOrderNumbers.length > 12
-                  ? ` … +${result.createdOrderNumbers.length - 12}`
-                  : ''}
-              </p>
-            ) : null}
-            {result.errors.length > 0 ? (
+            {(result.errors?.length ?? 0) > 0 ? (
               <Button
-                className="mt-2"
-                variant="secondary"
+                variant="subtle"
                 size="sm"
                 onClick={() =>
-                  downloadText('oms-import-errors.csv', errorsToCsv(result.errors))
+                  downloadText(
+                    'oms-import-errors.csv',
+                    errorsToCsv(result.errors as never),
+                  )
                 }
               >
                 {t(['Download errors CSV', 'تنزيل أخطاء CSV'])}

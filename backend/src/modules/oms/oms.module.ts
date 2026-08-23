@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 
 import { AuditModule } from '../../common/audit/audit.module';
 import { CompanyAccessModule } from '../../common/company-access/company-access.module';
+import { ClientPortalModule } from '../client-portal/client-portal.module';
 import { OutboundModule } from '../outbound/outbound.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { CodModule } from '../cod/cod.module';
@@ -24,6 +25,7 @@ import { OrderAllocationService } from './order-allocation.service';
     forwardRef(() => OutboundModule),
     forwardRef(() => CodModule),
     forwardRef(() => ShippingModule),
+    forwardRef(() => ClientPortalModule),
   ],
   controllers: [OmsController, OmsWebhooksController],
   providers: [

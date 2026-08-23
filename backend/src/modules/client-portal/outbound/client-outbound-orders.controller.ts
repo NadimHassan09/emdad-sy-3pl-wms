@@ -24,8 +24,10 @@ import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { ParseUuidLoosePipe } from '../../../common/pipes/parse-uuid-loose.pipe';
 import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
+import { ClientOutboundExportService } from '../order-export/client-outbound-export.service';
 import { OutboundClientImportService } from '../order-import/outbound-client-import.service';
 import { ClientOutboundOrdersService } from './client-outbound-orders.service';
+import { ClientOutboundOrdersExportDto } from './dto/client-outbound-export.dto';
 import { ClientListOutboundQueryDto } from './dto/client-list-outbound-query.dto';
 
 @Public()
@@ -35,6 +37,7 @@ export class ClientOutboundOrdersController {
   constructor(
     private readonly outbound: ClientOutboundOrdersService,
     private readonly importSvc: OutboundClientImportService,
+    private readonly exportSvc: ClientOutboundExportService,
   ) {}
 
   @Get()
@@ -67,6 +70,27 @@ export class ClientOutboundOrdersController {
       throw new BadRequestException('Excel or CSV file is required.');
     }
     return this.importSvc.importFile(client, file.buffer, file.originalname);
+  }
+
+  @Get('export/columns')
+  exportColumns() {
+    return this.exportSvc.columns();
+  }
+
+  @Post('export')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Header('Cache-Control', 'no-store')
+  async exportOrders(
+    @ClientUser() client: ClientPrincipal,
+    @Body() dto: ClientOutboundOrdersExportDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.exportSvc.exportCsv(client, dto);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('X-Export-Row-Count', String(result.rowCount));
+    res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+    return result.body;
   }
 
   @Get(':id')

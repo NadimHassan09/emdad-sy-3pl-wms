@@ -27,16 +27,19 @@ import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
 import { ConfirmOutboundBodyDto } from './dto/confirm-outbound-body.dto';
 import { ListOutboundQueryDto } from './dto/list-outbound-query.dto';
+import { OutboundOrdersExportDto } from './dto/outbound-orders-export.dto';
 import { UpdateOutboundPlanDto } from './dto/update-outbound-plan.dto';
 import { UpdateShippingDetailsDto } from './dto/update-shipping-details.dto';
 import { OutboundOrdersCsvService } from './outbound-orders-csv.service';
 import { OutboundService } from './outbound.service';
+import { OutboundClientImportService } from '../client-portal/order-import/outbound-client-import.service';
 
 @Controller('outbound-orders')
 export class OutboundController {
   constructor(
     private readonly outbound: OutboundService,
     private readonly csv: OutboundOrdersCsvService,
+    private readonly clientImport: OutboundClientImportService,
   ) {}
 
   @Post()
@@ -71,10 +74,32 @@ export class OutboundController {
     return result.body;
   }
 
+  @Get('export/columns')
+  exportColumns() {
+    return this.csv.columns();
+  }
+
+  @Post('export')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Header('Cache-Control', 'no-store')
+  async exportOrdersPost(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: OutboundOrdersExportDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { columnIds, arabicHeaders, ids, ...query } = dto;
+    const result = await this.csv.exportCsv(user, query, { columnIds, arabicHeaders, ids });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('X-Export-Row-Count', String(result.rowCount));
+    res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+    return result.body;
+  }
+
   @Get('import/template')
   @Header('Cache-Control', 'no-store')
   importTemplate(@Res({ passthrough: true }) res: Response) {
-    const result = this.csv.getImportTemplate();
+    const result = this.clientImport.getImportTemplate();
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
     return result.body;
@@ -88,16 +113,10 @@ export class OutboundController {
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
-  async validateImport(
-    @CurrentUser() user: AuthPrincipal,
-    @UploadedFile() file: Express.Multer.File | undefined,
-  ) {
-    if (!file?.buffer?.length) {
-      throw new BadRequestException('CSV file is required.');
-    }
-    const result = await this.csv.validateImport(user, file.buffer);
-    const { _validPayloads: _, ...publicResult } = result;
-    return publicResult;
+  async validateImport() {
+    throw new BadRequestException(
+      'Client-format import validates on upload. Use POST /outbound-orders/import with companyId.',
+    );
   }
 
   @Post('import')
@@ -111,11 +130,32 @@ export class OutboundController {
   async importOrders(
     @CurrentUser() user: AuthPrincipal,
     @UploadedFile() file: Express.Multer.File | undefined,
+    @Body('companyId') companyId?: string,
   ) {
     if (!file?.buffer?.length) {
       throw new BadRequestException('CSV file is required.');
     }
-    return this.csv.executeImport(user, file.buffer);
+    if (!companyId?.trim()) {
+      throw new BadRequestException('companyId is required.');
+    }
+    const summary = await this.clientImport.importFileForCompany(
+      user,
+      companyId.trim(),
+      file.buffer,
+      file.originalname,
+    );
+    return {
+      ...summary,
+      imported: summary.created,
+      failed: summary.invalid,
+      skippedDuplicates: summary.duplicate,
+      createdOrderNumbers: summary.createdOrderNumbers,
+      errors: summary.errors.map((e) => ({
+        rowNumber: e.rowNumber,
+        externalReference: e.orderNumber,
+        reason: e.error,
+      })),
+    };
   }
 
   @Get(':id')

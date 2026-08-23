@@ -248,32 +248,53 @@ export const OutboundApi = {
     URL.revokeObjectURL(url);
   },
 
-  async downloadImportTemplate(): Promise<void> {
-    const response = await api.get<Blob>('/outbound-orders/import/template', {
+    exportColumns(): Promise<Array<{ id: string; labelEn: string; labelAr: string }>> {
+    return api
+      .get<Array<{ id: string; labelEn: string; labelAr: string }>>('/outbound-orders/export/columns')
+      .then((r) => r.data);
+  },
+
+  async exportDownloadPost(body: Record<string, unknown>): Promise<void> {
+    const response = await api.post<Blob>('/outbound-orders/export', body, {
       responseType: 'blob',
     });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? `outbound-orders-${new Date().toISOString().slice(0, 10)}.csv`;
     const url = URL.createObjectURL(response.data);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = 'outbound-orders-import-template.csv';
+    anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(url);
   },
 
-  validateImport(file: File): Promise<OutboundImportValidateResult> {
-    const body = new FormData();
-    body.append('file', file);
-    return api
-      .post<OutboundImportValidateResult>('/outbound-orders/import/validate', body)
-      .then((r) => r.data);
+  async downloadImportTemplate(): Promise<void> {
+    const response = await api.get<Blob>('/outbound-orders/import/template', {
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? 'outbound-orders-import-template.csv';
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
   },
 
-  importOrders(file: File): Promise<OutboundImportExecuteResult> {
+  validateImport(file: File): Promise<any> {
     const body = new FormData();
     body.append('file', file);
-    return api
-      .post<OutboundImportExecuteResult>('/outbound-orders/import', body)
-      .then((r) => r.data);
+    return api.post(`/outbound-orders/import/validate`, body).then((r) => r.data);
+  },
+
+  importOrders(file: File, companyId: string): Promise<any> {
+    const body = new FormData();
+    body.append('file', file);
+    body.append('companyId', companyId);
+    return api.post(`/outbound-orders/import`, body).then((r) => r.data);
   },
 
   async get(id: string): Promise<OutboundOrder> {

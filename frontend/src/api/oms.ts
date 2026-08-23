@@ -491,14 +491,55 @@ export const OmsApi = {
     URL.revokeObjectURL(url);
   },
 
+  exportColumns(): Promise<Array<{ id: string; labelEn: string; labelAr: string }>> {
+    return api
+      .get<Array<{ id: string; labelEn: string; labelAr: string }>>('/oms/orders/export/columns')
+      .then((r) => r.data);
+  },
+
+  async exportDownloadPost(body: {
+    columnIds: string[];
+    arabicHeaders?: boolean;
+    ids?: string[];
+    companyId?: string;
+    orderSearch?: string;
+    orderId?: string;
+    customer?: string;
+    phone?: string;
+    city?: string;
+    totalOp?: 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
+    totalValue?: string;
+    status?: OmsOrderStatus;
+    storeChannel?: string;
+    linkStatus?: 'linked' | 'unlinked';
+    createdFrom?: string;
+    createdTo?: string;
+  }): Promise<void> {
+    const response = await api.post<Blob>('/oms/orders/export', body, {
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? `oms-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+
   async downloadImportTemplate(): Promise<void> {
     const response = await api.get<Blob>('/oms/orders/import/template', {
       responseType: 'blob',
     });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? 'oms-orders-import-template.csv';
     const url = URL.createObjectURL(response.data);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = 'oms-orders-import-template.csv';
+    anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(url);
   },
@@ -511,9 +552,10 @@ export const OmsApi = {
       .then((r) => r.data);
   },
 
-  importOrders(file: File): Promise<OmsImportExecuteResult> {
+  importOrders(file: File, companyId: string): Promise<OmsImportExecuteResult> {
     const body = new FormData();
     body.append('file', file);
+    body.append('companyId', companyId);
     return api.post<OmsImportExecuteResult>('/oms/orders/import', body).then((r) => r.data);
   },
 

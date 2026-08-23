@@ -3,13 +3,13 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
+import { AuthPrincipal } from '../../../common/auth/current-user.types';
 import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
 import { calendarTodayYmdServerLocal } from '../../../common/utils/order-planning-date';
 import { CreateOmsOrderDto } from '../../oms/dto/oms-order.dto';
 import { resolveOmsDeliveryLocation } from '../../oms/oms-delivery-resolution';
 import { OmsOrdersService } from '../../oms/oms-orders.service';
 import { ShippingGeoService } from '../../shipping/shipping-geo.service';
-import { ClientOmsOrdersService } from '../oms/client-oms-orders.service';
 import {
   applyAdminCityCompatibility,
   getOmsClientImportTemplate,
@@ -37,7 +37,6 @@ import { parseSpreadsheetTable } from './spreadsheet.parse';
 @Injectable()
 export class OmsClientImportService {
   constructor(
-    private readonly clientOms: ClientOmsOrdersService,
     private readonly omsOrders: OmsOrdersService,
     private readonly geo: ShippingGeoService,
   ) {}
@@ -51,6 +50,21 @@ export class OmsClientImportService {
     fileBuffer: Buffer,
     originalName?: string,
   ): Promise<ClientOrderImportSummary> {
+    return this.importFileForCompany(
+      clientAuthPrincipal(client),
+      client.companyId,
+      fileBuffer,
+      originalName,
+    );
+  }
+
+  async importFileForCompany(
+    user: AuthPrincipal,
+    companyIdRaw: string,
+    fileBuffer: Buffer,
+    originalName?: string,
+  ): Promise<ClientOrderImportSummary> {
+    const companyId = this.omsOrders.resolveImportCompanyId(user, companyIdRaw);
     const table = parseSpreadsheetTable(fileBuffer, originalName);
     const { dataRows } = assertImportTable(
       table,
@@ -59,7 +73,6 @@ export class OmsClientImportService {
     );
     const groups = groupRowsByOrderNumber(dataRows, 'order_number', OMS_ORDER_LEVEL_FIELDS);
     const batchId = randomUUID();
-    const user = clientAuthPrincipal(client);
     const errors: ImportRowError[] = [];
     const createdOrderNumbers: string[] = [];
     let created = 0;
@@ -73,7 +86,7 @@ export class OmsClientImportService {
           .filter((s): s is string => !!s),
       ),
     );
-    const products = await this.omsOrders.findProductsBySkus(client.companyId, allSkus);
+    const products = await this.omsOrders.findProductsBySkus(companyId, allSkus);
     const skuToProduct = new Map(products.map((p) => [p.sku.trim().toUpperCase(), p]));
 
     for (const group of groups) {
@@ -103,7 +116,7 @@ export class OmsClientImportService {
 
       applyAdminCityCompatibility(group.fields);
 
-      const existing = await this.clientOms.findByExternalReference(client, orderNumber);
+      const existing = await this.omsOrders.findExistingByExternalReference(user, companyId, orderNumber);
       if (existing) {
         duplicate++;
         pushErr(
@@ -256,7 +269,7 @@ export class OmsClientImportService {
       }
 
       const payload: CreateOmsOrderDto = {
-        companyId: client.companyId,
+        companyId,
         requiredShipDate: shipDateResult.ymd,
         recipientName: nameResult.value,
         recipientPhone: phoneResult.e164,

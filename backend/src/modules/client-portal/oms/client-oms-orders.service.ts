@@ -7,6 +7,7 @@ import { PrismaService } from '../../../common/prisma/prisma.service';
 import { withTenantRls } from '../../../common/prisma/tenant-rls';
 import { ListOmsOrdersQueryDto } from '../../oms/dto/list-oms-orders-query.dto';
 import { CreateOmsOrderDto } from '../../oms/dto/oms-order.dto';
+import { serializeOmsOrder } from '../../oms/oms-order.mapper';
 import { OmsOrdersService } from '../../oms/oms-orders.service';
 import { CreateClientOmsOrderDto } from './dto/create-client-oms-order.dto';
 import { ClientCodReportQueryDto } from './dto/client-cod-report-query.dto';
@@ -41,6 +42,56 @@ export class ClientOmsOrdersService {
       companyId: client.companyId,
     };
     return this.omsOrders.list(user, scoped);
+  }
+
+  async listForExport(
+    client: ClientPrincipal,
+    query: Omit<ListOmsOrdersQueryDto, 'companyId' | 'limit' | 'offset'>,
+    opts: { maxRows: number; ids?: string[] },
+  ) {
+    const user = clientAuthPrincipal(client);
+    if (opts.ids?.length) {
+      const unique = Array.from(new Set(opts.ids.map((id) => id.trim()).filter(Boolean)));
+      return withTenantRls(this.prisma, user, async (tx) => {
+        const rows = await tx.omsOrder.findMany({
+          where: {
+            companyId: client.companyId,
+            id: { in: unique.slice(0, opts.maxRows) },
+          },
+          orderBy: { createdAt: 'desc' },
+          include: {
+            company: { select: { id: true, name: true } },
+            outboundOrder: { select: { id: true, orderNumber: true, status: true } },
+            lines: {
+              orderBy: { lineNumber: 'asc' },
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    sku: true,
+                    name: true,
+                    barcode: true,
+                    status: true,
+                    trackingType: true,
+                    uom: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+        return {
+          items: rows.map(serializeOmsOrder),
+          total: rows.length,
+          truncated: unique.length > rows.length,
+        };
+      });
+    }
+    return this.omsOrders.listForExport(
+      user,
+      { ...query, companyId: client.companyId, limit: opts.maxRows, offset: 0 },
+      { maxRows: opts.maxRows },
+    );
   }
 
   /**
@@ -266,6 +317,56 @@ export class ClientOmsOrdersService {
       confirmed: confirmed.length,
       failed: failed.length,
       confirmedOrders: confirmed,
+      failures: failed,
+    };
+  }
+
+  /**
+   * Cancel many OMS orders (client). Only `waiting_for_confirmation` is allowed
+   * for bulk cancel; other statuses are reported as failures.
+   */
+  async cancelBulk(client: ClientPrincipal, ids: string[]) {
+    const uniqueIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+    const cancelled: Array<{ id: string; orderNumber: string }> = [];
+    const failed: Array<{ id: string; orderNumber: string | null; error: string }> = [];
+
+    for (const id of uniqueIds) {
+      try {
+        const existing = await this.findOne(client, id);
+        if (existing.status !== 'waiting_for_confirmation') {
+          failed.push({
+            id,
+            orderNumber: existing.orderNumber ?? null,
+            error: 'Only orders waiting for confirmation can be cancelled in bulk.',
+          });
+          continue;
+        }
+        const order = await this.cancel(client, id);
+        cancelled.push({
+          id: order.id,
+          orderNumber: order.orderNumber,
+        });
+      } catch (err) {
+        let orderNumber: string | null = null;
+        try {
+          const existing = await this.findOne(client, id);
+          orderNumber = existing.orderNumber ?? null;
+        } catch {
+          /* ignore */
+        }
+        failed.push({
+          id,
+          orderNumber,
+          error: err instanceof Error ? err.message : 'Cancel failed.',
+        });
+      }
+    }
+
+    return {
+      requested: uniqueIds.length,
+      cancelled: cancelled.length,
+      failed: failed.length,
+      cancelledOrders: cancelled,
       failures: failed,
     };
   }
