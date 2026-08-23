@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AdvancedFilterSection, Button, Card } from '@ds';
@@ -10,6 +10,7 @@ import { AdminListPageShell } from '../components/AdminListPageShell';
 import { Combobox } from '../components/Combobox';
 import { OmsOrderFormModal } from '../components/oms/OmsOrderFormModal';
 import { OmsOrdersImportModal } from '../components/oms/OmsOrdersImportModal';
+import { OmsOrdersExportModal } from '../components/oms/OmsOrdersExportModal';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Column, DataTable } from '../components/DataTable';
 import { FILTER_PRIMARY_BUTTON_CLASS } from '../components/FilterPanel';
@@ -67,7 +68,10 @@ export function OmsOrdersListPage() {
   const [editOrderId, setEditOrderId] = useState<string | null>(null);
   const [deleteOrder, setDeleteOrder] = useState<OmsOrderListItem | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [exportColumns, setExportColumns] = useState<Array<{ id: string; labelEn: string; labelAr: string }>>([]);
   const [advancedOpen, setAdvancedOpen] = useCachedState(
     'oms-orders:advanced-filters-open',
     false,
@@ -167,13 +171,54 @@ export function OmsOrdersListPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const onExport = async () => {
+
+  useEffect(() => {
+    void OmsApi.exportColumns()
+      .then(setExportColumns)
+      .catch(() => setExportColumns([]));
+  }, []);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [listParams]);
+
+  const pageIds = useMemo(() => pagination.rows.map((r) => r.id), [pagination.rows]);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+  const somePageSelected = pageIds.some((id) => selectedIds.has(id)) && !allPageSelected;
+
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const toggleAllPage = (checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of pageIds) {
+        if (checked) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const onExportSubmit = async (payload: { columnIds: string[]; arabicHeaders: boolean }) => {
     if (exporting) return;
     setExporting(true);
     try {
-      await OmsApi.exportDownload(listParams);
+      const ids = selectedIds.size > 0 ? Array.from(selectedIds) : undefined;
+      await OmsApi.exportDownloadPost({
+        ...listParams,
+        ...payload,
+        ids,
+      });
+      setExportOpen(false);
       toast.success(
-        isArabic ? 'تم تنزيل ملف CSV للطلبات المفلترة.' : 'Exported filtered OMS orders to CSV.',
+        isArabic ? 'تم تنزيل ملف CSV.' : 'Exported OMS orders to CSV.',
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Export failed.');
@@ -192,7 +237,7 @@ export function OmsOrdersListPage() {
         size="md"
         loading={exporting}
         disabled={exporting}
-        onClick={() => void onExport()}
+        onClick={() => setExportOpen(true)}
       >
         {isArabic ? 'تصدير CSV' : 'Export CSV'}
       </Button>
@@ -208,6 +253,32 @@ export function OmsOrdersListPage() {
   );
 
   const columns: Column<OmsOrderListItem>[] = [
+    {
+      header: (
+        <input
+          type="checkbox"
+          className="h-4 w-4 rounded border-border-strong text-brand focus:ring-brand"
+          checked={allPageSelected}
+          ref={(el) => {
+            if (el) el.indeterminate = somePageSelected;
+          }}
+          aria-label={isArabic ? 'تحديد الكل في الصفحة' : 'Select all on page'}
+          onChange={(e) => toggleAllPage(e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+      width: '2.5rem',
+      accessor: (row) => (
+        <input
+          type="checkbox"
+          className="h-4 w-4 rounded border-border-strong text-brand focus:ring-brand"
+          checked={selectedIds.has(row.id)}
+          aria-label={`Select ${row.orderNumber}`}
+          onChange={(e) => toggleOne(row.id, e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+    },
     {
       header: 'Order #',
       accessor: (row) => <span className="font-medium text-text-strong">{row.orderNumber}</span>,
@@ -444,6 +515,18 @@ export function OmsOrdersListPage() {
           void qc.invalidateQueries({ queryKey: QK.omsOrders });
         }}
       />
+
+      <OmsOrdersExportModal
+        open={exportOpen}
+        onClose={() => {
+          if (!exporting) setExportOpen(false);
+        }}
+        columns={exportColumns}
+        exporting={exporting}
+        onExport={(payload) => void onExportSubmit(payload)}
+        isArabic={isArabic}
+      />
+
 
       <ConfirmModal
         open={!!deleteOrder}

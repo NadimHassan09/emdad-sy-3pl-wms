@@ -34,6 +34,8 @@ import { OmsOrdersCsvService } from './oms-orders-csv.service';
 import { OmsOrdersService } from './oms-orders.service';
 import { ListOmsOrdersQueryDto } from './dto/list-oms-orders-query.dto';
 import { OmsDashboardOrderSummaryQueryDto } from './dto/oms-dashboard-order-summary-query.dto';
+import { OmsOrdersExportDto } from './dto/oms-orders-export.dto';
+import { OmsClientImportService } from '../client-portal/order-import/oms-client-import.service';
 
 @Controller('oms')
 export class OmsController {
@@ -41,6 +43,7 @@ export class OmsController {
     private readonly orders: OmsOrdersService,
     private readonly dashboard: OmsDashboardService,
     private readonly csv: OmsOrdersCsvService,
+    private readonly clientImport: OmsClientImportService,
   ) {}
 
   @Get('dashboard')
@@ -82,10 +85,33 @@ export class OmsController {
     return result.body;
   }
 
+  @Get('orders/export/columns')
+  exportColumns() {
+    return this.csv.columns();
+  }
+
+  /** Preferred export path — column picker + optional selected ids. */
+  @Post('orders/export')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Header('Cache-Control', 'no-store')
+  async exportOrdersPost(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: OmsOrdersExportDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { columnIds, arabicHeaders, ids, ...query } = dto;
+    const result = await this.csv.exportCsv(user, query, { columnIds, arabicHeaders, ids });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('X-Export-Row-Count', String(result.rowCount));
+    res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+    return result.body;
+  }
+
   @Get('orders/import/template')
   @Header('Cache-Control', 'no-store')
   importTemplate(@Res({ passthrough: true }) res: Response) {
-    const result = this.csv.getImportTemplate();
+    const result = this.clientImport.getImportTemplate();
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
     return result.body;
@@ -99,16 +125,10 @@ export class OmsController {
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
-  async validateImport(
-    @CurrentUser() user: AuthPrincipal,
-    @UploadedFile() file: Express.Multer.File | undefined,
-  ) {
-    if (!file?.buffer?.length) {
-      throw new BadRequestException('CSV file is required.');
-    }
-    const result = await this.csv.validateImport(user, file.buffer);
-    const { _validPayloads: _, ...publicResult } = result;
-    return publicResult;
+  async validateImport() {
+    throw new BadRequestException(
+      'Client-format import validates on upload. Use POST /oms/orders/import with companyId.',
+    );
   }
 
   @Post('orders/import')
@@ -122,11 +142,32 @@ export class OmsController {
   async importOrders(
     @CurrentUser() user: AuthPrincipal,
     @UploadedFile() file: Express.Multer.File | undefined,
+    @Body('companyId') companyId?: string,
   ) {
     if (!file?.buffer?.length) {
       throw new BadRequestException('CSV file is required.');
     }
-    return this.csv.executeImport(user, file.buffer);
+    if (!companyId?.trim()) {
+      throw new BadRequestException('companyId is required.');
+    }
+    const summary = await this.clientImport.importFileForCompany(
+      user,
+      companyId.trim(),
+      file.buffer,
+      file.originalname,
+    );
+    return {
+      ...summary,
+      imported: summary.created,
+      failed: summary.invalid,
+      skippedDuplicates: summary.duplicate,
+      createdOrderNumbers: summary.createdOrderNumbers,
+      errors: summary.errors.map((e) => ({
+        rowNumber: e.rowNumber,
+        externalReference: e.orderNumber,
+        reason: e.error,
+      })),
+    };
   }
 
   @Post('orders')

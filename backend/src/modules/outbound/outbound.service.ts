@@ -130,23 +130,23 @@ const ORDER_INCLUDE = {
   lines: {
     orderBy: { lineNumber: 'asc' as const },
     include: {
-          product: {
-            select: {
-              id: true,
-              sku: true,
-              name: true,
-              barcode: true,
-              status: true,
-              trackingType: true,
-              uom: true,
-              imagePath: true,
+      product: {
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          barcode: true,
+          status: true,
+          trackingType: true,
+          uom: true,
+          imagePath: true,
               weightKg: true,
               volumeCbm: true,
               lengthCm: true,
               widthCm: true,
               heightCm: true,
-            },
-          },
+        },
+      },
     },
   },
   stockReservations: {
@@ -659,8 +659,32 @@ export class OutboundService {
   async listForExport(
     user: AuthPrincipal,
     query: ListOutboundQueryDto,
-    opts: { maxRows: number },
+    opts: { maxRows: number; ids?: string[] },
   ) {
+    if (opts.ids?.length) {
+      const unique = Array.from(new Set(opts.ids.map((id) => id.trim()).filter(Boolean)));
+      const { limit: _l, offset: _o, ...queryNoPage } = query as typeof query & {
+        limit?: number;
+        offset?: number;
+      };
+      const baseWhere = await this.buildListWhere(user, queryNoPage as typeof query);
+      const where = { ...baseWhere, id: { in: unique.slice(0, opts.maxRows) } };
+      return withTenantRls(this.prisma, user, async (tx) => {
+        const rows = await tx.outboundOrder.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            company: { select: { id: true, name: true } },
+            lines: { select: { requestedQuantity: true } },
+          },
+        });
+        return {
+          items: rows,
+          total: rows.length,
+          truncated: unique.length > rows.length,
+        };
+      });
+    }
     const where = await this.buildListWhere(user, query);
     return withTenantRls(this.prisma, user, async (tx) => {
       const total = await tx.outboundOrder.count({ where });
@@ -1554,22 +1578,22 @@ export class OutboundService {
 
       // Complete open shipping_details task if present.
       const openTask = await tx.warehouseTask.findFirst({
-        where: {
+          where: {
           taskType: WarehouseTaskType.shipping_details,
-          status: {
-            in: [
-              WarehouseTaskStatus.pending,
-              WarehouseTaskStatus.assigned,
-              WarehouseTaskStatus.in_progress,
-            ],
-          },
+            status: {
+              in: [
+                WarehouseTaskStatus.pending,
+                WarehouseTaskStatus.assigned,
+                WarehouseTaskStatus.in_progress,
+              ],
+            },
           workflowInstance: {
             referenceType: 'outbound_order',
             referenceId: orderId,
           },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+          },
+          orderBy: { createdAt: 'desc' },
+        });
       if (openTask) {
         await tx.warehouseTask.update({
           where: { id: openTask.id },

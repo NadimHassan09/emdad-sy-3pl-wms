@@ -3,6 +3,8 @@ import { InboundOrderStatus } from '@prisma/client';
 
 import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
+import { PrismaService } from '../../../common/prisma/prisma.service';
+import { withTenantRls } from '../../../common/prisma/tenant-rls';
 import { CreateInboundOrderDto } from '../../inbound/dto/create-inbound.dto';
 import { ListInboundQueryDto } from '../../inbound/dto/list-inbound-query.dto';
 import { InboundService } from '../../inbound/inbound.service';
@@ -23,7 +25,10 @@ type ListQueryWithStatusIn = ListInboundQueryDto & {
 
 @Injectable()
 export class ClientInboundOrdersService {
-  constructor(private readonly inbound: InboundService) {}
+  constructor(
+    private readonly inbound: InboundService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async findOne(client: ClientPrincipal, id: string) {
     const order = await this.inbound.findById(id, clientAuthPrincipal(client));
@@ -55,6 +60,49 @@ export class ClientInboundOrdersService {
     }
 
     return this.inbound.list(principal, base);
+  }
+
+  async listForExport(
+    client: ClientPrincipal,
+    query: { orderSearch?: string; status?: string },
+    opts: { maxRows: number; ids?: string[] },
+  ) {
+    const principal = clientAuthPrincipal(client);
+    if (opts.ids?.length) {
+      const unique = Array.from(new Set(opts.ids.map((id) => id.trim()).filter(Boolean)));
+      return withTenantRls(this.prisma, principal, async (tx) => {
+        const rows = await tx.inboundOrder.findMany({
+          where: {
+            companyId: client.companyId,
+            id: { in: unique.slice(0, opts.maxRows) },
+          },
+          orderBy: { createdAt: 'desc' },
+          include: {
+            company: { select: { id: true, name: true } },
+            lines: { select: { expectedQuantity: true } },
+          },
+        });
+        return {
+          items: rows,
+          total: rows.length,
+          truncated: unique.length > rows.length,
+        };
+      });
+    }
+
+    const base: ListQueryWithStatusIn = {
+      orderSearch: query.orderSearch,
+      companyId: client.companyId,
+      limit: opts.maxRows,
+      offset: 0,
+    };
+    if (query.status === 'in_progress') {
+      base.statusIn = CLIENT_INBOUND_IN_PROGRESS_STATUSES;
+    } else if (query.status) {
+      base.status = query.status as InboundOrderStatus;
+    }
+
+    return this.inbound.listForExport(principal, base, { maxRows: opts.maxRows });
   }
 
   async create(client: ClientPrincipal, dto: CreateInboundOrderDto) {

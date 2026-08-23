@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
@@ -21,6 +21,7 @@ import { Card } from '../design-v2/Card';
 import { ListPageHeader } from '../design-v2/ListPageHeader';
 import { TableFooterPagination } from '../design-v2/TableFooterPagination';
 import { ClientOrderImportModal } from '../components/ClientOrderImportModal';
+import { ClientOmsOrdersExportModal } from '../components/ClientOmsOrdersExportModal';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import {
   clientInboundStatusLabel,
@@ -29,6 +30,10 @@ import {
 import { isClientArabic } from '../lib/client-ui-language';
 import { isProductionClientPortal } from '../lib/production-client-portal';
 import { fetchClientInboundOrders } from '../services/clientInboundOrdersService';
+import {
+  CLIENT_INBOUND_EXPORT_COLUMNS,
+  downloadClientOrdersExport,
+} from '../services/clientOrdersExport';
 
 const INBOUND_STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
@@ -46,6 +51,9 @@ function inboundLabel(label: string, isArabic: boolean): string {
     'Warehouse receipts': 'إيصالات المستودع',
     'New inbound': 'وارد جديد',
     Import: 'استيراد',
+    Export: 'تصدير',
+    'Select all on this page': 'تحديد الكل في هذه الصفحة',
+    'Select order': 'اختر الطلب',
     'Search order number...': 'ابحث برقم الطلب...',
     Filters: 'فلاتر',
     'All statuses': 'كل الحالات',
@@ -77,7 +85,12 @@ export function InboundOrdersPage(): ReactElement {
   const t = (label: string) => inboundLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
   const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const hideImportUi = isProductionClientPortal();
+  const allowExportUi = !isProductionClientPortal();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   const filterKey = useMemo(
     () => ({
@@ -96,6 +109,57 @@ export function InboundOrdersPage(): ReactElement {
     chunkQueryKeyPrefix: 'client-inbound-orders-chunk',
   });
 
+  const rows = pagination.rows as Array<{ id: string }>;
+  const pageIds = useMemo(() => rows.map((r) => r.id), [rows]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filterKey.orderSearch, filterKey.status, pagination.page]);
+
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+  const somePageSelected = pageIds.some((id) => selectedIds.has(id)) && !allPageSelected;
+
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const toggleAllPage = (checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of pageIds) {
+        if (checked) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const onExportSubmit = async (payload: { columnIds: string[]; arabicHeaders: boolean }) => {
+    if (exporting) return;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const ids = selectedIds.size > 0 ? Array.from(selectedIds) : undefined;
+      await downloadClientOrdersExport('inbound', {
+        ...payload,
+        ids,
+        orderSearch: ids ? undefined : filterKey.orderSearch,
+        status: ids ? undefined : filterKey.status,
+      });
+      setExportOpen(false);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Export failed.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+
   return (
     <div className="space-y-5 animate-enter">
       <ListPageHeader
@@ -104,6 +168,21 @@ export function InboundOrdersPage(): ReactElement {
         subtitle={t('Warehouse receipts')}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            
+            {allowExportUi ? (
+              <button
+                type="button"
+                disabled={exporting}
+                onClick={() => {
+                  setExportError(null);
+                  setExportOpen(true);
+                }}
+                className="px-4 py-2 bg-white text-text-strong border border-border-strong rounded-lg text-sm font-medium hover:bg-surface-hover transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <i className="fa-solid fa-file-export text-xs" /> {t('Export')}
+              </button>
+            ) : null}
+
             {!hideImportUi ? (
               <button
                 type="button"
@@ -136,6 +215,21 @@ export function InboundOrdersPage(): ReactElement {
           onImported={() => pagination.refetch()}
           disabled={!billingAccess.operationalAllowed}
           disabledReason={billingAccess.actionBlockedReason}
+        />
+      ) : null}
+
+      {allowExportUi ? (
+        <ClientOmsOrdersExportModal
+          open={exportOpen}
+          onClose={() => {
+            if (!exporting) setExportOpen(false);
+          }}
+          columns={CLIENT_INBOUND_EXPORT_COLUMNS}
+          exporting={exporting}
+          onExport={(payload) => void onExportSubmit(payload)}
+          isArabic={isArabic}
+          errorMessage={exportError}
+          title={isArabic ? 'تصدير طلبات الوارد' : 'Export inbound orders'}
         />
       ) : null}
 
@@ -212,8 +306,42 @@ export function InboundOrdersPage(): ReactElement {
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
+            {allowExportUi && selectedIds.size > 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-surface-card-muted/60 px-4 py-3">
+                <p className="text-sm text-text-muted">
+                  {isArabic ? `${selectedIds.size} طلب محدد` : `${selectedIds.size} selected`}
+                </p>
+                <button
+                  type="button"
+                  disabled={exporting}
+                  onClick={() => {
+                    setExportError(null);
+                    setExportOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-white text-text-strong border border-border-strong rounded-lg text-sm font-medium hover:bg-surface-hover"
+                >
+                  {t('Export')}
+                </button>
+              </div>
+            ) : null}
             <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
               <tr>
+                {allowExportUi ? (
+                  <th className="w-10 px-3 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-border-strong text-brand-600 focus:ring-brand-500"
+                      checked={allPageSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = somePageSelected;
+                      }}
+                      disabled={pageIds.length === 0}
+                      title={t('Select all on this page')}
+                      aria-label={t('Select all on this page')}
+                      onChange={(e) => toggleAllPage(e.target.checked)}
+                    />
+                  </th>
+                ) : null}
                 <th className="px-5 py-3 text-left">{t('Order #')}</th>
                 <th className="px-5 py-3 text-left">{t('Status')}</th>
                 <th className="px-5 py-3 text-left">{t('Expected Arrival')}</th>
@@ -225,14 +353,14 @@ export function InboundOrdersPage(): ReactElement {
               {pagination.isInitialLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={`sk-${i}`} className="animate-pulse">
-                    <td className="px-5 py-3.5" colSpan={5}>
+                    <td className="px-5 py-3.5" colSpan={allowExportUi ? 6 : 5}>
                       <div className="h-4 w-full max-w-xl rounded bg-skeleton-base" />
                     </td>
                   </tr>
                 ))
               ) : pagination.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-text-faint text-sm">
+                  <td colSpan={allowExportUi ? 6 : 5} className="px-5 py-10 text-center text-text-faint text-sm">
                     {t('No inbound orders found.')}
                   </td>
                 </tr>
@@ -243,6 +371,18 @@ export function InboundOrdersPage(): ReactElement {
                     onClick={() => navigate(`/inbound-orders/${row.id}`)}
                     className="hover:bg-surface-hover transition-colors group cursor-pointer"
                   >
+                    {allowExportUi ? (
+                      <td className="w-10 px-3 py-3.5" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-border-strong text-brand-600 focus:ring-brand-500"
+                          checked={selectedIds.has(row.id)}
+                          title={t('Select order')}
+                          aria-label={`${t('Select order')} ${row.orderNumber || row.id}`}
+                          onChange={(e) => toggleOne(row.id, e.target.checked)}
+                        />
+                      </td>
+                    ) : null}
                     <td className="px-5 py-3.5 font-semibold text-text-strong font-mono">
                       {row.orderNumber || '—'}
                     </td>

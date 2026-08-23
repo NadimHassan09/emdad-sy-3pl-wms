@@ -238,8 +238,31 @@ export class OmsOrdersService {
   async listForExport(
     user: AuthPrincipal,
     query: ListOmsOrdersQueryDto,
-    opts: { maxRows: number },
+    opts: { maxRows: number; ids?: string[] },
   ) {
+    if (opts.ids?.length) {
+      const unique = Array.from(new Set(opts.ids.map((id) => id.trim()).filter(Boolean)));
+      const { limit: _l, offset: _o, ...queryNoPage } = query as typeof query & {
+        limit?: number;
+        offset?: number;
+      };
+      const where = {
+        ...this.buildListWhere(user, queryNoPage as typeof query),
+        id: { in: unique.slice(0, opts.maxRows) },
+      };
+      return withTenantRls(this.prisma, user, async (tx) => {
+        const rows = await tx.omsOrder.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          include: ORDER_INCLUDE,
+        });
+        return {
+          items: rows.map(serializeOmsOrder),
+          total: rows.length,
+          truncated: unique.length > rows.length,
+        };
+      });
+    }
     const where = this.buildListWhere(user, query);
     return withTenantRls(this.prisma, user, async (tx) => {
       const total = await tx.omsOrder.count({ where });

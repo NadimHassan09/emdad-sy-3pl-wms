@@ -11,24 +11,8 @@ import {
 
 import { IsUuidLoose } from '../../../../common/validators/is-uuid-loose';
 
-export class BulkConfirmClientOmsOrdersDto {
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(100)
-  @IsUuidLoose({ each: true })
-  ids!: string[];
-}
-
-export class BulkCancelClientOmsOrdersDto {
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayMaxSize(100)
-  @IsUuidLoose({ each: true })
-  ids!: string[];
-}
-
-/** Client Portal CSV export — selected ids OR current list filters. */
-export class ClientOmsOrdersExportDto {
+/** Client Portal outbound CSV export — selected ids OR current list filters. */
+export class ClientOutboundOrdersExportDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(80)
@@ -41,7 +25,6 @@ export class ClientOmsOrdersExportDto {
   @IsBoolean()
   arabicHeaders?: boolean;
 
-  /** When set, export only these orders (ignore filters). */
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(500)
@@ -57,19 +40,4 @@ export class ClientOmsOrdersExportDto {
   @IsString()
   @MaxLength(64)
   status?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(80)
-  storeChannel?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(10)
-  createdFrom?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(10)
-  createdTo?: string;
 }

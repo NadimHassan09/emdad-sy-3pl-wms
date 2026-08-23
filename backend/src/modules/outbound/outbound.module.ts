@@ -6,6 +6,7 @@ import { OmsModule } from '../oms/oms.module';
 import { ShippingModule } from '../shipping/shipping.module';
 import { WarehouseWorkflowModule } from '../warehouse-workflow/warehouse-workflow.module';
 import { BillingModule } from '../billing/billing.module';
+import { ClientPortalModule } from '../client-portal/client-portal.module';
 import { OutboundController } from './outbound.controller';
 import { OutboundOrdersCsvService } from './outbound-orders-csv.service';
 import { OutboundService } from './outbound.service';
@@ -18,6 +19,7 @@ import { OutboundService } from './outbound.service';
     BillingModule,
     forwardRef(() => OmsModule),
     forwardRef(() => ShippingModule),
+    forwardRef(() => ClientPortalModule),
   ],
   controllers: [OutboundController],
   providers: [OutboundService, OutboundOrdersCsvService],

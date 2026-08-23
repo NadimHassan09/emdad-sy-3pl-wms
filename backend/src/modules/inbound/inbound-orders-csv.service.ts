@@ -9,6 +9,12 @@ import { validateSync } from 'class-validator';
 import { randomUUID } from 'node:crypto';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { getInboundClientImportTemplate } from '../client-portal/order-import/inbound-client-import.schema';
+import {
+  ADMIN_INBOUND_EXPORT_COLUMNS,
+  adminHeaderLabels,
+  adminOrderedColumnIds,
+} from '../oms/admin-order-export.columns';
 import { CreateInboundOrderDto } from './dto/create-inbound.dto';
 import { ListInboundQueryDto } from './dto/list-inbound-query.dto';
 import {
@@ -76,7 +82,15 @@ type ParsedOrderGroup = {
 export class InboundOrdersCsvService {
   constructor(private readonly inbound: InboundService) {}
 
+  columns() {
+    return ADMIN_INBOUND_EXPORT_COLUMNS;
+  }
+
   getImportTemplate(): { filename: string; body: string } {
+    return getInboundClientImportTemplate();
+  }
+
+  getLegacyImportTemplate(): { filename: string; body: string } {
     return {
       filename: 'inbound-orders-import-template.csv',
       body: inboundImportTemplateCsv(),
@@ -86,29 +100,20 @@ export class InboundOrdersCsvService {
   async exportCsv(
     user: AuthPrincipal,
     query: ListInboundQueryDto,
+    opts?: { columnIds?: string[]; arabicHeaders?: boolean; ids?: string[] },
   ): Promise<{ filename: string; body: string; rowCount: number; truncated: boolean }> {
+    const columnIds = adminOrderedColumnIds(ADMIN_INBOUND_EXPORT_COLUMNS, opts?.columnIds);
+    if (columnIds.length === 0) {
+      throw new BadRequestException('Select at least one valid export column.');
+    }
+
     const { items, total, truncated } = await this.inbound.listForExport(user, query, {
       maxRows: INBOUND_EXPORT_MAX_ROWS,
+      ids: opts?.ids,
     });
 
-    const headers = [
-      'order_number',
-      'status',
-      'company_id',
-      'company_name',
-      'external_reference',
-      'client_reference',
-      'expected_arrival_date',
-      'source_type',
-      'store_channel',
-      'notes',
-      'line_count',
-      'total_expected_quantity',
-      'execution_mode',
-      'created_at',
-      'confirmed_at',
-      'completed_at',
-    ];
+    const arabic = Boolean(opts?.arabicHeaders);
+    const headers = adminHeaderLabels(ADMIN_INBOUND_EXPORT_COLUMNS, columnIds, arabic);
 
     const rows = items.map((o) => {
       const lineCount = o.lines?.length ?? 0;
@@ -116,24 +121,27 @@ export class InboundOrdersCsvService {
         (sum, l) => sum + Number(l.expectedQuantity ?? 0),
         0,
       );
-      return [
-        o.orderNumber,
-        o.status,
-        o.companyId,
-        o.company?.name ?? '',
-        o.externalReference ?? '',
-        o.clientReference ?? '',
-        o.expectedArrivalDate ? new Date(o.expectedArrivalDate).toISOString().slice(0, 10) : '',
-        o.sourceType ?? '',
-        o.storeChannel ?? '',
-        o.notes ?? '',
-        lineCount,
-        totalQty,
-        o.executionMode ?? '',
-        o.createdAt ? new Date(o.createdAt).toISOString() : '',
-        o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',
-        o.completedAt ? new Date(o.completedAt).toISOString() : '',
-      ];
+      const cells: Record<string, string | number> = {
+        order_number: o.orderNumber,
+        status: o.status,
+        company_id: o.companyId,
+        company_name: o.company?.name ?? '',
+        external_reference: o.externalReference ?? '',
+        client_reference: o.clientReference ?? '',
+        expected_arrival_date: o.expectedArrivalDate
+          ? new Date(o.expectedArrivalDate).toISOString().slice(0, 10)
+          : '',
+        source_type: o.sourceType ?? '',
+        store_channel: o.storeChannel ?? '',
+        notes: o.notes ?? '',
+        line_count: lineCount,
+        total_expected_quantity: totalQty,
+        execution_mode: o.executionMode ?? '',
+        created_at: o.createdAt ? new Date(o.createdAt).toISOString() : '',
+        confirmed_at: o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',
+        completed_at: o.completedAt ? new Date(o.completedAt).toISOString() : '',
+      };
+      return columnIds.map((id) => cells[id] ?? '');
     });
 
     const stamp = new Date().toISOString().slice(0, 10);

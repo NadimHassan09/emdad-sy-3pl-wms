@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -47,6 +47,9 @@ import { ClientDashboardController } from './dashboard/client-dashboard.controll
 import { ClientDashboardService } from './dashboard/client-dashboard.service';
 import { ClientOmsOrdersController } from './oms/client-oms-orders.controller';
 import { ClientOmsOrdersService } from './oms/client-oms-orders.service';
+import { ClientInboundExportService } from './order-export/client-inbound-export.service';
+import { ClientOmsExportService } from './order-export/client-oms-export.service';
+import { ClientOutboundExportService } from './order-export/client-outbound-export.service';
 import { InboundClientImportService } from './order-import/inbound-client-import.service';
 import { OmsClientImportService } from './order-import/oms-client-import.service';
 import { OutboundClientImportService } from './order-import/outbound-client-import.service';
@@ -76,10 +79,10 @@ import { ClientShippingController } from './shipping/client-shipping.controller'
     InventoryModule,
     ProductsModule,
     MediaModule,
-    InboundModule,
-    OutboundModule,
     BillingModule,
-    OmsModule,
+    forwardRef(() => OmsModule),
+    forwardRef(() => InboundModule),
+    forwardRef(() => OutboundModule),
     OmsReturnsModule,
     ReturnsModule,
     ShippingModule,
@@ -114,6 +117,9 @@ import { ClientShippingController } from './shipping/client-shipping.controller'
     ClientBillingService,
     ClientDashboardService,
     ClientOmsOrdersService,
+    ClientOmsExportService,
+    ClientInboundExportService,
+    ClientOutboundExportService,
     OmsClientImportService,
     InboundClientImportService,
     OutboundClientImportService,
@@ -128,6 +134,11 @@ import { ClientShippingController } from './shipping/client-shipping.controller'
     ExternalInboundService,
     ExternalOutboundService,
   ],
-  exports: [ClientAuthService],
+  exports: [
+    ClientAuthService,
+    OmsClientImportService,
+    InboundClientImportService,
+    OutboundClientImportService,
+  ],
 })
 export class ClientPortalModule {}

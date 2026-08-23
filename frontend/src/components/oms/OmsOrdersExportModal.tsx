@@ -18,6 +18,7 @@ type Props = {
   exporting: boolean;
   onExport: (payload: { columnIds: string[]; arabicHeaders: boolean }) => void;
   isArabic?: boolean;
+  title?: string;
 };
 
 export function OmsOrdersExportModal({
@@ -27,6 +28,7 @@ export function OmsOrdersExportModal({
   exporting,
   onExport,
   isArabic = false,
+  title,
 }: Props) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(columns.map((c) => c.id)));
   /** CSV column headlines language — Arabic by default. */
@@ -48,7 +50,7 @@ export function OmsOrdersExportModal({
   const labels = useMemo(() => {
     if (!isArabic) {
       return {
-        title: 'Export OMS Orders',
+        title: title ?? 'Export OMS Orders',
         hint: 'Select the fields you want to include in the exported file.',
         headerLang: 'CSV column headers',
         arabic: 'Arabic',
@@ -63,7 +65,7 @@ export function OmsOrdersExportModal({
       };
     }
     return {
-      title: 'تصدير طلبات OMS',
+      title: title ?? 'تصدير طلبات OMS',
       hint: 'اختر الحقول التي تريد تضمينها في ملف التصدير.',
       headerLang: 'عناوين أعمدة CSV',
       arabic: 'عربي',
@@ -76,7 +78,7 @@ export function OmsOrdersExportModal({
       exportCsv: 'تصدير CSV',
       exporting: 'جاري التصدير...',
     };
-  }, [isArabic]);
+  }, [isArabic, title]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {

@@ -9,6 +9,12 @@ import { validateSync } from 'class-validator';
 import { randomUUID } from 'node:crypto';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { getOutboundClientImportTemplate } from '../client-portal/order-import/outbound-client-import.schema';
+import {
+  ADMIN_OUTBOUND_EXPORT_COLUMNS,
+  adminHeaderLabels,
+  adminOrderedColumnIds,
+} from '../oms/admin-order-export.columns';
 import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
 import { ListOutboundQueryDto } from './dto/list-outbound-query.dto';
 import {
@@ -71,7 +77,15 @@ type ParsedOrderGroup = {
 export class OutboundOrdersCsvService {
   constructor(private readonly outbound: OutboundService) {}
 
+  columns() {
+    return ADMIN_OUTBOUND_EXPORT_COLUMNS;
+  }
+
   getImportTemplate(): { filename: string; body: string } {
+    return getOutboundClientImportTemplate();
+  }
+
+  getLegacyImportTemplate(): { filename: string; body: string } {
     return {
       filename: 'outbound-orders-import-template.csv',
       body: outboundImportTemplateCsv(),
@@ -81,32 +95,20 @@ export class OutboundOrdersCsvService {
   async exportCsv(
     user: AuthPrincipal,
     query: ListOutboundQueryDto,
+    opts?: { columnIds?: string[]; arabicHeaders?: boolean; ids?: string[] },
   ): Promise<{ filename: string; body: string; rowCount: number; truncated: boolean }> {
+    const columnIds = adminOrderedColumnIds(ADMIN_OUTBOUND_EXPORT_COLUMNS, opts?.columnIds);
+    if (columnIds.length === 0) {
+      throw new BadRequestException('Select at least one valid export column.');
+    }
+
     const { items, total, truncated } = await this.outbound.listForExport(user, query, {
       maxRows: OUTBOUND_EXPORT_MAX_ROWS,
+      ids: opts?.ids,
     });
 
-    const headers = [
-      'order_number',
-      'status',
-      'company_id',
-      'company_name',
-      'external_reference',
-      'client_reference',
-      'destination_address',
-      'required_ship_date',
-      'carrier',
-      'tracking_number',
-      'requires_packing',
-      'notes',
-      'line_count',
-      'total_requested_quantity',
-      'shipping_method',
-      'execution_mode',
-      'created_at',
-      'confirmed_at',
-      'shipped_at',
-    ];
+    const arabic = Boolean(opts?.arabicHeaders);
+    const headers = adminHeaderLabels(ADMIN_OUTBOUND_EXPORT_COLUMNS, columnIds, arabic);
 
     const rows = items.map((o) => {
       const lineCount = o.lines?.length ?? 0;
@@ -114,27 +116,30 @@ export class OutboundOrdersCsvService {
         (sum, l) => sum + Number(l.requestedQuantity ?? 0),
         0,
       );
-      return [
-        o.orderNumber,
-        o.status,
-        o.companyId,
-        o.company?.name ?? '',
-        o.externalReference ?? '',
-        o.clientReference ?? '',
-        o.destinationAddress ?? '',
-        o.requiredShipDate ? new Date(o.requiredShipDate).toISOString().slice(0, 10) : '',
-        o.carrier ?? '',
-        o.trackingNumber ?? '',
-        o.requiresPacking ? 'true' : 'false',
-        o.notes ?? '',
-        lineCount,
-        totalQty,
-        o.shippingMethod ?? '',
-        o.executionMode ?? '',
-        o.createdAt ? new Date(o.createdAt).toISOString() : '',
-        o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',
-        o.shippedAt ? new Date(o.shippedAt).toISOString() : '',
-      ];
+      const cells: Record<string, string | number> = {
+        order_number: o.orderNumber,
+        status: o.status,
+        company_id: o.companyId,
+        company_name: o.company?.name ?? '',
+        external_reference: o.externalReference ?? '',
+        client_reference: o.clientReference ?? '',
+        destination_address: o.destinationAddress ?? '',
+        required_ship_date: o.requiredShipDate
+          ? new Date(o.requiredShipDate).toISOString().slice(0, 10)
+          : '',
+        carrier: o.carrier ?? '',
+        tracking_number: o.trackingNumber ?? '',
+        requires_packing: o.requiresPacking ? 'true' : 'false',
+        notes: o.notes ?? '',
+        line_count: lineCount,
+        total_requested_quantity: totalQty,
+        shipping_method: o.shippingMethod ?? '',
+        execution_mode: o.executionMode ?? '',
+        created_at: o.createdAt ? new Date(o.createdAt).toISOString() : '',
+        confirmed_at: o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',
+        shipped_at: o.shippedAt ? new Date(o.shippedAt).toISOString() : '',
+      };
+      return columnIds.map((id) => cells[id] ?? '');
     });
 
     const stamp = new Date().toISOString().slice(0, 10);

@@ -20,6 +20,7 @@ import {
 } from '../components/filter-panel-styles';
 import { RowActionsMenu, type RowAction } from '../components/RowActionsMenu';
 import { OutboundOrdersImportModal } from '../components/outbound/OutboundOrdersImportModal';
+import { OmsOrdersExportModal } from '../components/oms/OmsOrdersExportModal';
 import { BulkShippingProcessingModal } from '../components/shipping/BulkShippingProcessingModal';
 import { StatusBadge } from '../components/StatusBadge';
 import { useToast } from '../components/ToastProvider';
@@ -117,7 +118,11 @@ export function OutboundListPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportColumns, setExportColumns] = useState<
+    Array<{ id: string; labelEn: string; labelAr: string }>
+  >([]);
   const isArabic =
     typeof window !== 'undefined' &&
     (window.localStorage.getItem('wms-ui-language') === 'AR' ||
@@ -363,13 +368,15 @@ export function OutboundListPage() {
     [isArabic, isAdmin, selectedIds, allPageEligibleSelected, pageEligibleIds],
   );
 
-  const onExport = async () => {
+  const onExportSubmit = async (payload: { columnIds: string[]; arabicHeaders: boolean }) => {
     if (exporting) return;
     setExporting(true);
     try {
-      await OutboundApi.exportDownload(listParams);
+      const ids = selectedIds.size > 0 ? Array.from(selectedIds) : undefined;
+      await OutboundApi.exportDownloadPost({ ...listParams, ...payload, ids });
+      setExportOpen(false);
       toast.success(
-        isArabic ? 'تم تنزيل ملف CSV للطلبات المفلترة.' : 'Exported filtered outbound orders to CSV.',
+        isArabic ? 'تم تنزيل ملف CSV.' : 'Exported outbound orders to CSV.',
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Export failed.');
@@ -377,6 +384,12 @@ export function OutboundListPage() {
       setExporting(false);
     }
   };
+
+  useEffect(() => {
+    void OutboundApi.exportColumns()
+      .then(setExportColumns)
+      .catch(() => setExportColumns([]));
+  }, []);
 
   const newButton = (
     <div className="flex flex-wrap items-center gap-2">
@@ -408,7 +421,7 @@ export function OutboundListPage() {
         size="md"
         loading={exporting}
         disabled={exporting}
-        onClick={() => void onExport()}
+        onClick={() => setExportOpen(true)}
       >
         {t('Export CSV')}
       </DsButton>
@@ -629,6 +642,17 @@ export function OutboundListPage() {
         onImported={() => {
           void qc.invalidateQueries({ queryKey: QK.outboundOrders });
         }}
+      />
+      <OmsOrdersExportModal
+        open={exportOpen}
+        onClose={() => {
+          if (!exporting) setExportOpen(false);
+        }}
+        columns={exportColumns}
+        exporting={exporting}
+        onExport={(payload) => void onExportSubmit(payload)}
+        isArabic={isArabic}
+        title={isArabic ? 'تصدير طلبات الصادر' : 'Export outbound orders'}
       />
     </AdminListPageShell>
   );

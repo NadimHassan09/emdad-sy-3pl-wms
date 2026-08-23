@@ -3,8 +3,9 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
+import { AuthPrincipal } from '../../../common/auth/current-user.types';
+import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
 import { calendarTodayYmdServerLocal } from '../../../common/utils/order-planning-date';
-import { ClientInboundOrdersService } from '../inbound/client-inbound-orders.service';
 import { InboundService } from '../../inbound/inbound.service';
 import {
   getInboundClientImportTemplate,
@@ -26,10 +27,7 @@ import { parseSpreadsheetTable } from './spreadsheet.parse';
 
 @Injectable()
 export class InboundClientImportService {
-  constructor(
-    private readonly clientInbound: ClientInboundOrdersService,
-    private readonly inbound: InboundService,
-  ) {}
+  constructor(private readonly inbound: InboundService) {}
 
   getImportTemplate() {
     return getInboundClientImportTemplate();
@@ -40,6 +38,21 @@ export class InboundClientImportService {
     fileBuffer: Buffer,
     originalName?: string,
   ): Promise<ClientOrderImportSummary> {
+    return this.importFileForCompany(
+      clientAuthPrincipal(client),
+      client.companyId,
+      fileBuffer,
+      originalName,
+    );
+  }
+
+  async importFileForCompany(
+    user: AuthPrincipal,
+    companyIdRaw: string,
+    fileBuffer: Buffer,
+    originalName?: string,
+  ): Promise<ClientOrderImportSummary> {
+    const companyId = this.inbound.resolveImportCompanyId(user, companyIdRaw);
     const table = parseSpreadsheetTable(fileBuffer, originalName);
     const { dataRows } = assertImportTable(
       table,
@@ -65,7 +78,7 @@ export class InboundClientImportService {
           .filter((s): s is string => !!s),
       ),
     );
-    const products = await this.inbound.findProductsBySkus(client.companyId, allSkus);
+    const products = await this.inbound.findProductsBySkus(companyId, allSkus);
     const skuToProduct = new Map(products.map((p) => [p.sku.trim().toUpperCase(), p]));
 
     for (const group of groups) {
@@ -93,7 +106,7 @@ export class InboundClientImportService {
         continue;
       }
 
-      const existing = await this.clientInbound.findByExternalReference(client, orderNumber);
+      const existing = await this.inbound.findByExternalReference(user, companyId, orderNumber);
       if (existing) {
         duplicate++;
         pushErr(
@@ -175,13 +188,20 @@ export class InboundClientImportService {
 
       try {
         // Same create path as /inbound-orders/new (pending client approval / waiting flow).
-        const createdOrder = await this.clientInbound.create(client, {
-          expectedArrivalDate: arrivalResult.ymd,
-          notes: group.fields.notes?.trim() || undefined,
-          externalReference: orderNumber,
-          clientReference: orderNumber,
-          lines,
-        });
+        const createdOrder = await this.inbound.create(
+          user,
+          {
+            companyId,
+            expectedArrivalDate: arrivalResult.ymd,
+            notes: group.fields.notes?.trim() || undefined,
+            externalReference: orderNumber,
+            clientReference: orderNumber,
+            lines,
+            executionMode: 'admin',
+            executionPlan: undefined,
+          },
+          { pendingClientApproval: true },
+        );
         created++;
         createdOrderNumbers.push(createdOrder.orderNumber);
       } catch (err) {

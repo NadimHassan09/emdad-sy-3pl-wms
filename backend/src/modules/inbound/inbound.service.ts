@@ -320,8 +320,32 @@ export class InboundService {
   async listForExport(
     user: AuthPrincipal,
     query: ListInboundQueryDto,
-    opts: { maxRows: number },
+    opts: { maxRows: number; ids?: string[] },
   ) {
+    if (opts.ids?.length) {
+      const unique = Array.from(new Set(opts.ids.map((id) => id.trim()).filter(Boolean)));
+      const { limit: _l, offset: _o, ...queryNoPage } = query as typeof query & {
+        limit?: number;
+        offset?: number;
+      };
+      const baseWhere = await this.buildListWhere(user, queryNoPage as typeof query);
+      const where = { ...baseWhere, id: { in: unique.slice(0, opts.maxRows) } };
+      return withTenantRls(this.prisma, user, async (tx) => {
+        const rows = await tx.inboundOrder.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            company: { select: { id: true, name: true } },
+            lines: { select: { expectedQuantity: true } },
+          },
+        });
+        return {
+          items: rows,
+          total: rows.length,
+          truncated: unique.length > rows.length,
+        };
+      });
+    }
     const where = await this.buildListWhere(user, query);
     return withTenantRls(this.prisma, user, async (tx) => {
       const total = await tx.inboundOrder.count({ where });
