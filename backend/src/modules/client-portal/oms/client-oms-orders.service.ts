@@ -201,6 +201,11 @@ export class ClientOmsOrdersService {
     );
   }
 
+  async findByOrderNumber(client: ClientPrincipal, orderNumber: string) {
+    const user = clientAuthPrincipal(client);
+    return this.omsOrders.findExistingByOrderNumber(user, client.companyId, orderNumber);
+  }
+
   async resolveSkus(companyId: string, skus: string[]): Promise<Map<string, string>> {
     const unique = Array.from(new Set(skus.map((s) => s.trim()).filter(Boolean)));
     const products = await this.omsOrders.findProductsBySkus(companyId, unique);

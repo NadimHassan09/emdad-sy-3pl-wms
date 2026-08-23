@@ -73,4 +73,12 @@ export class ClientInboundOrdersService {
       externalReference,
     );
   }
+
+  async findByOrderNumber(client: ClientPrincipal, orderNumber: string) {
+    return this.inbound.findByOrderNumber(
+      clientAuthPrincipal(client),
+      client.companyId,
+      orderNumber,
+    );
+  }
 }
