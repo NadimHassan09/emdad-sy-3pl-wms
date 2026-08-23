@@ -201,6 +201,11 @@ export class ClientOmsOrdersService {
     );
   }
 
+  async findByOrderNumber(client: ClientPrincipal, orderNumber: string) {
+    const user = clientAuthPrincipal(client);
+    return this.omsOrders.findExistingByOrderNumber(user, client.companyId, orderNumber);
+  }
+
   async resolveSkus(companyId: string, skus: string[]): Promise<Map<string, string>> {
     const unique = Array.from(new Set(skus.map((s) => s.trim()).filter(Boolean)));
     const products = await this.omsOrders.findProductsBySkus(companyId, unique);
@@ -222,6 +227,47 @@ export class ClientOmsOrdersService {
   async confirm(client: ClientPrincipal, id: string) {
     const user = clientAuthPrincipal(client);
     return this.omsOrders.confirm(id, user);
+  }
+
+  /**
+   * Confirm many OMS orders (client). Each id is confirmed independently;
+   * failures do not roll back successes.
+   */
+  async confirmBulk(client: ClientPrincipal, ids: string[]) {
+    const uniqueIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+    const confirmed: Array<{ id: string; orderNumber: string }> = [];
+    const failed: Array<{ id: string; orderNumber: string | null; error: string }> = [];
+
+    for (const id of uniqueIds) {
+      try {
+        const order = await this.confirm(client, id);
+        confirmed.push({
+          id: order.id,
+          orderNumber: order.orderNumber,
+        });
+      } catch (err) {
+        let orderNumber: string | null = null;
+        try {
+          const existing = await this.findOne(client, id);
+          orderNumber = existing.orderNumber ?? null;
+        } catch {
+          /* ignore lookup failure */
+        }
+        failed.push({
+          id,
+          orderNumber,
+          error: err instanceof Error ? err.message : 'Confirm failed.',
+        });
+      }
+    }
+
+    return {
+      requested: uniqueIds.length,
+      confirmed: confirmed.length,
+      failed: failed.length,
+      confirmedOrders: confirmed,
+      failures: failed,
+    };
   }
 
   async cancel(client: ClientPrincipal, id: string) {

@@ -1,4 +1,5 @@
 import type { ClientPortalRole } from '../types/auth';
+import { isProductionClientPortal } from './production-client-portal';
 
 export type ClientNavGroup = 'wms' | 'oms' | null;
 
@@ -132,6 +133,8 @@ const ROUTE_GROUP_ROLES: Record<string, ClientPortalRole[]> = {
 
 export function canAccessClientPath(role: ClientPortalRole | string | undefined, pathname: string): boolean {
   if (role !== 'client_admin' && role !== 'client_staff') return false;
+  // Production Client Portal: keep /apis route in the app, but deny access → redirect to dashboard.
+  if (isProductionClientPortal() && pathname.startsWith('/apis')) return false;
   const group = routeGroup(pathname);
   return (ROUTE_GROUP_ROLES[group] ?? ['client_admin', 'client_staff']).includes(role);
 }
@@ -156,16 +159,16 @@ export function redirectPathForDeniedRoute(
 
 export function clientNavForRole(role: ClientPortalRole | string | undefined): ClientNavItem[] {
   if (role !== 'client_admin' && role !== 'client_staff') return [];
-  return NAV_CATALOG.filter((item) => item.roles.includes(role)).map(
-    ({ label, labelAr, iconKey, to, exact, group }) => ({
+  return NAV_CATALOG.filter((item) => item.roles.includes(role))
+    .filter((item) => !(isProductionClientPortal() && item.to === '/apis'))
+    .map(({ label, labelAr, iconKey, to, exact, group }) => ({
       label,
       labelAr,
       iconKey,
       to,
       exact,
       group: group ?? null,
-    }),
-  );
+    }));
 }
 
 export function isClientAdmin(role: ClientPortalRole | string | undefined): boolean {

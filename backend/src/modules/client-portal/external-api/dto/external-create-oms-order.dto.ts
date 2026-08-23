@@ -1,8 +1,7 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
-  IsDateString,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -10,29 +9,30 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  Matches,
   MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
 import { OmsPaymentMethod } from '@prisma/client';
 
-import { IsRecipientName, IsRecipientPhone } from '../../../../common/validators/is-recipient-contact';
+import { IsRecipientName } from '../../../../common/validators/is-recipient-contact';
 
 export class ExternalOmsAddressDto {
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Governorate is required.' })
   @MaxLength(80)
   governorate!: string;
 
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'City is required.' })
   @MaxLength(80)
   city!: string;
 
-  @IsOptional()
   @IsString()
+  @IsNotEmpty({ message: 'Neighborhood is required.' })
   @MaxLength(80)
-  neighborhood?: string;
+  neighborhood!: string;
 
   @IsOptional()
   @IsString()
@@ -42,7 +42,7 @@ export class ExternalOmsAddressDto {
 
 export class ExternalOmsLineDto {
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'Product SKU is required.' })
   @MaxLength(80)
   sku!: string;
 
@@ -51,20 +51,31 @@ export class ExternalOmsLineDto {
   @IsPositive({ message: 'Quantity must be a positive whole number.' })
   quantity!: number;
 
-  @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Unit price must be a whole number (no decimals).' })
   @Min(0, { message: 'Unit price cannot be negative.' })
-  unitPrice?: number;
+  unitPrice!: number;
 }
 
+/**
+ * External OMS create — same business fields as Client Portal create + CSV import.
+ * `product_name` is not accepted (product is resolved by SKU only).
+ * Currency is always USD.
+ */
 export class ExternalCreateOmsOrderDto {
+  /** Customer reference / idempotency key (CSV: order_number). */
   @IsString()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'externalOrderId is required.' })
   @MaxLength(80)
+  @Matches(/^[A-Za-z0-9-]+$/, {
+    message:
+      'externalOrderId may only contain English letters, English digits (0-9), and hyphen (-).',
+  })
   externalOrderId!: string;
 
-  @IsDateString()
+  /** YYYY-MM-DD or M/DD/YYYY (English digits). */
+  @IsString()
+  @IsNotEmpty({ message: 'requiredShipDate is required.' })
   requiredShipDate!: string;
 
   @IsObject()
@@ -72,29 +83,44 @@ export class ExternalCreateOmsOrderDto {
   @Type(() => ExternalOmsAddressDto)
   address!: ExternalOmsAddressDto;
 
-  @IsOptional()
   @IsString()
+  @IsNotEmpty({ message: 'Recipient name is required.' })
   @IsRecipientName()
-  recipientName?: string;
+  recipientName!: string;
 
-  @IsOptional()
+  /**
+   * Numeric dialing code only (CSV: country_code), e.g. "963".
+   * No "+", letters, or symbols.
+   */
   @IsString()
-  @IsRecipientPhone()
-  recipientPhone?: string;
-
-  @IsOptional()
-  @IsString()
+  @IsNotEmpty({ message: 'countryCode is required.' })
+  @Matches(/^[0-9]+$/, {
+    message:
+      'countryCode must be English digits only (example: 963). Do not include +, letters, or symbols.',
+  })
   @MaxLength(8)
-  shippingPhoneCountry?: string;
+  countryCode!: string;
 
-  @IsOptional()
-  @IsEnum(OmsPaymentMethod)
-  paymentMethod?: OmsPaymentMethod;
-
-  @IsOptional()
+  /**
+   * National phone digits only (CSV: recipient_phone).
+   * No "+", spaces, letters, or symbols.
+   */
   @IsString()
-  @MaxLength(8)
-  currency?: string;
+  @IsNotEmpty({ message: 'Recipient phone is required.' })
+  @Matches(/^[0-9]+$/, {
+    message:
+      'recipientPhone must be English digits only (no +, spaces, letters, or symbols).',
+  })
+  @MaxLength(20)
+  recipientPhone!: string;
+
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
+  @IsEnum(OmsPaymentMethod, {
+    message: 'paymentMethod must be exactly one of: COD, Prepaid, or Credit.',
+  })
+  paymentMethod!: OmsPaymentMethod;
 
   @IsOptional()
   @IsString()

@@ -27,6 +27,7 @@ import {
   mapClientInboundDisplayStatus,
 } from '../lib/client-inbound-status';
 import { isClientArabic } from '../lib/client-ui-language';
+import { isProductionClientPortal } from '../lib/production-client-portal';
 import { fetchClientInboundOrders } from '../services/clientInboundOrdersService';
 
 const INBOUND_STATUS_OPTIONS = [
@@ -76,6 +77,7 @@ export function InboundOrdersPage(): ReactElement {
   const t = (label: string) => inboundLabel(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
   const [importOpen, setImportOpen] = useState(false);
+  const hideImportUi = isProductionClientPortal();
 
   const filterKey = useMemo(
     () => ({
@@ -102,15 +104,17 @@ export function InboundOrdersPage(): ReactElement {
         subtitle={t('Warehouse receipts')}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              disabled={!billingAccess.operationalAllowed}
-              title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
-              onClick={() => setImportOpen(true)}
-              className="px-4 py-2 bg-white text-text-strong border border-border-strong rounded-lg text-sm font-medium hover:bg-surface-hover transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <i className="fa-solid fa-file-import text-xs" /> {t('Import')}
-            </button>
+            {!hideImportUi ? (
+              <button
+                type="button"
+                disabled={!billingAccess.operationalAllowed}
+                title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
+                onClick={() => setImportOpen(true)}
+                className="px-4 py-2 bg-white text-text-strong border border-border-strong rounded-lg text-sm font-medium hover:bg-surface-hover transition-all flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <i className="fa-solid fa-file-import text-xs" /> {t('Import')}
+              </button>
+            ) : null}
             <button
               type="button"
               disabled={!billingAccess.operationalAllowed}
@@ -124,14 +128,16 @@ export function InboundOrdersPage(): ReactElement {
         }
       />
 
-      <ClientOrderImportModal
-        kind="inbound"
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        onImported={() => pagination.refetch()}
-        disabled={!billingAccess.operationalAllowed}
-        disabledReason={billingAccess.actionBlockedReason}
-      />
+      {!hideImportUi ? (
+        <ClientOrderImportModal
+          kind="inbound"
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          onImported={() => pagination.refetch()}
+          disabled={!billingAccess.operationalAllowed}
+          disabledReason={billingAccess.actionBlockedReason}
+        />
+      ) : null}
 
       {pagination.isError ? (
         <Alert variant="error" title={t('Could not load inbound orders')}>

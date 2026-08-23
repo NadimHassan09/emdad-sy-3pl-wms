@@ -1,13 +1,22 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiCredentialScope } from '@prisma/client';
 import { Throttle } from '@nestjs/throttler';
 
 import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
-import { ParseUuidLoosePipe } from '../../../common/pipes/parse-uuid-loose.pipe';
 import { ClientUser } from '../auth/client-user.decorator';
 import { ApiKeyGuard } from './api-key.guard';
 import { ExternalCreateOutboundOrderDto } from './dto/external-create-outbound-order.dto';
+import { ExternalListOutboundOrdersQueryDto } from './dto/external-list-orders-query.dto';
 import { ExternalOutboundService } from './external-outbound.service';
 import { RequireApiScope } from './require-api-scope.decorator';
 
@@ -24,25 +33,33 @@ export class ExternalOutboundController {
     return this.outbound.create(client, dto);
   }
 
+  /**
+   * List mode: GET /outbound/orders
+   * Single mode: ?orderNumber=OUT-…  or  ?externalOrderId=SHOP-OUT-…
+   */
   @Get('orders')
-  async findByExternal(
+  async listOrFind(
     @ClientUser() client: ClientPrincipal,
-    @Query('externalOrderId') externalOrderId?: string,
+    @Query() query: ExternalListOutboundOrdersQueryDto,
   ) {
-    if (!externalOrderId?.trim()) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Provide externalOrderId to look up an order.',
-        fields: { externalOrderId: 'Required' },
+    if (query.externalOrderId?.trim() || query.orderNumber?.trim()) {
+      const order = await this.outbound.findOneByLookup(client, {
+        externalOrderId: query.externalOrderId,
+        orderNumber: query.orderNumber,
       });
+      if (!order) throw new NotFoundException('Order not found.');
+      return order;
     }
-    const order = await this.outbound.findByExternalOrderId(client, externalOrderId);
-    if (!order) throw new NotFoundException('Order not found.');
-    return order;
+    return this.outbound.list(client, query);
   }
 
-  @Get('orders/:id')
-  findOne(@ClientUser() client: ClientPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
-    return this.outbound.findOne(client, id);
+  @Get('orders/:idOrNumber')
+  async findOne(
+    @ClientUser() client: ClientPrincipal,
+    @Param('idOrNumber') idOrNumber: string,
+  ) {
+    const order = await this.outbound.findOneByLookup(client, { idOrNumber });
+    if (!order) throw new NotFoundException('Order not found.');
+    return order;
   }
 }

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { InboundSourceType, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
@@ -13,19 +13,16 @@ import {
   INBOUND_ORDER_LEVEL_FIELDS,
 } from './inbound-client-import.schema';
 import {
+  parseImportMdYDate,
+  validateImportAsciiPositiveInt,
+  validateImportOrderNumber,
+} from './oms-client-import.validation';
+import {
   assertImportTable,
   groupRowsByOrderNumber,
 } from './order-import.grouping';
 import type { ClientOrderImportSummary, ImportRowError } from './order-import.types';
-import { parseFlexibleDate, parseSpreadsheetTable } from './spreadsheet.parse';
-
-const SOURCE_TYPES = new Set<string>(Object.values(InboundSourceType));
-
-function parsePositiveQty(raw: string): number | null {
-  const n = Number(String(raw).trim().replace(/,/g, ''));
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return n;
-}
+import { parseSpreadsheetTable } from './spreadsheet.parse';
 
 @Injectable()
 export class InboundClientImportService {
@@ -73,21 +70,23 @@ export class InboundClientImportService {
 
     for (const group of groups) {
       const firstRow = group.rowNumbers[0] ?? 0;
-      const orderNumber = group.orderNumber.trim();
       const pushErr = (error: string, field?: string, rowNumber = firstRow) => {
         errors.push({
           rowNumber,
-          orderNumber: orderNumber || null,
+          orderNumber: group.orderNumber.trim() || null,
           error,
           field: field ?? null,
         });
       };
 
-      if (!orderNumber || group.conflict?.field === 'order_number') {
+      const orderNumberResult = validateImportOrderNumber(group.orderNumber);
+      if (!orderNumberResult.ok) {
         invalid++;
-        pushErr('Order number is required.', 'order_number');
+        pushErr(orderNumberResult.message, 'order_number');
         continue;
       }
+      const orderNumber = orderNumberResult.value;
+
       if (group.conflict) {
         invalid++;
         pushErr(group.conflict.error, group.conflict.field);
@@ -97,42 +96,33 @@ export class InboundClientImportService {
       const existing = await this.clientInbound.findByExternalReference(client, orderNumber);
       if (existing) {
         duplicate++;
-        pushErr(`Duplicate order reference. Already exists as ${existing.orderNumber}.`, 'order_number');
+        pushErr(
+          `Duplicate order reference. Already exists as ${existing.orderNumber}.`,
+          'order_number',
+        );
         continue;
       }
 
-      const arrival = parseFlexibleDate(group.fields.expected_arrival_date ?? '');
-      if (!arrival) {
+      const arrivalResult = parseImportMdYDate(
+        group.fields.expected_arrival_date ?? '',
+        'Expected arrival date',
+      );
+      if (!arrivalResult.ok) {
         invalid++;
-        pushErr('Expected arrival date is required (YYYY-MM-DD).', 'expected_arrival_date');
+        pushErr(arrivalResult.message, 'expected_arrival_date');
         continue;
       }
-      if (arrival < calendarTodayYmdServerLocal()) {
+      if (arrivalResult.ymd < calendarTodayYmdServerLocal()) {
         invalid++;
         pushErr('Expected arrival date cannot be before today.', 'expected_arrival_date');
         continue;
       }
 
-      const sourceRaw = (group.fields.source_type ?? '').trim();
-      let sourceType: InboundSourceType | undefined;
-      if (sourceRaw) {
-        const lower = sourceRaw.toLowerCase();
-        if (!SOURCE_TYPES.has(lower)) {
-          invalid++;
-          pushErr('Source type must be purchase, return, or transfer.', 'source_type');
-          continue;
-        }
-        sourceType = lower as InboundSourceType;
-      }
-
-      const lines: Array<{
-        productId: string;
-        expectedQuantity: number;
-        expectedLotNumber?: string;
-        expectedExpiryDate?: string;
-      }> = [];
+      const lines: Array<{ productId: string; expectedQuantity: number }> = [];
+      const seenProductIds = new Set<string>();
       let lineInvalid = false;
       for (const line of group.lines) {
+        // product_name is documentation-only — intentionally ignored.
         const sku = line.values.sku?.trim() ?? '';
         if (!sku) {
           invalid++;
@@ -143,30 +133,37 @@ export class InboundClientImportService {
         const product = skuToProduct.get(sku.toUpperCase());
         if (!product) {
           invalid++;
-          pushErr(`Unknown SKU "${sku}". Product was not created.`, 'sku', line.rowNumber);
+          pushErr(
+            `Unknown SKU "${sku}". SKU must match a product registered for your company exactly.`,
+            'sku',
+            line.rowNumber,
+          );
           lineInvalid = true;
           break;
         }
-        const qty = parsePositiveQty(line.values.expected_quantity ?? '');
-        if (qty == null) {
+        if (seenProductIds.has(product.id)) {
           invalid++;
-          pushErr('Expected quantity must be greater than 0.', 'expected_quantity', line.rowNumber);
+          pushErr(
+            `Duplicate SKU "${sku}" in the same order. Each product can only appear once.`,
+            'sku',
+            line.rowNumber,
+          );
           lineInvalid = true;
           break;
         }
-        const expiryRaw = line.values.expected_expiry_date?.trim() ?? '';
-        const expiry = expiryRaw ? parseFlexibleDate(expiryRaw) : undefined;
-        if (expiryRaw && !expiry) {
+        seenProductIds.add(product.id);
+
+        const qtyResult = validateImportAsciiPositiveInt(line.values.quantity ?? '', 'Quantity');
+        if (!qtyResult.ok) {
           invalid++;
-          pushErr('Expected expiry date must be YYYY-MM-DD.', 'expected_expiry_date', line.rowNumber);
+          pushErr(qtyResult.message, 'quantity', line.rowNumber);
           lineInvalid = true;
           break;
         }
+
         lines.push({
           productId: product.id,
-          expectedQuantity: qty,
-          expectedLotNumber: line.values.expected_lot_number?.trim() || undefined,
-          expectedExpiryDate: expiry || undefined,
+          expectedQuantity: qtyResult.value,
         });
       }
       if (lineInvalid) continue;
@@ -177,10 +174,10 @@ export class InboundClientImportService {
       }
 
       try {
+        // Same create path as /inbound-orders/new (pending client approval / waiting flow).
         const createdOrder = await this.clientInbound.create(client, {
-          expectedArrivalDate: arrival,
-          notes: group.fields.notes || undefined,
-          sourceType,
+          expectedArrivalDate: arrivalResult.ymd,
+          notes: group.fields.notes?.trim() || undefined,
           externalReference: orderNumber,
           clientReference: orderNumber,
           lines,

@@ -365,6 +365,19 @@ export class InboundService {
     );
   }
 
+  async findByOrderNumber(user: AuthPrincipal, companyId: string, orderNumber: string) {
+    this.companyAccess.assertCompanyAccess(user, companyId);
+    return withTenantRls(this.prisma, user, async (tx) =>
+      tx.inboundOrder.findFirst({
+        where: {
+          companyId,
+          orderNumber: { equals: orderNumber.trim(), mode: 'insensitive' },
+        },
+        select: { id: true, orderNumber: true },
+      }),
+    );
+  }
+
   async findProductsBySkus(companyId: string, skus: string[]) {
     const upper = skus.map((s) => s.trim().toUpperCase()).filter(Boolean);
     if (upper.length === 0) return [];
