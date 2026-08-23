@@ -105,10 +105,15 @@ export function ClientOrderImportModal({
           <Alert variant="warning">{disabledReason || t('Import is currently unavailable.', 'الاستيراد غير متاح حالياً.')}</Alert>
         ) : null}
         <p className="text-sm text-text-muted">
-          {t(
-            'Upload an Excel or CSV file. Multiple rows with the same order number become one order with multiple product lines.',
-            'ارفع ملف Excel أو CSV. الصفوف التي تحمل نفس رقم الطلب تُجمَّع في طلب واحد بعدة أصناف.',
-          )}
+          {kind === 'oms' || kind === 'inbound'
+            ? t(
+                'Upload a CSV/Excel file. Every row must be complete and valid (same rules as Create order). Invalid rows are rejected. Rows with the same order_number become one order with multiple lines.',
+                'ارفع ملف CSV/Excel. يجب أن يكون كل صف مكتملًا وصحيحًا (نفس قواعد إنشاء الطلب). الصفوف غير الصالحة تُرفض. الصفوف بنفس order_number تُجمَّع في طلب واحد بعدة أصناف.',
+              )
+            : t(
+                'Upload an Excel or CSV file. Multiple rows with the same order number become one order with multiple product lines.',
+                'ارفع ملف Excel أو CSV. الصفوف التي تحمل نفس رقم الطلب تُجمَّع في طلب واحد بعدة أصناف.',
+              )}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -140,9 +145,6 @@ export function ClientOrderImportModal({
               <Stat label={t('Total rows', 'إجمالي الصفوف')} value={result.totalRows} />
               <Stat label={t('Orders detected', 'الطلبات المكتشفة')} value={result.ordersDetected} />
               <Stat label={t('Created', 'تم الإنشاء')} value={result.created} />
-              {kind === 'oms' ? (
-                <Stat label={t('Incomplete', 'غير مكتمل')} value={result.incomplete} />
-              ) : null}
               <Stat label={t('Invalid', 'غير صالح')} value={result.invalid} />
               <Stat label={t('Duplicate', 'مكرر')} value={result.duplicate} />
             </div>

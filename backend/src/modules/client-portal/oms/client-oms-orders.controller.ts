@@ -24,6 +24,7 @@ import { ClientUser } from '../auth/client-user.decorator';
 import { JwtClientAuthGuard } from '../auth/jwt-client-auth.guard';
 import { OmsClientImportService } from '../order-import/oms-client-import.service';
 import { ClientOmsOrdersService } from './client-oms-orders.service';
+import { BulkConfirmClientOmsOrdersDto } from './dto/bulk-confirm-client-oms-orders.dto';
 import { CreateClientOmsOrderDto } from './dto/create-client-oms-order.dto';
 import { ClientCodReportQueryDto } from './dto/client-cod-report-query.dto';
 import { ClientOmsStatusSummaryQueryDto } from './dto/client-oms-status-summary-query.dto';
@@ -82,6 +83,15 @@ export class ClientOmsOrdersController {
   @Post('orders')
   create(@ClientUser() client: ClientPrincipal, @Body() dto: CreateClientOmsOrderDto) {
     return this.oms.create(client, dto);
+  }
+
+  @Post('orders/confirm-bulk')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  confirmBulk(
+    @ClientUser() client: ClientPrincipal,
+    @Body() dto: BulkConfirmClientOmsOrdersDto,
+  ) {
+    return this.oms.confirmBulk(client, dto.ids);
   }
 
   @Post('orders/:id/confirm')

@@ -213,6 +213,23 @@ export async function confirmClientOmsOrder(id: string): Promise<ClientOmsOrderD
   return data;
 }
 
+export type ClientOmsBulkConfirmResult = {
+  requested: number;
+  confirmed: number;
+  failed: number;
+  confirmedOrders: Array<{ id: string; orderNumber: string }>;
+  failures: Array<{ id: string; orderNumber: string | null; error: string }>;
+};
+
+export async function confirmClientOmsOrdersBulk(
+  ids: string[],
+): Promise<ClientOmsBulkConfirmResult> {
+  const { data } = await apiClient.post<ClientOmsBulkConfirmResult>('/oms/orders/confirm-bulk', {
+    ids,
+  });
+  return data;
+}
+
 export async function cancelClientOmsOrder(id: string): Promise<ClientOmsOrderDetail> {
   const { data } = await apiClient.post<ClientOmsOrderDetail>(`/oms/orders/${id}/cancel`);
   return data;

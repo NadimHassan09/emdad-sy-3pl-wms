@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { OmsPaymentMethod, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { clientAuthPrincipal } from '../../../common/auth/client-auth-principal';
 import { calendarTodayYmdServerLocal } from '../../../common/utils/order-planning-date';
-import { normalizeRecipientContact } from '../../../common/validators/recipient-contact';
 import { CreateOmsOrderDto } from '../../oms/dto/oms-order.dto';
 import { resolveOmsDeliveryLocation } from '../../oms/oms-delivery-resolution';
 import { OmsOrdersService } from '../../oms/oms-orders.service';
@@ -19,27 +18,21 @@ import {
   OMS_ORDER_LEVEL_FIELDS,
 } from './oms-client-import.schema';
 import {
+  parseImportShipDateMdY,
+  validateImportAsciiNonNegativeInt,
+  validateImportAsciiPositiveInt,
+  validateImportCountryCode,
+  validateImportOrderNumber,
+  validateImportPaymentMethod,
+  validateImportRecipientName,
+  validateImportRecipientPhone,
+} from './oms-client-import.validation';
+import {
   assertImportTable,
   groupRowsByOrderNumber,
 } from './order-import.grouping';
 import type { ClientOrderImportSummary, ImportRowError } from './order-import.types';
-import { parseFlexibleDate, parseSpreadsheetTable } from './spreadsheet.parse';
-
-const PAYMENT_METHODS = new Set<string>(Object.values(OmsPaymentMethod));
-
-function parsePositiveInt(raw: string): number | null {
-  const n = Number(String(raw).trim().replace(/,/g, ''));
-  if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) return null;
-  return n;
-}
-
-function parseNonNegativeNumber(raw: string): number | null {
-  const t = raw.trim();
-  if (!t) return null;
-  const n = Number(t.replace(/,/g, ''));
-  if (!Number.isFinite(n) || n < 0) return null;
-  return n;
-}
+import { parseSpreadsheetTable } from './spreadsheet.parse';
 
 @Injectable()
 export class OmsClientImportService {
@@ -69,9 +62,7 @@ export class OmsClientImportService {
     const user = clientAuthPrincipal(client);
     const errors: ImportRowError[] = [];
     const createdOrderNumbers: string[] = [];
-    const incompleteOrderNumbers: string[] = [];
     let created = 0;
-    let incomplete = 0;
     let invalid = 0;
     let duplicate = 0;
 
@@ -87,21 +78,22 @@ export class OmsClientImportService {
 
     for (const group of groups) {
       const firstRow = group.rowNumbers[0] ?? 0;
-      const orderNumber = group.orderNumber.trim();
       const pushErr = (error: string, field?: string, rowNumber = firstRow) => {
         errors.push({
           rowNumber,
-          orderNumber: orderNumber || null,
+          orderNumber: group.orderNumber.trim() || null,
           error,
           field: field ?? null,
         });
       };
 
-      if (!orderNumber || group.conflict?.field === 'order_number') {
+      const orderNumberResult = validateImportOrderNumber(group.orderNumber);
+      if (!orderNumberResult.ok) {
         invalid++;
-        pushErr('Order number is required.', 'order_number');
+        pushErr(orderNumberResult.message, 'order_number');
         continue;
       }
+      const orderNumber = orderNumberResult.value;
 
       if (group.conflict) {
         invalid++;
@@ -114,18 +106,103 @@ export class OmsClientImportService {
       const existing = await this.clientOms.findByExternalReference(client, orderNumber);
       if (existing) {
         duplicate++;
-        pushErr(`Duplicate order reference. Already exists as ${existing.orderNumber}.`, 'order_number');
+        pushErr(
+          `Duplicate order reference. Already exists as ${existing.orderNumber}.`,
+          'order_number',
+        );
+        continue;
+      }
+
+      const shipDateResult = parseImportShipDateMdY(group.fields.required_ship_date ?? '');
+      if (!shipDateResult.ok) {
+        invalid++;
+        pushErr(shipDateResult.message, 'required_ship_date');
+        continue;
+      }
+      if (shipDateResult.ymd < calendarTodayYmdServerLocal()) {
+        invalid++;
+        pushErr('Required ship date cannot be before today.', 'required_ship_date');
+        continue;
+      }
+
+      const nameResult = validateImportRecipientName(group.fields.recipient_name ?? '');
+      if (!nameResult.ok) {
+        invalid++;
+        pushErr(nameResult.message, 'recipient_name');
+        continue;
+      }
+
+      const countryResult = validateImportCountryCode(group.fields.country_code ?? '');
+      if (!countryResult.ok) {
+        invalid++;
+        pushErr(countryResult.message, 'country_code');
+        continue;
+      }
+
+      const phoneResult = validateImportRecipientPhone(
+        group.fields.recipient_phone ?? '',
+        countryResult.iso,
+      );
+      if (!phoneResult.ok) {
+        invalid++;
+        pushErr(phoneResult.message, 'recipient_phone');
+        continue;
+      }
+
+      const paymentResult = validateImportPaymentMethod(group.fields.payment_method ?? '');
+      if (!paymentResult.ok) {
+        invalid++;
+        pushErr(paymentResult.message, 'payment_method');
+        continue;
+      }
+
+      if (!(group.fields.governorate ?? '').trim()) {
+        invalid++;
+        pushErr('Governorate is required.', 'governorate');
+        continue;
+      }
+      if (!(group.fields.city ?? '').trim()) {
+        invalid++;
+        pushErr('City is required.', 'city');
+        continue;
+      }
+      if (!(group.fields.neighborhood ?? '').trim()) {
+        invalid++;
+        pushErr('Neighborhood is required.', 'neighborhood');
+        continue;
+      }
+
+      const delivery = await resolveOmsDeliveryLocation(this.geo, {
+        governorate: group.fields.governorate,
+        city: group.fields.city,
+        neighborhood: group.fields.neighborhood,
+        street: group.fields.street,
+      });
+      if (!delivery.complete || !delivery.city || !delivery.district || !delivery.addressLine1) {
+        invalid++;
+        const reasonEntries = Object.entries(delivery.reasons);
+        if (reasonEntries.length === 0) {
+          pushErr(
+            'Governorate, city, and neighborhood must match the system address list exactly (Arabic).',
+            'address',
+          );
+        } else {
+          for (const [field, message] of reasonEntries) {
+            pushErr(message, field);
+          }
+        }
         continue;
       }
 
       const lines: Array<{
         productId: string;
         requestedQuantity: number;
-        unitPrice?: number;
+        unitPrice: number;
         rowNumber: number;
       }> = [];
       let lineInvalid = false;
       for (const line of group.lines) {
+        // product_name is documentation-only — intentionally ignored.
         const sku = line.values.sku?.trim() ?? '';
         if (!sku) {
           invalid++;
@@ -134,31 +211,40 @@ export class OmsClientImportService {
           break;
         }
         const product = skuToProduct.get(sku.toUpperCase());
-        if (!product) {
+        if (!product || product.sku.trim().toUpperCase() !== sku.toUpperCase()) {
           invalid++;
-          pushErr(`Unknown SKU "${sku}". Product was not created.`, 'sku', line.rowNumber);
+          pushErr(
+            `Unknown SKU "${sku}". SKU must match a product registered for your company exactly.`,
+            'sku',
+            line.rowNumber,
+          );
           lineInvalid = true;
           break;
         }
-        const qty = parsePositiveInt(line.values.quantity ?? '');
-        if (qty == null) {
+        // Require exact SKU casing as stored? User said "كما هو مسجل" — case-insensitive match is OK for lookup;
+        // product is found from DB. Keep case-insensitive SKU match like before.
+
+        const qtyResult = validateImportAsciiPositiveInt(line.values.quantity ?? '', 'Quantity');
+        if (!qtyResult.ok) {
           invalid++;
-          pushErr('Quantity must be a whole number greater than 0.', 'quantity', line.rowNumber);
+          pushErr(qtyResult.message, 'quantity', line.rowNumber);
           lineInvalid = true;
           break;
         }
-        const unitPriceRaw = line.values.unit_price?.trim() ?? '';
-        const unitPrice = unitPriceRaw ? parseNonNegativeNumber(unitPriceRaw) : undefined;
-        if (unitPriceRaw && unitPrice == null) {
+        const priceResult = validateImportAsciiNonNegativeInt(
+          line.values.unit_price ?? '',
+          'Unit price',
+        );
+        if (!priceResult.ok) {
           invalid++;
-          pushErr('Unit price must be a number greater than or equal to 0.', 'unit_price', line.rowNumber);
+          pushErr(priceResult.message, 'unit_price', line.rowNumber);
           lineInvalid = true;
           break;
         }
         lines.push({
           productId: product.id,
-          requestedQuantity: qty,
-          unitPrice: unitPrice ?? undefined,
+          requestedQuantity: qtyResult.value,
+          unitPrice: priceResult.value,
           rowNumber: line.rowNumber,
         });
       }
@@ -169,70 +255,20 @@ export class OmsClientImportService {
         continue;
       }
 
-      const shipDate = parseFlexibleDate(group.fields.required_ship_date ?? '');
-      if (!shipDate) {
-        invalid++;
-        pushErr('Required ship date is required (YYYY-MM-DD).', 'required_ship_date');
-        continue;
-      }
-      if (shipDate < calendarTodayYmdServerLocal()) {
-        invalid++;
-        pushErr('Required ship date cannot be before today.', 'required_ship_date');
-        continue;
-      }
-
-      const paymentRaw = (group.fields.payment_method ?? '').trim();
-      let paymentMethod: OmsPaymentMethod | undefined;
-      if (paymentRaw) {
-        const upper = paymentRaw.toUpperCase();
-        if (!PAYMENT_METHODS.has(upper)) {
-          invalid++;
-          pushErr('Payment method must be COD, PREPAID, or CREDIT.', 'payment_method');
-          continue;
-        }
-        paymentMethod = upper as OmsPaymentMethod;
-      }
-
-      const contact = normalizeRecipientContact({
-        recipientName: group.fields.recipient_name || undefined,
-        recipientPhone: group.fields.recipient_phone || undefined,
-      });
-      if (!contact.ok) {
-        invalid++;
-        pushErr(contact.message, contact.field);
-        continue;
-      }
-
-      const delivery = await resolveOmsDeliveryLocation(this.geo, {
-        governorate: group.fields.governorate,
-        city: group.fields.city,
-        neighborhood: group.fields.neighborhood,
-        street: group.fields.street,
-      });
-      const needsInformation = !delivery.complete;
-      if (needsInformation) {
-        for (const [field, message] of Object.entries(delivery.reasons)) {
-          pushErr(message, field);
-        }
-        if (Object.keys(delivery.reasons).length === 0) {
-          pushErr('Shipping/Delivery information is incomplete.', 'address');
-        }
-      }
-
       const payload: CreateOmsOrderDto = {
         companyId: client.companyId,
-        requiredShipDate: shipDate,
-        recipientName: contact.value.recipientName ?? group.fields.recipient_name,
-        recipientPhone: contact.value.recipientPhone ?? group.fields.recipient_phone,
-        shippingPhoneCountry: contact.value.shippingPhoneCountry ?? undefined,
-        city: delivery.city ?? (group.fields.governorate || undefined),
-        district: delivery.district ?? (group.fields.city || undefined),
-        addressLine1: delivery.addressLine1 ?? (group.fields.neighborhood || undefined),
+        requiredShipDate: shipDateResult.ymd,
+        recipientName: nameResult.value,
+        recipientPhone: phoneResult.e164,
+        shippingPhoneCountry: phoneResult.shippingPhoneCountry,
+        city: delivery.city,
+        district: delivery.district,
+        addressLine1: delivery.addressLine1,
         addressLine2: delivery.addressLine2 ?? (group.fields.street || undefined),
         notes: group.fields.notes || undefined,
         storeChannel: group.fields.store_channel || undefined,
-        paymentMethod,
-        currency: group.fields.currency?.trim() || 'USD',
+        paymentMethod: paymentResult.value,
+        currency: 'USD',
         externalReference: orderNumber,
         clientReference: orderNumber,
         shippingReceiverLat: delivery.lat ?? undefined,
@@ -241,24 +277,20 @@ export class OmsClientImportService {
           productId: l.productId,
           requestedQuantity: l.requestedQuantity,
           unitPrice: l.unitPrice,
-          lineTotal:
-            l.unitPrice != null ? l.unitPrice * l.requestedQuantity : undefined,
+          lineTotal: l.unitPrice * l.requestedQuantity,
         })),
       };
 
       try {
+        // Same create path as manual /ecommerce-orders/new → waiting_for_confirmation.
+        // Do NOT use bulkImport (that would create confirmed_waiting_for_admin_approval).
+        // Do NOT create incomplete / needsInformation orders.
         const createdOrder = await this.omsOrders.create(user, payload, {
           provisionOutbound: false,
-          bulkImport: { batchId, externalReference: orderNumber },
-          needsInformation,
+          needsInformation: false,
         });
-        if (needsInformation) {
-          incomplete++;
-          incompleteOrderNumbers.push(createdOrder.orderNumber);
-        } else {
-          created++;
-          createdOrderNumbers.push(createdOrder.orderNumber);
-        }
+        created++;
+        createdOrderNumbers.push(createdOrder.orderNumber);
       } catch (err) {
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
           duplicate++;
@@ -275,11 +307,11 @@ export class OmsClientImportService {
       totalRows: dataRows.length,
       ordersDetected: groups.length,
       created,
-      incomplete,
+      incomplete: 0,
       invalid,
       duplicate,
       createdOrderNumbers,
-      incompleteOrderNumbers,
+      incompleteOrderNumbers: [],
       errors,
     };
   }

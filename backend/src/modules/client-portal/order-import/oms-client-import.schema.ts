@@ -1,19 +1,25 @@
 import { rowsToCsv } from '../../oms/oms-orders-csv.util';
 import type { HeaderAliasMap } from './order-import.grouping';
 
+/**
+ * Client Portal OMS import columns.
+ * `product_name` is documentation-only (ignored by the importer).
+ * Currency is fixed to USD — not accepted as a CSV column.
+ */
 export const OMS_CLIENT_IMPORT_HEADERS = [
   'order_number',
   'required_ship_date',
   'recipient_name',
+  'country_code',
   'recipient_phone',
   'governorate',
   'city',
   'neighborhood',
   'street',
   'payment_method',
-  'currency',
   'notes',
   'sku',
+  'product_name',
   'quantity',
   'unit_price',
 ] as const;
@@ -22,17 +28,18 @@ export const OMS_CLIENT_IMPORT_ALIASES: HeaderAliasMap = {
   order_number: ['external_reference', 'order_no', 'order number', 'external_order_id'],
   required_ship_date: ['ship_date', 'required ship date'],
   recipient_name: ['customer', 'customer_name', 'recipient'],
-  recipient_phone: ['phone', 'customer_phone'],
+  country_code: ['phone_country', 'dial_code', 'country code', 'phone_country_code'],
+  recipient_phone: ['phone', 'customer_phone', 'national_phone'],
   governorate: ['gov'],
   city: ['area', 'city_area'],
   district: [],
   neighborhood: ['address_line1', 'address line 1', 'town'],
   street: ['address_line2', 'address line 2', 'detailed_address', 'address'],
   payment_method: ['payment'],
-  currency: [],
   notes: ['note'],
   store_channel: ['channel'],
   sku: ['product_sku', 'product sku'],
+  product_name: ['product', 'item_name', 'product name'],
   quantity: ['qty', 'requested_quantity'],
   unit_price: ['price', 'unit price'],
 };
@@ -40,6 +47,7 @@ export const OMS_CLIENT_IMPORT_ALIASES: HeaderAliasMap = {
 export const OMS_ORDER_LEVEL_FIELDS = [
   'required_ship_date',
   'recipient_name',
+  'country_code',
   'recipient_phone',
   'governorate',
   'city',
@@ -47,48 +55,77 @@ export const OMS_ORDER_LEVEL_FIELDS = [
   'neighborhood',
   'street',
   'payment_method',
-  'currency',
   'notes',
   'store_channel',
 ] as const;
 
-export const OMS_CLIENT_IMPORT_REQUIRED_COLUMNS = ['order_number', 'sku', 'quantity'];
-
-export const OMS_INCOMPLETE_DESTINATION = 'Shipping/Delivery information is incomplete.';
+/** Every import file must include these columns (product_name is optional). */
+export const OMS_CLIENT_IMPORT_REQUIRED_COLUMNS = [
+  'order_number',
+  'required_ship_date',
+  'recipient_name',
+  'country_code',
+  'recipient_phone',
+  'governorate',
+  'city',
+  'neighborhood',
+  'payment_method',
+  'sku',
+  'quantity',
+  'unit_price',
+];
 
 export function getOmsClientImportTemplate(): { filename: string; body: string } {
   const headers = [...OMS_CLIENT_IMPORT_HEADERS];
   const body = rowsToCsv(headers, [
     [
-      'ORDER-1001',
-      '2026-09-01',
-      'Ahmed',
-      '+963944000001',
+      'WA-20260901-001',
+      '9/01/2026',
+      'Ahmed Ali',
+      '963',
+      '944000001',
       'حلب',
       'أتارب',
       'أرناز',
       'Street 1',
       'COD',
-      'USD',
       '',
       'SKU-A',
+      'Sample product A',
       '2',
       '10',
     ],
-    ['ORDER-1001', '', '', '', '', '', '', '', '', '', '', 'SKU-B', '3', ''],
     [
-      'ORDER-1002',
-      '2026-09-02',
-      'Sara',
-      '+963944000002',
+      'WA-20260901-001',
+      '9/01/2026',
+      'Ahmed Ali',
+      '963',
+      '944000001',
       'حلب',
       'أتارب',
+      'أرناز',
+      'Street 1',
+      'COD',
       '',
+      'SKU-B',
+      'Sample product B',
+      '3',
+      '15',
+    ],
+    [
+      'WA-20260902-002',
+      '9/02/2026',
+      'Sara Hassan',
+      '963',
+      '944000002',
+      'حلب',
+      'أتارب',
+      'أرناز',
       '',
-      'PREPAID',
-      'USD',
+      'Prepaid',
       '',
       'SKU-A',
+      'Sample product A',
       '1',
       '10',
     ],

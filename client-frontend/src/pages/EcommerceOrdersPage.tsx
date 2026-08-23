@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
 import {
@@ -30,9 +31,12 @@ import {
   CLIENT_OMS_COMMERCIAL_FILTER_OPTIONS,
   clientOmsCommercialStatusBadgeKey,
   clientOmsCommercialStatusLabel,
+  mapClientOmsCommercialDisplayStatus,
 } from '../lib/client-oms-commercial-status';
 import { isClientArabic } from '../lib/client-ui-language';
+import { isProductionClientPortal } from '../lib/production-client-portal';
 import {
+  confirmClientOmsOrdersBulk,
   fetchClientOmsOrders,
   type ClientOmsOrderListItem,
   type ClientOmsOrderStatus,
@@ -50,6 +54,7 @@ function labelText(label: string, isArabic: boolean): string {
     'Orders from your store channels': 'طلبات من قنوات متجرك',
     'Create order': 'إنشاء طلب',
     Import: 'استيراد',
+    'Confirm orders': 'تأكيد الطلبات',
     'Incomplete Order': 'طلب غير مكتمل',
     'Search order number...': 'ابحث برقم الطلب...',
     'All statuses': 'كل الحالات',
@@ -67,8 +72,20 @@ function labelText(label: string, isArabic: boolean): string {
     'Create first order': 'إنشاء أول طلب',
     'Could not load online orders': 'تعذر تحميل الطلبات الإلكترونية',
     Retry: 'إعادة المحاولة',
+    'Select order': 'اختر الطلب',
+    'Select all confirmable orders': 'تحديد كل الطلبات القابلة للتأكيد',
+    'Only orders waiting for confirmation can be confirmed.':
+      'يمكن تأكيد الطلبات في حالة بانتظار التأكيد فقط.',
+    'Confirmed successfully.': 'تم التأكيد بنجاح.',
+    'Some orders could not be confirmed.': 'تعذر تأكيد بعض الطلبات.',
   };
   return ar[label] ?? label;
+}
+
+function isConfirmableOrder(row: ClientOmsOrderListItem): boolean {
+  if (row.needsInformation) return false;
+  const commercial = mapClientOmsCommercialDisplayStatus(row.status);
+  return row.status === 'waiting_for_confirmation' || commercial === 'waiting_for_confirmation';
 }
 
 const ECOMMERCE_LIST_FILTERS = { search: '', status: '' };
@@ -82,6 +99,12 @@ export function EcommerceOrdersPage(): ReactElement {
   const t = (label: string) => labelText(label, isArabic);
   const billingAccess = useClientOperationalAccess(isArabic);
   const [importOpen, setImportOpen] = useState(false);
+  const hideImportUi = isProductionClientPortal();
+  /** Bulk confirm is Staging Client Portal only. */
+  const allowBulkConfirm = !isProductionClientPortal();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+  const [bulkError, setBulkError] = useState<string | null>(null);
 
   const filterKey = useMemo(
     () => ({
@@ -99,20 +122,99 @@ export function EcommerceOrdersPage(): ReactElement {
     chunkQueryKeyPrefix: 'client-ecommerce-orders-chunk',
   });
 
+  const rows = pagination.rows as ClientOmsOrderListItem[];
+  const confirmableRows = useMemo(
+    () => (allowBulkConfirm ? rows.filter(isConfirmableOrder) : []),
+    [allowBulkConfirm, rows],
+  );
+  const confirmableIds = useMemo(
+    () => confirmableRows.map((r) => r.id),
+    [confirmableRows],
+  );
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+    setBulkMessage(null);
+    setBulkError(null);
+  }, [filterKey.orderSearch, filterKey.status, pagination.page]);
+
+  const selectedConfirmableIds = useMemo(
+    () => confirmableIds.filter((id) => selectedIds.has(id)),
+    [confirmableIds, selectedIds],
+  );
+  const allConfirmableSelected =
+    confirmableIds.length > 0 && selectedConfirmableIds.length === confirmableIds.length;
+  const someConfirmableSelected =
+    selectedConfirmableIds.length > 0 && !allConfirmableSelected;
+
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const toggleAllConfirmable = (checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of confirmableIds) {
+        if (checked) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const confirmBulkMut = useMutation({
+    mutationFn: () => confirmClientOmsOrdersBulk(selectedConfirmableIds),
+    onSuccess: (result) => {
+      setSelectedIds(new Set());
+      void pagination.refetch();
+      if (result.failed > 0) {
+        const first = result.failures[0];
+        setBulkError(
+          `${t('Some orders could not be confirmed.')} ${
+            first
+              ? `${first.orderNumber ?? first.id}: ${first.error}`
+              : `(${result.failed}/${result.requested})`
+          }`,
+        );
+        setBulkMessage(
+          result.confirmed > 0
+            ? `${t('Confirmed successfully.')} ${result.confirmed}/${result.requested}`
+            : null,
+        );
+      } else {
+        setBulkError(null);
+        setBulkMessage(
+          `${t('Confirmed successfully.')} ${result.confirmed}/${result.requested}`,
+        );
+      }
+    },
+    onError: (err: Error) => {
+      setBulkMessage(null);
+      setBulkError(err.message);
+    },
+  });
+
   const hasActiveFilters = Boolean(appliedFilters.search.trim() || appliedFilters.status);
 
   const createButton = (
     <div className="flex flex-wrap items-center gap-2">
-      <Button
-        variant="secondary"
-        size="md"
-        disabled={!billingAccess.operationalAllowed}
-        title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
-        onClick={() => setImportOpen(true)}
-        startIcon={<i className="fa-solid fa-file-import text-xs" aria-hidden="true" />}
-      >
-        {t('Import')}
-      </Button>
+      {!hideImportUi ? (
+        <Button
+          variant="secondary"
+          size="md"
+          disabled={!billingAccess.operationalAllowed}
+          title={billingAccess.operationalAllowed ? undefined : billingAccess.actionBlockedReason}
+          onClick={() => setImportOpen(true)}
+          startIcon={<i className="fa-solid fa-file-import text-xs" aria-hidden="true" />}
+        >
+          {t('Import')}
+        </Button>
+      ) : null}
       <Button
         variant="primary"
         size="md"
@@ -135,14 +237,16 @@ export function EcommerceOrdersPage(): ReactElement {
         actions={createButton}
       />
 
-      <ClientOrderImportModal
-        kind="oms"
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        onImported={() => pagination.refetch()}
-        disabled={!billingAccess.operationalAllowed}
-        disabledReason={billingAccess.actionBlockedReason}
-      />
+      {!hideImportUi ? (
+        <ClientOrderImportModal
+          kind="oms"
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          onImported={() => pagination.refetch()}
+          disabled={!billingAccess.operationalAllowed}
+          disabledReason={billingAccess.actionBlockedReason}
+        />
+      ) : null}
 
       <StorePillTabs isArabic={isArabic} />
 
@@ -153,6 +257,9 @@ export function EcommerceOrdersPage(): ReactElement {
           </Alert.Action>
         </Alert>
       ) : null}
+
+      {bulkError ? <Alert variant="error">{bulkError}</Alert> : null}
+      {bulkMessage ? <Alert variant="success">{bulkMessage}</Alert> : null}
 
       <AdvancedFilterSection
         advancedOpen={advancedOpen}
@@ -221,6 +328,7 @@ export function EcommerceOrdersPage(): ReactElement {
             <table className="w-full text-sm">
               <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
                 <tr>
+                  {allowBulkConfirm ? <th className="w-10 px-3 py-3" /> : null}
                   <th className="px-5 py-3 text-left">{t('Order #')}</th>
                   <th className="px-5 py-3 text-left">{t('Status')}</th>
                   <th className="px-5 py-3 text-left">{t('Recipient')}</th>
@@ -231,7 +339,7 @@ export function EcommerceOrdersPage(): ReactElement {
               <tbody className="divide-y divide-border-subtle">
                 {Array.from({ length: 6 }).map((_, rowIdx) => (
                   <tr key={`sk-${rowIdx}`}>
-                    {Array.from({ length: 5 }).map((__, colIdx) => (
+                    {Array.from({ length: allowBulkConfirm ? 6 : 5 }).map((__, colIdx) => (
                       <td key={colIdx} className="px-5 py-3.5">
                         <Skeleton height={14} width={colIdx === 0 ? '70%' : '55%'} />
                       </td>
@@ -267,10 +375,62 @@ export function EcommerceOrdersPage(): ReactElement {
           />
         ) : (
           <>
+            {allowBulkConfirm && selectedConfirmableIds.length > 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle bg-surface-card-muted/60 px-4 py-3">
+                <p className="text-sm text-text-muted">
+                  {isArabic
+                    ? `${selectedConfirmableIds.length} طلب محدد`
+                    : `${selectedConfirmableIds.length} selected`}
+                </p>
+                <Button
+                  variant="primary"
+                  size="md"
+                  disabled={
+                    !billingAccess.operationalAllowed ||
+                    confirmBulkMut.isPending ||
+                    selectedConfirmableIds.length === 0
+                  }
+                  title={
+                    billingAccess.operationalAllowed
+                      ? undefined
+                      : billingAccess.actionBlockedReason
+                  }
+                  loading={confirmBulkMut.isPending}
+                  onClick={() => confirmBulkMut.mutate()}
+                  startIcon={<i className="fa-solid fa-check text-xs" aria-hidden="true" />}
+                >
+                  {t('Confirm orders')}
+                </Button>
+              </div>
+            ) : null}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-surface-card-muted text-xs uppercase text-text-muted font-semibold">
                   <tr>
+                    {allowBulkConfirm ? (
+                      <th className="w-10 px-3 py-3 text-left">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-border-strong text-brand-600 focus:ring-brand-500 disabled:opacity-40"
+                          checked={allConfirmableSelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = someConfirmableSelected;
+                          }}
+                          disabled={
+                            confirmableIds.length === 0 ||
+                            !billingAccess.operationalAllowed ||
+                            confirmBulkMut.isPending
+                          }
+                          title={
+                            confirmableIds.length === 0
+                              ? t('Only orders waiting for confirmation can be confirmed.')
+                              : t('Select all confirmable orders')
+                          }
+                          aria-label={t('Select all confirmable orders')}
+                          onChange={(e) => toggleAllConfirmable(e.target.checked)}
+                        />
+                      </th>
+                    ) : null}
                     <th className="px-5 py-3 text-left">{t('Order #')}</th>
                     <th className="px-5 py-3 text-left">{t('Status')}</th>
                     <th className="px-5 py-3 text-left">{t('Recipient')}</th>
@@ -280,39 +440,70 @@ export function EcommerceOrdersPage(): ReactElement {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
-                  {(pagination.rows as ClientOmsOrderListItem[]).map((row) => (
-                    <tr
-                      key={row.id}
-                      onClick={() => navigate(`/ecommerce-orders/${row.id}`)}
-                      className="hover:bg-surface-hover transition-colors cursor-pointer"
-                    >
-                      <td className="px-5 py-3.5 font-semibold text-text-strong font-mono">
-                        {row.orderNumber || '—'}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <StatusBadge status={clientOmsCommercialStatusBadgeKey(row.status)} isArabic={isArabic}>
-                            {clientOmsCommercialStatusLabel(row.status, isArabic)}
-                          </StatusBadge>
-                          {row.needsInformation ? (
-                            <StatusBadge status="failed delivery" isArabic={isArabic}>
-                              {t('Incomplete Order')}
+                  {rows.map((row) => {
+                    const confirmable = allowBulkConfirm && isConfirmableOrder(row);
+                    const checked = selectedIds.has(row.id);
+                    return (
+                      <tr
+                        key={row.id}
+                        onClick={() => navigate(`/ecommerce-orders/${row.id}`)}
+                        className="hover:bg-surface-hover transition-colors cursor-pointer"
+                      >
+                        {allowBulkConfirm ? (
+                          <td
+                            className="w-10 px-3 py-3.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-border-strong text-brand-600 focus:ring-brand-500 disabled:opacity-40"
+                              checked={checked}
+                              disabled={
+                                !confirmable ||
+                                !billingAccess.operationalAllowed ||
+                                confirmBulkMut.isPending
+                              }
+                              title={
+                                confirmable
+                                  ? t('Select order')
+                                  : t('Only orders waiting for confirmation can be confirmed.')
+                              }
+                              aria-label={`${t('Select order')} ${row.orderNumber || row.id}`}
+                              onChange={(e) => toggleOne(row.id, e.target.checked)}
+                            />
+                          </td>
+                        ) : null}
+                        <td className="px-5 py-3.5 font-semibold text-text-strong font-mono">
+                          {row.orderNumber || '—'}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <StatusBadge
+                              status={clientOmsCommercialStatusBadgeKey(row.status)}
+                              isArabic={isArabic}
+                            >
+                              {clientOmsCommercialStatusLabel(row.status, isArabic)}
                             </StatusBadge>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5 text-text-body">{row.recipientName || '—'}</td>
-                      <td className="px-5 py-3.5 text-text-body">{row.city?.trim() || '—'}</td>
-                      <td className="px-5 py-3.5 font-medium text-text-strong">
-                        {row.total == null
-                          ? '—'
-                          : `${row.total}${row.currency ? ` ${row.currency}` : ''}`}
-                      </td>
-                      <td className="px-5 py-3.5 text-right text-text-muted text-xs">
-                        {new Date(row.createdAt).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
+                            {row.needsInformation ? (
+                              <StatusBadge status="failed delivery" isArabic={isArabic}>
+                                {t('Incomplete Order')}
+                              </StatusBadge>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5 text-text-body">{row.recipientName || '—'}</td>
+                        <td className="px-5 py-3.5 text-text-body">{row.city?.trim() || '—'}</td>
+                        <td className="px-5 py-3.5 font-medium text-text-strong">
+                          {row.total == null
+                            ? '—'
+                            : `${row.total}${row.currency ? ` ${row.currency}` : ''}`}
+                        </td>
+                        <td className="px-5 py-3.5 text-right text-text-muted text-xs">
+                          {new Date(row.createdAt).toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
