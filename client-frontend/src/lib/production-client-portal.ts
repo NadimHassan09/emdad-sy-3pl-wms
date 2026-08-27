@@ -1,8 +1,7 @@
 /**
- * Production Client Portal host only (`client.emdadsy.com`).
- * Staging (`staging-client.emdadsy.com`) and local/dev stay false so UI remains fully visible.
+ * Legacy hostname gate for Client Portal UI hiding.
+ * Disabled — Import, Export, and /apis are visible on all hosts including production.
  */
 export function isProductionClientPortal(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.location.hostname === 'client.emdadsy.com';
+  return false;
 }

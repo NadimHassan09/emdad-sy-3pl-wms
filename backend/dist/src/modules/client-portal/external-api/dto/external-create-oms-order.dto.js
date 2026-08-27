@@ -23,19 +23,19 @@ class ExternalOmsAddressDto {
 exports.ExternalOmsAddressDto = ExternalOmsAddressDto;
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Governorate is required.' }),
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)
 ], ExternalOmsAddressDto.prototype, "governorate", void 0);
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'City is required.' }),
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)
 ], ExternalOmsAddressDto.prototype, "city", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Neighborhood is required.' }),
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)
 ], ExternalOmsAddressDto.prototype, "neighborhood", void 0);
@@ -53,7 +53,7 @@ class ExternalOmsLineDto {
 exports.ExternalOmsLineDto = ExternalOmsLineDto;
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Product SKU is required.' }),
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)
 ], ExternalOmsLineDto.prototype, "sku", void 0);
@@ -64,7 +64,6 @@ __decorate([
     __metadata("design:type", Number)
 ], ExternalOmsLineDto.prototype, "quantity", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
     (0, class_transformer_1.Type)(() => Number),
     (0, class_validator_1.IsInt)({ message: 'Unit price must be a whole number (no decimals).' }),
     (0, class_validator_1.Min)(0, { message: 'Unit price cannot be negative.' }),
@@ -75,10 +74,9 @@ class ExternalCreateOmsOrderDto {
     requiredShipDate;
     address;
     recipientName;
+    countryCode;
     recipientPhone;
-    shippingPhoneCountry;
     paymentMethod;
-    currency;
     storeChannel;
     notes;
     lines;
@@ -86,12 +84,16 @@ class ExternalCreateOmsOrderDto {
 exports.ExternalCreateOmsOrderDto = ExternalCreateOmsOrderDto;
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'externalOrderId is required.' }),
     (0, class_validator_1.MaxLength)(80),
+    (0, class_validator_1.Matches)(/^[A-Za-z0-9-]+$/, {
+        message: 'externalOrderId may only contain English letters, English digits (0-9), and hyphen (-).',
+    }),
     __metadata("design:type", String)
 ], ExternalCreateOmsOrderDto.prototype, "externalOrderId", void 0);
 __decorate([
-    (0, class_validator_1.IsDateString)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'requiredShipDate is required.' }),
     __metadata("design:type", String)
 ], ExternalCreateOmsOrderDto.prototype, "requiredShipDate", void 0);
 __decorate([
@@ -101,34 +103,36 @@ __decorate([
     __metadata("design:type", ExternalOmsAddressDto)
 ], ExternalCreateOmsOrderDto.prototype, "address", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Recipient name is required.' }),
     (0, is_recipient_contact_1.IsRecipientName)(),
     __metadata("design:type", String)
 ], ExternalCreateOmsOrderDto.prototype, "recipientName", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
-    (0, is_recipient_contact_1.IsRecipientPhone)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'countryCode is required.' }),
+    (0, class_validator_1.Matches)(/^[0-9]+$/, {
+        message: 'countryCode must be English digits only (example: 963). Do not include +, letters, or symbols.',
+    }),
+    (0, class_validator_1.MaxLength)(8),
+    __metadata("design:type", String)
+], ExternalCreateOmsOrderDto.prototype, "countryCode", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Recipient phone is required.' }),
+    (0, class_validator_1.Matches)(/^[0-9]+$/, {
+        message: 'recipientPhone must be English digits only (no +, spaces, letters, or symbols).',
+    }),
+    (0, class_validator_1.MaxLength)(20),
     __metadata("design:type", String)
 ], ExternalCreateOmsOrderDto.prototype, "recipientPhone", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(8),
-    __metadata("design:type", String)
-], ExternalCreateOmsOrderDto.prototype, "shippingPhoneCountry", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsEnum)(client_1.OmsPaymentMethod),
+    (0, class_transformer_1.Transform)(({ value }) => typeof value === 'string' ? value.trim().toUpperCase() : value),
+    (0, class_validator_1.IsEnum)(client_1.OmsPaymentMethod, {
+        message: 'paymentMethod must be exactly one of: COD, Prepaid, or Credit.',
+    }),
     __metadata("design:type", String)
 ], ExternalCreateOmsOrderDto.prototype, "paymentMethod", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(8),
-    __metadata("design:type", String)
-], ExternalCreateOmsOrderDto.prototype, "currency", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),

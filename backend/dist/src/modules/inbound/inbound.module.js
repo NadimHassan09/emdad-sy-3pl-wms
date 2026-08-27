@@ -12,6 +12,7 @@ const audit_module_1 = require("../../common/audit/audit.module");
 const inventory_module_1 = require("../inventory/inventory.module");
 const warehouse_workflow_module_1 = require("../warehouse-workflow/warehouse-workflow.module");
 const billing_module_1 = require("../billing/billing.module");
+const client_portal_module_1 = require("../client-portal/client-portal.module");
 const inbound_controller_1 = require("./inbound.controller");
 const inbound_orders_csv_service_1 = require("./inbound-orders-csv.service");
 const inbound_service_1 = require("./inbound.service");
@@ -20,7 +21,7 @@ let InboundModule = class InboundModule {
 exports.InboundModule = InboundModule;
 exports.InboundModule = InboundModule = __decorate([
     (0, common_1.Module)({
-        imports: [audit_module_1.AuditModule, inventory_module_1.InventoryModule, warehouse_workflow_module_1.WarehouseWorkflowModule, billing_module_1.BillingModule],
+        imports: [audit_module_1.AuditModule, inventory_module_1.InventoryModule, warehouse_workflow_module_1.WarehouseWorkflowModule, billing_module_1.BillingModule, (0, common_1.forwardRef)(() => client_portal_module_1.ClientPortalModule)],
         controllers: [inbound_controller_1.InboundController],
         providers: [inbound_service_1.InboundService, inbound_orders_csv_service_1.InboundOrdersCsvService],
         exports: [inbound_service_1.InboundService],

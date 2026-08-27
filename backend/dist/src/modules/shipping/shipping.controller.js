@@ -30,6 +30,7 @@ const bulk_shipping_dto_1 = require("./dto/bulk-shipping.dto");
 const connect_shipping_provider_dto_1 = require("./dto/connect-shipping-provider.dto");
 const quote_shipping_rates_dto_1 = require("./dto/quote-shipping-rates.dto");
 const resolve_address_from_pin_dto_1 = require("./dto/resolve-address-from-pin.dto");
+const resolve_address_from_names_dto_1 = require("./dto/resolve-address-from-names.dto");
 const babel_express_adapter_1 = require("./providers/babel-express/babel-express.adapter");
 const babel_geo_sync_service_1 = require("./providers/babel-express/babel-geo-sync.service");
 const shipping_constants_1 = require("./shipping.constants");
@@ -105,6 +106,13 @@ let ShippingController = class ShippingController {
     }
     resolveAddressFromPin(body) {
         return this.addressResolve.resolveFromPin(body.lat, body.lng);
+    }
+    resolveAddressFromNames(body) {
+        return this.addressResolve.resolveFromAddress({
+            governorate: body.governorate,
+            cityRegion: body.cityRegion,
+            townNeighborhood: body.townNeighborhood,
+        });
     }
     async resolveNeighbourhood(body) {
         const credentials = await this.requireBabelCredentials();
@@ -237,6 +245,13 @@ __decorate([
     __metadata("design:paramtypes", [resolve_address_from_pin_dto_1.ResolveAddressFromPinDto]),
     __metadata("design:returntype", void 0)
 ], ShippingController.prototype, "resolveAddressFromPin", null);
+__decorate([
+    (0, common_1.Post)('address/resolve-from-names'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [resolve_address_from_names_dto_1.ResolveAddressFromNamesDto]),
+    __metadata("design:returntype", void 0)
+], ShippingController.prototype, "resolveAddressFromNames", null);
 __decorate([
     (0, common_1.Post)('babel/resolve-neighbourhood'),
     __param(0, (0, common_1.Body)()),

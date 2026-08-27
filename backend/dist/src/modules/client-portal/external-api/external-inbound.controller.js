@@ -17,10 +17,10 @@ const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const throttler_1 = require("@nestjs/throttler");
 const public_decorator_1 = require("../../../common/auth/public.decorator");
-const parse_uuid_loose_pipe_1 = require("../../../common/pipes/parse-uuid-loose.pipe");
 const client_user_decorator_1 = require("../auth/client-user.decorator");
 const api_key_guard_1 = require("./api-key.guard");
 const external_create_inbound_order_dto_1 = require("./dto/external-create-inbound-order.dto");
+const external_list_orders_query_dto_1 = require("./dto/external-list-orders-query.dto");
 const external_inbound_service_1 = require("./external-inbound.service");
 const require_api_scope_decorator_1 = require("./require-api-scope.decorator");
 let ExternalInboundController = class ExternalInboundController {
@@ -31,21 +31,23 @@ let ExternalInboundController = class ExternalInboundController {
     create(client, dto) {
         return this.inbound.create(client, dto);
     }
-    async findByExternal(client, externalOrderId) {
-        if (!externalOrderId?.trim()) {
-            throw new common_1.BadRequestException({
-                code: 'VALIDATION_ERROR',
-                message: 'Provide externalOrderId to look up an order.',
-                fields: { externalOrderId: 'Required' },
+    async listOrFind(client, query) {
+        if (query.externalOrderId?.trim() || query.orderNumber?.trim()) {
+            const order = await this.inbound.findOneByLookup(client, {
+                externalOrderId: query.externalOrderId,
+                orderNumber: query.orderNumber,
             });
+            if (!order)
+                throw new common_1.NotFoundException('Order not found.');
+            return order;
         }
-        const order = await this.inbound.findByExternalOrderId(client, externalOrderId);
+        return this.inbound.list(client, query);
+    }
+    async findOne(client, idOrNumber) {
+        const order = await this.inbound.findOneByLookup(client, { idOrNumber });
         if (!order)
             throw new common_1.NotFoundException('Order not found.');
         return order;
-    }
-    findOne(client, id) {
-        return this.inbound.findOne(client, id);
     }
 };
 exports.ExternalInboundController = ExternalInboundController;
@@ -60,18 +62,18 @@ __decorate([
 __decorate([
     (0, common_1.Get)('orders'),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
-    __param(1, (0, common_1.Query)('externalOrderId')),
+    __param(1, (0, common_1.Query)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, external_list_orders_query_dto_1.ExternalListInboundOrdersQueryDto]),
+    __metadata("design:returntype", Promise)
+], ExternalInboundController.prototype, "listOrFind", null);
+__decorate([
+    (0, common_1.Get)('orders/:idOrNumber'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Param)('idOrNumber')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
-], ExternalInboundController.prototype, "findByExternal", null);
-__decorate([
-    (0, common_1.Get)('orders/:id'),
-    __param(0, (0, client_user_decorator_1.ClientUser)()),
-    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String]),
-    __metadata("design:returntype", void 0)
 ], ExternalInboundController.prototype, "findOne", null);
 exports.ExternalInboundController = ExternalInboundController = __decorate([
     (0, public_decorator_1.Public)(),

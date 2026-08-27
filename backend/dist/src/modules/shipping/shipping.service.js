@@ -18,6 +18,7 @@ const prisma_service_1 = require("../../common/prisma/prisma.service");
 const realtime_service_1 = require("../realtime/realtime.service");
 const oms_order_mapper_1 = require("../oms/oms-order.mapper");
 const babel_address_adapter_1 = require("./providers/babel-express/babel-address.adapter");
+const address_resolve_service_1 = require("./address-resolve.service");
 const babel_express_http_client_1 = require("./providers/babel-express/babel-express.http-client");
 const babel_shipment_mapper_1 = require("./providers/babel-express/babel-shipment.mapper");
 const shipping_provider_registry_1 = require("./shipping-provider.registry");
@@ -25,6 +26,7 @@ const shipping_config_util_1 = require("./shipping-config.util");
 const shipping_geo_service_1 = require("./shipping-geo.service");
 const shipping_rate_util_1 = require("./shipping-rate.util");
 const shipment_parts_util_1 = require("./shipment-parts.util");
+const shipping_cartons_types_1 = require("./shipping-cartons.types");
 function maskUsername(username) {
     if (!username)
         return null;
@@ -72,18 +74,26 @@ let ShippingService = ShippingService_1 = class ShippingService {
     realtime;
     geo;
     babelAddress;
+    addressResolve;
     logger = new common_1.Logger(ShippingService_1.name);
-    constructor(prisma, encryption, registry, realtime, geo, babelAddress) {
+    constructor(prisma, encryption, registry, realtime, geo, babelAddress, addressResolve) {
         this.prisma = prisma;
         this.encryption = encryption;
         this.registry = registry;
         this.realtime = realtime;
         this.geo = geo;
         this.babelAddress = babelAddress;
+        this.addressResolve = addressResolve;
     }
     rateCache = new Map();
     async lookupAreaBoundary(params) {
         return this.geo.lookupBoundary(params);
+    }
+    resolveReceiverCoordinatesFromAddress(input) {
+        const result = this.addressResolve.resolveFromAddress(input);
+        if (!result.found)
+            return null;
+        return { lat: result.lat, lng: result.lng };
     }
     async quoteDestinationRates(dto) {
         const cacheKey = JSON.stringify({
@@ -95,6 +105,8 @@ let ShippingService = ShippingService_1 = class ShippingService {
             deliveryType: dto.deliveryType,
             pickupType: dto.pickupType ?? null,
             volumeCbm: dto.volumeCbm ?? null,
+            codAmount: dto.codAmount ?? null,
+            parts: dto.parts?.map((p) => Number(p.weight)) ?? null,
             gov: dto.governorate?.trim() || '',
             city: dto.city?.trim() || '',
             hood: dto.neighborhood?.trim() || '',
@@ -103,10 +115,32 @@ let ShippingService = ShippingService_1 = class ShippingService {
         if (cached && Date.now() - cached.at < 60_000) {
             return cached.value;
         }
-        const hasCoords = dto.receiverLat != null &&
+        const hasAddressNames = Boolean(dto.governorate?.trim() && dto.city?.trim());
+        let receiverLat = null;
+        let receiverLng = null;
+        if (hasAddressNames) {
+            const resolved = this.resolveReceiverCoordinatesFromAddress({
+                governorate: dto.governorate,
+                cityRegion: dto.city,
+                townNeighborhood: dto.neighborhood,
+            });
+            if (resolved) {
+                receiverLat = resolved.lat;
+                receiverLng = resolved.lng;
+            }
+        }
+        if (receiverLat == null &&
+            dto.receiverLat != null &&
             dto.receiverLng != null &&
             Number.isFinite(dto.receiverLat) &&
-            Number.isFinite(dto.receiverLng);
+            Number.isFinite(dto.receiverLng)) {
+            receiverLat = dto.receiverLat;
+            receiverLng = dto.receiverLng;
+        }
+        const hasCoords = receiverLat != null &&
+            receiverLng != null &&
+            Number.isFinite(receiverLat) &&
+            Number.isFinite(receiverLng);
         let neighbourhoodId = dto.neighbourhoodId != null && Number.isFinite(Number(dto.neighbourhoodId))
             ? Number(dto.neighbourhoodId)
             : null;
@@ -116,30 +150,6 @@ let ShippingService = ShippingService_1 = class ShippingService {
                 cityRegion: dto.city,
                 townNeighborhood: dto.neighborhood,
             });
-        }
-        let inSelectedArea = null;
-        if (hasCoords) {
-            const boundary = await this.geo.lookupBoundary({
-                governorate: dto.governorate,
-                city: dto.city,
-                neighborhood: dto.neighborhood,
-            });
-            inSelectedArea =
-                boundary != null
-                    ? this.geo.containsPoint(boundary, {
-                        lat: dto.receiverLat,
-                        lng: dto.receiverLng,
-                    })
-                    : null;
-        }
-        if (inSelectedArea === false) {
-            const empty = {
-                inSelectedArea: false,
-                quotes: [],
-                errors: [],
-            };
-            this.rateCache.set(cacheKey, { at: Date.now(), value: empty });
-            return empty;
         }
         const providers = await this.prisma.shippingProvider.findMany({
             where: { enabled: true },
@@ -163,8 +173,8 @@ let ShippingService = ShippingService_1 = class ShippingService {
                     password: this.encryption.decrypt(row.connection.encryptedPassword),
                 };
                 const result = await adapter.getQuote(credentials, {
-                    receiverLat: dto.receiverLat ?? 0,
-                    receiverLng: dto.receiverLng ?? 0,
+                    receiverLat: hasCoords ? receiverLat : 0,
+                    receiverLng: hasCoords ? receiverLng : 0,
                     neighbourhoodId: neighbourhoodId ?? undefined,
                     packageType: dto.packageType,
                     weightKg: dto.packageType === 'envelope' ? 1 : dto.weightKg,
@@ -175,6 +185,13 @@ let ShippingService = ShippingService_1 = class ShippingService {
                     city: dto.city,
                     neighborhood: dto.neighborhood,
                     codAmount: dto.codAmount ?? undefined,
+                    ...(dto.parts && dto.parts.length > 0
+                        ? {
+                            parts: dto.parts.map((p) => ({
+                                weight: Math.max(0.1, Number(p.weight) || 0.1),
+                            })),
+                        }
+                        : {}),
                 });
                 const quotedDeliveryType = result.effectiveDeliveryType ?? dto.deliveryType;
                 if (result.shippable === false) {
@@ -212,7 +229,7 @@ let ShippingService = ShippingService_1 = class ShippingService {
             }
         }));
         const result = {
-            inSelectedArea,
+            inSelectedArea: hasCoords ? true : null,
             quotes: (0, shipping_rate_util_1.annotateRateQuotes)(quotes),
             errors,
         };
@@ -248,19 +265,18 @@ let ShippingService = ShippingService_1 = class ShippingService {
         if (!this.registry.has(code)) {
             throw new common_1.BadRequestException(`Shipping provider "${code}" is not registered.`);
         }
-        const lat = Number(params.fields.shippingReceiverLat);
-        const lng = Number(params.fields.shippingReceiverLng);
-        const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
-        if (hasCoords) {
-            const boundary = await this.geo.lookupBoundary({
-                governorate: params.governorate,
-                city: params.city,
-                neighborhood: params.neighborhood,
-            });
-            if (boundary && !this.geo.containsPoint(boundary, { lat, lng })) {
-                throw new common_1.BadRequestException('Receiver location is outside the selected delivery area. Place the pin inside the highlighted area.');
-            }
+        let lat = Number(params.fields.shippingReceiverLat);
+        let lng = Number(params.fields.shippingReceiverLng);
+        const addressCoords = this.resolveReceiverCoordinatesFromAddress({
+            governorate: params.governorate,
+            cityRegion: params.city,
+            townNeighborhood: params.neighborhood,
+        });
+        if (addressCoords) {
+            lat = addressCoords.lat;
+            lng = addressCoords.lng;
         }
+        const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
         const neighbourhoodId = await this.resolveBabelNeighbourhoodId({
             existingId: params.fields.babelNeighbourhoodId,
             governorate: params.governorate,
@@ -525,11 +541,18 @@ let ShippingService = ShippingService_1 = class ShippingService {
                 cityRegion: order.district ?? order.omsOrder?.district,
                 townNeighborhood: order.addressLine1 ?? order.omsOrder?.addressLine1,
             });
+            const resolvedCoords = this.resolveReceiverCoordinatesFromAddress({
+                governorate: order.city ?? order.omsOrder?.city,
+                cityRegion: order.district ?? order.omsOrder?.district,
+                townNeighborhood: order.addressLine1 ?? order.omsOrder?.addressLine1,
+            });
             (0, shipping_config_util_1.assertCarrierShippingReady)({
                 shippingMethod: order.shippingMethod,
                 shippingProviderCode: order.shippingProviderCode,
-                shippingReceiverLat: order.shippingReceiverLat?.toString() ?? null,
-                shippingReceiverLng: order.shippingReceiverLng?.toString() ?? null,
+                shippingReceiverLat: resolvedCoords?.lat ??
+                    (order.shippingReceiverLat != null ? Number(order.shippingReceiverLat) : null),
+                shippingReceiverLng: resolvedCoords?.lng ??
+                    (order.shippingReceiverLng != null ? Number(order.shippingReceiverLng) : null),
                 shippingPackageType: order.shippingPackageType,
                 shippingContents: order.shippingContents,
                 shippingDeliveryType: order.shippingDeliveryType,
@@ -538,6 +561,23 @@ let ShippingService = ShippingService_1 = class ShippingService {
                 shippingWeightKg: order.shippingWeightKg?.toString() ?? null,
                 babelNeighbourhoodId,
             });
+            if (resolvedCoords) {
+                await this.prisma.outboundOrder.update({
+                    where: { id: outboundOrderId },
+                    data: {
+                        shippingReceiverLat: resolvedCoords.lat,
+                        shippingReceiverLng: resolvedCoords.lng,
+                        ...(babelNeighbourhoodId != null ? { babelNeighbourhoodId } : {}),
+                    },
+                });
+            }
+            else if (babelNeighbourhoodId != null &&
+                order.babelNeighbourhoodId == null) {
+                await this.prisma.outboundOrder.update({
+                    where: { id: outboundOrderId },
+                    data: { babelNeighbourhoodId },
+                });
+            }
         }
         catch (err) {
             await this.persistFailedShipment({
@@ -650,7 +690,17 @@ let ShippingService = ShippingService_1 = class ShippingService {
             widthCm: line.product?.widthCm != null ? Number(line.product.widthCm) : null,
             heightCm: line.product?.heightCm != null ? Number(line.product.heightCm) : null,
         })));
-        const babelParts = (0, shipment_parts_util_1.toBabelWeightParts)(physicalParts, order.shippingPackageType === 'envelope' ? 'envelope' : 'box');
+        const weightByProductId = new Map((order.lines ?? []).map((line) => [
+            line.productId,
+            line.product?.weightKg != null && Number(line.product.weightKg) > 0
+                ? Number(line.product.weightKg)
+                : 0.1,
+        ]));
+        const savedCartons = (0, shipping_cartons_types_1.parseShippingCartons)(order.shippingPackages);
+        const packageType = order.shippingPackageType === 'envelope' ? 'envelope' : 'box';
+        const babelParts = savedCartons
+            ? (0, shipment_parts_util_1.babelPartsFromCartons)(savedCartons, weightByProductId, packageType)
+            : (0, shipment_parts_util_1.toBabelWeightParts)(physicalParts, packageType);
         this.logger.log(JSON.stringify({
             msg: 'babel_create_shipment_attempt',
             outboundOrderId,
@@ -665,6 +715,15 @@ let ShippingService = ShippingService_1 = class ShippingService {
             codAmount: isCod ? codAmount : 0,
             codCurrency,
         }));
+        const resolvedShipmentCoords = this.resolveReceiverCoordinatesFromAddress({
+            governorate: order.city ?? order.omsOrder?.city,
+            cityRegion: order.district ?? order.omsOrder?.district,
+            townNeighborhood: order.addressLine1 ?? order.omsOrder?.addressLine1,
+        });
+        const shipmentReceiverLat = resolvedShipmentCoords?.lat ??
+            (Number(order.shippingReceiverLat) || 0);
+        const shipmentReceiverLng = resolvedShipmentCoords?.lng ??
+            (Number(order.shippingReceiverLng) || 0);
         try {
             const result = await adapter.createShipment({ username, password }, {
                 reference,
@@ -673,8 +732,8 @@ let ShippingService = ShippingService_1 = class ShippingService {
                     phoneCountry: phone.country,
                     phoneLocal: phone.phone,
                     address: address.trim(),
-                    lat: Number(order.shippingReceiverLat) || 0,
-                    lng: Number(order.shippingReceiverLng) || 0,
+                    lat: shipmentReceiverLat,
+                    lng: shipmentReceiverLng,
                     neighbourhoodId: babelNeighbourhoodId != null ? Number(babelNeighbourhoodId) : undefined,
                 },
                 packageType: order.shippingPackageType,
@@ -982,6 +1041,7 @@ exports.ShippingService = ShippingService = ShippingService_1 = __decorate([
         shipping_provider_registry_1.ShippingProviderRegistry,
         realtime_service_1.RealtimeService,
         shipping_geo_service_1.ShippingGeoService,
-        babel_address_adapter_1.BabelAddressAdapter])
+        babel_address_adapter_1.BabelAddressAdapter,
+        address_resolve_service_1.AddressResolveService])
 ], ShippingService);
 //# sourceMappingURL=shipping.service.js.map

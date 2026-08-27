@@ -26,6 +26,7 @@ const shipping_constants_1 = require("../../shipping/shipping.constants");
 const shipping_service_1 = require("../../shipping/shipping.service");
 const jwt_client_auth_guard_1 = require("../auth/jwt-client-auth.guard");
 const resolve_address_from_pin_dto_1 = require("../../shipping/dto/resolve-address-from-pin.dto");
+const resolve_address_from_names_dto_1 = require("../../shipping/dto/resolve-address-from-names.dto");
 class ResolveBabelNeighbourhoodDto {
     lat;
     lng;
@@ -66,6 +67,13 @@ let ClientShippingController = class ClientShippingController {
     }
     resolveAddressFromPin(body) {
         return this.addressResolve.resolveFromPin(body.lat, body.lng);
+    }
+    resolveAddressFromNames(body) {
+        return this.addressResolve.resolveFromAddress({
+            governorate: body.governorate,
+            cityRegion: body.cityRegion,
+            townNeighborhood: body.townNeighborhood,
+        });
     }
     async resolveNeighbourhood(body) {
         try {
@@ -115,6 +123,13 @@ __decorate([
     __metadata("design:paramtypes", [resolve_address_from_pin_dto_1.ResolveAddressFromPinDto]),
     __metadata("design:returntype", void 0)
 ], ClientShippingController.prototype, "resolveAddressFromPin", null);
+__decorate([
+    (0, common_1.Post)('address/resolve-from-names'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [resolve_address_from_names_dto_1.ResolveAddressFromNamesDto]),
+    __metadata("design:returntype", void 0)
+], ClientShippingController.prototype, "resolveAddressFromNames", null);
 __decorate([
     (0, common_1.Post)('babel/resolve-neighbourhood'),
     __param(0, (0, common_1.Body)()),

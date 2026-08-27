@@ -15,6 +15,8 @@ const client_1 = require("@prisma/client");
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const node_crypto_1 = require("node:crypto");
+const outbound_client_import_schema_1 = require("../client-portal/order-import/outbound-client-import.schema");
+const admin_order_export_columns_1 = require("../oms/admin-order-export.columns");
 const create_outbound_dto_1 = require("./dto/create-outbound.dto");
 const outbound_orders_csv_util_1 = require("./outbound-orders-csv.util");
 const outbound_service_1 = require("./outbound.service");
@@ -26,61 +28,56 @@ let OutboundOrdersCsvService = class OutboundOrdersCsvService {
     constructor(outbound) {
         this.outbound = outbound;
     }
+    columns() {
+        return admin_order_export_columns_1.ADMIN_OUTBOUND_EXPORT_COLUMNS;
+    }
     getImportTemplate() {
+        return (0, outbound_client_import_schema_1.getOutboundClientImportTemplate)();
+    }
+    getLegacyImportTemplate() {
         return {
             filename: 'outbound-orders-import-template.csv',
             body: (0, outbound_orders_csv_util_1.outboundImportTemplateCsv)(),
         };
     }
-    async exportCsv(user, query) {
+    async exportCsv(user, query, opts) {
+        const columnIds = (0, admin_order_export_columns_1.adminOrderedColumnIds)(admin_order_export_columns_1.ADMIN_OUTBOUND_EXPORT_COLUMNS, opts?.columnIds);
+        if (columnIds.length === 0) {
+            throw new common_1.BadRequestException('Select at least one valid export column.');
+        }
         const { items, total, truncated } = await this.outbound.listForExport(user, query, {
             maxRows: exports.OUTBOUND_EXPORT_MAX_ROWS,
+            ids: opts?.ids,
         });
-        const headers = [
-            'order_number',
-            'status',
-            'company_id',
-            'company_name',
-            'external_reference',
-            'client_reference',
-            'destination_address',
-            'required_ship_date',
-            'carrier',
-            'tracking_number',
-            'requires_packing',
-            'notes',
-            'line_count',
-            'total_requested_quantity',
-            'shipping_method',
-            'execution_mode',
-            'created_at',
-            'confirmed_at',
-            'shipped_at',
-        ];
+        const arabic = Boolean(opts?.arabicHeaders);
+        const headers = (0, admin_order_export_columns_1.adminHeaderLabels)(admin_order_export_columns_1.ADMIN_OUTBOUND_EXPORT_COLUMNS, columnIds, arabic);
         const rows = items.map((o) => {
             const lineCount = o.lines?.length ?? 0;
             const totalQty = (o.lines ?? []).reduce((sum, l) => sum + Number(l.requestedQuantity ?? 0), 0);
-            return [
-                o.orderNumber,
-                o.status,
-                o.companyId,
-                o.company?.name ?? '',
-                o.externalReference ?? '',
-                o.clientReference ?? '',
-                o.destinationAddress ?? '',
-                o.requiredShipDate ? new Date(o.requiredShipDate).toISOString().slice(0, 10) : '',
-                o.carrier ?? '',
-                o.trackingNumber ?? '',
-                o.requiresPacking ? 'true' : 'false',
-                o.notes ?? '',
-                lineCount,
-                totalQty,
-                o.shippingMethod ?? '',
-                o.executionMode ?? '',
-                o.createdAt ? new Date(o.createdAt).toISOString() : '',
-                o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',
-                o.shippedAt ? new Date(o.shippedAt).toISOString() : '',
-            ];
+            const cells = {
+                order_number: o.orderNumber,
+                status: o.status,
+                company_id: o.companyId,
+                company_name: o.company?.name ?? '',
+                external_reference: o.externalReference ?? '',
+                client_reference: o.clientReference ?? '',
+                destination_address: o.destinationAddress ?? '',
+                required_ship_date: o.requiredShipDate
+                    ? new Date(o.requiredShipDate).toISOString().slice(0, 10)
+                    : '',
+                carrier: o.carrier ?? '',
+                tracking_number: o.trackingNumber ?? '',
+                requires_packing: o.requiresPacking ? 'true' : 'false',
+                notes: o.notes ?? '',
+                line_count: lineCount,
+                total_requested_quantity: totalQty,
+                shipping_method: o.shippingMethod ?? '',
+                execution_mode: o.executionMode ?? '',
+                created_at: o.createdAt ? new Date(o.createdAt).toISOString() : '',
+                confirmed_at: o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',
+                shipped_at: o.shippedAt ? new Date(o.shippedAt).toISOString() : '',
+            };
+            return columnIds.map((id) => cells[id] ?? '');
         });
         const stamp = new Date().toISOString().slice(0, 10);
         return {

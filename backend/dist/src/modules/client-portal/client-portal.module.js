@@ -55,6 +55,9 @@ const client_dashboard_controller_1 = require("./dashboard/client-dashboard.cont
 const client_dashboard_service_1 = require("./dashboard/client-dashboard.service");
 const client_oms_orders_controller_1 = require("./oms/client-oms-orders.controller");
 const client_oms_orders_service_1 = require("./oms/client-oms-orders.service");
+const client_inbound_export_service_1 = require("./order-export/client-inbound-export.service");
+const client_oms_export_service_1 = require("./order-export/client-oms-export.service");
+const client_outbound_export_service_1 = require("./order-export/client-outbound-export.service");
 const inbound_client_import_service_1 = require("./order-import/inbound-client-import.service");
 const oms_client_import_service_1 = require("./order-import/oms-client-import.service");
 const outbound_client_import_service_1 = require("./order-import/outbound-client-import.service");
@@ -86,10 +89,10 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             inventory_module_1.InventoryModule,
             products_module_1.ProductsModule,
             media_module_1.MediaModule,
-            inbound_module_1.InboundModule,
-            outbound_module_1.OutboundModule,
             billing_module_1.BillingModule,
-            oms_module_1.OmsModule,
+            (0, common_1.forwardRef)(() => oms_module_1.OmsModule),
+            (0, common_1.forwardRef)(() => inbound_module_1.InboundModule),
+            (0, common_1.forwardRef)(() => outbound_module_1.OutboundModule),
             oms_returns_module_1.OmsReturnsModule,
             returns_module_1.ReturnsModule,
             shipping_module_1.ShippingModule,
@@ -124,6 +127,9 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             client_billing_service_1.ClientBillingService,
             client_dashboard_service_1.ClientDashboardService,
             client_oms_orders_service_1.ClientOmsOrdersService,
+            client_oms_export_service_1.ClientOmsExportService,
+            client_inbound_export_service_1.ClientInboundExportService,
+            client_outbound_export_service_1.ClientOutboundExportService,
             oms_client_import_service_1.OmsClientImportService,
             inbound_client_import_service_1.InboundClientImportService,
             outbound_client_import_service_1.OutboundClientImportService,
@@ -138,7 +144,12 @@ exports.ClientPortalModule = ClientPortalModule = __decorate([
             external_inbound_service_1.ExternalInboundService,
             external_outbound_service_1.ExternalOutboundService,
         ],
-        exports: [client_auth_service_1.ClientAuthService],
+        exports: [
+            client_auth_service_1.ClientAuthService,
+            oms_client_import_service_1.OmsClientImportService,
+            inbound_client_import_service_1.InboundClientImportService,
+            outbound_client_import_service_1.OutboundClientImportService,
+        ],
     })
 ], ClientPortalModule);
 //# sourceMappingURL=client-portal.module.js.map

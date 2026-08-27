@@ -21,8 +21,10 @@ const public_decorator_1 = require("../../../common/auth/public.decorator");
 const parse_uuid_loose_pipe_1 = require("../../../common/pipes/parse-uuid-loose.pipe");
 const client_user_decorator_1 = require("../auth/client-user.decorator");
 const jwt_client_auth_guard_1 = require("../auth/jwt-client-auth.guard");
+const client_oms_export_service_1 = require("../order-export/client-oms-export.service");
 const oms_client_import_service_1 = require("../order-import/oms-client-import.service");
 const client_oms_orders_service_1 = require("./client-oms-orders.service");
+const bulk_confirm_client_oms_orders_dto_1 = require("./dto/bulk-confirm-client-oms-orders.dto");
 const create_client_oms_order_dto_1 = require("./dto/create-client-oms-order.dto");
 const client_cod_report_query_dto_1 = require("./dto/client-cod-report-query.dto");
 const client_oms_status_summary_query_dto_1 = require("./dto/client-oms-status-summary-query.dto");
@@ -30,9 +32,11 @@ const list_client_oms_orders_query_dto_1 = require("./dto/list-client-oms-orders
 let ClientOmsOrdersController = class ClientOmsOrdersController {
     oms;
     importSvc;
-    constructor(oms, importSvc) {
+    exportSvc;
+    constructor(oms, importSvc, exportSvc) {
         this.oms = oms;
         this.importSvc = importSvc;
+        this.exportSvc = exportSvc;
     }
     list(client, query) {
         return this.oms.list(client, query);
@@ -54,6 +58,23 @@ let ClientOmsOrdersController = class ClientOmsOrdersController {
     }
     create(client, dto) {
         return this.oms.create(client, dto);
+    }
+    confirmBulk(client, dto) {
+        return this.oms.confirmBulk(client, dto.ids);
+    }
+    cancelBulk(client, dto) {
+        return this.oms.cancelBulk(client, dto.ids);
+    }
+    exportColumns() {
+        return this.exportSvc.columns();
+    }
+    async exportOrders(client, dto, res) {
+        const result = await this.exportSvc.exportCsv(client, dto);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        res.setHeader('X-Export-Row-Count', String(result.rowCount));
+        res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+        return result.body;
     }
     confirm(client, id) {
         return this.oms.confirm(client, id);
@@ -118,6 +139,41 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ClientOmsOrdersController.prototype, "create", null);
 __decorate([
+    (0, common_1.Post)('orders/confirm-bulk'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_confirm_client_oms_orders_dto_1.BulkConfirmClientOmsOrdersDto]),
+    __metadata("design:returntype", void 0)
+], ClientOmsOrdersController.prototype, "confirmBulk", null);
+__decorate([
+    (0, common_1.Post)('orders/cancel-bulk'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_confirm_client_oms_orders_dto_1.BulkCancelClientOmsOrdersDto]),
+    __metadata("design:returntype", void 0)
+], ClientOmsOrdersController.prototype, "cancelBulk", null);
+__decorate([
+    (0, common_1.Get)('orders/export/columns'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], ClientOmsOrdersController.prototype, "exportColumns", null);
+__decorate([
+    (0, common_1.Post)('orders/export'),
+    (0, throttler_1.Throttle)({ default: { limit: 10, ttl: 60_000 } }),
+    (0, common_1.Header)('Cache-Control', 'no-store'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_confirm_client_oms_orders_dto_1.ClientOmsOrdersExportDto, Object]),
+    __metadata("design:returntype", Promise)
+], ClientOmsOrdersController.prototype, "exportOrders", null);
+__decorate([
     (0, common_1.Post)('orders/:id/confirm'),
     __param(0, (0, client_user_decorator_1.ClientUser)()),
     __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
@@ -162,6 +218,7 @@ exports.ClientOmsOrdersController = ClientOmsOrdersController = __decorate([
     (0, common_1.UseGuards)(jwt_client_auth_guard_1.JwtClientAuthGuard),
     (0, common_1.Controller)('client/oms'),
     __metadata("design:paramtypes", [client_oms_orders_service_1.ClientOmsOrdersService,
-        oms_client_import_service_1.OmsClientImportService])
+        oms_client_import_service_1.OmsClientImportService,
+        client_oms_export_service_1.ClientOmsExportService])
 ], ClientOmsOrdersController);
 //# sourceMappingURL=client-oms-orders.controller.js.map

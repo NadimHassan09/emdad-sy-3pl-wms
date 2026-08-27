@@ -12,7 +12,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ExternalCreateOutboundOrderDto = exports.ExternalOutboundLineDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
-const external_create_oms_order_dto_1 = require("./external-create-oms-order.dto");
 class ExternalOutboundLineDto {
     sku;
     quantity;
@@ -20,7 +19,7 @@ class ExternalOutboundLineDto {
 exports.ExternalOutboundLineDto = ExternalOutboundLineDto;
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Product SKU is required.' }),
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)
 ], ExternalOutboundLineDto.prototype, "sku", void 0);
@@ -32,24 +31,30 @@ __decorate([
 ], ExternalOutboundLineDto.prototype, "quantity", void 0);
 class ExternalCreateOutboundOrderDto {
     externalOrderId;
-    requiredShipDate;
+    destination;
     destinationAddress;
-    address;
-    clientReference;
+    requiredShipDate;
+    carrier;
     notes;
     lines;
 }
 exports.ExternalCreateOutboundOrderDto = ExternalCreateOutboundOrderDto;
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'externalOrderId is required.' }),
     (0, class_validator_1.MaxLength)(80),
+    (0, class_validator_1.Matches)(/^[A-Za-z0-9-]+$/, {
+        message: 'externalOrderId may only contain English letters, English digits (0-9), and hyphen (-).',
+    }),
     __metadata("design:type", String)
 ], ExternalCreateOutboundOrderDto.prototype, "externalOrderId", void 0);
 __decorate([
-    (0, class_validator_1.IsDateString)(),
+    (0, class_validator_1.ValidateIf)((o) => !String(o.destinationAddress ?? '').trim()),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'destination is required.' }),
+    (0, class_validator_1.MaxLength)(400),
     __metadata("design:type", String)
-], ExternalCreateOutboundOrderDto.prototype, "requiredShipDate", void 0);
+], ExternalCreateOutboundOrderDto.prototype, "destination", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -57,17 +62,16 @@ __decorate([
     __metadata("design:type", String)
 ], ExternalCreateOutboundOrderDto.prototype, "destinationAddress", void 0);
 __decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.ValidateNested)(),
-    (0, class_transformer_1.Type)(() => external_create_oms_order_dto_1.ExternalOmsAddressDto),
-    __metadata("design:type", external_create_oms_order_dto_1.ExternalOmsAddressDto)
-], ExternalCreateOutboundOrderDto.prototype, "address", void 0);
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'requiredShipDate is required.' }),
+    __metadata("design:type", String)
+], ExternalCreateOutboundOrderDto.prototype, "requiredShipDate", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)
-], ExternalCreateOutboundOrderDto.prototype, "clientReference", void 0);
+], ExternalCreateOutboundOrderDto.prototype, "carrier", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -76,7 +80,7 @@ __decorate([
 ], ExternalCreateOutboundOrderDto.prototype, "notes", void 0);
 __decorate([
     (0, class_validator_1.IsArray)(),
-    (0, class_validator_1.ArrayMinSize)(1),
+    (0, class_validator_1.ArrayMinSize)(1, { message: 'Add at least one product line.' }),
     (0, class_validator_1.ValidateNested)({ each: true }),
     (0, class_transformer_1.Type)(() => ExternalOutboundLineDto),
     __metadata("design:type", Array)

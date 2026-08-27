@@ -14,6 +14,50 @@ const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const client_1 = require("@prisma/client");
 const query_transform_1 = require("../../../common/transformers/query-transform");
+class ShippingCartonLineDto {
+    productId;
+    quantity;
+}
+__decorate([
+    (0, class_validator_1.IsUUID)(),
+    __metadata("design:type", String)
+], ShippingCartonLineDto.prototype, "productId", void 0);
+__decorate([
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(1),
+    __metadata("design:type", Number)
+], ShippingCartonLineDto.prototype, "quantity", void 0);
+class ShippingCartonDto {
+    lines;
+    lengthCm;
+    widthCm;
+    heightCm;
+}
+__decorate([
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => ShippingCartonLineDto),
+    __metadata("design:type", Array)
+], ShippingCartonDto.prototype, "lines", void 0);
+__decorate([
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0.1),
+    __metadata("design:type", Number)
+], ShippingCartonDto.prototype, "lengthCm", void 0);
+__decorate([
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0.1),
+    __metadata("design:type", Number)
+], ShippingCartonDto.prototype, "widthCm", void 0);
+__decorate([
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0.1),
+    __metadata("design:type", Number)
+], ShippingCartonDto.prototype, "heightCm", void 0);
 class UpdateShippingDetailsDto {
     shippingMethod;
     shippingProviderCode;
@@ -35,6 +79,7 @@ class UpdateShippingDetailsDto {
     addressLine1;
     addressLine2;
     currency;
+    shippingPackages;
 }
 exports.UpdateShippingDetailsDto = UpdateShippingDetailsDto;
 __decorate([
@@ -174,4 +219,12 @@ __decorate([
     (0, class_validator_1.MaxLength)(8),
     __metadata("design:type", Object)
 ], UpdateShippingDetailsDto.prototype, "currency", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => ShippingCartonDto),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "shippingPackages", void 0);
 //# sourceMappingURL=update-shipping-details.dto.js.map

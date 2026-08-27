@@ -72,6 +72,8 @@ function serializeOmsOrderListItem(order) {
         outboundOrderId: order.outboundOrderId,
         needsInformation: order.needsInformation,
         importBatchId: order.importBatchId ?? null,
+        externalReference: order.externalReference ?? null,
+        clientReference: order.clientReference ?? null,
         linkedOutboundOrder: order.outboundOrder
             ? {
                 id: order.outboundOrder.id,

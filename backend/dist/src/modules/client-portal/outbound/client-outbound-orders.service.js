@@ -13,6 +13,8 @@ exports.ClientOutboundOrdersService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const client_auth_principal_1 = require("../../../common/auth/client-auth-principal");
+const prisma_service_1 = require("../../../common/prisma/prisma.service");
+const tenant_rls_1 = require("../../../common/prisma/tenant-rls");
 const outbound_service_1 = require("../../outbound/outbound.service");
 const client_list_outbound_query_dto_1 = require("./dto/client-list-outbound-query.dto");
 function toProductImageUrl(imagePath) {
@@ -22,8 +24,10 @@ function toProductImageUrl(imagePath) {
 }
 let ClientOutboundOrdersService = class ClientOutboundOrdersService {
     outbound;
-    constructor(outbound) {
+    prisma;
+    constructor(outbound, prisma) {
         this.outbound = outbound;
+        this.prisma = prisma;
     }
     async findOne(client, id) {
         const order = await this.outbound.findById(id, (0, client_auth_principal_1.clientAuthPrincipal)(client));
@@ -57,16 +61,60 @@ let ClientOutboundOrdersService = class ClientOutboundOrdersService {
         }
         return this.outbound.list(principal, base);
     }
+    async listForExport(client, query, opts) {
+        const principal = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        if (opts.ids?.length) {
+            const unique = Array.from(new Set(opts.ids.map((id) => id.trim()).filter(Boolean)));
+            return (0, tenant_rls_1.withTenantRls)(this.prisma, principal, async (tx) => {
+                const rows = await tx.outboundOrder.findMany({
+                    where: {
+                        companyId: client.companyId,
+                        id: { in: unique.slice(0, opts.maxRows) },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        company: { select: { id: true, name: true } },
+                        lines: { select: { requestedQuantity: true } },
+                    },
+                });
+                return {
+                    items: rows,
+                    total: rows.length,
+                    truncated: unique.length > rows.length,
+                };
+            });
+        }
+        const base = {
+            orderSearch: query.orderSearch,
+            companyId: client.companyId,
+            limit: opts.maxRows,
+            offset: 0,
+        };
+        if (query.status === 'in_progress') {
+            base.statusIn = client_list_outbound_query_dto_1.CLIENT_OUTBOUND_IN_PROGRESS_STATUSES;
+        }
+        else if (query.status === 'shipped') {
+            base.statusIn = [client_1.OutboundOrderStatus.shipped, client_1.OutboundOrderStatus.delivered];
+        }
+        else if (query.status) {
+            base.status = query.status;
+        }
+        return this.outbound.listForExport(principal, base, { maxRows: opts.maxRows });
+    }
     async create(client, dto) {
         return this.outbound.create((0, client_auth_principal_1.clientAuthPrincipal)(client), { ...dto, executionMode: 'admin', executionPlan: undefined }, { pendingClientApproval: true });
     }
     async findByExternalReference(client, externalReference) {
         return this.outbound.findByExternalReference((0, client_auth_principal_1.clientAuthPrincipal)(client), client.companyId, externalReference);
     }
+    async findByOrderNumber(client, orderNumber) {
+        return this.outbound.findByOrderNumber((0, client_auth_principal_1.clientAuthPrincipal)(client), client.companyId, orderNumber);
+    }
 };
 exports.ClientOutboundOrdersService = ClientOutboundOrdersService;
 exports.ClientOutboundOrdersService = ClientOutboundOrdersService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [outbound_service_1.OutboundService])
+    __metadata("design:paramtypes", [outbound_service_1.OutboundService,
+        prisma_service_1.PrismaService])
 ], ClientOutboundOrdersService);
 //# sourceMappingURL=client-outbound-orders.service.js.map

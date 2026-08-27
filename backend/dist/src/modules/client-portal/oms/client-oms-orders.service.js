@@ -15,6 +15,7 @@ const client_1 = require("@prisma/client");
 const client_auth_principal_1 = require("../../../common/auth/client-auth-principal");
 const prisma_service_1 = require("../../../common/prisma/prisma.service");
 const tenant_rls_1 = require("../../../common/prisma/tenant-rls");
+const oms_order_mapper_1 = require("../../oms/oms-order.mapper");
 const oms_orders_service_1 = require("../../oms/oms-orders.service");
 const portal_cod_status_util_1 = require("./portal-cod-status.util");
 function matchesPortalCodFilter(portalStatus, filter) {
@@ -45,6 +46,47 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
             companyId: client.companyId,
         };
         return this.omsOrders.list(user, scoped);
+    }
+    async listForExport(client, query, opts) {
+        const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        if (opts.ids?.length) {
+            const unique = Array.from(new Set(opts.ids.map((id) => id.trim()).filter(Boolean)));
+            return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+                const rows = await tx.omsOrder.findMany({
+                    where: {
+                        companyId: client.companyId,
+                        id: { in: unique.slice(0, opts.maxRows) },
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        company: { select: { id: true, name: true } },
+                        outboundOrder: { select: { id: true, orderNumber: true, status: true } },
+                        lines: {
+                            orderBy: { lineNumber: 'asc' },
+                            include: {
+                                product: {
+                                    select: {
+                                        id: true,
+                                        sku: true,
+                                        name: true,
+                                        barcode: true,
+                                        status: true,
+                                        trackingType: true,
+                                        uom: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                });
+                return {
+                    items: rows.map(oms_order_mapper_1.serializeOmsOrder),
+                    total: rows.length,
+                    truncated: unique.length > rows.length,
+                };
+            });
+        }
+        return this.omsOrders.listForExport(user, { ...query, companyId: client.companyId, limit: opts.maxRows, offset: 0 }, { maxRows: opts.maxRows });
     }
     async statusSummary(client, query) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
@@ -171,6 +213,10 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
         return this.omsOrders.findExistingByExternalReference(user, client.companyId, externalReference);
     }
+    async findByOrderNumber(client, orderNumber) {
+        const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        return this.omsOrders.findExistingByOrderNumber(user, client.companyId, orderNumber);
+    }
     async resolveSkus(companyId, skus) {
         const unique = Array.from(new Set(skus.map((s) => s.trim()).filter(Boolean)));
         const products = await this.omsOrders.findProductsBySkus(companyId, unique);
@@ -191,6 +237,85 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
     async confirm(client, id) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
         return this.omsOrders.confirm(id, user);
+    }
+    async confirmBulk(client, ids) {
+        const uniqueIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+        const confirmed = [];
+        const failed = [];
+        for (const id of uniqueIds) {
+            try {
+                const order = await this.confirm(client, id);
+                confirmed.push({
+                    id: order.id,
+                    orderNumber: order.orderNumber,
+                });
+            }
+            catch (err) {
+                let orderNumber = null;
+                try {
+                    const existing = await this.findOne(client, id);
+                    orderNumber = existing.orderNumber ?? null;
+                }
+                catch {
+                }
+                failed.push({
+                    id,
+                    orderNumber,
+                    error: err instanceof Error ? err.message : 'Confirm failed.',
+                });
+            }
+        }
+        return {
+            requested: uniqueIds.length,
+            confirmed: confirmed.length,
+            failed: failed.length,
+            confirmedOrders: confirmed,
+            failures: failed,
+        };
+    }
+    async cancelBulk(client, ids) {
+        const uniqueIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+        const cancelled = [];
+        const failed = [];
+        for (const id of uniqueIds) {
+            try {
+                const existing = await this.findOne(client, id);
+                if (existing.status !== 'waiting_for_confirmation') {
+                    failed.push({
+                        id,
+                        orderNumber: existing.orderNumber ?? null,
+                        error: 'Only orders waiting for confirmation can be cancelled in bulk.',
+                    });
+                    continue;
+                }
+                const order = await this.cancel(client, id);
+                cancelled.push({
+                    id: order.id,
+                    orderNumber: order.orderNumber,
+                });
+            }
+            catch (err) {
+                let orderNumber = null;
+                try {
+                    const existing = await this.findOne(client, id);
+                    orderNumber = existing.orderNumber ?? null;
+                }
+                catch {
+                }
+                failed.push({
+                    id,
+                    orderNumber,
+                    error: err instanceof Error ? err.message : 'Cancel failed.',
+                });
+            }
+        }
+        return {
+            requested: uniqueIds.length,
+            cancelled: cancelled.length,
+            failed: failed.length,
+            cancelledOrders: cancelled,
+            failures: failed,
+        };
     }
     async cancel(client, id) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);

@@ -12,12 +12,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ExternalOutboundService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
-const oms_order_mapper_1 = require("../../oms/oms-order.mapper");
 const client_oms_orders_service_1 = require("../oms/client-oms-orders.service");
 const client_outbound_orders_service_1 = require("../outbound/client-outbound-orders.service");
-const api_validation_1 = require("./api-validation");
+const external_api_payload_util_1 = require("./external-api-payload.util");
 const public_order_serialize_1 = require("./public-order.serialize");
-const syria_address_1 = require("./syria-address");
 let ExternalOutboundService = class ExternalOutboundService {
     outbound;
     oms;
@@ -26,40 +24,28 @@ let ExternalOutboundService = class ExternalOutboundService {
         this.oms = oms;
     }
     async create(client, dto) {
-        const externalOrderId = dto.externalOrderId.trim();
+        const externalOrderId = (0, external_api_payload_util_1.assertExternalOrderId)(dto.externalOrderId);
         const existing = await this.outbound.findByExternalReference(client, externalOrderId);
         if (existing) {
             const order = await this.outbound.findOne(client, existing.id);
             return { ...(0, public_order_serialize_1.publicOutboundOrder)(order), idempotentReplay: true };
         }
-        let destination = dto.destinationAddress?.trim() || '';
-        if (dto.address) {
-            const address = (0, syria_address_1.resolveSyriaAddress)(dto.address);
-            if (!address.ok) {
-                (0, api_validation_1.throwApiValidation)('Destination address is invalid.', address.fields);
-            }
-            destination =
-                destination ||
-                    (0, oms_order_mapper_1.composeDestinationAddress)({
-                        city: address.value.governorate,
-                        district: address.value.city,
-                        addressLine1: address.value.neighborhood ?? undefined,
-                        addressLine2: address.value.street ?? undefined,
-                    });
-        }
+        const destination = String(dto.destination ?? dto.destinationAddress ?? '').trim();
         if (!destination) {
-            (0, api_validation_1.throwApiValidation)('Destination address is required.', {
-                destinationAddress: 'Provide destinationAddress or a structured address.',
-            });
+            throw new common_1.BadRequestException('destination is required.');
         }
+        const requiredShipDate = (0, external_api_payload_util_1.parseExternalApiDate)(dto.requiredShipDate, 'requiredShipDate');
+        (0, external_api_payload_util_1.assertExternalApiDateNotBeforeToday)(requiredShipDate, 'requiredShipDate');
+        (0, external_api_payload_util_1.assertUniqueSkus)(dto.lines.map((l) => l.sku));
         const products = await this.oms.resolveSkus(client.companyId, dto.lines.map((l) => l.sku));
         try {
             const created = await this.outbound.create(client, {
                 destinationAddress: destination,
-                requiredShipDate: dto.requiredShipDate,
-                clientReference: dto.clientReference,
-                notes: dto.notes,
+                requiredShipDate,
+                carrier: dto.carrier?.trim() || undefined,
+                notes: dto.notes?.trim() || undefined,
                 externalReference: externalOrderId,
+                clientReference: externalOrderId,
                 lines: dto.lines.map((l) => ({
                     productId: products.get(l.sku.trim().toUpperCase()),
                     requestedQuantity: l.quantity,
@@ -79,6 +65,15 @@ let ExternalOutboundService = class ExternalOutboundService {
             throw err;
         }
     }
+    async list(client, query) {
+        const page = await this.outbound.list(client, query);
+        return {
+            items: page.items.map((row) => (0, public_order_serialize_1.publicOutboundOrderListItem)(row)),
+            total: page.total,
+            limit: page.limit,
+            offset: page.offset,
+        };
+    }
     async findOne(client, id) {
         const order = await this.outbound.findOne(client, id);
         return (0, public_order_serialize_1.publicOutboundOrder)(order);
@@ -89,6 +84,44 @@ let ExternalOutboundService = class ExternalOutboundService {
             return null;
         const order = await this.outbound.findOne(client, existing.id);
         return (0, public_order_serialize_1.publicOutboundOrder)(order);
+    }
+    async findByOrderNumber(client, orderNumber) {
+        const existing = await this.outbound.findByOrderNumber(client, orderNumber.trim());
+        if (!existing)
+            return null;
+        const order = await this.outbound.findOne(client, existing.id);
+        return (0, public_order_serialize_1.publicOutboundOrder)(order);
+    }
+    async findOneByLookup(client, lookup) {
+        const orderNumber = lookup.orderNumber?.trim() || undefined;
+        const externalOrderId = lookup.externalOrderId?.trim() || undefined;
+        const idOrNumber = lookup.idOrNumber?.trim() || undefined;
+        if (idOrNumber && (0, public_order_serialize_1.isUuidLike)(idOrNumber)) {
+            try {
+                return await this.findOne(client, idOrNumber);
+            }
+            catch (err) {
+                if (!(err instanceof common_1.NotFoundException))
+                    throw err;
+            }
+        }
+        const numberKey = orderNumber || (idOrNumber && !(0, public_order_serialize_1.isUuidLike)(idOrNumber) ? idOrNumber : undefined);
+        if (numberKey) {
+            const byNumber = await this.findByOrderNumber(client, numberKey);
+            if (byNumber)
+                return byNumber;
+        }
+        if (externalOrderId) {
+            const byExt = await this.findByExternalOrderId(client, externalOrderId);
+            if (byExt)
+                return byExt;
+        }
+        if (idOrNumber && !(0, public_order_serialize_1.isUuidLike)(idOrNumber) && !orderNumber) {
+            const byExt = await this.findByExternalOrderId(client, idOrNumber);
+            if (byExt)
+                return byExt;
+        }
+        return null;
     }
 };
 exports.ExternalOutboundService = ExternalOutboundService;

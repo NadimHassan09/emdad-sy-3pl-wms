@@ -15,6 +15,8 @@ const client_1 = require("@prisma/client");
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const node_crypto_1 = require("node:crypto");
+const oms_client_import_schema_1 = require("../client-portal/order-import/oms-client-import.schema");
+const admin_order_export_columns_1 = require("./admin-order-export.columns");
 const oms_order_dto_1 = require("./dto/oms-order.dto");
 const oms_orders_csv_util_1 = require("./oms-orders-csv.util");
 const oms_orders_service_1 = require("./oms-orders.service");
@@ -26,85 +28,70 @@ let OmsOrdersCsvService = class OmsOrdersCsvService {
     constructor(orders) {
         this.orders = orders;
     }
+    columns() {
+        return admin_order_export_columns_1.ADMIN_OMS_EXPORT_COLUMNS;
+    }
     getImportTemplate() {
+        return (0, oms_client_import_schema_1.getOmsClientImportTemplate)();
+    }
+    getLegacyImportTemplate() {
         return {
             filename: 'oms-orders-import-template.csv',
             body: (0, oms_orders_csv_util_1.omsImportTemplateCsv)(),
         };
     }
-    async exportCsv(user, query) {
+    async exportCsv(user, query, opts) {
+        const columnIds = (0, admin_order_export_columns_1.adminOrderedColumnIds)(admin_order_export_columns_1.ADMIN_OMS_EXPORT_COLUMNS, opts?.columnIds);
+        if (columnIds.length === 0) {
+            throw new common_1.BadRequestException('Select at least one valid export column.');
+        }
         const { items, total, truncated } = await this.orders.listForExport(user, query, {
             maxRows: exports.OMS_EXPORT_MAX_ROWS,
+            ids: opts?.ids,
         });
-        const headers = [
-            'order_number',
-            'status',
-            'company_id',
-            'company_name',
-            'external_reference',
-            'client_reference',
-            'recipient_name',
-            'recipient_phone',
-            'city',
-            'district',
-            'address_line1',
-            'store_channel',
-            'payment_method',
-            'cod_status',
-            'cod_amount',
-            'currency',
-            'subtotal',
-            'shipping_fee',
-            'total',
-            'line_count',
-            'total_quantity',
-            'shipping_method',
-            'shipping_provider_code',
-            'carrier',
-            'outbound_order_number',
-            'required_ship_date',
-            'created_at',
-            'confirmed_at',
-            'approved_at',
-            'out_for_delivery_at',
-            'delivered_at',
-        ];
+        const arabic = Boolean(opts?.arabicHeaders);
+        const headers = (0, admin_order_export_columns_1.adminHeaderLabels)(admin_order_export_columns_1.ADMIN_OMS_EXPORT_COLUMNS, columnIds, arabic);
         const rows = items.map((o) => {
             const lineCount = o.lines?.length ?? 0;
             const totalQty = (o.lines ?? []).reduce((sum, l) => sum + Number(l.requestedQuantity ?? 0), 0);
-            return [
-                o.orderNumber,
-                o.status,
-                o.companyId,
-                o.company?.name ?? '',
-                o.externalReference ?? '',
-                o.clientReference ?? '',
-                o.recipientName ?? '',
-                o.recipientPhone ?? '',
-                o.city ?? '',
-                o.district ?? '',
-                o.addressLine1 ?? '',
-                o.storeChannel ?? '',
-                o.paymentMethod ?? '',
-                o.codStatus ?? '',
-                o.codAmount ?? '',
-                o.currency ?? '',
-                o.subtotal ?? '',
-                o.shippingFee ?? '',
-                o.total ?? '',
-                lineCount,
-                totalQty,
-                o.shippingMethod ?? '',
-                o.shippingProviderCode ?? '',
-                o.carrier ?? '',
-                o.linkedOutboundOrder?.orderNumber ?? '',
-                o.requiredShipDate ? new Date(o.requiredShipDate).toISOString().slice(0, 10) : '',
-                o.createdAt ? new Date(o.createdAt).toISOString() : '',
-                o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',
-                o.approvedAt ? new Date(o.approvedAt).toISOString() : '',
-                o.outForDeliveryAt ? new Date(o.outForDeliveryAt).toISOString() : '',
-                o.deliveredAt ? new Date(o.deliveredAt).toISOString() : '',
-            ];
+            const cells = {
+                order_number: o.orderNumber,
+                status: o.status,
+                company_id: o.companyId,
+                company_name: o.company?.name ?? '',
+                external_reference: o.externalReference ?? '',
+                client_reference: o.clientReference ?? '',
+                recipient_name: o.recipientName ?? '',
+                recipient_phone: o.recipientPhone ?? '',
+                city: o.city ?? '',
+                district: o.district ?? '',
+                address_line1: o.addressLine1 ?? '',
+                store_channel: o.storeChannel ?? '',
+                payment_method: o.paymentMethod ?? '',
+                cod_status: o.codStatus ?? '',
+                cod_amount: o.codAmount ?? '',
+                currency: o.currency ?? '',
+                subtotal: o.subtotal ?? '',
+                shipping_fee: o.shippingFee ?? '',
+                total: o.total ?? '',
+                line_count: lineCount,
+                total_quantity: totalQty,
+                shipping_method: o.shippingMethod ?? '',
+                shipping_provider_code: o.shippingProviderCode ?? '',
+                carrier: o.carrier ?? '',
+                outbound_order_number: o.linkedOutboundOrder?.orderNumber ?? '',
+                required_ship_date: o.requiredShipDate
+                    ? new Date(o.requiredShipDate).toISOString().slice(0, 10)
+                    : '',
+                created_at: o.createdAt ? new Date(o.createdAt).toISOString() : '',
+                confirmed_at: o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',
+                approved_at: o.approvedAt ? new Date(o.approvedAt).toISOString() : '',
+                out_for_delivery_at: o.outForDeliveryAt
+                    ? new Date(o.outForDeliveryAt).toISOString()
+                    : '',
+                delivered_at: o.deliveredAt ? new Date(o.deliveredAt).toISOString() : '',
+            };
+            return columnIds.map((id) => cells[id] ?? '');
         });
         const stamp = new Date().toISOString().slice(0, 10);
         return {

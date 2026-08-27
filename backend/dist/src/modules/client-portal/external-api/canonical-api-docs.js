@@ -7,46 +7,89 @@ exports.API_BASE_URL = 'https://client.emdadsy.com/api/v1';
 const AUTH = `X-API-Key: YOUR_API_KEY
 X-API-Secret: YOUR_API_SECRET`;
 exports.AUTH_ALTERNATIVE = `Authorization: Bearer YOUR_API_KEY:YOUR_API_SECRET`;
+const READ_PARITY = 'Read responses mirror Client Portal screens only (list columns + detail page). Admin-only warehouse fields are never returned.';
 function canonicalApiDocs(scope) {
     if (scope === 'inbound') {
         return {
             scope,
             title: 'Inbound Orders API',
-            summary: 'Create and read inbound (ASN) orders for your company. Orders enter pending_approval. Warehouse receiving is performed by EMDAD after admin approval.',
+            summary: 'Create and read inbound orders as a Client Portal integration. POST mirrors Create inbound + externalOrderId. GET supports List mode (all orders) and Single mode (one order by orderNumber or externalOrderId). ' +
+                READ_PARITY,
             createPath: 'POST /inbound/orders',
-            getPath: 'GET /inbound/orders/{id}  or  GET /inbound/orders?externalOrderId=ERP-IN-10045',
+            getPath: 'List: GET /inbound/orders\nSingle: GET /inbound/orders/{orderNumber}  or  ?orderNumber=INB-2026-00034  or  ?externalOrderId=SHOP-INB-1001',
             workflow: [
                 'Authenticate with an Inbound-scoped API key.',
-                'Create the inbound order.',
-                'The order enters pending_approval.',
-                'EMDAD admin approves and completes receiving. The API does not auto-receive stock.',
+                'POST create (same fields as Create inbound + externalOrderId).',
+                'GET list all company inbound orders (paginated), or GET one by orderNumber / externalOrderId.',
+                'Response fields match Inbound list + detail in Client Portal only.',
             ],
             bodyExample: `{
-  "externalOrderId": "ERP-IN-10045",
+  "externalOrderId": "SHOP-INB-1001",
   "expectedArrivalDate": "2026-08-25",
-  "clientReference": "PO-8891",
-  "notes": "Morning delivery window",
+  "notes": "Supplier shipment",
   "lines": [
-    { "sku": "SKU-100", "quantity": 20 }
+    { "sku": "SKU-100", "quantity": 10 },
+    { "sku": "SKU-200", "quantity": 5 }
   ]
 }`,
             responseExample: `{
   "success": true,
   "data": {
-    "id": "11111111-1111-4111-8111-111111111111",
-    "orderNumber": "INB-2026-00001",
+    "orderNumber": "INB-2026-00034",
     "status": "pending_approval",
-    "externalOrderId": "ERP-IN-10045",
+    "externalOrderId": "SHOP-INB-1001",
+    "expectedArrivalDate": "2026-08-23T00:00:00.000Z",
+    "skuCount": 1,
+    "notes": null,
+    "lines": [
+      {
+        "lineNumber": 1,
+        "productName": "Product",
+        "sku": "SKU-100",
+        "expectedQuantity": 100,
+        "receivedQuantity": 0,
+        "imageUrl": null
+      }
+    ],
     "idempotentReplay": false
   }
 }`,
             fields: [
-                { name: 'externalOrderId', required: 'Yes', description: 'Idempotency key. Duplicate values return the existing order.' },
-                { name: 'expectedArrivalDate', required: 'Yes', description: 'YYYY-MM-DD. Cannot be before today.' },
-                { name: 'clientReference', required: 'No', description: 'Your internal PO or reference.' },
-                { name: 'notes', required: 'No', description: 'Free-text notes.' },
-                { name: 'lines[].sku', required: 'Yes', description: 'Product SKU that belongs to your company.' },
-                { name: 'lines[].quantity', required: 'Yes', description: 'Positive whole number.' },
+                {
+                    name: 'externalOrderId',
+                    required: 'Yes (Customer reference)',
+                    description: 'Your system’s order reference for reconciliation/idempotency. Not our internal orderNumber — we generate INB-… automatically.',
+                },
+                {
+                    name: 'expectedArrivalDate',
+                    required: 'Yes',
+                    description: 'YYYY-MM-DD or M/DD/YYYY. Cannot be before today. Same as Create inbound.',
+                },
+                {
+                    name: 'notes',
+                    required: 'No (Optional)',
+                    description: 'Free-text notes (same as Create inbound).',
+                },
+                {
+                    name: 'lines[].sku / lines[].quantity',
+                    required: 'Yes',
+                    description: 'Product SKU + positive whole quantity (same as Create).',
+                },
+                {
+                    name: 'GET List mode',
+                    required: 'Read',
+                    description: 'GET /inbound/orders → items[] with orderNumber, status, expectedArrivalDate, lines (count), createdAt, externalOrderId. Query: limit, offset, status, orderSearch.',
+                },
+                {
+                    name: 'GET Single mode',
+                    required: 'Read',
+                    description: 'GET /inbound/orders/INB-… or ?orderNumber= or ?externalOrderId= → detail: notes, skuCount, confirmedAt/completedAt, lines with productName/sku/expected/received/imageUrl.',
+                },
+                {
+                    name: 'orderNumber / status / timestamps',
+                    required: 'Generated by system',
+                    description: 'Do not send on create. Returned on create/read.',
+                },
             ],
         };
     }
@@ -54,26 +97,22 @@ function canonicalApiDocs(scope) {
         return {
             scope,
             title: 'Outbound Orders API',
-            summary: 'Create and read warehouse outbound orders for your company. Orders enter pending_approval. Picking, packing, and shipping are not started by this API.',
+            summary: 'Create and read warehouse outbound orders as a Client Portal integration. POST mirrors Create outbound + externalOrderId. GET supports List and Single modes. ' +
+                READ_PARITY,
             createPath: 'POST /outbound/orders',
-            getPath: 'GET /outbound/orders/{id}  or  GET /outbound/orders?externalOrderId=WMS-OUT-778',
+            getPath: 'List: GET /outbound/orders\nSingle: GET /outbound/orders/{orderNumber}  or  ?orderNumber=OUT-2026-00388  or  ?externalOrderId=SHOP-OUT-1001',
             workflow: [
                 'Authenticate with an Outbound-scoped API key.',
-                'Create the outbound order with a destination.',
-                'The order enters pending_approval.',
-                'EMDAD admin plans picking/packing. The API does not dispatch or call carriers.',
+                'POST create (same fields as Create outbound + externalOrderId).',
+                'GET list all company outbound orders (paginated), or GET one by orderNumber / externalOrderId.',
+                'Response fields match Outbound list + detail in Client Portal only.',
             ],
             bodyExample: `{
-  "externalOrderId": "WMS-OUT-778",
+  "externalOrderId": "SHOP-OUT-1001",
+  "destination": "Damascus — customer delivery address",
   "requiredShipDate": "2026-08-25",
-  "destinationAddress": "Damascus, Syria",
-  "address": {
-    "governorate": "دمشق",
-    "city": "المزة",
-    "neighborhood": "المزة فيلات شرقية",
-    "street": "Building 12"
-  },
-  "notes": "Call before delivery",
+  "carrier": "Babel",
+  "notes": "Customer shipment",
   "lines": [
     { "sku": "SKU-100", "quantity": 2 }
   ]
@@ -81,44 +120,93 @@ function canonicalApiDocs(scope) {
             responseExample: `{
   "success": true,
   "data": {
-    "id": "22222222-2222-4222-8222-222222222222",
-    "orderNumber": "OUT-2026-00001",
-    "status": "pending_approval",
-    "externalOrderId": "WMS-OUT-778",
+    "orderNumber": "OUT-2026-00388",
+    "status": "shipped",
+    "externalOrderId": "SHOP-OUT-1001",
+    "destination": "لبلبلبلب",
+    "requiredShipDate": "2026-08-23T00:00:00.000Z",
+    "carrier": null,
+    "trackingNumber": null,
+    "confirmedAt": "2026-08-23T07:04:12.000Z",
+    "shippedAt": "2026-08-23T07:04:27.000Z",
+    "lines": [
+      {
+        "lineNumber": 1,
+        "productName": "Product",
+        "sku": "SKU-100",
+        "requestedQuantity": 1,
+        "pickedQuantity": 1,
+        "imageUrl": null
+      }
+    ],
     "idempotentReplay": false
   }
 }`,
             fields: [
-                { name: 'externalOrderId', required: 'Yes', description: 'Idempotency key. Duplicate values return the existing order.' },
-                { name: 'requiredShipDate', required: 'Yes', description: 'YYYY-MM-DD. Cannot be before today.' },
-                { name: 'destinationAddress', required: 'If address omitted', description: 'Free-text destination.' },
-                { name: 'address.governorate', required: 'If using structured address', description: 'Syria governorate name (same list as Client Portal).' },
-                { name: 'address.city', required: 'If using structured address', description: 'City / area.' },
-                { name: 'lines[].sku', required: 'Yes', description: 'Product SKU that belongs to your company.' },
-                { name: 'lines[].quantity', required: 'Yes', description: 'Positive whole number.' },
+                {
+                    name: 'externalOrderId',
+                    required: 'Yes (Customer reference)',
+                    description: 'Your system’s order reference. Not our internal OUT-… number — we generate that automatically.',
+                },
+                {
+                    name: 'destination',
+                    required: 'Yes',
+                    description: 'Destination text (Create outbound Destination). Legacy alias: destinationAddress.',
+                },
+                {
+                    name: 'requiredShipDate',
+                    required: 'Yes',
+                    description: 'YYYY-MM-DD or M/DD/YYYY. Cannot be before today.',
+                },
+                {
+                    name: 'carrier / notes',
+                    required: 'No (Optional)',
+                    description: 'Same as Create outbound.',
+                },
+                {
+                    name: 'lines[].sku / lines[].quantity',
+                    required: 'Yes',
+                    description: 'Product SKU + positive whole quantity.',
+                },
+                {
+                    name: 'GET List mode',
+                    required: 'Read',
+                    description: 'GET /outbound/orders → items[] with orderNumber, status, recipientName, requiredShipDate, lines (count), createdAt, externalOrderId.',
+                },
+                {
+                    name: 'GET Single mode',
+                    required: 'Read',
+                    description: 'GET /outbound/orders/OUT-… or ?orderNumber= or ?externalOrderId= → detail: destination, carrier, tracking, confirmedAt/shippedAt, lines with requested/picked.',
+                },
+                {
+                    name: 'orderNumber / status / timestamps',
+                    required: 'Generated by system',
+                    description: 'Do not send on create. Returned on create/read.',
+                },
             ],
         };
     }
     return {
         scope: 'oms',
         title: 'OMS Orders API',
-        summary: 'Create and read ecommerce/OMS orders for your company. API-created orders enter Confirmed — Waiting for Admin Approval. They are not auto-approved and do not create picking, packing, dispatch, or carrier shipments.',
+        summary: 'Create and read ecommerce/OMS orders as a Client Portal integration. POST uses the same rules as Create order / CSV Import. GET supports List mode (Online orders table) and Single mode (order details + tracking timeline). ' +
+            READ_PARITY,
         createPath: 'POST /oms/orders',
-        getPath: 'GET /oms/orders/{id}  or  GET /oms/orders?externalOrderId=SHOP-12345',
+        getPath: 'List: GET /oms/orders\nSingle: GET /oms/orders/{orderNumber}  or  ?orderNumber=OMS-2026-02751  or  ?externalOrderId=SHOP-12345',
         workflow: [
             'Authenticate with an OMS-scoped API key.',
-            'Create the order. Company is taken from the API key (do not send companyId).',
-            'The order is submitted for admin approval (confirmed_waiting_for_admin_approval).',
-            'EMDAD admin approves. Only then can warehouse work and shipping start.',
+            'Create the order (confirmed_waiting_for_admin_approval). Company comes from the API key.',
+            'GET list all company OMS orders (paginated), or GET one by orderNumber / externalOrderId.',
+            'EMDAD admin approves before warehouse work and shipping continue.',
         ],
         bodyExample: `{
   "externalOrderId": "SHOP-12345",
   "requiredShipDate": "2026-08-25",
   "recipientName": "محمد أحمد",
-  "recipientPhone": "+963944123456",
-  "shippingPhoneCountry": "SY",
+  "countryCode": "963",
+  "recipientPhone": "944123456",
   "paymentMethod": "COD",
-  "currency": "USD",
+  "notes": "",
   "address": {
     "governorate": "دمشق",
     "city": "المزة",
@@ -132,26 +220,77 @@ function canonicalApiDocs(scope) {
         responseExample: `{
   "success": true,
   "data": {
-    "id": "33333333-3333-4333-8333-333333333333",
-    "orderNumber": "OMS-2026-00001",
-    "status": "confirmed_waiting_for_admin_approval",
+    "orderNumber": "OMS-2026-02751",
+    "status": "processing",
     "externalOrderId": "SHOP-12345",
+    "recipientName": "Nadim Hassan",
+    "recipientPhone": "+963966666666",
+    "address": "أبراج",
+    "city": "حلب",
+    "district": "مدينة حلب",
+    "carrier": "Babel Express",
+    "trackingNumber": "260303380991",
+    "requiredShipDate": "2026-08-22T00:00:00.000Z",
+    "warehouseStatus": "waiting_for_shipping_details",
+    "paymentMethod": "COD",
+    "subtotal": "1",
+    "currency": "USD",
+    "codStatus": "pending",
+    "lines": [
+      {
+        "lineNumber": 1,
+        "sku": "SKU-100",
+        "productName": "Product",
+        "quantity": 1,
+        "unitPrice": 1,
+        "lineTotal": 1
+      }
+    ],
+    "timeline": [{ "eventType": "oms.created", "createdAt": "2026-08-22T10:46:55.000Z" }],
     "idempotentReplay": false
   }
 }`,
         fields: [
-            { name: 'externalOrderId', required: 'Yes', description: 'Your order id. Sending the same value twice returns the existing OMS order.' },
-            { name: 'requiredShipDate', required: 'Yes', description: 'YYYY-MM-DD. Cannot be before today.' },
-            { name: 'recipientName', required: 'No', description: 'Letters and spaces only (Arabic or Latin).' },
-            { name: 'recipientPhone', required: 'No', description: 'E.164 phone such as +963944123456.' },
-            { name: 'address.governorate', required: 'Yes', description: 'Syria governorate (same names as Client Portal).' },
-            { name: 'address.city', required: 'Yes', description: 'City / area.' },
-            { name: 'address.neighborhood', required: 'No', description: 'Neighborhood / town.' },
-            { name: 'address.street', required: 'No', description: 'Street / detailed address.' },
-            { name: 'lines[].sku', required: 'Yes', description: 'Product SKU that belongs to your company. Internal product UUIDs are not required.' },
-            { name: 'lines[].quantity', required: 'Yes', description: 'Positive whole number.' },
-            { name: 'lines[].unitPrice', required: 'No', description: 'Whole-number unit price. COD amount is derived when paymentMethod=COD.' },
-            { name: 'paymentMethod', required: 'No', description: 'COD, PREPAID, or CREDIT.' },
+            {
+                name: 'externalOrderId',
+                required: 'Yes (Customer reference)',
+                description: 'Your order reference (same role as CSV order_number). Duplicate values return the existing OMS order. Internal OMS-… is generated by us.',
+            },
+            {
+                name: 'requiredShipDate',
+                required: 'Yes',
+                description: 'YYYY-MM-DD or M/DD/YYYY (English digits). Cannot be before today.',
+            },
+            {
+                name: 'recipientName / countryCode / recipientPhone',
+                required: 'Yes',
+                description: 'Same validation as Create order / Import.',
+            },
+            {
+                name: 'paymentMethod',
+                required: 'Yes',
+                description: 'COD, Prepaid, or Credit.',
+            },
+            {
+                name: 'address.*',
+                required: 'Yes (street optional)',
+                description: 'Arabic hierarchy: governorate, city, neighborhood (+ optional street).',
+            },
+            {
+                name: 'lines[].sku / quantity / unitPrice',
+                required: 'Yes',
+                description: 'SKU lines; unitPrice whole number ≥ 0; currency always USD.',
+            },
+            {
+                name: 'GET List mode',
+                required: 'Read',
+                description: 'GET /oms/orders → items[] matching Online orders table: orderNumber, status, recipientName, city, total, currency, createdAt, incomplete, externalOrderId. Query: limit, offset, status, orderSearch.',
+            },
+            {
+                name: 'GET Single mode',
+                required: 'Read',
+                description: 'GET /oms/orders/OMS-… or ?orderNumber= or ?externalOrderId= → order details page fields (recipient, carrier/tracking, warehouseStatus, pricing/COD, lines, timeline). No admin-only fields.',
+            },
         ],
     };
 }
