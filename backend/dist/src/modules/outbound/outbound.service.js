@@ -101,6 +101,13 @@ const ORDER_INCLUDE = {
         },
     },
 };
+function shippingPackagesPrisma(packages) {
+    if (packages === undefined)
+        return undefined;
+    if (packages === null)
+        return client_1.Prisma.JsonNull;
+    return packages;
+}
 const FULL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONFIRM_LINE_INCLUDE = {
     orderBy: { lineNumber: 'asc' },
@@ -514,6 +521,27 @@ let OutboundService = class OutboundService {
         return where;
     }
     async listForExport(user, query, opts) {
+        if (opts.ids?.length) {
+            const unique = Array.from(new Set(opts.ids.map((id) => id.trim()).filter(Boolean)));
+            const { limit: _l, offset: _o, ...queryNoPage } = query;
+            const baseWhere = await this.buildListWhere(user, queryNoPage);
+            const where = { ...baseWhere, id: { in: unique.slice(0, opts.maxRows) } };
+            return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+                const rows = await tx.outboundOrder.findMany({
+                    where,
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        company: { select: { id: true, name: true } },
+                        lines: { select: { requestedQuantity: true } },
+                    },
+                });
+                return {
+                    items: rows,
+                    total: rows.length,
+                    truncated: unique.length > rows.length,
+                };
+            });
+        }
         const where = await this.buildListWhere(user, query);
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             const total = await tx.outboundOrder.count({ where });
@@ -544,6 +572,16 @@ let OutboundService = class OutboundService {
             where: {
                 companyId,
                 externalReference: { equals: externalReference, mode: 'insensitive' },
+            },
+            select: { id: true, orderNumber: true },
+        }));
+    }
+    async findByOrderNumber(user, companyId, orderNumber) {
+        this.companyAccess.assertCompanyAccess(user, companyId);
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => tx.outboundOrder.findFirst({
+            where: {
+                companyId,
+                orderNumber: { equals: orderNumber.trim(), mode: 'insensitive' },
             },
             select: { id: true, orderNumber: true },
         }));
@@ -939,6 +977,13 @@ let OutboundService = class OutboundService {
                 townNeighborhood: resolvedAddressLine1,
             })
             : body.babelNeighbourhoodId ?? null;
+        const resolvedCoords = method === client_1.ShippingMethod.carrier && this.shipping
+            ? this.shipping.resolveReceiverCoordinatesFromAddress({
+                governorate: resolvedCity,
+                cityRegion: resolvedDistrict,
+                townNeighborhood: resolvedAddressLine1,
+            })
+            : null;
         await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             await tx.outboundOrder.update({
                 where: { id: orderId },
@@ -946,8 +991,8 @@ let OutboundService = class OutboundService {
                     ...(0, shipping_config_util_1.shippingPrismaData)({
                         shippingMethod: method,
                         shippingProviderCode: method === client_1.ShippingMethod.carrier ? body.shippingProviderCode : null,
-                        shippingReceiverLat: body.shippingReceiverLat,
-                        shippingReceiverLng: body.shippingReceiverLng,
+                        shippingReceiverLat: resolvedCoords?.lat ?? body.shippingReceiverLat ?? null,
+                        shippingReceiverLng: resolvedCoords?.lng ?? body.shippingReceiverLng ?? null,
                         shippingPackageType: body.shippingPackageType,
                         shippingContents: body.shippingContents,
                         shippingDeliveryType: body.shippingDeliveryType,
@@ -970,6 +1015,9 @@ let OutboundService = class OutboundService {
                         ? {
                             currency: body.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
                         }
+                        : {}),
+                    ...(body.shippingPackages !== undefined
+                        ? { shippingPackages: shippingPackagesPrisma(body.shippingPackages) }
                         : {}),
                     status: client_1.OutboundOrderStatus.waiting_for_shipping_details,
                 },
@@ -1035,14 +1083,21 @@ let OutboundService = class OutboundService {
                     townNeighborhood: saveAddressLine1,
                 })
                 : dto.babelNeighbourhoodId ?? null;
+            const saveCoords = (order.shippingMethod ?? dto.shippingMethod) === client_1.ShippingMethod.carrier && this.shipping
+                ? this.shipping.resolveReceiverCoordinatesFromAddress({
+                    governorate: saveCity,
+                    cityRegion: saveDistrict,
+                    townNeighborhood: saveAddressLine1,
+                })
+                : null;
             const row = await tx.outboundOrder.update({
                 where: { id: orderId },
                 data: {
                     ...(0, shipping_config_util_1.shippingPrismaData)({
                         shippingMethod: dto.shippingMethod,
                         shippingProviderCode: dto.shippingProviderCode,
-                        shippingReceiverLat: dto.shippingReceiverLat,
-                        shippingReceiverLng: dto.shippingReceiverLng,
+                        shippingReceiverLat: saveCoords?.lat ?? dto.shippingReceiverLat ?? null,
+                        shippingReceiverLng: saveCoords?.lng ?? dto.shippingReceiverLng ?? null,
                         shippingPackageType: dto.shippingPackageType,
                         shippingContents: dto.shippingContents,
                         shippingDeliveryType: dto.shippingDeliveryType,
@@ -1067,6 +1122,9 @@ let OutboundService = class OutboundService {
                         ? {
                             currency: dto.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
                         }
+                        : {}),
+                    ...(dto.shippingPackages !== undefined
+                        ? { shippingPackages: shippingPackagesPrisma(dto.shippingPackages) }
                         : {}),
                 },
                 include: ORDER_INCLUDE,
@@ -1110,11 +1168,18 @@ let OutboundService = class OutboundService {
             cityRegion: order.district,
             townNeighborhood: order.addressLine1,
         });
+        const resolvedCoords = this.shipping.resolveReceiverCoordinatesFromAddress({
+            governorate: order.city,
+            cityRegion: order.district,
+            townNeighborhood: order.addressLine1,
+        });
         (0, shipping_config_util_1.assertCarrierShippingReady)({
             shippingMethod: order.shippingMethod,
             shippingProviderCode: order.shippingProviderCode,
-            shippingReceiverLat: order.shippingReceiverLat?.toString() ?? null,
-            shippingReceiverLng: order.shippingReceiverLng?.toString() ?? null,
+            shippingReceiverLat: resolvedCoords?.lat ??
+                (order.shippingReceiverLat != null ? Number(order.shippingReceiverLat) : null),
+            shippingReceiverLng: resolvedCoords?.lng ??
+                (order.shippingReceiverLng != null ? Number(order.shippingReceiverLng) : null),
             shippingPackageType: order.shippingPackageType,
             shippingContents: order.shippingContents,
             shippingDeliveryType: order.shippingDeliveryType,
@@ -1123,19 +1188,28 @@ let OutboundService = class OutboundService {
             shippingWeightKg: order.shippingWeightKg?.toString() ?? null,
             babelNeighbourhoodId,
         });
-        if (babelNeighbourhoodId != null &&
-            order.babelNeighbourhoodId == null) {
+        if (babelNeighbourhoodId != null || resolvedCoords) {
             await this.prisma.outboundOrder.update({
                 where: { id: orderId },
-                data: { babelNeighbourhoodId },
+                data: {
+                    ...(babelNeighbourhoodId != null ? { babelNeighbourhoodId } : {}),
+                    ...(resolvedCoords
+                        ? {
+                            shippingReceiverLat: resolvedCoords.lat,
+                            shippingReceiverLng: resolvedCoords.lng,
+                        }
+                        : {}),
+                },
             });
         }
         await this.shipping.assertLiveCarrierSelection({
             fields: {
                 shippingMethod: order.shippingMethod,
                 shippingProviderCode: order.shippingProviderCode,
-                shippingReceiverLat: order.shippingReceiverLat?.toString() ?? null,
-                shippingReceiverLng: order.shippingReceiverLng?.toString() ?? null,
+                shippingReceiverLat: resolvedCoords?.lat ??
+                    (order.shippingReceiverLat != null ? Number(order.shippingReceiverLat) : null),
+                shippingReceiverLng: resolvedCoords?.lng ??
+                    (order.shippingReceiverLng != null ? Number(order.shippingReceiverLng) : null),
                 shippingPackageType: order.shippingPackageType,
                 shippingDeliveryType: order.shippingDeliveryType,
                 shippingPickupType: order.shippingPickupType,

@@ -14,6 +14,7 @@ const oms_module_1 = require("../oms/oms.module");
 const shipping_module_1 = require("../shipping/shipping.module");
 const warehouse_workflow_module_1 = require("../warehouse-workflow/warehouse-workflow.module");
 const billing_module_1 = require("../billing/billing.module");
+const client_portal_module_1 = require("../client-portal/client-portal.module");
 const outbound_controller_1 = require("./outbound.controller");
 const outbound_orders_csv_service_1 = require("./outbound-orders-csv.service");
 const outbound_service_1 = require("./outbound.service");
@@ -29,6 +30,7 @@ exports.OutboundModule = OutboundModule = __decorate([
             billing_module_1.BillingModule,
             (0, common_1.forwardRef)(() => oms_module_1.OmsModule),
             (0, common_1.forwardRef)(() => shipping_module_1.ShippingModule),
+            (0, common_1.forwardRef)(() => client_portal_module_1.ClientPortalModule),
         ],
         controllers: [outbound_controller_1.OutboundController],
         providers: [outbound_service_1.OutboundService, outbound_orders_csv_service_1.OutboundOrdersCsvService],

@@ -292,13 +292,14 @@ export function Combobox({
             emptyMessage={emptyMessage}
             onPick={pick}
             setActiveIdx={setActiveIdx}
-            className="z-[80] overflow-auto rounded-md border border-border bg-surface-panel py-1 text-sm shadow-lg"
+            className="z-popover overflow-auto rounded-md border border-border bg-surface-panel py-1 text-sm shadow-lg"
             style={{
               position: 'fixed',
               top: coords.top,
               left: coords.left,
               width: coords.width,
               maxHeight: coords.maxHeight,
+              zIndex: 'var(--z-popover, 70)',
             }}
           />,
           document.body,

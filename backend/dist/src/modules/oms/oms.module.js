@@ -10,6 +10,7 @@ exports.OmsModule = void 0;
 const common_1 = require("@nestjs/common");
 const audit_module_1 = require("../../common/audit/audit.module");
 const company_access_module_1 = require("../../common/company-access/company-access.module");
+const client_portal_module_1 = require("../client-portal/client-portal.module");
 const outbound_module_1 = require("../outbound/outbound.module");
 const realtime_module_1 = require("../realtime/realtime.module");
 const cod_module_1 = require("../cod/cod.module");
@@ -35,6 +36,7 @@ exports.OmsModule = OmsModule = __decorate([
             (0, common_1.forwardRef)(() => outbound_module_1.OutboundModule),
             (0, common_1.forwardRef)(() => cod_module_1.CodModule),
             (0, common_1.forwardRef)(() => shipping_module_1.ShippingModule),
+            (0, common_1.forwardRef)(() => client_portal_module_1.ClientPortalModule),
         ],
         controllers: [oms_controller_1.OmsController, oms_webhooks_controller_1.OmsWebhooksController],
         providers: [

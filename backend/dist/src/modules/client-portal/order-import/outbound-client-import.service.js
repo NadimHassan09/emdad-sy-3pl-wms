@@ -13,8 +13,8 @@ exports.OutboundClientImportService = void 0;
 const common_1 = require("@nestjs/common");
 const client_1 = require("@prisma/client");
 const crypto_1 = require("crypto");
+const client_auth_principal_1 = require("../../../common/auth/client-auth-principal");
 const order_planning_date_1 = require("../../../common/utils/order-planning-date");
-const client_outbound_orders_service_1 = require("../outbound/client-outbound-orders.service");
 const outbound_service_1 = require("../../outbound/outbound.service");
 const outbound_client_import_schema_1 = require("./outbound-client-import.schema");
 const order_import_grouping_1 = require("./order-import.grouping");
@@ -26,16 +26,18 @@ function parsePositiveQty(raw) {
     return n;
 }
 let OutboundClientImportService = class OutboundClientImportService {
-    clientOutbound;
     outbound;
-    constructor(clientOutbound, outbound) {
-        this.clientOutbound = clientOutbound;
+    constructor(outbound) {
         this.outbound = outbound;
     }
     getImportTemplate() {
         return (0, outbound_client_import_schema_1.getOutboundClientImportTemplate)();
     }
     async importFile(client, fileBuffer, originalName) {
+        return this.importFileForCompany((0, client_auth_principal_1.clientAuthPrincipal)(client), client.companyId, fileBuffer, originalName);
+    }
+    async importFileForCompany(user, companyIdRaw, fileBuffer, originalName) {
+        const companyId = this.outbound.resolveImportCompanyId(user, companyIdRaw);
         const table = (0, spreadsheet_parse_1.parseSpreadsheetTable)(fileBuffer, originalName);
         const { dataRows } = (0, order_import_grouping_1.assertImportTable)(table, outbound_client_import_schema_1.OUTBOUND_CLIENT_IMPORT_ALIASES, outbound_client_import_schema_1.OUTBOUND_CLIENT_IMPORT_REQUIRED_COLUMNS);
         const groups = (0, order_import_grouping_1.groupRowsByOrderNumber)(dataRows, 'order_number', outbound_client_import_schema_1.OUTBOUND_ORDER_LEVEL_FIELDS);
@@ -48,7 +50,7 @@ let OutboundClientImportService = class OutboundClientImportService {
         const allSkus = Array.from(new Set(dataRows
             .map((r) => r.values.sku?.trim().toUpperCase())
             .filter((s) => !!s)));
-        const products = await this.outbound.findProductsBySkus(client.companyId, allSkus);
+        const products = await this.outbound.findProductsBySkus(companyId, allSkus);
         const skuToProduct = new Map(products.map((p) => [p.sku.trim().toUpperCase(), p]));
         for (const group of groups) {
             const firstRow = group.rowNumbers[0] ?? 0;
@@ -71,7 +73,7 @@ let OutboundClientImportService = class OutboundClientImportService {
                 pushErr(group.conflict.error, group.conflict.field);
                 continue;
             }
-            const existing = await this.clientOutbound.findByExternalReference(client, orderNumber);
+            const existing = await this.outbound.findByExternalReference(user, companyId, orderNumber);
             if (existing) {
                 duplicate++;
                 pushErr(`Duplicate order reference. Already exists as ${existing.orderNumber}.`, 'order_number');
@@ -128,14 +130,17 @@ let OutboundClientImportService = class OutboundClientImportService {
                 continue;
             }
             try {
-                const createdOrder = await this.clientOutbound.create(client, {
+                const createdOrder = await this.outbound.create(user, {
+                    companyId,
                     destinationAddress: destination,
                     requiredShipDate: shipDate,
                     notes: group.fields.notes || undefined,
                     externalReference: orderNumber,
                     clientReference: orderNumber,
                     lines,
-                });
+                    executionMode: 'admin',
+                    executionPlan: undefined,
+                }, { pendingClientApproval: true });
                 created++;
                 createdOrderNumbers.push(createdOrder.orderNumber);
             }
@@ -166,7 +171,6 @@ let OutboundClientImportService = class OutboundClientImportService {
 exports.OutboundClientImportService = OutboundClientImportService;
 exports.OutboundClientImportService = OutboundClientImportService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [client_outbound_orders_service_1.ClientOutboundOrdersService,
-        outbound_service_1.OutboundService])
+    __metadata("design:paramtypes", [outbound_service_1.OutboundService])
 ], OutboundClientImportService);
 //# sourceMappingURL=outbound-client-import.service.js.map

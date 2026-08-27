@@ -19,7 +19,7 @@ class ExternalInboundLineDto {
 exports.ExternalInboundLineDto = ExternalInboundLineDto;
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'Product SKU is required.' }),
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)
 ], ExternalInboundLineDto.prototype, "sku", void 0);
@@ -32,27 +32,24 @@ __decorate([
 class ExternalCreateInboundOrderDto {
     externalOrderId;
     expectedArrivalDate;
-    clientReference;
     notes;
     lines;
 }
 exports.ExternalCreateInboundOrderDto = ExternalCreateInboundOrderDto;
 __decorate([
     (0, class_validator_1.IsString)(),
-    (0, class_validator_1.IsNotEmpty)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'externalOrderId is required.' }),
     (0, class_validator_1.MaxLength)(80),
+    (0, class_validator_1.Matches)(/^[A-Za-z0-9-]+$/, {
+        message: 'externalOrderId may only contain English letters, English digits (0-9), and hyphen (-).',
+    }),
     __metadata("design:type", String)
 ], ExternalCreateInboundOrderDto.prototype, "externalOrderId", void 0);
 __decorate([
-    (0, class_validator_1.IsDateString)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsNotEmpty)({ message: 'expectedArrivalDate is required.' }),
     __metadata("design:type", String)
 ], ExternalCreateInboundOrderDto.prototype, "expectedArrivalDate", void 0);
-__decorate([
-    (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsString)(),
-    (0, class_validator_1.MaxLength)(80),
-    __metadata("design:type", String)
-], ExternalCreateInboundOrderDto.prototype, "clientReference", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
@@ -61,7 +58,7 @@ __decorate([
 ], ExternalCreateInboundOrderDto.prototype, "notes", void 0);
 __decorate([
     (0, class_validator_1.IsArray)(),
-    (0, class_validator_1.ArrayMinSize)(1),
+    (0, class_validator_1.ArrayMinSize)(1, { message: 'Add at least one product line.' }),
     (0, class_validator_1.ValidateNested)({ each: true }),
     (0, class_transformer_1.Type)(() => ExternalInboundLineDto),
     __metadata("design:type", Array)

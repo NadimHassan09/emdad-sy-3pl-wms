@@ -194,6 +194,26 @@ let OmsOrdersService = class OmsOrdersService {
         });
     }
     async listForExport(user, query, opts) {
+        if (opts.ids?.length) {
+            const unique = Array.from(new Set(opts.ids.map((id) => id.trim()).filter(Boolean)));
+            const { limit: _l, offset: _o, ...queryNoPage } = query;
+            const where = {
+                ...this.buildListWhere(user, queryNoPage),
+                id: { in: unique.slice(0, opts.maxRows) },
+            };
+            return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+                const rows = await tx.omsOrder.findMany({
+                    where,
+                    orderBy: { createdAt: 'desc' },
+                    include: ORDER_INCLUDE,
+                });
+                return {
+                    items: rows.map(oms_order_mapper_1.serializeOmsOrder),
+                    total: rows.length,
+                    truncated: unique.length > rows.length,
+                };
+            });
+        }
         const where = this.buildListWhere(user, query);
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             const total = await tx.omsOrder.count({ where });
@@ -219,6 +239,16 @@ let OmsOrdersService = class OmsOrdersService {
             where: {
                 companyId,
                 externalReference: { equals: externalReference, mode: 'insensitive' },
+            },
+            select: { id: true, orderNumber: true },
+        }));
+    }
+    async findExistingByOrderNumber(user, companyId, orderNumber) {
+        this.companyAccess.assertCompanyAccess(user, companyId);
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => tx.omsOrder.findFirst({
+            where: {
+                companyId,
+                orderNumber: { equals: orderNumber.trim(), mode: 'insensitive' },
             },
             select: { id: true, orderNumber: true },
         }));

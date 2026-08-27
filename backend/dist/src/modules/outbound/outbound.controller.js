@@ -23,16 +23,20 @@ const parse_uuid_loose_pipe_1 = require("../../common/pipes/parse-uuid-loose.pip
 const create_outbound_dto_1 = require("./dto/create-outbound.dto");
 const confirm_outbound_body_dto_1 = require("./dto/confirm-outbound-body.dto");
 const list_outbound_query_dto_1 = require("./dto/list-outbound-query.dto");
+const outbound_orders_export_dto_1 = require("./dto/outbound-orders-export.dto");
 const update_outbound_plan_dto_1 = require("./dto/update-outbound-plan.dto");
 const update_shipping_details_dto_1 = require("./dto/update-shipping-details.dto");
 const outbound_orders_csv_service_1 = require("./outbound-orders-csv.service");
 const outbound_service_1 = require("./outbound.service");
+const outbound_client_import_service_1 = require("../client-portal/order-import/outbound-client-import.service");
 let OutboundController = class OutboundController {
     outbound;
     csv;
-    constructor(outbound, csv) {
+    clientImport;
+    constructor(outbound, csv, clientImport) {
         this.outbound = outbound;
         this.csv = csv;
+        this.clientImport = clientImport;
     }
     create(user, dto) {
         return this.outbound.create(user, dto);
@@ -51,25 +55,47 @@ let OutboundController = class OutboundController {
         res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
         return result.body;
     }
+    exportColumns() {
+        return this.csv.columns();
+    }
+    async exportOrdersPost(user, dto, res) {
+        const { columnIds, arabicHeaders, ids, ...query } = dto;
+        const result = await this.csv.exportCsv(user, query, { columnIds, arabicHeaders, ids });
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        res.setHeader('X-Export-Row-Count', String(result.rowCount));
+        res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+        return result.body;
+    }
     importTemplate(res) {
-        const result = this.csv.getImportTemplate();
+        const result = this.clientImport.getImportTemplate();
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
         return result.body;
     }
-    async validateImport(user, file) {
-        if (!file?.buffer?.length) {
-            throw new common_1.BadRequestException('CSV file is required.');
-        }
-        const result = await this.csv.validateImport(user, file.buffer);
-        const { _validPayloads: _, ...publicResult } = result;
-        return publicResult;
+    async validateImport() {
+        throw new common_1.BadRequestException('Client-format import validates on upload. Use POST /outbound-orders/import with companyId.');
     }
-    async importOrders(user, file) {
+    async importOrders(user, file, companyId) {
         if (!file?.buffer?.length) {
             throw new common_1.BadRequestException('CSV file is required.');
         }
-        return this.csv.executeImport(user, file.buffer);
+        if (!companyId?.trim()) {
+            throw new common_1.BadRequestException('companyId is required.');
+        }
+        const summary = await this.clientImport.importFileForCompany(user, companyId.trim(), file.buffer, file.originalname);
+        return {
+            ...summary,
+            imported: summary.created,
+            failed: summary.invalid,
+            skippedDuplicates: summary.duplicate,
+            createdOrderNumbers: summary.createdOrderNumbers,
+            errors: summary.errors.map((e) => ({
+                rowNumber: e.rowNumber,
+                externalReference: e.orderNumber,
+                reason: e.error,
+            })),
+        };
     }
     findOne(user, id) {
         return this.outbound.findById(id, user);
@@ -149,6 +175,23 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], OutboundController.prototype, "exportOrders", null);
 __decorate([
+    (0, common_1.Get)('export/columns'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "exportColumns", null);
+__decorate([
+    (0, common_1.Post)('export'),
+    (0, throttler_1.Throttle)({ default: { limit: 10, ttl: 60_000 } }),
+    (0, common_1.Header)('Cache-Control', 'no-store'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, outbound_orders_export_dto_1.OutboundOrdersExportDto, Object]),
+    __metadata("design:returntype", Promise)
+], OutboundController.prototype, "exportOrdersPost", null);
+__decorate([
     (0, common_1.Get)('import/template'),
     (0, common_1.Header)('Cache-Control', 'no-store'),
     __param(0, (0, common_1.Res)({ passthrough: true })),
@@ -163,10 +206,8 @@ __decorate([
         storage: (0, multer_1.memoryStorage)(),
         limits: { fileSize: 5 * 1024 * 1024 },
     })),
-    __param(0, (0, current_user_decorator_1.CurrentUser)()),
-    __param(1, (0, common_1.UploadedFile)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], OutboundController.prototype, "validateImport", null);
 __decorate([
@@ -178,8 +219,9 @@ __decorate([
     })),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.UploadedFile)()),
+    __param(2, (0, common_1.Body)('companyId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [Object, Object, String]),
     __metadata("design:returntype", Promise)
 ], OutboundController.prototype, "importOrders", null);
 __decorate([
@@ -302,6 +344,7 @@ __decorate([
 exports.OutboundController = OutboundController = __decorate([
     (0, common_1.Controller)('outbound-orders'),
     __metadata("design:paramtypes", [outbound_service_1.OutboundService,
-        outbound_orders_csv_service_1.OutboundOrdersCsvService])
+        outbound_orders_csv_service_1.OutboundOrdersCsvService,
+        outbound_client_import_service_1.OutboundClientImportService])
 ], OutboundController);
 //# sourceMappingURL=outbound.controller.js.map

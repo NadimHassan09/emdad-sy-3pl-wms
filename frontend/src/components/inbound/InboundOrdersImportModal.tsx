@@ -143,6 +143,7 @@ export function InboundOrdersImportModal({ open, onClose, onImported }: Props) {
             options={companyOptions}
             placeholder={t(['Select company…', 'اختر الشركة…'])}
             disabled={busy}
+            dropdownInFlow
           />
         </div>
 

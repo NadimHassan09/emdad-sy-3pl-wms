@@ -15,6 +15,8 @@ const client_1 = require("@prisma/client");
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const node_crypto_1 = require("node:crypto");
+const inbound_client_import_schema_1 = require("../client-portal/order-import/inbound-client-import.schema");
+const admin_order_export_columns_1 = require("../oms/admin-order-export.columns");
 const create_inbound_dto_1 = require("./dto/create-inbound.dto");
 const inbound_orders_csv_util_1 = require("./inbound-orders-csv.util");
 const inbound_service_1 = require("./inbound.service");
@@ -26,55 +28,53 @@ let InboundOrdersCsvService = class InboundOrdersCsvService {
     constructor(inbound) {
         this.inbound = inbound;
     }
+    columns() {
+        return admin_order_export_columns_1.ADMIN_INBOUND_EXPORT_COLUMNS;
+    }
     getImportTemplate() {
+        return (0, inbound_client_import_schema_1.getInboundClientImportTemplate)();
+    }
+    getLegacyImportTemplate() {
         return {
             filename: 'inbound-orders-import-template.csv',
             body: (0, inbound_orders_csv_util_1.inboundImportTemplateCsv)(),
         };
     }
-    async exportCsv(user, query) {
+    async exportCsv(user, query, opts) {
+        const columnIds = (0, admin_order_export_columns_1.adminOrderedColumnIds)(admin_order_export_columns_1.ADMIN_INBOUND_EXPORT_COLUMNS, opts?.columnIds);
+        if (columnIds.length === 0) {
+            throw new common_1.BadRequestException('Select at least one valid export column.');
+        }
         const { items, total, truncated } = await this.inbound.listForExport(user, query, {
             maxRows: exports.INBOUND_EXPORT_MAX_ROWS,
+            ids: opts?.ids,
         });
-        const headers = [
-            'order_number',
-            'status',
-            'company_id',
-            'company_name',
-            'external_reference',
-            'client_reference',
-            'expected_arrival_date',
-            'source_type',
-            'store_channel',
-            'notes',
-            'line_count',
-            'total_expected_quantity',
-            'execution_mode',
-            'created_at',
-            'confirmed_at',
-            'completed_at',
-        ];
+        const arabic = Boolean(opts?.arabicHeaders);
+        const headers = (0, admin_order_export_columns_1.adminHeaderLabels)(admin_order_export_columns_1.ADMIN_INBOUND_EXPORT_COLUMNS, columnIds, arabic);
         const rows = items.map((o) => {
             const lineCount = o.lines?.length ?? 0;
             const totalQty = (o.lines ?? []).reduce((sum, l) => sum + Number(l.expectedQuantity ?? 0), 0);
-            return [
-                o.orderNumber,
-                o.status,
-                o.companyId,
-                o.company?.name ?? '',
-                o.externalReference ?? '',
-                o.clientReference ?? '',
-                o.expectedArrivalDate ? new Date(o.expectedArrivalDate).toISOString().slice(0, 10) : '',
-                o.sourceType ?? '',
-                o.storeChannel ?? '',
-                o.notes ?? '',
-                lineCount,
-                totalQty,
-                o.executionMode ?? '',
-                o.createdAt ? new Date(o.createdAt).toISOString() : '',
-                o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',
-                o.completedAt ? new Date(o.completedAt).toISOString() : '',
-            ];
+            const cells = {
+                order_number: o.orderNumber,
+                status: o.status,
+                company_id: o.companyId,
+                company_name: o.company?.name ?? '',
+                external_reference: o.externalReference ?? '',
+                client_reference: o.clientReference ?? '',
+                expected_arrival_date: o.expectedArrivalDate
+                    ? new Date(o.expectedArrivalDate).toISOString().slice(0, 10)
+                    : '',
+                source_type: o.sourceType ?? '',
+                store_channel: o.storeChannel ?? '',
+                notes: o.notes ?? '',
+                line_count: lineCount,
+                total_expected_quantity: totalQty,
+                execution_mode: o.executionMode ?? '',
+                created_at: o.createdAt ? new Date(o.createdAt).toISOString() : '',
+                confirmed_at: o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',
+                completed_at: o.completedAt ? new Date(o.completedAt).toISOString() : '',
+            };
+            return columnIds.map((id) => cells[id] ?? '');
         });
         const stamp = new Date().toISOString().slice(0, 10);
         return {

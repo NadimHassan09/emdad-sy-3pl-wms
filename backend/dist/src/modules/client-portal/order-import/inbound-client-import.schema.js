@@ -7,37 +7,30 @@ exports.INBOUND_CLIENT_IMPORT_HEADERS = [
     'order_number',
     'expected_arrival_date',
     'notes',
-    'source_type',
+    'product_name',
     'sku',
-    'expected_quantity',
-    'expected_lot_number',
-    'expected_expiry_date',
+    'quantity',
 ];
 exports.INBOUND_CLIENT_IMPORT_ALIASES = {
-    order_number: ['external_reference', 'order_no', 'order number'],
+    order_number: ['external_reference', 'order_no', 'order number', 'client_reference'],
     expected_arrival_date: ['arrival_date', 'expected arrival date'],
     notes: ['note'],
-    source_type: ['source'],
+    product_name: ['product', 'item_name', 'product name'],
     sku: ['product_sku', 'product sku'],
-    expected_quantity: ['quantity', 'qty'],
-    expected_lot_number: ['lot', 'lot_number'],
-    expected_expiry_date: ['expiry', 'expiry_date'],
+    quantity: ['expected_quantity', 'qty', 'requested_quantity'],
 };
-exports.INBOUND_ORDER_LEVEL_FIELDS = [
-    'expected_arrival_date',
-    'notes',
-    'source_type',
-];
+exports.INBOUND_ORDER_LEVEL_FIELDS = ['expected_arrival_date', 'notes'];
 exports.INBOUND_CLIENT_IMPORT_REQUIRED_COLUMNS = [
     'order_number',
+    'expected_arrival_date',
     'sku',
-    'expected_quantity',
+    'quantity',
 ];
 function getInboundClientImportTemplate() {
     const body = (0, oms_orders_csv_util_1.rowsToCsv)([...exports.INBOUND_CLIENT_IMPORT_HEADERS], [
-        ['INB-1001', '2026-09-01', '', 'purchase', 'SKU-A', '10', '', ''],
-        ['INB-1001', '', '', '', 'SKU-B', '5', '', ''],
-        ['INB-1002', '2026-09-02', 'PO-88', 'purchase', 'SKU-A', '3', '', ''],
+        ['INB-1001', '9/01/2026', '', 'Sample product A', 'SKU-A', '10'],
+        ['INB-1001', '9/01/2026', '', 'Sample product B', 'SKU-B', '5'],
+        ['INB-1002', '9/02/2026', 'PO-88', 'Sample product A', 'SKU-A', '3'],
     ]);
     return { filename: 'inbound-orders-import-template.csv', body };
 }

@@ -275,6 +275,27 @@ let InboundService = class InboundService {
         return where;
     }
     async listForExport(user, query, opts) {
+        if (opts.ids?.length) {
+            const unique = Array.from(new Set(opts.ids.map((id) => id.trim()).filter(Boolean)));
+            const { limit: _l, offset: _o, ...queryNoPage } = query;
+            const baseWhere = await this.buildListWhere(user, queryNoPage);
+            const where = { ...baseWhere, id: { in: unique.slice(0, opts.maxRows) } };
+            return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+                const rows = await tx.inboundOrder.findMany({
+                    where,
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        company: { select: { id: true, name: true } },
+                        lines: { select: { expectedQuantity: true } },
+                    },
+                });
+                return {
+                    items: rows,
+                    total: rows.length,
+                    truncated: unique.length > rows.length,
+                };
+            });
+        }
         const where = await this.buildListWhere(user, query);
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             const total = await tx.inboundOrder.count({ where });
@@ -305,6 +326,16 @@ let InboundService = class InboundService {
             where: {
                 companyId,
                 externalReference: { equals: externalReference, mode: 'insensitive' },
+            },
+            select: { id: true, orderNumber: true },
+        }));
+    }
+    async findByOrderNumber(user, companyId, orderNumber) {
+        this.companyAccess.assertCompanyAccess(user, companyId);
+        return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => tx.inboundOrder.findFirst({
+            where: {
+                companyId,
+                orderNumber: { equals: orderNumber.trim(), mode: 'insensitive' },
             },
             select: { id: true, orderNumber: true },
         }));

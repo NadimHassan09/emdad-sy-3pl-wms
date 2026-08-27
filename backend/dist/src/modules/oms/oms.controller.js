@@ -25,14 +25,18 @@ const oms_orders_csv_service_1 = require("./oms-orders-csv.service");
 const oms_orders_service_1 = require("./oms-orders.service");
 const list_oms_orders_query_dto_1 = require("./dto/list-oms-orders-query.dto");
 const oms_dashboard_order_summary_query_dto_1 = require("./dto/oms-dashboard-order-summary-query.dto");
+const oms_orders_export_dto_1 = require("./dto/oms-orders-export.dto");
+const oms_client_import_service_1 = require("../client-portal/order-import/oms-client-import.service");
 let OmsController = class OmsController {
     orders;
     dashboard;
     csv;
-    constructor(orders, dashboard, csv) {
+    clientImport;
+    constructor(orders, dashboard, csv, clientImport) {
         this.orders = orders;
         this.dashboard = dashboard;
         this.csv = csv;
+        this.clientImport = clientImport;
     }
     dashboardSummary(user, companyId) {
         return this.dashboard.summary(user, companyId);
@@ -51,25 +55,47 @@ let OmsController = class OmsController {
         res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
         return result.body;
     }
+    exportColumns() {
+        return this.csv.columns();
+    }
+    async exportOrdersPost(user, dto, res) {
+        const { columnIds, arabicHeaders, ids, ...query } = dto;
+        const result = await this.csv.exportCsv(user, query, { columnIds, arabicHeaders, ids });
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        res.setHeader('X-Export-Row-Count', String(result.rowCount));
+        res.setHeader('X-Export-Truncated', result.truncated ? 'true' : 'false');
+        return result.body;
+    }
     importTemplate(res) {
-        const result = this.csv.getImportTemplate();
+        const result = this.clientImport.getImportTemplate();
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
         return result.body;
     }
-    async validateImport(user, file) {
-        if (!file?.buffer?.length) {
-            throw new common_1.BadRequestException('CSV file is required.');
-        }
-        const result = await this.csv.validateImport(user, file.buffer);
-        const { _validPayloads: _, ...publicResult } = result;
-        return publicResult;
+    async validateImport() {
+        throw new common_1.BadRequestException('Client-format import validates on upload. Use POST /oms/orders/import with companyId.');
     }
-    async importOrders(user, file) {
+    async importOrders(user, file, companyId) {
         if (!file?.buffer?.length) {
             throw new common_1.BadRequestException('CSV file is required.');
         }
-        return this.csv.executeImport(user, file.buffer);
+        if (!companyId?.trim()) {
+            throw new common_1.BadRequestException('companyId is required.');
+        }
+        const summary = await this.clientImport.importFileForCompany(user, companyId.trim(), file.buffer, file.originalname);
+        return {
+            ...summary,
+            imported: summary.created,
+            failed: summary.invalid,
+            skippedDuplicates: summary.duplicate,
+            createdOrderNumbers: summary.createdOrderNumbers,
+            errors: summary.errors.map((e) => ({
+                rowNumber: e.rowNumber,
+                externalReference: e.orderNumber,
+                reason: e.error,
+            })),
+        };
     }
     create(user, dto) {
         return this.orders.create(user, dto, { provisionOutbound: !dto.outboundOrderId });
@@ -169,6 +195,23 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], OmsController.prototype, "exportOrders", null);
 __decorate([
+    (0, common_1.Get)('orders/export/columns'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "exportColumns", null);
+__decorate([
+    (0, common_1.Post)('orders/export'),
+    (0, throttler_1.Throttle)({ default: { limit: 10, ttl: 60_000 } }),
+    (0, common_1.Header)('Cache-Control', 'no-store'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Res)({ passthrough: true })),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, oms_orders_export_dto_1.OmsOrdersExportDto, Object]),
+    __metadata("design:returntype", Promise)
+], OmsController.prototype, "exportOrdersPost", null);
+__decorate([
     (0, common_1.Get)('orders/import/template'),
     (0, common_1.Header)('Cache-Control', 'no-store'),
     __param(0, (0, common_1.Res)({ passthrough: true })),
@@ -183,10 +226,8 @@ __decorate([
         storage: (0, multer_1.memoryStorage)(),
         limits: { fileSize: 5 * 1024 * 1024 },
     })),
-    __param(0, (0, current_user_decorator_1.CurrentUser)()),
-    __param(1, (0, common_1.UploadedFile)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], OmsController.prototype, "validateImport", null);
 __decorate([
@@ -198,8 +239,9 @@ __decorate([
     })),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.UploadedFile)()),
+    __param(2, (0, common_1.Body)('companyId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [Object, Object, String]),
     __metadata("design:returntype", Promise)
 ], OmsController.prototype, "importOrders", null);
 __decorate([
@@ -371,6 +413,7 @@ exports.OmsController = OmsController = __decorate([
     (0, common_1.Controller)('oms'),
     __metadata("design:paramtypes", [oms_orders_service_1.OmsOrdersService,
         oms_dashboard_service_1.OmsDashboardService,
-        oms_orders_csv_service_1.OmsOrdersCsvService])
+        oms_orders_csv_service_1.OmsOrdersCsvService,
+        oms_client_import_service_1.OmsClientImportService])
 ], OmsController);
 //# sourceMappingURL=oms.controller.js.map
