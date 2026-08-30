@@ -140,6 +140,11 @@ export class ClientOmsOrdersController {
     return this.oms.cancel(client, id);
   }
 
+  @Post('orders/:id/cancel-revert')
+  cancelRevert(@ClientUser() client: ClientPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
+    return this.oms.revertCancel(client, id);
+  }
+
   @Get('orders/:id')
   findOne(@ClientUser() client: ClientPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.oms.findOne(client, id);

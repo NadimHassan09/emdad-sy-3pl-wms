@@ -122,6 +122,9 @@ export interface ClientOmsOrderDetail {
   approvedAt?: string | null;
   rejectedAt?: string | null;
   rejectionReason?: string | null;
+  cancelledFromStatus?: string | null;
+  revertCancelToStatus?: string | null;
+  canRevertCancel?: boolean;
   needsInformation?: boolean;
   importBatchId?: string | null;
   company?: { id: string; name: string } | null;
@@ -232,6 +235,11 @@ export async function confirmClientOmsOrdersBulk(
 
 export async function cancelClientOmsOrder(id: string): Promise<ClientOmsOrderDetail> {
   const { data } = await apiClient.post<ClientOmsOrderDetail>(`/oms/orders/${id}/cancel`);
+  return data;
+}
+
+export async function revertCancelClientOmsOrder(id: string): Promise<ClientOmsOrderDetail> {
+  const { data } = await apiClient.post<ClientOmsOrderDetail>(`/oms/orders/${id}/cancel-revert`);
   return data;
 }
 

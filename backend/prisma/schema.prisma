@@ -1782,6 +1782,9 @@ model OmsOrder {
   confirmedAt          DateTime?           @map("confirmed_at") @db.Timestamptz(6)
   cancelledAt          DateTime?           @map("cancelled_at") @db.Timestamptz(6)
   cancelledBy          String?             @map("cancelled_by") @db.Uuid
+  /// Written only when entering cancelled. Cleared on undo. Never refreshed while already cancelled.
+  cancelledFromStatus  OmsOrderStatus?     @map("cancelled_from_status")
+  cancelledFromOutboundStatus OutboundOrderStatus? @map("cancelled_from_outbound_status")
   submittedAt          DateTime?           @map("submitted_at") @db.Timestamptz(6)
   approvedAt           DateTime?           @map("approved_at") @db.Timestamptz(6)
   approvedBy           String?             @map("approved_by") @db.Uuid

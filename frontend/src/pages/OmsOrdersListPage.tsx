@@ -32,6 +32,7 @@ import {
 import { useFilters } from '../hooks/useFilters';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { OMS_COMMERCIAL_FILTER_OPTIONS } from '../lib/oms-commercial-status';
+import { isOmsOrderDeletable } from '../lib/oms-order-delete';
 import {
   buildOmsAppliedFilterSummary,
   buildOmsOrdersListParams,
@@ -328,7 +329,16 @@ export function OmsOrdersListPage() {
                     } as const,
                   ]
                 : []),
-              { key: 'delete', label: 'Delete', danger: true, onClick: () => setDeleteOrder(row) },
+              ...(isOmsOrderDeletable(row.status)
+                ? [
+                    {
+                      key: 'delete',
+                      label: 'Delete',
+                      danger: true,
+                      onClick: () => setDeleteOrder(row),
+                    } as const,
+                  ]
+                : []),
             ]}
           />
         </div>

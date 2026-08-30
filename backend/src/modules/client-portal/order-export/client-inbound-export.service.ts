@@ -4,6 +4,7 @@ import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { rowsToCsv } from '../../oms/oms-orders-csv.util';
 import { ClientInboundOrdersService } from '../inbound/client-inbound-orders.service';
 import { ClientInboundOrdersExportDto } from '../inbound/dto/client-inbound-export.dto';
+import { exportProductNames, exportProductWeights } from '../../oms/order-export-product-cells';
 import {
   CLIENT_INBOUND_EXPORT_COLUMNS,
   headerLabels,
@@ -26,6 +27,10 @@ function cell(order: Record<string, unknown>, id: string): string {
         : '';
     case 'lines':
       return String(Array.isArray(order.lines) ? order.lines.length : '');
+    case 'product_name':
+      return exportProductNames(order.lines);
+    case 'product_weight':
+      return exportProductWeights(order.lines);
     case 'notes':
       return String(order.notes ?? '');
     case 'created_at':

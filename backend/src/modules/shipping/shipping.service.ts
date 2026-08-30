@@ -1245,13 +1245,23 @@ export class ShippingService {
     ) {
       throw new BadRequestException(`${provider.name} is not connected.`);
     }
-    return {
-      provider,
-      credentials: {
-        username: this.encryption.decrypt(connection.encryptedUsername),
-        password: this.encryption.decrypt(connection.encryptedPassword),
-      },
-    };
+    try {
+      return {
+        provider,
+        credentials: {
+          username: this.encryption.decrypt(connection.encryptedUsername),
+          password: this.encryption.decrypt(connection.encryptedPassword),
+        },
+      };
+    } catch (err) {
+      this.logger.warn(
+        `Failed to decrypt credentials for ${code}: ${(err as Error)?.message ?? err}`,
+      );
+      throw new BadRequestException(
+        `${provider.name} credentials cannot be decrypted. ` +
+          `Disconnect and reconnect the provider (re-enter username/password) so they are encrypted with the current server key.`,
+      );
+    }
   }
 
   private async persistFailedShipment(params: {

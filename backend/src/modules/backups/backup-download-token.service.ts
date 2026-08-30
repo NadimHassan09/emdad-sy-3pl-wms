@@ -25,13 +25,28 @@ export class BackupDownloadTokenService {
   }
 
   verify(token: string, jobId: string, userId: string): void {
+    const payload = this.assertValid(token, jobId);
+    if (payload.userId !== userId) {
+      throw new UnauthorizedException('Invalid download token.');
+    }
+  }
+
+  /**
+   * Validate a download token for a backup job without requiring a JWT session.
+   * Used by the browser-native download navigation (avoids XHR/blob truncation).
+   */
+  assertValid(token: string, jobId: string): { userId: string; exp: number } {
+    if (!token?.trim()) {
+      throw new UnauthorizedException('Download token is required.');
+    }
     const payload = this.parseAndVerify(token);
-    if (payload.jobId !== jobId || payload.userId !== userId) {
+    if (payload.jobId !== jobId) {
       throw new UnauthorizedException('Invalid download token.');
     }
     if (payload.exp < Math.floor(Date.now() / 1000)) {
       throw new UnauthorizedException('Download token has expired.');
     }
+    return { userId: payload.userId, exp: payload.exp };
   }
 
   buildDownloadUrl(jobId: string, token: string, apiBasePath = '/api'): string {

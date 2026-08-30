@@ -863,7 +863,7 @@ function defaultCompleteJsonBody(taskType: string): string {
         shippingContents: 'Goods',
         shippingDeliveryType: 'address',
         shippingPickupType: 'address',
-        shippingPayer: 'sender',
+        shippingPayer: 'receiver',
       },
       null,
       2,

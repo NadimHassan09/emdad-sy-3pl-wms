@@ -411,13 +411,17 @@ export function OmsReturnsPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         isArabic={isArabic}
-        onSuccess={(created) => navigate(`/oms/returns/${created.id}`)}
+        onSuccess={() => {
+          pagination.refetch?.();
+        }}
       />
       <ExpressReturnModal
         open={expressOpen}
         onClose={() => setExpressOpen(false)}
         isArabic={isArabic}
-        onSuccess={() => { pagination.refetch?.(); }}
+        onSuccess={() => {
+          pagination.refetch?.();
+        }}
       />
       <AdvancedFilterSection
         advancedOpen={advancedOpen}

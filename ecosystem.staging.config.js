@@ -39,9 +39,13 @@ module.exports = {
       defaultInstances: 1, // Redis is off on staging — multi-instance breaks Socket.IO fan-out
       env: {
         ...fileEnv,
-        // Hard pins — never inherit shell/prod PORT=3000
+        // Hard pins — never inherit shell/prod PORT=3000 or Cursor sandbox
+        // PUPPETEER_CACHE_DIR (which breaks PDF/API-docs generation).
         PORT: '3001',
         REALTIME_SYNC_MODE: fileEnv.REALTIME_SYNC_MODE || 'canonical',
+        PUPPETEER_EXECUTABLE_PATH:
+          fileEnv.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome',
+        PUPPETEER_CACHE_DIR: '/root/.cache/puppeteer',
       },
     }),
   ],

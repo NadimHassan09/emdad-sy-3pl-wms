@@ -175,7 +175,7 @@ export function emptyOrderShippingFields(): OrderShippingFieldsValue {
     shippingContents: '',
     shippingDeliveryType: '',
     shippingPickupType: '',
-    shippingPayer: '',
+    shippingPayer: 'receiver',
     shippingWeightKg: '',
     shippingVolumeCbm: '',
     shippingPhoneCountry: '',

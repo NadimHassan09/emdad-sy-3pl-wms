@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
@@ -16,6 +16,23 @@ import { DocLang } from './i18n';
 const importPuppeteer = new Function('return import("puppeteer")') as () => Promise<{
   default: PuppeteerNode;
 }>;
+
+/** Prefer an explicit path; otherwise use a system Chrome so a polluted
+ *  PUPPETEER_CACHE_DIR (e.g. Cursor sandbox) cannot break PDF generation. */
+function resolveChromeExecutable(): string | undefined {
+  const fromEnv = process.env.PUPPETEER_EXECUTABLE_PATH?.trim();
+  if (fromEnv && existsSync(fromEnv)) return fromEnv;
+
+  for (const candidate of [
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+  ]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return undefined;
+}
 
 export type RenderableTemplate = 'grn' | 'dn' | 'final_contract' | 'invoice' | 'api_docs';
 
@@ -104,9 +121,17 @@ export class PdfService implements OnModuleDestroy {
     if (!this.browserPromise) {
       this.browserPromise = (async () => {
         const pptr = await this.loadPuppeteer();
+        const executablePath = resolveChromeExecutable();
+        if (executablePath) {
+          this.logger.log(`PDF Chromium executable: ${executablePath}`);
+        } else {
+          this.logger.warn(
+            'No system Chrome found; falling back to Puppeteer-managed browser cache',
+          );
+        }
         const browser = await pptr.launch({
           headless: true,
-          executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+          executablePath,
           args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',

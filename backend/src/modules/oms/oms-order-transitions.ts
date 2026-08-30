@@ -11,6 +11,7 @@ export type OmsTransitionAction =
   | 'admin_confirm'
   | 'admin_approve'
   | 'cancel'
+  | 'cancel_revert'
   | 'reject'
   | 'wms_sync'
   | 'mark_delivered'
@@ -91,6 +92,9 @@ const ALLOWED: Partial<Record<TransitionKey, OmsOrderStatus>> = {
   [`${OmsOrderStatus.allocated}|cancel|admin`]: OmsOrderStatus.cancelled,
   [`${OmsOrderStatus.picking}|cancel|admin`]: OmsOrderStatus.cancelled,
   [`${OmsOrderStatus.packing}|cancel|admin`]: OmsOrderStatus.cancelled,
+  // Out for Delivery (raw shipped / out_for_delivery) — admin only
+  [`${OmsOrderStatus.shipped}|cancel|admin`]: OmsOrderStatus.cancelled,
+  [`${OmsOrderStatus.out_for_delivery}|cancel|admin`]: OmsOrderStatus.cancelled,
 
   // Reject (admin only, pre-fulfillment)
   [`${OmsOrderStatus.confirmed_waiting_for_admin_approval}|reject|admin`]:
@@ -118,6 +122,10 @@ const ALLOWED: Partial<Record<TransitionKey, OmsOrderStatus>> = {
   // Full return after warehouse receive/complete
   [`${OmsOrderStatus.delivered}|mark_returned|system`]: OmsOrderStatus.returned,
   [`${OmsOrderStatus.delivered}|mark_returned|admin`]: OmsOrderStatus.returned,
+  [`${OmsOrderStatus.shipped}|mark_returned|system`]: OmsOrderStatus.returned,
+  [`${OmsOrderStatus.shipped}|mark_returned|admin`]: OmsOrderStatus.returned,
+  [`${OmsOrderStatus.out_for_delivery}|mark_returned|system`]: OmsOrderStatus.returned,
+  [`${OmsOrderStatus.out_for_delivery}|mark_returned|admin`]: OmsOrderStatus.returned,
 };
 
 export function assertOmsTransition(
@@ -138,4 +146,16 @@ export function assertOmsTransition(
 export function resolveOmsActorRole(role: string | undefined | null): OmsTransitionActor {
   if (role === 'client_admin' || role === 'client_staff') return 'client';
   return 'admin';
+}
+
+/** Only exit from cancelled. Next status is dynamic (pre-cancel snapshot). */
+export function assertOmsCancelRevert(
+  from: OmsOrderStatus,
+  actor: OmsTransitionActor,
+): void {
+  if (from !== OmsOrderStatus.cancelled) {
+    throw new InvalidStateException(
+      `OMS transition not allowed: ${from} —[cancel_revert/${actor}]→`,
+    );
+  }
 }

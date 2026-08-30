@@ -27,7 +27,7 @@ describe('OmsOrdersCsvService.exportCsv', () => {
           subtotal: '10',
           shippingFee: '0',
           total: '10',
-          lines: [{ requestedQuantity: '2' }],
+          lines: [{ requestedQuantity: '2', product: { name: 'مروحة', weightKg: '1.25' } }],
           shippingMethod: 'manual',
           shippingProviderCode: null,
           carrier: null,
@@ -57,6 +57,10 @@ describe('OmsOrdersCsvService.exportCsv', () => {
     expect(result.body).toContain('OMS-1');
     expect(result.body).toContain('أحمد');
     expect(result.body).toContain('دمشق');
+    expect(result.body).toContain('مروحة');
+    expect(result.body).toContain('1.25');
+    expect(result.body).toContain('Product name');
+    expect(result.body).toContain('Product weight (kg)');
   });
 });
 

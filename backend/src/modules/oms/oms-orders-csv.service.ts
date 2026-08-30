@@ -19,6 +19,7 @@ import {
   adminHeaderLabels,
   adminOrderedColumnIds,
 } from './admin-order-export.columns';
+import { exportProductNames, exportProductWeights } from './order-export-product-cells';
 import { CreateOmsOrderDto } from './dto/oms-order.dto';
 import { ListOmsOrdersQueryDto } from './dto/list-oms-orders-query.dto';
 import {
@@ -144,6 +145,8 @@ export class OmsOrdersCsvService {
         total: o.total ?? '',
         line_count: lineCount,
         total_quantity: totalQty,
+        product_name: exportProductNames(o.lines),
+        product_weight: exportProductWeights(o.lines),
         shipping_method: o.shippingMethod ?? '',
         shipping_provider_code: o.shippingProviderCode ?? '',
         carrier: o.carrier ?? '',

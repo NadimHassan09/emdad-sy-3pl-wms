@@ -85,3 +85,38 @@ export class UpdateOmsReturnPlanDto {
   @MaxLength(1000)
   notes?: string;
 }
+
+/** Normal Return — resolve order and returnable lines (not Express). */
+export class PreviewOmsReturnDto {
+  @IsString()
+  @MaxLength(200)
+  orderReference!: string;
+}
+
+export class ImportOmsReturnRowDto {
+  @IsString()
+  @MaxLength(200)
+  orderReference!: string;
+
+  @IsString()
+  @MaxLength(200)
+  productReference!: string;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 4 })
+  quantity!: number;
+}
+
+/** Normal Return CSV/bulk import (not Express). */
+export class ImportOmsReturnsDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ImportOmsReturnRowDto)
+  rows!: ImportOmsReturnRowDto[];
+}

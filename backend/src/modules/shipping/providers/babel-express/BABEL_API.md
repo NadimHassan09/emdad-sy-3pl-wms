@@ -48,6 +48,7 @@ Required: receiver (with neighbourhood id or coordinates), `type` box|envelope, 
 
 - Multi-part: one `{ weight }` per physical unit (OpenAPI has **no** L/W/H on parts).
 - Reseller warehouse: `pickupType` coerced to `hub` (no sender block).
+- Shipping fee payer: `sender` coerced to `receiver` (Babel rejects sender; EMDAD bills the receiver).
 - Preflight `calculatePrice` for the selected option before `createShipment`.
 
 ## COD

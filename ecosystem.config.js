@@ -12,6 +12,9 @@ module.exports = {
       // and causes online/offline flapping + reconnect request storms.
       defaultInstances: 1,
       env: {
+        // Pin system Chrome so a polluted shell PUPPETEER_CACHE_DIR
+        // (e.g. Cursor sandbox) cannot break PDF / API-docs downloads.
+        PUPPETEER_EXECUTABLE_PATH: '/usr/bin/google-chrome',
         PUPPETEER_CACHE_DIR: '/root/.cache/puppeteer',
       },
     }),

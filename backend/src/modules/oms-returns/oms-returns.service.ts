@@ -33,6 +33,22 @@ import {
   assertOmsReturnAdminStageAction,
   nextOmsReturnAdminAction,
 } from './oms-return-admin-stages';
+import { isOmsReturnEligibleStatus } from '../oms/oms-return-eligibility';
+import {
+  assertOmsOrderUuid,
+  dedupeExpressReturnInputs,
+  expressReturnStatusRejectReason,
+  resolveExpressReturnOrder,
+} from './express-return-resolve';
+import {
+  aggregateNormalReturnRows,
+  resolveProductOnOrderLines,
+  type NormalReturnImportRow,
+} from './normal-return-import';
+import type {
+  ImportOmsReturnsDto,
+  PreviewOmsReturnDto,
+} from './dto/oms-return.dto';
 import {
   assertInboundAdminPlanComplete,
   normalizeExecutionMode,
@@ -324,9 +340,9 @@ export class OmsReturnsService {
     if (!order) throw new NotFoundException('OMS order not found.');
     this.companyAccess.validateResourceOwnership(user, order);
 
-    if (order.status !== OmsOrderStatus.delivered) {
+    if (!isOmsReturnEligibleStatus(order.status)) {
       throw new InvalidStateException(
-        'OMS returns can only be created for Delivered orders.',
+        'OMS returns can only be created for Delivered or Out for Delivery orders.',
       );
     }
 
@@ -959,6 +975,7 @@ export class OmsReturnsService {
     omsOrderId: string,
     excludeReturnId?: string,
   ): Promise<Map<string, Prisma.Decimal>> {
+    assertOmsOrderUuid(omsOrderId);
     const lines = await this.prisma.omsReturnLine.findMany({
       where: {
         omsReturn: {
@@ -1046,7 +1063,7 @@ export class OmsReturnsService {
       where: { id: omsOrderId },
       include: { lines: true },
     });
-    if (!order || order.status !== OmsOrderStatus.delivered) return;
+    if (!order || !isOmsReturnEligibleStatus(order.status)) return;
 
     // Only completed returns count toward "goods received / fully returned".
     const completedLines = await this.prisma.omsReturnLine.findMany({
@@ -1137,38 +1154,433 @@ export class OmsReturnsService {
     }
   }
 
+  /**
+   * Normal Return preview — resolve order reference and returnable lines.
+   * Does not change Express Return behavior.
+   */
+  async previewNormalReturn(user: AuthPrincipal, dto: PreviewOmsReturnDto) {
+    const resolved = await resolveExpressReturnOrder(this.prisma, dto.orderReference, {
+      lines: {
+        include: { product: { select: { id: true, name: true, sku: true, uom: true } } },
+        orderBy: { lineNumber: 'asc' },
+      },
+    });
+    if (!resolved.ok) {
+      throw new NotFoundException(resolved.error);
+    }
+    const order = resolved.order;
+    this.companyAccess.validateResourceOwnership(user, order);
+
+    if (!isOmsReturnEligibleStatus(order.status)) {
+      throw new InvalidStateException(expressReturnStatusRejectReason(order.status));
+    }
+
+    const priorReturned = await this.sumActiveReturnedQtyByProduct(order.id);
+    const lines = (order.lines as Array<{
+      productId: string;
+      requestedQuantity: Prisma.Decimal;
+      product?: { id: string; name: string; sku: string; uom?: string } | null;
+    }>).map((ol) => {
+      const ordered = Number(ol.requestedQuantity);
+      const alreadyReturned = Number(priorReturned.get(ol.productId) ?? 0);
+      const returnable = Math.max(0, ordered - alreadyReturned);
+      return {
+        productId: ol.productId,
+        sku: ol.product?.sku ?? '',
+        name: ol.product?.name ?? '',
+        uom: ol.product?.uom ?? undefined,
+        ordered,
+        alreadyReturned,
+        returnable,
+      };
+    });
+
+    return {
+      omsOrderId: order.id as string,
+      orderNumber: order.orderNumber as string,
+      clientReference: (order.clientReference as string | null) ?? null,
+      matchedBy: resolved.matchedBy,
+      lines,
+    };
+  }
+
+  /**
+   * Normal Return CSV validate-only (no create).
+   * Same pipeline as import through aggregate + returnable check.
+   */
+  async validateNormalReturnImport(user: AuthPrincipal, dto: ImportOmsReturnsDto) {
+    return this.prepareNormalReturnImport(user, dto);
+  }
+
+  /**
+   * Normal Return CSV/bulk import (create after prepare).
+   * Prefer validate + modal Confirm; this remains for direct create callers.
+   */
+  async importNormalReturns(user: AuthPrincipal, dto: ImportOmsReturnsDto) {
+    const prepared = await this.prepareNormalReturnImport(user, dto);
+    const created: Array<{
+      omsOrderId: string;
+      orderNumber: string;
+      returnId: string;
+      returnNumber: string;
+    }> = [];
+    const failed = [...prepared.failed];
+
+    for (const orderReady of prepared.ready) {
+      const lines = orderReady.lines
+        .filter((l) => l.quantity > 0)
+        .map((l) => ({ productId: l.productId, quantity: l.quantity }));
+      if (lines.length === 0) continue;
+      try {
+        const result = await this.create(user, {
+          omsOrderId: orderReady.omsOrderId,
+          reason: dto.reason,
+          lines,
+        });
+        created.push({
+          omsOrderId: orderReady.omsOrderId,
+          orderNumber: orderReady.orderNumber,
+          returnId: result.id,
+          returnNumber: result.returnNumber,
+        });
+      } catch (err: any) {
+        for (const line of orderReady.lines.filter((l) => l.quantity > 0)) {
+          failed.push({
+            order_reference: orderReady.orderNumber,
+            product_reference: line.sku || line.productId,
+            quantity: line.quantity,
+            reason: err?.message ?? 'Failed to create return',
+          });
+        }
+      }
+    }
+
+    return { created, failed };
+  }
+
+  /**
+   * Shared Normal CSV pipeline: resolve → validate → aggregate → returnable check.
+   * Does not create returns.
+   */
+  private async prepareNormalReturnImport(
+    user: AuthPrincipal,
+    dto: ImportOmsReturnsDto,
+  ): Promise<{
+    ready: Array<{
+      omsOrderId: string;
+      orderNumber: string;
+      clientReference: string | null;
+      lines: Array<{
+        productId: string;
+        sku: string;
+        name: string;
+        uom?: string;
+        ordered: number;
+        alreadyReturned: number;
+        returnable: number;
+        quantity: number;
+      }>;
+    }>;
+    failed: Array<{
+      order_reference: string;
+      product_reference: string;
+      quantity: number;
+      reason: string;
+    }>;
+  }> {
+    type FailedRow = {
+      order_reference: string;
+      product_reference: string;
+      quantity: number;
+      reason: string;
+    };
+
+    const failed: FailedRow[] = [];
+    const resolvedReady: Array<{
+      omsOrderId: string;
+      productId: string;
+      quantity: number;
+      source: NormalReturnImportRow;
+    }> = [];
+
+    const orderCache = new Map<
+      string,
+      {
+        id: string;
+        orderNumber: string;
+        clientReference: string | null;
+        status: OmsOrderStatus;
+        companyId: string;
+        lines: Array<{
+          productId: string;
+          requestedQuantity: Prisma.Decimal;
+          product?: { id: string; sku: string; name: string; uom?: string } | null;
+        }>;
+        priorReturned: Map<string, Prisma.Decimal>;
+      }
+    >();
+
+    const resolveOrderCached = async (orderReference: string) => {
+      const key = orderReference.trim().toLowerCase();
+      const hit = orderCache.get(key);
+      if (hit) return { ok: true as const, order: hit };
+
+      const resolved = await resolveExpressReturnOrder(this.prisma, orderReference, {
+        lines: {
+          include: { product: { select: { id: true, name: true, sku: true, uom: true } } },
+          orderBy: { lineNumber: 'asc' },
+        },
+      });
+      if (!resolved.ok) return { ok: false as const, error: resolved.error };
+
+      const order = resolved.order;
+      this.companyAccess.validateResourceOwnership(user, order);
+      const priorReturned = await this.sumActiveReturnedQtyByProduct(order.id);
+      const cached = {
+        id: order.id as string,
+        orderNumber: order.orderNumber as string,
+        clientReference: (order.clientReference as string | null) ?? null,
+        status: order.status as OmsOrderStatus,
+        companyId: order.companyId as string,
+        lines: order.lines as Array<{
+          productId: string;
+          requestedQuantity: Prisma.Decimal;
+          product?: { id: string; sku: string; name: string; uom?: string } | null;
+        }>,
+        priorReturned,
+      };
+      orderCache.set(key, cached);
+      orderCache.set(cached.id.toLowerCase(), cached);
+      return { ok: true as const, order: cached };
+    };
+
+    for (let i = 0; i < dto.rows.length; i++) {
+      const raw = dto.rows[i];
+      const source: NormalReturnImportRow = {
+        orderReference: String(raw.orderReference ?? '').trim(),
+        productReference: String(raw.productReference ?? '').trim(),
+        quantity: Number(raw.quantity),
+        rowIndex: i,
+      };
+
+      const pushFail = (reason: string) => {
+        failed.push({
+          order_reference: source.orderReference,
+          product_reference: source.productReference,
+          quantity: Number.isFinite(source.quantity) ? source.quantity : 0,
+          reason,
+        });
+      };
+
+      if (!source.orderReference) {
+        pushFail('Order not found.');
+        continue;
+      }
+      if (!source.productReference) {
+        pushFail('Product not found in order');
+        continue;
+      }
+      if (!Number.isFinite(source.quantity) || source.quantity <= 0) {
+        pushFail('Quantity must be greater than 0');
+        continue;
+      }
+
+      let orderResult: Awaited<ReturnType<typeof resolveOrderCached>>;
+      try {
+        orderResult = await resolveOrderCached(source.orderReference);
+      } catch (err: any) {
+        pushFail(err?.message ?? 'Order access denied');
+        continue;
+      }
+      if (!orderResult.ok) {
+        pushFail(orderResult.error === 'Order not found.' ? 'Order not found' : orderResult.error);
+        continue;
+      }
+
+      const order = orderResult.order;
+      if (!isOmsReturnEligibleStatus(order.status)) {
+        pushFail(expressReturnStatusRejectReason(order.status));
+        continue;
+      }
+
+      const line = resolveProductOnOrderLines(order.lines, source.productReference);
+      if (!line) {
+        pushFail('Product not found in order');
+        continue;
+      }
+
+      resolvedReady.push({
+        omsOrderId: order.id,
+        productId: line.productId,
+        quantity: source.quantity,
+        source,
+      });
+    }
+
+    const aggregates = aggregateNormalReturnRows(resolvedReady);
+    /** omsOrderId → productId → aggregated qty (only lines that passed returnable check) */
+    const acceptedQty = new Map<string, Map<string, number>>();
+    const acceptedOrderIds = new Set<string>();
+
+    for (const agg of aggregates) {
+      const order =
+        [...orderCache.values()].find((o) => o.id === agg.omsOrderId) ?? null;
+      if (!order) {
+        for (const src of agg.sourceRows) {
+          failed.push({
+            order_reference: src.orderReference,
+            product_reference: src.productReference,
+            quantity: src.quantity,
+            reason: 'Order not found',
+          });
+        }
+        continue;
+      }
+
+      const orderLine = order.lines.find((l) => l.productId === agg.productId);
+      const ordered = Number(orderLine?.requestedQuantity ?? 0);
+      const already = Number(order.priorReturned.get(agg.productId) ?? 0);
+      const returnable = Math.max(0, ordered - already);
+
+      if (agg.quantity > returnable) {
+        for (const src of agg.sourceRows) {
+          failed.push({
+            order_reference: src.orderReference,
+            product_reference: src.productReference,
+            quantity: src.quantity,
+            reason: 'Requested quantity exceeds returnable quantity',
+          });
+        }
+        continue;
+      }
+
+      acceptedOrderIds.add(order.id);
+      const byProduct = acceptedQty.get(order.id) ?? new Map<string, number>();
+      byProduct.set(agg.productId, agg.quantity);
+      acceptedQty.set(order.id, byProduct);
+    }
+
+    const ready: Array<{
+      omsOrderId: string;
+      orderNumber: string;
+      clientReference: string | null;
+      lines: Array<{
+        productId: string;
+        sku: string;
+        name: string;
+        uom?: string;
+        ordered: number;
+        alreadyReturned: number;
+        returnable: number;
+        quantity: number;
+      }>;
+    }> = [];
+
+    // Unique orders by id (cache may have duplicate entries under different keys).
+    const uniqueOrders = new Map<string, {
+      id: string;
+      orderNumber: string;
+      clientReference: string | null;
+      status: OmsOrderStatus;
+      companyId: string;
+      lines: Array<{
+        productId: string;
+        requestedQuantity: Prisma.Decimal;
+        product?: { id: string; sku: string; name: string; uom?: string } | null;
+      }>;
+      priorReturned: Map<string, Prisma.Decimal>;
+    }>();
+    for (const order of orderCache.values()) {
+      uniqueOrders.set(order.id, order);
+    }
+
+    for (const orderId of acceptedOrderIds) {
+      const order = uniqueOrders.get(orderId);
+      if (!order) continue;
+      const qtyMap = acceptedQty.get(order.id) ?? new Map();
+      ready.push({
+        omsOrderId: order.id,
+        orderNumber: order.orderNumber,
+        clientReference: order.clientReference,
+        lines: order.lines.map((ol) => {
+          const ordered = Number(ol.requestedQuantity);
+          const alreadyReturned = Number(order.priorReturned.get(ol.productId) ?? 0);
+          const returnable = Math.max(0, ordered - alreadyReturned);
+          return {
+            productId: ol.productId,
+            sku: ol.product?.sku ?? '',
+            name: ol.product?.name ?? '',
+            uom: ol.product?.uom ?? undefined,
+            ordered,
+            alreadyReturned,
+            returnable,
+            quantity: qtyMap.get(ol.productId) ?? 0,
+          };
+        }),
+      });
+    }
+
+    return { ready, failed };
+  }
+
   async expressReturn(
     user: AuthPrincipal,
     dto: { omsOrderIds: string[]; reason?: string },
   ): Promise<{
     created: Array<{ omsOrderId: string; orderNumber: string; returnId: string; returnNumber: string }>;
-    failed: Array<{ omsOrderId: string; orderNumber?: string; error: string }>;
+    failed: Array<{
+      omsOrderId: string;
+      input?: string;
+      orderNumber?: string;
+      clientReference?: string | null;
+      error: string;
+    }>;
   }> {
-    const unique = [...new Set(dto.omsOrderIds)].slice(0, 200);
-    const created: Array<{ omsOrderId: string; orderNumber: string; returnId: string; returnNumber: string }> = [];
-    const failed: Array<{ omsOrderId: string; orderNumber?: string; error: string }> = [];
+    const uniqueInputs = dedupeExpressReturnInputs(dto.omsOrderIds).slice(0, 200);
+    const created: Array<{
+      omsOrderId: string;
+      orderNumber: string;
+      returnId: string;
+      returnNumber: string;
+    }> = [];
+    const failed: Array<{
+      omsOrderId: string;
+      input?: string;
+      orderNumber?: string;
+      clientReference?: string | null;
+      error: string;
+    }> = [];
+    const seenOrderIds = new Set<string>();
 
-    for (const omsOrderId of unique) {
+    for (const input of uniqueInputs) {
       try {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(omsOrderId);
-        const order = isUuid
-          ? await this.prisma.omsOrder.findUnique({ where: { id: omsOrderId }, include: { lines: true } })
-          : await this.prisma.omsOrder.findFirst({
-              where: { orderNumber: { equals: omsOrderId, mode: 'insensitive' } },
-              include: { lines: true },
-            });
-        if (!order) {
-          failed.push({ omsOrderId, error: 'OMS order not found.' });
+        const resolved = await resolveExpressReturnOrder(this.prisma, input, {
+          lines: true,
+        });
+        if (!resolved.ok) {
+          failed.push({ omsOrderId: input, input, error: resolved.error });
           continue;
         }
+        const order = resolved.order;
+        if (seenOrderIds.has(order.id)) {
+          continue;
+        }
+        seenOrderIds.add(order.id);
+
         this.companyAccess.validateResourceOwnership(user, order);
 
-        if (order.status !== OmsOrderStatus.delivered) {
-          failed.push({ omsOrderId, orderNumber: order.orderNumber, error: `Order status is ${order.status}, expected delivered.` });
+        if (!isOmsReturnEligibleStatus(order.status)) {
+          failed.push({
+            omsOrderId: order.id,
+            input,
+            orderNumber: order.orderNumber,
+            clientReference: order.clientReference,
+            error: expressReturnStatusRejectReason(order.status),
+          });
           continue;
         }
 
-        const priorReturned = await this.sumActiveReturnedQtyByProduct(omsOrderId);
+        const priorReturned = await this.sumActiveReturnedQtyByProduct(order.id);
         const lines: Array<{ productId: string; quantity: number }> = [];
 
         for (const ol of order.lines) {
@@ -1180,7 +1592,13 @@ export class OmsReturnsService {
         }
 
         if (lines.length === 0) {
-          failed.push({ omsOrderId, orderNumber: order.orderNumber, error: 'All products already fully returned.' });
+          failed.push({
+            omsOrderId: order.id,
+            input,
+            orderNumber: order.orderNumber,
+            clientReference: order.clientReference,
+            error: 'Order is already fully returned',
+          });
           continue;
         }
 
@@ -1191,14 +1609,15 @@ export class OmsReturnsService {
         });
 
         created.push({
-          omsOrderId,
+          omsOrderId: order.id,
           orderNumber: order.orderNumber,
           returnId: result.id,
           returnNumber: result.returnNumber,
         });
       } catch (err: any) {
         failed.push({
-          omsOrderId,
+          omsOrderId: input,
+          input,
           error: err?.message ?? 'Unknown error',
         });
       }
@@ -1210,24 +1629,32 @@ export class OmsReturnsService {
   async validateOrdersForExpressReturn(
     user: AuthPrincipal,
     dto: { omsOrderIds: string[] },
-  ): Promise<Array<{
-    omsOrderId: string;
-    orderNumber: string;
-    eligible: boolean;
-    error?: string;
-    lines?: Array<{
-      productId: string;
-      productName: string;
-      productSku: string;
-      ordered: number;
-      alreadyReturned: number;
-      returnable: number;
-    }>;
-  }>> {
-    const unique = [...new Set(dto.omsOrderIds)].slice(0, 200);
-    const results: Array<{
+  ): Promise<
+    Array<{
+      input: string;
       omsOrderId: string;
       orderNumber: string;
+      clientReference: string | null;
+      matchedBy?: 'id' | 'orderNumber' | 'clientReference';
+      eligible: boolean;
+      error?: string;
+      lines?: Array<{
+        productId: string;
+        productName: string;
+        productSku: string;
+        ordered: number;
+        alreadyReturned: number;
+        returnable: number;
+      }>;
+    }>
+  > {
+    const uniqueInputs = dedupeExpressReturnInputs(dto.omsOrderIds).slice(0, 200);
+    const results: Array<{
+      input: string;
+      omsOrderId: string;
+      orderNumber: string;
+      clientReference: string | null;
+      matchedBy?: 'id' | 'orderNumber' | 'clientReference';
       eligible: boolean;
       error?: string;
       lines?: Array<{
@@ -1239,36 +1666,58 @@ export class OmsReturnsService {
         returnable: number;
       }>;
     }> = [];
+    const seenOrderIds = new Set<string>();
 
-    for (const omsOrderId of unique) {
+    const lineInclude = {
+      lines: { include: { product: { select: { id: true, name: true, sku: true } } } },
+    };
+
+    for (const input of uniqueInputs) {
       try {
-        // Support lookup by UUID or by orderNumber
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(omsOrderId);
-        const order = isUuid
-          ? await this.prisma.omsOrder.findUnique({
-              where: { id: omsOrderId },
-              include: {
-                lines: { include: { product: { select: { id: true, name: true, sku: true } } } },
-              },
-            })
-          : await this.prisma.omsOrder.findFirst({
-              where: { orderNumber: { equals: omsOrderId, mode: 'insensitive' } },
-              include: {
-                lines: { include: { product: { select: { id: true, name: true, sku: true } } } },
-              },
-            });
-        if (!order) {
-          results.push({ omsOrderId, orderNumber: '', eligible: false, error: 'OMS order not found.' });
+        const resolved = await resolveExpressReturnOrder(this.prisma, input, lineInclude);
+        if (!resolved.ok) {
+          results.push({
+            input,
+            omsOrderId: '',
+            orderNumber: '',
+            clientReference: null,
+            eligible: false,
+            error: resolved.error,
+          });
           continue;
         }
+
+        const order = resolved.order;
+        if (seenOrderIds.has(order.id)) {
+          results.push({
+            input,
+            omsOrderId: order.id,
+            orderNumber: order.orderNumber,
+            clientReference: order.clientReference,
+            matchedBy: resolved.matchedBy,
+            eligible: false,
+            error: 'Duplicate of another resolved OMS order in this request',
+          });
+          continue;
+        }
+        seenOrderIds.add(order.id);
+
         this.companyAccess.validateResourceOwnership(user, order);
 
-        if (order.status !== OmsOrderStatus.delivered) {
-          results.push({ omsOrderId, orderNumber: order.orderNumber, eligible: false, error: `Order status is ${order.status}, expected delivered.` });
+        if (!isOmsReturnEligibleStatus(order.status)) {
+          results.push({
+            input,
+            omsOrderId: order.id,
+            orderNumber: order.orderNumber,
+            clientReference: order.clientReference,
+            matchedBy: resolved.matchedBy,
+            eligible: false,
+            error: expressReturnStatusRejectReason(order.status),
+          });
           continue;
         }
 
-        const priorReturned = await this.sumActiveReturnedQtyByProduct(omsOrderId);
+        const priorReturned = await this.sumActiveReturnedQtyByProduct(order.id);
         const lines: Array<{
           productId: string;
           productName: string;
@@ -1295,14 +1744,24 @@ export class OmsReturnsService {
 
         const hasReturnable = lines.some((l) => l.returnable > 0);
         results.push({
-          omsOrderId,
+          input,
+          omsOrderId: order.id,
           orderNumber: order.orderNumber,
+          clientReference: order.clientReference,
+          matchedBy: resolved.matchedBy,
           eligible: hasReturnable,
-          error: hasReturnable ? undefined : 'All products already fully returned.',
+          error: hasReturnable ? undefined : 'Order is already fully returned',
           lines,
         });
       } catch (err: any) {
-        results.push({ omsOrderId, orderNumber: '', eligible: false, error: err?.message ?? 'Unknown error' });
+        results.push({
+          input,
+          omsOrderId: '',
+          orderNumber: '',
+          clientReference: null,
+          eligible: false,
+          error: err?.message ?? 'Unknown error',
+        });
       }
     }
 
