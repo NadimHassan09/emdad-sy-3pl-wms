@@ -236,6 +236,14 @@ export class OmsController {
     return this.orders.cancel(id, user);
   }
 
+  @Post('orders/:id/cancel-revert')
+  cancelRevert(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.orders.revertCancel(id, user);
+  }
+
   @Post('orders/:id/failed-delivery')
   failedDelivery(
     @CurrentUser() user: AuthPrincipal,

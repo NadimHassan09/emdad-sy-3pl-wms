@@ -6,6 +6,8 @@ import { ParseUuidLoosePipe } from '../../common/pipes/parse-uuid-loose.pipe';
 import {
   ApproveOmsReturnDto,
   CreateOmsReturnDto,
+  ImportOmsReturnsDto,
+  PreviewOmsReturnDto,
   RejectOmsReturnDto,
   UpdateOmsReturnPlanDto,
 } from './dto/oms-return.dto';
@@ -48,6 +50,33 @@ export class OmsReturnsController {
     @Body() body: { omsOrderIds: string[] },
   ) {
     return this.returns.validateOrdersForExpressReturn(user, body);
+  }
+
+  /** Normal Return only — resolve order + returnable lines. */
+  @Post('preview')
+  preview(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: PreviewOmsReturnDto,
+  ) {
+    return this.returns.previewNormalReturn(user, dto);
+  }
+
+  /** Normal Return CSV — validate only (no create); review then Confirm in UI. */
+  @Post('import/validate')
+  validateImportRows(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: ImportOmsReturnsDto,
+  ) {
+    return this.returns.validateNormalReturnImport(user, dto);
+  }
+
+  /** Normal Return CSV — create after validate (prefer UI Confirm + POST /oms/returns). */
+  @Post('import')
+  importRows(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: ImportOmsReturnsDto,
+  ) {
+    return this.returns.importNormalReturns(user, dto);
   }
 
   @Get(':id')

@@ -15,6 +15,7 @@ import {
   adminHeaderLabels,
   adminOrderedColumnIds,
 } from '../oms/admin-order-export.columns';
+import { exportProductNames, exportProductWeights } from '../oms/order-export-product-cells';
 import { CreateOutboundOrderDto } from './dto/create-outbound.dto';
 import { ListOutboundQueryDto } from './dto/list-outbound-query.dto';
 import {
@@ -133,6 +134,8 @@ export class OutboundOrdersCsvService {
         notes: o.notes ?? '',
         line_count: lineCount,
         total_requested_quantity: totalQty,
+        product_name: exportProductNames(o.lines),
+        product_weight: exportProductWeights(o.lines),
         shipping_method: o.shippingMethod ?? '',
         execution_mode: o.executionMode ?? '',
         created_at: o.createdAt ? new Date(o.createdAt).toISOString() : '',

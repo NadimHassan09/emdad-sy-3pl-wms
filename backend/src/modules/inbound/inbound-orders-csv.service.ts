@@ -15,6 +15,7 @@ import {
   adminHeaderLabels,
   adminOrderedColumnIds,
 } from '../oms/admin-order-export.columns';
+import { exportProductNames, exportProductWeights } from '../oms/order-export-product-cells';
 import { CreateInboundOrderDto } from './dto/create-inbound.dto';
 import { ListInboundQueryDto } from './dto/list-inbound-query.dto';
 import {
@@ -136,6 +137,8 @@ export class InboundOrdersCsvService {
         notes: o.notes ?? '',
         line_count: lineCount,
         total_expected_quantity: totalQty,
+        product_name: exportProductNames(o.lines),
+        product_weight: exportProductWeights(o.lines),
         execution_mode: o.executionMode ?? '',
         created_at: o.createdAt ? new Date(o.createdAt).toISOString() : '',
         confirmed_at: o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',

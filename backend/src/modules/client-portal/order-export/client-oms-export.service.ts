@@ -5,6 +5,7 @@ import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { rowsToCsv } from '../../oms/oms-orders-csv.util';
 import { ClientOmsOrdersService } from '../oms/client-oms-orders.service';
 import { ClientOmsOrdersExportDto } from '../oms/dto/bulk-confirm-client-oms-orders.dto';
+import { exportProductNames, exportProductWeights } from '../../oms/order-export-product-cells';
 import {
   CLIENT_OMS_EXPORT_COLUMNS,
   headerLabels,
@@ -37,6 +38,10 @@ function cell(order: Record<string, unknown>, id: string): string {
         : '';
     case 'total':
       return order.total != null ? String(order.total) : '';
+    case 'product_name':
+      return exportProductNames(order.lines);
+    case 'product_weight':
+      return exportProductWeights(order.lines);
     case 'currency':
       return String(order.currency ?? '');
     case 'payment_method':

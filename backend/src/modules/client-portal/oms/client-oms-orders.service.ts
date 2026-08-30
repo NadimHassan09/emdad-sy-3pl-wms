@@ -74,6 +74,7 @@ export class ClientOmsOrdersService {
                     status: true,
                     trackingType: true,
                     uom: true,
+                    weightKg: true,
                   },
                 },
               },
@@ -374,6 +375,11 @@ export class ClientOmsOrdersService {
   async cancel(client: ClientPrincipal, id: string) {
     const user = clientAuthPrincipal(client);
     return this.omsOrders.cancel(id, user);
+  }
+
+  async revertCancel(client: ClientPrincipal, id: string) {
+    const user = clientAuthPrincipal(client);
+    return this.omsOrders.revertCancel(id, user);
   }
 
   async findOne(client: ClientPrincipal, id: string) {

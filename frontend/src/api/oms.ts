@@ -257,6 +257,9 @@ export interface OmsOrderDetail extends OmsOrderListItem {
   rejectedAt?: string | null;
   rejectedBy?: string | null;
   rejectionReason?: string | null;
+  cancelledFromStatus?: OmsOrderStatus | null;
+  revertCancelToStatus?: OmsOrderStatus | null;
+  canRevertCancel?: boolean;
   externalReference?: string | null;
   warehouseStatus?: string | null;
   shippingMethod?: ShippingMethod | null;
@@ -649,6 +652,10 @@ export const OmsApi = {
   cancel(id: string) {
     return api.post<OmsOrderDetail>(`/oms/orders/${id}/cancel`).then((r) => r.data);
   },
+
+  revertCancel(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/cancel-revert`).then((r) => r.data);
+  },
 };
 
 export const CodApi = {
@@ -746,8 +753,11 @@ export const OmsReturnsApi = {
 
   validateForExpress(input: { omsOrderIds: string[] }) {
     return api.post<Array<{
+      input: string;
       omsOrderId: string;
       orderNumber: string;
+      clientReference: string | null;
+      matchedBy?: 'id' | 'orderNumber' | 'clientReference';
       eligible: boolean;
       error?: string;
       lines?: Array<{
@@ -759,5 +769,81 @@ export const OmsReturnsApi = {
         returnable: number;
       }>;
     }>>('/oms/returns/express/validate', input).then((r) => r.data);
+  },
+
+  /** Normal Return — resolve order + returnable lines. */
+  preview(input: { orderReference: string }) {
+    return api
+      .post<{
+        omsOrderId: string;
+        orderNumber: string;
+        clientReference: string | null;
+        matchedBy?: string;
+        lines: Array<{
+          productId: string;
+          sku: string;
+          name: string;
+          uom?: string;
+          ordered: number;
+          alreadyReturned: number;
+          returnable: number;
+        }>;
+      }>('/oms/returns/preview', input)
+      .then((r) => r.data);
+  },
+
+  /** Normal Return CSV — validate only (no create). */
+  validateImport(input: {
+    reason?: string;
+    rows: Array<{ orderReference: string; productReference: string; quantity: number }>;
+  }) {
+    return api
+      .post<{
+        ready: Array<{
+          omsOrderId: string;
+          orderNumber: string;
+          clientReference: string | null;
+          lines: Array<{
+            productId: string;
+            sku: string;
+            name: string;
+            uom?: string;
+            ordered: number;
+            alreadyReturned: number;
+            returnable: number;
+            quantity: number;
+          }>;
+        }>;
+        failed: Array<{
+          order_reference: string;
+          product_reference: string;
+          quantity: number;
+          reason: string;
+        }>;
+      }>('/oms/returns/import/validate', input)
+      .then((r) => r.data);
+  },
+
+  /** Normal Return CSV/bulk import (creates immediately — prefer validate + Confirm). */
+  importRows(input: {
+    reason?: string;
+    rows: Array<{ orderReference: string; productReference: string; quantity: number }>;
+  }) {
+    return api
+      .post<{
+        created: Array<{
+          omsOrderId: string;
+          orderNumber: string;
+          returnId: string;
+          returnNumber: string;
+        }>;
+        failed: Array<{
+          order_reference: string;
+          product_reference: string;
+          quantity: number;
+          reason: string;
+        }>;
+      }>('/oms/returns/import', input)
+      .then((r) => r.data);
   },
 };

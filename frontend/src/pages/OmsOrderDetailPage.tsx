@@ -14,7 +14,13 @@ import { Modal } from '../components/Modal';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
-import { mapOmsCommercialDisplayStatus } from '../lib/oms-commercial-status';
+import {
+  mapOmsCommercialDisplayStatus,
+  omsCommercialStatusLabel,
+} from '../lib/oms-commercial-status';
+import { isOmsAdminCancellableStatus } from '../lib/oms-order-cancel';
+import { isOmsOrderDeletable } from '../lib/oms-order-delete';
+import { isOmsReturnEligibleStatus } from '../lib/oms-return-eligibility';
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
   return (
@@ -41,6 +47,7 @@ export function OmsOrderDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [undoCancelOpen, setUndoCancelOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [shippingFeeAfterOpen, setShippingFeeAfterOpen] = useState(false);
   const [revertOpen, setRevertOpen] = useState(false);
@@ -127,6 +134,16 @@ export function OmsOrderDetailPage() {
     onSuccess: () => {
       toast.success('Order cancelled.');
       setCancelOpen(false);
+      invalidate();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const undoCancelMut = useMutation({
+    mutationFn: () => OmsApi.revertCancel(id),
+    onSuccess: () => {
+      toast.success('Cancellation undone.');
+      setUndoCancelOpen(false);
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -249,15 +266,10 @@ export function OmsOrderDetailPage() {
       order.linkedOutboundOrder?.status === 'allocated' ||
       order.linkedOutboundOrder?.status === 'pending_approval');
   const canRevertDelivery = commercial === 'delivered';
-  const canCancel =
-    commercial === 'waiting_for_confirmation' ||
-    commercial === 'confirmed_waiting_for_admin_approval' ||
-    commercial === 'processing' ||
-    commercial === 'ready_to_ship' ||
-    commercial === 'legacy' ||
-    order.status === 'pending_approval' ||
-    order.status === 'pending';
-  const canCreateReturn = commercial === 'delivered';
+  const canUndoCancel = Boolean(order.canRevertCancel);
+  const canCancel = isOmsAdminCancellableStatus(order.status);
+  const canCreateReturn = isOmsReturnEligibleStatus(order.status);
+  const canDelete = isOmsOrderDeletable(order.status);
   const canSpecifyShippingFeeAfterDelivery =
     commercial === 'delivered' ||
     order.status === 'delivered' ||
@@ -331,6 +343,11 @@ export function OmsOrderDetailPage() {
                 Cancel order
               </Button>
             ) : null}
+            {canUndoCancel ? (
+              <Button variant="secondary" onClick={() => setUndoCancelOpen(true)}>
+                Undo Cancel
+              </Button>
+            ) : null}
             {canSpecifyShippingFeeAfterDelivery ? (
               <Button
                 variant="secondary"
@@ -366,9 +383,11 @@ export function OmsOrderDetailPage() {
                 Edit
               </Button>
             ) : null}
-            <Button variant="danger" onClick={() => setDeleteOpen(true)}>
-              Delete
-            </Button>
+            {canDelete ? (
+              <Button variant="danger" onClick={() => setDeleteOpen(true)}>
+                Delete
+              </Button>
+            ) : null}
           </div>
         }
       />
@@ -653,6 +672,24 @@ export function OmsOrderDetailPage() {
         onConfirm={() => cancelMut.mutate()}
       >
         <p className="text-sm">The order will be marked cancelled in the commercial lifecycle.</p>
+      </ConfirmModal>
+
+      <ConfirmModal
+        open={undoCancelOpen}
+        title="Undo this cancellation?"
+        confirmLabel="Undo Cancel"
+        cancelLabel="Keep cancelled"
+        loading={undoCancelMut.isPending}
+        onClose={() => !undoCancelMut.isPending && setUndoCancelOpen(false)}
+        onConfirm={() => undoCancelMut.mutate()}
+      >
+        <p className="text-sm">
+          The order will return to{' '}
+          <strong>
+            {omsCommercialStatusLabel(order.revertCancelToStatus ?? order.cancelledFromStatus ?? '')}
+          </strong>
+          .
+        </p>
       </ConfirmModal>
 
       <Modal

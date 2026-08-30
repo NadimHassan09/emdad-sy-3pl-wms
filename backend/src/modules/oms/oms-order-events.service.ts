@@ -45,6 +45,14 @@ export class OmsOrderEventsService {
     });
   }
 
+  listForOrderTx(tx: Tx, omsOrderId: string) {
+    return tx.omsOrderEvent.findMany({
+      where: { omsOrderId },
+      orderBy: { createdAt: 'asc' },
+      select: { eventType: true, payload: true },
+    });
+  }
+
   listForOutboundOrder(outboundOrderId: string) {
     return this.prisma.omsOrderEvent.findMany({
       where: { outboundOrderId },

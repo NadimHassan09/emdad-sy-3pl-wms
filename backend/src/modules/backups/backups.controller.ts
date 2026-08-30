@@ -16,11 +16,13 @@ import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import * as os from 'os';
 import * as path from 'path';
+import { pipeline } from 'node:stream/promises';
 import { diskStorage } from 'multer';
 
 import { AuthGroup } from '../../common/auth/auth-groups';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { Public } from '../../common/auth/public.decorator';
 import { Roles } from '../../common/auth/roles.decorator';
 import { InternalAdminGuard } from '../../common/auth/internal-admin.guard';
 import { RolesGuard } from '../../common/auth/roles.guard';
@@ -151,20 +153,27 @@ export class BackupsController {
     return this.backups.issueDownload(user, id);
   }
 
+  /**
+   * Browser-native download target. Authenticated by short-lived download token only
+   * (issued via POST :id/download-url) so the Admin UI can use <a href> instead of
+   * axios blob XHR — which was truncating large dumps behind Cloudflare (net::ERR_FAILED).
+   */
+  @Public()
   @Get(':id/download')
-  @UseGuards(SuperAdminGuard)
   @Header('Cache-Control', 'no-store')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   async download(
-    @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
     @Query('token') token: string,
     @Res() res: Response,
   ) {
-    const { stream, filename, sizeBytes } = await this.backups.streamDownload(user, id, token);
+    const { stream, filename, sizeBytes } = await this.backups.streamDownloadByToken(id, token);
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', String(sizeBytes));
-    stream.pipe(res);
+    // Disable nginx proxy buffering for this response (streaming dump files).
+    res.setHeader('X-Accel-Buffering', 'no');
+    await pipeline(stream, res);
   }
 
   @Get(':id')

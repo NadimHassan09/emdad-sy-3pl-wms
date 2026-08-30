@@ -79,7 +79,13 @@ export class ClientInboundOrdersService {
           orderBy: { createdAt: 'desc' },
           include: {
             company: { select: { id: true, name: true } },
-            lines: { select: { expectedQuantity: true } },
+            lines: {
+              orderBy: { lineNumber: 'asc' },
+              select: {
+                expectedQuantity: true,
+                product: { select: { name: true, weightKg: true } },
+              },
+            },
           },
         });
         return {

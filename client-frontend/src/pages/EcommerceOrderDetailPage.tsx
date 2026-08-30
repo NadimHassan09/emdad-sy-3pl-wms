@@ -17,6 +17,7 @@ import {
   confirmClientOmsOrder,
   fetchClientOmsOrder,
   fetchClientOmsTimeline,
+  revertCancelClientOmsOrder,
 } from '../services/clientOmsOrdersService';
 
 function formatDate(iso: string): string {
@@ -101,6 +102,14 @@ export function EcommerceOrderDetailPage(): ReactElement {
     },
   });
 
+  const undoCancelMut = useMutation({
+    mutationFn: () => revertCancelClientOmsOrder(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['client', 'ecommerce-orders', id] });
+      void qc.invalidateQueries({ queryKey: ['client', 'ecommerce-orders'] });
+    },
+  });
+
   const data = orderQuery.data
     ? {
         ...orderQuery.data,
@@ -118,6 +127,10 @@ export function EcommerceOrderDetailPage(): ReactElement {
     rawStatus === 'waiting_for_confirmation' ||
     rawStatus === 'confirmed_waiting_for_admin_approval' ||
     rawStatus === 'pending_approval';
+  const canUndoCancel = Boolean(data?.canRevertCancel);
+  const undoToLabel = data?.revertCancelToStatus
+    ? clientOmsCommercialStatusLabel(data.revertCancelToStatus, isArabic)
+    : null;
 
   const notFound =
     orderQuery.error &&
@@ -173,7 +186,7 @@ export function EcommerceOrderDetailPage(): ReactElement {
                 </StatusBadge>
               ) : null}
             </div>
-            {canConfirm || canCancel ? (
+            {canConfirm || canCancel || canUndoCancel ? (
               <div className="flex flex-wrap items-center gap-2">
                 {canConfirm ? (
                   <button
@@ -195,16 +208,37 @@ export function EcommerceOrderDetailPage(): ReactElement {
                     {isArabic ? 'إلغاء الطلب' : 'Cancel order'}
                   </button>
                 ) : null}
+                {canUndoCancel ? (
+                  <button
+                    type="button"
+                    disabled={undoCancelMut.isPending}
+                    onClick={() => {
+                      const msg = undoToLabel
+                        ? isArabic
+                          ? `التراجع عن الإلغاء وإرجاع الطلب إلى ${undoToLabel}؟`
+                          : `Undo cancel and restore this order to ${undoToLabel}?`
+                        : isArabic
+                          ? 'التراجع عن الإلغاء وإرجاع الطلب لحالته السابقة؟'
+                          : 'Undo cancel and restore this order to its previous status?';
+                      if (!window.confirm(msg)) return;
+                      undoCancelMut.mutate();
+                    }}
+                    className="rounded-lg border border-border-strong bg-surface-card px-3.5 py-2 text-sm font-semibold text-text-strong shadow-sm transition-colors hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isArabic ? 'التراجع عن الإلغاء' : 'Undo Cancel'}
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </div>
 
-          {confirmMut.isError || cancelMut.isError ? (
+          {confirmMut.isError || cancelMut.isError || undoCancelMut.isError ? (
             <Alert
               variant="error"
               title={
                 (confirmMut.error as Error | null)?.message ||
                 (cancelMut.error as Error | null)?.message ||
+                (undoCancelMut.error as Error | null)?.message ||
                 (isArabic ? 'تعذر تنفيذ الإجراء' : 'Action failed')
               }
             />

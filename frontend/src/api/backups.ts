@@ -549,22 +549,26 @@ export const BackupsApi = {
     return api.delete<GoogleDriveDisconnectResult>('/integrations/google-drive').then((r) => r.data);
   },
 
+  /**
+   * Issue a short-lived URL then trigger a browser-native navigation download.
+   * Avoids axios `responseType: 'blob'` XHR which truncates large dumps through
+   * Cloudflare/HTTP2 and surfaces as `net::ERR_FAILED` in the Admin Portal.
+   */
   async download(id: string, filenameHint?: string | null): Promise<void> {
-    const { token } = await this.issueDownloadUrl(id);
-    const response = await api.get<Blob>(`/backups/${id}/download`, {
-      params: { token },
-      responseType: 'blob',
-    });
+    const { downloadUrl } = await this.issueDownloadUrl(id);
+    const filename =
+      filenameHint && filenameHint.toLowerCase().endsWith('.dump')
+        ? filenameHint
+        : filenameHint
+          ? `${filenameHint}.dump`
+          : `${id}.dump`;
 
-    const disposition = response.headers['content-disposition'] as string | undefined;
-    const match = disposition?.match(/filename="([^"]+)"/);
-    const filename = match?.[1] ?? filenameHint ?? `${id}.dump`;
-
-    const url = URL.createObjectURL(response.data);
     const anchor = document.createElement('a');
-    anchor.href = url;
+    anchor.href = downloadUrl;
     anchor.download = filename;
+    anchor.rel = 'noopener';
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.remove();
   },
 };

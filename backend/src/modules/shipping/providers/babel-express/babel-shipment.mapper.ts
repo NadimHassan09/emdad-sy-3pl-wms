@@ -19,6 +19,17 @@ export function resolveBabelPickupType(
 }
 
 /**
+ * Babel currently rejects `payer: sender`
+ * ("Payer as sender is not available right now, please choose receiver or reseller").
+ * EMDAD shipping fee is collected from the receiver — never billed as sender.
+ */
+export function resolveBabelPayer(
+  payer: ShippingCreateShipmentInput['payer'],
+): Exclude<ShippingCreateShipmentInput['payer'], 'sender'> {
+  return payer === 'reseller' ? 'reseller' : 'receiver';
+}
+
+/**
  * Babel OpenAPI accepts COD currency (example uses USD; amount 0 disables COD).
  * Pass through the order's business currency — do NOT force SYP when COD is USD
  * (that would send "50 SYP" for a 50 USD COD and trip Babel's SYP minimum).
@@ -95,7 +106,7 @@ export function mapCreateShipmentPayload(input: ShippingCreateShipmentInput) {
         amount: input.codAmount,
         currency: resolveBabelCodCurrency(input.currency),
       },
-      payer: input.payer,
+      payer: resolveBabelPayer(input.payer),
       ...(input.reference ? { reference: input.reference } : {}),
     },
   };

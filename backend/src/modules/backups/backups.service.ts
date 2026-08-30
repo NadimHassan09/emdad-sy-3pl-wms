@@ -5,7 +5,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { BackupJobStatus, BackupJobType, Prisma, UserRole } from '@prisma/client';
+import { BackupJobStatus, BackupJobType, Prisma, UserRole, UserStatus } from '@prisma/client';
 import { createReadStream } from 'fs';
 import { copyFile, unlink } from 'fs/promises';
 import type { Readable } from 'stream';
@@ -453,7 +453,32 @@ export class BackupsService {
     }
 
     this.downloadTokens.verify(token, id, user.id);
+    return this.openDownloadStream(id);
+  }
 
+  /**
+   * Token-authenticated download (no JWT). The token is issued only to super_admin
+   * via POST /download-url; we re-check the issuer is still an active super_admin.
+   */
+  async streamDownloadByToken(
+    id: string,
+    token: string,
+  ): Promise<{ stream: Readable; filename: string; sizeBytes: number }> {
+    this.assertEnabled();
+    const { userId } = this.downloadTokens.assertValid(token, id);
+    const issuer = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, status: true },
+    });
+    if (!issuer || issuer.status !== UserStatus.active || issuer.role !== UserRole.super_admin) {
+      throw new ForbiddenException('Only super admin can download backups.');
+    }
+    return this.openDownloadStream(id);
+  }
+
+  private async openDownloadStream(
+    id: string,
+  ): Promise<{ stream: Readable; filename: string; sizeBytes: number }> {
     const job = await this.prisma.backupJob.findUnique({ where: { id } });
     await this.assertDownloadableJob(job);
 
