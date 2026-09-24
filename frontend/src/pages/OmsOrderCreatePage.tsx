@@ -23,7 +23,6 @@ import { companyFilterComboboxOptions } from '../lib/company-filter-options';
 import { isYmdOnOrAfterLocalToday, localCalendarDateYmd } from '../lib/order-planning-dates';
 import { canAccessInternalTransfer } from '../lib/rbac';
 import {
-  DEFAULT_PHONE_COUNTRY,
   isValidRecipientName,
   phoneFromStoredValue,
 } from '../../../shared/lib/recipient-contact';

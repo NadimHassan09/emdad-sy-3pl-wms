@@ -61,6 +61,73 @@ describe('OmsOrdersCsvService.exportCsv', () => {
     expect(result.body).toContain('1.25');
     expect(result.body).toContain('Product name');
     expect(result.body).toContain('Product weight (kg)');
+    expect(result.body).toContain('Ship date');
+    expect(result.body).toContain('Delivery date');
+    expect(result.body).not.toContain('وقت التسليم');
+  });
+
+  it('exports dispatch handover as تاريخ الشحن timestamp', async () => {
+    const dispatched = new Date('2026-08-30T15:04:00.000Z');
+    const listForExport = jest.fn().mockResolvedValue({
+      items: [
+        {
+          orderNumber: 'OMS-SHIP',
+          status: OmsOrderStatus.shipped,
+          companyId: 'c1',
+          company: { id: 'c1', name: 'Acme' },
+          lines: [],
+          requiredShipDate: new Date('2026-12-01'),
+          createdAt: new Date('2026-08-01'),
+          confirmedAt: null,
+          approvedAt: null,
+          outForDeliveryAt: dispatched,
+          deliveredAt: null,
+        },
+      ],
+      total: 1,
+      truncated: false,
+    });
+    const csv = new OmsOrdersCsvService({ listForExport } as never);
+    const result = await csv.exportCsv({ id: 'u1' } as never, {} as never, {
+      columnIds: ['order_number', 'out_for_delivery_at'],
+      arabicHeaders: true,
+    });
+    expect(result.body).toContain('تاريخ الشحن');
+    expect(result.body).toContain('2026-08-30T15:04:00.000Z');
+    expect(result.body).not.toContain('وقت التسليم');
+    expect(result.body).toContain('OMS-SHIP');
+  });
+
+  it('exports buyer deliveredAt as تاريخ التسليم date-only', async () => {
+    const delivered = new Date('2026-08-30T15:04:00.000Z');
+    const listForExport = jest.fn().mockResolvedValue({
+      items: [
+        {
+          orderNumber: 'OMS-DEL',
+          status: OmsOrderStatus.delivered,
+          companyId: 'c1',
+          company: { id: 'c1', name: 'Acme' },
+          lines: [],
+          requiredShipDate: new Date('2026-12-01'),
+          createdAt: new Date('2026-08-01'),
+          confirmedAt: null,
+          approvedAt: null,
+          outForDeliveryAt: null,
+          deliveredAt: delivered,
+        },
+      ],
+      total: 1,
+      truncated: false,
+    });
+    const csv = new OmsOrdersCsvService({ listForExport } as never);
+    const result = await csv.exportCsv({ id: 'u1' } as never, {} as never, {
+      columnIds: ['order_number', 'delivered_at'],
+      arabicHeaders: true,
+    });
+    expect(result.body).toContain('تاريخ التسليم');
+    expect(result.body).toContain('2026-08-30');
+    expect(result.body).not.toContain('T15:04:00.000Z');
+    expect(result.body).toContain('OMS-DEL');
   });
 });
 

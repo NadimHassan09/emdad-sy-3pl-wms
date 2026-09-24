@@ -76,6 +76,8 @@ export type ShippingRateQuote = {
   estimatedDeliveryMax?: number;
   deliveryType?: string;
   restrictions?: string[];
+  providerName?: string;
+  logoUrl?: string;
   isCheapest?: boolean;
   isFastest?: boolean;
   isRecommended?: boolean;
@@ -129,6 +131,7 @@ export type CarrierShipment = {
 export type ShippingConfigPayload = {
   shippingMethod?: ShippingMethod;
   shippingProviderCode?: string | null;
+  shippingServiceId?: string | null;
   shippingReceiverLat?: number | null;
   shippingReceiverLng?: number | null;
   shippingPackageType?: ShippingPackageType | null;
@@ -152,6 +155,7 @@ export type ShippingConfigPayload = {
 export type OrderShippingFieldsValue = {
   shippingMethod: ShippingMethod;
   shippingProviderCode: string;
+  shippingServiceId: string;
   shippingReceiverLat: string;
   shippingReceiverLng: string;
   shippingPackageType: ShippingPackageType | '';
@@ -169,13 +173,14 @@ export function emptyOrderShippingFields(): OrderShippingFieldsValue {
   return {
     shippingMethod: 'manual',
     shippingProviderCode: '',
+    shippingServiceId: '',
     shippingReceiverLat: '',
     shippingReceiverLng: '',
     shippingPackageType: '',
     shippingContents: '',
     shippingDeliveryType: '',
     shippingPickupType: '',
-    shippingPayer: 'receiver',
+    shippingPayer: 'sender',
     shippingWeightKg: '',
     shippingVolumeCbm: '',
     shippingPhoneCountry: '',
@@ -196,13 +201,14 @@ export function orderShippingFieldsFromApi(
   return {
     shippingMethod: src.shippingMethod === 'carrier' ? 'carrier' : 'manual',
     shippingProviderCode: src.shippingProviderCode?.trim() ?? '',
+    shippingServiceId: src.shippingServiceId?.trim() ?? '',
     shippingReceiverLat: numOrEmpty(src.shippingReceiverLat),
     shippingReceiverLng: numOrEmpty(src.shippingReceiverLng),
     shippingPackageType: (src.shippingPackageType as ShippingPackageType | null) ?? '',
     shippingContents: src.shippingContents?.trim() ?? '',
     shippingDeliveryType: (src.shippingDeliveryType as ShippingDeliveryType | null) ?? '',
     shippingPickupType: (src.shippingPickupType as ShippingPickupType | null) ?? '',
-    shippingPayer: (src.shippingPayer as ShippingPayer | null) ?? '',
+    shippingPayer: (src.shippingPayer as ShippingPayer | null) || 'sender',
     shippingWeightKg: numOrEmpty(src.shippingWeightKg),
     shippingVolumeCbm: numOrEmpty(src.shippingVolumeCbm),
     shippingPhoneCountry: src.shippingPhoneCountry?.trim() ?? '',
@@ -228,6 +234,7 @@ export function orderShippingFieldsToPayload(
   return {
     shippingMethod: 'carrier',
     shippingProviderCode: value.shippingProviderCode.trim() || null,
+    shippingServiceId: value.shippingServiceId?.trim() || null,
     shippingReceiverLat: parseOptionalNumber(value.shippingReceiverLat) ?? null,
     shippingReceiverLng: parseOptionalNumber(value.shippingReceiverLng) ?? null,
     shippingPackageType: value.shippingPackageType || null,
@@ -244,7 +251,9 @@ export function orderShippingFieldsToPayload(
 
 /** Intent-only payload for OMS / early outbound (method + provider). */
 export function orderShippingIntentToPayload(
-  value: Pick<OrderShippingFieldsValue, 'shippingMethod' | 'shippingProviderCode'>,
+  value: Pick<OrderShippingFieldsValue, 'shippingMethod' | 'shippingProviderCode'> & {
+    shippingServiceId?: string | null;
+  },
 ): ShippingConfigPayload {
   if (value.shippingMethod !== 'carrier') {
     return { shippingMethod: 'manual' };
@@ -252,6 +261,7 @@ export function orderShippingIntentToPayload(
   return {
     shippingMethod: 'carrier',
     shippingProviderCode: value.shippingProviderCode.trim() || null,
+    shippingServiceId: value.shippingServiceId?.trim() || null,
   };
 }
 
@@ -263,6 +273,8 @@ export function orderShippingDetailsToPayload(
     shippingMethod: value.shippingMethod,
     shippingProviderCode:
       value.shippingMethod === 'carrier' ? value.shippingProviderCode.trim() || null : null,
+    shippingServiceId:
+      value.shippingMethod === 'carrier' ? value.shippingServiceId?.trim() || null : null,
     shippingReceiverLat: parseOptionalNumber(value.shippingReceiverLat) ?? null,
     shippingReceiverLng: parseOptionalNumber(value.shippingReceiverLng) ?? null,
     shippingPackageType: value.shippingPackageType || null,

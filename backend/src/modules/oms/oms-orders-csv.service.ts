@@ -160,7 +160,9 @@ export class OmsOrdersCsvService {
         out_for_delivery_at: o.outForDeliveryAt
           ? new Date(o.outForDeliveryAt).toISOString()
           : '',
-        delivered_at: o.deliveredAt ? new Date(o.deliveredAt).toISOString() : '',
+        delivered_at: o.deliveredAt
+          ? new Date(o.deliveredAt).toISOString().slice(0, 10)
+          : '',
       };
       return columnIds.map((id) => cells[id] ?? '');
     });

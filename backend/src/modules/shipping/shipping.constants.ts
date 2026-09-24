@@ -1,6 +1,10 @@
 /** Canonical Babel Express provider code (no Nest DI — safe for circular-free imports). */
 export const BABEL_EXPRESS_CODE = 'BABEL_EXPRESS';
 
+/** Canonical Sila-SY provider code. */
+export const SILA_SY_CODE = 'SILA_SY';
+
+
 /** Pseudo-provider for Manual shipping in bulk selection (not a registry adapter). */
 export const MANUAL_SHIPPING_CODE = 'MANUAL';
 

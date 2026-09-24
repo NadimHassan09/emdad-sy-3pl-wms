@@ -5,7 +5,12 @@ import {
   mapHeaderRow,
   normalizeCompare,
 } from './order-import.grouping';
-import { OMS_CLIENT_IMPORT_ALIASES, OMS_ORDER_LEVEL_FIELDS } from './oms-client-import.schema';
+import {
+  OMS_CLIENT_IMPORT_ALIASES,
+  OMS_CLIENT_IMPORT_REQUIRED_COLUMNS,
+  OMS_LEGACY_REJECTED_HEADERS,
+  OMS_ORDER_LEVEL_FIELDS,
+} from './oms-client-import.schema';
 import { parseFlexibleDate } from './spreadsheet.parse';
 
 describe('order-import grouping', () => {
@@ -105,6 +110,38 @@ describe('order-import grouping', () => {
       ],
     );
     expect(groupsFromCsv(csv)[0]!.conflict).toBeUndefined();
+  });
+
+  it('rejects legacy template formats containing "district" or "address_line1"', () => {
+    const csv = rowsToCsv(
+      ['order_number', 'sku', 'quantity', 'city', 'district'],
+      [['ORDER-1001', 'SKU-A', '1', 'Aleppo', 'Atareb']],
+    );
+    const table = parseCsv(csv);
+    expect(() =>
+      assertImportTable(
+        table,
+        OMS_CLIENT_IMPORT_ALIASES,
+        OMS_CLIENT_IMPORT_REQUIRED_COLUMNS,
+        OMS_LEGACY_REJECTED_HEADERS,
+      ),
+    ).toThrow(/Unsupported legacy column detected/);
+  });
+
+  it('rejects templates missing current required columns like "governorate"', () => {
+    const csv = rowsToCsv(
+      ['order_number', 'sku', 'quantity', 'city'],
+      [['ORDER-1001', 'SKU-A', '1', 'Aleppo']],
+    );
+    const table = parseCsv(csv);
+    expect(() =>
+      assertImportTable(
+        table,
+        OMS_CLIENT_IMPORT_ALIASES,
+        OMS_CLIENT_IMPORT_REQUIRED_COLUMNS,
+        OMS_LEGACY_REJECTED_HEADERS,
+      ),
+    ).toThrow(/Missing required column/);
   });
 });
 

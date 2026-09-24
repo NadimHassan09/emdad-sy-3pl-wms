@@ -7,7 +7,9 @@ import { OutboundModule } from '../outbound/outbound.module';
 import { RealtimeModule } from '../realtime/realtime.module';
 import { CodModule } from '../cod/cod.module';
 import { ShippingModule } from '../shipping/shipping.module';
+import { PdfModule } from '../../pdf/pdf.module';
 import { OmsController } from './oms.controller';
+import { OmsBulkService } from './oms-bulk.service';
 import { OmsDashboardService } from './oms-dashboard.service';
 import { OmsOrderEventsService } from './oms-order-events.service';
 import { OmsOrdersCsvService } from './oms-orders-csv.service';
@@ -16,12 +18,14 @@ import { OmsOutboundSyncService } from './oms-outbound-sync.service';
 import { OmsSalesChannelService } from './sales-channels/oms-sales-channel.service';
 import { OmsWebhooksController } from './sales-channels/oms-webhooks.controller';
 import { OrderAllocationService } from './order-allocation.service';
+import { OmsWaybillService } from './oms-waybill.service';
 
 @Module({
   imports: [
     AuditModule,
     CompanyAccessModule,
     RealtimeModule,
+    PdfModule,
     forwardRef(() => OutboundModule),
     forwardRef(() => CodModule),
     forwardRef(() => ShippingModule),
@@ -33,15 +37,18 @@ import { OrderAllocationService } from './order-allocation.service';
     OmsOrderEventsService,
     OmsOutboundSyncService,
     OmsOrdersService,
+    OmsBulkService,
     OmsOrdersCsvService,
     OmsDashboardService,
     OmsSalesChannelService,
+    OmsWaybillService,
   ],
   exports: [
     OrderAllocationService,
     OmsOrderEventsService,
     OmsOutboundSyncService,
     OmsOrdersService,
+    OmsWaybillService,
   ],
 })
 export class OmsModule {}

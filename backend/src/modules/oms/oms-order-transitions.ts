@@ -61,9 +61,9 @@ const ALLOWED: Partial<Record<TransitionKey, OmsOrderStatus>> = {
   [`${OmsOrderStatus.waiting_for_confirmation}|client_confirm|client`]:
     OmsOrderStatus.confirmed_waiting_for_admin_approval,
 
-  // Admin confirm from waiting → skip middle, start fulfillment
+  // Admin and client confirm from waiting → confirmed_waiting_for_admin_approval
   [`${OmsOrderStatus.waiting_for_confirmation}|admin_confirm|admin`]:
-    OmsOrderStatus.processing,
+    OmsOrderStatus.confirmed_waiting_for_admin_approval,
 
   // Admin approve
   [`${OmsOrderStatus.confirmed_waiting_for_admin_approval}|admin_approve|admin`]:
@@ -126,6 +126,8 @@ const ALLOWED: Partial<Record<TransitionKey, OmsOrderStatus>> = {
   [`${OmsOrderStatus.shipped}|mark_returned|admin`]: OmsOrderStatus.returned,
   [`${OmsOrderStatus.out_for_delivery}|mark_returned|system`]: OmsOrderStatus.returned,
   [`${OmsOrderStatus.out_for_delivery}|mark_returned|admin`]: OmsOrderStatus.returned,
+  [`${OmsOrderStatus.failed_delivery}|mark_returned|system`]: OmsOrderStatus.returned,
+  [`${OmsOrderStatus.failed_delivery}|mark_returned|admin`]: OmsOrderStatus.returned,
 };
 
 export function assertOmsTransition(

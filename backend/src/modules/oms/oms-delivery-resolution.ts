@@ -1,6 +1,9 @@
 import { bboxCentroid } from '../shipping/geo-polygon.util';
 import { ShippingGeoService } from '../shipping/shipping-geo.service';
+import { AddressResolveService } from '../shipping/address-resolve.service';
 import { resolveSyriaAddress } from '../client-portal/external-api/syria-address';
+
+const internalResolver = new AddressResolveService();
 
 export type OmsDeliveryResolution = {
   complete: boolean;
@@ -46,53 +49,60 @@ export async function resolveOmsDeliveryLocation(
     city: address.value.city,
     neighborhood: address.value.neighborhood,
   });
-  if (!boundary) {
-    return {
-      complete: false,
-      reasons: {
-        address:
-          'Could not geocode this governorate/city. Shipping/Delivery information is incomplete.',
-      },
-      city: address.value.governorate,
-      district: address.value.city,
-      addressLine1: address.value.neighborhood,
-      addressLine2: address.value.street,
-      lat: null,
-      lng: null,
-    };
+
+  if (boundary) {
+    let point = bboxCentroid(boundary.bbox);
+    if (!geo.containsPoint(boundary, point)) {
+      point = {
+        lat: boundary.bbox.south + (boundary.bbox.north - boundary.bbox.south) * 0.35,
+        lng: boundary.bbox.west + (boundary.bbox.east - boundary.bbox.west) * 0.5,
+      };
+    }
+    if (geo.containsPoint(boundary, point)) {
+      return {
+        complete: true,
+        reasons: {},
+        city: address.value.governorate,
+        district: address.value.city,
+        addressLine1: address.value.neighborhood,
+        addressLine2: address.value.street,
+        lat: point.lat,
+        lng: point.lng,
+      };
+    }
   }
 
-  let point = bboxCentroid(boundary.bbox);
-  if (!geo.containsPoint(boundary, point)) {
-    point = {
-      lat: boundary.bbox.south + (boundary.bbox.north - boundary.bbox.south) * 0.35,
-      lng: boundary.bbox.west + (boundary.bbox.east - boundary.bbox.west) * 0.5,
-    };
-  }
-  if (!geo.containsPoint(boundary, point)) {
+  // Fallback to internal location index (AddressResolveService)
+  const internal = internalResolver.resolveFromAddress({
+    governorate: address.value.governorate,
+    cityRegion: address.value.city,
+    townNeighborhood: address.value.neighborhood,
+  });
+
+  if (internal.found) {
     return {
-      complete: false,
-      reasons: {
-        address:
-          'Resolved area did not produce a point inside the delivery boundary. Shipping/Delivery information is incomplete.',
-      },
+      complete: true,
+      reasons: {},
       city: address.value.governorate,
       district: address.value.city,
       addressLine1: address.value.neighborhood,
       addressLine2: address.value.street,
-      lat: null,
-      lng: null,
+      lat: internal.lat,
+      lng: internal.lng,
     };
   }
 
   return {
-    complete: true,
-    reasons: {},
+    complete: false,
+    reasons: {
+      address:
+        'Could not geocode this governorate/city. Shipping/Delivery information is incomplete.',
+    },
     city: address.value.governorate,
     district: address.value.city,
     addressLine1: address.value.neighborhood,
     addressLine2: address.value.street,
-    lat: point.lat,
-    lng: point.lng,
+    lat: null,
+    lng: null,
   };
 }

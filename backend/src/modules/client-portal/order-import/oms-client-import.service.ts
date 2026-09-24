@@ -11,10 +11,10 @@ import { resolveOmsDeliveryLocation } from '../../oms/oms-delivery-resolution';
 import { OmsOrdersService } from '../../oms/oms-orders.service';
 import { ShippingGeoService } from '../../shipping/shipping-geo.service';
 import {
-  applyAdminCityCompatibility,
   getOmsClientImportTemplate,
   OMS_CLIENT_IMPORT_ALIASES,
   OMS_CLIENT_IMPORT_REQUIRED_COLUMNS,
+  OMS_LEGACY_REJECTED_HEADERS,
   OMS_ORDER_LEVEL_FIELDS,
 } from './oms-client-import.schema';
 import {
@@ -70,6 +70,7 @@ export class OmsClientImportService {
       table,
       OMS_CLIENT_IMPORT_ALIASES,
       OMS_CLIENT_IMPORT_REQUIRED_COLUMNS,
+      OMS_LEGACY_REJECTED_HEADERS,
     );
     const groups = groupRowsByOrderNumber(dataRows, 'order_number', OMS_ORDER_LEVEL_FIELDS);
     const batchId = randomUUID();
@@ -114,7 +115,6 @@ export class OmsClientImportService {
         continue;
       }
 
-      applyAdminCityCompatibility(group.fields);
 
       const existing = await this.omsOrders.findExistingByExternalReference(user, companyId, orderNumber);
       if (existing) {

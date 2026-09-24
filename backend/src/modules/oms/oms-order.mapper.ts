@@ -5,6 +5,10 @@ import type {
   OutboundOrder,
   Prisma,
 } from '@prisma/client';
+import {
+  isProviderName,
+  resolveShippingCarrierName,
+} from '../shipping/shipping-carrier-resolver';
 
 export type OmsOrderLineWithProduct = OmsOrderLine & {
   product?: {
@@ -21,7 +25,48 @@ export type OmsOrderLineWithProduct = OmsOrderLine & {
 export type OmsOrderWithRelations = OmsOrder & {
   lines: OmsOrderLineWithProduct[];
   company?: { id: string; name: string } | null;
-  outboundOrder?: Pick<OutboundOrder, 'id' | 'orderNumber' | 'status'> | null;
+  outboundOrder?: (Pick<OutboundOrder, 'id' | 'orderNumber' | 'status'> & {
+    carrier?: string | null;
+    shippingProviderCode?: string | null;
+    shippingServiceId?: string | null;
+    shippingMethod?: any;
+    trackingNumber?: string | null;
+    carrierShipments?: Array<{
+      id?: string;
+      status?: string;
+      externalAwb?: string | null;
+      providerCode?: string | null;
+      rawResultMeta?: any;
+    }> | null;
+  }) | null;
+  returns?: Array<{
+    id: string;
+    returnNumber: string;
+    status: string;
+    reason: string | null;
+    carrierReturnStage: string | null;
+    carrierOriginalStatus: string | null;
+    carrierAwb: string | null;
+    carrierReturnCreatedAt: Date | null;
+    carrierReturningAt: Date | null;
+    carrierReturnedAt: Date | null;
+    warehouseConfirmedAt: Date | null;
+    createdAt: Date;
+  }>;
+  omsReturns?: Array<{
+    id: string;
+    returnNumber: string;
+    status: string;
+    reason: string | null;
+    carrierReturnStage: string | null;
+    carrierOriginalStatus: string | null;
+    carrierAwb: string | null;
+    carrierReturnCreatedAt: Date | null;
+    carrierReturningAt: Date | null;
+    carrierReturnedAt: Date | null;
+    warehouseConfirmedAt: Date | null;
+    createdAt: Date;
+  }>;
 };
 
 function dec(v: Prisma.Decimal | null | undefined): string | null {
@@ -77,10 +122,19 @@ export function serializeOmsOrderLine(line: OmsOrderLineWithProduct) {
 }
 
 export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
+  const carrierName = resolveShippingCarrierName(order);
+  const explicitMethod = order.shippingMethod ?? order.outboundOrder?.shippingMethod ?? null;
+  const resolvedMethod = explicitMethod ?? (carrierName ? 'carrier' : null);
+  const isManual = resolvedMethod === 'manual';
+
   return {
     id: order.id,
     orderNumber: order.orderNumber,
     status: order.status,
+    carrier: carrierName,
+    shippingCarrierName: carrierName,
+    shippingMethod: resolvedMethod,
+    isManualShipping: isManual,
     companyId: order.companyId,
     company: order.company ?? null,
     recipientName: order.recipientName,
@@ -90,6 +144,11 @@ export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
     total: computeTotal(order),
     currency: order.currency,
     outboundOrderId: order.outboundOrderId,
+    trackingNumber:
+      order.trackingNumber ??
+      order.outboundOrder?.trackingNumber ??
+      (order.outboundOrder as any)?.carrierShipments?.[0]?.externalAwb ??
+      null,
     needsInformation: order.needsInformation,
     importBatchId: order.importBatchId ?? null,
     externalReference: order.externalReference ?? null,
@@ -99,6 +158,11 @@ export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
           id: order.outboundOrder.id,
           orderNumber: order.outboundOrder.orderNumber,
           status: order.outboundOrder.status,
+          trackingNumber: order.outboundOrder.trackingNumber ?? order.trackingNumber ?? null,
+          hasCarrierShipment:
+            (order.outboundOrder as any).carrierShipments?.some(
+              (s: any) => s.status === 'created' || Boolean(s.externalAwb),
+            ) ?? Boolean(order.outboundOrder.trackingNumber || order.trackingNumber),
         }
       : null,
     createdAt: order.createdAt,
@@ -108,8 +172,32 @@ export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
 
 export function serializeOmsOrder(order: OmsOrderWithRelations) {
   const subtotal = computeSubtotal(order);
+  const carrierName = resolveShippingCarrierName(order);
+  const returnsList = order.omsReturns ?? order.returns ?? [];
+  const activeReturn = returnsList.find(
+    (r: any) => r.status === 'requested' || r.status === 'approved' || r.status === 'completed',
+  );
   return {
     ...order,
+    deliveryFailedAt: (order as any).deliveryFailedAt ?? null,
+    activeReturn: activeReturn
+      ? {
+          id: activeReturn.id,
+          returnNumber: activeReturn.returnNumber,
+          status: activeReturn.status,
+          reason: activeReturn.reason,
+          carrierReturnStage: activeReturn.carrierReturnStage,
+          carrierOriginalStatus: activeReturn.carrierOriginalStatus,
+          carrierAwb: activeReturn.carrierAwb,
+          carrierReturnCreatedAt: activeReturn.carrierReturnCreatedAt,
+          carrierReturningAt: activeReturn.carrierReturningAt,
+          carrierReturnedAt: activeReturn.carrierReturnedAt,
+          warehouseConfirmedAt: activeReturn.warehouseConfirmedAt,
+          createdAt: activeReturn.createdAt,
+        }
+      : null,
+    carrier: carrierName ?? (isProviderName(order.carrier) ? null : order.carrier),
+    shippingCarrierName: carrierName,
     destinationAddress: buildLegacyDestination(order),
     subtotal,
     shippingFee: dec(order.shippingFee),
@@ -124,6 +212,11 @@ export function serializeOmsOrder(order: OmsOrderWithRelations) {
           id: order.outboundOrder.id,
           orderNumber: order.outboundOrder.orderNumber,
           status: order.outboundOrder.status,
+          trackingNumber: order.outboundOrder.trackingNumber ?? order.trackingNumber ?? null,
+          hasCarrierShipment:
+            (order.outboundOrder as any).carrierShipments?.some(
+              (s: any) => s.status === 'created' || Boolean(s.externalAwb),
+            ) ?? Boolean(order.outboundOrder.trackingNumber || order.trackingNumber),
         }
       : null,
     warehouseStatus: order.outboundOrder?.status ?? null,

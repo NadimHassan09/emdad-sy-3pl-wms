@@ -67,6 +67,30 @@ export class UpdateShippingDetailsDto {
 
   @EmptyToUndefined()
   @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  shippingServiceId?: string | null;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  recipientName?: string | null;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  recipientPhone?: string | null;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  destinationAddress?: string | null;
+
+  @EmptyToUndefined()
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   shippingReceiverLat?: number | null;

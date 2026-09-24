@@ -41,6 +41,8 @@ export const CLIENT_OMS_EXPORT_COLUMNS: ClientOrdersExportColumn[] = [
   { id: 'warehouse_status', labelEn: 'Warehouse status', labelAr: 'حالة المستودع' },
   { id: 'incomplete', labelEn: 'Incomplete', labelAr: 'غير مكتمل' },
   { id: 'created_at', labelEn: 'Created', labelAr: 'تاريخ الإنشاء' },
+  { id: 'out_for_delivery_at', labelEn: 'Ship date', labelAr: 'تاريخ الشحن' },
+  { id: 'delivered_at', labelEn: 'Delivery date', labelAr: 'تاريخ التسليم' },
   { id: 'notes', labelEn: 'Notes', labelAr: 'ملاحظات' },
 ];
 
@@ -73,7 +75,7 @@ export const CLIENT_OUTBOUND_EXPORT_COLUMNS: ClientOrdersExportColumn[] = [
   { id: 'notes', labelEn: 'Notes', labelAr: 'ملاحظات' },
   { id: 'created_at', labelEn: 'Created', labelAr: 'تاريخ الإنشاء' },
   { id: 'confirmed_at', labelEn: 'Confirmed', labelAr: 'تاريخ التأكيد' },
-  { id: 'shipped_at', labelEn: 'Shipped', labelAr: 'تاريخ الشحن' },
+  { id: 'shipped_at', labelEn: 'Ship date', labelAr: 'تاريخ الشحن' },
 ];
 
 export async function fetchClientOrdersExportColumns(

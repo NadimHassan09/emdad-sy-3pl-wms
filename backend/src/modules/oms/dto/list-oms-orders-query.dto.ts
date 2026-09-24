@@ -50,6 +50,27 @@ export class ListOmsOrdersQueryDto extends PaginationDto {
   @MaxLength(80)
   city?: string;
 
+  /** Dedicated shipping carrier filter (advanced). */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  carrier?: string;
+
+  /** Range filter start order number (e.g. OMS-2026-03700). */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  startOrderNo?: string;
+
+  /** Range filter end order number (e.g. OMS-2026-03800). */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  endOrderNo?: string;
+
   /**
    * Numeric total operator used with `totalValue`.
    * Compared against stored `subtotal` (order total maintained on write).

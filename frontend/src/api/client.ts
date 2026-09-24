@@ -35,12 +35,17 @@ export interface ApiError {
 
 type RetriableConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
-/** Single-flight refresh so parallel 401s share one cookie rotation. */
-let refreshInFlight: Promise<string | null> | null = null;
+type RefreshResult = {
+  token: string | null;
+  transientError: boolean;
+};
 
-async function refreshAccessToken(): Promise<string | null> {
+/** Single-flight refresh so parallel 401s share one cookie rotation. */
+let refreshInFlight: Promise<RefreshResult> | null = null;
+
+async function refreshAccessToken(): Promise<RefreshResult> {
   if (!refreshInFlight) {
-    refreshInFlight = (async () => {
+    refreshInFlight = (async (): Promise<RefreshResult> => {
       try {
         const { data } = await api.post<
           Pick<{ access_token: string }, 'access_token'> & {
@@ -49,11 +54,22 @@ async function refreshAccessToken(): Promise<string | null> {
           }
         >('/auth/refresh');
         const token = data?.access_token;
-        if (!token) return null;
+        if (!token) return { token: null, transientError: false };
         setAccessToken(token, isPersistSessionEnabled());
-        return token;
-      } catch {
-        return null;
+        return { token, transientError: false };
+      } catch (err: unknown) {
+        const axiosErr = err as AxiosError;
+        const status = axiosErr?.response?.status;
+        const isNetwork =
+          !axiosErr?.response ||
+          axiosErr?.code === 'ERR_NETWORK' ||
+          axiosErr?.code === 'ECONNABORTED';
+        const isTransientServerIssue =
+          status === 502 || status === 503 || status === 504 || isNetwork;
+        return {
+          token: null,
+          transientError: Boolean(isTransientServerIssue),
+        };
       } finally {
         refreshInFlight = null;
       }
@@ -85,6 +101,9 @@ function forceLoginRedirect(): void {
  * On 401: try refresh (remember-me cookie) once, then retry. Only clear the
  * persisted session after refresh fails — otherwise "Remember me for 30 days"
  * was wiped whenever the short-lived access JWT expired.
+ *
+ * During server restarts (502 / 503 / Network Error), suppress silent logout
+ * to keep user session safe.
  */
 api.interceptors.response.use(
   (resp) => {
@@ -109,14 +128,22 @@ api.interceptors.response.use(
 
     if (status === 401 && original && !original._retry && !isAuthSessionUrl(reqUrl)) {
       original._retry = true;
-      // Keep remember-me flag while attempting cookie refresh.
-      clearAccessToken({ keepPersist: true });
-      const token = await refreshAccessToken();
-      if (token) {
+      const priorToken = getAccessToken();
+      const result = await refreshAccessToken();
+      if (result.token) {
         original.headers = original.headers ?? {};
-        original.headers.Authorization = `Bearer ${token}`;
+        original.headers.Authorization = `Bearer ${result.token}`;
         return api(original);
       }
+      // If failure is transient (server restart, 502/503, network drop),
+      // DO NOT force logout. Restore prior token and reject peacefully.
+      if (result.transientError) {
+        if (priorToken) {
+          setAccessToken(priorToken, isPersistSessionEnabled());
+        }
+        return Promise.reject(err);
+      }
+      // Definitive session invalidation confirmed by server
       clearContinueSession();
       clearAccessToken();
       forceLoginRedirect();

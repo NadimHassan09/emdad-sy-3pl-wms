@@ -128,10 +128,13 @@ export function OutboundOmsPanel({
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <Field label="Recipient" value={order.recipientName ?? '—'} />
           <Field label="Phone" value={order.recipientPhone ?? '—'} />
-          <Field label="City" value={order.city ?? '—'} />
-          <Field label="District" value={order.district ?? '—'} />
-          <Field label="Address" value={order.addressLine1 ?? order.destinationAddress} />
-          <Field label="Address line 2" value={order.addressLine2 ?? '—'} />
+          <Field label="Governorate" value={order.city ?? '—'} />
+          <Field label="City / Region" value={order.district ?? '—'} />
+          <Field label="Town / Neighborhood" value={order.addressLine1 ?? '—'} />
+          <Field
+            label="Detailed Address"
+            value={order.addressLine2 || order.destinationAddress || '—'}
+          />
           <Field
             label="Instructions"
             value={

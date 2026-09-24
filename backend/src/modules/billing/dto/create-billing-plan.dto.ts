@@ -1,11 +1,19 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, Min } from 'class-validator';
 
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
 
 export class CreateBillingPlanDto {
   @IsUuidLoose()
   companyId!: string;
+
+  @IsOptional()
+  @IsIn(['custom', 'template'])
+  planType?: 'custom' | 'template';
+
+  @IsOptional()
+  @IsUuidLoose()
+  templateId?: string | null;
 
   @IsOptional()
   @IsBoolean()

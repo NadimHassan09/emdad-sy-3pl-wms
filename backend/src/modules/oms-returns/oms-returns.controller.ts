@@ -129,4 +129,28 @@ export class OmsReturnsController {
   ) {
     return this.returns.reject(id, user, dto);
   }
+
+  @Post(':id/confirm')
+  confirm(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.returns.confirmReturn(id, user);
+  }
+
+  @Post('confirm-bulk')
+  confirmBulk(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() body: { ids: string[] },
+  ) {
+    return this.returns.confirmReturnsBulk(body.ids, user);
+  }
+
+  @Post('confirm-by-scan')
+  confirmByScan(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() body: { code: string },
+  ) {
+    return this.returns.confirmReturnByScan(user, body.code);
+  }
 }

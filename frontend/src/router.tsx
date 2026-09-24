@@ -16,6 +16,8 @@ const omsCodReturnsRedirect = (enabledTarget: string) => (
   />
 );
 
+import { triggerAppUpdate } from './hooks/useUpdateDetector';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Lazy page imports — each page becomes a separate JS chunk at build time.
 // Suspense boundary lives in Layout.tsx wrapping the <Outlet />.
@@ -26,8 +28,21 @@ function lazyPage<M extends Record<string, React.ComponentType>>(
   name: keyof M,
 ) {
   return lazy(async () => {
-    const mod = await loader();
-    return { default: mod[name] };
+    try {
+      const mod = await loader();
+      return { default: mod[name] };
+    } catch (err: unknown) {
+      // If a deployment removed/changed chunk hashes, signal the update detector
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        msg.includes('dynamically imported module') ||
+        msg.includes('Loading chunk') ||
+        msg.includes('Failed to fetch')
+      ) {
+        triggerAppUpdate();
+      }
+      throw err;
+    }
   });
 }
 
@@ -50,6 +65,7 @@ const OutboundCreatePage      = lazyPage(() => import('./pages/orders/OutboundCr
 const OmsOrdersListPage       = lazyPage(() => import('./pages/OmsOrdersListPage'),       'OmsOrdersListPage');
 const OmsOrderCreatePage      = lazyPage(() => import('./pages/OmsOrderCreatePage'),      'OmsOrderCreatePage');
 const OmsOrderDetailPage      = lazyPage(() => import('./pages/OmsOrderDetailPage'),      'OmsOrderDetailPage');
+const OmsWaybillPage          = lazyPage(() => import('./pages/OmsWaybillPage'),          'OmsWaybillPage');
 const OmsDashboardPage        = lazyPage(() => import('./pages/OmsDashboardPage'),        'OmsDashboardPage');
 const OutboundDetailPage      = lazyPage(() => import('./pages/OutboundDetailPage'),      'OutboundDetailPage');
 const TasksListPage           = lazyPage(() => import('./pages/TasksListPage'),           'TasksListPage');
@@ -161,6 +177,7 @@ export const router = createBrowserRouter([
       { path: 'orders/oms', element: <OmsOrdersListPage /> },
       { path: 'orders/oms/new', element: <OmsOrderCreatePage /> },
       { path: 'orders/oms/:id', element: <OmsOrderDetailPage /> },
+      { path: 'orders/oms/:id/waybill', element: <OmsWaybillPage /> },
       { path: 'oms', element: <Navigate to="/oms/dashboard" replace /> },
       { path: 'oms/dashboard', element: <OmsDashboardPage /> },
       { path: 'oms/cod', element: omsCodReturnsElement(<OmsCodPage />) },
@@ -169,6 +186,7 @@ export const router = createBrowserRouter([
       { path: 'oms/returns/:id/edit', element: omsCodReturnsElement(<OmsReturnPlanEditPage />) },
       { path: 'oms/returns/:id', element: omsCodReturnsElement(<OmsReturnDetailPage />) },
       { path: 'oms/orders/:id', element: <OmsOrderDetailPage /> },
+      { path: 'oms/orders/:id/waybill', element: <OmsWaybillPage /> },
       { path: 'reports/oms/cod', element: omsCodReturnsRedirect('/oms/cod') },
       { path: 'reports/oms/returns', element: omsCodReturnsRedirect('/oms/returns') },
       { path: 'contracts', element: <Navigate to="/contracts/grn" replace /> },

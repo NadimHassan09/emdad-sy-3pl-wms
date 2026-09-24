@@ -8,9 +8,19 @@ import {
   Min,
 } from 'class-validator';
 
+import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
+
 export type BillingPlanApplyMode = 'immediate' | 'next_cycle';
 
 export class UpdateBillingPlanDto {
+  @IsOptional()
+  @IsIn(['custom', 'template'])
+  planType?: 'custom' | 'template';
+
+  @IsOptional()
+  @IsUuidLoose()
+  templateId?: string | null;
+
   /**
    * immediate — refresh the live cycle rate snapshot and recalculate the draft invoice.
    * next_cycle — update the plan only; active cycle keeps its existing snapshot (default).

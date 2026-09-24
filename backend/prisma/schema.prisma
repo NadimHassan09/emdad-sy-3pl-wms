@@ -1695,6 +1695,8 @@ model OutboundOrder {
   /// Carton layout for carrier handoff: [{ lines: [{ productId, quantity }], lengthCm, widthCm, heightCm }]
   shippingPackages     Json?               @map("shipping_packages")
   shippingPhoneCountry String?             @map("shipping_phone_country")
+  /// Opaque sub-carrier routing token from quote (e.g. "SILA_SY:{courier_id}"). Null for Babel orders.
+  shippingServiceId    String?             @map("shipping_service_id")
   /// Babel Express neighbourhood id (source of truth for quote/create). Snapshot tables hold city/area.
   babelNeighbourhoodId Int?                @map("babel_neighbourhood_id")
   createdBy            String              @map("created_by") @db.Uuid
@@ -1771,6 +1773,7 @@ model OmsOrder {
   allocationStatus     OmsAllocationStatus @default(none) @map("allocation_status")
   allocatedAt          DateTime?           @map("allocated_at") @db.Timestamptz(6)
   outForDeliveryAt     DateTime?           @map("out_for_delivery_at") @db.Timestamptz(6)
+  deliveryFailedAt     DateTime?           @map("delivery_failed_at") @db.Timestamptz(6)
   deliveredAt          DateTime?           @map("delivered_at") @db.Timestamptz(6)
   returnedAt           DateTime?           @map("returned_at") @db.Timestamptz(6)
   /// Sprint 1: retained internally (CSV history, OmsSalesChannel integrations). Optional; not a workflow prerequisite; hidden from Admin/Client create/edit UI.
@@ -1804,6 +1807,8 @@ model OmsOrder {
   shippingWeightKg     Decimal?            @map("shipping_weight_kg") @db.Decimal(12, 4)
   shippingVolumeCbm    Decimal?            @map("shipping_volume_cbm") @db.Decimal(12, 6)
   shippingPhoneCountry String?             @map("shipping_phone_country")
+  /// Opaque sub-carrier routing token from quote (e.g. "SILA_SY:{courier_id}"). Null for Babel orders.
+  shippingServiceId    String?             @map("shipping_service_id")
   /// Babel Express neighbourhood id — only Babel geo id required on OMS for quote/create.
   babelNeighbourhoodId Int?                @map("babel_neighbourhood_id")
   createdBy            String              @map("created_by") @db.Uuid
@@ -1947,6 +1952,15 @@ model OmsReturn {
   reason            String?
   notes             String?
   rejectionReason   String?         @map("rejection_reason")
+  /// Carrier return stages: 'return_created' | 'returning_to_sender' | 'returned_to_sender' | 'warehouse_confirmed'
+  carrierReturnStage    String?     @map("carrier_return_stage") @db.VarChar(32)
+  carrierOriginalStatus String?     @map("carrier_original_status")
+  carrierAwb            String?     @map("carrier_awb")
+  carrierReturnCreatedAt DateTime?  @map("carrier_return_created_at") @db.Timestamptz(6)
+  carrierReturningAt    DateTime?   @map("carrier_returning_at") @db.Timestamptz(6)
+  carrierReturnedAt     DateTime?   @map("carrier_returned_at") @db.Timestamptz(6)
+  warehouseConfirmedAt  DateTime?   @map("warehouse_confirmed_at") @db.Timestamptz(6)
+  warehouseConfirmedBy  String?     @map("warehouse_confirmed_by") @db.Uuid
   /// Admin Mode: 'admin' | 'workers' (defaults to admin when null)
   executionMode     String?         @map("execution_mode") @db.VarChar(16)
   /// Inbound-shaped plan: warehouseId, receivingDockId, putaway splits per line
@@ -2416,6 +2430,7 @@ model ShippingProviderConnection {
   lastTestedAt      DateTime?                        @map("last_tested_at") @db.Timestamptz(6)
   lastTestStatus    String?                          @map("last_test_status")
   lastErrorSafe     String?                          @map("last_error_safe")
+  webhookSecret     String?                          @map("webhook_secret")
   createdAt         DateTime                         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime                         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -2427,26 +2442,56 @@ model ShippingProviderConnection {
 
 /// Idempotent carrier shipment records for outbound orders.
 model CarrierShipment {
-  id              String                @id @default(uuid()) @db.Uuid
-  outboundOrderId String                @map("outbound_order_id") @db.Uuid
-  providerId      String                @map("provider_id") @db.Uuid
-  providerCode    String                @map("provider_code")
-  externalAwb     String?               @map("external_awb")
-  trackingNumber  String?               @map("tracking_number")
-  status          CarrierShipmentStatus @default(pending)
-  shippingCost    Decimal?              @map("shipping_cost") @db.Decimal(15, 4)
-  currency        String?
-  lastErrorSafe   String?               @map("last_error_safe")
-  rawResultMeta   Json?                 @map("raw_result_meta") @db.JsonB
-  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String                 @id @default(uuid()) @db.Uuid
+  outboundOrderId    String                 @map("outbound_order_id") @db.Uuid
+  providerId         String                 @map("provider_id") @db.Uuid
+  providerCode       String                 @map("provider_code")
+  externalAwb        String?                @map("external_awb")
+  trackingNumber     String?                @map("tracking_number")
+  status             CarrierShipmentStatus  @default(pending)
+  shippingCost       Decimal?               @map("shipping_cost") @db.Decimal(15, 4)
+  currency           String?
+  lastErrorSafe      String?                @map("last_error_safe")
+  rawResultMeta      Json?                  @map("raw_result_meta") @db.JsonB
+  lastTrackingStatus String?                @map("last_tracking_status")
+  lastTrackingAt     DateTime?              @map("last_tracking_at") @db.Timestamptz(6)
+  nextPollAt         DateTime?              @map("next_poll_at") @db.Timestamptz(6)
+  pollAttemptsCount  Int                    @default(0) @map("poll_attempts_count")
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  outboundOrder OutboundOrder    @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
-  provider      ShippingProvider @relation(fields: [providerId], references: [id])
+  outboundOrder OutboundOrder          @relation(fields: [outboundOrderId], references: [id], onDelete: Cascade)
+  provider      ShippingProvider       @relation(fields: [providerId], references: [id])
+  events        CarrierShipmentEvent[]
 
   @@index([outboundOrderId], map: "idx_carrier_shipments_outbound")
   @@index([providerId, status], map: "idx_carrier_shipments_provider")
+  @@index([externalAwb], map: "idx_carrier_shipments_awb")
   @@map("carrier_shipments")
+}
+
+/// Audit log and idempotency tracking for external carrier webhook and polling events.
+model CarrierShipmentEvent {
+  id                String           @id @default(uuid()) @db.Uuid
+  carrierShipmentId String?          @map("carrier_shipment_id") @db.Uuid
+  providerCode      String           @map("provider_code")
+  externalEventId   String?          @map("external_event_id")
+  awb               String?
+  eventType         String           @map("event_type")
+  normalizedStatus  String?          @map("normalized_status")
+  status            String           @default("processed")
+  payloadHash       String           @map("payload_hash")
+  payload           Json             @db.JsonB
+  errorMessage      String?          @map("error_message")
+  processedAt       DateTime?        @map("processed_at") @db.Timestamptz(6)
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  carrierShipment   CarrierShipment? @relation(fields: [carrierShipmentId], references: [id], onDelete: SetNull)
+
+  @@index([providerCode, externalEventId], map: "idx_carrier_events_provider_event_id")
+  @@index([awb], map: "idx_carrier_events_awb")
+  @@index([payloadHash], map: "idx_carrier_events_payload_hash")
+  @@map("carrier_shipment_events")
 }
 
 /// Admin bulk shipping processing job (audit + progress).

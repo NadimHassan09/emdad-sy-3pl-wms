@@ -54,13 +54,26 @@ export function assertImportTable(
   table: string[][],
   aliasMap: HeaderAliasMap,
   requiredFields: string[],
+  rejectedHeaders?: readonly string[],
 ): { indexByField: Record<string, number>; dataRows: SpreadsheetRow[] } {
   if (table.length < 2) {
     throw new BadRequestException(
       'Import file must include a header row and at least one data row.',
     );
   }
-  const { indexByField } = mapHeaderRow(table[0] ?? [], aliasMap);
+  const headerCells = table[0] ?? [];
+  if (rejectedHeaders && rejectedHeaders.length > 0) {
+    const rejectedNormalized = new Set(rejectedHeaders.map(normalizeHeader));
+    for (const raw of headerCells) {
+      const key = normalizeHeader(raw);
+      if (rejectedNormalized.has(key)) {
+        throw new BadRequestException(
+          `Unsupported legacy column detected: "${raw.trim()}". Only the current official template format is supported. Please download the latest import template.`,
+        );
+      }
+    }
+  }
+  const { indexByField } = mapHeaderRow(headerCells, aliasMap);
   for (const field of requiredFields) {
     if (indexByField[field] == null) {
       throw new BadRequestException(

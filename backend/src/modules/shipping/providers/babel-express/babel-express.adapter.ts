@@ -1,6 +1,10 @@
+import * as crypto from 'crypto';
 import { Injectable } from '@nestjs/common';
 
 import type {
+  NormalizedTrackingEvent,
+  NormalizedTrackingStatus,
+  ShipmentTrackingResult,
   ShippingCreateShipmentInput,
   ShippingCreateShipmentResult,
   ShippingCredentials,
@@ -9,6 +13,7 @@ import type {
   ShippingProviderCapabilities,
   ShippingQuoteInput,
   ShippingQuoteResult,
+  UnifiedShipmentMovementEvent,
 } from '../../shipping-provider.interface';
 import { BABEL_EXPRESS_CODE } from '../../shipping.constants';
 import { BabelApiError, BabelExpressHttpClient } from './babel-express.http-client';
@@ -31,6 +36,8 @@ export class BabelExpressAdapter implements ShippingProvider {
     supportsQuote: true,
     supportsLabelPrinting: true,
     labelDelivery: 'api',
+    supportsTracking: true,
+    supportsWebhooks: true,
   };
 
   constructor(private readonly http: BabelExpressHttpClient) {}
@@ -200,54 +207,32 @@ export class BabelExpressAdapter implements ShippingProvider {
   }
 
   /**
-   * Quote both address and hub options for a neighbourhood (for Shipping Details UI).
+   * Quote Babel Express option for the user-selected deliveryType.
+   * Delivery type (Home delivery vs Branch delivery) is chosen by the user in the form.
+   * Does NOT produce dual Address and Hub cards.
    */
   async getServiceOptions(
     credentials: ShippingCredentials,
-    input: Omit<ShippingQuoteInput, 'deliveryType'>,
+    input: ShippingQuoteInput,
   ): Promise<ShippingQuoteResult[]> {
-    let neighbourhoodId = input.neighbourhoodId;
-    if (neighbourhoodId == null) {
-      neighbourhoodId = await this.lookupNeighbourhoodId(
-        credentials,
-        input.receiverLat,
-        input.receiverLng,
-      );
-    }
+    try {
+      const quote = await this.getQuote(credentials, input);
+      if (!quote || !quote.shippable) return [];
 
-    const options: ShippingQuoteResult[] = [];
-    for (const deliveryType of ['address', 'hub'] as const) {
-      const payload = mapCalculatePricePayload({
-        ...input,
-        neighbourhoodId,
-        deliveryType,
-        pickupType: 'hub',
-      });
-      try {
-        const raw = await this.http.post<{
-          status?: string;
-          price?: number;
-          currency?: string;
-          details?: unknown;
-        }>('calculatePrice', credentials, payload);
-        if (!isBabelCalculatePriceShippable(raw, deliveryType)) continue;
-        const price = typeof raw.price === 'number' ? raw.price : Number(raw.price);
-        if (!Number.isFinite(price)) continue;
-        options.push({
-          price,
-          currency: typeof raw.currency === 'string' ? raw.currency : 'SYP',
-          details: raw.details,
-          effectiveDeliveryType: deliveryType,
-          serviceId: `${BABEL_EXPRESS_CODE}:${deliveryType}`,
-          serviceName: deliveryTypeLabel(deliveryType),
-          shippable: true,
-          neighbourhoodId,
-        });
-      } catch {
-        // Option not offered — skip.
-      }
+      const effectiveType = quote.effectiveDeliveryType ?? input.deliveryType ?? 'address';
+      return [
+        {
+          ...quote,
+          serviceId: `${BABEL_EXPRESS_CODE}:${effectiveType}`,
+          serviceName: 'بابل إكسبريس (Babel Express)',
+          providerName: 'Babel Express',
+          estimatedDeliveryMin: 2,
+          estimatedDeliveryMax: 3,
+        },
+      ];
+    } catch {
+      return [];
     }
-    return options;
   }
 
   async lookupNeighbourhoodId(
@@ -338,5 +323,282 @@ export class BabelExpressAdapter implements ShippingProvider {
     }
 
     return null;
+  }
+
+  // ─── Tracking & Webhooks ───────────────────────────────────────────────────
+
+  verifyWebhook(
+    _headers: Record<string, string | string[] | undefined>,
+    body: unknown,
+    secret?: string,
+  ): boolean {
+    if (!secret || !secret.trim()) return true;
+    if (!body || typeof body !== 'object') return false;
+    const b = body as Record<string, any>;
+    if (b.type === 'test') return true; // Registration handshake test
+    const { awb, type, verify } = b;
+    if (!verify || !awb || !type) return false;
+    const expected = crypto
+      .createHash('sha256')
+      .update(`${awb}|${type}|${secret.trim()}`)
+      .digest('hex');
+    return String(verify).toLowerCase() === expected.toLowerCase();
+  }
+
+  normalizeWebhook(
+    _headers: Record<string, string | string[] | undefined>,
+    body: unknown,
+  ): NormalizedTrackingEvent | null {
+    if (!body || typeof body !== 'object') return null;
+    const b = body as Record<string, any>;
+    if (b.type === 'test') return null; // registration handshake
+
+    const awb = typeof b.awb === 'string' ? b.awb.trim() : '';
+    const type = typeof b.type === 'string' ? b.type.trim() : '';
+    if (!awb || !type) return null;
+
+    let normalizedStatus: NormalizedTrackingStatus = 'unknown';
+    let carrierReturnStage: 'return_created' | 'returning_to_sender' | 'returned_to_sender' | undefined;
+
+    switch (type) {
+      case 'ArrivedToHub':
+      case 'EnRoute':
+      case 'ChangedReceiver':
+        normalizedStatus = 'in_transit';
+        break;
+      case 'OutForDelivery':
+        normalizedStatus = 'out_for_delivery';
+        break;
+      case 'Delivered':
+        normalizedStatus = 'delivered';
+        break;
+      case 'DeliveryFailed':
+      case 'DeliveryContact':
+        normalizedStatus = 'delivery_failed';
+        break;
+      case 'CreatedFollowupShipment':
+        normalizedStatus = 'return_created';
+        carrierReturnStage = 'return_created';
+        break;
+      case 'ReturningToSender':
+      case 'ReturnEnRoute':
+        normalizedStatus = 'returning_to_sender';
+        carrierReturnStage = 'returning_to_sender';
+        break;
+      case 'ReturnedToSender':
+      case 'ReturnToSender':
+        normalizedStatus = 'returned_to_sender';
+        carrierReturnStage = 'returned_to_sender';
+        break;
+      case 'Disposed':
+      case 'ShipmentLost':
+        normalizedStatus = 'cancelled';
+        break;
+    }
+
+    const time = typeof b.time === 'number' ? b.time : null;
+    const timestamp = time ? new Date(time * 1000) : new Date();
+    const details = b.details && typeof b.details === 'object' ? b.details : {};
+    const locationText = details.name || details.location || undefined;
+    const notes = details.reason || details.note || undefined;
+    const returnReason = (typeof details.reason === 'string' && details.reason.trim())
+      || (typeof details.note === 'string' && details.note.trim())
+      || undefined;
+    const originalCarrierStatus = String(b.type || b.status || b.statusText || type);
+
+    return {
+      providerCode: this.code,
+      externalEventId: `${awb}:${type}:${time ?? Date.now()}`,
+      awb,
+      eventType: type,
+      normalizedStatus,
+      timestamp,
+      locationText,
+      notes,
+      returnReason,
+      originalCarrierStatus,
+      carrierReturnStage,
+      rawPayload: b,
+    };
+  }
+
+  async pollTracking(
+    credentials: ShippingCredentials,
+    awb: string,
+  ): Promise<NormalizedTrackingEvent | null> {
+    const trimmed = awb.trim();
+    if (!trimmed) return null;
+
+    try {
+      const res = await this.http.post<any>('trackShipment', credentials, { awb: trimmed });
+      if (res?.status !== 'success' || !res?.tracking) return null;
+      const t = res.tracking;
+
+      let normalizedStatus: NormalizedTrackingStatus = 'in_transit';
+      let carrierReturnStage: 'return_created' | 'returning_to_sender' | 'returned_to_sender' | undefined;
+
+      if (t.isDelivered) {
+        normalizedStatus = 'delivered';
+      } else {
+        const updates = Array.isArray(t.updates) ? t.updates : [];
+        const lastUpdate = updates.length > 0 ? updates[updates.length - 1] : null;
+        const text = (lastUpdate?.text || t.shipmentStatus?.text || '').trim();
+
+        if (text.includes('تسليم الشحنة') || text.includes('تم التسليم')) {
+          normalizedStatus = 'delivered';
+        } else if (text.includes('خرجت الشحنة للتسليم') || text.includes('للتسليم')) {
+          normalizedStatus = 'out_for_delivery';
+        } else if (
+          text.includes('تم ارجاع الشحنة الى المرسل') ||
+          text.includes('عادت الى المرسل') ||
+          text.includes('تسليم المرتجع للمرسل')
+        ) {
+          normalizedStatus = 'returned_to_sender';
+          carrierReturnStage = 'returned_to_sender';
+        } else if (
+          text.includes('قيد الارجاع') ||
+          text.includes('جاري اعادة الشحنة') ||
+          text.includes('في طريق العودة')
+        ) {
+          normalizedStatus = 'returning_to_sender';
+          carrierReturnStage = 'returning_to_sender';
+        } else if (
+          text.includes('انشاء بوليصة مرتجع') ||
+          text.includes('طلب ارجاع') ||
+          text.includes('تكوين شحنة مرتجعة')
+        ) {
+          normalizedStatus = 'return_created';
+          carrierReturnStage = 'return_created';
+        } else if (text.includes('ارجاع') || text.includes('عادت') || text.includes('مرتجع')) {
+          normalizedStatus = 'returning_to_sender';
+          carrierReturnStage = 'returning_to_sender';
+        } else if (text.includes('فشل') || text.includes('تعذر')) {
+          normalizedStatus = 'delivery_failed';
+        } else if (text.includes('وصلت') || text.includes('تكوين') || text.includes('تحويل')) {
+          normalizedStatus = 'in_transit';
+        }
+      }
+
+      const rawStatusText = t.shipmentStatus?.text || 'TRACKING_UPDATE';
+
+      return {
+        providerCode: this.code,
+        awb: trimmed,
+        eventType: rawStatusText,
+        normalizedStatus,
+        carrierReturnStage,
+        originalCarrierStatus: rawStatusText,
+        timestamp: t.deliverDate ? new Date(t.deliverDate * 1000) : new Date(),
+        rawPayload: res,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Fetches the complete shipment movement history from Babel Express API trackShipment.
+   * Returns updates sorted chronologically descending (newest first).
+   */
+  async getTrackingHistory(
+    credentials: ShippingCredentials,
+    awb: string,
+  ): Promise<ShipmentTrackingResult | null> {
+    const trimmed = awb.trim();
+    if (!trimmed) return null;
+
+    try {
+      const res = await this.http.post<any>('trackShipment', credentials, { awb: trimmed });
+      if (res?.status !== 'success' || !res?.tracking) {
+        return {
+          providerCode: this.code,
+          providerName: 'Babel Express',
+          awb: trimmed,
+          events: [],
+          message: res?.errorMessage || 'No tracking information available for this shipment.',
+        };
+      }
+
+      const t = res.tracking;
+      const rawUpdates: any[] = Array.isArray(t.updates) ? t.updates : [];
+
+      const events: UnifiedShipmentMovementEvent[] = rawUpdates.map((u) => {
+        let color: 'default' | 'info' | 'success' | 'error' | 'warning' = 'default';
+        const rawColor = String(u.color || '').toLowerCase().trim();
+        if (rawColor === 'success') color = 'success';
+        else if (rawColor === 'error' || rawColor === 'danger') color = 'error';
+        else if (rawColor === 'info') color = 'info';
+        else if (rawColor === 'warning') color = 'warning';
+
+        const timeSeconds = typeof u.time === 'number' ? u.time : Number(u.time);
+        const timestamp = Number.isFinite(timeSeconds) && timeSeconds > 0
+          ? new Date(timeSeconds * 1000).toISOString()
+          : new Date().toISOString();
+
+        return {
+          timestamp,
+          title: typeof u.text === 'string' ? u.text.trim() : '',
+          location: typeof u.location === 'string' && u.location.trim() ? u.location.trim() : null,
+          color,
+          code: typeof u.code === 'string' ? u.code : null,
+        };
+      });
+
+      // Sort descending (newest first)
+      events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      return {
+        providerCode: this.code,
+        providerName: 'Babel Express',
+        awb: trimmed,
+        isDelivered: Boolean(t.isDelivered),
+        statusLabel: t.shipmentStatus?.text || undefined,
+        statusColor: t.shipmentStatus?.color || undefined,
+        events,
+      };
+    } catch (err: any) {
+      return {
+        providerCode: this.code,
+        providerName: 'Babel Express',
+        awb: trimmed,
+        events: [],
+        error: err?.message || 'Failed to query Babel Express tracking API.',
+      };
+    }
+  }
+
+  async registerWebhook(
+    credentials: ShippingCredentials,
+    webhookUrl: string,
+    secret: string,
+  ): Promise<{ ok: boolean; message?: string }> {
+    try {
+      const payload = {
+        webhook: {
+          enabled: true,
+          key: secret,
+          url: webhookUrl,
+          subscribedEvents: [
+            'ArrivedToHub',
+            'EnRoute',
+            'DeliveryContact',
+            'DeliveryFailed',
+            'CreatedFollowupShipment',
+            'OutForDelivery',
+            'Delivered',
+            'ReturnedToSender',
+            'Disposed',
+            'ShipmentLost',
+          ],
+        },
+      };
+      const res = await this.http.post<any>('registerWebhook', credentials, payload);
+      if (res?.status === 'success') {
+        return { ok: true, message: 'Babel Express webhook registered successfully.' };
+      }
+      return { ok: false, message: res?.errorMessage || 'Failed to register webhook with Babel Express.' };
+    } catch (err: any) {
+      return { ok: false, message: err?.message || 'Error communicating with Babel Express registerWebhook.' };
+    }
   }
 }

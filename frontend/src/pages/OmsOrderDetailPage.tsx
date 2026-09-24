@@ -7,6 +7,7 @@ import { CodApi, OmsApi, OmsReturnsApi } from '../api/oms';
 import { OmsOrderFormModal } from '../components/oms/OmsOrderFormModal';
 import { CreateOmsReturnModal } from '../components/oms/CreateOmsReturnModal';
 import { OmsOrderTrackingPanel } from '../components/oms/OmsOrderTrackingPanel';
+import { OmsShipmentMovementPanel } from '../components/oms/OmsShipmentMovementPanel';
 import { OmsStatusBadge } from '../components/oms/OmsStatusBadge';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -158,19 +159,31 @@ export function OmsOrderDetailPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const externalFulfillmentMut = useMutation({
-    mutationFn: () => OmsApi.recordExternalFulfillment(id),
+  const failedDeliveryMut = useMutation({
+    mutationFn: () => OmsApi.failedDelivery(id),
     onSuccess: () => {
-      toast.success('Recorded as fulfilled outside warehouse.');
+      toast.success('Order marked as failed delivery.');
       invalidate();
+      void qc.invalidateQueries({ queryKey: ['oms-returns'] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const returnedMut = useMutation({
+    mutationFn: () => OmsApi.returned(id),
+    onSuccess: () => {
+      toast.success('Return request created (awaiting confirmation in Returns).');
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ['oms-returns'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+
   const confirmMut = useMutation({
     mutationFn: () => OmsApi.confirm(id),
     onSuccess: () => {
-      toast.success('Order confirmed and fulfillment started.');
+      toast.success('Order confirmed (waiting for admin approval).');
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -259,12 +272,9 @@ export function OmsOrderDetailPage() {
     commercial === 'confirmed_waiting_for_admin_approval' ||
     commercial === 'processing';
   const canMarkDelivered = commercial === 'shipped';
-  const canRecordExternalFulfillment =
-    commercial === 'processing' &&
-    !!outboundId &&
-    (order.linkedOutboundOrder?.status === 'draft' ||
-      order.linkedOutboundOrder?.status === 'allocated' ||
-      order.linkedOutboundOrder?.status === 'pending_approval');
+  const canMarkFailedDelivery =
+    commercial === 'shipped' || order.status === 'out_for_delivery';
+  const canMarkReturned = order.status === 'failed_delivery';
   const canRevertDelivery = commercial === 'delivered';
   const canUndoCancel = Boolean(order.canRevertCancel);
   const canCancel = isOmsAdminCancellableStatus(order.status);
@@ -292,32 +302,24 @@ export function OmsOrderDetailPage() {
         subtitle={order.company?.name ?? undefined}
         actions={
           <div className="flex flex-wrap gap-2">
+            {order.status !== 'cancelled' ? (
+              <Button
+                variant="secondary"
+                onClick={() => window.open(`/orders/oms/${order.id}/waybill`, '_blank')}
+                className="gap-1.5 font-semibold"
+              >
+                <i className="fa-solid fa-file-invoice text-primary text-xs" aria-hidden="true" />
+                <span>بوليصة الشحن (Waybill)</span>
+              </Button>
+            ) : null}
             {canConfirm ? (
               <Button loading={confirmMut.isPending} onClick={() => confirmMut.mutate()}>
-                Confirm & start fulfillment
+                Confirm order
               </Button>
             ) : null}
             {canApprove ? (
               <Button loading={approveMut.isPending} onClick={() => approveMut.mutate()}>
                 Approve
-              </Button>
-            ) : null}
-            {canRecordExternalFulfillment ? (
-              <Button
-                variant="secondary"
-                loading={externalFulfillmentMut.isPending}
-                onClick={() => {
-                  if (
-                    !window.confirm(
-                      'Record this order as fulfilled outside the warehouse?\n\nNo picking, packing, carrier shipment, or inventory deduction will run.',
-                    )
-                  ) {
-                    return;
-                  }
-                  externalFulfillmentMut.mutate();
-                }}
-              >
-                Fulfilled outside warehouse
               </Button>
             ) : null}
             {canReject ? (
@@ -328,6 +330,24 @@ export function OmsOrderDetailPage() {
             {canMarkDelivered ? (
               <Button loading={deliveredMut.isPending} onClick={() => deliveredMut.mutate()}>
                 Mark delivered
+              </Button>
+            ) : null}
+            {canMarkFailedDelivery ? (
+              <Button
+                variant="secondary"
+                loading={failedDeliveryMut.isPending}
+                onClick={() => failedDeliveryMut.mutate()}
+              >
+                Mark failed delivery
+              </Button>
+            ) : null}
+            {canMarkReturned ? (
+              <Button
+                variant="secondary"
+                loading={returnedMut.isPending}
+                onClick={() => returnedMut.mutate()}
+              >
+                Mark as return
               </Button>
             ) : null}
             {canRevertDelivery ? (
@@ -403,8 +423,8 @@ export function OmsOrderDetailPage() {
 
       {order.needsInformation ? (
         <Alert variant="warning" title="Incomplete Order">
-          Shipping/Delivery information is incomplete. Use Edit to complete Governorate, City/Area,
-          and location before this order can be approved.
+          Shipping/Delivery information is incomplete. Use Edit to complete Governorate, City / Region,
+          and Town / Neighborhood before this order can be approved.
         </Alert>
       ) : null}
 
@@ -418,14 +438,13 @@ export function OmsOrderDetailPage() {
               <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
                 <Field label="Recipient" value={order.recipientName ?? '—'} />
                 <Field label="Phone" value={order.recipientPhone ?? '—'} />
-                <div className="sm:col-span-2">
-                  <Field
-                    label="Address"
-                    value={order.addressLine1 ?? order.destinationAddress ?? '—'}
-                  />
-                </div>
-                <Field label="City" value={order.city ?? '—'} />
-                <Field label="District" value={order.district ?? '—'} />
+                <Field label="Governorate" value={order.city ?? '—'} />
+                <Field label="City / Region" value={order.district ?? '—'} />
+                <Field label="Town / Neighborhood" value={order.addressLine1 ?? '—'} />
+                <Field
+                  label="Detailed Address"
+                  value={order.addressLine2 || order.destinationAddress || '—'}
+                />
                 <Field label="Carrier" value={order.carrier ?? '—'} />
                 <Field label="Tracking" value={order.trackingNumber ?? '—'} />
                 {order.deliveryInstructions ? (
@@ -636,6 +655,8 @@ export function OmsOrderDetailPage() {
       </div>
 
       <OmsOrderTrackingPanel order={order} />
+
+      <OmsShipmentMovementPanel order={order} />
 
       <OmsOrderFormModal
         open={editOpen}

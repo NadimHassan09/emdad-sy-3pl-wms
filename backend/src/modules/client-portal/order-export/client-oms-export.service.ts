@@ -56,6 +56,14 @@ function cell(order: Record<string, unknown>, id: string): string {
       return order.needsInformation ? 'yes' : 'no';
     case 'created_at':
       return order.createdAt ? new Date(String(order.createdAt)).toISOString() : '';
+    case 'out_for_delivery_at':
+      return order.outForDeliveryAt
+        ? new Date(String(order.outForDeliveryAt)).toISOString()
+        : '';
+    case 'delivered_at':
+      return order.deliveredAt
+        ? new Date(String(order.deliveredAt)).toISOString().slice(0, 10)
+        : '';
     case 'notes':
       return String(order.notes ?? '');
     default:

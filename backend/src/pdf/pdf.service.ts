@@ -184,6 +184,43 @@ export class PdfService implements OnModuleDestroy {
     }
   }
 
+  /** Render a standalone HTML document into a PDF buffer. */
+  async renderHtml(
+    html: string,
+    options?: {
+      format?: 'A4' | 'A5' | 'A6';
+      width?: string;
+      height?: string;
+      landscape?: boolean;
+      margin?: { top?: string; bottom?: string; left?: string; right?: string };
+    },
+  ): Promise<Buffer> {
+    const browser = await this.getBrowser();
+    const page = await browser.newPage();
+    try {
+      await page.setContent(html, { waitUntil: 'load' });
+      await page.evaluateHandle('document.fonts.ready').catch(() => undefined);
+      const pdfOptions: Record<string, unknown> = {
+        landscape: options?.landscape || false,
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: options?.margin || { top: '8mm', bottom: '8mm', left: '8mm', right: '8mm' },
+      };
+
+      if (options?.width && options?.height) {
+        pdfOptions.width = options.width;
+        pdfOptions.height = options.height;
+      } else {
+        pdfOptions.format = options?.format || 'A4';
+      }
+
+      const pdf = await page.pdf(pdfOptions as Parameters<typeof page.pdf>[0]);
+      return Buffer.from(pdf);
+    } finally {
+      await page.close().catch(() => undefined);
+    }
+  }
+
   /** Puppeteer header/footer templates are isolated documents — inline styles required here. */
   private footerTemplate(f: RenderFooter): string {
     return `

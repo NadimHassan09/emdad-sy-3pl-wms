@@ -37,12 +37,19 @@ export function listCities(data: SyriaAddressHierarchy = syriaAddressHierarchy):
   return Object.keys(data).sort((a, b) => a.localeCompare(b, 'ar'));
 }
 
+function findMatchingKey(keys: string[], target: string): string | undefined {
+  const normTarget = target.trim().toLowerCase();
+  return keys.find((k) => k.trim().toLowerCase() === normTarget);
+}
+
 export function listDistricts(
   city: string,
   data: SyriaAddressHierarchy = syriaAddressHierarchy,
 ): string[] {
   if (!city) return [];
-  const districts = data[city];
+  const exactOrMatched = data[city] ? city : findMatchingKey(Object.keys(data), city);
+  if (!exactOrMatched) return [];
+  const districts = data[exactOrMatched];
   if (!districts) return [];
   return Object.keys(districts).sort((a, b) => a.localeCompare(b, 'ar'));
 }
@@ -53,7 +60,13 @@ export function listNeighborhoods(
   data: SyriaAddressHierarchy = syriaAddressHierarchy,
 ): string[] {
   if (!city || !district) return [];
-  const neighborhoods = data[city]?.[district];
+  const matchedCity = data[city] ? city : findMatchingKey(Object.keys(data), city);
+  if (!matchedCity) return [];
+  const districts = data[matchedCity];
+  if (!districts) return [];
+  const matchedDistrict = districts[district] ? district : findMatchingKey(Object.keys(districts), district);
+  if (!matchedDistrict) return [];
+  const neighborhoods = districts[matchedDistrict];
   if (!neighborhoods) return [];
   return [...neighborhoods].sort((a, b) => a.localeCompare(b, 'ar'));
 }

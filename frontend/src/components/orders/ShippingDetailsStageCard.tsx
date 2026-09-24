@@ -289,6 +289,18 @@ export function ShippingDetailsStageCard({
                     value={(order.currency ?? 'USD').trim() || 'USD'}
                   />
                   <DetailRow
+                    label="Payer"
+                    value={
+                      order.shippingPayer === 'sender'
+                        ? 'Sender (المرسل)'
+                        : order.shippingPayer === 'receiver'
+                          ? 'Receiver (المستلم)'
+                          : order.shippingPayer === 'reseller'
+                            ? 'Reseller (الموزع)'
+                            : 'Sender (المرسل)'
+                    }
+                  />
+                  <DetailRow
                     label="Contents"
                     value={order.shippingContents?.trim() || '—'}
                   />

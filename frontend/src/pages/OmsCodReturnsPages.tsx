@@ -8,6 +8,7 @@ import type { CodRecord, CodRecordStatus, OmsReturn } from '../api/oms';
 import { CodApi, OmsReturnsApi } from '../api/oms';
 import { AdminListPageShell } from '../components/AdminListPageShell';
 import { Button } from '../components/Button';
+import { ConfirmReturnByScanModal } from '../components/ConfirmReturnByScanModal';
 import { CreateOmsReturnModal } from '../components/oms/CreateOmsReturnModal';
 import { ExpressReturnModal } from '../components/oms/ExpressReturnModal';
 import { Column, DataTable } from '../components/DataTable';
@@ -85,6 +86,11 @@ const RETURN_STATUS_TONE: Record<OmsReturn['status'], Tone> = {
   completed: 'success',
   cancelled: 'neutral',
 };
+
+/** Returns that can still be confirmed (not yet terminal). */
+function isConfirmableReturn(r: OmsReturn): boolean {
+  return r.status === 'requested' || r.status === 'approved';
+}
 
 /** Standalone OMS COD page — not under Reporting Center. */
 export function OmsCodPage() {
@@ -308,8 +314,14 @@ export function OmsCodPage() {
 export function OmsReturnsPage() {
   const isArabic = useIsArabic();
   const navigate = useNavigate();
+  const toast = useToast();
+  const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [expressOpen, setExpressOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
+
+  // ─── Row selection ──────────────────────────────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
 
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters({
@@ -337,7 +349,101 @@ export function OmsReturnsPage() {
     chunkQueryKeyPrefix: 'oms-returns-chunk',
   });
 
+  // ─── Mutations ──────────────────────────────────────────────────────────────
+  const confirmMut = useMutation({
+    mutationFn: (id: string) => OmsReturnsApi.confirmReturn(id),
+    onSuccess: () => {
+      toast.success(isArabic ? 'تم تأكيد الإرجاع بنجاح.' : 'Return confirmed successfully.');
+      void qc.invalidateQueries({ queryKey: ['oms-returns'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const bulkConfirmMut = useMutation({
+    mutationFn: (ids: string[]) => OmsReturnsApi.confirmReturnsBulk(ids),
+    onSuccess: (result) => {
+      const msg = isArabic
+        ? `تم تأكيد ${result.confirmed} إرجاع${result.skipped > 0 ? `، تجاوز ${result.skipped} (مكتمل)` : ''}${result.failed > 0 ? `، فشل ${result.failed}` : ''}.`
+        : `Confirmed ${result.confirmed}${result.skipped > 0 ? `, skipped ${result.skipped} (already done)` : ''}${result.failed > 0 ? `, ${result.failed} failed` : ''}.`;
+      if (result.failed > 0) {
+        toast.error(msg);
+      } else {
+        toast.success(msg);
+      }
+      setSelectedIds(new Set());
+      void qc.invalidateQueries({ queryKey: ['oms-returns'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // ─── Selection helpers ──────────────────────────────────────────────────────
+  const pageIds = pagination.rows.map((r) => r.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+  const somePageSelected = pageIds.some((id) => selectedIds.has(id)) && !allPageSelected;
+
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (allPageSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        pageIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        pageIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  }
+
+  const selectedOrders = useMemo(
+    () => pagination.rows.filter((r) => selectedIds.has(r.id)),
+    [pagination.rows, selectedIds],
+  );
+
+  const confirmableSelected = useMemo(
+    () => selectedOrders.filter(isConfirmableReturn),
+    [selectedOrders],
+  );
+
   const columns: Column<OmsReturn>[] = [
+    {
+      header: (
+        <input
+          type="checkbox"
+          aria-label={isArabic ? 'تحديد الكل' : 'Select all on page'}
+          checked={allPageSelected}
+          ref={(el) => {
+            if (el) el.indeterminate = somePageSelected;
+          }}
+          onChange={toggleAll}
+          className="h-4 w-4 cursor-pointer rounded border-border accent-brand-600"
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+      accessor: (row) => (
+        <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            aria-label={`Select ${row.returnNumber}`}
+            checked={selectedIds.has(row.id)}
+            onChange={() => toggleRow(row.id)}
+            className="h-4 w-4 cursor-pointer rounded border-border accent-brand-600"
+          />
+        </div>
+      ),
+      width: '2.5rem',
+    },
     {
       header: 'Return #',
       accessor: (row) => (
@@ -385,7 +491,40 @@ export function OmsReturnsPage() {
       header: 'Created',
       accessor: (row) => new Date(row.createdAt).toLocaleString(),
     },
+    {
+      header: 'Actions',
+      accessor: (row) => (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          className="flex items-center gap-2"
+        >
+          {isConfirmableReturn(row) ? (
+            <button
+              type="button"
+              disabled={confirmMut.isPending}
+              onClick={() => confirmMut.mutate(row.id)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label={`Confirm return ${row.returnNumber}`}
+            >
+              <i className="fa-solid fa-check text-[10px]" aria-hidden />
+              {isArabic ? 'تأكيد' : 'Confirm'}
+            </button>
+          ) : (
+            <span className="text-xs text-text-faint">
+              {row.status === 'completed'
+                ? isArabic
+                  ? 'مكتمل'
+                  : 'Done'
+                : '—'}
+            </span>
+          )}
+        </div>
+      ),
+    },
   ];
+
+  const selectionCount = selectedIds.size;
 
   return (
     <AdminListPageShell
@@ -397,7 +536,15 @@ export function OmsReturnsPage() {
       isArabic={isArabic}
       showSectionNav
       actions={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => setScanOpen(true)}
+            className="border-emerald-600/40 bg-emerald-50/50 text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+          >
+            <i className="fa-solid fa-qrcode mr-1.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            {isArabic ? 'تأكيد عبر المسح (QR)' : 'Confirm by Scan (QR)'}
+          </Button>
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             {isArabic ? 'إنشاء مرتجع' : 'Create Return'}
           </Button>
@@ -407,6 +554,15 @@ export function OmsReturnsPage() {
         </div>
       }
     >
+      <ConfirmReturnByScanModal
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        isArabic={isArabic}
+        onRefreshNeeded={() => {
+          void qc.invalidateQueries({ queryKey: ['oms-returns'] });
+          pagination.refetch?.();
+        }}
+      />
       <CreateOmsReturnModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -423,6 +579,54 @@ export function OmsReturnsPage() {
           pagination.refetch?.();
         }}
       />
+
+      {/* ─── Bulk action bar ─────────────────────────────────────────────────── */}
+      {selectionCount > 0 && (
+        <div className="sticky top-14 z-20 mb-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 shadow-sm dark:border-emerald-800/40 dark:bg-emerald-950/30">
+          <span className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+            {isArabic
+              ? `${selectionCount} مرتجع${selectionCount === 1 ? '' : 'ات'} محددة`
+              : `${selectionCount} return${selectionCount === 1 ? '' : 's'} selected`}
+            {confirmableSelected.length < selectionCount && (
+              <span className="ml-1.5 text-xs font-normal text-emerald-700 dark:text-emerald-300">
+                ({isArabic
+                  ? `${confirmableSelected.length} قابل للتأكيد`
+                  : `${confirmableSelected.length} confirmable`})
+              </span>
+            )}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="rounded-lg px-2.5 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
+            >
+              {isArabic ? 'إلغاء التحديد' : 'Clear selection'}
+            </button>
+            <button
+              type="button"
+              disabled={confirmableSelected.length === 0 || bulkConfirmMut.isPending}
+              onClick={() => bulkConfirmMut.mutate(confirmableSelected.map((r) => r.id))}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {bulkConfirmMut.isPending ? (
+                <>
+                  <i className="fa-solid fa-spinner fa-spin text-[10px]" aria-hidden />
+                  {isArabic ? 'جاري التأكيد…' : 'Confirming…'}
+                </>
+              ) : (
+                <>
+                  <i className="fa-solid fa-check-double text-[10px]" aria-hidden />
+                  {isArabic
+                    ? `تأكيد ${confirmableSelected.length} مرتجع`
+                    : `Confirm ${confirmableSelected.length} return${confirmableSelected.length === 1 ? '' : 's'}`}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
       <AdvancedFilterSection
         advancedOpen={advancedOpen}
         onAdvancedOpenChange={setAdvancedOpen}

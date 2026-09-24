@@ -8,6 +8,7 @@ import { WarehouseWorkflowModule } from '../warehouse-workflow/warehouse-workflo
 import { BillingModule } from '../billing/billing.module';
 import { ClientPortalModule } from '../client-portal/client-portal.module';
 import { OutboundController } from './outbound.controller';
+import { OutboundBulkService } from './outbound-bulk.service';
 import { OutboundOrdersCsvService } from './outbound-orders-csv.service';
 import { OutboundService } from './outbound.service';
 
@@ -22,7 +23,7 @@ import { OutboundService } from './outbound.service';
     forwardRef(() => ClientPortalModule),
   ],
   controllers: [OutboundController],
-  providers: [OutboundService, OutboundOrdersCsvService],
+  providers: [OutboundService, OutboundBulkService, OutboundOrdersCsvService],
   exports: [OutboundService],
 })
 export class OutboundModule {}

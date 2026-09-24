@@ -33,3 +33,12 @@ if (fs.existsSync(jsonSrc)) {
   fs.mkdirSync(jsonDestDir, { recursive: true });
   fs.copyFileSync(jsonSrc, path.join(jsonDestDir, 'syria-address-hierarchy.json'));
 }
+
+const dataSrcDir = path.join(root, 'src/data/syria-locations');
+const dataDestDir = path.join(root, 'dist/src/data/syria-locations');
+if (fs.existsSync(dataSrcDir)) {
+  fs.mkdirSync(dataDestDir, { recursive: true });
+  for (const f of fs.readdirSync(dataSrcDir)) {
+    fs.copyFileSync(path.join(dataSrcDir, f), path.join(dataDestDir, f));
+  }
+}

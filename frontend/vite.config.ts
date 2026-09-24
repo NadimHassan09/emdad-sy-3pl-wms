@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv } from 'vite';
 import { fileURLToPath, URL as NodeURL } from 'node:url';
@@ -5,6 +6,51 @@ import { resolve as pathResolve } from 'node:path';
 
 /** NestJS local API (`backend/.env` PORT, default 3000). */
 const DEFAULT_DEV_BACKEND = 'http://127.0.0.1:3000';
+
+function resolveBuildInfo() {
+  const version = process.env.npm_package_version ?? '0.1.0';
+  let gitCommit = '';
+  try {
+    gitCommit = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    /* ignore */
+  }
+  const timestamp = Date.now();
+  const buildId = gitCommit ? `${timestamp}-${gitCommit}` : String(timestamp);
+  return {
+    version,
+    buildId,
+    buildTime: new Date().toISOString(),
+  };
+}
+
+const buildInfo = resolveBuildInfo();
+
+function versionJsonPlugin(info: typeof buildInfo) {
+  return {
+    name: 'version-json-plugin',
+    generateBundle(this: any) {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify(info, null, 2),
+      });
+    },
+    configureServer(server: any) {
+      server.middlewares.use((req: any, res: any, next: any) => {
+        if (req.url && req.url.startsWith('/version.json')) {
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.end(JSON.stringify(info));
+          return;
+        }
+        next();
+      });
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -17,8 +63,10 @@ export default defineConfig(({ mode }) => {
   define: {
     __BACKUP_GDRIVE_UI_ENABLED__: JSON.stringify(backupGdriveUiEnabled),
     __OMS_COD_RETURNS_UI_ENABLED__: JSON.stringify(omsCodReturnsUiEnabled),
+    __APP_BUILD_ID__: JSON.stringify(buildInfo.buildId),
+    __APP_VERSION__: JSON.stringify(buildInfo.version),
   },
-  plugins: [react()],
+  plugins: [react(), versionJsonPlugin(buildInfo)],
   resolve: {
     alias: {
       '@emdad/wms-task-execution': fileURLToPath(

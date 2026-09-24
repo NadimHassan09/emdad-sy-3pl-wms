@@ -500,8 +500,14 @@ export function OrderShippingFields({
             quotes={quotes}
             errors={rateErrors}
             selectedCarrierId={value.shippingProviderCode}
-            onSelect={(carrierId) =>
-              onChange(patch(value, { shippingProviderCode: carrierId }))
+            selectedServiceId={value.shippingServiceId}
+            onSelect={(carrierId, serviceId) =>
+              onChange(
+                patch(value, {
+                  shippingProviderCode: carrierId,
+                  shippingServiceId: serviceId ?? '',
+                }),
+              )
             }
             loading={Boolean(ratesReady && ratesQuery.isFetching)}
             providersLoading={providersQuery.isLoading}

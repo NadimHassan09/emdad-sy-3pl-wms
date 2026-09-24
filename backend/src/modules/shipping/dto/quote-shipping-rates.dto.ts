@@ -62,4 +62,8 @@ export class QuoteShippingRatesDto {
   @IsOptional()
   @IsString()
   neighborhood?: string;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
 }

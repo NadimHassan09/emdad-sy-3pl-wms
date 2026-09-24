@@ -48,8 +48,6 @@ export class WorkflowEngineService {
     nodes: unknown[];
     tasks: unknown[];
   }> {
-    const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
-
     await lockWorkflowReferenceOrder(tx, WorkflowReferenceType.inbound_order, orderId);
 
     const order = await tx.inboundOrder.findUnique({
@@ -62,6 +60,7 @@ export class WorkflowEngineService {
       throw new NotFoundException('Inbound order not found.');
     }
     this.companyAccess.validateResourceOwnership(user, order);
+    const tenantCompanyId = user.companyId ?? order.companyId;
     if (!['confirmed', 'in_progress', 'partially_received'].includes(order.status)) {
       throw new InvalidStateException('Workflow can only start for an active inbound order.');
     }
@@ -163,8 +162,6 @@ export class WorkflowEngineService {
     nodes: unknown[];
     tasks: unknown[];
   }> {
-    const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
-
     await lockWorkflowReferenceOrder(tx, WorkflowReferenceType.outbound_order, orderId);
 
     const order = await tx.outboundOrder.findUnique({
@@ -173,6 +170,7 @@ export class WorkflowEngineService {
     });
     if (!order) throw new NotFoundException('Outbound order not found.');
     this.companyAccess.validateResourceOwnership(user, order);
+    const tenantCompanyId = user.companyId ?? order.companyId;
     if (outboundWarehouseClosed(order.status)) {
       throw new InvalidStateException(
         `Cannot start warehouse workflow for outbound status ${order.status}.`,

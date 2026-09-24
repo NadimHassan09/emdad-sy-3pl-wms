@@ -25,6 +25,8 @@ import { BabelExpressAdapter } from './providers/babel-express/babel-express.ada
 import { BabelGeoSyncService } from './providers/babel-express/babel-geo-sync.service';
 import { BABEL_EXPRESS_CODE } from './shipping.constants';
 import { ShippingService } from './shipping.service';
+import { ShippingTrackingService } from './shipping-tracking.service';
+import { ShippingProviderRegistry } from './shipping-provider.registry';
 
 class ResolveBabelNeighbourhoodDto {
   @Type(() => Number)
@@ -48,6 +50,8 @@ export class ShippingController {
     private readonly addressResolve: AddressResolveService,
     private readonly prisma: PrismaService,
     private readonly encryption: EncryptionService,
+    private readonly tracking: ShippingTrackingService,
+    private readonly registry: ShippingProviderRegistry,
   ) {}
 
   @Get('providers')
@@ -164,6 +168,48 @@ export class ShippingController {
   @Post('shipments/:outboundOrderId/retry')
   retry(@Param('outboundOrderId') outboundOrderId: string) {
     return this.shipping.retryShipment(outboundOrderId);
+  }
+
+  @Post('shipments/:outboundOrderId/sync-tracking')
+  async syncTracking(@Param('outboundOrderId') outboundOrderId: string) {
+    const shipment = await this.prisma.carrierShipment.findFirst({
+      where: { outboundOrderId },
+      select: { externalAwb: true, providerCode: true },
+    });
+    if (!shipment || !shipment.externalAwb) {
+      return { success: false, message: 'No carrier shipment with an AWB found for this order.' };
+    }
+    return this.tracking.syncShipmentByAwb(shipment.externalAwb, shipment.providerCode);
+  }
+
+  @Post('providers/:providerCode/register-webhook')
+  async registerWebhook(
+    @Param('providerCode') providerCode: string,
+    @Body() body: { webhookUrl: string; secret: string },
+  ) {
+    const code = providerCode.toUpperCase().trim();
+    const adapter = this.registry.get(code);
+    if (!adapter || !adapter.registerWebhook) {
+      return { ok: false, message: `Provider ${code} does not support automatic webhook registration.` };
+    }
+    const connection = await this.prisma.shippingProviderConnection.findFirst({
+      where: { provider: { code } },
+    });
+    if (!connection || connection.status !== 'connected' || !connection.encryptedUsername) {
+      return { ok: false, message: `Provider ${code} is not connected.` };
+    }
+    const credentials = {
+      username: this.encryption.decrypt(connection.encryptedUsername),
+      password: connection.encryptedPassword ? this.encryption.decrypt(connection.encryptedPassword) : '',
+    };
+    const result = await adapter.registerWebhook(credentials, body.webhookUrl, body.secret);
+    if (result.ok) {
+      await this.prisma.shippingProviderConnection.update({
+        where: { id: connection.id },
+        data: { webhookSecret: body.secret },
+      });
+    }
+    return result;
   }
 
   @Get('bulk/eligible')

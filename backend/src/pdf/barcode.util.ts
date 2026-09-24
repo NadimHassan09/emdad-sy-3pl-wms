@@ -27,3 +27,27 @@ export async function barcodePngDataUri(text: string): Promise<string> {
     return '';
   }
 }
+
+/** Render a scannable QR Code as a PNG data URI for embedding in HTML/PDF. */
+export async function qrCodePngDataUri(text: string): Promise<string> {
+  const normalized = text.trim();
+  if (!normalized) return '';
+
+  try {
+    const png = await new Promise<Buffer>((resolve, reject) => {
+      bwipjs.toBuffer(
+        {
+          bcid: 'qrcode',
+          text: normalized,
+          scale: 3,
+          paddingwidth: 2,
+          paddingheight: 2,
+        },
+        (err, buffer) => (err ? reject(err) : resolve(buffer)),
+      );
+    });
+    return `data:image/png;base64,${png.toString('base64')}`;
+  } catch {
+    return '';
+  }
+}

@@ -9,6 +9,7 @@ import { ListOmsOrdersQueryDto } from '../../oms/dto/list-oms-orders-query.dto';
 import { CreateOmsOrderDto } from '../../oms/dto/oms-order.dto';
 import { serializeOmsOrder } from '../../oms/oms-order.mapper';
 import { OmsOrdersService } from '../../oms/oms-orders.service';
+import { buildOmsOrderStatusDateFilter } from '../../oms/oms-order-status-filter.util';
 import { CreateClientOmsOrderDto } from './dto/create-client-oms-order.dto';
 import { ClientCodReportQueryDto } from './dto/client-cod-report-query.dto';
 import { ClientOmsStatusSummaryQueryDto } from './dto/client-oms-status-summary-query.dto';
@@ -104,8 +105,18 @@ export class ClientOmsOrdersService {
     query: ClientOmsStatusSummaryQueryDto,
   ) {
     const user = clientAuthPrincipal(client);
+
+    const fromStr = query.dateFrom ?? query.createdFrom;
+    const toStr = query.dateTo ?? query.createdTo;
+
+    const fromDate = fromStr ? new Date(`${fromStr}T00:00:00.000Z`) : undefined;
+    const toDate = toStr ? new Date(`${toStr}T23:59:59.999Z`) : undefined;
+
+    const statusDateConditions = buildOmsOrderStatusDateFilter(fromDate, toDate);
+
     const where: Prisma.OmsOrderWhereInput = {
       companyId: client.companyId,
+      ...(statusDateConditions.length > 0 ? { OR: statusDateConditions } : {}),
     };
 
     if (query.storeChannel?.trim()) {
@@ -113,17 +124,6 @@ export class ClientOmsOrdersService {
         contains: query.storeChannel.trim(),
         mode: 'insensitive',
       };
-    }
-
-    if (query.createdFrom || query.createdTo) {
-      const createdAt: Prisma.DateTimeFilter = {};
-      if (query.createdFrom) {
-        createdAt.gte = new Date(`${query.createdFrom}T00:00:00.000Z`);
-      }
-      if (query.createdTo) {
-        createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
-      }
-      where.createdAt = createdAt;
     }
 
     return withTenantRls(this.prisma, user, async (tx) => {
@@ -136,18 +136,7 @@ export class ClientOmsOrdersService {
         tx.omsOrder.findMany({
           where: {
             companyId: client.companyId,
-            ...(query.createdFrom || query.createdTo
-              ? {
-                  createdAt: {
-                    ...(query.createdFrom
-                      ? { gte: new Date(`${query.createdFrom}T00:00:00.000Z`) }
-                      : {}),
-                    ...(query.createdTo
-                      ? { lte: new Date(`${query.createdTo}T23:59:59.999Z`) }
-                      : {}),
-                  },
-                }
-              : {}),
+            ...(statusDateConditions.length > 0 ? { OR: statusDateConditions } : {}),
             storeChannel: { not: null },
           },
           select: { storeChannel: true },

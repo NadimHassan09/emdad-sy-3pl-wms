@@ -50,7 +50,10 @@ function ProviderCard({
 
   const connectMutation = useMutation({
     mutationFn: () =>
-      ShippingApi.connectProvider(provider.code, { username, password }),
+      ShippingApi.connectProvider(provider.code, {
+        username,
+        password: provider.code === 'SILA_SY' ? 'N/A' : password,
+      }),
     onSuccess: () => {
       setUsername('');
       setPassword('');
@@ -98,10 +101,25 @@ function ProviderCard({
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const isSila = provider.code === 'SILA_SY';
+
   const onConnect = (e: FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !password) {
-      toast.error(t(['Username and password are required.', 'اسم المستخدم وكلمة المرور مطلوبان.']));
+    if (!username.trim() || (!isSila && !password)) {
+      toast.error(
+        isSila
+          ? t(['API Key is required.', 'مفتاح API مطلوب.'])
+          : t(['Username and password are required.', 'اسم المستخدم وكلمة المرور مطلوبان.']),
+      );
+      return;
+    }
+    if (isSila && !username.trim().startsWith('sila_live_')) {
+      toast.error(
+        t([
+          'Sila API key must start with "sila_live_".',
+          'يجب أن يبدأ مفتاح Sila API بـ "sila_live_".',
+        ]),
+      );
       return;
     }
     connectMutation.mutate();
@@ -150,7 +168,7 @@ function ProviderCard({
 
         <div className="rounded-xl border border-border bg-surface-card p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-text-muted">
-            {t(['Username', 'اسم المستخدم'])}
+            {isSila ? t(['API Key', 'مفتاح API']) : t(['Username', 'اسم المستخدم'])}
           </p>
           <p className="mt-1 font-mono text-sm font-semibold text-text-strong">
             {provider.connected
@@ -158,10 +176,12 @@ function ProviderCard({
               : t(['Not saved', 'غير محفوظ'])}
           </p>
           <p className="mt-1 text-xs text-text-muted">
-            {t([
-              'Password is never shown after save.',
-              'لا تُعرض كلمة المرور بعد الحفظ.',
-            ])}
+            {isSila
+              ? t(['API key is stored encrypted.', 'يتم تخزين مفتاح API مشفراً.'])
+              : t([
+                  'Password is never shown after save.',
+                  'لا تُعرض كلمة المرور بعد الحفظ.',
+                ])}
           </p>
         </div>
 
@@ -184,18 +204,21 @@ function ProviderCard({
       {canMutate && !provider.connected ? (
         <form onSubmit={onConnect} className="mt-4 grid gap-3 md:grid-cols-2">
           <TextField
-            label={t(['Username', 'اسم المستخدم'])}
+            label={isSila ? t(['API Key', 'مفتاح API']) : t(['Username', 'اسم المستخدم'])}
             value={username}
             autoComplete="off"
+            placeholder={isSila ? 'sila_live_...' : ''}
             onChange={(e) => setUsername(e.target.value)}
           />
-          <TextField
-            label={t(['Password', 'كلمة المرور'])}
-            type="password"
-            value={password}
-            autoComplete="new-password"
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          {!isSila ? (
+            <TextField
+              label={t(['Password', 'كلمة المرور'])}
+              type="password"
+              value={password}
+              autoComplete="new-password"
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          ) : null}
           <div className="md:col-span-2">
             <Button type="submit" variant="brand" loading={connectMutation.isPending}>
               {t(['Connect', 'ربط'])}

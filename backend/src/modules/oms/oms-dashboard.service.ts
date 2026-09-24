@@ -6,6 +6,7 @@ import { readCompanyIdCatalogFilter } from '../../common/auth/company-read-scope
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { withTenantRls } from '../../common/prisma/tenant-rls';
+import { buildOmsOrderStatusDateFilter } from './oms-order-status-filter.util';
 
 /** Commercial in-fulfillment — warehouse prep / ready (not yet shipped commercially). */
 const PENDING_FULFILLMENT: OmsOrderStatus[] = [
@@ -227,16 +228,22 @@ export class OmsDashboardService {
               OmsOrderStatus.picking,
               OmsOrderStatus.packing,
               OmsOrderStatus.ready_to_ship,
-              OmsOrderStatus.shipped,
               OmsOrderStatus.failed_delivery,
             ] as OmsOrderStatus[]
           ).includes(r.status),
         )
         .reduce((s, r) => s + r._count.id, 0);
       const pending = pendingCommercial + pendingLegacy;
-      const outForDelivery =
-        byStatus.find((r) => r.status === OmsOrderStatus.out_for_delivery)?._count
-          .id ?? 0;
+      const outForDelivery = byStatus
+        .filter((r) =>
+          (
+            [
+              OmsOrderStatus.out_for_delivery,
+              OmsOrderStatus.shipped,
+            ] as OmsOrderStatus[]
+          ).includes(r.status),
+        )
+        .reduce((s, r) => s + r._count.id, 0);
       const cancelled =
         (byStatus.find((r) => r.status === OmsOrderStatus.cancelled)?._count.id ??
           0) +
@@ -379,6 +386,8 @@ export class OmsDashboardService {
     query: {
       createdFrom?: string;
       createdTo?: string;
+      dateFrom?: string;
+      dateTo?: string;
       companyId?: string;
     },
   ) {
@@ -388,20 +397,18 @@ export class OmsDashboardService {
       query.companyId,
     );
 
+    const fromStr = query.dateFrom ?? query.createdFrom;
+    const toStr = query.dateTo ?? query.createdTo;
+
+    const fromDate = fromStr ? new Date(`${fromStr}T00:00:00.000Z`) : undefined;
+    const toDate = toStr ? new Date(`${toStr}T23:59:59.999Z`) : undefined;
+
+    const statusDateConditions = buildOmsOrderStatusDateFilter(fromDate, toDate);
+
     const where: Prisma.OmsOrderWhereInput = {
       ...(companyFilter ? { companyId: companyFilter } : {}),
+      ...(statusDateConditions.length > 0 ? { OR: statusDateConditions } : {}),
     };
-
-    if (query.createdFrom || query.createdTo) {
-      const createdAt: Prisma.DateTimeFilter = {};
-      if (query.createdFrom) {
-        createdAt.gte = new Date(`${query.createdFrom}T00:00:00.000Z`);
-      }
-      if (query.createdTo) {
-        createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
-      }
-      where.createdAt = createdAt;
-    }
 
     return withTenantRls(this.prisma, user, async (tx) => {
       const grouped = await tx.omsOrder.groupBy({
