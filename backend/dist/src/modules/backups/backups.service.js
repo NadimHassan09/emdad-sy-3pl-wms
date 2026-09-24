@@ -404,6 +404,21 @@ let BackupsService = class BackupsService {
             throw new common_1.ForbiddenException('Only super admin can download backups.');
         }
         this.downloadTokens.verify(token, id, user.id);
+        return this.openDownloadStream(id);
+    }
+    async streamDownloadByToken(id, token) {
+        this.assertEnabled();
+        const { userId } = this.downloadTokens.assertValid(token, id);
+        const issuer = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { role: true, status: true },
+        });
+        if (!issuer || issuer.status !== client_1.UserStatus.active || issuer.role !== client_1.UserRole.super_admin) {
+            throw new common_1.ForbiddenException('Only super admin can download backups.');
+        }
+        return this.openDownloadStream(id);
+    }
+    async openDownloadStream(id) {
         const job = await this.prisma.backupJob.findUnique({ where: { id } });
         await this.assertDownloadableJob(job);
         const filePath = this.storage.resolveDumpPath(job.artifactPath, job.dumpFilename, id);

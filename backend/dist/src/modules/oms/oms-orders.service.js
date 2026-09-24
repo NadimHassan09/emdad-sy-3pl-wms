@@ -33,6 +33,8 @@ const oms_order_events_service_1 = require("./oms-order-events.service");
 const oms_outbound_sync_service_1 = require("./oms-outbound-sync.service");
 const oms_order_mapper_1 = require("./oms-order.mapper");
 const oms_order_transitions_1 = require("./oms-order-transitions");
+const oms_cancel_revert_1 = require("./oms-cancel-revert");
+const oms_order_delete_policy_1 = require("./oms-order-delete.policy");
 const order_allocation_service_1 = require("./order-allocation.service");
 const shipping_geo_service_1 = require("../shipping/shipping-geo.service");
 const shipping_service_1 = require("../shipping/shipping.service");
@@ -697,6 +699,13 @@ let OmsOrdersService = class OmsOrdersService {
         const existing = await this.resolveOrder(id, user);
         (0, oms_order_transitions_1.assertOmsTransition)(existing.status, 'reject', 'admin');
         const updated = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const outbound = existing.outboundOrderId
+                ? await tx.outboundOrder.findUnique({
+                    where: { id: existing.outboundOrderId },
+                    select: { status: true },
+                })
+                : null;
+            const snap = (0, oms_cancel_revert_1.snapshotOnEnteringCancelled)(existing.status, outbound?.status ?? null);
             const row = await tx.omsOrder.update({
                 where: { id: existing.id },
                 data: {
@@ -706,6 +715,8 @@ let OmsOrdersService = class OmsOrdersService {
                     cancelledAt: new Date(),
                     cancelledBy: user.id,
                     rejectionReason: dto.reason?.trim() || null,
+                    cancelledFromStatus: snap.cancelledFromStatus,
+                    cancelledFromOutboundStatus: snap.cancelledFromOutboundStatus,
                 },
                 include: ORDER_INCLUDE,
             });
@@ -714,7 +725,12 @@ let OmsOrdersService = class OmsOrdersService {
                 companyId: row.companyId,
                 eventType: 'oms.cancelled',
                 createdBy: user.id,
-                payload: { reason: dto.reason?.trim() || null, via: 'reject' },
+                payload: {
+                    reason: dto.reason?.trim() || null,
+                    via: 'reject',
+                    previousStatus: snap.cancelledFromStatus,
+                    previousOutboundStatus: snap.cancelledFromOutboundStatus,
+                },
             });
             return row;
         });
@@ -772,8 +788,20 @@ let OmsOrdersService = class OmsOrdersService {
                 orderBy: { createdAt: 'asc' },
             })
             : [];
+        const actor = (0, oms_order_transitions_1.resolveOmsActorRole)(user.role);
+        const revertCancelToStatus = (0, oms_cancel_revert_1.resolvePreviousOmsStatus)({
+            cancelledFromStatus: order.cancelledFromStatus,
+            events: timeline,
+        });
         return {
             ...(0, oms_order_mapper_1.serializeOmsOrder)(order),
+            cancelledFromStatus: order.cancelledFromStatus ?? null,
+            revertCancelToStatus,
+            canRevertCancel: (0, oms_cancel_revert_1.canRevertCancel)({
+                orderStatus: order.status,
+                restoreTo: revertCancelToStatus,
+                actor,
+            }),
             timeline,
             reservations: reservations.map((r) => ({
                 ...r,
@@ -1068,6 +1096,7 @@ let OmsOrdersService = class OmsOrdersService {
     }
     async delete(id, user) {
         const existing = await this.resolveOrder(id, user);
+        (0, oms_order_delete_policy_1.assertOmsOrderDeletable)(existing.status);
         await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             await tx.omsOrder.delete({ where: { id: existing.id } });
         });
@@ -1082,10 +1111,6 @@ let OmsOrdersService = class OmsOrdersService {
         if (existing.status === client_1.OmsOrderStatus.delivered) {
             throw new domain_exceptions_1.InvalidStateException('Delivered orders cannot be cancelled.');
         }
-        if (existing.status === client_1.OmsOrderStatus.shipped ||
-            existing.status === client_1.OmsOrderStatus.out_for_delivery) {
-            throw new domain_exceptions_1.InvalidStateException('Shipped orders cannot be cancelled. Use failed delivery or return flows.');
-        }
         const actor = (0, oms_order_transitions_1.resolveOmsActorRole)(user.role);
         if (actor === 'client') {
             const clientCancellable = [
@@ -1099,36 +1124,40 @@ let OmsOrdersService = class OmsOrdersService {
         }
         (0, oms_order_transitions_1.assertOmsTransition)(existing.status, 'cancel', actor);
         const updated = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const outbound = existing.outboundOrderId
+                ? await tx.outboundOrder.findUnique({
+                    where: { id: existing.outboundOrderId },
+                    select: { id: true, status: true, companyId: true },
+                })
+                : null;
+            const omsIsOutForDelivery = existing.status === client_1.OmsOrderStatus.shipped ||
+                existing.status === client_1.OmsOrderStatus.out_for_delivery;
+            if (outbound?.status === client_1.OutboundOrderStatus.delivered) {
+                throw new domain_exceptions_1.InvalidStateException('Cannot cancel OMS while outbound has already been delivered.');
+            }
+            if (outbound &&
+                !omsIsOutForDelivery &&
+                (outbound.status === client_1.OutboundOrderStatus.shipped ||
+                    outbound.status === client_1.OutboundOrderStatus.out_for_delivery)) {
+                throw new domain_exceptions_1.InvalidStateException('Cannot cancel OMS while outbound has already left the warehouse.');
+            }
+            const snap = (0, oms_cancel_revert_1.snapshotOnEnteringCancelled)(existing.status, outbound?.status ?? null);
             const row = await tx.omsOrder.update({
                 where: { id },
                 data: {
                     status: client_1.OmsOrderStatus.cancelled,
                     cancelledAt: new Date(),
                     cancelledBy: user.id,
+                    cancelledFromStatus: snap.cancelledFromStatus,
+                    cancelledFromOutboundStatus: snap.cancelledFromOutboundStatus,
                 },
                 include: ORDER_INCLUDE,
             });
-            if (row.outboundOrderId) {
-                const outbound = await tx.outboundOrder.findUnique({
-                    where: { id: row.outboundOrderId },
-                    select: { id: true, status: true, companyId: true },
+            if (outbound && outbound.status !== client_1.OutboundOrderStatus.cancelled) {
+                await tx.outboundOrder.update({
+                    where: { id: outbound.id },
+                    data: { status: client_1.OutboundOrderStatus.cancelled },
                 });
-                if (outbound &&
-                    outbound.status !== client_1.OutboundOrderStatus.cancelled &&
-                    outbound.status !== client_1.OutboundOrderStatus.shipped &&
-                    outbound.status !== client_1.OutboundOrderStatus.delivered &&
-                    outbound.status !== client_1.OutboundOrderStatus.out_for_delivery) {
-                    await tx.outboundOrder.update({
-                        where: { id: outbound.id },
-                        data: { status: client_1.OutboundOrderStatus.cancelled },
-                    });
-                }
-                else if (outbound &&
-                    (outbound.status === client_1.OutboundOrderStatus.shipped ||
-                        outbound.status === client_1.OutboundOrderStatus.delivered ||
-                        outbound.status === client_1.OutboundOrderStatus.out_for_delivery)) {
-                    throw new domain_exceptions_1.InvalidStateException('Cannot cancel OMS while outbound has already left the warehouse.');
-                }
             }
             await this.events.record(tx, {
                 omsOrderId: id,
@@ -1136,10 +1165,127 @@ let OmsOrdersService = class OmsOrdersService {
                 companyId: row.companyId,
                 eventType: 'oms.cancelled',
                 createdBy: user.id,
+                payload: {
+                    previousStatus: snap.cancelledFromStatus,
+                    previousOutboundStatus: snap.cancelledFromOutboundStatus,
+                },
             });
             return row;
         });
         this.emitOms('oms.cancelled', updated.companyId, updated.id, updated.status);
+        return (0, oms_order_mapper_1.serializeOmsOrder)(updated);
+    }
+    async revertCancel(id, user) {
+        const existing = await this.resolveOrder(id, user);
+        const actor = (0, oms_order_transitions_1.resolveOmsActorRole)(user.role);
+        (0, oms_order_transitions_1.assertOmsCancelRevert)(existing.status, actor);
+        const updated = await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+            const order = await tx.omsOrder.findUnique({
+                where: { id },
+                include: ORDER_INCLUDE,
+            });
+            if (!order)
+                throw new common_1.NotFoundException('Order not found.');
+            this.companyAccess.validateResourceOwnership(user, order);
+            (0, oms_order_transitions_1.assertOmsCancelRevert)(order.status, actor);
+            const events = await this.events.listForOrderTx(tx, id);
+            const restoreTo = (0, oms_cancel_revert_1.assertPreviousOmsStatusOrThrow)((0, oms_cancel_revert_1.resolvePreviousOmsStatus)({
+                cancelledFromStatus: order.cancelledFromStatus,
+                events,
+            }));
+            if (actor === 'client' && !(0, oms_cancel_revert_1.clientMayRevertTo)(restoreTo)) {
+                throw new domain_exceptions_1.InvalidStateException('Client can only undo cancel for orders that were still waiting for confirmation or admin approval.');
+            }
+            let restoredOutboundStatus = null;
+            if (order.outboundOrderId) {
+                const outbound = await tx.outboundOrder.findUnique({
+                    where: { id: order.outboundOrderId },
+                    include: { lines: true },
+                });
+                if (outbound?.status === client_1.OutboundOrderStatus.cancelled) {
+                    const hasActiveReservations = await this.allocation.hasActiveReservations(tx, outbound.id);
+                    let auditPreviousStatus = null;
+                    if (outbound.cancelledAt != null && !order.cancelledFromOutboundStatus) {
+                        const auditRows = await tx.$queryRaw `
+              SELECT previous_state
+              FROM audit_logs
+              WHERE action = 'OUTBOUND_ORDER_CANCELLED'
+                AND resource_id = ${outbound.id}::uuid
+              ORDER BY created_at DESC
+              LIMIT 1
+            `;
+                        const prev = auditRows[0]?.previous_state;
+                        const statusVal = prev && typeof prev === 'object'
+                            ? prev.status
+                            : null;
+                        auditPreviousStatus = (0, oms_cancel_revert_1.parseOutboundStatus)(statusVal);
+                    }
+                    const outboundRestore = (0, oms_cancel_revert_1.resolveOutboundRestoreStatus)({
+                        cancelledFromOutboundStatus: order.cancelledFromOutboundStatus,
+                        outboundCancelledAt: outbound.cancelledAt,
+                        hasActiveReservations,
+                        auditPreviousStatus,
+                    });
+                    if (!outboundRestore) {
+                        throw new domain_exceptions_1.InvalidStateException('Cannot safely restore the linked outbound order.');
+                    }
+                    await tx.outboundOrder.update({
+                        where: { id: outbound.id },
+                        data: {
+                            status: outboundRestore,
+                            cancelledAt: null,
+                            cancelledBy: null,
+                        },
+                    });
+                    restoredOutboundStatus = outboundRestore;
+                    if ((0, oms_cancel_revert_1.needsReallocation)({
+                        omsStatus: restoreTo,
+                        hasActiveReservations,
+                    })) {
+                        await this.allocation.allocateOrder(tx, {
+                            outboundOrderId: outbound.id,
+                            companyId: outbound.companyId,
+                            actorUserId: user.id,
+                            previousStatus: outboundRestore,
+                            lines: outbound.lines.map((line) => ({
+                                outboundOrderLineId: line.id,
+                                productId: line.productId,
+                                requestedQty: line.requestedQuantity,
+                                specificLotId: line.specificLotId,
+                            })),
+                        });
+                    }
+                }
+            }
+            const row = await tx.omsOrder.update({
+                where: { id },
+                data: {
+                    status: restoreTo,
+                    cancelledAt: null,
+                    cancelledBy: null,
+                    cancelledFromStatus: null,
+                    cancelledFromOutboundStatus: null,
+                    ...(order.rejectedAt
+                        ? { rejectedAt: null, rejectedBy: null, rejectionReason: null }
+                        : {}),
+                },
+                include: ORDER_INCLUDE,
+            });
+            await this.events.record(tx, {
+                omsOrderId: id,
+                outboundOrderId: row.outboundOrderId ?? undefined,
+                companyId: row.companyId,
+                eventType: 'oms.cancel_reverted',
+                createdBy: user.id,
+                payload: {
+                    previousStatus: client_1.OmsOrderStatus.cancelled,
+                    restoredStatus: restoreTo,
+                    restoredOutboundStatus,
+                },
+            });
+            return row;
+        });
+        this.emitOms('oms.cancel_reverted', updated.companyId, updated.id, updated.status);
         return (0, oms_order_mapper_1.serializeOmsOrder)(updated);
     }
     async allocate(id, user, dto) {

@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UpdateOmsReturnPlanDto = exports.ApproveOmsReturnDto = exports.RejectOmsReturnDto = exports.CreateOmsReturnDto = exports.CreateOmsReturnLineDto = void 0;
+exports.ImportOmsReturnsDto = exports.ImportOmsReturnRowDto = exports.PreviewOmsReturnDto = exports.UpdateOmsReturnPlanDto = exports.ApproveOmsReturnDto = exports.RejectOmsReturnDto = exports.CreateOmsReturnDto = exports.CreateOmsReturnLineDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
@@ -117,4 +117,52 @@ __decorate([
     (0, class_validator_1.MaxLength)(1000),
     __metadata("design:type", String)
 ], UpdateOmsReturnPlanDto.prototype, "notes", void 0);
+class PreviewOmsReturnDto {
+    orderReference;
+}
+exports.PreviewOmsReturnDto = PreviewOmsReturnDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], PreviewOmsReturnDto.prototype, "orderReference", void 0);
+class ImportOmsReturnRowDto {
+    orderReference;
+    productReference;
+    quantity;
+}
+exports.ImportOmsReturnRowDto = ImportOmsReturnRowDto;
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], ImportOmsReturnRowDto.prototype, "orderReference", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", String)
+], ImportOmsReturnRowDto.prototype, "productReference", void 0);
+__decorate([
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsNumber)({ maxDecimalPlaces: 4 }),
+    __metadata("design:type", Number)
+], ImportOmsReturnRowDto.prototype, "quantity", void 0);
+class ImportOmsReturnsDto {
+    reason;
+    rows;
+}
+exports.ImportOmsReturnsDto = ImportOmsReturnsDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", String)
+], ImportOmsReturnsDto.prototype, "reason", void 0);
+__decorate([
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMinSize)(1),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => ImportOmsReturnRowDto),
+    __metadata("design:type", Array)
+], ImportOmsReturnsDto.prototype, "rows", void 0);
 //# sourceMappingURL=oms-return.dto.js.map

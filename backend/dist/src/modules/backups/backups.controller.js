@@ -51,9 +51,11 @@ const platform_express_1 = require("@nestjs/platform-express");
 const throttler_1 = require("@nestjs/throttler");
 const os = __importStar(require("os"));
 const path = __importStar(require("path"));
+const promises_1 = require("node:stream/promises");
 const multer_1 = require("multer");
 const auth_groups_1 = require("../../common/auth/auth-groups");
 const current_user_decorator_1 = require("../../common/auth/current-user.decorator");
+const public_decorator_1 = require("../../common/auth/public.decorator");
 const roles_decorator_1 = require("../../common/auth/roles.decorator");
 const internal_admin_guard_1 = require("../../common/auth/internal-admin.guard");
 const roles_guard_1 = require("../../common/auth/roles.guard");
@@ -108,12 +110,13 @@ let BackupsController = class BackupsController {
     downloadUrl(user, id) {
         return this.backups.issueDownload(user, id);
     }
-    async download(user, id, token, res) {
-        const { stream, filename, sizeBytes } = await this.backups.streamDownload(user, id, token);
+    async download(id, token, res) {
+        const { stream, filename, sizeBytes } = await this.backups.streamDownloadByToken(id, token);
         res.setHeader('Content-Type', 'application/octet-stream');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Length', String(sizeBytes));
-        stream.pipe(res);
+        res.setHeader('X-Accel-Buffering', 'no');
+        await (0, promises_1.pipeline)(stream, res);
     }
     findOne(user, id) {
         return this.backups.findById(user, id);
@@ -231,15 +234,15 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], BackupsController.prototype, "downloadUrl", null);
 __decorate([
+    (0, public_decorator_1.Public)(),
     (0, common_1.Get)(':id/download'),
-    (0, common_1.UseGuards)(super_admin_guard_1.SuperAdminGuard),
     (0, common_1.Header)('Cache-Control', 'no-store'),
-    __param(0, (0, current_user_decorator_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
-    __param(2, (0, common_1.Query)('token')),
-    __param(3, (0, common_1.Res)()),
+    (0, throttler_1.Throttle)({ default: { limit: 20, ttl: 60_000 } }),
+    __param(0, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(1, (0, common_1.Query)('token')),
+    __param(2, (0, common_1.Res)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, String, Object]),
+    __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", Promise)
 ], BackupsController.prototype, "download", null);
 __decorate([

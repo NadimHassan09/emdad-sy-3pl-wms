@@ -532,7 +532,13 @@ let OutboundService = class OutboundService {
                     orderBy: { createdAt: 'desc' },
                     include: {
                         company: { select: { id: true, name: true } },
-                        lines: { select: { requestedQuantity: true } },
+                        lines: {
+                            orderBy: { lineNumber: 'asc' },
+                            select: {
+                                requestedQuantity: true,
+                                product: { select: { name: true, weightKg: true } },
+                            },
+                        },
                     },
                 });
                 return {
@@ -551,7 +557,11 @@ let OutboundService = class OutboundService {
                 include: {
                     company: { select: { id: true, name: true } },
                     lines: {
-                        select: { requestedQuantity: true },
+                        orderBy: { lineNumber: 'asc' },
+                        select: {
+                            requestedQuantity: true,
+                            product: { select: { name: true, weightKg: true } },
+                        },
                     },
                 },
                 take: opts.maxRows,

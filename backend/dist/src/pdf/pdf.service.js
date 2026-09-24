@@ -16,6 +16,21 @@ const node_path_1 = require("node:path");
 const common_1 = require("@nestjs/common");
 const handlebars_1 = __importDefault(require("handlebars"));
 const importPuppeteer = new Function('return import("puppeteer")');
+function resolveChromeExecutable() {
+    const fromEnv = process.env.PUPPETEER_EXECUTABLE_PATH?.trim();
+    if (fromEnv && (0, node_fs_1.existsSync)(fromEnv))
+        return fromEnv;
+    for (const candidate of [
+        '/usr/bin/google-chrome-stable',
+        '/usr/bin/google-chrome',
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+    ]) {
+        if ((0, node_fs_1.existsSync)(candidate))
+            return candidate;
+    }
+    return undefined;
+}
 let PdfService = PdfService_1 = class PdfService {
     logger = new common_1.Logger(PdfService_1.name);
     browser = null;
@@ -72,9 +87,16 @@ let PdfService = PdfService_1 = class PdfService {
         if (!this.browserPromise) {
             this.browserPromise = (async () => {
                 const pptr = await this.loadPuppeteer();
+                const executablePath = resolveChromeExecutable();
+                if (executablePath) {
+                    this.logger.log(`PDF Chromium executable: ${executablePath}`);
+                }
+                else {
+                    this.logger.warn('No system Chrome found; falling back to Puppeteer-managed browser cache');
+                }
                 const browser = await pptr.launch({
                     headless: true,
-                    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+                    executablePath,
                     args: [
                         '--no-sandbox',
                         '--disable-setuid-sandbox',

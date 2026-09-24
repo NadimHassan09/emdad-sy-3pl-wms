@@ -1,0 +1,110 @@
+{
+  "mode": "apply",
+  "generatedAt": "2026-08-27T07:36:23.183Z",
+  "allowlistPath": "/var/www/emdad-sy-3pl-wms/backend/scripts/data/accidental-oms-384-order-numbers.txt",
+  "summary": {
+    "total": 1,
+    "safe": 1,
+    "blocked": 0,
+    "alreadyRolledBack": 0
+  },
+  "billing": {
+    "cycle": {
+      "id": "3e765475-663d-4699-ae26-b628344d896e",
+      "startsAt": "2026-08-06T12:53:14.251Z",
+      "endsAt": "2026-09-05T12:53:14.251Z"
+    },
+    "draftInvoices": [
+      {
+        "id": "7635fb4b-5e27-4474-ac1f-014700f11655",
+        "number": "INV-2026-00009",
+        "total": "100"
+      }
+    ],
+    "issuedInvoices": [],
+    "shippedOutboundCountInCycle": 2587,
+    "billingAutoFixOk": true,
+    "note": "Draft-only: recalc after deletes should drop outbound system lines",
+    "applyResults": {
+      "ok": [
+        "OMS-2026-00018"
+      ],
+      "skipped": [],
+      "failed": []
+    }
+  },
+  "rows": [
+    {
+      "orderNumber": "OMS-2026-00018",
+      "omsId": "87688c8f-ec53-4686-a5ac-79807c60d599",
+      "companyId": "f6fab62a-4536-4002-b07c-bad1eb17bca2",
+      "companyName": "Mr Jad",
+      "omsStatus": "shipped",
+      "outboundId": "3e244969-6e9e-49e7-8678-5aadbfa8fb62",
+      "outboundNumber": "OUT-2026-02127",
+      "outboundStatus": "shipped",
+      "productLines": [
+        {
+          "sku": "AIRCOOLING1",
+          "qty": "1"
+        }
+      ],
+      "ledgerRestorePlan": [
+        {
+          "productId": "b5414bd7-4481-4b9e-b5b4-a05d6502a4bd",
+          "sku": "AIRCOOLING1",
+          "locationId": "c297d028-364f-4a34-aa3d-8bf8fa617b38",
+          "locationFullPath": "WH-001/RETURNS",
+          "warehouseId": "00000000-0000-4000-8000-000000000010",
+          "lotId": "333dfd88-6264-4dae-8f5d-b2bc3b512e7e",
+          "qty": "1"
+        }
+      ],
+      "reservationCount": 2,
+      "workflowIds": [
+        "1450964a-e12b-439e-8a37-8f7a6890220c"
+      ],
+      "taskIds": [
+        "bd4f0dd6-eaec-4ccf-ae4a-20b8804f87b8",
+        "f398f4e5-53bc-4e7f-b6e2-ba20009c4f9d",
+        "67381ece-dc3c-4f5d-baeb-9be7cab234b6"
+      ],
+      "workflowCount": 1,
+      "taskCount": 3,
+      "manualChargeCount": 0,
+      "manualChargeIds": [],
+      "documentCount": 0,
+      "documentIds": [],
+      "omsFieldsToClear": [
+        "status→confirmed_waiting_for_admin_approval",
+        "outbound_order_id→null",
+        "approved_at",
+        "approved_by",
+        "out_for_delivery_at",
+        "allocated_at",
+        "allocation_status→none"
+      ],
+      "recordsToDelete": [
+        "outbound_orders:3e244969-6e9e-49e7-8678-5aadbfa8fb62",
+        "outbound_order_lines (cascade)",
+        "stock_reservations x2 (cascade)",
+        "carrier_shipments / bulk_shipping_job_items (cascade)",
+        "workflow_instances x1",
+        "warehouse_tasks x3",
+        "documents x0",
+        "order_manual_charges x0"
+      ],
+      "billingNote": "Outbound shippedAt in cycle will drop from draft invoice outbound count after delete+recalc",
+      "verdict": "SAFE",
+      "blockerReason": null,
+      "alreadyRestoredSlices": 0,
+      "pendingRestoreSlices": 1,
+      "taskTypes": [
+        "dispatch",
+        "pick",
+        "pack"
+      ],
+      "manualCharges": []
+    }
+  ]
+}

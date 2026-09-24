@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.OMS_PRE_FULFILLMENT = exports.OMS_TERMINAL_STATUSES = exports.OMS_PRIMARY_STATUSES = void 0;
 exports.assertOmsTransition = assertOmsTransition;
 exports.resolveOmsActorRole = resolveOmsActorRole;
+exports.assertOmsCancelRevert = assertOmsCancelRevert;
 const client_1 = require("@prisma/client");
 const domain_exceptions_1 = require("../../common/errors/domain-exceptions");
 exports.OMS_PRIMARY_STATUSES = new Set([
@@ -48,6 +49,8 @@ const ALLOWED = {
     [`${client_1.OmsOrderStatus.allocated}|cancel|admin`]: client_1.OmsOrderStatus.cancelled,
     [`${client_1.OmsOrderStatus.picking}|cancel|admin`]: client_1.OmsOrderStatus.cancelled,
     [`${client_1.OmsOrderStatus.packing}|cancel|admin`]: client_1.OmsOrderStatus.cancelled,
+    [`${client_1.OmsOrderStatus.shipped}|cancel|admin`]: client_1.OmsOrderStatus.cancelled,
+    [`${client_1.OmsOrderStatus.out_for_delivery}|cancel|admin`]: client_1.OmsOrderStatus.cancelled,
     [`${client_1.OmsOrderStatus.confirmed_waiting_for_admin_approval}|reject|admin`]: client_1.OmsOrderStatus.cancelled,
     [`${client_1.OmsOrderStatus.pending_approval}|reject|admin`]: client_1.OmsOrderStatus.cancelled,
     [`${client_1.OmsOrderStatus.waiting_for_confirmation}|reject|admin`]: client_1.OmsOrderStatus.cancelled,
@@ -59,6 +62,10 @@ const ALLOWED = {
     [`${client_1.OmsOrderStatus.ready_to_ship}|failed_delivery|admin`]: client_1.OmsOrderStatus.failed_delivery,
     [`${client_1.OmsOrderStatus.delivered}|mark_returned|system`]: client_1.OmsOrderStatus.returned,
     [`${client_1.OmsOrderStatus.delivered}|mark_returned|admin`]: client_1.OmsOrderStatus.returned,
+    [`${client_1.OmsOrderStatus.shipped}|mark_returned|system`]: client_1.OmsOrderStatus.returned,
+    [`${client_1.OmsOrderStatus.shipped}|mark_returned|admin`]: client_1.OmsOrderStatus.returned,
+    [`${client_1.OmsOrderStatus.out_for_delivery}|mark_returned|system`]: client_1.OmsOrderStatus.returned,
+    [`${client_1.OmsOrderStatus.out_for_delivery}|mark_returned|admin`]: client_1.OmsOrderStatus.returned,
 };
 function assertOmsTransition(from, action, actor) {
     const key = `${from}|${action}|${actor}`;
@@ -72,5 +79,10 @@ function resolveOmsActorRole(role) {
     if (role === 'client_admin' || role === 'client_staff')
         return 'client';
     return 'admin';
+}
+function assertOmsCancelRevert(from, actor) {
+    if (from !== client_1.OmsOrderStatus.cancelled) {
+        throw new domain_exceptions_1.InvalidStateException(`OMS transition not allowed: ${from} —[cancel_revert/${actor}]→`);
+    }
 }
 //# sourceMappingURL=oms-order-transitions.js.map

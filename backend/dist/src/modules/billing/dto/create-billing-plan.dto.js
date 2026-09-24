@@ -15,6 +15,8 @@ const class_validator_1 = require("class-validator");
 const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
 class CreateBillingPlanDto {
     companyId;
+    planType;
+    templateId;
     active;
     autoRenew;
     cycleLengthDays;
@@ -37,6 +39,16 @@ __decorate([
     (0, is_uuid_loose_1.IsUuidLoose)(),
     __metadata("design:type", String)
 ], CreateBillingPlanDto.prototype, "companyId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['custom', 'template']),
+    __metadata("design:type", String)
+], CreateBillingPlanDto.prototype, "planType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, is_uuid_loose_1.IsUuidLoose)(),
+    __metadata("design:type", Object)
+], CreateBillingPlanDto.prototype, "templateId", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsBoolean)(),

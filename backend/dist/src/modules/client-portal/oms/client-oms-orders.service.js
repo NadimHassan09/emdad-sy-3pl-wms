@@ -73,6 +73,7 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
                                         status: true,
                                         trackingType: true,
                                         uom: true,
+                                        weightKg: true,
                                     },
                                 },
                             },
@@ -320,6 +321,10 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
     async cancel(client, id) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
         return this.omsOrders.cancel(id, user);
+    }
+    async revertCancel(client, id) {
+        const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        return this.omsOrders.revertCancel(id, user);
     }
     async findOne(client, id) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);

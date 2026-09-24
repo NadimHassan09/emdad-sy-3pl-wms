@@ -17,6 +17,7 @@ const class_validator_1 = require("class-validator");
 const node_crypto_1 = require("node:crypto");
 const oms_client_import_schema_1 = require("../client-portal/order-import/oms-client-import.schema");
 const admin_order_export_columns_1 = require("./admin-order-export.columns");
+const order_export_product_cells_1 = require("./order-export-product-cells");
 const oms_order_dto_1 = require("./dto/oms-order.dto");
 const oms_orders_csv_util_1 = require("./oms-orders-csv.util");
 const oms_orders_service_1 = require("./oms-orders.service");
@@ -76,6 +77,8 @@ let OmsOrdersCsvService = class OmsOrdersCsvService {
                 total: o.total ?? '',
                 line_count: lineCount,
                 total_quantity: totalQty,
+                product_name: (0, order_export_product_cells_1.exportProductNames)(o.lines),
+                product_weight: (0, order_export_product_cells_1.exportProductWeights)(o.lines),
                 shipping_method: o.shippingMethod ?? '',
                 shipping_provider_code: o.shippingProviderCode ?? '',
                 carrier: o.carrier ?? '',
@@ -89,7 +92,9 @@ let OmsOrdersCsvService = class OmsOrdersCsvService {
                 out_for_delivery_at: o.outForDeliveryAt
                     ? new Date(o.outForDeliveryAt).toISOString()
                     : '',
-                delivered_at: o.deliveredAt ? new Date(o.deliveredAt).toISOString() : '',
+                delivered_at: o.deliveredAt
+                    ? new Date(o.deliveredAt).toISOString().slice(0, 10)
+                    : '',
             };
             return columnIds.map((id) => cells[id] ?? '');
         });

@@ -40,8 +40,8 @@ export const ADMIN_OMS_EXPORT_COLUMNS: AdminExportColumnDef[] = [
   { id: 'created_at', labelEn: 'Created', labelAr: 'تاريخ الإنشاء' },
   { id: 'confirmed_at', labelEn: 'Confirmed', labelAr: 'تاريخ التأكيد' },
   { id: 'approved_at', labelEn: 'Approved', labelAr: 'تاريخ الموافقة' },
-  { id: 'out_for_delivery_at', labelEn: 'Out for delivery', labelAr: 'خارج للتسليم' },
-  { id: 'delivered_at', labelEn: 'Delivered', labelAr: 'تاريخ التسليم' },
+  { id: 'out_for_delivery_at', labelEn: 'Ship date', labelAr: 'تاريخ الشحن' },
+  { id: 'delivered_at', labelEn: 'Delivery date', labelAr: 'تاريخ التسليم' },
 ];
 
 export const ADMIN_INBOUND_EXPORT_COLUMNS: AdminExportColumnDef[] = [
@@ -86,7 +86,7 @@ export const ADMIN_OUTBOUND_EXPORT_COLUMNS: AdminExportColumnDef[] = [
   { id: 'execution_mode', labelEn: 'Execution mode', labelAr: 'وضع التنفيذ' },
   { id: 'created_at', labelEn: 'Created', labelAr: 'تاريخ الإنشاء' },
   { id: 'confirmed_at', labelEn: 'Confirmed', labelAr: 'تاريخ التأكيد' },
-  { id: 'shipped_at', labelEn: 'Shipped', labelAr: 'تاريخ الشحن' },
+  { id: 'shipped_at', labelEn: 'Ship date', labelAr: 'تاريخ الشحن' },
 ];
 
 export function adminHeaderLabels(

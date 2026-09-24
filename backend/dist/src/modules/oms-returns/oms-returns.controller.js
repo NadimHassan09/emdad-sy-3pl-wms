@@ -35,6 +35,15 @@ let OmsReturnsController = class OmsReturnsController {
     validateExpressReturn(user, body) {
         return this.returns.validateOrdersForExpressReturn(user, body);
     }
+    preview(user, dto) {
+        return this.returns.previewNormalReturn(user, dto);
+    }
+    validateImportRows(user, dto) {
+        return this.returns.validateNormalReturnImport(user, dto);
+    }
+    importRows(user, dto) {
+        return this.returns.importNormalReturns(user, dto);
+    }
     findOne(user, id) {
         return this.returns.findById(id, user);
     }
@@ -87,6 +96,30 @@ __decorate([
     __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], OmsReturnsController.prototype, "validateExpressReturn", null);
+__decorate([
+    (0, common_1.Post)('preview'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, oms_return_dto_1.PreviewOmsReturnDto]),
+    __metadata("design:returntype", void 0)
+], OmsReturnsController.prototype, "preview", null);
+__decorate([
+    (0, common_1.Post)('import/validate'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, oms_return_dto_1.ImportOmsReturnsDto]),
+    __metadata("design:returntype", void 0)
+], OmsReturnsController.prototype, "validateImportRows", null);
+__decorate([
+    (0, common_1.Post)('import'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, oms_return_dto_1.ImportOmsReturnsDto]),
+    __metadata("design:returntype", void 0)
+], OmsReturnsController.prototype, "importRows", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

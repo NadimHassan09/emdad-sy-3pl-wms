@@ -29,13 +29,23 @@ let BackupDownloadTokenService = class BackupDownloadTokenService {
         };
     }
     verify(token, jobId, userId) {
+        const payload = this.assertValid(token, jobId);
+        if (payload.userId !== userId) {
+            throw new common_1.UnauthorizedException('Invalid download token.');
+        }
+    }
+    assertValid(token, jobId) {
+        if (!token?.trim()) {
+            throw new common_1.UnauthorizedException('Download token is required.');
+        }
         const payload = this.parseAndVerify(token);
-        if (payload.jobId !== jobId || payload.userId !== userId) {
+        if (payload.jobId !== jobId) {
             throw new common_1.UnauthorizedException('Invalid download token.');
         }
         if (payload.exp < Math.floor(Date.now() / 1000)) {
             throw new common_1.UnauthorizedException('Download token has expired.');
         }
+        return { userId: payload.userId, exp: payload.exp };
     }
     buildDownloadUrl(jobId, token, apiBasePath = '/api') {
         const q = new URLSearchParams({ token });

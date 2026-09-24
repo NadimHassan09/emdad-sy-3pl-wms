@@ -15,6 +15,7 @@ const client_1 = require("@prisma/client");
 const order_planning_date_1 = require("../../../common/utils/order-planning-date");
 const geo_polygon_util_1 = require("../../shipping/geo-polygon.util");
 const shipping_geo_service_1 = require("../../shipping/shipping-geo.service");
+const address_resolve_service_1 = require("../../shipping/address-resolve.service");
 const client_oms_orders_service_1 = require("../oms/client-oms-orders.service");
 const oms_client_import_validation_1 = require("../order-import/oms-client-import.validation");
 const api_validation_1 = require("./api-validation");
@@ -36,6 +37,7 @@ function parseApiShipDate(raw) {
     }
     return (0, oms_client_import_validation_1.parseImportMdYDate)(t, 'requiredShipDate');
 }
+const internalResolver = new address_resolve_service_1.AddressResolveService();
 let ExternalOmsService = class ExternalOmsService {
     oms;
     geo;
@@ -227,24 +229,29 @@ let ExternalOmsService = class ExternalOmsService {
             city: address.city,
             neighborhood: address.neighborhood,
         });
-        if (!boundary) {
-            (0, api_validation_1.throwApiValidation)('The delivery address could not be resolved to map coordinates.', {
-                address: 'Could not geocode this governorate/city. Check the spelling and try again.',
-            });
+        if (boundary) {
+            let point = (0, geo_polygon_util_1.bboxCentroid)(boundary.bbox);
+            if (!this.geo.containsPoint(boundary, point)) {
+                point = {
+                    lat: boundary.bbox.south + (boundary.bbox.north - boundary.bbox.south) * 0.35,
+                    lng: boundary.bbox.west + (boundary.bbox.east - boundary.bbox.west) * 0.5,
+                };
+            }
+            if (this.geo.containsPoint(boundary, point)) {
+                return point;
+            }
         }
-        let point = (0, geo_polygon_util_1.bboxCentroid)(boundary.bbox);
-        if (!this.geo.containsPoint(boundary, point)) {
-            point = {
-                lat: boundary.bbox.south + (boundary.bbox.north - boundary.bbox.south) * 0.35,
-                lng: boundary.bbox.west + (boundary.bbox.east - boundary.bbox.west) * 0.5,
-            };
+        const internal = internalResolver.resolveFromAddress({
+            governorate: address.governorate,
+            cityRegion: address.city,
+            townNeighborhood: address.neighborhood,
+        });
+        if (internal.found) {
+            return { lat: internal.lat, lng: internal.lng };
         }
-        if (!this.geo.containsPoint(boundary, point)) {
-            (0, api_validation_1.throwApiValidation)('The delivery address could not be resolved to valid map coordinates.', {
-                address: 'Resolved area did not produce a point inside the delivery boundary.',
-            });
-        }
-        return point;
+        (0, api_validation_1.throwApiValidation)('The delivery address could not be resolved to map coordinates.', {
+            address: 'Could not geocode this governorate/city. Check the spelling and try again.',
+        });
     }
 };
 exports.ExternalOmsService = ExternalOmsService;

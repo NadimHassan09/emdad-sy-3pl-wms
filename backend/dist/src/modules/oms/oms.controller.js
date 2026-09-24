@@ -121,6 +121,9 @@ let OmsController = class OmsController {
     cancel(user, id) {
         return this.orders.cancel(id, user);
     }
+    cancelRevert(user, id) {
+        return this.orders.revertCancel(id, user);
+    }
     failedDelivery(user, id) {
         return this.orders.markFailedDelivery(id, user);
     }
@@ -311,6 +314,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], OmsController.prototype, "cancel", null);
+__decorate([
+    (0, common_1.Post)('orders/:id/cancel-revert'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "cancelRevert", null);
 __decorate([
     (0, common_1.Post)('orders/:id/failed-delivery'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),

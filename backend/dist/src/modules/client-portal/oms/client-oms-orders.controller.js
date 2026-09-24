@@ -82,6 +82,9 @@ let ClientOmsOrdersController = class ClientOmsOrdersController {
     cancel(client, id) {
         return this.oms.cancel(client, id);
     }
+    cancelRevert(client, id) {
+        return this.oms.revertCancel(client, id);
+    }
     findOne(client, id) {
         return this.oms.findOne(client, id);
     }
@@ -189,6 +192,14 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ClientOmsOrdersController.prototype, "cancel", null);
+__decorate([
+    (0, common_1.Post)('orders/:id/cancel-revert'),
+    __param(0, (0, client_user_decorator_1.ClientUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ClientOmsOrdersController.prototype, "cancelRevert", null);
 __decorate([
     (0, common_1.Get)('orders/:id'),
     __param(0, (0, client_user_decorator_1.ClientUser)()),

@@ -17,6 +17,7 @@ const class_validator_1 = require("class-validator");
 const node_crypto_1 = require("node:crypto");
 const outbound_client_import_schema_1 = require("../client-portal/order-import/outbound-client-import.schema");
 const admin_order_export_columns_1 = require("../oms/admin-order-export.columns");
+const order_export_product_cells_1 = require("../oms/order-export-product-cells");
 const create_outbound_dto_1 = require("./dto/create-outbound.dto");
 const outbound_orders_csv_util_1 = require("./outbound-orders-csv.util");
 const outbound_service_1 = require("./outbound.service");
@@ -71,6 +72,8 @@ let OutboundOrdersCsvService = class OutboundOrdersCsvService {
                 notes: o.notes ?? '',
                 line_count: lineCount,
                 total_requested_quantity: totalQty,
+                product_name: (0, order_export_product_cells_1.exportProductNames)(o.lines),
+                product_weight: (0, order_export_product_cells_1.exportProductWeights)(o.lines),
                 shipping_method: o.shippingMethod ?? '',
                 execution_mode: o.executionMode ?? '',
                 created_at: o.createdAt ? new Date(o.createdAt).toISOString() : '',

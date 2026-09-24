@@ -14,6 +14,8 @@ exports.CLIENT_OMS_EXPORT_COLUMNS = [
     { id: 'address', labelEn: 'Address', labelAr: 'العنوان' },
     { id: 'required_ship_date', labelEn: 'Required ship date', labelAr: 'تاريخ الشحن المطلوب' },
     { id: 'total', labelEn: 'Total', labelAr: 'الإجمالي' },
+    { id: 'product_name', labelEn: 'Product name', labelAr: 'اسم المنتج' },
+    { id: 'product_weight', labelEn: 'Product weight (kg)', labelAr: 'وزن المنتج (كغ)' },
     { id: 'currency', labelEn: 'Currency', labelAr: 'العملة' },
     { id: 'payment_method', labelEn: 'Payment method', labelAr: 'طريقة الدفع' },
     { id: 'carrier', labelEn: 'Carrier', labelAr: 'شركة الشحن' },
@@ -21,6 +23,8 @@ exports.CLIENT_OMS_EXPORT_COLUMNS = [
     { id: 'warehouse_status', labelEn: 'Warehouse status', labelAr: 'حالة المستودع' },
     { id: 'incomplete', labelEn: 'Incomplete', labelAr: 'غير مكتمل' },
     { id: 'created_at', labelEn: 'Created', labelAr: 'تاريخ الإنشاء' },
+    { id: 'out_for_delivery_at', labelEn: 'Ship date', labelAr: 'تاريخ الشحن' },
+    { id: 'delivered_at', labelEn: 'Delivery date', labelAr: 'تاريخ التسليم' },
     { id: 'notes', labelEn: 'Notes', labelAr: 'ملاحظات' },
 ];
 exports.CLIENT_INBOUND_EXPORT_COLUMNS = [
@@ -29,6 +33,8 @@ exports.CLIENT_INBOUND_EXPORT_COLUMNS = [
     { id: 'external_order_id', labelEn: 'External order ID', labelAr: 'الرقم المرجعي' },
     { id: 'expected_arrival_date', labelEn: 'Expected arrival', labelAr: 'الوصول المتوقع' },
     { id: 'lines', labelEn: 'Lines', labelAr: 'البنود' },
+    { id: 'product_name', labelEn: 'Product name', labelAr: 'اسم المنتج' },
+    { id: 'product_weight', labelEn: 'Product weight (kg)', labelAr: 'وزن المنتج (كغ)' },
     { id: 'notes', labelEn: 'Notes', labelAr: 'ملاحظات' },
     { id: 'created_at', labelEn: 'Created', labelAr: 'تاريخ الإنشاء' },
     { id: 'confirmed_at', labelEn: 'Confirmed', labelAr: 'تاريخ التأكيد' },
@@ -44,10 +50,12 @@ exports.CLIENT_OUTBOUND_EXPORT_COLUMNS = [
     { id: 'carrier', labelEn: 'Carrier', labelAr: 'شركة الشحن' },
     { id: 'tracking_number', labelEn: 'Tracking number', labelAr: 'رقم التتبع' },
     { id: 'lines', labelEn: 'Lines', labelAr: 'البنود' },
+    { id: 'product_name', labelEn: 'Product name', labelAr: 'اسم المنتج' },
+    { id: 'product_weight', labelEn: 'Product weight (kg)', labelAr: 'وزن المنتج (كغ)' },
     { id: 'notes', labelEn: 'Notes', labelAr: 'ملاحظات' },
     { id: 'created_at', labelEn: 'Created', labelAr: 'تاريخ الإنشاء' },
     { id: 'confirmed_at', labelEn: 'Confirmed', labelAr: 'تاريخ التأكيد' },
-    { id: 'shipped_at', labelEn: 'Shipped', labelAr: 'تاريخ الشحن' },
+    { id: 'shipped_at', labelEn: 'Ship date', labelAr: 'تاريخ الشحن' },
 ];
 function headerLabels(columns, columnIds, arabic) {
     const byId = new Map(columns.map((c) => [c.id, c]));

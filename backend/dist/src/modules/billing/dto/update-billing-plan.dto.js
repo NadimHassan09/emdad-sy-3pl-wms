@@ -12,7 +12,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UpdateBillingPlanDto = void 0;
 const class_transformer_1 = require("class-transformer");
 const class_validator_1 = require("class-validator");
+const is_uuid_loose_1 = require("../../../common/validators/is-uuid-loose");
 class UpdateBillingPlanDto {
+    planType;
+    templateId;
     applyMode;
     active;
     autoRenew;
@@ -31,6 +34,16 @@ class UpdateBillingPlanDto {
     reservedWeight;
 }
 exports.UpdateBillingPlanDto = UpdateBillingPlanDto;
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['custom', 'template']),
+    __metadata("design:type", String)
+], UpdateBillingPlanDto.prototype, "planType", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, is_uuid_loose_1.IsUuidLoose)(),
+    __metadata("design:type", Object)
+], UpdateBillingPlanDto.prototype, "templateId", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsIn)(['immediate', 'next_cycle']),

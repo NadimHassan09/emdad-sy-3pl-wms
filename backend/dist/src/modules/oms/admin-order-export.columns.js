@@ -25,6 +25,8 @@ exports.ADMIN_OMS_EXPORT_COLUMNS = [
     { id: 'total', labelEn: 'Total', labelAr: 'الإجمالي' },
     { id: 'line_count', labelEn: 'Line count', labelAr: 'عدد البنود' },
     { id: 'total_quantity', labelEn: 'Total quantity', labelAr: 'إجمالي الكمية' },
+    { id: 'product_name', labelEn: 'Product name', labelAr: 'اسم المنتج' },
+    { id: 'product_weight', labelEn: 'Product weight (kg)', labelAr: 'وزن المنتج (كغ)' },
     { id: 'shipping_method', labelEn: 'Shipping method', labelAr: 'طريقة الشحن' },
     { id: 'shipping_provider_code', labelEn: 'Shipping provider', labelAr: 'مزود الشحن' },
     { id: 'carrier', labelEn: 'Carrier', labelAr: 'شركة الشحن' },
@@ -33,8 +35,8 @@ exports.ADMIN_OMS_EXPORT_COLUMNS = [
     { id: 'created_at', labelEn: 'Created', labelAr: 'تاريخ الإنشاء' },
     { id: 'confirmed_at', labelEn: 'Confirmed', labelAr: 'تاريخ التأكيد' },
     { id: 'approved_at', labelEn: 'Approved', labelAr: 'تاريخ الموافقة' },
-    { id: 'out_for_delivery_at', labelEn: 'Out for delivery', labelAr: 'خارج للتسليم' },
-    { id: 'delivered_at', labelEn: 'Delivered', labelAr: 'تاريخ التسليم' },
+    { id: 'out_for_delivery_at', labelEn: 'Ship date', labelAr: 'تاريخ الشحن' },
+    { id: 'delivered_at', labelEn: 'Delivery date', labelAr: 'تاريخ التسليم' },
 ];
 exports.ADMIN_INBOUND_EXPORT_COLUMNS = [
     { id: 'order_number', labelEn: 'Order #', labelAr: 'رقم الطلب' },
@@ -49,6 +51,8 @@ exports.ADMIN_INBOUND_EXPORT_COLUMNS = [
     { id: 'notes', labelEn: 'Notes', labelAr: 'ملاحظات' },
     { id: 'line_count', labelEn: 'Line count', labelAr: 'عدد البنود' },
     { id: 'total_expected_quantity', labelEn: 'Total expected qty', labelAr: 'إجمالي الكمية المتوقعة' },
+    { id: 'product_name', labelEn: 'Product name', labelAr: 'اسم المنتج' },
+    { id: 'product_weight', labelEn: 'Product weight (kg)', labelAr: 'وزن المنتج (كغ)' },
     { id: 'execution_mode', labelEn: 'Execution mode', labelAr: 'وضع التنفيذ' },
     { id: 'created_at', labelEn: 'Created', labelAr: 'تاريخ الإنشاء' },
     { id: 'confirmed_at', labelEn: 'Confirmed', labelAr: 'تاريخ التأكيد' },
@@ -69,11 +73,13 @@ exports.ADMIN_OUTBOUND_EXPORT_COLUMNS = [
     { id: 'notes', labelEn: 'Notes', labelAr: 'ملاحظات' },
     { id: 'line_count', labelEn: 'Line count', labelAr: 'عدد البنود' },
     { id: 'total_requested_quantity', labelEn: 'Total requested qty', labelAr: 'إجمالي الكمية المطلوبة' },
+    { id: 'product_name', labelEn: 'Product name', labelAr: 'اسم المنتج' },
+    { id: 'product_weight', labelEn: 'Product weight (kg)', labelAr: 'وزن المنتج (كغ)' },
     { id: 'shipping_method', labelEn: 'Shipping method', labelAr: 'طريقة الشحن' },
     { id: 'execution_mode', labelEn: 'Execution mode', labelAr: 'وضع التنفيذ' },
     { id: 'created_at', labelEn: 'Created', labelAr: 'تاريخ الإنشاء' },
     { id: 'confirmed_at', labelEn: 'Confirmed', labelAr: 'تاريخ التأكيد' },
-    { id: 'shipped_at', labelEn: 'Shipped', labelAr: 'تاريخ الشحن' },
+    { id: 'shipped_at', labelEn: 'Ship date', labelAr: 'تاريخ الشحن' },
 ];
 function adminHeaderLabels(columns, columnIds, arabic) {
     const byId = new Map(columns.map((c) => [c.id, c]));

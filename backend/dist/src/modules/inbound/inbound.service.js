@@ -286,7 +286,13 @@ let InboundService = class InboundService {
                     orderBy: { createdAt: 'desc' },
                     include: {
                         company: { select: { id: true, name: true } },
-                        lines: { select: { expectedQuantity: true } },
+                        lines: {
+                            orderBy: { lineNumber: 'asc' },
+                            select: {
+                                expectedQuantity: true,
+                                product: { select: { name: true, weightKg: true } },
+                            },
+                        },
                     },
                 });
                 return {
@@ -305,7 +311,11 @@ let InboundService = class InboundService {
                 include: {
                     company: { select: { id: true, name: true } },
                     lines: {
-                        select: { expectedQuantity: true },
+                        orderBy: { lineNumber: 'asc' },
+                        select: {
+                            expectedQuantity: true,
+                            product: { select: { name: true, weightKg: true } },
+                        },
                     },
                 },
                 take: opts.maxRows,

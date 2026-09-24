@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isBabelCalculatePriceShippable = exports.isBabelAddressDeliveryAvailable = void 0;
 exports.resolveBabelPickupType = resolveBabelPickupType;
+exports.resolveBabelPayer = resolveBabelPayer;
 exports.resolveBabelCodCurrency = resolveBabelCodCurrency;
 exports.mapCreateShipmentPayload = mapCreateShipmentPayload;
 exports.mapCalculatePricePayload = mapCalculatePricePayload;
@@ -13,6 +14,9 @@ var babel_quote_util_2 = require("./babel-quote.util");
 Object.defineProperty(exports, "isBabelCalculatePriceShippable", { enumerable: true, get: function () { return babel_quote_util_2.isBabelCalculatePriceShippable; } });
 function resolveBabelPickupType(pickupType) {
     return pickupType === 'address' ? 'hub' : pickupType;
+}
+function resolveBabelPayer(payer) {
+    return payer === 'reseller' ? 'reseller' : 'receiver';
 }
 function resolveBabelCodCurrency(currency) {
     const normalized = currency?.trim().toUpperCase();
@@ -71,7 +75,7 @@ function mapCreateShipmentPayload(input) {
                 amount: input.codAmount,
                 currency: resolveBabelCodCurrency(input.currency),
             },
-            payer: input.payer,
+            payer: resolveBabelPayer(input.payer),
             ...(input.reference ? { reference: input.reference } : {}),
         },
     };

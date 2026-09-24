@@ -74,7 +74,13 @@ let ClientOutboundOrdersService = class ClientOutboundOrdersService {
                     orderBy: { createdAt: 'desc' },
                     include: {
                         company: { select: { id: true, name: true } },
-                        lines: { select: { requestedQuantity: true } },
+                        lines: {
+                            orderBy: { lineNumber: 'asc' },
+                            select: {
+                                requestedQuantity: true,
+                                product: { select: { name: true, weightKg: true } },
+                            },
+                        },
                     },
                 });
                 return {

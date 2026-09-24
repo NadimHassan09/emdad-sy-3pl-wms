@@ -17,6 +17,7 @@ const class_validator_1 = require("class-validator");
 const node_crypto_1 = require("node:crypto");
 const inbound_client_import_schema_1 = require("../client-portal/order-import/inbound-client-import.schema");
 const admin_order_export_columns_1 = require("../oms/admin-order-export.columns");
+const order_export_product_cells_1 = require("../oms/order-export-product-cells");
 const create_inbound_dto_1 = require("./dto/create-inbound.dto");
 const inbound_orders_csv_util_1 = require("./inbound-orders-csv.util");
 const inbound_service_1 = require("./inbound.service");
@@ -69,6 +70,8 @@ let InboundOrdersCsvService = class InboundOrdersCsvService {
                 notes: o.notes ?? '',
                 line_count: lineCount,
                 total_expected_quantity: totalQty,
+                product_name: (0, order_export_product_cells_1.exportProductNames)(o.lines),
+                product_weight: (0, order_export_product_cells_1.exportProductWeights)(o.lines),
                 execution_mode: o.executionMode ?? '',
                 created_at: o.createdAt ? new Date(o.createdAt).toISOString() : '',
                 confirmed_at: o.confirmedAt ? new Date(o.confirmedAt).toISOString() : '',

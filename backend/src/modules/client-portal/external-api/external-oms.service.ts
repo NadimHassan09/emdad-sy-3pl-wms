@@ -5,6 +5,7 @@ import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { calendarTodayYmdServerLocal } from '../../../common/utils/order-planning-date';
 import { bboxCentroid } from '../../shipping/geo-polygon.util';
 import { ShippingGeoService } from '../../shipping/shipping-geo.service';
+import { AddressResolveService } from '../../shipping/address-resolve.service';
 import { ClientOmsOrdersService } from '../oms/client-oms-orders.service';
 import { ListClientOmsOrdersQueryDto } from '../oms/dto/list-client-oms-orders-query.dto';
 import {
@@ -41,6 +42,8 @@ function parseApiShipDate(raw: string): { ok: true; ymd: string } | { ok: false;
   }
   return parseImportMdYDate(t, 'requiredShipDate');
 }
+
+const internalResolver = new AddressResolveService();
 
 @Injectable()
 export class ExternalOmsService {
@@ -263,23 +266,30 @@ export class ExternalOmsService {
       city: address.city,
       neighborhood: address.neighborhood,
     });
-    if (!boundary) {
-      throwApiValidation('The delivery address could not be resolved to map coordinates.', {
-        address: 'Could not geocode this governorate/city. Check the spelling and try again.',
-      });
+    if (boundary) {
+      let point = bboxCentroid(boundary.bbox);
+      if (!this.geo.containsPoint(boundary, point)) {
+        point = {
+          lat: boundary.bbox.south + (boundary.bbox.north - boundary.bbox.south) * 0.35,
+          lng: boundary.bbox.west + (boundary.bbox.east - boundary.bbox.west) * 0.5,
+        };
+      }
+      if (this.geo.containsPoint(boundary, point)) {
+        return point;
+      }
     }
-    let point = bboxCentroid(boundary.bbox);
-    if (!this.geo.containsPoint(boundary, point)) {
-      point = {
-        lat: boundary.bbox.south + (boundary.bbox.north - boundary.bbox.south) * 0.35,
-        lng: boundary.bbox.west + (boundary.bbox.east - boundary.bbox.west) * 0.5,
-      };
+
+    const internal = internalResolver.resolveFromAddress({
+      governorate: address.governorate,
+      cityRegion: address.city,
+      townNeighborhood: address.neighborhood,
+    });
+    if (internal.found) {
+      return { lat: internal.lat, lng: internal.lng };
     }
-    if (!this.geo.containsPoint(boundary, point)) {
-      throwApiValidation('The delivery address could not be resolved to valid map coordinates.', {
-        address: 'Resolved area did not produce a point inside the delivery boundary.',
-      });
-    }
-    return point;
+
+    throwApiValidation('The delivery address could not be resolved to map coordinates.', {
+      address: 'Could not geocode this governorate/city. Check the spelling and try again.',
+    });
   }
 }

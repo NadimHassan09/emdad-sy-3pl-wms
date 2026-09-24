@@ -13,6 +13,7 @@ exports.ClientOmsExportService = void 0;
 const common_1 = require("@nestjs/common");
 const oms_orders_csv_util_1 = require("../../oms/oms-orders-csv.util");
 const client_oms_orders_service_1 = require("../oms/client-oms-orders.service");
+const order_export_product_cells_1 = require("../../oms/order-export-product-cells");
 const client_order_export_columns_1 = require("./client-order-export.columns");
 const MAX_ROWS = 10_000;
 function cell(order, id) {
@@ -39,6 +40,10 @@ function cell(order, id) {
                 : '';
         case 'total':
             return order.total != null ? String(order.total) : '';
+        case 'product_name':
+            return (0, order_export_product_cells_1.exportProductNames)(order.lines);
+        case 'product_weight':
+            return (0, order_export_product_cells_1.exportProductWeights)(order.lines);
         case 'currency':
             return String(order.currency ?? '');
         case 'payment_method':
@@ -53,6 +58,14 @@ function cell(order, id) {
             return order.needsInformation ? 'yes' : 'no';
         case 'created_at':
             return order.createdAt ? new Date(String(order.createdAt)).toISOString() : '';
+        case 'out_for_delivery_at':
+            return order.outForDeliveryAt
+                ? new Date(String(order.outForDeliveryAt)).toISOString()
+                : '';
+        case 'delivered_at':
+            return order.deliveredAt
+                ? new Date(String(order.deliveredAt)).toISOString().slice(0, 10)
+                : '';
         case 'notes':
             return String(order.notes ?? '');
         default:

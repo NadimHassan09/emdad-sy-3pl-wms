@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 
-import { ShippingApi } from '../../api/shipping';
+import { ShippingApi, type ShippingPayer } from '../../api/shipping';
 import { QK } from '../../constants/query-keys';
 import { useDebounced } from '../../lib/useDebounced';
 import { CascadingAddressSelector } from '../CascadingAddressSelector';
@@ -536,6 +536,32 @@ export function CarrierShippingDetailsForm({
               },
             ]}
           />
+        </div>
+
+        <div>
+          <div className="mb-1.5 text-xs font-medium text-text-muted">Shipping Payer (دافع الشحن)</div>
+          <PillToggle<ShippingPayer>
+            disabled={readOnly}
+            value={value.shippingPayer || 'sender'}
+            onChange={(shippingPayer) => onChange(patch(value, { shippingPayer }))}
+            options={[
+              {
+                value: 'sender',
+                label: 'Sender (المرسل / التاجر)',
+              },
+              {
+                value: 'receiver',
+                label: 'Receiver (المستلم / الزبون)',
+              },
+              {
+                value: 'reseller',
+                label: 'Reseller (الموزع)',
+              },
+            ]}
+          />
+          <p className="mt-1 text-[11px] text-text-faint">
+            Default: Sender (المرسل). Admin can change who pays the shipping cost.
+          </p>
         </div>
       </section>
 

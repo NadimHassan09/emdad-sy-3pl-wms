@@ -3,6 +3,7 @@ import type {
   ShippingConfigPayload,
   ShippingDeliveryType,
   ShippingPackageType,
+  ShippingPayer,
 } from '../../api/shipping';
 
 export type ShippingCurrency = 'USD' | 'SYP';
@@ -47,6 +48,7 @@ export type CarrierShippingFormValue = {
   catalog: OrderProductCatalog[];
   currency: ShippingCurrency;
   deliveryType: ShippingDeliveryType;
+  shippingPayer: ShippingPayer;
   shippingProviderCode: string;
 };
 
@@ -173,7 +175,12 @@ export function buildCarrierShippingFormFromOrder(order: OutboundOrder): Carrier
   const cartons = stored ? cartonsFromStored(stored) : buildDefaultCartons(catalog);
   const savedPkg = order.shippingPackageType;
   const savedDelivery = order.shippingDeliveryType;
+  const savedPayer = order.shippingPayer;
   const savedCurrency = (order.currency ?? 'USD').trim().toUpperCase();
+  const shippingPayer: ShippingPayer =
+    savedPayer === 'receiver' || savedPayer === 'reseller' || savedPayer === 'sender'
+      ? savedPayer
+      : 'sender';
 
   return {
     city: (order.city ?? '').trim(),
@@ -186,6 +193,7 @@ export function buildCarrierShippingFormFromOrder(order: OutboundOrder): Carrier
     catalog,
     currency: savedCurrency === 'SYP' ? 'SYP' : 'USD',
     deliveryType: savedDelivery === 'hub' ? 'hub' : 'address',
+    shippingPayer,
     shippingProviderCode: (order.shippingProviderCode ?? '').trim(),
   };
 }
@@ -362,7 +370,7 @@ export function carrierFormToSavePayload(
     shippingContents: contentsFromCartons(form.cartons, form.catalog) || null,
     shippingDeliveryType: form.deliveryType || 'address',
     shippingPickupType: 'hub',
-    shippingPayer: 'receiver',
+    shippingPayer: form.shippingPayer || 'sender',
     shippingWeightKg: weight > 0 ? weight : null,
     shippingVolumeCbm: volume >= 0 ? volume : 0,
     shippingPackages: stored.length > 0 ? stored : null,

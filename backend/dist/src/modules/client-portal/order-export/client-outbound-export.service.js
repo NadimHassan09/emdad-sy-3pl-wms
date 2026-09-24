@@ -13,6 +13,7 @@ exports.ClientOutboundExportService = void 0;
 const common_1 = require("@nestjs/common");
 const oms_orders_csv_util_1 = require("../../oms/oms-orders-csv.util");
 const client_outbound_orders_service_1 = require("../outbound/client-outbound-orders.service");
+const order_export_product_cells_1 = require("../../oms/order-export-product-cells");
 const client_order_export_columns_1 = require("./client-order-export.columns");
 const MAX_ROWS = 10_000;
 function cell(order, id) {
@@ -37,6 +38,10 @@ function cell(order, id) {
             return String(order.trackingNumber ?? '');
         case 'lines':
             return String(Array.isArray(order.lines) ? order.lines.length : '');
+        case 'product_name':
+            return (0, order_export_product_cells_1.exportProductNames)(order.lines);
+        case 'product_weight':
+            return (0, order_export_product_cells_1.exportProductWeights)(order.lines);
         case 'notes':
             return String(order.notes ?? '');
         case 'created_at':
