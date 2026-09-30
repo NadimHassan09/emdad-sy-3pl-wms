@@ -25,6 +25,9 @@ class ListOmsOrdersQueryDto extends pagination_dto_1.PaginationDto {
     customer;
     phone;
     city;
+    carrier;
+    startOrderNo;
+    endOrderNo;
     totalOp;
     totalValue;
     createdFrom;
@@ -75,6 +78,27 @@ __decorate([
     (0, class_validator_1.MaxLength)(80),
     __metadata("design:type", String)
 ], ListOmsOrdersQueryDto.prototype, "city", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(80),
+    __metadata("design:type", String)
+], ListOmsOrdersQueryDto.prototype, "carrier", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(60),
+    __metadata("design:type", String)
+], ListOmsOrdersQueryDto.prototype, "startOrderNo", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(60),
+    __metadata("design:type", String)
+], ListOmsOrdersQueryDto.prototype, "endOrderNo", void 0);
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),

@@ -35,8 +35,30 @@ export type ProviderQuoteCandidate = {
   currency: string;
 };
 
+export const DEFAULT_USD_TO_SYP_RATE = 14500;
+
+export function getUsdToSypRate(): number {
+  const envVal = process.env.USD_TO_SYP_RATE;
+  if (envVal) {
+    const parsed = Number(envVal);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return DEFAULT_USD_TO_SYP_RATE;
+}
+
+export function normalizePriceForComparison(price: number, currency?: string): number {
+  if (!Number.isFinite(price)) return Infinity;
+  const curr = (currency ?? 'USD').toUpperCase().trim();
+  const rate = getUsdToSypRate();
+  if (curr === 'SYP') {
+    return price / rate;
+  }
+  return price;
+}
+
 /**
  * Recommend cheapest provider among valid quotes only.
+ * Normalizes currencies (e.g. USD vs SYP) so 200 SYP is not treated as more expensive than 2 USD.
  * Returns null when no reliable quote is available (do not invent prices).
  */
 export function recommendCheapestProvider(
@@ -50,7 +72,11 @@ export function recommendCheapestProvider(
       q.price >= 0,
   );
   if (valid.length === 0) return null;
-  return valid.reduce((best, cur) => (cur.price < best.price ? cur : best));
+  return valid.reduce((best, cur) => {
+    const bestNorm = normalizePriceForComparison(best.price, best.currency);
+    const curNorm = normalizePriceForComparison(cur.price, cur.currency);
+    return curNorm < bestNorm ? cur : best;
+  });
 }
 
 export function resolveBulkProviderSelection(params: {

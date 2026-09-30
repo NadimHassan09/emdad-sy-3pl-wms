@@ -50,6 +50,7 @@ import {
   normalizeExecutionMode,
   parseOutboundExecutionPlan,
 } from '../orders/execution-plan.util';
+import type { OutboundExecutionPlan } from '../orders/execution-plan.types';
 import { WorkflowBootstrapService } from '../warehouse-workflow/workflow-bootstrap.service';
 import { WarehouseTasksService } from '../warehouse-workflow/warehouse-tasks.service';
 import { WorkflowOrchestrationService } from '../warehouse-workflow/workflow-orchestration.service';
@@ -1056,26 +1057,112 @@ export class OutboundService {
   }
 
   /**
+   * Auto-resolves default execution plan (warehouse, dispatch dock, packing location)
+   * so OMS orders can be processed without mandatory manual configuration.
+   */
+  async ensureDefaultExecutionPlan(
+    user: AuthPrincipal,
+    orderId: string,
+  ): Promise<OutboundExecutionPlan> {
+    const order = await this.findById(orderId, user);
+    const plan = parseOutboundExecutionPlan(order.executionPlan);
+    const requiresPacking = outboundRequiresPacking({
+      requiresPacking: order.requiresPacking,
+      planRequiresPacking: plan?.requiresPacking,
+    });
+
+    let warehouseId = plan?.warehouseId?.trim();
+    if (!warehouseId) {
+      const wh = await this.prisma.warehouse.findFirst({
+        where: { status: 'active' },
+        orderBy: { createdAt: 'asc' },
+      });
+      warehouseId = wh?.id ?? '';
+    }
+
+    let dispatchDockId = plan?.dispatchDockId?.trim();
+    if (!dispatchDockId && warehouseId) {
+      const dock = await this.prisma.location.findFirst({
+        where: {
+          warehouseId,
+          type: 'output',
+          status: 'active',
+        },
+        orderBy: { sortOrder: 'asc' },
+      });
+      dispatchDockId = dock?.id;
+    }
+
+    let packingLocationId = plan?.packingLocationId?.trim();
+    if (requiresPacking && !packingLocationId && warehouseId) {
+      const packingLoc = await this.prisma.location.findFirst({
+        where: {
+          warehouseId,
+          type: 'packing',
+          status: 'active',
+        },
+        orderBy: { sortOrder: 'asc' },
+      });
+      packingLocationId = packingLoc?.id;
+    }
+
+    const completePlan: OutboundExecutionPlan = {
+      warehouseId,
+      dispatchDockId: dispatchDockId ?? '',
+      ...(requiresPacking && packingLocationId ? { packingLocationId } : {}),
+      requiresPacking,
+      lines: order.lines.map((l) => ({
+        productId: l.productId,
+        expectedQty: Number(l.requestedQuantity),
+      })),
+      planUpdatedAt: new Date().toISOString(),
+    };
+
+    await this.updatePlan(user, orderId, {
+      executionMode: 'admin',
+      executionPlan: completePlan as unknown as Record<string, unknown>,
+      requiresPacking,
+    });
+
+    return completePlan;
+  }
+
+  /**
    * Admin Approve — bootstrap only (Rule 1).
    * Forces TASK_ONLY_FLOWS safe path; never legacy deduct/ship.
+   * Auto-resolves execution plan with warehouse defaults when not provided.
    */
   async approveAdmin(user: AuthPrincipal, orderId: string) {
-    const order = await this.findById(orderId, user);
-    if (normalizeExecutionMode(order.executionMode) !== 'admin') {
-      throw new BadRequestException('Approve requires executionMode=admin.');
+    let order = await this.findById(orderId, user);
+    if (!order.executionMode || normalizeExecutionMode(order.executionMode) !== 'admin') {
+      await this.prisma.outboundOrder.update({
+        where: { id: orderId },
+        data: { executionMode: 'admin' },
+      });
+      order = await this.findById(orderId, user);
     }
     if (!taskOnlyFlows(this.config)) {
       throw new BadRequestException(
         'Admin Approve requires TASK_ONLY_FLOWS=true so approval cannot deduct inventory or ship.',
       );
     }
-    const plan = parseOutboundExecutionPlan(order.executionPlan);
+    let plan = parseOutboundExecutionPlan(order.executionPlan);
     const requiresPacking = outboundRequiresPacking({
       requiresPacking: order.requiresPacking,
       planRequiresPacking: plan?.requiresPacking,
     });
     assertOutboundAdminStageAction(order.status, 'approve', requiresPacking);
-    if (!plan) throw new BadRequestException('Approve requires a saved executionPlan.');
+    if (
+      !plan ||
+      !plan.warehouseId?.trim() ||
+      !plan.dispatchDockId?.trim() ||
+      (requiresPacking && !plan.packingLocationId?.trim())
+    ) {
+      plan = await this.ensureDefaultExecutionPlan(user, orderId);
+    }
+    if (!plan) {
+      throw new BadRequestException('Outbound execution plan could not be resolved.');
+    }
     assertOutboundAdminPlanComplete(plan);
 
     // Safe reuse: task-only branch of confirmAndDeduct (no on-hand deduction).
@@ -1083,7 +1170,15 @@ export class OutboundService {
   }
 
   async completePickingAdmin(user: AuthPrincipal, orderId: string) {
-    const order = await this.findById(orderId, user);
+    let order = await this.findById(orderId, user);
+    if (
+      isOutboundConfirmable(order.status) ||
+      order.status === OutboundOrderStatus.confirmed ||
+      order.status === OutboundOrderStatus.pending_stock
+    ) {
+      await this.approveAdmin(user, orderId);
+      order = await this.findById(orderId, user);
+    }
     if (normalizeExecutionMode(order.executionMode) !== 'admin') {
       throw new BadRequestException('complete-picking requires executionMode=admin.');
     }
@@ -1183,12 +1278,18 @@ export class OutboundService {
       shippingMethod: string;
       shippingProviderCode?: string | null;
     },
-  ) {
+  ): Promise<any> {
     const order = await this.findById(orderId, user);
     if (
       order.status !== OutboundOrderStatus.waiting_for_shipping_method &&
       order.status !== ('waiting_for_shipping_method' as OutboundOrderStatus)
     ) {
+      if (
+        order.status === OutboundOrderStatus.waiting_for_shipping_details ||
+        order.status === ('waiting_for_shipping_details' as OutboundOrderStatus)
+      ) {
+        return this.saveShippingDetails(user, orderId, body);
+      }
       throw new BadRequestException(
         `Shipping method can only be selected at waiting_for_shipping_method (current: ${order.status}).`,
       );
@@ -1237,6 +1338,8 @@ export class OutboundService {
             shippingMethod: method,
             shippingProviderCode:
               method === ShippingMethod.carrier ? body.shippingProviderCode : null,
+            shippingServiceId:
+              method === ShippingMethod.carrier ? body.shippingServiceId : null,
             shippingReceiverLat:
               resolvedCoords?.lat ?? body.shippingReceiverLat ?? null,
             shippingReceiverLng:
@@ -1289,9 +1392,22 @@ export class OutboundService {
    * Save draft shipping details while Waiting for Shipping Details.
    * Does NOT call the carrier API.
    */
-  async saveShippingDetails(user: AuthPrincipal, orderId: string, dto: UpdateShippingDetailsDto) {
+  async saveShippingDetails(
+    user: AuthPrincipal,
+    orderId: string,
+    dto: UpdateShippingDetailsDto,
+  ): Promise<any> {
     const order = await this.findById(orderId, user);
     if (order.status !== OutboundOrderStatus.waiting_for_shipping_details) {
+      if (
+        order.status === OutboundOrderStatus.waiting_for_shipping_method ||
+        order.status === ('waiting_for_shipping_method' as OutboundOrderStatus)
+      ) {
+        return this.selectShippingMethodAdmin(user, orderId, {
+          ...dto,
+          shippingMethod: dto.shippingMethod ?? ShippingMethod.carrier,
+        });
+      }
       throw new BadRequestException(
         `Shipping details can only be saved while waiting_for_shipping_details (current: ${order.status}).`,
       );
@@ -1377,6 +1493,7 @@ export class OutboundService {
           ...shippingPrismaData({
             shippingMethod: dto.shippingMethod,
             shippingProviderCode: dto.shippingProviderCode,
+            shippingServiceId: dto.shippingServiceId,
             shippingReceiverLat:
               saveCoords?.lat ?? dto.shippingReceiverLat ?? null,
             shippingReceiverLng:
@@ -1394,6 +1511,11 @@ export class OutboundService {
             babelNeighbourhoodId:
               saveBabelNeighbourhoodId ?? dto.babelNeighbourhoodId ?? null,
           }),
+          ...(dto.recipientName !== undefined ? { recipientName: dto.recipientName?.trim() || null } : {}),
+          ...(dto.recipientPhone !== undefined ? { recipientPhone: dto.recipientPhone?.trim() || null } : {}),
+          ...(dto.destinationAddress?.trim()
+            ? { destinationAddress: dto.destinationAddress.trim() }
+            : {}),
           ...(dto.carrier !== undefined ? { carrier: dto.carrier } : {}),
           ...(dto.trackingNumber !== undefined ? { trackingNumber: dto.trackingNumber } : {}),
           ...(dto.city !== undefined ? { city: dto.city?.trim() || null } : {}),
@@ -1423,9 +1545,9 @@ export class OutboundService {
         where: { outboundOrderId: orderId, status: CarrierShipmentStatus.failed },
       });
 
-      if (this.omsEvents && row.omsOrder) {
+      if (this.omsEvents && order.omsOrder) {
         await this.omsEvents.record(tx, {
-          omsOrderId: row.omsOrder.id,
+          omsOrderId: order.omsOrder.id,
           outboundOrderId: row.id,
           companyId: row.companyId,
           eventType: 'shipping.details.saved',

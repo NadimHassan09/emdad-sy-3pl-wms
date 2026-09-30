@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseOmsTotalFilterValue = parseOmsTotalFilterValue;
 exports.appendOmsOrderFieldFilters = appendOmsOrderFieldFilters;
 const client_1 = require("@prisma/client");
+const shipping_carrier_resolver_1 = require("../shipping/shipping-carrier-resolver");
+const oms_order_number_range_util_1 = require("./oms-order-number-range.util");
 const FULL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function parseOmsTotalFilterValue(raw) {
     if (raw == null)
@@ -23,14 +25,32 @@ function parseOmsTotalFilterValue(raw) {
     }
 }
 function appendOmsOrderFieldFilters(query, where, andParts) {
+    const rangeCondition = (0, oms_order_number_range_util_1.buildOmsOrderNumberRangePrismaCondition)(query.startOrderNo, query.endOrderNo);
+    if (rangeCondition) {
+        andParts.push(rangeCondition);
+    }
     if (query.orderSearch?.trim()) {
         const t = query.orderSearch.trim();
         const orParts = [
             { orderNumber: { contains: t, mode: 'insensitive' } },
+            { trackingNumber: { contains: t, mode: 'insensitive' } },
             { recipientName: { contains: t, mode: 'insensitive' } },
             { recipientPhone: { contains: t, mode: 'insensitive' } },
+            { carrier: { contains: t, mode: 'insensitive' } },
             { externalReference: { contains: t, mode: 'insensitive' } },
             { clientReference: { contains: t, mode: 'insensitive' } },
+            {
+                outboundOrder: {
+                    carrierShipments: {
+                        some: {
+                            OR: [
+                                { externalAwb: { contains: t, mode: 'insensitive' } },
+                                { trackingNumber: { contains: t, mode: 'insensitive' } },
+                            ],
+                        },
+                    },
+                },
+            },
         ];
         if (FULL_UUID.test(t))
             orParts.push({ id: t });
@@ -40,8 +60,21 @@ function appendOmsOrderFieldFilters(query, where, andParts) {
         const t = query.orderId.trim();
         const orParts = [
             { orderNumber: { contains: t, mode: 'insensitive' } },
+            { trackingNumber: { contains: t, mode: 'insensitive' } },
             { externalReference: { contains: t, mode: 'insensitive' } },
             { clientReference: { contains: t, mode: 'insensitive' } },
+            {
+                outboundOrder: {
+                    carrierShipments: {
+                        some: {
+                            OR: [
+                                { externalAwb: { contains: t, mode: 'insensitive' } },
+                                { trackingNumber: { contains: t, mode: 'insensitive' } },
+                            ],
+                        },
+                    },
+                },
+            },
         ];
         if (FULL_UUID.test(t))
             orParts.push({ id: t });
@@ -61,6 +94,9 @@ function appendOmsOrderFieldFilters(query, where, andParts) {
         andParts.push({
             city: { contains: query.city.trim(), mode: 'insensitive' },
         });
+    }
+    if (query.carrier?.trim()) {
+        andParts.push((0, shipping_carrier_resolver_1.buildCarrierFilterPrismaCondition)(query.carrier.trim()));
     }
     const totalValue = parseOmsTotalFilterValue(query.totalValue);
     const op = query.totalOp;

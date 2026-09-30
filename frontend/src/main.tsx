@@ -10,7 +10,33 @@ import { RealtimeProvider } from './realtime/RealtimeProvider';
 import { getApiBaseUrl } from './api/apiBaseUrl';
 import { router } from './router';
 import { socketHttpOrigin } from './realtime/socketBaseUrl';
+import { AppUpdateModal } from './components/AppUpdateModal';
+import { triggerAppUpdate } from './hooks/useUpdateDetector';
 import './styles.css';
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (event) => {
+    const msg = event?.message || '';
+    if (
+      msg.includes('dynamically imported module') ||
+      msg.includes('Loading chunk') ||
+      msg.includes('Failed to fetch')
+    ) {
+      triggerAppUpdate();
+    }
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event?.reason;
+    const msg = reason instanceof Error ? reason.message : String(reason ?? '');
+    if (
+      msg.includes('dynamically imported module') ||
+      msg.includes('Loading chunk') ||
+      msg.includes('Failed to fetch')
+    ) {
+      triggerAppUpdate();
+    }
+  });
+}
 
 if (import.meta.env.DEV) {
   const api = getApiBaseUrl();
@@ -25,6 +51,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
       <ToastProvider>
         <AuthProvider>
           <RealtimeProvider>
+            <AppUpdateModal />
             <RouterProvider router={router} />
           </RealtimeProvider>
         </AuthProvider>

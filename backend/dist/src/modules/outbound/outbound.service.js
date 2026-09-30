@@ -867,27 +867,101 @@ let OutboundService = class OutboundService {
             return updated;
         });
     }
-    async approveAdmin(user, orderId) {
+    async ensureDefaultExecutionPlan(user, orderId) {
         const order = await this.findById(orderId, user);
-        if ((0, execution_plan_util_1.normalizeExecutionMode)(order.executionMode) !== 'admin') {
-            throw new common_1.BadRequestException('Approve requires executionMode=admin.');
-        }
-        if (!(0, feature_flags_1.taskOnlyFlows)(this.config)) {
-            throw new common_1.BadRequestException('Admin Approve requires TASK_ONLY_FLOWS=true so approval cannot deduct inventory or ship.');
-        }
         const plan = (0, execution_plan_util_1.parseOutboundExecutionPlan)(order.executionPlan);
         const requiresPacking = (0, outbound_admin_stages_1.outboundRequiresPacking)({
             requiresPacking: order.requiresPacking,
             planRequiresPacking: plan?.requiresPacking,
         });
+        let warehouseId = plan?.warehouseId?.trim();
+        if (!warehouseId) {
+            const wh = await this.prisma.warehouse.findFirst({
+                where: { status: 'active' },
+                orderBy: { createdAt: 'asc' },
+            });
+            warehouseId = wh?.id ?? '';
+        }
+        let dispatchDockId = plan?.dispatchDockId?.trim();
+        if (!dispatchDockId && warehouseId) {
+            const dock = await this.prisma.location.findFirst({
+                where: {
+                    warehouseId,
+                    type: 'output',
+                    status: 'active',
+                },
+                orderBy: { sortOrder: 'asc' },
+            });
+            dispatchDockId = dock?.id;
+        }
+        let packingLocationId = plan?.packingLocationId?.trim();
+        if (requiresPacking && !packingLocationId && warehouseId) {
+            const packingLoc = await this.prisma.location.findFirst({
+                where: {
+                    warehouseId,
+                    type: 'packing',
+                    status: 'active',
+                },
+                orderBy: { sortOrder: 'asc' },
+            });
+            packingLocationId = packingLoc?.id;
+        }
+        const completePlan = {
+            warehouseId,
+            dispatchDockId: dispatchDockId ?? '',
+            ...(requiresPacking && packingLocationId ? { packingLocationId } : {}),
+            requiresPacking,
+            lines: order.lines.map((l) => ({
+                productId: l.productId,
+                expectedQty: Number(l.requestedQuantity),
+            })),
+            planUpdatedAt: new Date().toISOString(),
+        };
+        await this.updatePlan(user, orderId, {
+            executionMode: 'admin',
+            executionPlan: completePlan,
+            requiresPacking,
+        });
+        return completePlan;
+    }
+    async approveAdmin(user, orderId) {
+        let order = await this.findById(orderId, user);
+        if (!order.executionMode || (0, execution_plan_util_1.normalizeExecutionMode)(order.executionMode) !== 'admin') {
+            await this.prisma.outboundOrder.update({
+                where: { id: orderId },
+                data: { executionMode: 'admin' },
+            });
+            order = await this.findById(orderId, user);
+        }
+        if (!(0, feature_flags_1.taskOnlyFlows)(this.config)) {
+            throw new common_1.BadRequestException('Admin Approve requires TASK_ONLY_FLOWS=true so approval cannot deduct inventory or ship.');
+        }
+        let plan = (0, execution_plan_util_1.parseOutboundExecutionPlan)(order.executionPlan);
+        const requiresPacking = (0, outbound_admin_stages_1.outboundRequiresPacking)({
+            requiresPacking: order.requiresPacking,
+            planRequiresPacking: plan?.requiresPacking,
+        });
         (0, outbound_admin_stages_1.assertOutboundAdminStageAction)(order.status, 'approve', requiresPacking);
-        if (!plan)
-            throw new common_1.BadRequestException('Approve requires a saved executionPlan.');
+        if (!plan ||
+            !plan.warehouseId?.trim() ||
+            !plan.dispatchDockId?.trim() ||
+            (requiresPacking && !plan.packingLocationId?.trim())) {
+            plan = await this.ensureDefaultExecutionPlan(user, orderId);
+        }
+        if (!plan) {
+            throw new common_1.BadRequestException('Outbound execution plan could not be resolved.');
+        }
         (0, execution_plan_util_1.assertOutboundAdminPlanComplete)(plan);
         return this.confirmAndDeduct(user, orderId, { warehouseId: plan.warehouseId });
     }
     async completePickingAdmin(user, orderId) {
-        const order = await this.findById(orderId, user);
+        let order = await this.findById(orderId, user);
+        if ((0, outbound_confirm_lock_util_1.isOutboundConfirmable)(order.status) ||
+            order.status === client_1.OutboundOrderStatus.confirmed ||
+            order.status === client_1.OutboundOrderStatus.pending_stock) {
+            await this.approveAdmin(user, orderId);
+            order = await this.findById(orderId, user);
+        }
         if ((0, execution_plan_util_1.normalizeExecutionMode)(order.executionMode) !== 'admin') {
             throw new common_1.BadRequestException('complete-picking requires executionMode=admin.');
         }
@@ -962,6 +1036,10 @@ let OutboundService = class OutboundService {
         const order = await this.findById(orderId, user);
         if (order.status !== client_1.OutboundOrderStatus.waiting_for_shipping_method &&
             order.status !== 'waiting_for_shipping_method') {
+            if (order.status === client_1.OutboundOrderStatus.waiting_for_shipping_details ||
+                order.status === 'waiting_for_shipping_details') {
+                return this.saveShippingDetails(user, orderId, body);
+            }
             throw new common_1.BadRequestException(`Shipping method can only be selected at waiting_for_shipping_method (current: ${order.status}).`);
         }
         const method = body.shippingMethod === 'carrier' ? client_1.ShippingMethod.carrier : client_1.ShippingMethod.manual;
@@ -1001,6 +1079,7 @@ let OutboundService = class OutboundService {
                     ...(0, shipping_config_util_1.shippingPrismaData)({
                         shippingMethod: method,
                         shippingProviderCode: method === client_1.ShippingMethod.carrier ? body.shippingProviderCode : null,
+                        shippingServiceId: method === client_1.ShippingMethod.carrier ? body.shippingServiceId : null,
                         shippingReceiverLat: resolvedCoords?.lat ?? body.shippingReceiverLat ?? null,
                         shippingReceiverLng: resolvedCoords?.lng ?? body.shippingReceiverLng ?? null,
                         shippingPackageType: body.shippingPackageType,
@@ -1046,6 +1125,13 @@ let OutboundService = class OutboundService {
     async saveShippingDetails(user, orderId, dto) {
         const order = await this.findById(orderId, user);
         if (order.status !== client_1.OutboundOrderStatus.waiting_for_shipping_details) {
+            if (order.status === client_1.OutboundOrderStatus.waiting_for_shipping_method ||
+                order.status === 'waiting_for_shipping_method') {
+                return this.selectShippingMethodAdmin(user, orderId, {
+                    ...dto,
+                    shippingMethod: dto.shippingMethod ?? client_1.ShippingMethod.carrier,
+                });
+            }
             throw new common_1.BadRequestException(`Shipping details can only be saved while waiting_for_shipping_details (current: ${order.status}).`);
         }
         const createdShipment = (order.carrierShipments ?? []).find((s) => s.status === client_1.CarrierShipmentStatus.created);
@@ -1106,6 +1192,7 @@ let OutboundService = class OutboundService {
                     ...(0, shipping_config_util_1.shippingPrismaData)({
                         shippingMethod: dto.shippingMethod,
                         shippingProviderCode: dto.shippingProviderCode,
+                        shippingServiceId: dto.shippingServiceId,
                         shippingReceiverLat: saveCoords?.lat ?? dto.shippingReceiverLat ?? null,
                         shippingReceiverLng: saveCoords?.lng ?? dto.shippingReceiverLng ?? null,
                         shippingPackageType: dto.shippingPackageType,
@@ -1118,6 +1205,11 @@ let OutboundService = class OutboundService {
                         shippingPhoneCountry: dto.shippingPhoneCountry,
                         babelNeighbourhoodId: saveBabelNeighbourhoodId ?? dto.babelNeighbourhoodId ?? null,
                     }),
+                    ...(dto.recipientName !== undefined ? { recipientName: dto.recipientName?.trim() || null } : {}),
+                    ...(dto.recipientPhone !== undefined ? { recipientPhone: dto.recipientPhone?.trim() || null } : {}),
+                    ...(dto.destinationAddress?.trim()
+                        ? { destinationAddress: dto.destinationAddress.trim() }
+                        : {}),
                     ...(dto.carrier !== undefined ? { carrier: dto.carrier } : {}),
                     ...(dto.trackingNumber !== undefined ? { trackingNumber: dto.trackingNumber } : {}),
                     ...(dto.city !== undefined ? { city: dto.city?.trim() || null } : {}),
@@ -1142,9 +1234,9 @@ let OutboundService = class OutboundService {
             await tx.carrierShipment.deleteMany({
                 where: { outboundOrderId: orderId, status: client_1.CarrierShipmentStatus.failed },
             });
-            if (this.omsEvents && row.omsOrder) {
+            if (this.omsEvents && order.omsOrder) {
                 await this.omsEvents.record(tx, {
-                    omsOrderId: row.omsOrder.id,
+                    omsOrderId: order.omsOrder.id,
                     outboundOrderId: row.id,
                     companyId: row.companyId,
                     eventType: 'shipping.details.saved',

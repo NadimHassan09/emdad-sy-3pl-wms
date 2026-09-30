@@ -16,6 +16,7 @@ const company_read_scope_1 = require("../../common/auth/company-read-scope");
 const company_access_service_1 = require("../../common/company-access/company-access.service");
 const prisma_service_1 = require("../../common/prisma/prisma.service");
 const tenant_rls_1 = require("../../common/prisma/tenant-rls");
+const oms_order_status_filter_util_1 = require("./oms-order-status-filter.util");
 const PENDING_FULFILLMENT = [
     client_1.OmsOrderStatus.pending,
     client_1.OmsOrderStatus.approved,
@@ -196,13 +197,16 @@ let OmsDashboardService = class OmsDashboardService {
                 client_1.OmsOrderStatus.picking,
                 client_1.OmsOrderStatus.packing,
                 client_1.OmsOrderStatus.ready_to_ship,
-                client_1.OmsOrderStatus.shipped,
                 client_1.OmsOrderStatus.failed_delivery,
             ].includes(r.status))
                 .reduce((s, r) => s + r._count.id, 0);
             const pending = pendingCommercial + pendingLegacy;
-            const outForDelivery = byStatus.find((r) => r.status === client_1.OmsOrderStatus.out_for_delivery)?._count
-                .id ?? 0;
+            const outForDelivery = byStatus
+                .filter((r) => [
+                client_1.OmsOrderStatus.out_for_delivery,
+                client_1.OmsOrderStatus.shipped,
+            ].includes(r.status))
+                .reduce((s, r) => s + r._count.id, 0);
             const cancelled = (byStatus.find((r) => r.status === client_1.OmsOrderStatus.cancelled)?._count.id ??
                 0) +
                 (byStatus.find((r) => r.status === client_1.OmsOrderStatus.rejected)?._count.id ??
@@ -329,19 +333,15 @@ let OmsDashboardService = class OmsDashboardService {
     }
     async orderSummary(user, query) {
         const companyFilter = (0, company_read_scope_1.readCompanyIdCatalogFilter)(this.companyAccess, user, query.companyId);
+        const fromStr = query.dateFrom ?? query.createdFrom;
+        const toStr = query.dateTo ?? query.createdTo;
+        const fromDate = fromStr ? new Date(`${fromStr}T00:00:00.000Z`) : undefined;
+        const toDate = toStr ? new Date(`${toStr}T23:59:59.999Z`) : undefined;
+        const statusDateConditions = (0, oms_order_status_filter_util_1.buildOmsOrderStatusDateFilter)(fromDate, toDate);
         const where = {
             ...(companyFilter ? { companyId: companyFilter } : {}),
+            ...(statusDateConditions.length > 0 ? { OR: statusDateConditions } : {}),
         };
-        if (query.createdFrom || query.createdTo) {
-            const createdAt = {};
-            if (query.createdFrom) {
-                createdAt.gte = new Date(`${query.createdFrom}T00:00:00.000Z`);
-            }
-            if (query.createdTo) {
-                createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
-            }
-            where.createdAt = createdAt;
-        }
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             const grouped = await tx.omsOrder.groupBy({
                 by: ['status'],

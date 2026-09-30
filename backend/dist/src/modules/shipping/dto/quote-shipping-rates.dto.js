@@ -27,6 +27,7 @@ class QuoteShippingRatesDto {
     governorate;
     city;
     neighborhood;
+    currency;
 }
 exports.QuoteShippingRatesDto = QuoteShippingRatesDto;
 __decorate([
@@ -100,4 +101,9 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], QuoteShippingRatesDto.prototype, "neighborhood", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], QuoteShippingRatesDto.prototype, "currency", void 0);
 //# sourceMappingURL=quote-shipping-rates.dto.js.map

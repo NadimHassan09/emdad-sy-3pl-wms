@@ -16,6 +16,7 @@ const client_1 = require("@prisma/client");
 class ShippingConfigDto {
     shippingMethod;
     shippingProviderCode;
+    shippingServiceId;
     shippingReceiverLat;
     shippingReceiverLng;
     shippingPackageType;
@@ -39,6 +40,11 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", Object)
 ], ShippingConfigDto.prototype, "shippingProviderCode", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", Object)
+], ShippingConfigDto.prototype, "shippingServiceId", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_transformer_1.Type)(() => Number),

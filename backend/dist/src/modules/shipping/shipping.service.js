@@ -22,6 +22,7 @@ const address_resolve_service_1 = require("./address-resolve.service");
 const babel_express_http_client_1 = require("./providers/babel-express/babel-express.http-client");
 const babel_shipment_mapper_1 = require("./providers/babel-express/babel-shipment.mapper");
 const shipping_provider_registry_1 = require("./shipping-provider.registry");
+const shipping_carrier_resolver_1 = require("./shipping-carrier-resolver");
 const shipping_config_util_1 = require("./shipping-config.util");
 const shipping_geo_service_1 = require("./shipping-geo.service");
 const shipping_rate_util_1 = require("./shipping-rate.util");
@@ -172,7 +173,7 @@ let ShippingService = ShippingService_1 = class ShippingService {
                     username: this.encryption.decrypt(row.connection.encryptedUsername),
                     password: this.encryption.decrypt(row.connection.encryptedPassword),
                 };
-                const result = await adapter.getQuote(credentials, {
+                const quoteInput = {
                     receiverLat: hasCoords ? receiverLat : 0,
                     receiverLng: hasCoords ? receiverLng : 0,
                     neighbourhoodId: neighbourhoodId ?? undefined,
@@ -185,6 +186,7 @@ let ShippingService = ShippingService_1 = class ShippingService {
                     city: dto.city,
                     neighborhood: dto.neighborhood,
                     codAmount: dto.codAmount ?? undefined,
+                    currency: dto.currency ?? undefined,
                     ...(dto.parts && dto.parts.length > 0
                         ? {
                             parts: dto.parts.map((p) => ({
@@ -192,9 +194,11 @@ let ShippingService = ShippingService_1 = class ShippingService {
                             })),
                         }
                         : {}),
-                });
-                const quotedDeliveryType = result.effectiveDeliveryType ?? dto.deliveryType;
-                if (result.shippable === false) {
+                };
+                const rawResults = adapter.getServiceOptions
+                    ? await adapter.getServiceOptions(credentials, quoteInput)
+                    : [await adapter.getQuote(credentials, quoteInput)];
+                if (rawResults.length === 0) {
                     errors.push({
                         carrierId: row.code,
                         carrierName: row.name,
@@ -202,22 +206,29 @@ let ShippingService = ShippingService_1 = class ShippingService {
                     });
                     return;
                 }
-                quotes.push({
-                    carrierId: row.code,
-                    carrierName: row.name,
-                    serviceId: result.serviceId ?? `${row.code}:${quotedDeliveryType}`,
-                    serviceName: result.serviceName ?? deliveryTypeLabel(quotedDeliveryType),
-                    available: true,
-                    price: result.price,
-                    currency: result.currency || 'USD',
-                    prices: result.prices && result.prices.length > 0
-                        ? result.prices
-                        : [{ price: result.price, currency: result.currency || 'USD' }],
-                    estimatedDeliveryMin: result.estimatedDeliveryMin,
-                    estimatedDeliveryMax: result.estimatedDeliveryMax,
-                    deliveryType: quotedDeliveryType,
-                    restrictions: result.restrictions,
-                });
+                for (const res of rawResults) {
+                    const quotedDeliveryType = res.effectiveDeliveryType ?? dto.deliveryType;
+                    if (res.shippable === false)
+                        continue;
+                    quotes.push({
+                        carrierId: row.code,
+                        carrierName: row.name,
+                        serviceId: res.serviceId ?? `${row.code}:${quotedDeliveryType}`,
+                        serviceName: res.serviceName ?? deliveryTypeLabel(quotedDeliveryType),
+                        available: true,
+                        price: res.price,
+                        currency: res.currency || 'USD',
+                        prices: res.prices && res.prices.length > 0
+                            ? res.prices
+                            : [{ price: res.price, currency: res.currency || 'USD' }],
+                        estimatedDeliveryMin: res.estimatedDeliveryMin,
+                        estimatedDeliveryMax: res.estimatedDeliveryMax,
+                        deliveryType: quotedDeliveryType,
+                        restrictions: res.restrictions,
+                        providerName: res.providerName ?? row.name,
+                        logoUrl: res.logoUrl,
+                    });
+                }
             }
             catch (err) {
                 this.logger.warn(`Rate quote failed for ${row.code}: ${err instanceof Error ? err.message : err}`);
@@ -442,6 +453,7 @@ let ShippingService = ShippingService_1 = class ShippingService {
                         city: true,
                         district: true,
                         addressLine1: true,
+                        shippingServiceId: true,
                     },
                 },
             },
@@ -725,8 +737,12 @@ let ShippingService = ShippingService_1 = class ShippingService {
         const shipmentReceiverLng = resolvedShipmentCoords?.lng ??
             (Number(order.shippingReceiverLng) || 0);
         try {
+            const serviceId = order.shippingServiceId ??
+                order.omsOrder?.shippingServiceId ??
+                undefined;
             const result = await adapter.createShipment({ username, password }, {
                 reference,
+                serviceId,
                 receiver: {
                     name: order.recipientName.trim(),
                     phoneCountry: phone.country,
@@ -735,6 +751,9 @@ let ShippingService = ShippingService_1 = class ShippingService {
                     lat: shipmentReceiverLat,
                     lng: shipmentReceiverLng,
                     neighbourhoodId: babelNeighbourhoodId != null ? Number(babelNeighbourhoodId) : undefined,
+                    governorate: order.city ?? order.omsOrder?.city ?? undefined,
+                    city: order.district ?? order.omsOrder?.district ?? undefined,
+                    neighborhood: order.addressLine1 ?? order.omsOrder?.addressLine1 ?? undefined,
                 },
                 packageType: order.shippingPackageType,
                 weightKg: order.shippingPackageType === 'envelope' ? 1 : weightKg,
@@ -770,10 +789,24 @@ let ShippingService = ShippingService_1 = class ShippingService {
                         rawResultMeta: (result.raw ?? { awb: result.awb }),
                     },
                 });
+                const resolvedCarrierName = (0, shipping_carrier_resolver_1.resolveShippingCarrierName)({
+                    carrier: order.carrier,
+                    shippingProviderCode: provider.code,
+                    shippingServiceId: order.shippingServiceId ?? order.omsOrder?.shippingServiceId,
+                    outboundOrder: {
+                        ...order,
+                        carrierShipments: [
+                            {
+                                providerCode: provider.code,
+                                rawResultMeta: (result.raw ?? { awb: result.awb }),
+                            },
+                        ],
+                    },
+                }) || (provider.code === shipping_provider_registry_1.BABEL_EXPRESS_CODE ? 'Babel Express' : provider.name);
                 await tx.outboundOrder.update({
                     where: { id: outboundOrderId },
                     data: {
-                        carrier: provider.name,
+                        carrier: resolvedCarrierName,
                         trackingNumber: result.awb,
                     },
                 });
@@ -781,7 +814,7 @@ let ShippingService = ShippingService_1 = class ShippingService {
                     await tx.omsOrder.update({
                         where: { id: order.omsOrder.id },
                         data: {
-                            carrier: provider.name,
+                            carrier: resolvedCarrierName,
                             trackingNumber: result.awb,
                         },
                     });

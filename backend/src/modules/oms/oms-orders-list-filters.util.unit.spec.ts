@@ -83,4 +83,81 @@ describe('appendOmsOrderFieldFilters', () => {
     expect(andParts.length).toBe(2);
     expect(where.subtotal).toEqual({ lt: expect.any(Prisma.Decimal) });
   });
+
+  it('filters by carrier using OR condition matching carrier or provider/service tokens', () => {
+    const { andParts } = run({ carrier: 'Babel Express' });
+    expect(andParts).toHaveLength(1);
+    expect(andParts[0].OR).toBeDefined();
+    expect(andParts[0].OR).toEqual(
+      expect.arrayContaining([
+        { carrier: { contains: 'Babel Express', mode: 'insensitive' } },
+        { shippingProviderCode: 'BABEL_EXPRESS' },
+      ]),
+    );
+  });
+
+  it('filters by order number range [start, end] with normalization', () => {
+    const { andParts } = run({
+      startOrderNo: 'OMS-2026-03700',
+      endOrderNo: 'OMS-2026-03800',
+    });
+    expect(andParts).toHaveLength(1);
+    expect(andParts[0]).toEqual({
+      orderNumber: {
+        gte: 'OMS-2026-03700',
+        lte: 'OMS-2026-03800',
+      },
+    });
+  });
+
+  it('normalizes unpadded and shorthand start/end order numbers', () => {
+    const { andParts } = run({
+      startOrderNo: 'OMS-2026-3700',
+      endOrderNo: '2026-03800',
+    });
+    expect(andParts).toHaveLength(1);
+    expect(andParts[0]).toEqual({
+      orderNumber: {
+        gte: 'OMS-2026-03700',
+        lte: 'OMS-2026-03800',
+      },
+    });
+  });
+
+  it('filters by startOrderNo only (>= start)', () => {
+    const { andParts } = run({ startOrderNo: 'OMS-2026-03700' });
+    expect(andParts).toHaveLength(1);
+    expect(andParts[0]).toEqual({
+      orderNumber: {
+        gte: 'OMS-2026-03700',
+      },
+    });
+  });
+
+  it('filters by endOrderNo only (<= end)', () => {
+    const { andParts } = run({ endOrderNo: 'OMS-2026-03800' });
+    expect(andParts).toHaveLength(1);
+    expect(andParts[0]).toEqual({
+      orderNumber: {
+        lte: 'OMS-2026-03800',
+      },
+    });
+  });
+
+  it('throws BadRequestException when startOrderNo > endOrderNo', () => {
+    expect(() =>
+      run({
+        startOrderNo: 'OMS-2026-03800',
+        endOrderNo: 'OMS-2026-03700',
+      }),
+    ).toThrow('Start Order No. (OMS-2026-03800) must be less than or equal to End Order No. (OMS-2026-03700)');
+  });
+
+  it('throws BadRequestException on invalid order number format', () => {
+    expect(() =>
+      run({
+        startOrderNo: 'INVALID_ORDER',
+      }),
+    ).toThrow('Invalid Start Order No. format');
+  });
 });

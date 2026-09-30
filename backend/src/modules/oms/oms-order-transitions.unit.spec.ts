@@ -86,4 +86,13 @@ describe('oms-order-transitions', () => {
       assertOmsTransition(OmsOrderStatus.out_for_delivery, 'mark_returned', 'system'),
     ).toBe(OmsOrderStatus.returned);
   });
+
+  it('moves waiting_for_confirmation to confirmed_waiting_for_admin_approval on admin_confirm and client_confirm', () => {
+    expect(
+      assertOmsTransition(OmsOrderStatus.waiting_for_confirmation, 'admin_confirm', 'admin'),
+    ).toBe(OmsOrderStatus.confirmed_waiting_for_admin_approval);
+    expect(
+      assertOmsTransition(OmsOrderStatus.waiting_for_confirmation, 'client_confirm', 'client'),
+    ).toBe(OmsOrderStatus.confirmed_waiting_for_admin_approval);
+  });
 });

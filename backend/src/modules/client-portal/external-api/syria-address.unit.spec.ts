@@ -33,4 +33,23 @@ describe('resolveSyriaAddress', () => {
       expect(result.fields.neighborhood).toMatch(/Unknown neighborhood/i);
     }
   });
+
+  it('resolves newly added eastern cities and neighborhoods', () => {
+    const cases = [
+      { governorate: 'دير الزور', city: 'دير الزور', neighborhood: 'الجورة' },
+      { governorate: 'الحسكة', city: 'الحسكة', neighborhood: 'المدينة' },
+      { governorate: 'الحسكة', city: 'القامشلي', neighborhood: 'الهلالية' },
+      { governorate: 'الرقة', city: 'الرقة', neighborhood: 'حتين' },
+    ];
+
+    for (const c of cases) {
+      const result = resolveSyriaAddress(c);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.value.governorate).toBe(c.governorate);
+        expect(result.value.city).toBe(c.city);
+        expect(result.value.neighborhood).toBe(c.neighborhood);
+      }
+    }
+  });
 });

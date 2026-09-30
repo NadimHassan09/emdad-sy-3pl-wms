@@ -35,6 +35,8 @@ const babel_express_adapter_1 = require("./providers/babel-express/babel-express
 const babel_geo_sync_service_1 = require("./providers/babel-express/babel-geo-sync.service");
 const shipping_constants_1 = require("./shipping.constants");
 const shipping_service_1 = require("./shipping.service");
+const shipping_tracking_service_1 = require("./shipping-tracking.service");
+const shipping_provider_registry_1 = require("./shipping-provider.registry");
 class ResolveBabelNeighbourhoodDto {
     lat;
     lng;
@@ -57,7 +59,9 @@ let ShippingController = class ShippingController {
     addressResolve;
     prisma;
     encryption;
-    constructor(shipping, bulkShipping, babelGeo, babelAdapter, addressResolve, prisma, encryption) {
+    tracking;
+    registry;
+    constructor(shipping, bulkShipping, babelGeo, babelAdapter, addressResolve, prisma, encryption, tracking, registry) {
         this.shipping = shipping;
         this.bulkShipping = bulkShipping;
         this.babelGeo = babelGeo;
@@ -65,6 +69,8 @@ let ShippingController = class ShippingController {
         this.addressResolve = addressResolve;
         this.prisma = prisma;
         this.encryption = encryption;
+        this.tracking = tracking;
+        this.registry = registry;
     }
     listProviders() {
         return this.shipping.listProviders();
@@ -127,6 +133,41 @@ let ShippingController = class ShippingController {
     }
     retry(outboundOrderId) {
         return this.shipping.retryShipment(outboundOrderId);
+    }
+    async syncTracking(outboundOrderId) {
+        const shipment = await this.prisma.carrierShipment.findFirst({
+            where: { outboundOrderId },
+            select: { externalAwb: true, providerCode: true },
+        });
+        if (!shipment || !shipment.externalAwb) {
+            return { success: false, message: 'No carrier shipment with an AWB found for this order.' };
+        }
+        return this.tracking.syncShipmentByAwb(shipment.externalAwb, shipment.providerCode);
+    }
+    async registerWebhook(providerCode, body) {
+        const code = providerCode.toUpperCase().trim();
+        const adapter = this.registry.get(code);
+        if (!adapter || !adapter.registerWebhook) {
+            return { ok: false, message: `Provider ${code} does not support automatic webhook registration.` };
+        }
+        const connection = await this.prisma.shippingProviderConnection.findFirst({
+            where: { provider: { code } },
+        });
+        if (!connection || connection.status !== 'connected' || !connection.encryptedUsername) {
+            return { ok: false, message: `Provider ${code} is not connected.` };
+        }
+        const credentials = {
+            username: this.encryption.decrypt(connection.encryptedUsername),
+            password: connection.encryptedPassword ? this.encryption.decrypt(connection.encryptedPassword) : '',
+        };
+        const result = await adapter.registerWebhook(credentials, body.webhookUrl, body.secret);
+        if (result.ok) {
+            await this.prisma.shippingProviderConnection.update({
+                where: { id: connection.id },
+                data: { webhookSecret: body.secret },
+            });
+        }
+        return result;
     }
     listEligible(companyId, limit) {
         return this.bulkShipping.listEligible({
@@ -274,6 +315,21 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ShippingController.prototype, "retry", null);
 __decorate([
+    (0, common_1.Post)('shipments/:outboundOrderId/sync-tracking'),
+    __param(0, (0, common_1.Param)('outboundOrderId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], ShippingController.prototype, "syncTracking", null);
+__decorate([
+    (0, common_1.Post)('providers/:providerCode/register-webhook'),
+    __param(0, (0, common_1.Param)('providerCode')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ShippingController.prototype, "registerWebhook", null);
+__decorate([
     (0, common_1.Get)('bulk/eligible'),
     __param(0, (0, common_1.Query)('companyId')),
     __param(1, (0, common_1.Query)('limit')),
@@ -328,6 +384,8 @@ exports.ShippingController = ShippingController = __decorate([
         babel_express_adapter_1.BabelExpressAdapter,
         address_resolve_service_1.AddressResolveService,
         prisma_service_1.PrismaService,
-        encryption_service_1.EncryptionService])
+        encryption_service_1.EncryptionService,
+        shipping_tracking_service_1.ShippingTrackingService,
+        shipping_provider_registry_1.ShippingProviderRegistry])
 ], ShippingController);
 //# sourceMappingURL=shipping.controller.js.map

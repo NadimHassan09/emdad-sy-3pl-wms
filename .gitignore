@@ -1,2 +1,36 @@
 .aidesigner/*
 !.aidesigner/.gitkeep
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment files & secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+
+# Build artifacts
+dist/
+**/dist/
+*.tsbuildinfo
+**/tsconfig.tsbuildinfo
+
+# Storage, uploads & exports
+backend/storage/documents/
+backend/storage/media/
+*.pdf
+*.xlsx
+*.csv
+*.dump
+*.sql
+nohup.out
+scratch/
+docs/evidence/
+
+# Logs & temp
+*.log
+logs/
+.DS_Store

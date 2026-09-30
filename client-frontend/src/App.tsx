@@ -8,6 +8,33 @@ import { RequireRouteAccess } from './auth/RequireRouteAccess';
 import { PortalLayout } from './components/PortalLayout';
 import { RealtimeProvider } from './realtime/RealtimeProvider';
 
+import { AppUpdateModal } from './components/AppUpdateModal';
+import { triggerAppUpdate } from './hooks/useUpdateDetector';
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', (event) => {
+    const msg = event?.message || '';
+    if (
+      msg.includes('dynamically imported module') ||
+      msg.includes('Loading chunk') ||
+      msg.includes('Failed to fetch')
+    ) {
+      triggerAppUpdate();
+    }
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event?.reason;
+    const msg = reason instanceof Error ? reason.message : String(reason ?? '');
+    if (
+      msg.includes('dynamically imported module') ||
+      msg.includes('Loading chunk') ||
+      msg.includes('Failed to fetch')
+    ) {
+      triggerAppUpdate();
+    }
+  });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Lazy page imports — each becomes a separate JS chunk at build time.
 // Suspense boundary lives in PortalLayout.tsx wrapping the <Outlet />.
@@ -18,8 +45,20 @@ function lazyPage<M extends Record<string, React.ComponentType>>(
   name: keyof M,
 ) {
   return lazy(async () => {
-    const mod = await loader();
-    return { default: mod[name] };
+    try {
+      const mod = await loader();
+      return { default: mod[name] };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (
+        msg.includes('dynamically imported module') ||
+        msg.includes('Loading chunk') ||
+        msg.includes('Failed to fetch')
+      ) {
+        triggerAppUpdate();
+      }
+      throw err;
+    }
   });
 }
 
@@ -74,6 +113,7 @@ function AppRoutes(): ReactElement {
   return (
     <AuthProvider onSessionInvalid={() => navigate('/login', { replace: true })}>
       <RealtimeProvider>
+        <AppUpdateModal />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/account-inactive" element={<AccountStatusPage />} />

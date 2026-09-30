@@ -339,6 +339,395 @@ let OmsReturnsService = class OmsReturnsService {
             return serialize(created);
         }
     }
+    async confirmReturn(id, user) {
+        const existing = await this.prisma.omsReturn.findUnique({ where: { id } });
+        if (!existing)
+            throw new common_1.NotFoundException('OMS return not found.');
+        this.companyAccess.validateResourceOwnership(user, existing);
+        if (existing.status === client_1.OmsReturnStatus.completed ||
+            existing.status === client_1.OmsReturnStatus.cancelled ||
+            existing.status === client_1.OmsReturnStatus.rejected) {
+            return this.findById(id, user);
+        }
+        await this.runConfirmPipeline(id, existing.status, user);
+        return this.findById(id, user);
+    }
+    async runConfirmPipeline(id, status, user) {
+        if (status === client_1.OmsReturnStatus.requested || status === 'requested') {
+            await this.autoCompleteReturn(id, user);
+        }
+        else if (status === client_1.OmsReturnStatus.approved || status === 'approved') {
+            try {
+                await this.completeReceivingAdmin(id, user);
+            }
+            catch { }
+            try {
+                await this.completePutawayAdmin(id, user);
+            }
+            catch { }
+        }
+    }
+    async confirmReturnsBulk(ids, user) {
+        let confirmed = 0;
+        let skipped = 0;
+        const confirmedReturns = [];
+        const failures = [];
+        for (const id of ids) {
+            try {
+                const existing = await this.prisma.omsReturn.findUnique({ where: { id } });
+                if (!existing) {
+                    failures.push({ id, error: 'Return not found.' });
+                    continue;
+                }
+                if (existing.status === client_1.OmsReturnStatus.completed ||
+                    existing.status === client_1.OmsReturnStatus.cancelled ||
+                    existing.status === client_1.OmsReturnStatus.rejected) {
+                    skipped++;
+                    continue;
+                }
+                await this.runConfirmPipeline(id, existing.status, user);
+                const done = await this.prisma.omsReturn.findUnique({ where: { id } });
+                if (done) {
+                    confirmedReturns.push({ id, returnNumber: done.returnNumber, status: done.status });
+                    confirmed++;
+                }
+            }
+            catch (e) {
+                failures.push({ id, error: e instanceof Error ? e.message : String(e) });
+            }
+        }
+        return {
+            requested: ids.length,
+            confirmed,
+            skipped,
+            failed: failures.length,
+            confirmedReturns,
+            failures,
+        };
+    }
+    async confirmReturnByScan(user, rawCode) {
+        const trimmed = (rawCode || '').trim();
+        if (!trimmed) {
+            throw new common_1.BadRequestException('الرجاء إدخال أو مسح رمز صالح.');
+        }
+        let cleanCode = trimmed;
+        try {
+            if (cleanCode.startsWith('http://') || cleanCode.startsWith('https://')) {
+                const url = new URL(cleanCode);
+                const segments = url.pathname.split('/').filter(Boolean);
+                if (segments.length > 0) {
+                    cleanCode = segments[segments.length - 1];
+                }
+            }
+        }
+        catch {
+        }
+        const candidates = Array.from(new Set([cleanCode, trimmed].filter(Boolean)));
+        for (const candidate of candidates) {
+            const isUuid = (0, express_return_resolve_1.looksLikeUuid)(candidate);
+            const ret = await this.prisma.omsReturn.findFirst({
+                where: isUuid
+                    ? { id: candidate }
+                    : { returnNumber: { equals: candidate, mode: 'insensitive' } },
+                include: {
+                    company: true,
+                    omsOrder: true,
+                },
+            });
+            if (ret) {
+                this.companyAccess.validateResourceOwnership(user, ret);
+                if (ret.status === client_1.OmsReturnStatus.completed) {
+                    return {
+                        ok: true,
+                        action: 'already_completed',
+                        returnId: ret.id,
+                        returnNumber: ret.returnNumber,
+                        orderNumber: ret.omsOrder?.orderNumber ?? '—',
+                        clientName: ret.company?.name ?? '—',
+                        message: 'المرتجع مكتمل ومستلم مسبقاً في المستودع.',
+                    };
+                }
+                if (ret.status === client_1.OmsReturnStatus.cancelled || ret.status === client_1.OmsReturnStatus.rejected) {
+                    throw new common_1.BadRequestException(`لا يمكن استلام هذا المرتجع لأنه ملغي أو مرفوض (الحالة: ${ret.status}).`);
+                }
+                await this.runConfirmPipeline(ret.id, ret.status, user);
+                return {
+                    ok: true,
+                    action: 'confirmed',
+                    returnId: ret.id,
+                    returnNumber: ret.returnNumber,
+                    orderNumber: ret.omsOrder?.orderNumber ?? '—',
+                    clientName: ret.company?.name ?? '—',
+                    message: 'تم استلام وتأكيد المرتجع وإعادة البضاعة للمستودع بنجاح.',
+                };
+            }
+        }
+        let matchedOrder = null;
+        for (const candidate of candidates) {
+            const isUuid = (0, express_return_resolve_1.looksLikeUuid)(candidate);
+            const order = await this.prisma.omsOrder.findFirst({
+                where: {
+                    OR: [
+                        ...(isUuid ? [{ id: candidate }] : []),
+                        { orderNumber: { equals: candidate, mode: 'insensitive' } },
+                        { clientReference: { equals: candidate, mode: 'insensitive' } },
+                        { trackingNumber: { equals: candidate, mode: 'insensitive' } },
+                    ],
+                },
+                include: {
+                    company: true,
+                    lines: true,
+                },
+            });
+            if (order) {
+                matchedOrder = order;
+                break;
+            }
+        }
+        if (!matchedOrder) {
+            for (const candidate of candidates) {
+                const outbound = await this.prisma.outboundOrder.findFirst({
+                    where: {
+                        OR: [
+                            { trackingNumber: { equals: candidate, mode: 'insensitive' } },
+                            { orderNumber: { equals: candidate, mode: 'insensitive' } },
+                        ],
+                    },
+                    include: {
+                        omsOrder: {
+                            include: { company: true, lines: true },
+                        },
+                    },
+                });
+                if (outbound?.omsOrder) {
+                    matchedOrder = outbound.omsOrder;
+                    break;
+                }
+                const carrierShipment = await this.prisma.carrierShipment.findFirst({
+                    where: {
+                        OR: [
+                            { trackingNumber: { equals: candidate, mode: 'insensitive' } },
+                            { externalAwb: { equals: candidate, mode: 'insensitive' } },
+                        ],
+                    },
+                    include: {
+                        outboundOrder: {
+                            include: {
+                                omsOrder: {
+                                    include: { company: true, lines: true },
+                                },
+                            },
+                        },
+                    },
+                });
+                if (carrierShipment?.outboundOrder?.omsOrder) {
+                    matchedOrder = carrierShipment.outboundOrder.omsOrder;
+                    break;
+                }
+            }
+        }
+        if (!matchedOrder) {
+            throw new common_1.NotFoundException(`لم يتم العثور على طلب أو مرتجع مطابق للرمز (${cleanCode}). تأكد من مسح QR بوليصة الشحن الصحيحة.`);
+        }
+        this.companyAccess.validateResourceOwnership(user, matchedOrder);
+        const existingReturns = await this.prisma.omsReturn.findMany({
+            where: { omsOrderId: matchedOrder.id },
+            orderBy: { createdAt: 'desc' },
+            include: { company: true },
+        });
+        const activeReturn = existingReturns.find((r) => r.status === client_1.OmsReturnStatus.requested || r.status === client_1.OmsReturnStatus.approved);
+        if (activeReturn) {
+            await this.runConfirmPipeline(activeReturn.id, activeReturn.status, user);
+            return {
+                ok: true,
+                action: 'confirmed',
+                returnId: activeReturn.id,
+                returnNumber: activeReturn.returnNumber,
+                orderNumber: matchedOrder.orderNumber,
+                clientName: matchedOrder.company?.name ?? '—',
+                message: 'تم استلام وتأكيد المرتجع بنجاح.',
+            };
+        }
+        if (existingReturns.length > 0 &&
+            existingReturns.every((r) => r.status === client_1.OmsReturnStatus.completed)) {
+            if (matchedOrder.status !== client_1.OmsOrderStatus.returned) {
+                await this.prisma.omsOrder.update({
+                    where: { id: matchedOrder.id },
+                    data: { status: client_1.OmsOrderStatus.returned },
+                });
+            }
+            return {
+                ok: true,
+                action: 'already_completed',
+                returnId: existingReturns[0].id,
+                returnNumber: existingReturns[0].returnNumber,
+                orderNumber: matchedOrder.orderNumber,
+                clientName: matchedOrder.company?.name ?? '—',
+                message: 'تم استلام هذا الطلب وإرجاعه للمستودع مسبقاً.',
+            };
+        }
+        if (!(0, oms_return_eligibility_1.isOmsReturnEligibleStatus)(matchedOrder.status)) {
+            throw new common_1.BadRequestException(`لا يمكن إرجاع هذا الطلب لأن حالته الحالية (${matchedOrder.status}) غير مؤهلة للإرجاع. ${(0, express_return_resolve_1.expressReturnStatusRejectReason)(matchedOrder.status)}`);
+        }
+        const priorReturned = await this.sumActiveReturnedQtyByProduct(matchedOrder.id);
+        const returnLines = [];
+        for (const ol of matchedOrder.lines) {
+            const already = priorReturned.get(ol.productId) ?? new client_1.Prisma.Decimal(0);
+            const returnable = Number(ol.requestedQuantity.sub(already));
+            if (returnable > 0) {
+                returnLines.push({ productId: ol.productId, quantity: returnable });
+            }
+        }
+        if (returnLines.length === 0) {
+            if (matchedOrder.status !== client_1.OmsOrderStatus.returned) {
+                await this.prisma.omsOrder.update({
+                    where: { id: matchedOrder.id },
+                    data: { status: client_1.OmsOrderStatus.returned },
+                });
+            }
+            return {
+                ok: true,
+                action: 'already_completed',
+                orderNumber: matchedOrder.orderNumber,
+                clientName: matchedOrder.company?.name ?? '—',
+                message: 'كامل بنود وكميات هذا الطلب تم إرجاعها مسبقاً.',
+            };
+        }
+        const createdReturn = await this.create(user, {
+            omsOrderId: matchedOrder.id,
+            lines: returnLines,
+            reason: 'استرجاع فوري عبر مسح QR بوليصة الشحن',
+        });
+        await this.confirmReturn(createdReturn.id, user);
+        return {
+            ok: true,
+            action: 'created_and_confirmed',
+            returnId: createdReturn.id,
+            returnNumber: createdReturn.returnNumber,
+            orderNumber: matchedOrder.orderNumber,
+            clientName: matchedOrder.company?.name ?? '—',
+            message: 'تم إنشاء المرتجع وتأكيد استلامه في المستودع بنجاح.',
+        };
+    }
+    async resolveDefaultReturnExecutionPlan(omsReturn, warehouseIdCandidate) {
+        const outboundId = omsReturn.omsOrder?.outboundOrderId;
+        let warehouseId = warehouseIdCandidate;
+        if (!warehouseId && outboundId) {
+            warehouseId = (await this.prisma.stockReservation.findFirst({
+                where: { outboundOrderId: outboundId },
+                orderBy: { createdAt: 'desc' },
+                select: { location: { select: { warehouseId: true } } },
+            }))?.location.warehouseId;
+        }
+        if (!warehouseId && outboundId) {
+            const ob = await this.prisma.outboundOrder.findUnique({
+                where: { id: outboundId },
+                select: { executionPlan: true },
+            });
+            if (ob?.executionPlan &&
+                typeof ob.executionPlan === 'object' &&
+                'warehouseId' in ob.executionPlan &&
+                typeof ob.executionPlan.warehouseId === 'string') {
+                warehouseId = ob.executionPlan.warehouseId;
+            }
+        }
+        if (!warehouseId) {
+            const firstWh = await this.prisma.warehouse.findFirst({
+                where: { status: 'active' },
+                select: { id: true },
+            });
+            warehouseId = firstWh?.id;
+        }
+        if (!warehouseId) {
+            throw new common_1.BadRequestException('No active warehouse found to process return.');
+        }
+        let returnsLocation = await this.prisma.location.findFirst({
+            where: {
+                warehouseId,
+                name: { equals: 'Returns', mode: 'insensitive' },
+                status: 'active',
+            },
+            select: { id: true },
+        });
+        if (!returnsLocation) {
+            returnsLocation = await this.prisma.location.findFirst({
+                where: {
+                    warehouseId,
+                    name: { contains: 'return', mode: 'insensitive' },
+                    status: 'active',
+                },
+                select: { id: true },
+            });
+        }
+        if (!returnsLocation) {
+            returnsLocation = await this.prisma.location.findFirst({
+                where: {
+                    warehouseId,
+                    type: 'internal',
+                    status: 'active',
+                },
+                select: { id: true },
+            });
+        }
+        let receivingDock = await this.prisma.location.findFirst({
+            where: { warehouseId, type: 'input', status: 'active' },
+            select: { id: true },
+        });
+        if (!receivingDock) {
+            receivingDock = await this.prisma.location.findFirst({
+                where: {
+                    warehouseId,
+                    OR: [
+                        { name: { contains: 'استلام', mode: 'insensitive' } },
+                        { name: { contains: 'dock', mode: 'insensitive' } },
+                    ],
+                    status: 'active',
+                },
+                select: { id: true },
+            });
+        }
+        const defaultDockId = receivingDock?.id ?? returnsLocation?.id;
+        const defaultPutawayId = returnsLocation?.id ?? receivingDock?.id;
+        if (!defaultDockId || !defaultPutawayId) {
+            throw new common_1.BadRequestException('Warehouse location configuration error: neither receiving dock nor Returns storage location found.');
+        }
+        let returnLines = omsReturn.lines;
+        if (returnLines.length === 0 && omsReturn.omsOrderId) {
+            const orderLines = await this.prisma.omsOrderLine.findMany({
+                where: { omsOrderId: omsReturn.omsOrderId },
+            });
+            const createdLines = [];
+            for (let idx = 0; idx < orderLines.length; idx++) {
+                const ol = orderLines[idx];
+                const qty = ol.requestedQuantity;
+                const lineTotal = ol.unitPrice != null ? ol.unitPrice.mul(qty) : null;
+                const nl = await this.prisma.omsReturnLine.create({
+                    data: {
+                        omsReturnId: omsReturn.id,
+                        productId: ol.productId,
+                        quantity: qty,
+                        unitPrice: ol.unitPrice ?? undefined,
+                        lineTotal: lineTotal ?? undefined,
+                        lineNumber: idx + 1,
+                    },
+                });
+                createdLines.push(nl);
+            }
+            returnLines = createdLines;
+        }
+        const plan = {
+            warehouseId,
+            receivingDockId: defaultDockId,
+            planUpdatedAt: new Date().toISOString(),
+            lines: returnLines.map((l) => ({
+                productId: l.productId,
+                orderLineId: l.id,
+                expectedQty: Number(l.quantity),
+                putaway: [{ locationId: defaultPutawayId, qty: Number(l.quantity) }],
+            })),
+        };
+        return { warehouseId, plan };
+    }
     async autoCompleteReturn(returnId, user) {
         const omsReturn = await this.prisma.omsReturn.findUnique({
             where: { id: returnId },
@@ -357,49 +746,35 @@ let OmsReturnsService = class OmsReturnsService {
         });
         if (!omsReturn || omsReturn.status !== client_1.OmsReturnStatus.requested)
             return;
-        const outboundId = omsReturn.omsOrder?.outboundOrderId;
-        if (!outboundId)
+        const isCovered = await this.isOrderFullyReturnedByCompletedReturns(omsReturn.omsOrderId);
+        if (isCovered) {
+            await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+                await tx.omsReturn.update({
+                    where: { id: returnId },
+                    data: {
+                        status: client_1.OmsReturnStatus.completed,
+                        completedAt: new Date(),
+                        approvedAt: new Date(),
+                        approvedBy: user.id,
+                        notes: (omsReturn.notes ? omsReturn.notes + '\n' : '') +
+                            'Automatically resolved: Order was already fully received and restocked by prior completed return(s).',
+                    },
+                });
+            });
+            await this.maybeMarkOmsFullyReturned(user, omsReturn.omsOrderId);
             return;
-        const warehouseId = (await this.prisma.stockReservation.findFirst({
-            where: { outboundOrderId: outboundId },
-            orderBy: { createdAt: 'desc' },
-            select: { location: { select: { warehouseId: true } } },
-        }))?.location.warehouseId;
-        if (!warehouseId)
-            return;
-        const returnsLocation = await this.prisma.location.findFirst({
-            where: {
-                warehouseId,
-                name: { equals: 'Returns', mode: 'insensitive' },
-                status: 'active',
-            },
-            select: { id: true },
-        });
-        if (!returnsLocation) {
-            throw new common_1.BadRequestException('Configuration error: no "Returns" location found in the warehouse. ' +
-                'Create a location named "Returns" before processing returns.');
         }
-        const receivingDock = await this.prisma.location.findFirst({
-            where: { warehouseId, type: 'input', status: 'active' },
-            select: { id: true },
-        });
-        const plan = {
-            warehouseId,
-            receivingDockId: receivingDock?.id ?? returnsLocation.id,
-            planUpdatedAt: new Date().toISOString(),
-            lines: omsReturn.lines.map((l) => ({
-                productId: l.productId,
-                orderLineId: l.id,
-                expectedQty: Number(l.quantity),
-                putaway: [{ locationId: returnsLocation.id, qty: Number(l.quantity) }],
-            })),
-        };
+        const { warehouseId, plan } = await this.resolveDefaultReturnExecutionPlan(omsReturn);
         await this.updatePlan(returnId, user, {
             executionPlan: plan,
             executionMode: 'admin',
         });
         await this.approve(returnId, user, { warehouseId });
-        await this.completeReceivingAdmin(returnId, user);
+        try {
+            await this.completeReceivingAdmin(returnId, user);
+        }
+        catch {
+        }
         await this.completePutawayAdmin(returnId, user);
     }
     async updatePlan(id, user, dto) {
@@ -478,11 +853,36 @@ let OmsReturnsService = class OmsReturnsService {
             return this.findById(id, user);
         }
         (0, oms_return_admin_stages_1.assertOmsReturnAdminStageAction)(existing.status, 'approve');
-        const plan = (0, execution_plan_util_1.parseInboundExecutionPlan)(existing.executionPlan);
-        if (!plan) {
-            throw new common_1.BadRequestException('Approve requires a saved execution plan (receiving dock + putaway locations).');
+        let plan = (0, execution_plan_util_1.parseInboundExecutionPlan)(existing.executionPlan);
+        let warehouseId = dto.warehouseId ?? plan?.warehouseId;
+        if (!plan || plan.lines.length === 0 || !warehouseId) {
+            const resolved = await this.resolveDefaultReturnExecutionPlan(existing, warehouseId);
+            warehouseId = resolved.warehouseId;
+            plan = resolved.plan;
+            await this.updatePlan(id, user, {
+                executionPlan: plan,
+                executionMode: 'admin',
+            });
         }
         (0, execution_plan_util_1.assertInboundAdminPlanComplete)(plan);
+        const isCovered = await this.isOrderFullyReturnedByCompletedReturns(existing.omsOrderId);
+        if (isCovered) {
+            await (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
+                await tx.omsReturn.update({
+                    where: { id },
+                    data: {
+                        status: client_1.OmsReturnStatus.completed,
+                        completedAt: new Date(),
+                        approvedAt: new Date(),
+                        approvedBy: user.id,
+                        notes: (existing.notes ? existing.notes + '\n' : '') +
+                            'Automatically resolved: Order was already fully received and restocked by prior completed return(s).',
+                    },
+                });
+            });
+            await this.maybeMarkOmsFullyReturned(user, existing.omsOrderId);
+            return this.findById(id, user);
+        }
         await this.assertOmsReturnStillReturnable(existing);
         const outboundId = existing.omsOrder?.outboundOrderId;
         if (!outboundId) {
@@ -493,13 +893,15 @@ let OmsReturnsService = class OmsReturnsService {
             select: { id: true, productId: true },
         });
         const outboundLineByProduct = new Map(outboundLines.map((l) => [l.productId, l.id]));
-        const warehouseId = dto.warehouseId ??
-            plan.warehouseId ??
-            (await this.prisma.stockReservation.findFirst({
-                where: { outboundOrderId: outboundId },
-                orderBy: { createdAt: 'desc' },
-                select: { location: { select: { warehouseId: true } } },
-            }))?.location.warehouseId;
+        warehouseId =
+            warehouseId ??
+                dto.warehouseId ??
+                plan.warehouseId ??
+                (await this.prisma.stockReservation.findFirst({
+                    where: { outboundOrderId: outboundId },
+                    orderBy: { createdAt: 'desc' },
+                    select: { location: { select: { warehouseId: true } } },
+                }))?.location.warehouseId;
         if (!warehouseId) {
             throw new common_1.BadRequestException('Cannot resolve warehouse for return. Provide warehouseId on the plan or approve.');
         }
@@ -756,6 +1158,34 @@ let OmsReturnsService = class OmsReturnsService {
                     `Reject this return or reduce its quantity.`);
             }
         }
+    }
+    async isOrderFullyReturnedByCompletedReturns(omsOrderId) {
+        const order = await this.prisma.omsOrder.findUnique({
+            where: { id: omsOrderId },
+            include: { lines: true },
+        });
+        if (!order || order.lines.length === 0)
+            return false;
+        const completedLines = await this.prisma.omsReturnLine.findMany({
+            where: {
+                omsReturn: {
+                    omsOrderId,
+                    status: client_1.OmsReturnStatus.completed,
+                },
+            },
+            select: { productId: true, quantity: true },
+        });
+        const returnedByProduct = new Map();
+        for (const l of completedLines) {
+            const cur = returnedByProduct.get(l.productId) ?? new client_1.Prisma.Decimal(0);
+            returnedByProduct.set(l.productId, cur.add(l.quantity));
+        }
+        for (const ol of order.lines) {
+            const ret = returnedByProduct.get(ol.productId) ?? new client_1.Prisma.Decimal(0);
+            if (ret.lessThan(ol.requestedQuantity))
+                return false;
+        }
+        return true;
     }
     async maybeMarkOmsFullyReturned(user, omsOrderId) {
         const order = await this.prisma.omsOrder.findUnique({

@@ -77,6 +77,17 @@ describe('bulk-shipping.eligibility', () => {
       expect(best?.price).toBe(80);
     });
 
+    it('recommends cheapest valid quote taking currency differences into account', () => {
+      // 2 USD = ~29,000 SYP, whereas 200 SYP = ~0.0138 USD
+      // 200 SYP must be recommended over 2 USD even though raw number 200 > 2
+      const best = recommendCheapestProvider([
+        { providerCode: 'EXPENSIVE_USD', price: 2, currency: 'USD' },
+        { providerCode: 'CHEAP_SYP', price: 200, currency: 'SYP' },
+      ]);
+      expect(best?.providerCode).toBe('CHEAP_SYP');
+      expect(best?.price).toBe(200);
+    });
+
     it('excludes failed/manual and returns null when no quotes', () => {
       expect(recommendCheapestProvider([])).toBeNull();
       expect(

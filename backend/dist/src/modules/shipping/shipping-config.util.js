@@ -123,6 +123,9 @@ function shippingPrismaData(fields) {
     if (fields.shippingProviderCode !== undefined) {
         data.shippingProviderCode = fields.shippingProviderCode;
     }
+    if (fields.shippingServiceId !== undefined) {
+        data.shippingServiceId = fields.shippingServiceId;
+    }
     if (fields.shippingReceiverLat !== undefined) {
         data.shippingReceiverLat =
             fields.shippingReceiverLat == null ? null : fields.shippingReceiverLat;
@@ -174,6 +177,7 @@ function copyShippingFieldsFromOms(oms) {
     return {
         shippingMethod: oms.shippingMethod ?? client_1.ShippingMethod.manual,
         shippingProviderCode: oms.shippingProviderCode ?? null,
+        shippingServiceId: oms.shippingServiceId ?? null,
         shippingReceiverLat: oms.shippingReceiverLat == null ? null : oms.shippingReceiverLat.toString(),
         shippingReceiverLng: oms.shippingReceiverLng == null ? null : oms.shippingReceiverLng.toString(),
         shippingPackageType: oms.shippingPackageType ?? null,
@@ -190,6 +194,7 @@ function copyShippingFieldsFromOms(oms) {
 const SHIPPING_PATCH_KEYS = [
     'shippingMethod',
     'shippingProviderCode',
+    'shippingServiceId',
     'shippingReceiverLat',
     'shippingReceiverLng',
     'shippingPackageType',

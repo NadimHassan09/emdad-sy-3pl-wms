@@ -34,6 +34,23 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
+/**
+ * Returns true when the error is a transient server-side issue caused by
+ * a backend restart, deploy, or momentary network blip — NOT a real auth failure.
+ *
+ * During pm2 restart, Nginx may return 502/503/504 or the request may fail
+ * entirely with a network error before the backend is back up. We must NOT
+ * clear the session or redirect to login in these cases.
+ */
+function isTransientServerError(error: AxiosError): boolean {
+  const status = error.response?.status;
+  const isNetworkError =
+    !error.response ||
+    error.code === 'ERR_NETWORK' ||
+    error.code === 'ECONNABORTED';
+  return isNetworkError || status === 502 || status === 503 || status === 504;
+}
+
 apiClient.interceptors.response.use(
   (response) => {
     const body = response.data;
@@ -44,22 +61,36 @@ apiClient.interceptors.response.use(
   },
   (error: AxiosError<{ success?: false; error?: { message?: string } }>) => {
     const status = error.response?.status;
+
+    // Surface backend error message first, regardless of status
     const apiMessage = error.response?.data?.error?.message;
     if (apiMessage) {
       return Promise.reject(new Error(apiMessage));
     }
+
     const url = String(error.config?.url ?? '');
     const isLoginAttempt = url.includes('/auth/login');
     const authHeader = error.config?.headers?.Authorization;
     const hadBearer =
       typeof authHeader === 'string' && authHeader.startsWith('Bearer ');
-    /** Anonymous “who am I?” — 401 is expected; do not clear session or force navigation. */
+
+    /** Anonymous "who am I?" — 401 is expected; do not clear session or force navigation. */
     const isAnonymousMeProbe = url.includes('/auth/me') && !hadBearer;
 
     if ((status === 401 || status === 403) && !isLoginAttempt && !isAnonymousMeProbe) {
+      // During a backend restart, Nginx may briefly return 502/503 before a
+      // proper 401. Guard against that so we don't wipe the session on a
+      // transient error. Only act on a definitive auth rejection from the server.
+      if (isTransientServerError(error)) {
+        // Transient — server is restarting. Keep session intact, reject quietly.
+        return Promise.reject(error);
+      }
+
+      // Definitive session invalidation confirmed by the backend.
       clearStoredBearer();
       onUnauthorized?.();
     }
+
     return Promise.reject(error);
   },
 );

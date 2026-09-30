@@ -69,3 +69,53 @@ export function omsOrderDataFromExtras(
     codStatus: codPending,
   };
 }
+
+export interface OmsWaybillItem {
+  id: string;
+  name: string;
+  sku: string;
+  quantity: number;
+  price: number;
+}
+
+export interface OmsWaybillData {
+  orderId: string;
+  orderNumber: string;
+  internalWaybillNumber: string;
+  carrierTrackingNumber?: string;
+  carrier: string;
+  carrierLogoUrl?: string;
+  isCarrierAwbFromApi: boolean;
+  shippingMethod: 'carrier' | 'manual';
+  createdAt: string;
+  qrCodeData: string;
+  company: {
+    id: string;
+    name: string;
+    tradeName?: string;
+    logoUrl?: string;
+  };
+  recipient: {
+    name: string;
+    phone: string;
+    city: string;
+    district?: string;
+    address: string;
+    instructions?: string;
+  };
+  sender: {
+    name: string;
+    phone?: string;
+    hub: string;
+  };
+  financials: {
+    codAmount: number;
+    currency: string;
+    shippingFee: number;
+    paymentMethod: string;
+    total: number;
+  };
+  items: OmsWaybillItem[];
+  totalQuantity: number;
+  labelUrl?: string;
+}

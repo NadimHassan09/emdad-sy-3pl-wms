@@ -147,12 +147,11 @@ const PENDING_FULFILLMENT = new Set([
   'picking',
   'packing',
   'ready_to_ship',
-  'failed_delivery',
 ]);
 const OUT_FOR_DELIVERY = new Set(['shipped', 'out_for_delivery']);
 const DELIVERED = new Set(['delivered', 'completed']);
 const RETURNED = new Set(['returned']);
-const CANCELLED_OR_FAILED = new Set(['cancelled', 'rejected']);
+const CANCELLED_OR_FAILED = new Set(['cancelled', 'rejected', 'failed_delivery']);
 
 function sumBucket(
   rows: Array<{ status: string; count: number }> | undefined,
@@ -756,7 +755,7 @@ export function OmsDashboardPage() {
               </label>
               <label className="flex flex-col gap-1">
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-                  Created from
+                  Date from
                 </span>
                 <input
                   type="date"
@@ -770,7 +769,7 @@ export function OmsDashboardPage() {
               </label>
               <label className="flex flex-col gap-1">
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-                  Created to
+                  Date to
                 </span>
                 <input
                   type="date"

@@ -61,6 +61,10 @@ __decorate([
 class UpdateShippingDetailsDto {
     shippingMethod;
     shippingProviderCode;
+    shippingServiceId;
+    recipientName;
+    recipientPhone;
+    destinationAddress;
     shippingReceiverLat;
     shippingReceiverLng;
     shippingPackageType;
@@ -95,6 +99,34 @@ __decorate([
     (0, class_validator_1.MaxLength)(64),
     __metadata("design:type", Object)
 ], UpdateShippingDetailsDto.prototype, "shippingProviderCode", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(128),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "shippingServiceId", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(200),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "recipientName", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(64),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "recipientPhone", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(500),
+    __metadata("design:type", Object)
+], UpdateShippingDetailsDto.prototype, "destinationAddress", void 0);
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),

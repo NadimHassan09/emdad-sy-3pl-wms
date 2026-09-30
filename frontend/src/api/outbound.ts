@@ -205,6 +205,99 @@ export type OutboundImportExecuteResult = {
   errors: OutboundImportRowError[];
 };
 
+// ─── Bulk API types ────────────────────────────────────────────────────────────
+
+export interface BulkItemResult {
+  outboundOrderId: string;
+  orderNumber: string;
+  status: string;
+  awb?: string | null;
+  note?: string;
+}
+
+export interface BulkItemFailure {
+  outboundOrderId: string;
+  orderNumber: string | null;
+  error: string;
+}
+
+export interface BulkIdsResponse {
+  requested: number;
+  completed: number;
+  failed: number;
+  completedOrders: BulkItemResult[];
+  failures: BulkItemFailure[];
+}
+
+export interface BulkProcessOutboundItem {
+  outboundOrderId: string;
+  executionMode: 'admin' | 'workers';
+  requiresPacking: boolean;
+  warehouseId: string;
+  packingLocationId?: string;
+  dispatchDockId: string;
+}
+
+export interface BulkShippingDetailsItem {
+  outboundOrderId: string;
+  shippingMethod: ShippingMethod;
+  shippingProviderCode?: string;
+  city?: string;
+  district?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  recipientName?: string;
+  recipientPhone?: string;
+  shippingPackageType?: ShippingPackageType;
+  shippingContents?: string;
+  shippingDeliveryType?: ShippingDeliveryType;
+  shippingPickupType?: ShippingPickupType;
+  shippingPayer?: ShippingPayer;
+  shippingWeightKg?: number;
+  shippingVolumeCbm?: number;
+  babelNeighbourhoodId?: number;
+  shippingReceiverLat?: number;
+  shippingReceiverLng?: number;
+}
+
+export interface ShippingDetailsPreviewItem {
+  outboundOrderId: string;
+  orderNumber: string;
+  omsOrderNumber: string | null;
+  status: string | null;
+  executionMode: string | null;
+  companyId: string;
+  companyName: string | null;
+  ready: boolean;
+  issues: string[];
+  prefill: {
+    recipientName: string | null;
+    recipientPhone: string | null;
+    city: string | null;
+    district: string | null;
+    addressLine1: string | null;
+    addressLine2: string | null;
+    shippingMethod: ShippingMethod;
+    shippingProviderCode: string | null;
+    shippingPackageType: ShippingPackageType | null;
+    shippingContents: string | null;
+    shippingDeliveryType: ShippingDeliveryType | null;
+    shippingPickupType: ShippingPickupType | null;
+    shippingPayer: ShippingPayer | null;
+    shippingWeightKg: number | null;
+    shippingVolumeCbm: number | null;
+    shippingPackagesCount: number;
+    currency: string;
+    babelNeighbourhoodId: number | null;
+    shippingReceiverLat: number | null;
+    shippingReceiverLng: number | null;
+  };
+}
+
+export interface ShippingDetailsPreviewResponse {
+  orders: ShippingDetailsPreviewItem[];
+}
+
 export const OutboundApi = {
   async list(params: {
     warehouseId?: string;
@@ -452,6 +545,43 @@ export const OutboundApi = {
       input,
       { headers },
     );
+    return data;
+  },
+
+  // ─── Bulk stage actions ────────────────────────────────────────────────────
+
+  async bulkProcess(items: BulkProcessOutboundItem[]): Promise<BulkIdsResponse> {
+    const { data } = await api.post<BulkIdsResponse>('/outbound-orders/bulk/process', { items });
+    return data;
+  },
+
+  async bulkCompletePicking(ids: string[]): Promise<BulkIdsResponse> {
+    const { data } = await api.post<BulkIdsResponse>('/outbound-orders/bulk/complete-picking', { ids });
+    return data;
+  },
+
+  async bulkCompletePacking(ids: string[]): Promise<BulkIdsResponse> {
+    const { data } = await api.post<BulkIdsResponse>('/outbound-orders/bulk/complete-packing', { ids });
+    return data;
+  },
+
+  async bulkShippingDetailsPreview(ids: string[]): Promise<ShippingDetailsPreviewResponse> {
+    const { data } = await api.post<ShippingDetailsPreviewResponse>(
+      '/outbound-orders/bulk/shipping-details/preview',
+      { ids },
+    );
+    return data;
+  },
+
+  async bulkShippingDetails(items: BulkShippingDetailsItem[]): Promise<BulkIdsResponse> {
+    const { data } = await api.post<BulkIdsResponse>('/outbound-orders/bulk/shipping-details', {
+      items,
+    });
+    return data;
+  },
+
+  async bulkCompleteDispatch(ids: string[]): Promise<BulkIdsResponse> {
+    const { data } = await api.post<BulkIdsResponse>('/outbound-orders/bulk/complete-dispatch', { ids });
     return data;
   },
 };

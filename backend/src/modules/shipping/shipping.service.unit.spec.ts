@@ -106,6 +106,10 @@ describe('ShippingService.ensureShipmentForOutbound', () => {
       realtime as any,
       { lookupBoundary: jest.fn(), containsPoint: jest.fn() } as any,
       { resolveNeighbourhoodId: jest.fn(async () => null) } as any,
+      {
+        resolveFromAddress: jest.fn(() => ({ found: false })),
+        resolveBabelNeighbourhoodId: jest.fn(async () => null),
+      } as any,
     );
 
     return { service, prisma, createShipment, registry };
@@ -167,15 +171,11 @@ describe('ShippingService.ensureShipmentForOutbound', () => {
 
   it('pending claim conflict: does not call carrier API', async () => {
     const { service, createShipment, prisma } = buildService({});
-    const err = Object.assign(new Error('Unique'), {
+    const { Prisma } = await import('@prisma/client');
+    const err = new Prisma.PrismaClientKnownRequestError('Unique', {
       code: 'P2002',
       clientVersion: 'x',
-      name: 'PrismaClientKnownRequestError',
     });
-    // Make instanceof check work — ShippingService checks Prisma.PrismaClientKnownRequestError
-    const { Prisma } = await import('@prisma/client');
-    Object.setPrototypeOf(err, Prisma.PrismaClientKnownRequestError.prototype);
-    (err as any).code = 'P2002';
     prisma.carrierShipment.create.mockRejectedValue(err);
 
     await service.ensureShipmentForOutbound('out-1');

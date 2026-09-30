@@ -62,6 +62,15 @@ let OmsReturnsController = class OmsReturnsController {
     reject(user, id, dto) {
         return this.returns.reject(id, user, dto);
     }
+    confirm(user, id) {
+        return this.returns.confirmReturn(id, user);
+    }
+    confirmBulk(user, body) {
+        return this.returns.confirmReturnsBulk(body.ids, user);
+    }
+    confirmByScan(user, body) {
+        return this.returns.confirmReturnByScan(user, body.code);
+    }
 };
 exports.OmsReturnsController = OmsReturnsController;
 __decorate([
@@ -171,6 +180,30 @@ __decorate([
     __metadata("design:paramtypes", [Object, String, oms_return_dto_1.RejectOmsReturnDto]),
     __metadata("design:returntype", void 0)
 ], OmsReturnsController.prototype, "reject", null);
+__decorate([
+    (0, common_1.Post)(':id/confirm'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OmsReturnsController.prototype, "confirm", null);
+__decorate([
+    (0, common_1.Post)('confirm-bulk'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], OmsReturnsController.prototype, "confirmBulk", null);
+__decorate([
+    (0, common_1.Post)('confirm-by-scan'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], OmsReturnsController.prototype, "confirmByScan", null);
 exports.OmsReturnsController = OmsReturnsController = __decorate([
     (0, common_1.Controller)('oms/returns'),
     __metadata("design:paramtypes", [oms_returns_service_1.OmsReturnsService])

@@ -17,6 +17,7 @@ const prisma_service_1 = require("../../../common/prisma/prisma.service");
 const tenant_rls_1 = require("../../../common/prisma/tenant-rls");
 const oms_order_mapper_1 = require("../../oms/oms-order.mapper");
 const oms_orders_service_1 = require("../../oms/oms-orders.service");
+const oms_order_status_filter_util_1 = require("../../oms/oms-order-status-filter.util");
 const portal_cod_status_util_1 = require("./portal-cod-status.util");
 function matchesPortalCodFilter(portalStatus, filter) {
     if (!filter?.trim())
@@ -91,24 +92,20 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
     }
     async statusSummary(client, query) {
         const user = (0, client_auth_principal_1.clientAuthPrincipal)(client);
+        const fromStr = query.dateFrom ?? query.createdFrom;
+        const toStr = query.dateTo ?? query.createdTo;
+        const fromDate = fromStr ? new Date(`${fromStr}T00:00:00.000Z`) : undefined;
+        const toDate = toStr ? new Date(`${toStr}T23:59:59.999Z`) : undefined;
+        const statusDateConditions = (0, oms_order_status_filter_util_1.buildOmsOrderStatusDateFilter)(fromDate, toDate);
         const where = {
             companyId: client.companyId,
+            ...(statusDateConditions.length > 0 ? { OR: statusDateConditions } : {}),
         };
         if (query.storeChannel?.trim()) {
             where.storeChannel = {
                 contains: query.storeChannel.trim(),
                 mode: 'insensitive',
             };
-        }
-        if (query.createdFrom || query.createdTo) {
-            const createdAt = {};
-            if (query.createdFrom) {
-                createdAt.gte = new Date(`${query.createdFrom}T00:00:00.000Z`);
-            }
-            if (query.createdTo) {
-                createdAt.lte = new Date(`${query.createdTo}T23:59:59.999Z`);
-            }
-            where.createdAt = createdAt;
         }
         return (0, tenant_rls_1.withTenantRls)(this.prisma, user, async (tx) => {
             const [grouped, channelRows] = await Promise.all([
@@ -120,18 +117,7 @@ let ClientOmsOrdersService = class ClientOmsOrdersService {
                 tx.omsOrder.findMany({
                     where: {
                         companyId: client.companyId,
-                        ...(query.createdFrom || query.createdTo
-                            ? {
-                                createdAt: {
-                                    ...(query.createdFrom
-                                        ? { gte: new Date(`${query.createdFrom}T00:00:00.000Z`) }
-                                        : {}),
-                                    ...(query.createdTo
-                                        ? { lte: new Date(`${query.createdTo}T23:59:59.999Z`) }
-                                        : {}),
-                                },
-                            }
-                            : {}),
+                        ...(statusDateConditions.length > 0 ? { OR: statusDateConditions } : {}),
                         storeChannel: { not: null },
                     },
                     select: { storeChannel: true },

@@ -18,6 +18,16 @@ export class OmsDashboardOrderSummaryQueryDto {
 
   @EmptyToUndefined()
   @IsOptional()
+  @Matches(DAY, { message: 'dateFrom must be YYYY-MM-DD' })
+  dateFrom?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @Matches(DAY, { message: 'dateTo must be YYYY-MM-DD' })
+  dateTo?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
   @IsUUID()
   companyId?: string;
 }

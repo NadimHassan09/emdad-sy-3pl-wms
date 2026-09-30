@@ -44,12 +44,12 @@ let WorkflowBootstrapService = class WorkflowBootstrapService {
         return this.engine.createOutboundInstanceWithFirstPickTask(tx, user, orderId, warehouseId);
     }
     async getWorkflowTimeline(user, referenceType, referenceId) {
-        const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
+        const tenantCompanyId = user.companyId;
         const wf = await this.prisma.workflowInstance.findFirst({
             where: {
                 referenceType,
                 referenceId,
-                companyId: tenantCompanyId,
+                ...(tenantCompanyId ? { companyId: tenantCompanyId } : {}),
             },
             orderBy: { createdAt: 'desc' },
         });
@@ -154,12 +154,12 @@ let WorkflowBootstrapService = class WorkflowBootstrapService {
         };
     }
     async getWorkflowInstanceGraphByReference(user, referenceType, referenceId) {
-        const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
+        const tenantCompanyId = user.companyId;
         const wf = await this.prisma.workflowInstance.findFirst({
             where: {
                 referenceType,
                 referenceId,
-                companyId: tenantCompanyId,
+                ...(tenantCompanyId ? { companyId: tenantCompanyId } : {}),
                 status: { in: workflow_active_util_1.WORKFLOW_ACTIVE_STATUSES },
             },
             orderBy: { createdAt: 'desc' },

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <defs>
+    <linearGradient id="djGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00cdbc" />
+      <stop offset="100%" stop-color="#00a196" />
+    </linearGradient>
+  </defs>
+  <rect width="200" height="60" rx="10" fill="url(#djGrad)" />
+  <!-- Kangaroo/Runner silhouette motif -->
+  <g transform="translate(14, 12) scale(0.9)" fill="#ffffff">
+    <path d="M12 2C8 2 4.5 4.5 3 8l5 2c.8-1.8 2.2-3 4-3 2.8 0 5 2.2 5 5 0 1.2-.4 2.3-1.2 3.1L9 22h14v-4h-7.5l4.3-4.5C21.8 11.4 23 9.3 23 7c0-4.4-4.5-8-11-8z" opacity="0.15" />
+    <circle cx="18" cy="8" r="4" fill="#ffffff" />
+    <path d="M8 32c-1.1 0-2-.9-2-2v-8c0-1.1.9-2 2-2h4l4-8 5 3-3 6h6l-3 11H8z" fill="#ffffff" />
+  </g>
+  <text x="52" y="27" fill="#ffffff" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="14" letter-spacing="-0.3">Deliveroo</text>
+  <text x="52" y="44" fill="#e6fffa" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="12">JOUD • جود</text>
+</svg>

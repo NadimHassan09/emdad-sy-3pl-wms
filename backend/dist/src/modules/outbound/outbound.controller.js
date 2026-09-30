@@ -26,15 +26,19 @@ const list_outbound_query_dto_1 = require("./dto/list-outbound-query.dto");
 const outbound_orders_export_dto_1 = require("./dto/outbound-orders-export.dto");
 const update_outbound_plan_dto_1 = require("./dto/update-outbound-plan.dto");
 const update_shipping_details_dto_1 = require("./dto/update-shipping-details.dto");
+const bulk_outbound_dto_1 = require("./dto/bulk-outbound.dto");
+const outbound_bulk_service_1 = require("./outbound-bulk.service");
 const outbound_orders_csv_service_1 = require("./outbound-orders-csv.service");
 const outbound_service_1 = require("./outbound.service");
 const outbound_client_import_service_1 = require("../client-portal/order-import/outbound-client-import.service");
 let OutboundController = class OutboundController {
     outbound;
+    bulkOutbound;
     csv;
     clientImport;
-    constructor(outbound, csv, clientImport) {
+    constructor(outbound, bulkOutbound, csv, clientImport) {
         this.outbound = outbound;
+        this.bulkOutbound = bulkOutbound;
         this.csv = csv;
         this.clientImport = clientImport;
     }
@@ -96,6 +100,24 @@ let OutboundController = class OutboundController {
                 reason: e.error,
             })),
         };
+    }
+    bulkProcess(user, dto) {
+        return this.bulkOutbound.processBulk(user, dto.items);
+    }
+    bulkCompletePicking(user, dto) {
+        return this.bulkOutbound.completePickingBulk(user, dto.ids);
+    }
+    bulkCompletePacking(user, dto) {
+        return this.bulkOutbound.completePackingBulk(user, dto.ids);
+    }
+    bulkCompleteDispatch(user, dto) {
+        return this.bulkOutbound.completeDispatchBulk(user, dto.ids);
+    }
+    bulkShippingDetailsPreview(user, dto) {
+        return this.bulkOutbound.shippingDetailsPreview(user, dto.ids);
+    }
+    bulkShippingDetails(user, dto) {
+        return this.bulkOutbound.shippingDetailsBulk(user, dto.items);
     }
     findOne(user, id) {
         return this.outbound.findById(id, user);
@@ -225,6 +247,60 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], OutboundController.prototype, "importOrders", null);
 __decorate([
+    (0, common_1.Post)('bulk/process'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_outbound_dto_1.BulkProcessOutboundDto]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "bulkProcess", null);
+__decorate([
+    (0, common_1.Post)('bulk/complete-picking'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_outbound_dto_1.BulkOutboundIdsDto]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "bulkCompletePicking", null);
+__decorate([
+    (0, common_1.Post)('bulk/complete-packing'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_outbound_dto_1.BulkOutboundIdsDto]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "bulkCompletePacking", null);
+__decorate([
+    (0, common_1.Post)('bulk/complete-dispatch'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_outbound_dto_1.BulkOutboundIdsDto]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "bulkCompleteDispatch", null);
+__decorate([
+    (0, common_1.Post)('bulk/shipping-details/preview'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_outbound_dto_1.BulkOutboundIdsDto]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "bulkShippingDetailsPreview", null);
+__decorate([
+    (0, common_1.Post)('bulk/shipping-details'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_outbound_dto_1.BulkShippingDetailsDto]),
+    __metadata("design:returntype", void 0)
+], OutboundController.prototype, "bulkShippingDetails", null);
+__decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
@@ -344,6 +420,7 @@ __decorate([
 exports.OutboundController = OutboundController = __decorate([
     (0, common_1.Controller)('outbound-orders'),
     __metadata("design:paramtypes", [outbound_service_1.OutboundService,
+        outbound_bulk_service_1.OutboundBulkService,
         outbound_orders_csv_service_1.OutboundOrdersCsvService,
         outbound_client_import_service_1.OutboundClientImportService])
 ], OutboundController);

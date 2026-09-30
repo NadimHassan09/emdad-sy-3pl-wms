@@ -30,6 +30,12 @@ import { ListOutboundQueryDto } from './dto/list-outbound-query.dto';
 import { OutboundOrdersExportDto } from './dto/outbound-orders-export.dto';
 import { UpdateOutboundPlanDto } from './dto/update-outbound-plan.dto';
 import { UpdateShippingDetailsDto } from './dto/update-shipping-details.dto';
+import {
+  BulkOutboundIdsDto,
+  BulkProcessOutboundDto,
+  BulkShippingDetailsDto,
+} from './dto/bulk-outbound.dto';
+import { OutboundBulkService } from './outbound-bulk.service';
 import { OutboundOrdersCsvService } from './outbound-orders-csv.service';
 import { OutboundService } from './outbound.service';
 import { OutboundClientImportService } from '../client-portal/order-import/outbound-client-import.service';
@@ -38,6 +44,7 @@ import { OutboundClientImportService } from '../client-portal/order-import/outbo
 export class OutboundController {
   constructor(
     private readonly outbound: OutboundService,
+    private readonly bulkOutbound: OutboundBulkService,
     private readonly csv: OutboundOrdersCsvService,
     private readonly clientImport: OutboundClientImportService,
   ) {}
@@ -156,6 +163,51 @@ export class OutboundController {
         reason: e.error,
       })),
     };
+  }
+
+  // ─── Bulk stage actions (OMS Orders bulk workflow) — must stay before :id routes ───
+
+  @Post('bulk/process')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  bulkProcess(@CurrentUser() user: AuthPrincipal, @Body() dto: BulkProcessOutboundDto) {
+    return this.bulkOutbound.processBulk(user, dto.items);
+  }
+
+  @Post('bulk/complete-picking')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  bulkCompletePicking(@CurrentUser() user: AuthPrincipal, @Body() dto: BulkOutboundIdsDto) {
+    return this.bulkOutbound.completePickingBulk(user, dto.ids);
+  }
+
+  @Post('bulk/complete-packing')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  bulkCompletePacking(@CurrentUser() user: AuthPrincipal, @Body() dto: BulkOutboundIdsDto) {
+    return this.bulkOutbound.completePackingBulk(user, dto.ids);
+  }
+
+  @Post('bulk/complete-dispatch')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  bulkCompleteDispatch(@CurrentUser() user: AuthPrincipal, @Body() dto: BulkOutboundIdsDto) {
+    return this.bulkOutbound.completeDispatchBulk(user, dto.ids);
+  }
+
+  /** Per-order prefill + readiness for the Complete Shipping Details bulk modal. */
+  @Post('bulk/shipping-details/preview')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  bulkShippingDetailsPreview(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: BulkOutboundIdsDto,
+  ) {
+    return this.bulkOutbound.shippingDetailsPreview(user, dto.ids);
+  }
+
+  @Post('bulk/shipping-details')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  bulkShippingDetails(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: BulkShippingDetailsDto,
+  ) {
+    return this.bulkOutbound.shippingDetailsBulk(user, dto.items);
   }
 
   @Get(':id')

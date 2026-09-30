@@ -22,8 +22,23 @@ function buildOmsOrdersListWhere(companyAccess, user, query) {
         const t = query.orderSearch.trim();
         const orParts = [
             { orderNumber: { contains: t, mode: 'insensitive' } },
+            { trackingNumber: { contains: t, mode: 'insensitive' } },
             { recipientName: { contains: t, mode: 'insensitive' } },
             { recipientPhone: { contains: t, mode: 'insensitive' } },
+            { externalReference: { contains: t, mode: 'insensitive' } },
+            { clientReference: { contains: t, mode: 'insensitive' } },
+            {
+                outboundOrder: {
+                    carrierShipments: {
+                        some: {
+                            OR: [
+                                { externalAwb: { contains: t, mode: 'insensitive' } },
+                                { trackingNumber: { contains: t, mode: 'insensitive' } },
+                            ],
+                        },
+                    },
+                },
+            },
         ];
         if (FULL_UUID.test(t))
             orParts.push({ id: t });

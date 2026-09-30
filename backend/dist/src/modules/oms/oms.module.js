@@ -15,7 +15,9 @@ const outbound_module_1 = require("../outbound/outbound.module");
 const realtime_module_1 = require("../realtime/realtime.module");
 const cod_module_1 = require("../cod/cod.module");
 const shipping_module_1 = require("../shipping/shipping.module");
+const pdf_module_1 = require("../../pdf/pdf.module");
 const oms_controller_1 = require("./oms.controller");
+const oms_bulk_service_1 = require("./oms-bulk.service");
 const oms_dashboard_service_1 = require("./oms-dashboard.service");
 const oms_order_events_service_1 = require("./oms-order-events.service");
 const oms_orders_csv_service_1 = require("./oms-orders-csv.service");
@@ -24,6 +26,7 @@ const oms_outbound_sync_service_1 = require("./oms-outbound-sync.service");
 const oms_sales_channel_service_1 = require("./sales-channels/oms-sales-channel.service");
 const oms_webhooks_controller_1 = require("./sales-channels/oms-webhooks.controller");
 const order_allocation_service_1 = require("./order-allocation.service");
+const oms_waybill_service_1 = require("./oms-waybill.service");
 let OmsModule = class OmsModule {
 };
 exports.OmsModule = OmsModule;
@@ -33,6 +36,7 @@ exports.OmsModule = OmsModule = __decorate([
             audit_module_1.AuditModule,
             company_access_module_1.CompanyAccessModule,
             realtime_module_1.RealtimeModule,
+            pdf_module_1.PdfModule,
             (0, common_1.forwardRef)(() => outbound_module_1.OutboundModule),
             (0, common_1.forwardRef)(() => cod_module_1.CodModule),
             (0, common_1.forwardRef)(() => shipping_module_1.ShippingModule),
@@ -44,15 +48,18 @@ exports.OmsModule = OmsModule = __decorate([
             oms_order_events_service_1.OmsOrderEventsService,
             oms_outbound_sync_service_1.OmsOutboundSyncService,
             oms_orders_service_1.OmsOrdersService,
+            oms_bulk_service_1.OmsBulkService,
             oms_orders_csv_service_1.OmsOrdersCsvService,
             oms_dashboard_service_1.OmsDashboardService,
             oms_sales_channel_service_1.OmsSalesChannelService,
+            oms_waybill_service_1.OmsWaybillService,
         ],
         exports: [
             order_allocation_service_1.OrderAllocationService,
             oms_order_events_service_1.OmsOrderEventsService,
             oms_outbound_sync_service_1.OmsOutboundSyncService,
             oms_orders_service_1.OmsOrdersService,
+            oms_waybill_service_1.OmsWaybillService,
         ],
     })
 ], OmsModule);

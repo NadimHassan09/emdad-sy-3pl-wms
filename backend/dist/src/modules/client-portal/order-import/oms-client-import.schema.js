@@ -1,8 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OMS_CLIENT_IMPORT_REQUIRED_COLUMNS = exports.OMS_ORDER_LEVEL_FIELDS = exports.OMS_CLIENT_IMPORT_ALIASES = exports.OMS_CLIENT_IMPORT_HEADERS = void 0;
+exports.OMS_CLIENT_IMPORT_REQUIRED_COLUMNS = exports.OMS_ORDER_LEVEL_FIELDS = exports.OMS_LEGACY_REJECTED_HEADERS = exports.OMS_CLIENT_IMPORT_ALIASES = exports.OMS_CLIENT_IMPORT_HEADERS = void 0;
 exports.getOmsClientImportTemplate = getOmsClientImportTemplate;
-exports.applyAdminCityCompatibility = applyAdminCityCompatibility;
 const oms_orders_csv_util_1 = require("../../oms/oms-orders-csv.util");
 exports.OMS_CLIENT_IMPORT_HEADERS = [
     'order_number',
@@ -29,10 +28,9 @@ exports.OMS_CLIENT_IMPORT_ALIASES = {
     recipient_phone: ['phone', 'customer_phone', 'national_phone'],
     governorate: ['gov'],
     city: ['area', 'city_area'],
-    district: [],
-    neighborhood: ['address_line1', 'address line 1', 'town'],
-    street: ['address_line2', 'address line 2', 'detailed_address', 'address'],
-    payment_method: ['payment'],
+    neighborhood: ['town'],
+    street: ['detailed_address', 'detailed address', 'address in details', 'street address'],
+    payment_method: ['payment', 'payment method'],
     notes: ['note'],
     store_channel: ['channel'],
     sku: ['product_sku', 'product sku'],
@@ -40,6 +38,13 @@ exports.OMS_CLIENT_IMPORT_ALIASES = {
     quantity: ['qty', 'requested_quantity'],
     unit_price: ['price', 'unit price'],
 };
+exports.OMS_LEGACY_REJECTED_HEADERS = [
+    'district',
+    'address_line1',
+    'address line 1',
+    'address_line2',
+    'address line 2',
+];
 exports.OMS_ORDER_LEVEL_FIELDS = [
     'required_ship_date',
     'recipient_name',
@@ -47,7 +52,6 @@ exports.OMS_ORDER_LEVEL_FIELDS = [
     'recipient_phone',
     'governorate',
     'city',
-    'district',
     'neighborhood',
     'street',
     'payment_method',
@@ -124,11 +128,5 @@ function getOmsClientImportTemplate() {
         ],
     ]);
     return { filename: 'oms-orders-import-template.csv', body };
-}
-function applyAdminCityCompatibility(values) {
-    if (!values.governorate?.trim() && values.city?.trim() && values.district?.trim()) {
-        values.governorate = values.city;
-        values.city = values.district;
-    }
 }
 //# sourceMappingURL=oms-client-import.schema.js.map

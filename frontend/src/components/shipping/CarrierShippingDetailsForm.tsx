@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef } from 'react';
 
 import { ShippingApi, type ShippingPayer } from '../../api/shipping';
@@ -128,8 +128,7 @@ export function CarrierShippingDetailsForm({
   onSelectedCarrierAvailableChange,
 }: Props) {
   const readOnly = locked || disabled;
-  const queryClient = useQueryClient();
-  /** Monotonic id — late responses must not overwrite newer quote state. */
+  /** Monotonic id — late responses from superseded requests are discarded. */
   const quoteGenerationRef = useRef(0);
 
   const providersQuery = useQuery({
@@ -256,11 +255,12 @@ export function CarrierShippingDetailsForm({
     ? stableRateKey(settledQuoteRequest as unknown as Record<string, unknown>)
     : null;
 
+  // Increment the generation counter whenever the settled quote request changes.
+  // The queryFn checks this to discard superseded responses without cancelling the query.
   useEffect(() => {
     if (!settledQuoteKey) return;
     quoteGenerationRef.current += 1;
-    void queryClient.cancelQueries({ queryKey: ['shipping', 'rates'] });
-  }, [settledQuoteKey, queryClient]);
+  }, [settledQuoteKey]);
 
   const ratesQuery = useQuery({
     queryKey: settledQuoteRequest
@@ -349,12 +349,13 @@ export function CarrierShippingDetailsForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectedProviders, value.shippingProviderCode, readOnly, hideCarrierSelect]);
 
-  const handleSelectCarrier = (carrierId: string) => {
+  const handleSelectCarrier = (carrierId: string, serviceId?: string) => {
     if (isRefreshingCarrierQuotes) return;
     const nextCurrency = currencyAfterCarrierSelect(carrierId);
     onChange(
       patch(value, {
         shippingProviderCode: carrierId,
+        shippingServiceId: serviceId ?? '',
         currency: nextCurrency,
       }),
     );
@@ -571,6 +572,7 @@ export function CarrierShippingDetailsForm({
           quotes={quotes}
           errors={rateErrors}
           selectedCarrierId={value.shippingProviderCode}
+          selectedServiceId={value.shippingServiceId}
           onSelect={handleSelectCarrier}
           loading={isRefreshingCarrierQuotes}
           disabled={readOnly || isRefreshingCarrierQuotes}

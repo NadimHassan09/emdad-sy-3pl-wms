@@ -50,6 +50,7 @@ export type CarrierShippingFormValue = {
   deliveryType: ShippingDeliveryType;
   shippingPayer: ShippingPayer;
   shippingProviderCode: string;
+  shippingServiceId: string;
 };
 
 export function providerSupportedCurrencies(providerCode: string): ShippingCurrency[] {
@@ -195,6 +196,7 @@ export function buildCarrierShippingFormFromOrder(order: OutboundOrder): Carrier
     deliveryType: savedDelivery === 'hub' ? 'hub' : 'address',
     shippingPayer,
     shippingProviderCode: (order.shippingProviderCode ?? '').trim(),
+    shippingServiceId: ((order as { shippingServiceId?: string }).shippingServiceId ?? '').trim(),
   };
 }
 
@@ -366,6 +368,7 @@ export function carrierFormToSavePayload(
   return {
     shippingMethod: 'carrier',
     shippingProviderCode: form.shippingProviderCode.trim() || null,
+    shippingServiceId: form.shippingServiceId?.trim() || null,
     shippingPackageType: form.packageType || 'box',
     shippingContents: contentsFromCartons(form.cartons, form.catalog) || null,
     shippingDeliveryType: form.deliveryType || 'address',

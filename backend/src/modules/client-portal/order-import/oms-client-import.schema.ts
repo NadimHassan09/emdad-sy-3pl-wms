@@ -32,10 +32,9 @@ export const OMS_CLIENT_IMPORT_ALIASES: HeaderAliasMap = {
   recipient_phone: ['phone', 'customer_phone', 'national_phone'],
   governorate: ['gov'],
   city: ['area', 'city_area'],
-  district: [],
-  neighborhood: ['address_line1', 'address line 1', 'town'],
-  street: ['address_line2', 'address line 2', 'detailed_address', 'address'],
-  payment_method: ['payment'],
+  neighborhood: ['town'],
+  street: ['detailed_address', 'detailed address', 'address in details', 'street address'],
+  payment_method: ['payment', 'payment method'],
   notes: ['note'],
   store_channel: ['channel'],
   sku: ['product_sku', 'product sku'],
@@ -44,6 +43,14 @@ export const OMS_CLIENT_IMPORT_ALIASES: HeaderAliasMap = {
   unit_price: ['price', 'unit price'],
 };
 
+export const OMS_LEGACY_REJECTED_HEADERS = [
+  'district',
+  'address_line1',
+  'address line 1',
+  'address_line2',
+  'address line 2',
+];
+
 export const OMS_ORDER_LEVEL_FIELDS = [
   'required_ship_date',
   'recipient_name',
@@ -51,7 +58,6 @@ export const OMS_ORDER_LEVEL_FIELDS = [
   'recipient_phone',
   'governorate',
   'city',
-  'district',
   'neighborhood',
   'street',
   'payment_method',
@@ -133,10 +139,4 @@ export function getOmsClientImportTemplate(): { filename: string; body: string }
   return { filename: 'oms-orders-import-template.csv', body };
 }
 
-/** Admin CSV used city=governorate and district=city/area. */
-export function applyAdminCityCompatibility(values: Record<string, string>): void {
-  if (!values.governorate?.trim() && values.city?.trim() && values.district?.trim()) {
-    values.governorate = values.city;
-    values.city = values.district;
-  }
-}
+

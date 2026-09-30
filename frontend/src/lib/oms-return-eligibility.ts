@@ -3,6 +3,7 @@ const OMS_RETURN_ELIGIBLE_STATUSES = new Set([
   'delivered',
   'shipped',
   'out_for_delivery',
+  'failed_delivery',
 ]);
 
 export function isOmsReturnEligibleStatus(

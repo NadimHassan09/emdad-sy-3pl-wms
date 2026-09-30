@@ -33,7 +33,7 @@ exports.OMS_PRE_FULFILLMENT = new Set([
 ]);
 const ALLOWED = {
     [`${client_1.OmsOrderStatus.waiting_for_confirmation}|client_confirm|client`]: client_1.OmsOrderStatus.confirmed_waiting_for_admin_approval,
-    [`${client_1.OmsOrderStatus.waiting_for_confirmation}|admin_confirm|admin`]: client_1.OmsOrderStatus.processing,
+    [`${client_1.OmsOrderStatus.waiting_for_confirmation}|admin_confirm|admin`]: client_1.OmsOrderStatus.confirmed_waiting_for_admin_approval,
     [`${client_1.OmsOrderStatus.confirmed_waiting_for_admin_approval}|admin_approve|admin`]: client_1.OmsOrderStatus.processing,
     [`${client_1.OmsOrderStatus.pending_approval}|admin_approve|admin`]: client_1.OmsOrderStatus.processing,
     [`${client_1.OmsOrderStatus.waiting_for_confirmation}|cancel|client`]: client_1.OmsOrderStatus.cancelled,
@@ -66,6 +66,8 @@ const ALLOWED = {
     [`${client_1.OmsOrderStatus.shipped}|mark_returned|admin`]: client_1.OmsOrderStatus.returned,
     [`${client_1.OmsOrderStatus.out_for_delivery}|mark_returned|system`]: client_1.OmsOrderStatus.returned,
     [`${client_1.OmsOrderStatus.out_for_delivery}|mark_returned|admin`]: client_1.OmsOrderStatus.returned,
+    [`${client_1.OmsOrderStatus.failed_delivery}|mark_returned|system`]: client_1.OmsOrderStatus.returned,
+    [`${client_1.OmsOrderStatus.failed_delivery}|mark_returned|admin`]: client_1.OmsOrderStatus.returned,
 };
 function assertOmsTransition(from, action, actor) {
     const key = `${from}|${action}|${actor}`;

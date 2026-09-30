@@ -62,7 +62,15 @@ function productImageSrc(imagePath?: string | null): string | null {
   return `/api/client/media/${imagePath.replace(/^\/+/, '')}`;
 }
 
+function useIsArabic(): boolean {
+  return (
+    typeof document !== 'undefined' &&
+    (document.documentElement.lang === 'ar' || document.documentElement.dir === 'rtl')
+  );
+}
+
 function AdminOmsReturnSummary({ omsReturn }: { omsReturn: OmsReturn }) {
+  const isArabic = useIsArabic();
   const toast = useToast();
   const qc = useQueryClient();
   const mode = normalizeExecutionMode(omsReturn.executionMode);
@@ -99,11 +107,24 @@ function AdminOmsReturnSummary({ omsReturn }: { omsReturn: OmsReturn }) {
 
   const adminStageAction = omsReturn.nextAdminAction ?? null;
 
+  const confirmReturnMut = useMutation({
+    mutationFn: () => OmsReturnsApi.confirmReturn(omsReturn.id),
+    onSuccess: () => {
+      toast.success(
+        isArabic
+          ? 'تم تأكيد واستلام الإرجاع بنجاح في قسم المرتجعات.'
+          : 'Return confirmed and restocked successfully in Returns location.',
+      );
+      void qc.invalidateQueries({ queryKey: ['oms-returns'] });
+      void qc.invalidateQueries({ queryKey: ['oms-return', omsReturn.id] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const stageMut = useMutation({
     mutationFn: async () => {
       if (adminStageAction === 'approve') {
-        if (!planReady || !plan) throw new Error('Complete the warehouse plan first.');
-        return OmsReturnsApi.approve(omsReturn.id, plan.warehouseId);
+        return OmsReturnsApi.approve(omsReturn.id, plan?.warehouseId);
       }
       if (adminStageAction === 'complete_receiving') {
         return OmsReturnsApi.completeReceiving(omsReturn.id);
@@ -115,9 +136,9 @@ function AdminOmsReturnSummary({ omsReturn }: { omsReturn: OmsReturn }) {
     },
     onSuccess: () => {
       const messages = {
-        approve: 'Return approved. Waiting for receiving.',
-        complete_receiving: 'Receiving marked complete.',
-        complete_putaway: 'Putaway marked complete.',
+        approve: isArabic ? 'تمت الموافقة على المرتجع. بانتظار الاستلام.' : 'Return approved. Waiting for receiving.',
+        complete_receiving: isArabic ? 'تم تأكيد الاستلام في المستودع.' : 'Receiving marked complete.',
+        complete_putaway: isArabic ? 'تم تخزين المرتجع في منطقة المرتجعات بنجاح.' : 'Putaway marked complete.',
       } as const;
       if (adminStageAction) toast.success(messages[adminStageAction]);
       void qc.invalidateQueries({ queryKey: ['oms-returns'] });
@@ -129,7 +150,7 @@ function AdminOmsReturnSummary({ omsReturn }: { omsReturn: OmsReturn }) {
   const rejectMut = useMutation({
     mutationFn: () => OmsReturnsApi.reject(omsReturn.id),
     onSuccess: () => {
-      toast.success('Return rejected.');
+      toast.success(isArabic ? 'تم رفض المرتجع.' : 'Return rejected.');
       void qc.invalidateQueries({ queryKey: ['oms-returns'] });
       void qc.invalidateQueries({ queryKey: ['oms-return', omsReturn.id] });
     },
@@ -203,7 +224,9 @@ function AdminOmsReturnSummary({ omsReturn }: { omsReturn: OmsReturn }) {
               to={`/oms/returns/${omsReturn.id}/edit`}
               className="inline-flex h-[34px] items-center rounded-lg border border-border bg-surface-card px-3 text-sm font-medium text-text-strong hover:bg-surface-sunken"
             >
-              {planReady ? 'Edit plan' : 'Complete plan'}
+              {planReady
+                ? isArabic ? 'تعديل الخطة' : 'Edit plan'
+                : isArabic ? 'تخصيص الخطة' : 'Customize plan'}
             </Link>
           ) : null}
           {isWaitingApproval ? (
@@ -214,21 +237,28 @@ function AdminOmsReturnSummary({ omsReturn }: { omsReturn: OmsReturn }) {
               loading={rejectMut.isPending}
               onClick={() => rejectMut.mutate()}
             >
-              Reject
+              {isArabic ? 'رفض' : 'Reject'}
             </Button>
           ) : null}
-          {stageCtaLabel ? (
+          {isWaitingApproval ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              loading={confirmReturnMut.isPending}
+              onClick={() => confirmReturnMut.mutate()}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              <i className="fa-solid fa-check me-1.5" aria-hidden="true" />
+              {isArabic ? 'تأكيد واستلام المرتجع' : 'Confirm & Restock Return'}
+            </Button>
+          ) : null}
+          {stageCtaLabel && !isWaitingApproval ? (
             <Button
               type="button"
               variant="primary"
               size="md"
               loading={stageMut.isPending}
-              disabled={adminStageAction === 'approve' && !planReady}
-              title={
-                adminStageAction === 'approve' && !planReady
-                  ? 'Complete the warehouse plan (dock + putaway) first.'
-                  : undefined
-              }
               onClick={() => stageMut.mutate()}
             >
               {stageCtaLabel}
@@ -238,8 +268,10 @@ function AdminOmsReturnSummary({ omsReturn }: { omsReturn: OmsReturn }) {
       </div>
 
       {isPlannable && !planReady ? (
-        <Alert variant="warning" title="Warehouse plan incomplete">
-          Open Complete plan, set the receiving area and putaway locations, then Approve.
+        <Alert variant="info" title={isArabic ? 'خطة المستودع الافتراضية' : 'Default Warehouse Plan'}>
+          {isArabic
+            ? 'سيتم استلام وتخزين المرتجع تلقائياً في قسم Returns عبر رصيف الاستلام الافتراضي عند الضغط على "تأكيد واستلام المرتجع".'
+            : 'Return will be automatically received and restocked into the Returns location via the default receiving dock upon confirmation.'}
         </Alert>
       ) : null}
 

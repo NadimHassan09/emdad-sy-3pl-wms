@@ -34,6 +34,7 @@ export const SHIPPING_IDENTITY_LOCKED_STATUSES = new Set([
 export type ShippingConfigFields = {
   shippingMethod?: ShippingMethod | null;
   shippingProviderCode?: string | null;
+  shippingServiceId?: string | null;
   shippingReceiverLat?: number | string | null;
   shippingReceiverLng?: number | string | null;
   shippingPackageType?: ShippingPackageType | null;
@@ -156,6 +157,9 @@ export function shippingPrismaData(fields: ShippingConfigFields) {
   if (fields.shippingProviderCode !== undefined) {
     data.shippingProviderCode = fields.shippingProviderCode;
   }
+  if (fields.shippingServiceId !== undefined) {
+    data.shippingServiceId = fields.shippingServiceId;
+  }
   if (fields.shippingReceiverLat !== undefined) {
     data.shippingReceiverLat =
       fields.shippingReceiverLat == null ? null : fields.shippingReceiverLat;
@@ -204,6 +208,7 @@ export function shippingPrismaData(fields: ShippingConfigFields) {
 export function copyShippingFieldsFromOms(oms: {
   shippingMethod?: ShippingMethod | null;
   shippingProviderCode?: string | null;
+  shippingServiceId?: string | null;
   shippingReceiverLat?: { toString(): string } | number | string | null;
   shippingReceiverLng?: { toString(): string } | number | string | null;
   shippingPackageType?: ShippingPackageType | null;
@@ -219,6 +224,7 @@ export function copyShippingFieldsFromOms(oms: {
   return {
     shippingMethod: oms.shippingMethod ?? ShippingMethod.manual,
     shippingProviderCode: oms.shippingProviderCode ?? null,
+    shippingServiceId: oms.shippingServiceId ?? null,
     shippingReceiverLat:
       oms.shippingReceiverLat == null ? null : oms.shippingReceiverLat.toString(),
     shippingReceiverLng:
@@ -240,6 +246,7 @@ export function copyShippingFieldsFromOms(oms: {
 const SHIPPING_PATCH_KEYS: (keyof ShippingConfigFields)[] = [
   'shippingMethod',
   'shippingProviderCode',
+  'shippingServiceId',
   'shippingReceiverLat',
   'shippingReceiverLng',
   'shippingPackageType',

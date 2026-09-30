@@ -25,7 +25,6 @@ let WorkflowEngineService = class WorkflowEngineService {
         this.companyAccess = companyAccess;
     }
     async createInboundInstanceWithFirstReceiveTask(tx, user, orderId, warehouseId, stagingOverrides) {
-        const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
         await (0, workflow_active_util_1.lockWorkflowReferenceOrder)(tx, client_1.WorkflowReferenceType.inbound_order, orderId);
         const order = await tx.inboundOrder.findUnique({
             where: { id: orderId },
@@ -37,6 +36,7 @@ let WorkflowEngineService = class WorkflowEngineService {
             throw new common_1.NotFoundException('Inbound order not found.');
         }
         this.companyAccess.validateResourceOwnership(user, order);
+        const tenantCompanyId = user.companyId ?? order.companyId;
         if (!['confirmed', 'in_progress', 'partially_received'].includes(order.status)) {
             throw new domain_exceptions_1.InvalidStateException('Workflow can only start for an active inbound order.');
         }
@@ -106,7 +106,6 @@ let WorkflowEngineService = class WorkflowEngineService {
         }
     }
     async createOutboundInstanceWithFirstPickTask(tx, user, orderId, warehouseId) {
-        const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
         await (0, workflow_active_util_1.lockWorkflowReferenceOrder)(tx, client_1.WorkflowReferenceType.outbound_order, orderId);
         const order = await tx.outboundOrder.findUnique({
             where: { id: orderId },
@@ -115,6 +114,7 @@ let WorkflowEngineService = class WorkflowEngineService {
         if (!order)
             throw new common_1.NotFoundException('Outbound order not found.');
         this.companyAccess.validateResourceOwnership(user, order);
+        const tenantCompanyId = user.companyId ?? order.companyId;
         if ((0, oms_warehouse_guards_1.outboundWarehouseClosed)(order.status)) {
             throw new domain_exceptions_1.InvalidStateException(`Cannot start warehouse workflow for outbound status ${order.status}.`);
         }

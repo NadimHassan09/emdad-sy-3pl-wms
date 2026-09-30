@@ -38,7 +38,7 @@ let OmsClientImportService = class OmsClientImportService {
     async importFileForCompany(user, companyIdRaw, fileBuffer, originalName) {
         const companyId = this.omsOrders.resolveImportCompanyId(user, companyIdRaw);
         const table = (0, spreadsheet_parse_1.parseSpreadsheetTable)(fileBuffer, originalName);
-        const { dataRows } = (0, order_import_grouping_1.assertImportTable)(table, oms_client_import_schema_1.OMS_CLIENT_IMPORT_ALIASES, oms_client_import_schema_1.OMS_CLIENT_IMPORT_REQUIRED_COLUMNS);
+        const { dataRows } = (0, order_import_grouping_1.assertImportTable)(table, oms_client_import_schema_1.OMS_CLIENT_IMPORT_ALIASES, oms_client_import_schema_1.OMS_CLIENT_IMPORT_REQUIRED_COLUMNS, oms_client_import_schema_1.OMS_LEGACY_REJECTED_HEADERS);
         const groups = (0, order_import_grouping_1.groupRowsByOrderNumber)(dataRows, 'order_number', oms_client_import_schema_1.OMS_ORDER_LEVEL_FIELDS);
         const batchId = (0, crypto_1.randomUUID)();
         const errors = [];
@@ -73,7 +73,6 @@ let OmsClientImportService = class OmsClientImportService {
                 pushErr(group.conflict.error, group.conflict.field);
                 continue;
             }
-            (0, oms_client_import_schema_1.applyAdminCityCompatibility)(group.fields);
             const existing = await this.omsOrders.findExistingByExternalReference(user, companyId, orderNumber);
             if (existing) {
                 duplicate++;

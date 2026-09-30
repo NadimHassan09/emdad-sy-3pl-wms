@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.barcodePngDataUri = barcodePngDataUri;
+exports.qrCodePngDataUri = qrCodePngDataUri;
 const bwip_js_1 = __importDefault(require("bwip-js"));
 async function barcodePngDataUri(text) {
     const normalized = text.trim();
@@ -20,6 +21,26 @@ async function barcodePngDataUri(text) {
                 textsize: 9,
                 textxalign: 'center',
                 paddingwidth: 4,
+                paddingheight: 2,
+            }, (err, buffer) => (err ? reject(err) : resolve(buffer)));
+        });
+        return `data:image/png;base64,${png.toString('base64')}`;
+    }
+    catch {
+        return '';
+    }
+}
+async function qrCodePngDataUri(text) {
+    const normalized = text.trim();
+    if (!normalized)
+        return '';
+    try {
+        const png = await new Promise((resolve, reject) => {
+            bwip_js_1.default.toBuffer({
+                bcid: 'qrcode',
+                text: normalized,
+                scale: 3,
+                paddingwidth: 2,
                 paddingheight: 2,
             }, (err, buffer) => (err ? reject(err) : resolve(buffer)));
         });

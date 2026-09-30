@@ -141,6 +141,32 @@ let PdfService = PdfService_1 = class PdfService {
             await page.close().catch(() => undefined);
         }
     }
+    async renderHtml(html, options) {
+        const browser = await this.getBrowser();
+        const page = await browser.newPage();
+        try {
+            await page.setContent(html, { waitUntil: 'load' });
+            await page.evaluateHandle('document.fonts.ready').catch(() => undefined);
+            const pdfOptions = {
+                landscape: options?.landscape || false,
+                printBackground: true,
+                preferCSSPageSize: true,
+                margin: options?.margin || { top: '8mm', bottom: '8mm', left: '8mm', right: '8mm' },
+            };
+            if (options?.width && options?.height) {
+                pdfOptions.width = options.width;
+                pdfOptions.height = options.height;
+            }
+            else {
+                pdfOptions.format = options?.format || 'A4';
+            }
+            const pdf = await page.pdf(pdfOptions);
+            return Buffer.from(pdf);
+        }
+        finally {
+            await page.close().catch(() => undefined);
+        }
+    }
     footerTemplate(f) {
         return `
       <div style="width:100%;font-family:'Cairo',Arial,sans-serif;font-size:7px;color:#555555;

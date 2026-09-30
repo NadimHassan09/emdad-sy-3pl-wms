@@ -16,6 +16,8 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 class OmsDashboardOrderSummaryQueryDto {
     createdFrom;
     createdTo;
+    dateFrom;
+    dateTo;
     companyId;
 }
 exports.OmsDashboardOrderSummaryQueryDto = OmsDashboardOrderSummaryQueryDto;
@@ -31,6 +33,18 @@ __decorate([
     (0, class_validator_1.Matches)(DAY, { message: 'createdTo must be YYYY-MM-DD' }),
     __metadata("design:type", String)
 ], OmsDashboardOrderSummaryQueryDto.prototype, "createdTo", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(DAY, { message: 'dateFrom must be YYYY-MM-DD' }),
+    __metadata("design:type", String)
+], OmsDashboardOrderSummaryQueryDto.prototype, "dateFrom", void 0);
+__decorate([
+    (0, query_transform_1.EmptyToUndefined)(),
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.Matches)(DAY, { message: 'dateTo must be YYYY-MM-DD' }),
+    __metadata("design:type", String)
+], OmsDashboardOrderSummaryQueryDto.prototype, "dateTo", void 0);
 __decorate([
     (0, query_transform_1.EmptyToUndefined)(),
     (0, class_validator_1.IsOptional)(),

@@ -70,12 +70,12 @@ export class WorkflowBootstrapService {
 
   /** Timeline + ordered steps (pending | locked | done) for GET /workflows/references/... */
   async getWorkflowTimeline(user: AuthPrincipal, referenceType: 'inbound_order' | 'outbound_order', referenceId: string) {
-    const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
+    const tenantCompanyId = user.companyId;
     const wf = await this.prisma.workflowInstance.findFirst({
       where: {
         referenceType,
         referenceId,
-        companyId: tenantCompanyId,
+        ...(tenantCompanyId ? { companyId: tenantCompanyId } : {}),
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -196,12 +196,12 @@ export class WorkflowBootstrapService {
     referenceType: 'inbound_order' | 'outbound_order',
     referenceId: string,
   ) {
-    const tenantCompanyId = this.companyAccess.requireActiveTenant(user);
+    const tenantCompanyId = user.companyId;
     const wf = await this.prisma.workflowInstance.findFirst({
       where: {
         referenceType,
         referenceId,
-        companyId: tenantCompanyId,
+        ...(tenantCompanyId ? { companyId: tenantCompanyId } : {}),
         status: { in: WORKFLOW_ACTIVE_STATUSES },
       },
       orderBy: { createdAt: 'desc' },

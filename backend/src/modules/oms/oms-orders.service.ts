@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
@@ -63,6 +64,8 @@ import { assertOmsOrderDeletable } from './oms-order-delete.policy';
 import { OrderAllocationService } from './order-allocation.service';
 import { ShippingGeoService } from '../shipping/shipping-geo.service';
 import { ShippingService } from '../shipping/shipping.service';
+import { ShippingTrackingService } from '../shipping/shipping-tracking.service';
+import { ShippingAutoReturnService } from '../shipping/shipping-auto-return.service';
 import { resolveOmsDeliveryLocation } from './oms-delivery-resolution';
 import {
   assertShippingIntentReady,
@@ -118,7 +121,45 @@ function assertOmsCreatePaymentMethodRequired(paymentMethod?: string | null) {
 
 const ORDER_INCLUDE = {
   company: { select: { id: true, name: true } },
-  outboundOrder: { select: { id: true, orderNumber: true, status: true } },
+  omsReturns: {
+    select: {
+      id: true,
+      returnNumber: true,
+      status: true,
+      reason: true,
+      carrierReturnStage: true,
+      carrierOriginalStatus: true,
+      carrierAwb: true,
+      carrierReturnCreatedAt: true,
+      carrierReturningAt: true,
+      carrierReturnedAt: true,
+      warehouseConfirmedAt: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: 'desc' as const },
+  },
+  outboundOrder: {
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+      carrier: true,
+      shippingProviderCode: true,
+      shippingServiceId: true,
+      shippingMethod: true,
+      trackingNumber: true,
+      carrierShipments: {
+        select: {
+          id: true,
+          status: true,
+          externalAwb: true,
+          providerCode: true,
+          rawResultMeta: true,
+        },
+        take: 1,
+      },
+    },
+  },
   lines: {
     orderBy: { lineNumber: 'asc' as const },
     include: {
@@ -141,6 +182,8 @@ const ORDER_INCLUDE = {
 
 @Injectable()
 export class OmsOrdersService {
+  private readonly logger = new Logger(OmsOrdersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => OutboundService))
@@ -154,7 +197,11 @@ export class OmsOrdersService {
     private readonly cod: CodRecordsService,
     @Inject(forwardRef(() => ShippingService))
     private readonly shipping: ShippingService,
+    @Inject(forwardRef(() => ShippingTrackingService))
+    private readonly shippingTracking: ShippingTrackingService,
     private readonly geo: ShippingGeoService,
+    @Inject(forwardRef(() => ShippingAutoReturnService))
+    private readonly autoReturn: ShippingAutoReturnService,
   ) {}
 
   /** Shared list filter builder — export must use the exact same where clause. */
@@ -190,6 +237,10 @@ export class OmsOrdersService {
         [OmsOrderStatus.shipped]: [
           OmsOrderStatus.shipped,
           OmsOrderStatus.out_for_delivery,
+        ],
+        [OmsOrderStatus.out_for_delivery]: [
+          OmsOrderStatus.out_for_delivery,
+          OmsOrderStatus.shipped,
         ],
         [OmsOrderStatus.delivered]: [
           OmsOrderStatus.delivered,
@@ -384,6 +435,7 @@ export class OmsOrdersService {
     const shippingFields = {
       shippingMethod,
       shippingProviderCode: dto.shippingProviderCode,
+      shippingServiceId: dto.shippingServiceId,
       shippingReceiverLat: dto.shippingReceiverLat,
       shippingReceiverLng: dto.shippingReceiverLng,
       shippingPackageType: dto.shippingPackageType,
@@ -494,6 +546,7 @@ export class OmsOrdersService {
     const shippingFields = {
       shippingMethod,
       shippingProviderCode: dto.shippingProviderCode,
+      shippingServiceId: dto.shippingServiceId,
       shippingReceiverLat: dto.shippingReceiverLat,
       shippingReceiverLng: dto.shippingReceiverLng,
       shippingPackageType: dto.shippingPackageType,
@@ -550,17 +603,14 @@ export class OmsOrdersService {
     const codStatus = deriveCodStatus(dto.paymentMethod, derivedCod);
     const now = new Date();
     // Backend-enforced create rules (not a frontend shortcut):
-    // - Admin provisionOutbound → processing + outbound (exactly once, idempotent sync)
-    // - Client / no provision → waiting_for_confirmation (no outbound)
-    // - Bulk CSV import → confirmed_waiting_for_admin_approval (no outbound; admin must approve)
+    // - Explicit provisionOutbound → processing + outbound
+    // - Default (admin, client, CSV import) → waiting_for_confirmation (no outbound)
     // - Explicit outbound link (legacy) → draft
     const initialStatus = dto.outboundOrderId
       ? OmsOrderStatus.draft
-      : bulkImport
-        ? OmsOrderStatus.confirmed_waiting_for_admin_approval
-        : provisionOutbound
-          ? OmsOrderStatus.processing
-          : OmsOrderStatus.waiting_for_confirmation;
+      : provisionOutbound
+        ? OmsOrderStatus.processing
+        : OmsOrderStatus.waiting_for_confirmation;
 
     if (bulkImport && dto.externalReference?.trim()) {
       const existing = await this.findExistingByExternalReference(
@@ -609,15 +659,10 @@ export class OmsOrdersService {
           ...shippingPrismaData(shippingFields),
           submittedAt:
             initialStatus === OmsOrderStatus.waiting_for_confirmation ||
-            initialStatus === OmsOrderStatus.processing ||
-            initialStatus === OmsOrderStatus.confirmed_waiting_for_admin_approval
+            initialStatus === OmsOrderStatus.processing
               ? now
               : undefined,
-          confirmedAt:
-            provisionOutbound ||
-            initialStatus === OmsOrderStatus.confirmed_waiting_for_admin_approval
-              ? now
-              : undefined,
+          confirmedAt: provisionOutbound ? now : undefined,
           approvedAt: provisionOutbound ? now : undefined,
           approvedBy: provisionOutbound ? user.id : undefined,
           createdBy: user.id,
@@ -722,11 +767,9 @@ export class OmsOrdersService {
     ) {
       return serializeOmsOrder(existing);
     }
-    // Idempotent admin confirm / already processing with outbound
+    // Idempotent confirm if already confirmed_waiting_for_admin_approval
     if (
-      actor === 'admin' &&
-      existing.status === OmsOrderStatus.processing &&
-      existing.outboundOrderId
+      existing.status === OmsOrderStatus.confirmed_waiting_for_admin_approval
     ) {
       return serializeOmsOrder(existing);
     }
@@ -786,7 +829,7 @@ export class OmsOrdersService {
         companyId: row.companyId,
         eventType: 'oms.confirmed',
         createdBy: user.id,
-        payload: { via: 'client_confirm', omsStatus: next },
+        payload: { via: action, omsStatus: next },
       });
       return row;
     });
@@ -915,12 +958,32 @@ export class OmsOrdersService {
   async markFailedDelivery(id: string, user: AuthPrincipal) {
     const existing = await this.resolveOrder(id, user);
     const next = assertOmsTransition(existing.status, 'failed_delivery', 'admin');
-    return this.transition(id, user, {
+    const transitioned = await this.transition(id, user, {
       allowed: [existing.status],
       next,
       event: 'order.failed_delivery',
-      extra: {},
+      extra: {
+        deliveryFailedAt: new Date(),
+      },
     });
+
+    try {
+      await this.autoReturn.processCarrierReturnEvent({
+        omsOrderId: existing.id,
+        awb: existing.trackingNumber || 'MANUAL',
+        stage: 'returned_to_sender',
+        reason: 'Failed Delivery / تعذر التسليم',
+        timestamp: new Date(),
+        principal: user,
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to create automated return draft for order ${existing.orderNumber} on failed delivery: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    const refreshed = await this.resolveOrder(id, user);
+    return serializeOmsOrder(refreshed);
   }
 
   async markCompleted(_id: string, _user: AuthPrincipal) {
@@ -1002,6 +1065,50 @@ export class OmsOrdersService {
         quantity: r.quantity.toString(),
       })),
     };
+  }
+
+  async getShippingMovement(id: string, user: AuthPrincipal) {
+    const order = await this.resolveOrder(id, user);
+
+    let awb = (order.trackingNumber || '').trim();
+    let providerCode = order.shippingProviderCode;
+
+    if (order.outboundOrderId) {
+      const carrierShipment = await this.prisma.carrierShipment.findFirst({
+        where: { outboundOrderId: order.outboundOrderId },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          externalAwb: true,
+          trackingNumber: true,
+          providerCode: true,
+        },
+      });
+      if (carrierShipment) {
+        if (!awb) {
+          awb = (carrierShipment.externalAwb || carrierShipment.trackingNumber || '').trim();
+        }
+        if (!providerCode) {
+          providerCode = carrierShipment.providerCode;
+        }
+      }
+    }
+
+    if (!awb) {
+      return {
+        providerCode: providerCode || null,
+        providerName: order.carrier || null,
+        awb: null,
+        isDelivered: order.status === 'delivered' || order.status === 'completed',
+        events: [],
+        message: 'لا توجد بيانات لحركة الشحنة حالياً.',
+      };
+    }
+
+    return this.shippingTracking.getShipmentTrackingHistory({
+      awb,
+      providerCode,
+      carrierName: order.carrier,
+    });
   }
 
   async update(id: string, user: AuthPrincipal, dto: UpdateOmsOrderDto) {
@@ -1131,6 +1238,7 @@ export class OmsOrdersService {
       ? {
           shippingMethod: dto.shippingMethod,
           shippingProviderCode: dto.shippingProviderCode,
+          shippingServiceId: dto.shippingServiceId,
           shippingReceiverLat: dto.shippingReceiverLat,
           shippingReceiverLng: dto.shippingReceiverLng,
           shippingPackageType: dto.shippingPackageType,
@@ -1164,6 +1272,10 @@ export class OmsOrdersService {
           dto.shippingProviderCode !== undefined
             ? dto.shippingProviderCode
             : existing.shippingProviderCode,
+        shippingServiceId:
+          dto.shippingServiceId !== undefined
+            ? dto.shippingServiceId
+            : existing.shippingServiceId,
         shippingReceiverLat:
           dto.shippingReceiverLat !== undefined
             ? dto.shippingReceiverLat
@@ -1829,10 +1941,53 @@ export class OmsOrdersService {
     return serializeOmsOrder(updated);
   }
 
-  async markReturned(_id: string, _user: AuthPrincipal) {
-    throw new BadRequestException(
-      'Use OMS Returns to request a return after Delivered. Direct OMS returned status is deprecated.',
-    );
+  async markReturned(id: string, user: AuthPrincipal) {
+    const existing = await this.resolveOrder(id, user);
+
+    if (
+      existing.status === OmsOrderStatus.shipped ||
+      existing.status === OmsOrderStatus.out_for_delivery
+    ) {
+      await this.transition(id, user, {
+        allowed: [existing.status],
+        next: OmsOrderStatus.failed_delivery,
+        event: 'order.failed_delivery',
+        extra: {
+          deliveryFailedAt: new Date(),
+        },
+      });
+    }
+
+    try {
+      await this.autoReturn.processCarrierReturnEvent({
+        omsOrderId: existing.id,
+        awb: existing.trackingNumber || 'MANUAL',
+        stage: 'returned_to_sender',
+        reason: 'Failed Delivery Return / طلب إرجاع',
+        timestamp: new Date(),
+        principal: user,
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to create automated return draft for order ${existing.orderNumber}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    const refreshed = await this.resolveOrder(id, user);
+    return serializeOmsOrder(refreshed);
+  }
+
+  async confirmReturnReceipt(id: string, user: AuthPrincipal) {
+    const existing = await this.resolveOrder(id, user);
+    const res = await this.autoReturn.confirmWarehouseReturnReceiptForOrder(user, existing.id);
+    if (!res.success) {
+      throw new BadRequestException(res.message || 'Failed to confirm return receipt.');
+    }
+    const fresh = await this.prisma.omsOrder.findUnique({
+      where: { id: existing.id },
+      include: ORDER_INCLUDE,
+    });
+    return serializeOmsOrder(fresh!);
   }
 
   async collectCod(_id: string, _user: AuthPrincipal) {

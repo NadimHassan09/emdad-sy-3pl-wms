@@ -7,6 +7,7 @@ exports.composeDestinationAddress = composeDestinationAddress;
 exports.deriveCodStatus = deriveCodStatus;
 exports.mapOutboundStatusToOms = mapOutboundStatusToOms;
 exports.omsEventTypeForStatus = omsEventTypeForStatus;
+const shipping_carrier_resolver_1 = require("../shipping/shipping-carrier-resolver");
 function dec(v) {
     if (v == null)
         return null;
@@ -57,10 +58,18 @@ function serializeOmsOrderLine(line) {
     };
 }
 function serializeOmsOrderListItem(order) {
+    const carrierName = (0, shipping_carrier_resolver_1.resolveShippingCarrierName)(order);
+    const explicitMethod = order.shippingMethod ?? order.outboundOrder?.shippingMethod ?? null;
+    const resolvedMethod = explicitMethod ?? (carrierName ? 'carrier' : null);
+    const isManual = resolvedMethod === 'manual';
     return {
         id: order.id,
         orderNumber: order.orderNumber,
         status: order.status,
+        carrier: carrierName,
+        shippingCarrierName: carrierName,
+        shippingMethod: resolvedMethod,
+        isManualShipping: isManual,
         companyId: order.companyId,
         company: order.company ?? null,
         recipientName: order.recipientName,
@@ -70,6 +79,10 @@ function serializeOmsOrderListItem(order) {
         total: computeTotal(order),
         currency: order.currency,
         outboundOrderId: order.outboundOrderId,
+        trackingNumber: order.trackingNumber ??
+            order.outboundOrder?.trackingNumber ??
+            order.outboundOrder?.carrierShipments?.[0]?.externalAwb ??
+            null,
         needsInformation: order.needsInformation,
         importBatchId: order.importBatchId ?? null,
         externalReference: order.externalReference ?? null,
@@ -79,6 +92,8 @@ function serializeOmsOrderListItem(order) {
                 id: order.outboundOrder.id,
                 orderNumber: order.outboundOrder.orderNumber,
                 status: order.outboundOrder.status,
+                trackingNumber: order.outboundOrder.trackingNumber ?? order.trackingNumber ?? null,
+                hasCarrierShipment: order.outboundOrder.carrierShipments?.some((s) => s.status === 'created' || Boolean(s.externalAwb)) ?? Boolean(order.outboundOrder.trackingNumber || order.trackingNumber),
             }
             : null,
         createdAt: order.createdAt,
@@ -87,8 +102,30 @@ function serializeOmsOrderListItem(order) {
 }
 function serializeOmsOrder(order) {
     const subtotal = computeSubtotal(order);
+    const carrierName = (0, shipping_carrier_resolver_1.resolveShippingCarrierName)(order);
+    const returnsList = order.omsReturns ?? order.returns ?? [];
+    const activeReturn = returnsList.find((r) => r.status === 'requested' || r.status === 'approved' || r.status === 'completed');
     return {
         ...order,
+        deliveryFailedAt: order.deliveryFailedAt ?? null,
+        activeReturn: activeReturn
+            ? {
+                id: activeReturn.id,
+                returnNumber: activeReturn.returnNumber,
+                status: activeReturn.status,
+                reason: activeReturn.reason,
+                carrierReturnStage: activeReturn.carrierReturnStage,
+                carrierOriginalStatus: activeReturn.carrierOriginalStatus,
+                carrierAwb: activeReturn.carrierAwb,
+                carrierReturnCreatedAt: activeReturn.carrierReturnCreatedAt,
+                carrierReturningAt: activeReturn.carrierReturningAt,
+                carrierReturnedAt: activeReturn.carrierReturnedAt,
+                warehouseConfirmedAt: activeReturn.warehouseConfirmedAt,
+                createdAt: activeReturn.createdAt,
+            }
+            : null,
+        carrier: carrierName ?? ((0, shipping_carrier_resolver_1.isProviderName)(order.carrier) ? null : order.carrier),
+        shippingCarrierName: carrierName,
         destinationAddress: buildLegacyDestination(order),
         subtotal,
         shippingFee: dec(order.shippingFee),
@@ -103,6 +140,8 @@ function serializeOmsOrder(order) {
                 id: order.outboundOrder.id,
                 orderNumber: order.outboundOrder.orderNumber,
                 status: order.outboundOrder.status,
+                trackingNumber: order.outboundOrder.trackingNumber ?? order.trackingNumber ?? null,
+                hasCarrierShipment: order.outboundOrder.carrierShipments?.some((s) => s.status === 'created' || Boolean(s.externalAwb)) ?? Boolean(order.outboundOrder.trackingNumber || order.trackingNumber),
             }
             : null,
         warehouseStatus: order.outboundOrder?.status ?? null,

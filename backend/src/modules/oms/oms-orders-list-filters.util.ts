@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client';
 
 import type { ListOmsOrdersQueryDto } from './dto/list-oms-orders-query.dto';
+import { buildCarrierFilterPrismaCondition } from '../shipping/shipping-carrier-resolver';
+import { buildOmsOrderNumberRangePrismaCondition } from './oms-order-number-range.util';
 
 const FULL_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -34,20 +36,45 @@ export function appendOmsOrderFieldFilters(
     | 'customer'
     | 'phone'
     | 'city'
+    | 'carrier'
+    | 'startOrderNo'
+    | 'endOrderNo'
     | 'totalOp'
     | 'totalValue'
   >,
   where: Prisma.OmsOrderWhereInput,
   andParts: Prisma.OmsOrderWhereInput[],
 ): void {
+  const rangeCondition = buildOmsOrderNumberRangePrismaCondition(
+    query.startOrderNo,
+    query.endOrderNo,
+  );
+  if (rangeCondition) {
+    andParts.push(rangeCondition);
+  }
+
   if (query.orderSearch?.trim()) {
     const t = query.orderSearch.trim();
     const orParts: Prisma.OmsOrderWhereInput[] = [
       { orderNumber: { contains: t, mode: 'insensitive' } },
+      { trackingNumber: { contains: t, mode: 'insensitive' } },
       { recipientName: { contains: t, mode: 'insensitive' } },
       { recipientPhone: { contains: t, mode: 'insensitive' } },
+      { carrier: { contains: t, mode: 'insensitive' } },
       { externalReference: { contains: t, mode: 'insensitive' } },
       { clientReference: { contains: t, mode: 'insensitive' } },
+      {
+        outboundOrder: {
+          carrierShipments: {
+            some: {
+              OR: [
+                { externalAwb: { contains: t, mode: 'insensitive' } },
+                { trackingNumber: { contains: t, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
+      },
     ];
     if (FULL_UUID.test(t)) orParts.push({ id: t });
     andParts.push({ OR: orParts });
@@ -57,8 +84,21 @@ export function appendOmsOrderFieldFilters(
     const t = query.orderId.trim();
     const orParts: Prisma.OmsOrderWhereInput[] = [
       { orderNumber: { contains: t, mode: 'insensitive' } },
+      { trackingNumber: { contains: t, mode: 'insensitive' } },
       { externalReference: { contains: t, mode: 'insensitive' } },
       { clientReference: { contains: t, mode: 'insensitive' } },
+      {
+        outboundOrder: {
+          carrierShipments: {
+            some: {
+              OR: [
+                { externalAwb: { contains: t, mode: 'insensitive' } },
+                { trackingNumber: { contains: t, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
+      },
     ];
     if (FULL_UUID.test(t)) orParts.push({ id: t });
     andParts.push({ OR: orParts });
@@ -80,6 +120,10 @@ export function appendOmsOrderFieldFilters(
     andParts.push({
       city: { contains: query.city.trim(), mode: 'insensitive' },
     });
+  }
+
+  if (query.carrier?.trim()) {
+    andParts.push(buildCarrierFilterPrismaCondition(query.carrier.trim()));
   }
 
   const totalValue = parseOmsTotalFilterValue(query.totalValue);

@@ -23,20 +23,28 @@ const oms_order_dto_1 = require("./dto/oms-order.dto");
 const oms_dashboard_service_1 = require("./oms-dashboard.service");
 const oms_orders_csv_service_1 = require("./oms-orders-csv.service");
 const oms_orders_service_1 = require("./oms-orders.service");
+const oms_bulk_service_1 = require("./oms-bulk.service");
+const bulk_approve_oms_orders_dto_1 = require("./dto/bulk-approve-oms-orders.dto");
 const list_oms_orders_query_dto_1 = require("./dto/list-oms-orders-query.dto");
 const oms_dashboard_order_summary_query_dto_1 = require("./dto/oms-dashboard-order-summary-query.dto");
 const oms_orders_export_dto_1 = require("./dto/oms-orders-export.dto");
+const export_waybills_dto_1 = require("./dto/export-waybills.dto");
+const oms_waybill_service_1 = require("./oms-waybill.service");
 const oms_client_import_service_1 = require("../client-portal/order-import/oms-client-import.service");
 let OmsController = class OmsController {
     orders;
+    bulk;
     dashboard;
     csv;
     clientImport;
-    constructor(orders, dashboard, csv, clientImport) {
+    waybillService;
+    constructor(orders, bulk, dashboard, csv, clientImport, waybillService) {
         this.orders = orders;
+        this.bulk = bulk;
         this.dashboard = dashboard;
         this.csv = csv;
         this.clientImport = clientImport;
+        this.waybillService = waybillService;
     }
     dashboardSummary(user, companyId) {
         return this.dashboard.summary(user, companyId);
@@ -98,7 +106,33 @@ let OmsController = class OmsController {
         };
     }
     create(user, dto) {
-        return this.orders.create(user, dto, { provisionOutbound: !dto.outboundOrderId });
+        return this.orders.create(user, dto);
+    }
+    approveBulk(user, dto) {
+        return this.bulk.approveBulk(user, dto.ids);
+    }
+    confirmBulk(user, dto) {
+        return this.bulk.confirmBulk(user, dto.ids);
+    }
+    cancelBulk(user, dto) {
+        return this.bulk.cancelBulk(user, dto.ids);
+    }
+    deliveredBulk(user, dto) {
+        return this.bulk.deliveredBulk(user, dto.ids);
+    }
+    failedDeliveryBulk(user, dto) {
+        return this.bulk.failedDeliveryBulk(user, dto.ids);
+    }
+    returnedBulk(user, dto) {
+        return this.bulk.returnedBulk(user, dto.ids);
+    }
+    async exportWaybillsExcel(user, dto, res) {
+        const result = await this.waybillService.exportWaybillsExcel(dto.orderIds, user);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        res.setHeader('Content-Length', result.buffer.byteLength.toString());
+        res.setHeader('X-Export-Row-Count', String(result.count));
+        res.end(result.buffer);
     }
     findOne(user, id) {
         return this.orders.findById(id, user);
@@ -148,6 +182,9 @@ let OmsController = class OmsController {
     deliveryRevert(user, id, dto) {
         return this.orders.revertDelivery(id, user, dto);
     }
+    confirmReturnReceipt(user, id) {
+        return this.orders.confirmReturnReceipt(id, user);
+    }
     returned(user, id) {
         return this.orders.markReturned(id, user);
     }
@@ -159,6 +196,19 @@ let OmsController = class OmsController {
     }
     timeline(user, id) {
         return this.orders.timeline(id, user);
+    }
+    shippingMovement(user, id) {
+        return this.orders.getShippingMovement(id, user);
+    }
+    getWaybill(user, id) {
+        return this.waybillService.getWaybillData(id, user);
+    }
+    async downloadWaybillPdf(user, id, res) {
+        const { buffer, filename } = await this.waybillService.generateWaybillPdf(id, user);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', buffer.byteLength.toString());
+        res.end(buffer);
     }
 };
 exports.OmsController = OmsController;
@@ -255,6 +305,71 @@ __decorate([
     __metadata("design:paramtypes", [Object, oms_order_dto_1.CreateOmsOrderDto]),
     __metadata("design:returntype", void 0)
 ], OmsController.prototype, "create", null);
+__decorate([
+    (0, common_1.Post)('orders/approve-bulk'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_approve_oms_orders_dto_1.BulkApproveOmsOrdersDto]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "approveBulk", null);
+__decorate([
+    (0, common_1.Post)('orders/confirm-bulk'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_approve_oms_orders_dto_1.BulkApproveOmsOrdersDto]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "confirmBulk", null);
+__decorate([
+    (0, common_1.Post)('orders/cancel-bulk'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_approve_oms_orders_dto_1.BulkApproveOmsOrdersDto]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "cancelBulk", null);
+__decorate([
+    (0, common_1.Post)('orders/delivered-bulk'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_approve_oms_orders_dto_1.BulkApproveOmsOrdersDto]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "deliveredBulk", null);
+__decorate([
+    (0, common_1.Post)('orders/failed-delivery-bulk'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_approve_oms_orders_dto_1.BulkApproveOmsOrdersDto]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "failedDeliveryBulk", null);
+__decorate([
+    (0, common_1.Post)('orders/returned-bulk'),
+    (0, throttler_1.Throttle)({ default: { limit: 30, ttl: 60_000 } }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, bulk_approve_oms_orders_dto_1.BulkApproveOmsOrdersDto]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "returnedBulk", null);
+__decorate([
+    (0, common_1.Post)('orders/waybills/export-excel'),
+    (0, throttler_1.Throttle)({ default: { limit: 20, ttl: 60_000 } }),
+    (0, common_1.Header)('Cache-Control', 'no-store'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, export_waybills_dto_1.ExportWaybillsDto, Object]),
+    __metadata("design:returntype", Promise)
+], OmsController.prototype, "exportWaybillsExcel", null);
 __decorate([
     (0, common_1.Get)('orders/:id'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
@@ -389,6 +504,14 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], OmsController.prototype, "deliveryRevert", null);
 __decorate([
+    (0, common_1.Post)('orders/:id/confirm-return-receipt'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "confirmReturnReceipt", null);
+__decorate([
     (0, common_1.Post)('orders/:id/returned'),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
     __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
@@ -420,11 +543,38 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], OmsController.prototype, "timeline", null);
+__decorate([
+    (0, common_1.Get)('orders/:id/shipping-movement'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "shippingMovement", null);
+__decorate([
+    (0, common_1.Get)('orders/:id/waybill'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], OmsController.prototype, "getWaybill", null);
+__decorate([
+    (0, common_1.Get)('orders/:id/waybill/pdf'),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Param)('id', parse_uuid_loose_pipe_1.ParseUuidLoosePipe)),
+    __param(2, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, Object]),
+    __metadata("design:returntype", Promise)
+], OmsController.prototype, "downloadWaybillPdf", null);
 exports.OmsController = OmsController = __decorate([
     (0, common_1.Controller)('oms'),
     __metadata("design:paramtypes", [oms_orders_service_1.OmsOrdersService,
+        oms_bulk_service_1.OmsBulkService,
         oms_dashboard_service_1.OmsDashboardService,
         oms_orders_csv_service_1.OmsOrdersCsvService,
-        oms_client_import_service_1.OmsClientImportService])
+        oms_client_import_service_1.OmsClientImportService,
+        oms_waybill_service_1.OmsWaybillService])
 ], OmsController);
 //# sourceMappingURL=oms.controller.js.map
