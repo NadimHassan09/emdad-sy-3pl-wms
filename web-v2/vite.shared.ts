@@ -87,9 +87,19 @@ export function createConfig(opts: { appDir: string; port: number; mode: string;
             if (id.includes('socket.io') || id.includes('engine.io')) return 'vendor-realtime'
             if (id.includes('@tanstack/react-query')) return 'vendor-query'
             if (id.includes('react-router')) return 'vendor-router'
-            if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/') || id.includes('/react-is/')) return 'vendor-react'
+            // Keep React + Radix in one chunk. Splitting Radix out makes it evaluate
+            // before React.forwardRef exists → "Cannot read properties of undefined".
+            if (
+              id.includes('/react/') ||
+              id.includes('/react-dom/') ||
+              id.includes('/scheduler/') ||
+              id.includes('/react-is/') ||
+              id.includes('radix-ui') ||
+              id.includes('@radix-ui')
+            ) {
+              return 'vendor-react'
+            }
             if (id.includes('recharts') || id.includes('/d3-') || id.includes('victory-vendor')) return 'vendor-charts'
-            if (id.includes('radix-ui') || id.includes('@radix-ui')) return 'vendor-radix'
             return 'vendor'
           },
         },
