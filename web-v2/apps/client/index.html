@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" sizes="48x48" />
+    <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#053424" />
+    <title>EMDAD WMS — Client</title>
+    <script>
+      // Pre-paint: apply saved language/direction/theme to avoid a flash.
+      (function () {
+        try {
+          var l = localStorage.getItem('wms-ui-language');
+          var t = localStorage.getItem('client-ui-theme');
+          var r = document.documentElement;
+          if (l === 'AR') { r.lang = 'ar'; r.dir = 'rtl'; }
+          var dark = t === 'dark' || ((t === null || t === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) { r.classList.add('dark'); r.style.colorScheme = 'dark'; }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

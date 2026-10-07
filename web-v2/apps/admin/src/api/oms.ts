@@ -1,0 +1,1328 @@
+import { PageResult, api } from './client';
+import type { ShippingConfigPayload, ShippingMethod, ShippingPackageType, ShippingDeliveryType, ShippingPickupType, ShippingPayer } from './shipping';
+
+export type OmsPaymentMethod = 'COD' | 'PREPAID' | 'CREDIT';
+export type OmsCodStatus = 'pending' | 'collected' | 'remitted' | 'settled';
+export type OmsAllocationStatus = 'none' | 'allocated' | 'released' | 'fulfilled';
+export type OmsOrderStatus =
+  | 'draft'
+  | 'waiting_for_confirmation'
+  | 'pending_approval'
+  | 'confirmed_waiting_for_admin_approval'
+  | 'pending'
+  | 'rejected'
+  | 'approved'
+  | 'confirmed'
+  | 'processing'
+  | 'allocated'
+  | 'picking'
+  | 'packing'
+  | 'ready_to_ship'
+  | 'out_for_delivery'
+  | 'shipped'
+  | 'delivered'
+  | 'failed_delivery'
+  | 'completed'
+  | 'returned'
+  | 'cancelled';
+
+export type CodRecordStatus = 'pending' | 'available' | 'paid_out' | 'returned';
+export type CodGenerationStatus = 'none' | 'pending' | 'ok' | 'failed';
+
+export type OmsWaybillData = {
+  id: string;
+  orderNumber: string;
+  createdAt: string;
+  company: {
+    id: string;
+    name: string;
+    tradeName?: string | null;
+  };
+  carrier: string;
+  carrierLogoUrl: string | null;
+  shippingProviderCode: string | null;
+  shippingMethod: string | null;
+  trackingNumber: string;
+  carrierTrackingNumber: string | null;
+  isCarrierAwbFromApi: boolean;
+  internalWaybillNumber: string;
+  qrCodeData: string;
+  recipient: {
+    name: string;
+    phone: string;
+    city: string;
+    district: string;
+    address: string;
+    instructions: string;
+  };
+  sender: {
+    name: string;
+    hub: string;
+  };
+  financials: {
+    codAmount: number;
+    currency: string;
+    shippingFee: number;
+    paymentMethod: string;
+    total: number;
+  };
+  items: Array<{
+    id: string;
+    lineNumber: number;
+    sku: string;
+    name: string;
+    quantity: number;
+    unitPrice: number | null;
+    lineTotal: number | null;
+  }>;
+  totalQuantity: number;
+  labelUrl: string | null;
+};
+
+export type OmsImportRowError = {
+  rowNumber: number;
+  externalReference: string | null;
+  reason: string;
+};
+
+export type OmsImportValidateResult = {
+  batchId: string;
+  totalRows: number;
+  orderCount: number;
+  validOrders: number;
+  invalidOrders: number;
+  duplicateInFile: number;
+  duplicateInDb: number;
+  errors: OmsImportRowError[];
+};
+
+export type OmsImportExecuteResult = {
+  batchId: string;
+  imported: number;
+  failed: number;
+  skippedDuplicates: number;
+  createdOrderNumbers: string[];
+  errors: OmsImportRowError[];
+};
+
+export interface CodRecordAdjustment {
+  id: string;
+  amount: string;
+  reason: string | null;
+  omsReturnId: string | null;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface CodRecord {
+  id: string;
+  companyId: string;
+  company?: { id: string; name: string } | null;
+  omsOrderId: string;
+  omsOrder?: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    recipientName: string | null;
+    paymentMethod: string | null;
+  } | null;
+  originalAmount: string;
+  currentAmount: string;
+  currency: string;
+  status: CodRecordStatus;
+  notes: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  availableAt: string | null;
+  paidOutAt: string | null;
+  adjustments: CodRecordAdjustment[];
+}
+
+export type OmsReturnStatus = 'requested' | 'approved' | 'rejected' | 'completed' | 'cancelled';
+
+export interface OmsReturnLine {
+  id: string;
+  productId: string;
+  quantity: string;
+  unitPrice: string | null;
+  lineTotal: string | null;
+  lotId: string | null;
+  lineNumber: number;
+  product?: {
+    id: string;
+    sku: string;
+    name: string;
+    uom: string;
+    trackingType: string;
+    imagePath?: string | null;
+  } | null;
+}
+
+export type OmsReturnAdminAction =
+  | 'approve'
+  | 'complete_receiving'
+  | 'complete_putaway'
+  | null;
+
+export interface OmsReturnWarehouseLine {
+  id: string;
+  productId: string;
+  expectedQuantity: string;
+  receivedQuantity: string;
+  postedQuantity: string;
+  lineStatus: string;
+  targetLocationId: string | null;
+}
+
+export interface OmsReturn {
+  id: string;
+  companyId: string;
+  company?: { id: string; name: string } | null;
+  omsOrderId: string;
+  warehouseReturnId: string | null;
+  returnNumber: string;
+  status: OmsReturnStatus;
+  reason: string | null;
+  notes: string | null;
+  rejectionReason: string | null;
+  executionMode?: 'admin' | 'workers' | string | null;
+  executionPlan?: import('../lib/execution-plan').InboundExecutionPlan | null;
+  nextAdminAction?: OmsReturnAdminAction;
+  createdBy: string;
+  approvedBy: string | null;
+  rejectedBy: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  omsOrder?: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    outboundOrderId: string | null;
+  } | null;
+  warehouseReturn?: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    warehouseId?: string | null;
+    lines?: OmsReturnWarehouseLine[];
+  } | null;
+  lines: OmsReturnLine[];
+}
+
+export interface CreateOmsReturnLineInput {
+  productId: string;
+  quantity: number;
+  unitPrice?: number;
+  lotId?: string;
+}
+
+export interface CreateOmsReturnInput {
+  omsOrderId: string;
+  reason?: string;
+  notes?: string;
+  warehouseId?: string;
+  lines: CreateOmsReturnLineInput[];
+}
+
+export interface OmsOrderLine {
+  id: string;
+  productId: string;
+  requestedQuantity: string;
+  specificLotId: string | null;
+  lineNumber: number;
+  unitPrice?: string | null;
+  lineTotal?: string | null;
+  discountAmount?: string | null;
+  product?: {
+    id: string;
+    sku: string;
+    name: string;
+    barcode?: string | null;
+    status: string;
+    trackingType: string;
+    uom: string;
+  };
+}
+
+export interface LinkedOutboundSummary {
+  id: string;
+  orderNumber: string;
+  status: string;
+  trackingNumber?: string | null;
+  hasCarrierShipment?: boolean;
+  shippingMethod?: string | null;
+  shippingProviderCode?: string | null;
+  shippingServiceId?: string | null;
+  shippingQuotedPrice?: string | number | null;
+  shippingQuotedCurrency?: string | null;
+}
+
+export interface OmsOrderListItem {
+  id: string;
+  orderNumber: string;
+  status: OmsOrderStatus;
+  companyId: string;
+  company?: { id: string; name: string } | null;
+  carrier?: string | null;
+  shippingCarrierName?: string | null;
+  trackingNumber?: string | null;
+  shippingMethod?: 'manual' | 'carrier' | string | null;
+  isManualShipping?: boolean;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  city?: string | null;
+  storeChannel?: string | null;
+  total?: string | null;
+  currency?: string | null;
+  outboundOrderId?: string | null;
+  needsInformation?: boolean;
+  importBatchId?: string | null;
+  linkedOutboundOrder?: LinkedOutboundSummary | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OmsBatchSummary {
+  id: string;
+  batchNumber: string;
+  name: string | null;
+  createdAt: string;
+  createdByName: string;
+  orderCount: number;
+  completedCount: number;
+  issueCount: number;
+  pendingCount: number;
+  stageKey: string | null;
+  stageKind: 'operational' | 'status' | 'mixed' | 'empty';
+  selectedCount?: number;
+  pickedCount?: number;
+  packedCount?: number;
+  readyToShipCount?: number;
+  shippedCount?: number;
+  deliveredCount?: number;
+}
+
+export interface OmsBatchOrderRow {
+  membershipId: string;
+  issueNote: string | null;
+  order: OmsOrderListItem;
+}
+
+export interface OmsBatchDetail extends OmsBatchSummary {
+  orders: OmsBatchOrderRow[];
+}
+
+export interface OmsOrderDetail extends OmsOrderListItem {
+  destinationAddress: string;
+  requiredShipDate: string;
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  clientReference?: string | null;
+  notes?: string | null;
+  requiresPacking: boolean;
+  city?: string | null;
+  district?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  deliveryInstructions?: string | null;
+  paymentMethod?: OmsPaymentMethod | null;
+  subtotal?: string | null;
+  shippingFee?: string | null;
+  codAmount?: string | null;
+  codStatus?: OmsCodStatus | null;
+  codCollectedAt?: string | null;
+  codRemittedAt?: string | null;
+  allocationStatus?: OmsAllocationStatus;
+  allocatedAt?: string | null;
+  outForDeliveryAt?: string | null;
+  deliveredAt?: string | null;
+  returnedAt?: string | null;
+  deliveryFailedAt?: string | null;
+  activeReturn?: {
+    id: string;
+    returnNumber: string;
+    status: string;
+    reason: string | null;
+    carrierReturnStage: 'return_created' | 'returning_to_sender' | 'returned_to_sender' | 'warehouse_confirmed' | string | null;
+    carrierOriginalStatus: string | null;
+    carrierAwb: string | null;
+    carrierReturnCreatedAt: string | null;
+    carrierReturningAt: string | null;
+    carrierReturnedAt: string | null;
+    warehouseConfirmedAt: string | null;
+    createdAt: string;
+  } | null;
+  codGenerationStatus?: CodGenerationStatus | null;
+  submittedAt?: string | null;
+  confirmedAt?: string | null;
+  approvedAt?: string | null;
+  approvedBy?: string | null;
+  rejectedAt?: string | null;
+  rejectedBy?: string | null;
+  rejectionReason?: string | null;
+  cancelledFromStatus?: OmsOrderStatus | null;
+  revertCancelToStatus?: OmsOrderStatus | null;
+  canRevertCancel?: boolean;
+  externalReference?: string | null;
+  warehouseStatus?: string | null;
+  shippingMethod?: ShippingMethod | null;
+  shippingProviderCode?: string | null;
+  shippingReceiverLat?: string | number | null;
+  shippingReceiverLng?: string | number | null;
+  shippingPackageType?: ShippingPackageType | null;
+  shippingContents?: string | null;
+  shippingDeliveryType?: ShippingDeliveryType | null;
+  shippingPickupType?: ShippingPickupType | null;
+  shippingPayer?: ShippingPayer | null;
+  shippingWeightKg?: string | number | null;
+  shippingVolumeCbm?: string | number | null;
+  shippingPhoneCountry?: string | null;
+  babelNeighbourhoodId?: number | null;
+  lines: OmsOrderLine[];
+  timeline?: OmsOrderEvent[];
+  reservations?: OmsStockReservation[];
+}
+
+export interface OmsShipmentMovementEvent {
+  timestamp: string;
+  title: string;
+  location?: string | null;
+  notes?: string | null;
+  color?: 'default' | 'info' | 'success' | 'error' | 'warning';
+  code?: string | null;
+}
+
+export interface OmsShippingMovementResult {
+  providerCode?: string | null;
+  providerName?: string | null;
+  awb?: string | null;
+  isDelivered?: boolean;
+  statusLabel?: string | null;
+  statusColor?: string | null;
+  events: OmsShipmentMovementEvent[];
+  message?: string | null;
+  error?: string | null;
+}
+
+export interface OmsOrderEvent {
+  id: string;
+  eventType: string;
+  payload?: Record<string, unknown> | null;
+  createdAt: string;
+  creator?: { id: string; fullName: string } | null;
+}
+
+export interface OmsStockReservation {
+  id: string;
+  productId: string;
+  locationId: string;
+  lotId: string | null;
+  quantity: string;
+  status: string;
+}
+
+export interface OmsDashboardSummary {
+  totalOrders?: number;
+  ordersToday: number;
+  pendingOrders: number;
+  pendingApproval?: number;
+  /** Approved → out for delivery / shipped (awaiting completion). */
+  pendingFulfillment?: number;
+  approved?: number;
+  allocatedOrders: number;
+  picking: number;
+  packing: number;
+  outForDelivery: number;
+  deliveredToday: number;
+  cancelled?: number;
+  returns: number;
+  codPending: number;
+  codCollected: number;
+  codSettled: number;
+  codPendingAmount?: string;
+  codCollectedAmount?: string;
+  todaysRevenue?: string;
+  trends?: {
+    ordersToday?: number | null;
+    pendingApproval?: number | null;
+    pendingFulfillment?: number | null;
+    deliveredToday?: number | null;
+    returns?: number | null;
+    todaysRevenue?: number | null;
+  };
+  ordersByStatus?: Array<{ status: string; count: number }>;
+  ordersByChannel?: Array<{ channel: string; count: number }>;
+  ordersPerDay?: Array<{
+    day: string;
+    count: number;
+    revenue?: string;
+    codPending?: string;
+    codCollected?: string;
+  }>;
+  liveActivity?: Array<{
+    id: string;
+    eventType: string;
+    createdAt: string;
+    orderId?: string | null;
+    orderNumber?: string | null;
+    actorName?: string | null;
+    payload?: unknown;
+  }>;
+  alerts?: Array<{ kind: string; message: string; count: number }>;
+  recentOrders?: Array<{
+    id: string;
+    orderNumber: string;
+    status: string;
+    recipientName?: string | null;
+    storeChannel?: string | null;
+    paymentMethod?: string | null;
+    codAmount?: string | null;
+    subtotal?: string | null;
+    currency?: string | null;
+    createdAt: string;
+    companyName?: string | null;
+  }>;
+}
+
+export interface CreateOmsOrderLineInput {
+  productId: string;
+  requestedQuantity: number;
+  specificLotId?: string;
+  unitPrice?: number;
+  lineTotal?: number;
+  discountAmount?: number;
+}
+
+export interface CreateOmsOrderInput extends ShippingConfigPayload {
+  companyId?: string;
+  destinationAddress?: string;
+  requiredShipDate: string;
+  carrier?: string;
+  clientReference?: string;
+  notes?: string;
+  requiresPacking?: boolean;
+  recipientName?: string;
+  recipientPhone?: string;
+  city?: string;
+  district?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  deliveryInstructions?: string;
+  paymentMethod?: OmsPaymentMethod;
+  subtotal?: number;
+  shippingFee?: number;
+  codAmount?: number;
+  currency?: string;
+  warehouseId?: string;
+  outboundOrderId?: string;
+  storeChannel?: string;
+  externalReference?: string;
+  lines: CreateOmsOrderLineInput[];
+}
+
+export interface UpdateOmsOrderInput extends ShippingConfigPayload {
+  recipientName?: string;
+  recipientPhone?: string;
+  city?: string;
+  district?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  deliveryInstructions?: string;
+  destinationAddress?: string;
+  requiredShipDate?: string;
+  carrier?: string;
+  trackingNumber?: string;
+  notes?: string;
+  clientReference?: string;
+  paymentMethod?: OmsPaymentMethod;
+  subtotal?: number;
+  shippingFee?: number;
+  codAmount?: number;
+  currency?: string;
+  outboundOrderId?: string | null;
+  storeChannel?: string;
+  externalReference?: string;
+}
+
+export type OmsOrdersNavCounts = {
+  total: number;
+  byStatus: Record<string, number>;
+  stages: {
+    picking: number;
+    packing: number;
+    shipping_details: number;
+    shipping_confirmation: number;
+  };
+};
+
+export type OmsOrderStatusSummary = {
+  total: number;
+  byStatus: Record<string, number>;
+  ordersByStatus: Array<{ status: string; count: number }>;
+};
+
+export type OmsBulkApproveResultItem = {
+  id: string;
+  orderNumber: string;
+  outboundOrderId: string | null;
+  status: string;
+};
+
+export type OmsBulkApproveFailure = {
+  id: string;
+  orderNumber: string | null;
+  error: string;
+};
+
+export type OmsBulkApproveResponse = {
+  requested: number;
+  approved: number;
+  failed: number;
+  approvedOrders: OmsBulkApproveResultItem[];
+  failures: OmsBulkApproveFailure[];
+};
+
+export type OmsBulkConfirmResponse = {
+  requested: number;
+  confirmed: number;
+  failed: number;
+  confirmedOrders: OmsBulkApproveResultItem[];
+  failures: OmsBulkApproveFailure[];
+};
+
+export type OmsBulkCancelResponse = {
+  requested: number;
+  cancelled: number;
+  failed: number;
+  cancelledOrders: OmsBulkApproveResultItem[];
+  failures: OmsBulkApproveFailure[];
+};
+
+export type OmsBulkStatusTransitionResponse = {
+  requested: number;
+  completed: number;
+  failed: number;
+  completedOrders: OmsBulkApproveResultItem[];
+  failures: OmsBulkApproveFailure[];
+};
+
+export type OmsBulkConfirmReturnsResponse = {
+  requested: number;
+  confirmed: number;
+  skipped: number;
+  failed: number;
+  confirmedReturns: Array<{ id: string; returnNumber: string; status: string }>;
+  failures: Array<{ id: string; error: string }>;
+};
+
+function filenameFromDisposition(disposition: unknown, fallback: string): string {
+  const header = typeof disposition === 'string' ? disposition : '';
+  const match = header.match(/filename="?([^";]+)"?/i);
+  return match?.[1] || fallback;
+}
+
+function saveOmsBlob(data: Blob, filename: string): void {
+  const url = URL.createObjectURL(data);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+export const OmsApi = {
+  dashboard(companyId?: string) {
+    return api
+      .get<OmsDashboardSummary>('/oms/dashboard', { params: { companyId } })
+      .then((r) => r.data);
+  },
+
+  orderSummary(params: {
+    createdFrom?: string;
+    createdTo?: string;
+    companyId?: string;
+  } = {}) {
+    return api
+      .get<OmsOrderStatusSummary>('/oms/dashboard/order-summary', { params })
+      .then((r) => r.data);
+  },
+
+  statusNavCounts(params: {
+    companyId?: string;
+    orderSearch?: string;
+    orderId?: string;
+    startOrderNo?: string;
+    endOrderNo?: string;
+    customer?: string;
+    phone?: string;
+    city?: string;
+    carrier?: string;
+    totalOp?: 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
+    totalValue?: string;
+    createdFrom?: string;
+    createdTo?: string;
+    storeChannel?: string;
+    linkStatus?: 'linked' | 'unlinked';
+  } = {}): Promise<OmsOrdersNavCounts> {
+    return api
+      .get<OmsOrdersNavCounts>('/oms/orders/nav-counts', { params })
+      .then((r) => r.data);
+  },
+
+  list(params: {
+    companyId?: string;
+    orderSearch?: string;
+    orderId?: string;
+    startOrderNo?: string;
+    endOrderNo?: string;
+    customer?: string;
+    phone?: string;
+    city?: string;
+    carrier?: string;
+    totalOp?: 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
+    totalValue?: string;
+    status?: OmsOrderStatus;
+    operationalStage?: 'picking' | 'packing' | 'shipping_details' | 'shipping_confirmation';
+    storeChannel?: string;
+    linkStatus?: 'linked' | 'unlinked';
+    createdFrom?: string;
+    createdTo?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<PageResult<OmsOrderListItem>> {
+    return api.get<PageResult<OmsOrderListItem>>('/oms/orders', { params }).then((r) => r.data);
+  },
+
+  /** Downloads CSV for the current OMS list filters (server-side filtered). */
+  async exportDownload(params: {
+    companyId?: string;
+    orderSearch?: string;
+    orderId?: string;
+    startOrderNo?: string;
+    endOrderNo?: string;
+    customer?: string;
+    phone?: string;
+    city?: string;
+    carrier?: string;
+    totalOp?: 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
+    totalValue?: string;
+    status?: OmsOrderStatus;
+    operationalStage?: 'picking' | 'packing' | 'shipping_details' | 'shipping_confirmation';
+    storeChannel?: string;
+    linkStatus?: 'linked' | 'unlinked';
+    createdFrom?: string;
+    createdTo?: string;
+  } = {}): Promise<void> {
+    const response = await api.get<Blob>('/oms/orders/export', {
+      params,
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? `oms-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+
+  exportColumns(): Promise<Array<{ id: string; labelEn: string; labelAr: string }>> {
+    return api
+      .get<Array<{ id: string; labelEn: string; labelAr: string }>>('/oms/orders/export/columns')
+      .then((r) => r.data);
+  },
+
+  async exportDownloadPost(body: {
+    columnIds: string[];
+    arabicHeaders?: boolean;
+    ids?: string[];
+    companyId?: string;
+    orderSearch?: string;
+    orderId?: string;
+    startOrderNo?: string;
+    endOrderNo?: string;
+    customer?: string;
+    phone?: string;
+    city?: string;
+    carrier?: string;
+    totalOp?: 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
+    totalValue?: string;
+    status?: OmsOrderStatus;
+    operationalStage?: 'picking' | 'packing' | 'shipping_details' | 'shipping_confirmation';
+    storeChannel?: string;
+    linkStatus?: 'linked' | 'unlinked';
+    createdFrom?: string;
+    createdTo?: string;
+  }): Promise<void> {
+    const response = await api.post<Blob>('/oms/orders/export', body, {
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? `oms-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+
+  async downloadImportTemplate(): Promise<void> {
+    const response = await api.get<Blob>('/oms/orders/import/template', {
+      responseType: 'blob',
+    });
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? 'oms-orders-import-template.csv';
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  },
+
+  validateImport(file: File): Promise<OmsImportValidateResult> {
+    const body = new FormData();
+    body.append('file', file);
+    return api
+      .post<OmsImportValidateResult>('/oms/orders/import/validate', body)
+      .then((r) => r.data);
+  },
+
+  importOrders(file: File, companyId: string): Promise<OmsImportExecuteResult> {
+    const body = new FormData();
+    body.append('file', file);
+    body.append('companyId', companyId);
+    return api.post<OmsImportExecuteResult>('/oms/orders/import', body).then((r) => r.data);
+  },
+
+  create(input: CreateOmsOrderInput) {
+    const headers = input.companyId ? { 'X-Company-Id': input.companyId } : undefined;
+    return api.post<OmsOrderDetail>('/oms/orders', input, { headers }).then((r) => r.data);
+  },
+
+  getOrder(id: string) {
+    return api.get<OmsOrderDetail>(`/oms/orders/${id}`).then((r) => r.data);
+  },
+
+  getWaybill(id: string): Promise<OmsWaybillData> {
+    return api.get<OmsWaybillData>(`/oms/orders/${id}/waybill`).then((r) => r.data);
+  },
+
+  async waybillPdfBlob(id: string): Promise<Blob> {
+    const response = await api.get<Blob>(`/oms/orders/${id}/waybill/pdf`, { responseType: 'blob' });
+    return response.data;
+  },
+
+  async downloadWaybillPdf(id: string, orderNumber?: string): Promise<void> {
+    const response = await api.get<Blob>(`/oms/orders/${id}/waybill/pdf`, {
+      responseType: 'blob',
+    });
+    const filename = `Waybill_${orderNumber || id}.pdf`;
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  },
+
+  async downloadInstructionPdf(id: string, orderNumber?: string): Promise<void> {
+    const response = await api.get<Blob>(`/oms/orders/${id}/instructions/pdf`, {
+      responseType: 'blob',
+    });
+    saveOmsBlob(
+      response.data,
+      filenameFromDisposition(
+        response.headers['content-disposition'],
+        `instructions-${orderNumber || id}.pdf`,
+      ),
+    );
+  },
+
+  async downloadInstructionsPdf(ids: string[]): Promise<void> {
+    const response = await api.post<Blob>(
+      '/oms/orders/instructions/pdf',
+      { ids },
+      { responseType: 'blob' },
+    );
+    saveOmsBlob(
+      response.data,
+      filenameFromDisposition(response.headers['content-disposition'], 'instructions.pdf'),
+    );
+  },
+
+  async downloadInstructionsZip(ids: string[]): Promise<void> {
+    const response = await api.post<Blob>(
+      '/oms/orders/instructions/zip',
+      { ids },
+      { responseType: 'blob' },
+    );
+    saveOmsBlob(
+      response.data,
+      filenameFromDisposition(response.headers['content-disposition'], 'instructions.zip'),
+    );
+  },
+
+  async exportWaybillsExcel(orderIds: string[]): Promise<void> {
+    const response = await api.post<Blob>(
+      '/oms/orders/waybills/export-excel',
+      { orderIds },
+      { responseType: 'blob' },
+    );
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    const match = disposition?.match(/filename="?([^";]+)"?/i);
+    const filename = match?.[1] ?? `Waybills_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  },
+
+  update(id: string, input: UpdateOmsOrderInput) {
+    return api.patch<OmsOrderDetail>(`/oms/orders/${id}`, input).then((r) => r.data);
+  },
+
+  delete(id: string) {
+    return api.delete<{ ok: boolean }>(`/oms/orders/${id}`).then((r) => r.data);
+  },
+
+  approve(id: string, shippingFee?: number) {
+    return api
+      .post<OmsOrderDetail>(`/oms/orders/${id}/approve`, { shippingFee })
+      .then((r) => r.data);
+  },
+
+  confirm(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/confirm`).then((r) => r.data);
+  },
+
+  reject(id: string, reason?: string) {
+    return api
+      .post<OmsOrderDetail>(`/oms/orders/${id}/reject`, { reason })
+      .then((r) => r.data);
+  },
+
+  timeline(id: string) {
+    return api.get<OmsOrderEvent[]>(`/oms/orders/${id}/timeline`).then((r) => r.data);
+  },
+
+  getShippingMovement(id: string): Promise<OmsShippingMovementResult> {
+    return api
+      .get<OmsShippingMovementResult>(`/oms/orders/${id}/shipping-movement`)
+      .then((r) => r.data);
+  },
+
+  allocate(id: string, warehouseId?: string) {
+    return api
+      .post<OmsOrderDetail>(`/oms/orders/${id}/allocate`, { warehouseId })
+      .then((r) => r.data);
+  },
+
+  releaseAllocation(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/release-allocation`).then((r) => r.data);
+  },
+
+  outForDelivery(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/out-for-delivery`).then((r) => r.data);
+  },
+
+  recordExternalFulfillment(id: string) {
+    return api
+      .post<OmsOrderDetail>(`/oms/orders/${id}/external-fulfillment`)
+      .then((r) => r.data);
+  },
+
+  delivered(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/delivered`).then((r) => r.data);
+  },
+
+  revertDelivery(id: string, reason: string) {
+    return api
+      .post<OmsOrderDetail>(`/oms/orders/${id}/delivery-revert`, { reason })
+      .then((r) => r.data);
+  },
+
+  returned(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/returned`).then((r) => r.data);
+  },
+
+  confirmReturnReceipt(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/confirm-return-receipt`).then((r) => r.data);
+  },
+
+  failedDelivery(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/failed-delivery`).then((r) => r.data);
+  },
+
+  complete(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/complete`).then((r) => r.data);
+  },
+
+  collectCod(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/cod/collect`).then((r) => r.data);
+  },
+
+  settleCod(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/cod/settle`).then((r) => r.data);
+  },
+
+  cancel(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/cancel`).then((r) => r.data);
+  },
+
+  revertCancel(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/cancel-revert`).then((r) => r.data);
+  },
+
+  // ─── Bulk actions ──────────────────────────────────────────────────────────
+
+  approveBulk(ids: string[]): Promise<OmsBulkApproveResponse> {
+    return api
+      .post<OmsBulkApproveResponse>('/oms/orders/approve-bulk', { ids })
+      .then((r) => r.data);
+  },
+
+  confirmBulk(ids: string[]): Promise<OmsBulkConfirmResponse> {
+    return api
+      .post<OmsBulkConfirmResponse>('/oms/orders/confirm-bulk', { ids })
+      .then((r) => r.data);
+  },
+
+  cancelBulk(ids: string[]): Promise<OmsBulkCancelResponse> {
+    return api
+      .post<OmsBulkCancelResponse>('/oms/orders/cancel-bulk', { ids })
+      .then((r) => r.data);
+  },
+
+  deliveredBulk(ids: string[]): Promise<OmsBulkStatusTransitionResponse> {
+    return api
+      .post<OmsBulkStatusTransitionResponse>('/oms/orders/delivered-bulk', { ids })
+      .then((r) => r.data);
+  },
+
+  failedDeliveryBulk(ids: string[]): Promise<OmsBulkStatusTransitionResponse> {
+    return api
+      .post<OmsBulkStatusTransitionResponse>('/oms/orders/failed-delivery-bulk', { ids })
+      .then((r) => r.data);
+  },
+
+  returnedBulk(ids: string[]): Promise<OmsBulkStatusTransitionResponse> {
+    return api
+      .post<OmsBulkStatusTransitionResponse>('/oms/orders/returned-bulk', { ids })
+      .then((r) => r.data);
+  },
+
+  createBatch(ids: string[], name?: string): Promise<{ id: string; batchNumber: string }> {
+    return api
+      .post<{ id: string; batchNumber: string }>('/oms/batches', { ids, name: name || undefined })
+      .then((r) => r.data);
+  },
+
+  listBatches(search?: string): Promise<OmsBatchSummary[]> {
+    return api
+      .get<OmsBatchSummary[]>('/oms/batches', { params: search ? { search } : {} })
+      .then((r) => r.data);
+  },
+
+  getBatch(id: string): Promise<OmsBatchDetail> {
+    return api.get<OmsBatchDetail>(`/oms/batches/${id}`).then((r) => r.data);
+  },
+
+  async downloadBatchLabels(id: string, ids: string[], mode: 'download' | 'print'): Promise<void> {
+    const { printPdfBlob } = await import('../lib/print-pdf-blob');
+    const response = await api.post<Blob>(`/oms/batches/${id}/labels/pdf`, { ids }, { responseType: 'blob' });
+    if (mode === 'print') {
+      printPdfBlob(response.data);
+      return;
+    }
+    saveOmsBlob(
+      response.data,
+      filenameFromDisposition(response.headers['content-disposition'], `shipping-labels-${ids.length}.pdf`),
+    );
+  },
+
+  async downloadBatchInstructionsPdf(id: string, kind: 'full' | 'picking' | 'packing' = 'full'): Promise<void> {
+    const response = await api.get<Blob>(`/oms/batches/${id}/instructions/pdf`, {
+      params: { kind },
+      responseType: 'blob',
+    });
+    saveOmsBlob(
+      response.data,
+      filenameFromDisposition(
+        response.headers['content-disposition'],
+        kind === 'full' ? `batch-instructions-${id}.pdf` : `batch-${kind}-list-${id}.pdf`,
+      ),
+    );
+  },
+
+  addBatchOrders(id: string, ids: string[]): Promise<{ updated?: number; added?: number; [key: string]: unknown }> {
+    return api
+      .post<{ updated?: number; added?: number; [key: string]: unknown }>(`/oms/batches/${id}/orders`, { ids })
+      .then((r) => r.data);
+  },
+
+  removeBatchOrders(id: string, ids: string[]): Promise<{ updated: number }> {
+    return api.post<{ updated: number }>(`/oms/batches/${id}/remove-orders`, { ids }).then((r) => r.data);
+  },
+
+  flagBatchOrders(id: string, ids: string[], note: string): Promise<{ updated: number }> {
+    return api
+      .post<{ updated: number }>(`/oms/batches/${id}/flag-orders`, { ids, note })
+      .then((r) => r.data);
+  },
+
+  clearBatchFlags(id: string, ids: string[]): Promise<{ updated: number }> {
+    return api.post<{ updated: number }>(`/oms/batches/${id}/clear-flags`, { ids }).then((r) => r.data);
+  },
+};
+
+export type CodSetStatusByScanResponse = {
+  ok: boolean;
+  action: 'updated' | 'unchanged';
+  codRecordId: string;
+  orderNumber: string;
+  clientName: string;
+  previousStatus: CodRecordStatus;
+  status: CodRecordStatus;
+  message: string;
+};
+
+export const CodApi = {
+  list(params: {
+    companyId?: string;
+    status?: CodRecordStatus;
+    omsOrderId?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<PageResult<CodRecord>> {
+    return api.get<PageResult<CodRecord>>('/cod/records', { params }).then((r) => r.data);
+  },
+
+  getRecord(id: string) {
+    return api.get<CodRecord>(`/cod/records/${id}`).then((r) => r.data);
+  },
+
+  byOrder(omsOrderId: string) {
+    return api.get<CodRecord | null>(`/cod/by-order/${omsOrderId}`).then((r) => r.data);
+  },
+
+  setStatus(id: string, status: CodRecordStatus) {
+    return api.patch<CodRecord>(`/cod/records/${id}/status`, { status }).then((r) => r.data);
+  },
+
+  setStatusByScan(code: string, status: CodRecordStatus) {
+    return api
+      .post<CodSetStatusByScanResponse>('/cod/status-by-scan', { code, status })
+      .then((r) => r.data);
+  },
+
+  addAdjustment(id: string, input: { amount: number; reason?: string }) {
+    return api.post<CodRecord>(`/cod/records/${id}/adjustments`, input).then((r) => r.data);
+  },
+
+  retryGeneration(omsOrderId: string) {
+    return api.post<CodRecord>(`/cod/orders/${omsOrderId}/retry`).then((r) => r.data);
+  },
+};
+
+export const OmsReturnsApi = {
+  list(params: {
+    companyId?: string;
+    omsOrderId?: string;
+    status?: OmsReturnStatus;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<PageResult<OmsReturn>> {
+    return api.get<PageResult<OmsReturn>>('/oms/returns', { params }).then((r) => r.data);
+  },
+
+  get(id: string) {
+    return api.get<OmsReturn>(`/oms/returns/${id}`).then((r) => r.data);
+  },
+
+  create(input: CreateOmsReturnInput) {
+    return api.post<OmsReturn>('/oms/returns', input).then((r) => r.data);
+  },
+
+  approve(id: string, warehouseId?: string) {
+    return api
+      .post<OmsReturn>(`/oms/returns/${id}/approve`, { warehouseId })
+      .then((r) => r.data);
+  },
+
+  updatePlan(
+    id: string,
+    input: {
+      executionMode?: 'admin' | 'workers';
+      executionPlan?: import('../lib/execution-plan').InboundExecutionPlan;
+      notes?: string;
+    },
+  ) {
+    return api.patch<OmsReturn>(`/oms/returns/${id}/plan`, input).then((r) => r.data);
+  },
+
+  completeReceiving(id: string) {
+    return api
+      .post<OmsReturn>(`/oms/returns/${id}/complete-receiving`)
+      .then((r) => r.data);
+  },
+
+  completePutaway(id: string) {
+    return api
+      .post<OmsReturn>(`/oms/returns/${id}/complete-putaway`)
+      .then((r) => r.data);
+  },
+
+  reject(id: string, reason?: string) {
+    return api.post<OmsReturn>(`/oms/returns/${id}/reject`, { reason }).then((r) => r.data);
+  },
+
+  expressReturn(input: { omsOrderIds: string[]; reason?: string }) {
+    return api.post<{
+      created: Array<{ omsOrderId: string; orderNumber: string; returnId: string; returnNumber: string }>;
+      failed: Array<{ omsOrderId: string; orderNumber?: string; error: string }>;
+    }>('/oms/returns/express', input).then((r) => r.data);
+  },
+
+  validateForExpress(input: { omsOrderIds: string[] }) {
+    return api.post<Array<{
+      input: string;
+      omsOrderId: string;
+      orderNumber: string;
+      clientReference: string | null;
+      matchedBy?: 'id' | 'orderNumber' | 'clientReference';
+      eligible: boolean;
+      error?: string;
+      lines?: Array<{
+        productId: string;
+        productName: string;
+        productSku: string;
+        ordered: number;
+        alreadyReturned: number;
+        returnable: number;
+      }>;
+    }>>('/oms/returns/express/validate', input).then((r) => r.data);
+  },
+
+  /** Normal Return — resolve order + returnable lines. */
+  preview(input: { orderReference: string }) {
+    return api
+      .post<{
+        omsOrderId: string;
+        orderNumber: string;
+        clientReference: string | null;
+        matchedBy?: string;
+        lines: Array<{
+          productId: string;
+          sku: string;
+          name: string;
+          uom?: string;
+          ordered: number;
+          alreadyReturned: number;
+          returnable: number;
+        }>;
+      }>('/oms/returns/preview', input)
+      .then((r) => r.data);
+  },
+
+  /** Normal Return CSV — validate only (no create). */
+  validateImport(input: {
+    reason?: string;
+    rows: Array<{ orderReference: string; productReference: string; quantity: number }>;
+  }) {
+    return api
+      .post<{
+        ready: Array<{
+          omsOrderId: string;
+          orderNumber: string;
+          clientReference: string | null;
+          lines: Array<{
+            productId: string;
+            sku: string;
+            name: string;
+            uom?: string;
+            ordered: number;
+            alreadyReturned: number;
+            returnable: number;
+            quantity: number;
+          }>;
+        }>;
+        failed: Array<{
+          order_reference: string;
+          product_reference: string;
+          quantity: number;
+          reason: string;
+        }>;
+      }>('/oms/returns/import/validate', input)
+      .then((r) => r.data);
+  },
+
+  /** Normal Return CSV/bulk import (creates immediately — prefer validate + Confirm). */
+  importRows(input: {
+    reason?: string;
+    rows: Array<{ orderReference: string; productReference: string; quantity: number }>;
+  }) {
+    return api
+      .post<{
+        created: Array<{
+          omsOrderId: string;
+          orderNumber: string;
+          returnId: string;
+          returnNumber: string;
+        }>;
+        failed: Array<{
+          order_reference: string;
+          product_reference: string;
+          quantity: number;
+          reason: string;
+        }>;
+      }>('/oms/returns/import', input)
+      .then((r) => r.data);
+  },
+
+  confirmReturn(id: string) {
+    return api.post<OmsReturn>(`/oms/returns/${id}/confirm`).then((r) => r.data);
+  },
+
+  confirmReturnsBulk(ids: string[]): Promise<OmsBulkConfirmReturnsResponse> {
+    return api
+      .post<OmsBulkConfirmReturnsResponse>('/oms/returns/confirm-bulk', { ids })
+      .then((r) => r.data);
+  },
+
+  confirmReturnByScan(code: string): Promise<OmsConfirmReturnByScanResponse> {
+    return api
+      .post<OmsConfirmReturnByScanResponse>('/oms/returns/confirm-by-scan', { code })
+      .then((r) => r.data);
+  },
+};
+
+export interface OmsConfirmReturnByScanResponse {
+  ok: boolean;
+  action: 'confirmed' | 'already_completed' | 'created_and_confirmed';
+  returnId?: string;
+  returnNumber?: string;
+  orderNumber?: string;
+  clientName?: string;
+  message: string;
+}
+

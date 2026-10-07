@@ -1,0 +1,7 @@
+node_modules/
+dist/
+reference/
+*.tsbuildinfo
+test-results/
+playwright-report/
+docs/screenshots/

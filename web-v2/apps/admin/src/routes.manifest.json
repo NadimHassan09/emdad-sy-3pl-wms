@@ -1,0 +1,559 @@
+{
+ "_note": "Single source of truth for the V2 route table. status: native | redirect | notMigrated. Checked by scripts/route-diff.mjs against docs/legacy-routes.snapshot.json.",
+ "routes": [
+  {
+   "path": "/login",
+   "status": "native"
+  },
+  {
+   "path": "/",
+   "status": "native"
+  },
+  {
+   "path": "/dashboard",
+   "status": "redirect",
+   "redirectTo": "/dashboard/overview"
+  },
+  {
+   "path": "/dashboard/overview",
+   "status": "native"
+  },
+  {
+   "path": "/products",
+   "status": "native"
+  },
+  {
+   "path": "/products/:sku",
+   "status": "native"
+  },
+  {
+   "path": "/locations",
+   "status": "native"
+  },
+  {
+   "path": "/warehouses",
+   "status": "native"
+  },
+  {
+   "path": "/inventory",
+   "status": "redirect",
+   "redirectTo": "/inventory/stock"
+  },
+  {
+   "path": "/inventory/ledger/line/:ledgerId/:createdAt",
+   "status": "native"
+  },
+  {
+   "path": "/inventory/ledger/:referenceType/:referenceId",
+   "status": "native"
+  },
+  {
+   "path": "/inventory/ledger",
+   "status": "native"
+  },
+  {
+   "path": "/inventory/product/:productId",
+   "status": "native"
+  },
+  {
+   "path": "/inventory/stock",
+   "status": "native"
+  },
+  {
+   "path": "/adjustments",
+   "status": "redirect",
+   "redirectTo": "/inventory/adjustments"
+  },
+  {
+   "path": "/inventory/adjustments",
+   "status": "native"
+  },
+  {
+   "path": "/inventory/adjustments/:id",
+   "status": "native"
+  },
+  {
+   "path": "/inbound",
+   "status": "redirect",
+   "redirectTo": "/orders/inbound"
+  },
+  {
+   "path": "/inbound/create",
+   "status": "redirect",
+   "redirectTo": "/orders/inbound/new"
+  },
+  {
+   "path": "/outbound",
+   "status": "redirect",
+   "redirectTo": "/orders/outbound"
+  },
+  {
+   "path": "/outbound/create",
+   "status": "redirect",
+   "redirectTo": "/orders/outbound/new"
+  },
+  {
+   "path": "/orders",
+   "status": "redirect",
+   "redirectTo": "/orders/inbound"
+  },
+  {
+   "path": "/orders/inbound",
+   "status": "native"
+  },
+  {
+   "path": "/orders/inbound/new",
+   "status": "native"
+  },
+  {
+   "path": "/orders/inbound/:id/edit",
+   "status": "native"
+  },
+  {
+   "path": "/orders/inbound/:id",
+   "status": "native"
+  },
+  {
+   "path": "/orders/outbound",
+   "status": "native"
+  },
+  {
+   "path": "/orders/outbound/new",
+   "status": "native"
+  },
+  {
+   "path": "/orders/outbound/:id/edit",
+   "status": "native"
+  },
+  {
+   "path": "/orders/directed-outbound",
+   "status": "redirect",
+   "redirectTo": "/orders/outbound"
+  },
+  {
+   "path": "/orders/outbound/:id",
+   "status": "native"
+  },
+  {
+   "path": "/orders/oms",
+   "status": "native"
+  },
+  {
+   "path": "/orders/oms/new",
+   "status": "native"
+  },
+  {
+   "path": "/orders/oms/:id",
+   "status": "native"
+  },
+  {
+   "path": "/orders/oms/:id/waybill",
+   "status": "native"
+  },
+  {
+   "path": "/oms",
+   "status": "redirect",
+   "redirectTo": "/oms/dashboard"
+  },
+  {
+   "path": "/oms/dashboard",
+   "status": "native"
+  },
+  {
+   "path": "/oms/batches",
+   "status": "native"
+  },
+  {
+   "path": "/oms/batches/:id",
+   "status": "native"
+  },
+  {
+   "path": "/oms/cod",
+   "status": "native"
+  },
+  {
+   "path": "/oms/cod/:id",
+   "status": "native"
+  },
+  {
+   "path": "/oms/returns",
+   "status": "native"
+  },
+  {
+   "path": "/oms/returns/:id/edit",
+   "status": "native"
+  },
+  {
+   "path": "/oms/returns/:id",
+   "status": "native"
+  },
+  {
+   "path": "/oms/orders/:id",
+   "status": "redirect",
+   "redirectTo": "/orders/oms/:id"
+  },
+  {
+   "path": "/oms/orders/:id/waybill",
+   "status": "redirect",
+   "redirectTo": "/orders/oms/:id/waybill"
+  },
+  {
+   "path": "/reports/oms/cod",
+   "status": "redirect",
+   "redirectTo": "/oms/cod"
+  },
+  {
+   "path": "/reports/oms/returns",
+   "status": "redirect",
+   "redirectTo": "/oms/returns"
+  },
+  {
+   "path": "/contracts",
+   "status": "redirect",
+   "redirectTo": "/contracts/grn"
+  },
+  {
+   "path": "/contracts/grn",
+   "status": "native"
+  },
+  {
+   "path": "/contracts/dn",
+   "status": "native"
+  },
+  {
+   "path": "/contracts/final-contract",
+   "status": "native"
+  },
+  {
+   "path": "/tasks",
+   "status": "native"
+  },
+  {
+   "path": "/tasks/:id/execute",
+   "status": "redirect",
+   "redirectTo": "/tasks/:id"
+  },
+  {
+   "path": "/tasks/:id",
+   "status": "native"
+  },
+  {
+   "path": "/cycle-count",
+   "status": "native"
+  },
+  {
+   "path": "/cycle-count/my-tasks",
+   "status": "native"
+  },
+  {
+   "path": "/cycle-count/:id/execute",
+   "status": "native"
+  },
+  {
+   "path": "/cycle-count/:id",
+   "status": "native"
+  },
+  {
+   "path": "/returns",
+   "status": "native"
+  },
+  {
+   "path": "/returns/:id/process",
+   "status": "native"
+  },
+  {
+   "path": "/returns/:id",
+   "status": "native"
+  },
+  {
+   "path": "/internal",
+   "status": "native"
+  },
+  {
+   "path": "/directed-outbound",
+   "status": "redirect",
+   "redirectTo": "/orders/outbound"
+  },
+  {
+   "path": "/reports/warehouse-analysis",
+   "status": "native"
+  },
+  {
+   "path": "/reports/inventory",
+   "status": "native"
+  },
+  {
+   "path": "/reports/product-moves",
+   "status": "native"
+  },
+  {
+   "path": "/reports/stock-aging",
+   "status": "native"
+  },
+  {
+   "path": "/reports/lot-expiry",
+   "status": "native"
+  },
+  {
+   "path": "/reports/capacity-utilization",
+   "status": "native"
+  },
+  {
+   "path": "/reports/return-rate",
+   "status": "native"
+  },
+  {
+   "path": "/reports/revenue-by-client",
+   "status": "native"
+  },
+  {
+   "path": "/reports/receivables-aging",
+   "status": "native"
+  },
+  {
+   "path": "/reports/worker-productivity",
+   "status": "native"
+  },
+  {
+   "path": "/reports/order-cycle-time",
+   "status": "native"
+  },
+  {
+   "path": "/reports/inbound-accuracy",
+   "status": "native"
+  },
+  {
+   "path": "/reports/outbound-fill-rate",
+   "status": "native"
+  },
+  {
+   "path": "/reports/sla-compliance",
+   "status": "native"
+  },
+  {
+   "path": "/reports/cod-report",
+   "status": "redirect",
+   "redirectTo": "/oms/cod"
+  },
+  {
+   "path": "/reports/merchant-orders",
+   "status": "native"
+  },
+  {
+   "path": "/reports/sales-report",
+   "status": "native"
+  },
+  {
+   "path": "/reports/returns-report",
+   "status": "redirect",
+   "redirectTo": "/oms/returns"
+  },
+  {
+   "path": "/reports/delivery-report",
+   "status": "native"
+  },
+  {
+   "path": "/reports/allocation-report",
+   "status": "native"
+  },
+  {
+   "path": "/reports/inventory-reserved",
+   "status": "native"
+  },
+  {
+   "path": "/clients",
+   "status": "native"
+  },
+  {
+   "path": "/clients/:id",
+   "status": "native"
+  },
+  {
+   "path": "/forms",
+   "status": "native"
+  },
+  {
+   "path": "/billing",
+   "status": "redirect",
+   "redirectTo": "/billing/dashboard"
+  },
+  {
+   "path": "/billing/dashboard",
+   "status": "native"
+  },
+  {
+   "path": "/billing/plans",
+   "status": "native"
+  },
+  {
+   "path": "/billing/plans/new",
+   "status": "native"
+  },
+  {
+   "path": "/billing/plans/:clientId/edit",
+   "status": "native"
+  },
+  {
+   "path": "/billing/plans/:clientId",
+   "status": "native"
+  },
+  {
+   "path": "/billing/templates",
+   "status": "native"
+  },
+  {
+   "path": "/billing/invoices",
+   "status": "native"
+  },
+  {
+   "path": "/billing/invoices/:id",
+   "status": "native"
+  },
+  {
+   "path": "/users",
+   "status": "redirect",
+   "redirectTo": "/users/warehouse_users"
+  },
+  {
+   "path": "/users/warehouse_users",
+   "status": "native"
+  },
+  {
+   "path": "/users/warehouse_users/:id",
+   "status": "native"
+  },
+  {
+   "path": "/users/client_users",
+   "status": "native"
+  },
+  {
+   "path": "/users/client_users/:id",
+   "status": "native"
+  },
+  {
+   "path": "/audit-logs",
+   "status": "native"
+  },
+  {
+   "path": "/notifications",
+   "status": "native"
+  },
+  {
+   "path": "/profile",
+   "status": "native"
+  },
+  {
+   "path": "/backups/upload",
+   "status": "redirect",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/backups/restore",
+   "status": "redirect",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/backups/factory-reset",
+   "status": "redirect",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/backups/schedules",
+   "status": "native"
+  },
+  {
+   "path": "/backups/retention",
+   "status": "native"
+  },
+  {
+   "path": "/backups/health",
+   "status": "native"
+  },
+  {
+   "path": "/backups/storage-policy",
+   "status": "redirect",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/backups/google-drive",
+   "status": "native"
+  },
+  {
+   "path": "/shipping",
+   "status": "redirect",
+   "redirectTo": "/shipping/companies"
+  },
+  {
+   "path": "/shipping/companies",
+   "status": "native"
+  },
+  {
+   "path": "/settings/backups",
+   "status": "redirect",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/settings/backups/upload",
+   "status": "redirect",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/settings/backups/restore",
+   "status": "redirect",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/settings/backups/factory-reset",
+   "status": "redirect",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/settings/backups/schedules",
+   "status": "redirect",
+   "redirectTo": "/backups/schedules"
+  },
+  {
+   "path": "/settings/backups/retention",
+   "status": "redirect",
+   "redirectTo": "/backups/retention"
+  },
+  {
+   "path": "/settings/backups/health",
+   "status": "redirect",
+   "redirectTo": "/backups/health"
+  },
+  {
+   "path": "/settings/backups/storage-policy",
+   "status": "redirect",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/settings/backups/google-drive",
+   "status": "redirect",
+   "redirectTo": "/backups/google-drive"
+  },
+  {
+   "path": "/settings/*",
+   "status": "redirect",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/*",
+   "status": "native"
+  },
+  {
+   "path": "/reports",
+   "status": "redirect",
+   "redirectTo": "/reports/warehouse-analysis"
+  },
+  {
+   "path": "/backups",
+   "status": "native"
+  },
+  {
+   "path": "/settings",
+   "status": "redirect",
+   "redirectTo": "/backups"
+  }
+ ]
+}

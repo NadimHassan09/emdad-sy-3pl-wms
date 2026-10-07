@@ -1,0 +1,160 @@
+/* =============================================================================
+ * Emdad WMS V2 — design tokens (single source of truth, hex only so that
+ * scripts/check-contrast.mjs can parse and verify every pair).
+ *
+ * Brand values were eyedropped from the approved Emdad mock-up
+ * (sidebar #053424, active item #bbf5b1, mint canvas #dcecdf, content sheet
+ * #f1f8f2, charts #054831 / #227955 / #a9db83 / #f7d170).
+ *
+ * RULES
+ *  - No raw hex in components. Use these tokens through Tailwind utilities.
+ *  - `destructive` is the only red action colour. Green is never destructive.
+ *  - `tone-*` colours are operational STATUS colours (see status/tones.ts).
+ * ========================================================================== */
+
+:root {
+  --radius: 0.75rem;
+
+  /* Surfaces */
+  --background: #dcebdf;            /* mint canvas behind the content sheet */
+  --sheet: #f2f8f3;                 /* main content sheet */
+  --foreground: #0f1c16;
+  --card: #ffffff;
+  --card-foreground: #0f1c16;
+  --popover: #ffffff;
+  --popover-foreground: #0f1c16;
+
+  /* Brand */
+  --primary: #0a4a33;               /* dark Emdad green (primary buttons) */
+  --primary-hover: #06392a;
+  --primary-foreground: #ffffff;
+  --brand-50: #f0f8f2;
+  --brand-100: #d8eadc;
+  --brand-200: #bbf5b1;
+  --brand-300: #a9db83;
+  --brand-500: #227955;
+  --brand-600: #19704e;
+  --brand-800: #054831;
+  --brand-900: #053424;
+
+  --secondary: #e8f1ea;
+  --secondary-foreground: #123326;
+  --muted: #eef4ef;
+  --muted-foreground: #4b5d54;      /* >= 4.5:1 on card, sheet and canvas */
+  --accent: #e3f1e6;
+  --accent-foreground: #0a3b29;
+
+  --border: #d5e2d9;
+  --input: #7d9488;
+  --ring: #227955;
+
+  /* Action: destructive */
+  --destructive: #c02626;
+  --destructive-foreground: #ffffff;
+
+  /* Feedback (alerts / toasts / field errors) */
+  --success: #17803d;
+  --warning: #b45309;
+  --info: #1d62b8;
+
+  /* Sidebar (Emdad shell) */
+  --sidebar: #053424;
+  --sidebar-foreground: #e4f1e9;
+  --sidebar-muted: #a8c4b5;
+  --sidebar-primary: #bbf5b1;
+  --sidebar-primary-foreground: #053424;
+  --sidebar-accent: #0d4a35;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #0f4a35;
+  --sidebar-ring: #bbf5b1;
+  --sidebar-gradient-from: #0d3f2c;
+  --sidebar-gradient-to: #04301f;
+
+  /* Charts (fixed order so series colours stay consistent between pages) */
+  --chart-1: #054831;
+  --chart-2: #227955;
+  --chart-3: #a9db83;
+  --chart-4: #f7d170;
+  --chart-5: #1f8a8a;
+  --chart-6: #5b7c99;
+
+  /* Operational status tones: bg (soft), fg (text, >=4.5:1 on bg), border, dot */
+  --tone-neutral-bg: #edf1ee;   --tone-neutral-fg: #3b4942;   --tone-neutral-border: #d3dcd6;   --tone-neutral-dot: #76857d;
+  --tone-pending-bg: #fff3d1;   --tone-pending-fg: #7a4a00;   --tone-pending-border: #f1d687;   --tone-pending-dot: #d49600;
+  --tone-progress-bg: #e1efff;  --tone-progress-fg: #0f4a88;  --tone-progress-border: #b4d3f6;  --tone-progress-dot: #2f7dd1;
+  --tone-ready-bg: #d6f3ed;     --tone-ready-fg: #0a574c;     --tone-ready-border: #a3dfd3;     --tone-ready-dot: #14a38b;
+  --tone-transit-bg: #e7e8ff;   --tone-transit-fg: #30379f;   --tone-transit-border: #c3c7f4;   --tone-transit-dot: #5560e0;
+  --tone-success-bg: #daf3dd;   --tone-success-fg: #0b5528;   --tone-success-border: #a5dfb0;   --tone-success-dot: #1f9d55;
+  --tone-warning-bg: #ffe7d3;   --tone-warning-fg: #873800;   --tone-warning-border: #f5c298;   --tone-warning-dot: #e8710a;
+  --tone-danger-bg: #ffe0e0;    --tone-danger-fg: #9a1b1b;    --tone-danger-border: #f4b2b2;    --tone-danger-dot: #d33030;
+  --tone-returned-bg: #f5e3f0;  --tone-returned-fg: #772060;  --tone-returned-border: #e3bad6;  --tone-returned-dot: #b3469a;
+}
+
+.dark {
+  --background: #08130e;
+  --sheet: #0c1a14;
+  --foreground: #e9f2ed;
+  --card: #10201a;
+  --card-foreground: #e9f2ed;
+  --popover: #10201a;
+  --popover-foreground: #e9f2ed;
+
+  --primary: #4cc58d;
+  --primary-hover: #66d3a0;
+  --primary-foreground: #04281b;
+  --brand-50: #12261d;
+  --brand-100: #163226;
+  --brand-200: #bbf5b1;
+  --brand-300: #a9db83;
+  --brand-500: #3aa476;
+  --brand-600: #4cc58d;
+  --brand-800: #8fe0b6;
+  --brand-900: #d6f5e4;
+
+  --secondary: #17302a;
+  --secondary-foreground: #d7eadf;
+  --muted: #142720;
+  --muted-foreground: #9db5aa;
+  --accent: #173a2c;
+  --accent-foreground: #d7f3e3;
+
+  --border: #1f3a2f;
+  --input: #55766a;
+  --ring: #4cc58d;
+
+  --destructive: #f26b6b;
+  --destructive-foreground: #1b0707;
+
+  --success: #5cd48a;
+  --warning: #f0b25a;
+  --info: #7cb7f5;
+
+  --sidebar: #04271b;
+  --sidebar-foreground: #dcebe2;
+  --sidebar-muted: #9ab8a8;
+  --sidebar-primary: #bbf5b1;
+  --sidebar-primary-foreground: #053424;
+  --sidebar-accent: #0b3a29;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #0e3828;
+  --sidebar-ring: #bbf5b1;
+  --sidebar-gradient-from: #06301f;
+  --sidebar-gradient-to: #031d13;
+
+  --chart-1: #4cc58d;
+  --chart-2: #2f9a6c;
+  --chart-3: #a9db83;
+  --chart-4: #f7d170;
+  --chart-5: #4fc0c0;
+  --chart-6: #8aa9c4;
+
+  --tone-neutral-bg: #1b2a23;   --tone-neutral-fg: #cfdad4;   --tone-neutral-border: #2d443a;   --tone-neutral-dot: #8da097;
+  --tone-pending-bg: #3a2c08;   --tone-pending-fg: #f6d98a;   --tone-pending-border: #5c4510;   --tone-pending-dot: #e3ab1c;
+  --tone-progress-bg: #0f2a4a;  --tone-progress-fg: #aad0f7;  --tone-progress-border: #1d4577;  --tone-progress-dot: #5aa2ec;
+  --tone-ready-bg: #0b3a34;     --tone-ready-fg: #94e2d4;     --tone-ready-border: #145a50;     --tone-ready-dot: #2fc4aa;
+  --tone-transit-bg: #1d2050;   --tone-transit-fg: #bcc0f8;   --tone-transit-border: #323888;   --tone-transit-dot: #8089f0;
+  --tone-success-bg: #0f3a1f;   --tone-success-fg: #a2e5b3;   --tone-success-border: #1b5e31;   --tone-success-dot: #3fc274;
+  --tone-warning-bg: #3d1d06;   --tone-warning-fg: #f6c398;   --tone-warning-border: #65310d;   --tone-warning-dot: #f08a2c;
+  --tone-danger-bg: #4a1414;    --tone-danger-fg: #f7b3b3;    --tone-danger-border: #782222;    --tone-danger-dot: #f26b6b;
+  --tone-returned-bg: #3a1530;  --tone-returned-fg: #ecb8dc;  --tone-returned-border: #632651;  --tone-returned-dot: #d36ab8;
+}

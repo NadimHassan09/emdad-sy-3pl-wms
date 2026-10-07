@@ -1,0 +1,155 @@
+{
+ "_note": "Single source of truth for the V2 route table. status: native | redirect | notMigrated. Checked by scripts/route-diff.mjs against docs/legacy-routes.snapshot.json.",
+ "routes": [
+  {
+   "path": "/login",
+   "status": "native"
+  },
+  {
+   "path": "/account-inactive",
+   "status": "native"
+  },
+  {
+   "path": "/",
+   "status": "redirect",
+   "redirectTo": "/dashboard"
+  },
+  {
+   "path": "/dashboard",
+   "status": "native"
+  },
+  {
+   "path": "/products",
+   "status": "native"
+  },
+  {
+   "path": "/products/new",
+   "status": "native"
+  },
+  {
+   "path": "/products/:id/edit",
+   "status": "native"
+  },
+  {
+   "path": "/products/:id",
+   "status": "native"
+  },
+  {
+   "path": "/inbound-orders",
+   "status": "native"
+  },
+  {
+   "path": "/inbound-orders/new",
+   "status": "native"
+  },
+  {
+   "path": "/inbound-orders/:id",
+   "status": "native"
+  },
+  {
+   "path": "/outbound-orders",
+   "status": "native"
+  },
+  {
+   "path": "/outbound-orders/new",
+   "status": "native"
+  },
+  {
+   "path": "/outbound-orders/returns",
+   "status": "native"
+  },
+  {
+   "path": "/outbound-orders/returns/new",
+   "status": "native"
+  },
+  {
+   "path": "/outbound-orders/returns/:id",
+   "status": "native"
+  },
+  {
+   "path": "/outbound-orders/:id",
+   "status": "native"
+  },
+  {
+   "path": "/ecommerce-orders",
+   "status": "native"
+  },
+  {
+   "path": "/ecommerce-orders/new",
+   "status": "native"
+  },
+  {
+   "path": "/ecommerce-orders/returns",
+   "status": "native"
+  },
+  {
+   "path": "/ecommerce-orders/returns/new",
+   "status": "native"
+  },
+  {
+   "path": "/ecommerce-orders/returns/:id",
+   "status": "native"
+  },
+  {
+   "path": "/ecommerce-orders/:id",
+   "status": "native"
+  },
+  {
+   "path": "/my-profits",
+   "status": "native"
+  },
+  {
+   "path": "/cod-reports",
+   "status": "redirect",
+   "redirectTo": "/my-profits"
+  },
+  {
+   "path": "/returns",
+   "status": "redirect",
+   "redirectTo": "/ecommerce-orders/returns"
+  },
+  {
+   "path": "/returns/new",
+   "status": "redirect",
+   "redirectTo": "/ecommerce-orders/returns/new"
+  },
+  {
+   "path": "/returns/:id",
+   "status": "redirect",
+   "redirectTo": "/ecommerce-orders/returns/:id"
+  },
+  {
+   "path": "/billing",
+   "status": "native"
+  },
+  {
+   "path": "/invoices",
+   "status": "native"
+  },
+  {
+   "path": "/invoices/:id",
+   "status": "native"
+  },
+  {
+   "path": "/apis",
+   "status": "native"
+  },
+  {
+   "path": "/billing/invoices/:id",
+   "status": "redirect",
+   "redirectTo": "/invoices/:id"
+  },
+  {
+   "path": "/notifications",
+   "status": "native"
+  },
+  {
+   "path": "/profile",
+   "status": "native"
+  },
+  {
+   "path": "*",
+   "status": "native"
+  }
+ ]
+}

@@ -1,0 +1,371 @@
+import { apiClient } from './apiClient';
+
+export type ClientOmsCodStatus = 'pending' | 'collected' | 'remitted' | 'settled' | 'returned';
+
+export type ClientOmsOrderStatus =
+  | 'draft'
+  | 'waiting_for_confirmation'
+  | 'pending_approval'
+  | 'confirmed_waiting_for_admin_approval'
+  | 'pending'
+  | 'rejected'
+  | 'approved'
+  | 'confirmed'
+  | 'processing'
+  | 'allocated'
+  | 'picking'
+  | 'packing'
+  | 'ready_to_ship'
+  | 'out_for_delivery'
+  | 'shipped'
+  | 'delivered'
+  | 'failed_delivery'
+  | 'completed'
+  | 'returned'
+  | 'cancelled';
+
+export type ClientOmsPaymentMethod = 'COD' | 'PREPAID' | 'CREDIT';
+
+export interface CreateClientOmsOrderLineInput {
+  productId: string;
+  requestedQuantity: number;
+  unitPrice?: number;
+}
+
+export interface CreateClientOmsOrderInput {
+  requiredShipDate: string;
+  recipientName?: string;
+  recipientPhone?: string;
+  shippingPhoneCountry?: string;
+  city?: string;
+  district?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  shippingReceiverLat?: number;
+  shippingReceiverLng?: number;
+  babelNeighbourhoodId?: number;
+  notes?: string;
+  storeChannel?: string;
+  paymentMethod?: ClientOmsPaymentMethod;
+  currency?: string;
+  lines: CreateClientOmsOrderLineInput[];
+}
+
+export interface ClientOmsOrderListItem {
+  id: string;
+  orderNumber: string;
+  status: ClientOmsOrderStatus;
+  companyId: string;
+  company?: { id: string; name: string } | null;
+  recipientName?: string | null;
+  city?: string | null;
+  storeChannel?: string | null;
+  paymentMethod?: string | null;
+  carrier?: string | null;
+  total?: string | null;
+  currency?: string | null;
+  outboundOrderId?: string | null;
+  linkedOutboundOrder?: { id: string; orderNumber: string; status: string } | null;
+  createdAt: string;
+  updatedAt: string;
+  needsInformation?: boolean;
+}
+
+export interface ClientOmsOrderPage {
+  items: ClientOmsOrderListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ClientOmsOrderEvent {
+  id: string;
+  eventType: string;
+  createdAt: string;
+  payload?: Record<string, unknown> | null;
+  creator?: { id: string; fullName: string } | null;
+}
+
+export interface ClientOmsOrderDetail {
+  id: string;
+  orderNumber: string;
+  status: ClientOmsOrderStatus;
+  destinationAddress: string;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  city?: string | null;
+  district?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  deliveryInstructions?: string | null;
+  paymentMethod?: string | null;
+  subtotal?: string | null;
+  shippingFee?: string | null;
+  codAmount?: string | null;
+  currency?: string | null;
+  codStatus?: ClientOmsCodStatus | null;
+  codCollectedAt?: string | null;
+  codRemittedAt?: string | null;
+  allocationStatus?: string | null;
+  carrier?: string | null;
+  trackingNumber?: string | null;
+  clientReference?: string | null;
+  notes?: string | null;
+  storeChannel?: string | null;
+  requiredShipDate: string;
+  createdAt: string;
+  confirmedAt?: string | null;
+  outForDeliveryAt?: string | null;
+  deliveredAt?: string | null;
+  returnedAt?: string | null;
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
+  cancelledFromStatus?: string | null;
+  revertCancelToStatus?: string | null;
+  canRevertCancel?: boolean;
+  needsInformation?: boolean;
+  importBatchId?: string | null;
+  company?: { id: string; name: string } | null;
+  linkedOutboundOrder?: { id: string; orderNumber: string; status: string } | null;
+  warehouseStatus?: string | null;
+  lines: Array<{
+    id: string;
+    lineNumber: number;
+    requestedQuantity: string;
+    unitPrice?: string | null;
+    lineTotal?: string | null;
+    discountAmount?: string | null;
+    product?: { id: string; sku: string; name: string };
+  }>;
+  timeline?: ClientOmsOrderEvent[];
+}
+
+export interface ClientCodReportRow {
+  id: string;
+  orderNumber: string;
+  status: string;
+  recipientName: string | null;
+  codAmount: string | null;
+  codStatus: ClientOmsCodStatus | null;
+  codCollectedAt: string | null;
+  codRemittedAt: string | null;
+  currency: string | null;
+  createdAt: string;
+  deliveredAt: string | null;
+}
+
+export interface ClientCodReportPage {
+  items: ClientCodReportRow[];
+  total: number;
+  limit: number;
+  offset: number;
+  summary: { orderCount: number; totalCodAmount: string };
+}
+
+export type ClientOmsTotalOp = 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
+export type ClientOmsOperationalStage =
+  | 'picking'
+  | 'packing'
+  | 'shipping_details'
+  | 'shipping_confirmation';
+
+/** Filters shared by the orders list and nav-counts (never includes companyId). */
+export interface ClientOmsOrdersFilterParams {
+  orderSearch?: string;
+  storeChannel?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  customer?: string;
+  phone?: string;
+  city?: string;
+  carrier?: string;
+  startOrderNo?: string;
+  endOrderNo?: string;
+  totalOp?: ClientOmsTotalOp;
+  totalValue?: string;
+}
+
+export async function fetchClientOmsOrders(
+  params: ClientOmsOrdersFilterParams & {
+    limit?: number;
+    offset?: number;
+    status?: ClientOmsOrderStatus;
+    operationalStage?: ClientOmsOperationalStage;
+  },
+): Promise<ClientOmsOrderPage> {
+  const { data } = await apiClient.get<ClientOmsOrderPage>('/oms/orders', { params });
+  return data;
+}
+
+export type ClientOmsStatusSummary = {
+  total: number;
+  byStatus: Partial<Record<ClientOmsOrderStatus, number>>;
+  storeChannels: string[];
+};
+
+export type ClientOmsOrdersNavCounts = {
+  total: number;
+  byStatus: Record<string, number>;
+};
+
+export async function fetchClientOmsStatusSummary(params: {
+  storeChannel?: string;
+  createdFrom?: string;
+  createdTo?: string;
+}): Promise<ClientOmsStatusSummary> {
+  const { data } = await apiClient.get<ClientOmsStatusSummary>('/oms/orders/status-summary', {
+    params,
+  });
+  return data;
+}
+
+export async function fetchClientOmsNavCounts(
+  params: ClientOmsOrdersFilterParams = {},
+): Promise<ClientOmsOrdersNavCounts> {
+  const { data } = await apiClient.get<ClientOmsOrdersNavCounts>('/oms/orders/nav-counts', {
+    params,
+  });
+  return data;
+}
+
+export async function fetchClientOmsOrder(id: string): Promise<ClientOmsOrderDetail> {
+  const { data } = await apiClient.get<ClientOmsOrderDetail>(`/oms/orders/${id}`);
+  return data;
+}
+
+export async function fetchClientOmsTimeline(id: string): Promise<ClientOmsOrderEvent[]> {
+  const { data } = await apiClient.get<ClientOmsOrderEvent[]>(`/oms/orders/${id}/timeline`);
+  return data;
+}
+
+export type ClientShipmentMovementEvent = {
+  timestamp: string;
+  title: string;
+  location?: string | null;
+  notes?: string | null;
+  color?: 'default' | 'info' | 'success' | 'error' | 'warning';
+  code?: string | null;
+};
+
+export type ClientOmsShippingMovementResult = {
+  awb: string | null;
+  isDelivered?: boolean;
+  statusLabel?: string;
+  statusColor?: string;
+  events: ClientShipmentMovementEvent[];
+  message?: string;
+  error?: string;
+  /** Always null for clients — company name must not appear. */
+  providerName?: null;
+  providerCode?: null;
+};
+
+/** Full carrier tracking history (not OMS milestones). Provider name omitted by API. */
+export async function fetchClientOmsShippingMovement(
+  id: string,
+): Promise<ClientOmsShippingMovementResult> {
+  const { data } = await apiClient.get<ClientOmsShippingMovementResult>(
+    `/oms/orders/${id}/shipping-movement`,
+  );
+  return data;
+}
+
+export async function createClientOmsOrder(
+  input: CreateClientOmsOrderInput,
+): Promise<ClientOmsOrderDetail> {
+  const { data } = await apiClient.post<ClientOmsOrderDetail>('/oms/orders', input);
+  return data;
+}
+
+export async function confirmClientOmsOrder(id: string): Promise<ClientOmsOrderDetail> {
+  const { data } = await apiClient.post<ClientOmsOrderDetail>(`/oms/orders/${id}/confirm`);
+  return data;
+}
+
+export type ClientOmsBulkConfirmResult = {
+  requested: number;
+  confirmed: number;
+  failed: number;
+  confirmedOrders: Array<{ id: string; orderNumber: string }>;
+  failures: Array<{ id: string; orderNumber: string | null; error: string }>;
+};
+
+export async function confirmClientOmsOrdersBulk(
+  ids: string[],
+): Promise<ClientOmsBulkConfirmResult> {
+  const { data } = await apiClient.post<ClientOmsBulkConfirmResult>('/oms/orders/confirm-bulk', {
+    ids,
+  });
+  return data;
+}
+
+export async function cancelClientOmsOrder(id: string): Promise<ClientOmsOrderDetail> {
+  const { data } = await apiClient.post<ClientOmsOrderDetail>(`/oms/orders/${id}/cancel`);
+  return data;
+}
+
+export async function revertCancelClientOmsOrder(id: string): Promise<ClientOmsOrderDetail> {
+  const { data } = await apiClient.post<ClientOmsOrderDetail>(`/oms/orders/${id}/cancel-revert`);
+  return data;
+}
+
+export async function cancelClientOmsOrdersBulk(
+  ids: string[],
+): Promise<{
+  requested: number;
+  cancelled: number;
+  failed: number;
+  cancelledOrders: Array<{ id: string; orderNumber: string }>;
+  failures: Array<{ id: string; orderNumber: string | null; error: string }>;
+}> {
+  const { data } = await apiClient.post('/oms/orders/cancel-bulk', { ids });
+  return data;
+}
+
+export type ClientOmsExportColumn = {
+  id: string;
+  labelEn: string;
+  labelAr: string;
+};
+
+export async function fetchClientOmsExportColumns(): Promise<ClientOmsExportColumn[]> {
+  const { data } = await apiClient.get<ClientOmsExportColumn[]>('/oms/orders/export/columns');
+  return data;
+}
+
+export async function downloadClientOmsExport(payload: {
+  columnIds: string[];
+  arabicHeaders?: boolean;
+  ids?: string[];
+  orderSearch?: string;
+  status?: string;
+  storeChannel?: string;
+  createdFrom?: string;
+  createdTo?: string;
+}): Promise<void> {
+  const response = await apiClient.post<Blob>('/oms/orders/export', payload, {
+    responseType: 'blob',
+  });
+  const disposition = response.headers['content-disposition'] as string | undefined;
+  const match = disposition?.match(/filename="([^"]+)"/);
+  const filename = match?.[1] ?? `oms-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+  const url = URL.createObjectURL(response.data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function fetchClientCodReport(params: {
+  limit?: number;
+  offset?: number;
+  codStatus?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}): Promise<ClientCodReportPage> {
+  const { data } = await apiClient.get<ClientCodReportPage>('/oms/cod-report', { params });
+  return data;
+}

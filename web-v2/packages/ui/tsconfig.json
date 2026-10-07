@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "baseUrl": ".", "paths": { "@ui/*": ["./src/*"] } },
+  "include": ["src", "vite-env.d.ts"]
+}

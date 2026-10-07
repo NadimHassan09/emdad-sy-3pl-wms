@@ -1,0 +1,147 @@
+import { api } from './client';
+
+export type DashboardChartSlice = { key: string; label: string; count: number };
+
+export type OpenOrdersChartSide = {
+  stages: DashboardChartSlice[];
+  inProgress: number;
+  notInProgress: number;
+};
+
+export type OpenOrdersCharts = {
+  inbound: OpenOrdersChartSide;
+  outbound: OpenOrdersChartSide;
+};
+
+/** Supports legacy array responses and fills progress counts when missing. */
+export function normalizeOpenOrdersChartSide(
+  raw: OpenOrdersChartSide | DashboardChartSlice[] | undefined,
+): OpenOrdersChartSide {
+  if (!raw) {
+    return { stages: [], inProgress: 0, notInProgress: 0 };
+  }
+
+  if (Array.isArray(raw)) {
+    const stages = raw;
+    const notInProgress = stages[0]?.count ?? 0;
+    const inProgress = stages.slice(1).reduce((sum, slice) => sum + slice.count, 0);
+    return { stages, inProgress, notInProgress };
+  }
+
+  const stages = raw.stages ?? [];
+  let inProgress = raw.inProgress ?? 0;
+  let notInProgress = raw.notInProgress ?? 0;
+  const counted = inProgress + notInProgress;
+  const stageSum = stages.reduce((sum, slice) => sum + slice.count, 0);
+
+  if (counted === 0 && stageSum > 0) {
+    notInProgress = stages[0]?.count ?? 0;
+    inProgress = stages.slice(1).reduce((sum, slice) => sum + slice.count, 0);
+  }
+
+  return { stages, inProgress, notInProgress };
+}
+
+export type OpenTasksByTypeRow = {
+  key: string;
+  label: string;
+  openCount: number;
+  inProgressCount: number;
+};
+
+function safeCount(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+/** Normalize API rows and hide types with no open (non-completed) tasks. */
+export function normalizeOpenTasksByType(
+  raw: Array<Record<string, unknown>> | undefined,
+): OpenTasksByTypeRow[] {
+  if (!Array.isArray(raw)) return [];
+
+  const labelOverrides: Record<string, string> = {
+    receiving: 'Receiving',
+    dispatch: 'Dispatch',
+  };
+
+  return raw
+    .map((row) => {
+      const openCount = safeCount(row.openCount ?? row.open_count);
+      const inProgressCount = safeCount(
+        row.inProgressCount ?? row.in_progress_count ?? row.inProgress ?? row.in_progress,
+      );
+      const key = String(row.key ?? '');
+      const rawLabel = String(row.label ?? row.key ?? '');
+      const label =
+        labelOverrides[key] ??
+        (rawLabel === 'Delivery' ? 'Dispatch' : rawLabel === 'Receive' ? 'Receiving' : rawLabel);
+      return {
+        key,
+        label,
+        openCount,
+        inProgressCount: Math.min(inProgressCount, openCount),
+      };
+    })
+    .filter((row) => row.key && row.openCount > 0);
+}
+
+export type DashboardOverview = {
+  counters: {
+    totalItemsInStock: number;
+    itemsInCatalog: number;
+    totalCustomers: number;
+    activeUsers?: number;
+  };
+  openOrders: {
+    inbound: number;
+    outbound: number;
+  };
+  openTasksByType: OpenTasksByTypeRow[];
+  capacity: {
+    usedStorageCbm: string;
+    reservedStorageCbm: string;
+    remainingStorageCbm: string;
+    storageUsagePercent: number;
+    occupiedLocations: number;
+    totalStorageLocations: number;
+    consumedPercent: number;
+  };
+  soonExpiryLots: Array<{
+    lotId: string;
+    lotNumber: string;
+    expiryDate: string | null;
+    productId: string;
+    productName: string;
+    locationId: string;
+    locationName: string;
+    lotQuantity: number;
+    productTotalQuantity: number;
+  }>;
+  recentOrders: {
+    inbound: Array<{ id: string; orderNumber: string; status: string; companyName: string; createdAt: string }>;
+    outbound: Array<{ id: string; orderNumber: string; status: string; companyName: string; createdAt: string }>;
+  };
+};
+
+export const DashboardApi = {
+  async overview(): Promise<DashboardOverview> {
+    const { data } = await api.get<DashboardOverview & { openTasksByType?: Array<Record<string, unknown>> }>(
+      '/dashboard/overview',
+    );
+    return {
+      ...data,
+      openTasksByType: normalizeOpenTasksByType(data.openTasksByType),
+    };
+  },
+
+  async openOrdersCharts(): Promise<OpenOrdersCharts> {
+    const { data } = await api.get<OpenOrdersCharts | { inbound: DashboardChartSlice[]; outbound: DashboardChartSlice[] }>(
+      '/dashboard/open-orders-charts',
+    );
+    return {
+      inbound: normalizeOpenOrdersChartSide(data.inbound as OpenOrdersChartSide | DashboardChartSlice[]),
+      outbound: normalizeOpenOrdersChartSide(data.outbound as OpenOrdersChartSide | DashboardChartSlice[]),
+    };
+  },
+};

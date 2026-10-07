@@ -1,0 +1,546 @@
+{
+ "_note": "Frozen snapshot of the classic UI route table (taken at V2 Phase 0). Used by scripts/route-diff.mjs. Never read legacy source at runtime.",
+ "takenAt": "2026-10-06",
+ "admin": [
+  {
+   "path": "/login"
+  },
+  {
+   "path": "/",
+   "redirectTo": "(role home)"
+  },
+  {
+   "path": "/dashboard",
+   "redirectTo": "/dashboard/overview"
+  },
+  {
+   "path": "/dashboard/overview"
+  },
+  {
+   "path": "/products"
+  },
+  {
+   "path": "/products/:sku"
+  },
+  {
+   "path": "/locations"
+  },
+  {
+   "path": "/warehouses"
+  },
+  {
+   "path": "/inventory",
+   "redirectTo": "/inventory/stock"
+  },
+  {
+   "path": "/inventory/ledger/line/:ledgerId/:createdAt"
+  },
+  {
+   "path": "/inventory/ledger/:referenceType/:referenceId"
+  },
+  {
+   "path": "/inventory/ledger",
+   "redirectTo": "/inventory/stock"
+  },
+  {
+   "path": "/inventory/product/:productId"
+  },
+  {
+   "path": "/inventory/stock"
+  },
+  {
+   "path": "/adjustments",
+   "redirectTo": "/inventory/adjustments"
+  },
+  {
+   "path": "/inventory/adjustments"
+  },
+  {
+   "path": "/inventory/adjustments/:id"
+  },
+  {
+   "path": "/inbound",
+   "redirectTo": "/orders/inbound"
+  },
+  {
+   "path": "/inbound/create",
+   "redirectTo": "/orders/inbound/new"
+  },
+  {
+   "path": "/outbound",
+   "redirectTo": "/orders/outbound"
+  },
+  {
+   "path": "/outbound/create",
+   "redirectTo": "/orders/outbound/new"
+  },
+  {
+   "path": "/orders",
+   "redirectTo": "/orders/inbound"
+  },
+  {
+   "path": "/orders/inbound"
+  },
+  {
+   "path": "/orders/inbound/new"
+  },
+  {
+   "path": "/orders/inbound/:id/edit"
+  },
+  {
+   "path": "/orders/inbound/:id"
+  },
+  {
+   "path": "/orders/outbound"
+  },
+  {
+   "path": "/orders/outbound/new"
+  },
+  {
+   "path": "/orders/outbound/:id/edit"
+  },
+  {
+   "path": "/orders/directed-outbound",
+   "redirectTo": "/orders/outbound"
+  },
+  {
+   "path": "/orders/outbound/:id"
+  },
+  {
+   "path": "/orders/oms"
+  },
+  {
+   "path": "/orders/oms/new"
+  },
+  {
+   "path": "/orders/oms/:id"
+  },
+  {
+   "path": "/orders/oms/:id/waybill"
+  },
+  {
+   "path": "/oms",
+   "redirectTo": "/oms/dashboard"
+  },
+  {
+   "path": "/oms/dashboard"
+  },
+  {
+   "path": "/oms/batches"
+  },
+  {
+   "path": "/oms/batches/:id"
+  },
+  {
+   "path": "/oms/cod"
+  },
+  {
+   "path": "/oms/cod/:id"
+  },
+  {
+   "path": "/oms/returns"
+  },
+  {
+   "path": "/oms/returns/:id/edit"
+  },
+  {
+   "path": "/oms/returns/:id"
+  },
+  {
+   "path": "/oms/orders/:id"
+  },
+  {
+   "path": "/oms/orders/:id/waybill"
+  },
+  {
+   "path": "/reports/oms/cod",
+   "redirectTo": "/oms/cod"
+  },
+  {
+   "path": "/reports/oms/returns",
+   "redirectTo": "/oms/returns"
+  },
+  {
+   "path": "/contracts",
+   "redirectTo": "/contracts/grn"
+  },
+  {
+   "path": "/contracts/grn"
+  },
+  {
+   "path": "/contracts/dn"
+  },
+  {
+   "path": "/contracts/final-contract"
+  },
+  {
+   "path": "/tasks"
+  },
+  {
+   "path": "/tasks/:id/execute"
+  },
+  {
+   "path": "/tasks/:id"
+  },
+  {
+   "path": "/cycle-count"
+  },
+  {
+   "path": "/cycle-count/my-tasks"
+  },
+  {
+   "path": "/cycle-count/:id/execute"
+  },
+  {
+   "path": "/cycle-count/:id"
+  },
+  {
+   "path": "/returns"
+  },
+  {
+   "path": "/returns/:id/process"
+  },
+  {
+   "path": "/returns/:id"
+  },
+  {
+   "path": "/internal"
+  },
+  {
+   "path": "/directed-outbound",
+   "redirectTo": "/orders/outbound"
+  },
+  {
+   "path": "/reports/warehouse-analysis"
+  },
+  {
+   "path": "/reports/inventory"
+  },
+  {
+   "path": "/reports/product-moves"
+  },
+  {
+   "path": "/reports/stock-aging"
+  },
+  {
+   "path": "/reports/lot-expiry"
+  },
+  {
+   "path": "/reports/capacity-utilization"
+  },
+  {
+   "path": "/reports/return-rate"
+  },
+  {
+   "path": "/reports/revenue-by-client"
+  },
+  {
+   "path": "/reports/receivables-aging"
+  },
+  {
+   "path": "/reports/worker-productivity"
+  },
+  {
+   "path": "/reports/order-cycle-time"
+  },
+  {
+   "path": "/reports/inbound-accuracy"
+  },
+  {
+   "path": "/reports/outbound-fill-rate"
+  },
+  {
+   "path": "/reports/sla-compliance"
+  },
+  {
+   "path": "/reports/cod-report",
+   "redirectTo": "/oms/cod"
+  },
+  {
+   "path": "/reports/merchant-orders"
+  },
+  {
+   "path": "/reports/sales-report"
+  },
+  {
+   "path": "/reports/returns-report",
+   "redirectTo": "/oms/returns"
+  },
+  {
+   "path": "/reports/delivery-report"
+  },
+  {
+   "path": "/reports/allocation-report"
+  },
+  {
+   "path": "/reports/inventory-reserved"
+  },
+  {
+   "path": "/clients"
+  },
+  {
+   "path": "/clients/:id"
+  },
+  {
+   "path": "/forms"
+  },
+  {
+   "path": "/billing",
+   "redirectTo": "/billing/dashboard"
+  },
+  {
+   "path": "/billing/dashboard"
+  },
+  {
+   "path": "/billing/plans"
+  },
+  {
+   "path": "/billing/plans/new"
+  },
+  {
+   "path": "/billing/plans/:clientId/edit"
+  },
+  {
+   "path": "/billing/plans/:clientId"
+  },
+  {
+   "path": "/billing/templates"
+  },
+  {
+   "path": "/billing/invoices"
+  },
+  {
+   "path": "/billing/invoices/:id"
+  },
+  {
+   "path": "/users",
+   "redirectTo": "/users/warehouse_users"
+  },
+  {
+   "path": "/users/warehouse_users"
+  },
+  {
+   "path": "/users/warehouse_users/:id"
+  },
+  {
+   "path": "/users/client_users"
+  },
+  {
+   "path": "/users/client_users/:id"
+  },
+  {
+   "path": "/audit-logs"
+  },
+  {
+   "path": "/notifications"
+  },
+  {
+   "path": "/profile"
+  },
+  {
+   "path": "/backups/upload",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/backups/restore",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/backups/factory-reset",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/backups/schedules"
+  },
+  {
+   "path": "/backups/retention"
+  },
+  {
+   "path": "/backups/health"
+  },
+  {
+   "path": "/backups/storage-policy",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/backups/google-drive"
+  },
+  {
+   "path": "/shipping",
+   "redirectTo": "/shipping/companies"
+  },
+  {
+   "path": "/shipping/companies"
+  },
+  {
+   "path": "/settings/backups",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/settings/backups/upload",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/settings/backups/restore",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/settings/backups/factory-reset",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/settings/backups/schedules",
+   "redirectTo": "/backups/schedules"
+  },
+  {
+   "path": "/settings/backups/retention",
+   "redirectTo": "/backups/retention"
+  },
+  {
+   "path": "/settings/backups/health",
+   "redirectTo": "/backups/health"
+  },
+  {
+   "path": "/settings/backups/storage-policy",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/settings/backups/google-drive",
+   "redirectTo": "/backups/google-drive"
+  },
+  {
+   "path": "/settings/*",
+   "redirectTo": "/backups"
+  },
+  {
+   "path": "/*",
+   "redirectTo": "(role home)"
+  },
+  {
+   "path": "/reports",
+   "redirectTo": "/reports/warehouse-analysis"
+  },
+  {
+   "path": "/backups"
+  },
+  {
+   "path": "/settings",
+   "redirectTo": "/backups"
+  }
+ ],
+ "client": [
+  {
+   "path": "/login"
+  },
+  {
+   "path": "/account-inactive"
+  },
+  {
+   "path": "/",
+   "redirectTo": "/dashboard"
+  },
+  {
+   "path": "/dashboard"
+  },
+  {
+   "path": "/products"
+  },
+  {
+   "path": "/products/new"
+  },
+  {
+   "path": "/products/:id/edit"
+  },
+  {
+   "path": "/products/:id"
+  },
+  {
+   "path": "/inbound-orders"
+  },
+  {
+   "path": "/inbound-orders/new"
+  },
+  {
+   "path": "/inbound-orders/:id"
+  },
+  {
+   "path": "/outbound-orders"
+  },
+  {
+   "path": "/outbound-orders/new"
+  },
+  {
+   "path": "/outbound-orders/returns"
+  },
+  {
+   "path": "/outbound-orders/returns/new"
+  },
+  {
+   "path": "/outbound-orders/returns/:id"
+  },
+  {
+   "path": "/outbound-orders/:id"
+  },
+  {
+   "path": "/ecommerce-orders"
+  },
+  {
+   "path": "/ecommerce-orders/new"
+  },
+  {
+   "path": "/ecommerce-orders/returns"
+  },
+  {
+   "path": "/ecommerce-orders/returns/new"
+  },
+  {
+   "path": "/ecommerce-orders/returns/:id"
+  },
+  {
+   "path": "/ecommerce-orders/:id"
+  },
+  {
+   "path": "/my-profits"
+  },
+  {
+   "path": "/cod-reports",
+   "redirectTo": "/my-profits"
+  },
+  {
+   "path": "/returns",
+   "redirectTo": "/ecommerce-orders/returns"
+  },
+  {
+   "path": "/returns/new",
+   "redirectTo": "/ecommerce-orders/returns/new"
+  },
+  {
+   "path": "/returns/:id"
+  },
+  {
+   "path": "/billing"
+  },
+  {
+   "path": "/invoices"
+  },
+  {
+   "path": "/invoices/:id"
+  },
+  {
+   "path": "/apis"
+  },
+  {
+   "path": "/billing/invoices/:id"
+  },
+  {
+   "path": "/notifications"
+  },
+  {
+   "path": "/profile"
+  },
+  {
+   "path": "*",
+   "note": "NotFoundPage inside authenticated shell; unauthenticated -> /login"
+  }
+ ]
+}
