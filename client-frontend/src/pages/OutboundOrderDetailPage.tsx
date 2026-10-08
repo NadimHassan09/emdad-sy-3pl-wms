@@ -116,10 +116,6 @@ export function OutboundOrderDetailPage(): ReactElement {
                   <DetailRow label="Order #" value={data.orderNumber} />
                   <DetailRow label="Destination" value={data.destinationAddress} preWrap />
                   <DetailRow label="Required ship" value={formatDate(data.requiredShipDate)} />
-                  {data.carrier ? <DetailRow label="Carrier" value={data.carrier} /> : null}
-                  {data.trackingNumber ? (
-                    <DetailRow label="Tracking" value={data.trackingNumber} />
-                  ) : null}
                   <DetailRow label="Created" value={formatDateTime(data.createdAt)} />
                   {data.clientReference ? (
                     <DetailRow label="Your reference" value={data.clientReference} />

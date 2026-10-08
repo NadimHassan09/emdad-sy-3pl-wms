@@ -1,0 +1,15 @@
+---
+description: React + TypeScript UI conventions for admin/client portals
+globs: frontend/src/**/*.{tsx,ts},client-frontend/src/**/*.{tsx,ts}
+alwaysApply: false
+---
+
+# React + TypeScript UI conventions
+
+- Prefer functional components; colocate page-specific UI under `pages/` / feature folders
+- Reuse `@ds` primitives (`Button`, inputs, badges) before inventing new base controls
+- Keep forms accessible: labeled inputs, error text tied to fields, keyboard-friendly modals
+- Mobile-first Tailwind; verify both 1440 and ~390 viewports for admin chrome
+- Avoid purple-gradient / generic AI landing aesthetics on operational WMS screens
+- Do not introduce Next.js App Router patterns — this app is Vite + React Router
+- Prefer existing patterns in neighboring files over new abstractions

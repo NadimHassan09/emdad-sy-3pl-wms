@@ -372,7 +372,7 @@ export function carrierFormToSavePayload(
     shippingPackageType: form.packageType || 'box',
     shippingContents: contentsFromCartons(form.cartons, form.catalog) || null,
     shippingDeliveryType: form.deliveryType || 'address',
-    shippingPickupType: 'hub',
+    shippingPickupType: 'address',
     shippingPayer: form.shippingPayer || 'sender',
     shippingWeightKg: weight > 0 ? weight : null,
     shippingVolumeCbm: volume >= 0 ? volume : 0,

@@ -8,8 +8,24 @@ export type ShippingTestResult = {
   message?: string;
 };
 
+/** Where the carrier collects the parcel. Independent of delivery (home vs hub). */
+export type ShippingParty = {
+  name: string;
+  phoneCountry: string;
+  phoneLocal: string;
+  address: string;
+  lat?: number;
+  lng?: number;
+  neighbourhoodId?: number;
+  governorate?: string;
+  city?: string;
+  neighborhood?: string;
+};
+
 export type ShippingCreateShipmentInput = {
   reference?: string;
+  /** Courier pickup location. Required when pickupType is address. */
+  pickup?: ShippingParty;
   receiver: {
     name: string;
     phoneCountry: string;
@@ -39,7 +55,13 @@ export type ShippingCreateShipmentInput = {
 };
 
 export type ShippingCreateShipmentResult = {
+  /** Provider/platform identifier (e.g. Sila barcode). */
   awb: string;
+  /**
+   * Courier-facing tracking when distinct from `awb`.
+   * When omitted, callers may fall back to `awb`.
+   */
+  trackingNumber?: string;
   raw?: unknown;
 };
 
@@ -53,6 +75,8 @@ export type ShippingQuoteInput = {
   parts?: Array<{ weight: number }>;
   deliveryType: 'address' | 'hub';
   pickupType?: 'address' | 'hub';
+  /** Pickup neighbourhood/address used to price address pickup (Babel sender). */
+  pickup?: ShippingParty;
   /** Passed through for adapters that price by volume; ignored when the carrier API has no field. */
   volumeCbm?: number;
   governorate?: string;

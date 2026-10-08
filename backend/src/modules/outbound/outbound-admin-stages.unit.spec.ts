@@ -3,6 +3,7 @@ import { OutboundOrderStatus } from '@prisma/client';
 import { InvalidStateException } from '../../common/errors/domain-exceptions';
 import {
   assertOutboundAdminStageAction,
+  manualShippingConfirmNeedsMethodStep,
   nextOutboundAdminAction,
   outboundRequiresPacking,
 } from './outbound-admin-stages';
@@ -62,6 +63,32 @@ describe('outbound-admin-stages', () => {
     it('returns null for terminal statuses', () => {
       expect(nextOutboundAdminAction(OutboundOrderStatus.shipped, true)).toBeNull();
       expect(nextOutboundAdminAction(OutboundOrderStatus.cancelled, true)).toBeNull();
+    });
+  });
+
+  describe('manualShippingConfirmNeedsMethodStep', () => {
+    it('advances an explicit manual order that is still on the method step', () => {
+      expect(
+        manualShippingConfirmNeedsMethodStep(
+          OutboundOrderStatus.waiting_for_shipping_method,
+          'manual',
+        ),
+      ).toBe(true);
+    });
+
+    it('does not advance carrier orders or orders already in shipping details', () => {
+      expect(
+        manualShippingConfirmNeedsMethodStep(
+          OutboundOrderStatus.waiting_for_shipping_method,
+          'carrier',
+        ),
+      ).toBe(false);
+      expect(
+        manualShippingConfirmNeedsMethodStep(
+          OutboundOrderStatus.waiting_for_shipping_details,
+          'manual',
+        ),
+      ).toBe(false);
     });
   });
 

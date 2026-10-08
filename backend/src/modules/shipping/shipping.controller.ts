@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { IsNumber } from 'class-validator';
 import { ShippingProviderConnectionStatus } from '@prisma/client';
@@ -18,6 +28,7 @@ import {
   BulkShippingPreviewDto,
 } from './dto/bulk-shipping.dto';
 import { ConnectShippingProviderDto } from './dto/connect-shipping-provider.dto';
+import { UpsertShippingOriginAddressDto } from './dto/upsert-shipping-origin-address.dto';
 import { QuoteShippingRatesDto } from './dto/quote-shipping-rates.dto';
 import { ResolveAddressFromPinDto } from './dto/resolve-address-from-pin.dto';
 import { ResolveAddressFromNamesDto } from './dto/resolve-address-from-names.dto';
@@ -57,6 +68,22 @@ export class ShippingController {
   @Get('providers')
   listProviders() {
     return this.shipping.listProviders();
+  }
+
+  @Get('origin-address')
+  getOriginAddress() {
+    return this.shipping.getOriginAddress();
+  }
+
+  @Put('origin-address')
+  saveOriginAddress(
+    @Body() body: UpsertShippingOriginAddressDto,
+    @CurrentUser() user: AuthPrincipal,
+  ) {
+    if (user.role !== 'super_admin') {
+      throw new ForbiddenException('Only a super admin can set the pickup address.');
+    }
+    return this.shipping.saveOriginAddress(body, user.id);
   }
 
   @Post('providers/:code/connect')

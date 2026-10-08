@@ -43,21 +43,28 @@ describe('InventoryService.availability (OMS→Outbound soft-hold credit)', () =
       resolveWriteCompanyId: jest.fn().mockReturnValue('co-1'),
     } as unknown as CompanyAccessService;
 
+    const expectedReturnHold = {
+      expectedQuantityForProduct: jest.fn().mockResolvedValue(dec(0)),
+    };
+
     const service = new InventoryService(
       prisma,
       {} as never, // stockHelpers
       companyAccess,
       {} as never, // audit
       {} as never, // realtime
+      expectedReturnHold as never,
     );
-    return { service, prisma };
+    return { service, prisma, expectedReturnHold };
   }
 
   it('returns global available when no outboundOrderId', async () => {
-    const { service } = build({ onHand: 100, reserved: 20, available: 80 });
+    const { service, expectedReturnHold } = build({ onHand: 100, reserved: 20, available: 80 });
     const result = await service.availability({} as never, 'prod-1', 'co-1');
     expect(result.available).toBe('80');
+    expect(result.expectedReturn).toBe('0');
     expect(result.reservedByThisOrder).toBeUndefined();
+    expect(expectedReturnHold.expectedQuantityForProduct).toHaveBeenCalledWith('co-1', 'prod-1');
   });
 
   it('credits this outbound soft-hold so linked OMS→Outbound is not out of stock', async () => {

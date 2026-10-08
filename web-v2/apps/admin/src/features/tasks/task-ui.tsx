@@ -1,3 +1,16 @@
+import type { LucideIcon } from 'lucide-react'
+import {
+  Archive,
+  ClipboardCheck,
+  FileText,
+  Package,
+  PackageCheck,
+  PackagePlus,
+  Route,
+  ShoppingBasket,
+  ShieldAlert,
+  Truck,
+} from 'lucide-react'
 import { StatusBadge, type Tone } from '@emdad/ui'
 
 const TASK_STATUS_TONE: Record<string, Tone> = {
@@ -75,6 +88,45 @@ export function TaskStatusBadge({ status, isArabic }: { status: string; isArabic
   return (
     <StatusBadge tone={taskStatusTone(status)}>
       {taskStatusLabel(status, isArabic ?? false)}
+    </StatusBadge>
+  )
+}
+
+const TASK_TYPE_TONE: Record<string, Tone> = {
+  receiving: 'progress',
+  qc: 'warning',
+  putaway: 'ready',
+  putaway_quarantine: 'danger',
+  pick: 'transit',
+  pack: 'pending',
+  shipping_details: 'progress',
+  dispatch: 'success',
+  routing: 'neutral',
+}
+
+const TASK_TYPE_ICON: Record<string, LucideIcon> = {
+  receiving: PackageCheck,
+  qc: ClipboardCheck,
+  putaway: PackagePlus,
+  putaway_quarantine: ShieldAlert,
+  pick: ShoppingBasket,
+  pack: Package,
+  shipping_details: FileText,
+  dispatch: Truck,
+  routing: Route,
+}
+
+export function taskTypeTone(taskType: string): Tone {
+  return TASK_TYPE_TONE[taskType] ?? 'neutral'
+}
+
+/** Color-coded task-type pill with a fixed-size leading icon (no status dot). */
+export function TaskTypeBadge({ taskType, isArabic }: { taskType: string; isArabic?: boolean }) {
+  const Icon = TASK_TYPE_ICON[taskType] ?? Archive
+  return (
+    <StatusBadge tone={taskTypeTone(taskType)} dot={false} className="gap-1.5">
+      <Icon className="size-3.5 shrink-0" aria-hidden strokeWidth={2} />
+      {taskTypeLabel(taskType, isArabic ?? false)}
     </StatusBadge>
   )
 }

@@ -11,6 +11,7 @@ import { Button } from '../components/Button';
 import { ConfirmReturnByScanModal } from '../components/ConfirmReturnByScanModal';
 import { CreateOmsReturnModal } from '../components/oms/CreateOmsReturnModal';
 import { ExpressReturnModal } from '../components/oms/ExpressReturnModal';
+import { OmsOrderScanSearchModal } from '../components/oms/OmsOrderScanSearchModal';
 import { Column, DataTable } from '../components/DataTable';
 import { useToast } from '../components/ToastProvider';
 import {
@@ -26,6 +27,29 @@ import {
   FILTER_FIELD_LABEL_CLASS,
   FILTER_FIELD_LABEL_GAP_CLASS,
 } from '../components/filter-panel-styles';
+
+function codStatusScanCopy(
+  status: CodRecordStatus | null,
+  isArabic: boolean,
+): { title: string; hint: string; button: string } {
+  const labels: Record<CodRecordStatus, { en: string; ar: string }> = {
+    pending: { en: 'Pending', ar: 'معلق' },
+    available: { en: 'Available', ar: 'متاح' },
+    paid_out: { en: 'Paid out', ar: 'تم الصرف' },
+    returned: { en: 'Returned', ar: 'مرتجع' },
+  };
+  if (!status) {
+    return { title: '', hint: '', button: '' };
+  }
+  const label = isArabic ? labels[status].ar : labels[status].en;
+  return {
+    title: isArabic ? `${label} بالـ QR` : `${label} by QR`,
+    hint: isArabic
+      ? `امسح QR البوليصة لتحويل حالة COD إلى «${label}». إذا كانت الحالة نفسها مسبقاً فلن يحدث تغيير.`
+      : `Scan the waybill QR to set COD status to “${label}”. If it is already that status, nothing changes.`,
+    button: isArabic ? `${label} بالـ QR` : `${label} by QR`,
+  };
+}
 
 function useIsArabic(): boolean {
   if (typeof window === 'undefined') return false;
@@ -98,11 +122,18 @@ export function OmsCodPage() {
   const navigate = useNavigate();
   const toast = useToast();
   const qc = useQueryClient();
+  const [statusScan, setStatusScan] = useState<CodRecordStatus | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkStatus, setBulkStatus] = useState<CodRecordStatus>('available');
 
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
     useFilters({
       search: '',
       status: '',
+      createdFrom: '',
+      createdTo: '',
+      amountMin: '',
+      amountMax: '',
     });
   const [advancedOpen, setAdvancedOpen] = useCachedState('oms-cod:advanced-filters-open', false);
 
@@ -110,6 +141,14 @@ export function OmsCodPage() {
     () => ({
       search: (appliedFilters.search ?? '').trim() || undefined,
       status: ((appliedFilters.status ?? '').trim() || undefined) as CodRecordStatus | undefined,
+      createdFrom: (appliedFilters.createdFrom ?? '').trim() || undefined,
+      createdTo: (appliedFilters.createdTo ?? '').trim() || undefined,
+      amountMin: (appliedFilters.amountMin ?? '').trim()
+        ? Number(appliedFilters.amountMin)
+        : undefined,
+      amountMax: (appliedFilters.amountMax ?? '').trim()
+        ? Number(appliedFilters.amountMax)
+        : undefined,
     }),
     [appliedFilters],
   );
@@ -132,7 +171,103 @@ export function OmsCodPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const bulkStatusMut = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results: Array<{ id: string; ok: boolean; error?: string }> = [];
+      for (const id of ids) {
+        try {
+          await CodApi.setStatus(id, bulkStatus);
+          results.push({ id, ok: true });
+        } catch (err) {
+          results.push({ id, ok: false, error: err instanceof Error ? err.message : 'Failed' });
+        }
+      }
+      return results;
+    },
+    onSuccess: (results) => {
+      const ok = results.filter((r) => r.ok).length;
+      const failed = results.length - ok;
+      const msg = isArabic
+        ? `تم تحديث ${ok}${failed ? `، فشل ${failed}` : ''}.`
+        : `Updated ${ok}${failed ? `, ${failed} failed` : ''}.`;
+      if (failed) toast.error(msg);
+      else toast.success(msg);
+      setSelectedIds(new Set());
+      void qc.invalidateQueries({ queryKey: ['oms-cod-records'] });
+    },
+  });
+
+  const handleCodStatusScan = async (raw: string) => {
+    const target = statusScan;
+    if (!target) return { ok: false, message: '' };
+    const label =
+      COD_RECORD_STATUS_OPTIONS.find((o) => o.value === target)?.label ?? target;
+    try {
+      const result = await CodApi.setStatusByScan(raw, target);
+      if (result.action === 'updated') {
+        void qc.invalidateQueries({ queryKey: ['oms-cod-records'] });
+        return {
+          ok: true,
+          message: isArabic
+            ? `${result.orderNumber} — تم التحويل إلى ${label}`
+            : `${result.orderNumber} — set to ${label}`,
+        };
+      }
+      // Already in target status: no write, soft success so scanning can continue.
+      return {
+        ok: true,
+        message: isArabic
+          ? `${result.orderNumber} — الحالة ${label} مسبقاً (بدون تغيير)`
+          : `${result.orderNumber} — already ${label} (no change)`,
+      };
+    } catch (e) {
+      return {
+        ok: false,
+        message: e instanceof Error ? e.message : isArabic ? 'فشل المسح.' : 'Scan failed.',
+      };
+    }
+  };
+
+  const pageIds = pagination.rows.map((row) => row.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   const columns: Column<CodRecord>[] = [
+    {
+      header: (
+        <input
+          type="checkbox"
+          aria-label={isArabic ? 'تحديد الكل' : 'Select all on page'}
+          checked={allPageSelected}
+          onChange={() => {
+            setSelectedIds((prev) => {
+              const next = new Set(prev);
+              if (allPageSelected) pageIds.forEach((id) => next.delete(id));
+              else pageIds.forEach((id) => next.add(id));
+              return next;
+            });
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+      accessor: (row) => (
+        <input
+          type="checkbox"
+          aria-label={row.omsOrder?.orderNumber ?? row.id}
+          checked={selectedIds.has(row.id)}
+          onChange={() => toggleRow(row.id)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ),
+    },
     {
       header: 'Order',
       accessor: (row) =>
@@ -224,7 +359,13 @@ export function OmsCodPage() {
         onAdvancedOpenChange={setAdvancedOpen}
         isArabic={isArabic}
         loading={pagination.isFetching}
-        activeCount={countNonEmptyFilters(appliedFilters, ['status'])}
+        activeCount={countNonEmptyFilters(appliedFilters, [
+          'status',
+          'createdFrom',
+          'createdTo',
+          'amountMin',
+          'amountMax',
+        ])}
         onApply={applyFilters}
         onReset={() => {
           resetFilters();
@@ -261,6 +402,15 @@ export function OmsCodPage() {
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              className="rounded-lg border border-border px-3 py-2 text-sm font-medium"
+              onClick={() =>
+                void CodApi.exportCsv(listParams).catch((err: Error) => toast.error(err.message))
+              }
+            >
+              {isArabic ? 'تصدير' : 'Export'}
+            </button>
           </div>
         }
       >
@@ -295,7 +445,99 @@ export function OmsCodPage() {
             ))}
           </select>
         </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {isArabic ? 'من تاريخ' : 'Created from'}
+          </label>
+          <input
+            type="date"
+            value={draftFilters.createdFrom ?? ''}
+            onChange={(e) => setDraft({ createdFrom: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {isArabic ? 'إلى تاريخ' : 'Created to'}
+          </label>
+          <input
+            type="date"
+            value={draftFilters.createdTo ?? ''}
+            onChange={(e) => setDraft({ createdTo: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {isArabic ? 'المبلغ من' : 'Amount from'}
+          </label>
+          <input
+            type="number"
+            min={0}
+            value={draftFilters.amountMin ?? ''}
+            onChange={(e) => setDraft({ amountMin: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
+            {isArabic ? 'المبلغ إلى' : 'Amount to'}
+          </label>
+          <input
+            type="number"
+            min={0}
+            value={draftFilters.amountMax ?? ''}
+            onChange={(e) => setDraft({ amountMax: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
       </AdvancedFilterSection>
+
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border-subtle bg-surface px-3 py-2">
+        {COD_RECORD_STATUS_OPTIONS.map((opt) => (
+          <Button
+            key={opt.value}
+            type="button"
+            variant={opt.value === 'returned' ? 'secondary' : 'primary'}
+            size="sm"
+            onClick={() => setStatusScan(opt.value)}
+            className={
+              opt.value === 'returned'
+                ? 'gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40'
+                : 'gap-1.5'
+            }
+          >
+            <i className="fa-solid fa-qrcode text-xs" aria-hidden="true" />
+            <span>{codStatusScanCopy(opt.value, isArabic).button}</span>
+          </Button>
+        ))}
+        <select
+          aria-label={isArabic ? 'حالة التحديد' : 'Bulk status'}
+          value={bulkStatus}
+          onChange={(e) => setBulkStatus(e.target.value as CodRecordStatus)}
+          className={FILTER_COMPACT_SELECT_CLASS}
+        >
+          {COD_RECORD_STATUS_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={selectedIds.size === 0 || bulkStatusMut.isPending}
+          onClick={() => bulkStatusMut.mutate([...selectedIds])}
+        >
+          {isArabic ? `تغيير ${selectedIds.size}` : `Set ${selectedIds.size} selected`}
+        </Button>
+        <span className="text-xs text-text-muted">
+          {isArabic
+            ? 'اختر الحالة ثم امسح QR البوليصة. إذا كانت الحالة نفسها فلن يحدث تغيير.'
+            : 'Choose a status, then scan the waybill QR. If already that status, nothing changes.'}
+        </span>
+      </div>
 
       <DataTable
         columns={columns}
@@ -305,6 +547,17 @@ export function OmsCodPage() {
         loading={pagination.isInitialLoading}
         empty="No COD records match the filters."
         onRowClick={(row) => navigate(`/oms/cod/${row.id}`)}
+      />
+
+      <OmsOrderScanSearchModal
+        open={statusScan != null}
+        keepOpen
+        isArabic={isArabic}
+        title={codStatusScanCopy(statusScan, isArabic).title}
+        hint={codStatusScanCopy(statusScan, isArabic).hint}
+        submitLabel={isArabic ? 'تسجيل' : 'Record'}
+        onClose={() => setStatusScan(null)}
+        onScan={handleCodStatusScan}
       />
     </AdminListPageShell>
   );

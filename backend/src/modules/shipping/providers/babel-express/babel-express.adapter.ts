@@ -79,7 +79,8 @@ export class BabelExpressAdapter implements ShippingProvider {
         weightKg: input.weightKg,
         parts: input.parts,
         deliveryType: 'address',
-        pickupType: 'hub',
+        pickupType: resolveBabelPickupType(input.pickupType),
+        pickup: input.pickup,
       });
       const probeRaw = await this.http.post<{
         status?: string;
@@ -100,7 +101,8 @@ export class BabelExpressAdapter implements ShippingProvider {
       weightKg: input.weightKg,
       parts: input.parts,
       deliveryType,
-      pickupType: 'hub',
+      pickupType: resolveBabelPickupType(input.pickupType),
+      pickup: input.pickup,
     });
     const preflight = await this.http.post<{
       status?: string;
@@ -155,7 +157,8 @@ export class BabelExpressAdapter implements ShippingProvider {
         ...input,
         neighbourhoodId,
         deliveryType,
-        pickupType: 'hub',
+        pickupType: resolveBabelPickupType(input.pickupType),
+        pickup: input.pickup,
       });
       return this.http.post<{
         status?: string;
@@ -207,32 +210,41 @@ export class BabelExpressAdapter implements ShippingProvider {
   }
 
   /**
-   * Quote Babel Express option for the user-selected deliveryType.
-   * Delivery type (Home delivery vs Branch delivery) is chosen by the user in the form.
-   * Does NOT produce dual Address and Hub cards.
+   * Quote Babel Express for address and hub so Mixed delivery filters can recommend
+   * across both modes. Unshippable options are omitted.
    */
   async getServiceOptions(
     credentials: ShippingCredentials,
     input: ShippingQuoteInput,
   ): Promise<ShippingQuoteResult[]> {
-    try {
-      const quote = await this.getQuote(credentials, input);
-      if (!quote || !quote.shippable) return [];
-
-      const effectiveType = quote.effectiveDeliveryType ?? input.deliveryType ?? 'address';
-      return [
-        {
+    const types: Array<'address' | 'hub'> = ['address', 'hub'];
+    const results: ShippingQuoteResult[] = [];
+    for (const deliveryType of types) {
+      try {
+        const quote = await this.getQuote(credentials, { ...input, deliveryType });
+        if (!quote || quote.shippable === false) continue;
+        const effectiveType = quote.effectiveDeliveryType ?? deliveryType;
+        // Avoid duplicate when address falls back to hub
+        if (results.some((r) => (r.effectiveDeliveryType ?? r.serviceId) === effectiveType || r.serviceId === `${BABEL_EXPRESS_CODE}:${effectiveType}`)) {
+          continue;
+        }
+        results.push({
           ...quote,
+          effectiveDeliveryType: effectiveType,
           serviceId: `${BABEL_EXPRESS_CODE}:${effectiveType}`,
-          serviceName: 'بابل إكسبريس (Babel Express)',
+          serviceName:
+            effectiveType === 'hub'
+              ? 'بابل إكسبريس — فرع (Babel Hub)'
+              : 'بابل إكسبريس — منزلي (Babel Home)',
           providerName: 'Babel Express',
           estimatedDeliveryMin: 2,
           estimatedDeliveryMax: 3,
-        },
-      ];
-    } catch {
-      return [];
+        });
+      } catch {
+        /* option unavailable */
+      }
     }
+    return results;
   }
 
   async lookupNeighbourhoodId(

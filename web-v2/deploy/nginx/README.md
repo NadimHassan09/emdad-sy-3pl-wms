@@ -1,11 +1,20 @@
 # Staging UI routing (applied on server)
 
-## Domains → new frontend (web-v2)
+Cookie switch (`emdad-ui-switch.conf` → `/etc/nginx/conf.d/02-emdad-ui-switch.conf`):
 
-| Host | Document root |
-|------|----------------|
-| `staging-admin.emdadsy.com` | `/var/www/emdad-sy-3pl-wms-staging/web-v2/apps/admin/dist` |
-| `staging-client.emdadsy.com` | `/var/www/emdad-sy-3pl-wms-staging/web-v2/apps/client/dist` |
+| Cookie | Admin root | Client root |
+|--------|------------|-------------|
+| *(none / default)* | `frontend/dist` (classic) | `client-frontend/dist` (classic) |
+| `emdad_ui=v2` | `web-v2/apps/admin/dist` | `web-v2/apps/client/dist` |
+
+## Domains
+
+| Host | Default UI |
+|------|------------|
+| `staging-admin.emdadsy.com` | Classic admin (`frontend/dist`) |
+| `staging-client.emdadsy.com` | Classic client (`client-frontend/dist`) |
+
+To open web-v2 on the same domain, set cookie `emdad_ui=v2` (e.g. DevTools → Application → Cookies).
 
 API/realtime still proxied to `emdad_wms_backend_staging` (`127.0.0.1:3001`).
 
@@ -16,13 +25,17 @@ API/realtime still proxied to `emdad_wms_backend_staging` (`127.0.0.1:3001`).
 | `https://<server-ip>/` (and `http://…` → HTTPS) | `/var/www/emdad-sy-3pl-wms-staging/frontend/dist` |
 | `https://<server-ip>:8443/` | `/var/www/emdad-sy-3pl-wms-staging/client-frontend/dist` |
 
-Classic apps are **not** removed; they stay reachable by IP only.
-
 ## Build before reload
 
 ```bash
+# Classic
+cd /var/www/emdad-sy-3pl-wms-staging/frontend && npm run build
+cd /var/www/emdad-sy-3pl-wms-staging/client-frontend && npm run build
+
+# web-v2 (optional, for cookie=v2)
 cd /var/www/emdad-sy-3pl-wms-staging/web-v2
 npm run build:admin && npm run build:client
+
 nginx -t && systemctl reload nginx
 ```
 

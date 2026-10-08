@@ -22,6 +22,8 @@ export const QK = {
   inboundOrders: ['inbound-orders'] as const,
   outboundOrders: ['outbound-orders'] as const,
   omsOrders: ['oms-orders'] as const,
+  omsBatches: ['oms-batches'] as const,
+  omsBatch: (id: string) => ['oms-batches', id] as const,
   omsDashboard: ['oms-dashboard'] as const,
   omsOrderSummary: (params: Record<string, unknown>) =>
     ['oms-dashboard', 'order-summary', params] as const,
@@ -128,6 +130,7 @@ export const QK = {
   shipping: {
     all: ['shipping'] as const,
     providers: ['shipping', 'providers'] as const,
+    originAddress: ['shipping', 'origin-address'] as const,
     boundary: (governorate: string, city: string, neighborhood: string) =>
       ['shipping', 'geo', 'boundary', governorate, city, neighborhood] as const,
     rates: (params: Record<string, unknown>) => ['shipping', 'rates', params] as const,

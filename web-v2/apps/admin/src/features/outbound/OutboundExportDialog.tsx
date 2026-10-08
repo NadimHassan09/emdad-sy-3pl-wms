@@ -54,15 +54,38 @@ export function OutboundExportDialog({
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm">{t('CSV column headers', 'عناوين أعمدة CSV')}</span>
           <ToggleGroup type="single" variant="outline" value={lang} onValueChange={(v) => v && setLang(v as 'ar' | 'en')} disabled={exporting}>
-            <ToggleGroupItem value="ar">{t('Arabic', 'عربي')}</ToggleGroupItem>
-            <ToggleGroupItem value="en">{t('English', 'إنجليزي')}</ToggleGroupItem>
+            <ToggleGroupItem
+              value="ar"
+              className="data-[state=on]:border-[#084c33] data-[state=on]:bg-[#084c33] data-[state=on]:text-white data-[state=on]:hover:bg-[#063d29] data-[state=on]:hover:text-white"
+            >
+              {t('Arabic', 'عربي')}
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="en"
+              className="data-[state=on]:border-[#084c33] data-[state=on]:bg-[#084c33] data-[state=on]:text-white data-[state=on]:hover:bg-[#063d29] data-[state=on]:hover:text-white"
+            >
+              {t('English', 'إنجليزي')}
+            </ToggleGroupItem>
           </ToggleGroup>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={exporting || all} onClick={() => setSelected(new Set(columns.map((c) => c.id)))}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={exporting || all}
+            className="bg-[#084c33] text-white hover:bg-[#063d29] hover:text-white disabled:bg-muted disabled:text-muted-foreground"
+            onClick={() => setSelected(new Set(columns.map((c) => c.id)))}
+          >
             {t('Select all', 'تحديد الكل')}
           </Button>
-          <Button type="button" variant="ghost" size="sm" disabled={exporting || selected.size === 0} onClick={() => setSelected(new Set())}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={exporting || selected.size === 0}
+            className="border border-tone-danger-border bg-tone-danger-bg text-tone-danger-fg hover:bg-tone-danger-bg hover:text-tone-danger-fg"
+            onClick={() => setSelected(new Set())}
+          >
             {t('Clear all', 'إلغاء الكل')}
           </Button>
           <span className="ms-auto text-sm text-muted-foreground tabular">{t(`Selected: ${selected.size}`, `المحدد: ${selected.size}`)}</span>
@@ -83,7 +106,13 @@ export function OutboundExportDialog({
           </p>
         ) : null}
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={exporting} onClick={onClose}>
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={exporting}
+            onClick={onClose}
+            className="border border-tone-danger-border bg-tone-danger-bg text-tone-danger-fg hover:bg-tone-danger-bg hover:text-tone-danger-fg"
+          >
             {t('Cancel', 'إلغاء')}
           </Button>
           <Button

@@ -195,7 +195,7 @@ export function OrderShippingFields({
     weightKg: weightN,
     volumeCbm: volumeN,
     deliveryType: value.shippingDeliveryType,
-    pickupType: value.shippingPickupType || 'hub',
+    pickupType: value.shippingPickupType || 'address',
     governorate: destKey.governorate,
     city: destKey.city,
     neighborhood: destKey.neighborhood,
@@ -451,21 +451,16 @@ export function OrderShippingFields({
             />
             <SelectField
               label="Payer"
-              value={value.shippingPayer}
-              disabled={readOnly}
-              onChange={(e) =>
+              value="sender"
+              disabled
+              onChange={() =>
                 onChange(
                   patch(value, {
-                    shippingPayer: e.target.value as OrderShippingFieldsValue['shippingPayer'],
+                    shippingPayer: 'sender',
                   }),
                 )
               }
-              options={[
-                { value: '', label: '—' },
-                { value: 'sender', label: 'Sender' },
-                { value: 'receiver', label: 'Receiver' },
-                { value: 'reseller', label: 'Reseller' },
-              ]}
+              options={[{ value: 'sender', label: 'Sender (locked)' }]}
             />
           </div>
 

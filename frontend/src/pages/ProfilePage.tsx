@@ -1,15 +1,18 @@
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useState, type FormEvent, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { AppPageHeader, Card } from '@ds';
+import { AppPageHeader, Card, TextField } from '@ds';
 import { useAuth } from '../auth/AuthContext';
 import {
   getRememberedAccount,
   isPersistSessionEnabled,
+  setAccessToken,
   setRememberedAccount,
 } from '../auth/authStorage';
 import { AuthApi } from '../api/auth';
+import { Button } from '../components/Button';
 import { ImageUploadField } from '../components/ImageUploadField';
+import { useToast } from '../components/ToastProvider';
 import { adminMediaSrc } from '../lib/admin-media';
 import { canAccessPath } from '../lib/rbac';
 import { useWmsTranslation } from '../lib/ui-i18n';
@@ -35,6 +38,7 @@ function authGroupLabel(group: string | undefined, isArabic: boolean): string {
 export function ProfilePage(): ReactElement {
   const { user, refresh } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const { isArabic, t: tr } = useWmsTranslation();
   const label = (en: string, ar: string) => tr([en, ar]);
 
@@ -47,7 +51,22 @@ export function ProfilePage(): ReactElement {
   const [googleBusy, setGoogleBusy] = useState(false);
   const [googleMessage, setGoogleMessage] = useState<string | null>(null);
   const [googleError, setGoogleError] = useState<string | null>(null);
+
+  const [fullName, setFullName] = useState(user?.fullName?.trim() || '');
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
   const avatarSrc = adminMediaSrc(user?.avatarUrl, avatarVersion);
+
+  useEffect(() => {
+    setFullName(user?.fullName?.trim() || '');
+  }, [user?.fullName]);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,12 +139,92 @@ export function ProfilePage(): ReactElement {
     }
   }
 
+  async function submitProfile(e: FormEvent): Promise<void> {
+    e.preventDefault();
+    const nextName = fullName.trim();
+    if (!nextName) {
+      setProfileError(label('Full name is required.', 'الاسم الكامل مطلوب.'));
+      return;
+    }
+    if (nextName === (user?.fullName?.trim() || '')) {
+      setProfileError(null);
+      return;
+    }
+    setProfileBusy(true);
+    setProfileError(null);
+    try {
+      const updated = await AuthApi.updateProfile({ fullName: nextName });
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('auth.fullName', updated.fullName?.trim() || nextName);
+      }
+      if (isPersistSessionEnabled()) {
+        const remembered = getRememberedAccount();
+        if (remembered) {
+          setRememberedAccount({
+            ...remembered,
+            displayName: updated.fullName?.trim() || nextName,
+          });
+        }
+      }
+      await refresh();
+      toast.success(label('Profile updated.', 'تم تحديث الملف الشخصي.'));
+    } catch (err) {
+      setProfileError(
+        err instanceof Error
+          ? err.message
+          : label('Could not update profile.', 'تعذر تحديث الملف الشخصي.'),
+      );
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
+  async function submitPassword(e: FormEvent): Promise<void> {
+    e.preventDefault();
+    setPasswordError(null);
+    if (newPassword.length < 8) {
+      setPasswordError(
+        label(
+          'New password must be at least 8 characters.',
+          'كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل.',
+        ),
+      );
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError(
+        label('New passwords do not match.', 'كلمتا المرور الجديدتان غير متطابقتين.'),
+      );
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      const persist = isPersistSessionEnabled();
+      const res = await AuthApi.changePassword({
+        currentPassword,
+        newPassword,
+        rememberMe: persist,
+      });
+      setAccessToken(res.access_token, persist);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      await refresh();
+      toast.success(label('Password changed successfully.', 'تم تغيير كلمة المرور بنجاح.'));
+    } catch (err) {
+      setPasswordError(
+        err instanceof Error
+          ? err.message
+          : label('Could not change password.', 'تعذر تغيير كلمة المرور.'),
+      );
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-5 animate-enter">
-      <AppPageHeader
-        icon="fa-user"
-        title={label('Profile', 'الملف الشخصي')}
-      />
+      <AppPageHeader icon="fa-user" title={label('Profile', 'الملف الشخصي')} />
 
       <Card padding="none" className="overflow-hidden">
         <div className="h-24 bg-dark-950 relative">
@@ -305,6 +404,79 @@ export function ProfilePage(): ReactElement {
         </div>
       </Card>
 
+      <Card padding="lg">
+        <h2 className="text-sm font-semibold text-text-strong">
+          {label('Personal details', 'البيانات الشخصية')}
+        </h2>
+        <p className="mt-1 text-xs text-text-muted">
+          {label(
+            'Update your display name. Email and role are managed by an administrator.',
+            'حدّث اسم العرض. البريد الإلكتروني والدور يُداران بواسطة المسؤول.',
+          )}
+        </p>
+        <form onSubmit={(e) => void submitProfile(e)} className="mt-4 space-y-3">
+          <TextField
+            label={label('Full name', 'الاسم الكامل')}
+            name="profile-fullName"
+            required
+            autoComplete="name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+          />
+          {profileError ? <p className="text-xs text-status-danger-fg">{profileError}</p> : null}
+          <Button type="submit" variant="brand" loading={profileBusy} disabled={profileBusy}>
+            {label('Save changes', 'حفظ التغييرات')}
+          </Button>
+        </form>
+      </Card>
+
+      <Card padding="lg">
+        <h2 className="text-sm font-semibold text-text-strong">
+          {label('Change password', 'تغيير كلمة المرور')}
+        </h2>
+        <p className="mt-1 text-xs text-text-muted">
+          {label(
+            'Enter your current password, then choose a new one (at least 8 characters).',
+            'أدخل كلمة المرور الحالية، ثم اختر كلمة مرور جديدة (8 أحرف على الأقل).',
+          )}
+        </p>
+        <form onSubmit={(e) => void submitPassword(e)} className="mt-4 space-y-3">
+          <TextField
+            label={label('Current password', 'كلمة المرور الحالية')}
+            type="password"
+            name="current-password"
+            required
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+          <TextField
+            label={label('New password', 'كلمة المرور الجديدة')}
+            type="password"
+            name="new-password"
+            required
+            minLength={8}
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+          <TextField
+            label={label('Confirm new password', 'تأكيد كلمة المرور الجديدة')}
+            type="password"
+            name="confirm-password"
+            required
+            minLength={8}
+            autoComplete="new-password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+          {passwordError ? <p className="text-xs text-status-danger-fg">{passwordError}</p> : null}
+          <Button type="submit" variant="brand" loading={passwordBusy} disabled={passwordBusy}>
+            {label('Update password', 'تحديث كلمة المرور')}
+          </Button>
+        </form>
+      </Card>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Card
           padding="lg"
@@ -330,10 +502,7 @@ export function ProfilePage(): ReactElement {
             {label('Notifications', 'الإشعارات')}
           </h3>
           <p className="mt-1 text-xs text-text-muted">
-            {label(
-              'View and manage your notifications.',
-              'عرض وإدارة إشعاراتك.',
-            )}
+            {label('View and manage your notifications.', 'عرض وإدارة إشعاراتك.')}
           </p>
         </Card>
 

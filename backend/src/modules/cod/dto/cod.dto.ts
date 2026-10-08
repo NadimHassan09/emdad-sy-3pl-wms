@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsDateString,
   IsEnum,
   IsNumber,
   IsOptional,
@@ -34,6 +35,28 @@ export class ListCodRecordsQueryDto extends PaginationDto {
   @IsString()
   @MaxLength(200)
   search?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsDateString()
+  createdFrom?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsDateString()
+  createdTo?: string;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  amountMin?: number;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  amountMax?: number;
 }
 
 export class CreateCodAdjustmentDto {
@@ -47,6 +70,15 @@ export class CreateCodAdjustmentDto {
 }
 
 export class UpdateCodStatusDto {
+  @IsEnum(CodRecordStatus)
+  status!: CodRecordStatus;
+}
+
+export class SetCodStatusByScanDto {
+  @IsString()
+  @MaxLength(500)
+  code!: string;
+
   @IsEnum(CodRecordStatus)
   status!: CodRecordStatus;
 }

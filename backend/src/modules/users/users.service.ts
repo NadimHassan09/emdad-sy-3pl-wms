@@ -15,7 +15,13 @@ import {
 } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
-import { assertInternalAdmin } from '../../common/auth/internal-rbac';
+import {
+  assertCanCreateTargetRole,
+  assertCanEditExistingUser,
+  assertCanManageTargetRole,
+  assertCanSetOtherUserPassword,
+  assertInternalAdmin,
+} from '../../common/auth/internal-rbac';
 import { CompanyAccessService } from '../../common/company-access/company-access.service';
 import { PasswordService } from '../../common/crypto/password.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -102,6 +108,7 @@ export class UsersService {
     actor: AuthPrincipal,
     query: ListUsersQueryDto,
   ): Promise<{ items: UserListRow[]; total: number; limit: number; offset: number }> {
+    assertInternalAdmin(actor);
     const where = this.buildListWhere(actor, query);
 
     const [rows, total] = await this.prisma.$transaction([
@@ -172,6 +179,7 @@ export class UsersService {
   }
 
   async findById(id: string, actor: AuthPrincipal): Promise<UserListRow> {
+    assertInternalAdmin(actor);
     const u = await this.prisma.user.findUnique({
       where: { id },
       select: USER_LIST_SELECT,
@@ -184,12 +192,12 @@ export class UsersService {
   }
 
   async getWorkerProfile(userId: string, actor: AuthPrincipal): Promise<UserWorkerProfileSummary | null> {
-    assertInternalAdmin(actor);
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, companyId: true, role: true, worker: { select: WORKER_PROFILE_SELECT } },
     });
     if (!user) throw new NotFoundException('User not found.');
+    assertCanManageTargetRole(actor, user.role);
     if (user.companyId) {
       this.companyAccess.assertCompanyAccess(actor, user.companyId);
     }
@@ -202,7 +210,6 @@ export class UsersService {
     dto: UpsertUserWorkerProfileDto,
     actor: AuthPrincipal,
   ): Promise<UserWorkerProfileSummary> {
-    assertInternalAdmin(actor);
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -215,6 +222,7 @@ export class UsersService {
       },
     });
     if (!user) throw new NotFoundException('User not found.');
+    assertCanManageTargetRole(actor, user.role);
     if (user.companyId) {
       this.companyAccess.assertCompanyAccess(actor, user.companyId);
     }
@@ -312,6 +320,11 @@ export class UsersService {
 
     if (dto.kind === 'system') {
       const role = mapSystemRoleToUserRole(dto.systemRole);
+      assertCanCreateTargetRole(
+        actor,
+        role,
+        'You cannot create an account with an equal or higher role.',
+      );
       const tenantCompanyId =
         role === UserRole.wh_operator
           ? await this.resolveWorkerProvisionCompanyId(actor)
@@ -357,6 +370,11 @@ export class UsersService {
       });
     }
 
+    assertCanCreateTargetRole(
+      actor,
+      dto.clientRole,
+      'You cannot create an account with an equal or higher role.',
+    );
     const companyId = this.companyAccess.resolveWriteCompanyId(actor, dto.companyId);
 
     const u = await this.prisma.user.create({
@@ -377,7 +395,6 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto, actor: AuthPrincipal) {
-    assertInternalAdmin(actor);
     const keys = Object.keys(dto).filter((k) => dto[k as keyof UpdateUserDto] !== undefined);
     if (keys.length === 0) {
       throw new BadRequestException('No changes provided.');
@@ -395,8 +412,17 @@ export class UsersService {
       },
     });
     if (!existing) throw new NotFoundException('User not found.');
+    assertCanManageTargetRole(actor, existing.role);
     if (existing.companyId) {
       this.companyAccess.assertCompanyAccess(actor, existing.companyId);
+    }
+
+    const isStatusOnly = keys.length === 1 && keys[0] === 'status';
+    if (!isStatusOnly) {
+      assertCanEditExistingUser(actor);
+    }
+    if (dto.password !== undefined) {
+      assertCanSetOtherUserPassword(actor);
     }
 
     const isSystem = existing.companyId === null;
@@ -414,6 +440,11 @@ export class UsersService {
       if (!isSystem && !CLIENT_ROLES.includes(dto.role)) {
         throw new ConflictException('Invalid role for a client user.');
       }
+      assertCanCreateTargetRole(
+        actor,
+        dto.role,
+        'You cannot assign an equal or higher role.',
+      );
     }
 
     if (dto.companyId !== undefined) {
@@ -483,15 +514,15 @@ export class UsersService {
   }
 
   async remove(id: string, actor: AuthPrincipal) {
-    assertInternalAdmin(actor);
     if (actor.id === id) {
       throw new ForbiddenException('You cannot delete your own user account.');
     }
     const u = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, companyId: true },
+      select: { id: true, companyId: true, role: true },
     });
     if (!u) throw new NotFoundException('User not found.');
+    assertCanManageTargetRole(actor, u.role);
     if (u.companyId) {
       this.companyAccess.assertCompanyAccess(actor, u.companyId);
     }

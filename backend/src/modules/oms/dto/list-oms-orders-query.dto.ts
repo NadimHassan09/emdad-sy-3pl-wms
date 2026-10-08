@@ -4,6 +4,7 @@ import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator'
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 import { EmptyToUndefined } from '../../../common/transformers/query-transform';
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
+import { OMS_OPERATIONAL_STAGE_VALUES } from '../oms-operational-stage';
 
 const ORDER_STATUSES = Object.values(OmsOrderStatus);
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -103,6 +104,15 @@ export class ListOmsOrdersQueryDto extends PaginationDto {
   @IsOptional()
   @IsIn(ORDER_STATUSES)
   status?: OmsOrderStatus;
+
+  /**
+   * Warehouse stage inside commercial Processing.
+   * Ignored by callers that also send a non-processing status.
+   */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(OMS_OPERATIONAL_STAGE_VALUES)
+  operationalStage?: (typeof OMS_OPERATIONAL_STAGE_VALUES)[number];
 
   @EmptyToUndefined()
   @IsOptional()

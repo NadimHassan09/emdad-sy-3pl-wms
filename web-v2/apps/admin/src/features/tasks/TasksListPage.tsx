@@ -1,37 +1,32 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useSearchParams } from 'react-router'
+import { Loader2, SlidersHorizontal } from 'lucide-react'
 import { formatDateTime, useUiPreferences } from '@emdad/core'
 import {
   DataTable,
-  FilterBar,
   PageHeader,
   ResetFiltersButton,
   SearchInput,
   useNavigate,
 } from '@emdad/ui'
+import { Badge } from '@emdad/ui/ui/badge'
 import { Button } from '@emdad/ui/ui/button'
 import { Label } from '@emdad/ui/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@emdad/ui/ui/select'
 import { TasksApi, type WarehouseTaskListItem } from '@/api/tasks'
 import { useAuth } from '@/auth/AuthContext'
 import { QK } from '@/constants/query-keys'
+import { useCachedState } from '@/hooks/useCachedState'
 import { CHUNK_SIZE_TASKS, useChunkedServerPagination } from '@/hooks/useChunkedServerPagination'
 import { useFilters } from '@/hooks/useFilters'
 import { useTaskOrderNumbers } from '@/hooks/useTaskOrderNumbers'
 import { resolveTaskListSearch } from '@/lib/task-list-search'
-import {
-  formatTaskDuration,
-  isTaskTimingCompleteStatus,
-  taskListDurationMs,
-  taskListEndedAtIso,
-  taskListStartedAtIso,
-} from '@/lib/task-timing'
+import { taskListEndedAtIso, taskListStartedAtIso } from '@/lib/task-timing'
 import { taskAssignedWorkerLabel } from '@/lib/task-worker-label'
 import { isOperatorRole } from '@/lib/rbac'
-import { prettyWorkflowTaskType } from '@/lib/workflow-next-task'
-import { TaskStatusBadge, taskTypeLabel } from './task-ui'
+import { TaskStatusBadge, TaskTypeBadge, taskStatusLabel, taskTypeLabel } from './task-ui'
 
 type TaskListFilters = { taskType: string; status: string; search: string }
 
@@ -50,13 +45,20 @@ const TASK_TYPES = [
 
 const STATUSES = ['', 'pending', 'assigned', 'in_progress', 'completed', 'blocked', 'failed', 'retry_pending', 'cancelled']
 
+function countAdvanced(f: TaskListFilters): number {
+  let n = 0
+  if (f.taskType.trim()) n += 1
+  if (f.status.trim()) n += 1
+  return n
+}
+
 export function TasksListPage() {
   const { isArabic, locale } = useUiPreferences()
   const t = (en: string, ar: string) => (isArabic ? ar : en)
-  const tt = (m: [string, string]) => (isArabic ? m[1] : m[0])
   const navigate = useNavigate()
   const { user } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [advancedOpen, setAdvancedOpen] = useCachedState('warehouse-tasks:advanced-open', false)
 
   const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters, applyPatch } =
     useFilters<TaskListFilters>({ taskType: '', status: '', search: '' })
@@ -115,23 +117,10 @@ export function TasksListPage() {
   }, [searchResolve.data, pagination.rows, appliedFilters.taskType, appliedFilters.status])
 
   const orderNumbers = useTaskOrderNumbers(displayRows)
-  const [now, setNow] = useState(() => Date.now())
-  const hasRunning = displayRows.some((r) => taskListStartedAtIso(r) && !isTaskTimingCompleteStatus(r.status))
-  useEffect(() => {
-    if (!hasRunning) return
-    const id = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(id)
-  }, [hasRunning])
+  const advancedActive = countAdvanced(appliedFilters)
 
   const columns = useMemo<ColumnDef<WarehouseTaskListItem>[]>(
     () => [
-      {
-        id: 'type',
-        header: t('Task type', 'نوع المهمة'),
-        cell: ({ row }) => (
-          <span className="text-sm font-medium">{prettyWorkflowTaskType(row.original.taskType, tt)}</span>
-        ),
-      },
       {
         id: 'order',
         header: t('Order #', 'رقم الطلب'),
@@ -144,16 +133,25 @@ export function TasksListPage() {
             </div>
           )
         },
+        meta: { priority: 1, className: 'min-w-36' },
+      },
+      {
+        id: 'type',
+        header: t('Task type', 'نوع المهمة'),
+        cell: ({ row }) => <TaskTypeBadge taskType={row.original.taskType} isArabic={isArabic} />,
+        meta: { priority: 1, className: 'min-w-40 whitespace-nowrap' },
       },
       {
         id: 'status',
         header: t('Status', 'الحالة'),
         cell: ({ row }) => <TaskStatusBadge status={row.original.status} isArabic={isArabic} />,
+        meta: { priority: 1, className: 'min-w-32 whitespace-nowrap' },
       },
       {
         id: 'worker',
         header: t('Assigned worker', 'العامل المكلف'),
         cell: ({ row }) => <span className="text-sm">{taskAssignedWorkerLabel(row.original.assignments)}</span>,
+        meta: { priority: 2, className: 'min-w-36' },
       },
       {
         id: 'started',
@@ -163,6 +161,7 @@ export function TasksListPage() {
             {formatDateTime(taskListStartedAtIso(row.original), locale) || '—'}
           </span>
         ),
+        meta: { priority: 3, className: 'min-w-36' },
       },
       {
         id: 'ended',
@@ -172,17 +171,10 @@ export function TasksListPage() {
             {formatDateTime(taskListEndedAtIso(row.original), locale) || '—'}
           </span>
         ),
-      },
-      {
-        id: 'duration',
-        header: t('Duration', 'المدة'),
-        cell: ({ row }) => {
-          const ms = taskListDurationMs(row.original, now)
-          return <span className="font-mono text-sm tabular-nums">{ms != null ? formatTaskDuration(ms) : '—'}</span>
-        },
+        meta: { priority: 3, className: 'min-w-36' },
       },
     ],
-    [isArabic, locale, now, orderNumbers, t, tt],
+    [isArabic, locale, orderNumbers, t],
   )
 
   const apply = () => {
@@ -193,52 +185,99 @@ export function TasksListPage() {
 
   const reset = () => {
     resetFilters()
+    setAdvancedOpen(false)
     setSearchParams({}, { replace: true })
   }
+
+  const field = (label: string, node: React.ReactNode, id?: string) => (
+    <div className="min-w-0 space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      {node}
+    </div>
+  )
 
   return (
     <div className="space-y-4">
       <PageHeader title={t('Warehouse tasks', 'مهام المستودع')} />
-      <FilterBar>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>{t('Search', 'بحث')}</Label>
-            <SearchInput
-              value={draftFilters.search}
-              onChange={(v) => setDraft({ search: v })}
-              placeholder={t('Order number or task / order id', 'رقم الطلب أو معرف المهمة / الطلب')}
-            />
+
+      <section aria-label={t('Filters', 'التصفية')} className="space-y-3 rounded-xl border bg-card p-3">
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            apply()
+          }}
+        >
+          <SearchInput
+            value={draftFilters.search}
+            onChange={(v) => setDraft({ search: v })}
+            placeholder={t('Order number or task / order id', 'رقم الطلب أو معرف المهمة / الطلب')}
+            clearLabel={t('Clear search', 'مسح البحث')}
+          />
+          <Button
+            type="button"
+            variant={advancedOpen ? 'secondary' : 'outline'}
+            aria-expanded={advancedOpen}
+            onClick={() => setAdvancedOpen(!advancedOpen)}
+          >
+            <SlidersHorizontal aria-hidden />
+            {t('Advanced filters', 'تصفية متقدمة')}
+            {advancedActive > 0 ? <Badge className="ms-1">{advancedActive}</Badge> : null}
+          </Button>
+          <div className="ms-auto flex items-center gap-2">
+            <ResetFiltersButton label={t('Reset', 'إعادة تعيين')} onClick={reset} />
+            <Button type="submit" disabled={pagination.isFetching || searchPending}>
+              {pagination.isFetching || searchPending ? <Loader2 className="animate-spin" aria-hidden /> : null}
+              {t('Apply', 'تطبيق')}
+            </Button>
           </div>
-          <div className="space-y-1.5">
-            <Label>{t('Task type', 'نوع المهمة')}</Label>
-            <Select value={draftFilters.taskType || '__all'} onValueChange={(v) => setDraft({ taskType: v === '__all' ? '' : v })}>
-              <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">{t('All task types', 'كل أنواع المهام')}</SelectItem>
-                {TASK_TYPES.filter(Boolean).map((k) => (
-                  <SelectItem key={k} value={k}>{taskTypeLabel(k, isArabic)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        </form>
+
+        {advancedOpen ? (
+          <div className="grid gap-3 border-t pt-3 sm:grid-cols-2 lg:grid-cols-3">
+            {field(
+              t('Task type', 'نوع المهمة'),
+              <Select
+                value={draftFilters.taskType || '__all'}
+                onValueChange={(v) => setDraft({ taskType: v === '__all' ? '' : v })}
+              >
+                <SelectTrigger id="tasks-f-type" className="w-full" aria-label={t('Task type', 'نوع المهمة')}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">{t('All task types', 'كل أنواع المهام')}</SelectItem>
+                  {TASK_TYPES.filter(Boolean).map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {taskTypeLabel(k, isArabic)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>,
+              'tasks-f-type',
+            )}
+            {field(
+              t('Status', 'الحالة'),
+              <Select
+                value={draftFilters.status || '__all'}
+                onValueChange={(v) => setDraft({ status: v === '__all' ? '' : v })}
+              >
+                <SelectTrigger id="tasks-f-status" className="w-full" aria-label={t('Status', 'الحالة')}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">{t('All statuses', 'كل الحالات')}</SelectItem>
+                  {STATUSES.filter(Boolean).map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {taskStatusLabel(s, isArabic)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>,
+              'tasks-f-status',
+            )}
           </div>
-          <div className="space-y-1.5">
-            <Label>{t('Status', 'الحالة')}</Label>
-            <Select value={draftFilters.status || '__all'} onValueChange={(v) => setDraft({ status: v === '__all' ? '' : v })}>
-              <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">{t('All statuses', 'كل الحالات')}</SelectItem>
-                {STATUSES.filter(Boolean).map((s) => (
-                  <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button type="button" size="sm" onClick={apply}>{t('Apply filters', 'تطبيق الفلاتر')}</Button>
-          <ResetFiltersButton label={t('Reset', 'إعادة تعيين')} onClick={reset} />
-        </div>
-      </FilterBar>
+        ) : null}
+      </section>
 
       <DataTable<WarehouseTaskListItem>
         columns={columns}

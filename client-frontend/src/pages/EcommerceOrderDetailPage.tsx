@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Card, Skeleton, StatusBadge } from '@ds';
 
 import { ClientOrderTrackingPanel } from '../components/ClientOrderTrackingPanel';
+import { ClientShipmentMovementPanel } from '../components/ClientShipmentMovementPanel';
 import {
   clientOmsCommercialStatusBadgeKey,
   clientOmsCommercialStatusLabel,
@@ -272,10 +273,6 @@ export function EcommerceOrderDetailPage(): ReactElement {
                     />
                     {data.city ? <DetailRow label={t('City')} value={data.city} /> : null}
                     {data.district ? <DetailRow label={t('District')} value={data.district} /> : null}
-                    {data.carrier ? <DetailRow label={t('Carrier')} value={data.carrier} /> : null}
-                    {data.trackingNumber ? (
-                      <DetailRow label={t('Tracking')} value={data.trackingNumber} />
-                    ) : null}
                   </dl>
                 </Card.Body>
               </Card>
@@ -388,6 +385,7 @@ export function EcommerceOrderDetailPage(): ReactElement {
           </div>
 
           <ClientOrderTrackingPanel order={data} />
+          <ClientShipmentMovementPanel order={data} />
         </>
       ) : null}
     </div>

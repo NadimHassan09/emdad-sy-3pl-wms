@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import {
   LedgerRefType,
   MovementType,
@@ -14,6 +14,7 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { StockHelpers } from '../inventory/stock.helpers';
 import { LedgerIdempotencyService } from '../inventory/ledger-idempotency.service';
 import { CodRecordsService } from '../cod/cod-records.service';
+import { ExpectedReturnHoldService } from '../inventory/expected-return-hold.service';
 
 @Injectable()
 export class ShippingAutoReturnService {
@@ -25,6 +26,7 @@ export class ShippingAutoReturnService {
     private readonly stockHelpers: StockHelpers,
     private readonly ledger: LedgerIdempotencyService,
     private readonly codRecords: CodRecordsService,
+    private readonly expectedReturnHold: ExpectedReturnHoldService,
   ) {}
 
   /**
@@ -42,7 +44,13 @@ export class ShippingAutoReturnService {
     originalStatus?: string;
     timestamp?: Date;
     principal?: AuthPrincipal;
-  }): Promise<{ success: boolean; returnId?: string; stage?: string; message?: string }> {
+  }): Promise<{
+    success: boolean;
+    returnId?: string;
+    stage?: string;
+    message?: string;
+    expectedReturnHold?: { activated: boolean; state: string; totalQuantity: string };
+  }> {
     const { omsOrderId, awb, stage, reason, originalStatus } = params;
     const eventTime = params.timestamp || new Date();
 
@@ -408,11 +416,18 @@ export class ShippingAutoReturnService {
       `Carrier return stage (${stage}) updated for order ${order.orderNumber} (returnNumber=${activeReturn.returnNumber}). No inventory modified.`,
     );
 
+    // Path A: open return lines = Expected Return Hold (no current_stock write).
+    const hold = await this.expectedReturnHold.activateHold(activeReturn.id);
+    this.logger.log(
+      `Expected return hold state=${hold.state} activated=${hold.activated} qty=${hold.totalQuantity} for return ${activeReturn.id}`,
+    );
+
     return {
       success: true,
       returnId: activeReturn.id,
       stage,
       message: `Return stage updated to ${stage}. Awaiting warehouse physical confirmation.`,
+      expectedReturnHold: hold,
     };
   }
 
@@ -452,6 +467,20 @@ export class ShippingAutoReturnService {
 
     if (omsReturn.status === OmsReturnStatus.cancelled) {
       return { success: false, message: 'Cannot confirm a cancelled return.' };
+    }
+
+    if (omsReturn.status === OmsReturnStatus.rejected) {
+      return { success: false, message: 'Cannot confirm a rejected return.' };
+    }
+
+    // Expected hold must still be active; never convert twice / after release.
+    const convertible = await this.expectedReturnHold.assertConvertible(omsReturn.id);
+    if (!convertible.ok) {
+      return {
+        success: convertible.state === 'converted',
+        returnId: omsReturn.id,
+        message: convertible.reason,
+      };
     }
 
     const order = omsReturn.omsOrder;
@@ -671,6 +700,143 @@ export class ShippingAutoReturnService {
     }
 
     return this.confirmWarehouseReturnReceipt(user, activeReturn.id, undefined, targetLocationId);
+  }
+
+  /**
+   * Super admin only. Reverses a confirmed return's stock and puts the order back to ready_to_ship.
+   */
+  async undoConfirmedReturn(user: AuthPrincipal, omsOrderId: string) {
+    if (user.role !== 'super_admin') {
+      throw new ForbiddenException('Only a super admin can undo a confirmed return.');
+    }
+    const completed = await this.prisma.omsReturn.findFirst({
+      where: { omsOrderId, status: OmsReturnStatus.completed },
+      orderBy: { completedAt: 'desc' },
+    });
+    if (!completed) {
+      throw new BadRequestException('No confirmed return to undo.');
+    }
+    const already = await this.prisma.inventoryLedger.findFirst({
+      where: { idempotencyKey: { startsWith: `return:undo:${completed.id}:` } },
+      select: { id: true },
+    });
+    if (already) {
+      throw new BadRequestException('This confirmed return was already undone.');
+    }
+    const movements = await this.prisma.inventoryLedger.findMany({
+      where: {
+        referenceId: completed.id,
+        movementType: MovementType.return_receive,
+      },
+    });
+    const order = await this.prisma.omsOrder.findUnique({
+      where: { id: omsOrderId },
+      select: { id: true, companyId: true, outboundOrder: { select: { id: true } } },
+    });
+    if (!order) throw new BadRequestException('Order not found.');
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const movement of movements) {
+        if (!movement.toLocationId) continue;
+        const qty = Number(movement.quantity);
+        await this.stockHelpers.decrementWithMeta(tx, {
+          companyId: movement.companyId,
+          productId: movement.productId,
+          locationId: movement.toLocationId,
+          lotId: movement.lotId,
+          quantity: qty,
+        });
+        await this.ledger.appendIfAbsent(tx, `return:undo:${completed.id}:${movement.id}`, {
+          companyId: movement.companyId,
+          productId: movement.productId,
+          lotId: movement.lotId,
+          fromLocationId: movement.toLocationId,
+          movementType: MovementType.adjustment_negative,
+          quantity: new Prisma.Decimal(qty),
+          referenceType: LedgerRefType.return_order,
+          referenceId: completed.id,
+          operatorId: user.id,
+        });
+      }
+      await tx.omsReturn.update({
+        where: { id: completed.id },
+        data: { status: OmsReturnStatus.cancelled },
+      });
+      await tx.omsOrder.update({
+        where: { id: order.id },
+        data: { status: OmsOrderStatus.ready_to_ship, returnedAt: null },
+      });
+      if (order.outboundOrder?.id) {
+        await tx.outboundOrder.update({
+          where: { id: order.outboundOrder.id },
+          data: { status: OutboundOrderStatus.ready_to_ship, returnedAt: null },
+        });
+      }
+      await tx.omsOrderEvent.create({
+        data: {
+          omsOrderId: order.id,
+          companyId: order.companyId,
+          eventType: 'return.undo_confirmed',
+          createdBy: user.id,
+          payload: { omsReturnId: completed.id, lines: movements.length },
+        },
+      });
+    });
+
+    return { success: true, returnId: completed.id, orderStatus: 'ready_to_ship' };
+  }
+
+  /**
+   * Cancel unconfirmed (requested/approved) return drafts without touching inventory.
+   * Used when carrier/admin recovers from failed_delivery back to delivered or OFD.
+   */
+  async cancelUnconfirmedDraftReturns(params: {
+    omsOrderId: string;
+    reason: string;
+    companyId?: string | null;
+  }): Promise<{ cancelledIds: string[]; skippedConvertedIds: string[] }> {
+    const drafts = await this.prisma.omsReturn.findMany({
+      where: {
+        omsOrderId: params.omsOrderId,
+        status: { in: [OmsReturnStatus.requested, OmsReturnStatus.approved] },
+      },
+      select: { id: true },
+    });
+    if (drafts.length === 0) return { cancelledIds: [], skippedConvertedIds: [] };
+
+    const cancelledIds: string[] = [];
+    const skippedConvertedIds: string[] = [];
+
+    for (const draft of drafts) {
+      const releasable = await this.expectedReturnHold.assertReleasable(draft.id);
+      if (!releasable.ok && releasable.state === 'converted') {
+        skippedConvertedIds.push(draft.id);
+        continue;
+      }
+      // Idempotent: already released or active → cancel (no stock mutation).
+      await this.prisma.omsReturn.update({
+        where: { id: draft.id },
+        data: {
+          status: OmsReturnStatus.cancelled,
+          notes: params.reason.slice(0, 2000),
+        },
+      });
+      cancelledIds.push(draft.id);
+    }
+
+    const companyId = params.companyId;
+    if (companyId) {
+      for (const id of cancelledIds) {
+        this.realtime.emitOmsReturnEvent(companyId, {
+          returnId: id,
+          status: 'cancelled',
+          event: 'carrier.return_cancelled_by_recovery',
+          omsOrderId: params.omsOrderId,
+        });
+      }
+    }
+
+    return { cancelledIds, skippedConvertedIds };
   }
 
   /**

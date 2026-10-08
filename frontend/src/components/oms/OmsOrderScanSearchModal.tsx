@@ -10,6 +10,7 @@ function playSuccessChime() {
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) return;
     const ctx = new AudioContextClass();
+    const tone = () => {
     const now = ctx.currentTime;
 
     const osc1 = ctx.createOscillator();
@@ -31,16 +32,29 @@ function playSuccessChime() {
     osc2.stop(now + 0.25);
 
     gain.connect(ctx.destination);
+    };
+    if (ctx.state === 'suspended') {
+      void ctx.resume().then(tone).catch(() => undefined);
+      return;
+    }
+    tone();
   } catch {
     /* ignore */
   }
 }
 
+export type OmsScanResult = { ok: boolean; message: string };
+
 interface OmsOrderScanSearchModalProps {
   open: boolean;
   onClose: () => void;
-  onScan: (scannedText: string) => void;
+  onScan: (scannedText: string) => void | Promise<OmsScanResult | void>;
   isArabic?: boolean;
+  /** Stay open after each scan so the next waybill can be scanned immediately. */
+  keepOpen?: boolean;
+  title?: string;
+  hint?: string;
+  submitLabel?: string;
 }
 
 const SUPPORTED_FORMATS = [
@@ -59,15 +73,30 @@ export function OmsOrderScanSearchModal({
   onClose,
   onScan,
   isArabic = false,
+  keepOpen = false,
+  title,
+  hint,
+  submitLabel,
 }: OmsOrderScanSearchModalProps) {
   const hostId = useId().replace(/:/g, '_') + '_order_scan_host';
   const qrInstanceRef = useRef<Html5Qrcode | null>(null);
+  const onScanRef = useRef(onScan);
+  const keepOpenRef = useRef(keepOpen);
+  const busyRef = useRef(false);
+  const cooldownRef = useRef<{ code: string; until: number } | null>(null);
+  const startScannerRef = useRef<(cameraFacing: 'environment' | 'user') => Promise<void>>(
+    async () => undefined,
+  );
+  onScanRef.current = onScan;
+  keepOpenRef.current = keepOpen;
 
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [manualCode, setManualCode] = useState('');
   const [detectedCode, setDetectedCode] = useState<string | null>(null);
+  const [actionResult, setActionResult] = useState<OmsScanResult | null>(null);
+  const [acceptedCount, setAcceptedCount] = useState(0);
 
   const stopScanner = useCallback(async () => {
     const inst = qrInstanceRef.current;
@@ -91,32 +120,68 @@ export function OmsOrderScanSearchModal({
   const handleFinishScan = useCallback(
     (rawText: string) => {
       let clean = rawText.trim();
-      if (!clean) return;
+      if (!clean || busyRef.current) return;
 
-      // If URL, extract last path segment
       try {
         if (clean.startsWith('http://') || clean.startsWith('https://')) {
           const url = new URL(clean);
           const segments = url.pathname.split('/').filter(Boolean);
           if (segments.length > 0) {
-            clean = segments[segments.length - 1];
+            clean = decodeURIComponent(segments[segments.length - 1] ?? clean);
           }
         }
       } catch {
         /* ignore */
       }
 
-      playSuccessChime();
+      const cooled = cooldownRef.current;
+      if (cooled && cooled.code === clean && cooled.until > Date.now()) return;
+
+      busyRef.current = true;
       setDetectedCode(clean);
       void stopScanner();
 
-      // Notify parent and auto-close after brief visual acknowledgement
-      onScan(clean);
-      setTimeout(() => {
-        onClose();
-      }, 400);
+      void (async () => {
+        try {
+          const result = await onScanRef.current(clean);
+          if (!keepOpenRef.current) {
+            playSuccessChime();
+            setTimeout(() => {
+              onClose();
+            }, 400);
+            return;
+          }
+          const outcome =
+            result && typeof result === 'object'
+              ? result
+              : { ok: true, message: clean };
+          setActionResult(outcome);
+          if (outcome.ok) {
+            playSuccessChime();
+            setAcceptedCount((count) => count + 1);
+          }
+          cooldownRef.current = { code: clean, until: Date.now() + 8000 };
+          setDetectedCode(null);
+          busyRef.current = false;
+          await startScannerRef.current(facingMode);
+        } catch (error) {
+          if (!keepOpenRef.current) {
+            onClose();
+            return;
+          }
+          setActionResult({
+            ok: false,
+            message: error instanceof Error ? error.message : clean,
+          });
+          setDetectedCode(null);
+          busyRef.current = false;
+          await startScannerRef.current(facingMode);
+        } finally {
+          setManualCode('');
+        }
+      })();
     },
-    [onScan, onClose, stopScanner],
+    [onClose, stopScanner, facingMode],
   );
 
   const startScanner = useCallback(
@@ -173,6 +238,7 @@ export function OmsOrderScanSearchModal({
     },
     [hostId, isArabic, handleFinishScan, stopScanner],
   );
+  startScannerRef.current = startScanner;
 
   const toggleFacingMode = () => {
     const nextMode = facingMode === 'environment' ? 'user' : 'environment';
@@ -187,6 +253,10 @@ export function OmsOrderScanSearchModal({
       setDetectedCode(null);
       setManualCode('');
       setCameraError(null);
+      setActionResult(null);
+      setAcceptedCount(0);
+      busyRef.current = false;
+      cooldownRef.current = null;
       void startScanner(facingMode);
     } else {
       void stopScanner();
@@ -211,15 +281,24 @@ export function OmsOrderScanSearchModal({
     <Modal
       open={open}
       onClose={handleModalClose}
-      title={isArabic ? 'بحث عن طلب عبر المسح (QR Code / باركود)' : 'Search Order by Scan (QR / Barcode)'}
+      title={
+        title ??
+        (isArabic ? 'بحث عن طلب عبر المسح (QR Code / باركود)' : 'Search Order by Scan (QR / Barcode)')
+      }
       widthClass="max-w-lg"
       footer={
-        <div className="flex w-full items-center justify-between">
+        <div className="flex w-full items-center justify-between gap-3">
           <span className="text-xs text-text-faint">
-            {isArabic ? 'مسح سريع لبوالص الشحن' : 'Waybill fast scan'}
+            {acceptedCount > 0
+              ? isArabic
+                ? `${acceptedCount} تم تسجيلها`
+                : `${acceptedCount} recorded`
+              : isArabic
+                ? 'مسح سريع لبوالص الشحن'
+                : 'Waybill fast scan'}
           </span>
           <Button variant="secondary" onClick={handleModalClose}>
-            {isArabic ? 'إلغاء' : 'Cancel'}
+            {keepOpen ? (isArabic ? 'تم' : 'Done') : isArabic ? 'إلغاء' : 'Cancel'}
           </Button>
         </div>
       }
@@ -227,10 +306,22 @@ export function OmsOrderScanSearchModal({
       <div className="space-y-4">
         {/* Instructions */}
         <p className="text-xs text-text-muted">
-          {isArabic
-            ? 'وجّه الكاميرا نحو QR Code أو الباركود على بوليصة الشحن للانتقال وتصفية الطلب مباشرة.'
-            : 'Point camera at the waybill QR code or barcode to filter and locate the order instantly.'}
+          {hint ??
+            (isArabic
+              ? 'وجّه الكاميرا نحو QR Code أو الباركود على بوليصة الشحن للانتقال وتصفية الطلب مباشرة.'
+              : 'Point camera at the waybill QR code or barcode to filter and locate the order instantly.')}
         </p>
+        {actionResult ? (
+          <div
+            className={
+              actionResult.ok
+                ? 'rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+                : 'rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200'
+            }
+          >
+            {actionResult.message}
+          </div>
+        ) : null}
 
         {/* Viewfinder Frame */}
         <div className="relative overflow-hidden rounded-2xl border-2 border-brand-500/40 bg-black/90 shadow-inner">
@@ -280,7 +371,13 @@ export function OmsOrderScanSearchModal({
               <i className="fa-solid fa-circle-check text-4xl text-emerald-400 mb-2" aria-hidden />
               <span className="font-mono text-sm font-bold text-white">{detectedCode}</span>
               <span className="mt-1 text-xs text-emerald-200">
-                {isArabic ? 'تم التقاط الرمز — جاري التصفية…' : 'Code detected — filtering…'}
+                {keepOpen
+                  ? isArabic
+                    ? 'تم التقاط الرمز — جاري التسجيل…'
+                    : 'Code detected — recording…'
+                  : isArabic
+                    ? 'تم التقاط الرمز — جاري التصفية…'
+                    : 'Code detected — filtering…'}
               </span>
             </div>
           )}
@@ -322,7 +419,7 @@ export function OmsOrderScanSearchModal({
             />
           </div>
           <Button type="submit" variant="primary" disabled={!manualCode.trim()} className="shrink-0">
-            {isArabic ? 'بحث' : 'Search'}
+            {submitLabel ?? (isArabic ? 'بحث' : 'Search')}
           </Button>
         </form>
       </div>

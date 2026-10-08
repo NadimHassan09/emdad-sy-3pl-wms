@@ -164,15 +164,37 @@ export interface ClientCodReportPage {
   summary: { orderCount: number; totalCodAmount: string };
 }
 
-export async function fetchClientOmsOrders(params: {
-  limit?: number;
-  offset?: number;
+export type ClientOmsTotalOp = 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
+export type ClientOmsOperationalStage =
+  | 'picking'
+  | 'packing'
+  | 'shipping_details'
+  | 'shipping_confirmation';
+
+/** Filters shared by the orders list and nav-counts (never includes companyId). */
+export interface ClientOmsOrdersFilterParams {
   orderSearch?: string;
-  status?: ClientOmsOrderStatus;
   storeChannel?: string;
   createdFrom?: string;
   createdTo?: string;
-}): Promise<ClientOmsOrderPage> {
+  customer?: string;
+  phone?: string;
+  city?: string;
+  carrier?: string;
+  startOrderNo?: string;
+  endOrderNo?: string;
+  totalOp?: ClientOmsTotalOp;
+  totalValue?: string;
+}
+
+export async function fetchClientOmsOrders(
+  params: ClientOmsOrdersFilterParams & {
+    limit?: number;
+    offset?: number;
+    status?: ClientOmsOrderStatus;
+    operationalStage?: ClientOmsOperationalStage;
+  },
+): Promise<ClientOmsOrderPage> {
   const { data } = await apiClient.get<ClientOmsOrderPage>('/oms/orders', { params });
   return data;
 }
@@ -181,6 +203,11 @@ export type ClientOmsStatusSummary = {
   total: number;
   byStatus: Partial<Record<ClientOmsOrderStatus, number>>;
   storeChannels: string[];
+};
+
+export type ClientOmsOrdersNavCounts = {
+  total: number;
+  byStatus: Record<string, number>;
 };
 
 export async function fetchClientOmsStatusSummary(params: {
@@ -194,6 +221,15 @@ export async function fetchClientOmsStatusSummary(params: {
   return data;
 }
 
+export async function fetchClientOmsNavCounts(
+  params: ClientOmsOrdersFilterParams = {},
+): Promise<ClientOmsOrdersNavCounts> {
+  const { data } = await apiClient.get<ClientOmsOrdersNavCounts>('/oms/orders/nav-counts', {
+    params,
+  });
+  return data;
+}
+
 export async function fetchClientOmsOrder(id: string): Promise<ClientOmsOrderDetail> {
   const { data } = await apiClient.get<ClientOmsOrderDetail>(`/oms/orders/${id}`);
   return data;
@@ -201,6 +237,38 @@ export async function fetchClientOmsOrder(id: string): Promise<ClientOmsOrderDet
 
 export async function fetchClientOmsTimeline(id: string): Promise<ClientOmsOrderEvent[]> {
   const { data } = await apiClient.get<ClientOmsOrderEvent[]>(`/oms/orders/${id}/timeline`);
+  return data;
+}
+
+export type ClientShipmentMovementEvent = {
+  timestamp: string;
+  title: string;
+  location?: string | null;
+  notes?: string | null;
+  color?: 'default' | 'info' | 'success' | 'error' | 'warning';
+  code?: string | null;
+};
+
+export type ClientOmsShippingMovementResult = {
+  awb: string | null;
+  isDelivered?: boolean;
+  statusLabel?: string;
+  statusColor?: string;
+  events: ClientShipmentMovementEvent[];
+  message?: string;
+  error?: string;
+  /** Always null for clients — company name must not appear. */
+  providerName?: null;
+  providerCode?: null;
+};
+
+/** Full carrier tracking history (not OMS milestones). Provider name omitted by API. */
+export async function fetchClientOmsShippingMovement(
+  id: string,
+): Promise<ClientOmsShippingMovementResult> {
+  const { data } = await apiClient.get<ClientOmsShippingMovementResult>(
+    `/oms/orders/${id}/shipping-movement`,
+  );
   return data;
 }
 

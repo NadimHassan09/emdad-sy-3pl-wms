@@ -47,10 +47,11 @@ If `price === 0` but `shipping > 0`, treat as potentially legitimate free/promo 
 Required: receiver (with neighbourhood id or coordinates), `type` box|envelope, `parts[{weight}]`, contents, deliveryType, pickupType, cod, payer.
 
 - Multi-part: one `{ weight }` per physical unit (OpenAPI has **no** L/W/H on parts).
-- Reseller warehouse: `pickupType` coerced to `hub` (no sender block).
-- Shipping fee payer: `sender` coerced to `receiver` (Babel rejects sender; EMDAD bills the receiver).
+- Pickup defaults to `address`. When a warehouse/company pickup party is present it is sent as `shipment.sender`. `address` is never coerced to `hub`. Explicit `hub` is unchanged. Delivery type (`address` home vs `hub` branch) is independent.
+- Shipping fee payer: passed through as `shipment.payer` (`sender` | `receiver` | `reseller`). EMDAD locks UI to `sender` and does **not** coerce sender→receiver.
 - Preflight `calculatePrice` for the selected option before `createShipment`.
 
 ## COD
 
 `cod.amount = 0` disables COD. Currency should match EMDAD business currency (USD) when COD is USD — do not force SYP.
+Babel rejects SYP COD below **1000 SYP**. Staging blocks that case before `createShipment` with a clear Arabic error; do not silently convert USD amounts into SYP.

@@ -51,7 +51,7 @@ type ShippingQuoteSnapshot = {
   weightKg: number;
   volumeCbm: number;
   deliveryType: CarrierShippingFormValue['deliveryType'];
-  pickupType: 'hub';
+  pickupType: 'address';
   currency: ShippingCurrency;
   codAmount: number | null;
   parts: Array<{ weight: number }>;
@@ -166,7 +166,7 @@ export function CarrierShippingDetailsForm({
       weightKg: quoteWeight,
       volumeCbm,
       deliveryType: value.deliveryType,
-      pickupType: 'hub',
+      pickupType: 'address',
       currency: value.currency,
       codAmount,
       parts: babelParts,
@@ -542,26 +542,18 @@ export function CarrierShippingDetailsForm({
         <div>
           <div className="mb-1.5 text-xs font-medium text-text-muted">Shipping Payer (دافع الشحن)</div>
           <PillToggle<ShippingPayer>
-            disabled={readOnly}
-            value={value.shippingPayer || 'sender'}
-            onChange={(shippingPayer) => onChange(patch(value, { shippingPayer }))}
+            disabled
+            value="sender"
+            onChange={() => onChange(patch(value, { shippingPayer: 'sender' }))}
             options={[
               {
                 value: 'sender',
                 label: 'Sender (المرسل / التاجر)',
               },
-              {
-                value: 'receiver',
-                label: 'Receiver (المستلم / الزبون)',
-              },
-              {
-                value: 'reseller',
-                label: 'Reseller (الموزع)',
-              },
             ]}
           />
           <p className="mt-1 text-[11px] text-text-faint">
-            Default: Sender (المرسل). Admin can change who pays the shipping cost.
+            Locked to Sender (المرسل). Receiver/reseller payers are not allowed.
           </p>
         </div>
       </section>

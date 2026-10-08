@@ -5,6 +5,7 @@ import type {
   ShippingRateQuote,
 } from '../../api/shipping';
 import type { ShippingCurrency } from './carrier-shipping-form';
+import { annotateQuotesForUi, getClientFxSnapshot } from '../../lib/shipping-compare';
 
 function formatMoney(price: number, currency: string): string {
   const cur = (currency.trim() || 'USD').toUpperCase();
@@ -63,14 +64,12 @@ export function ShippingCarrierCards({
   emptyHint = null,
   providersLoading = false,
 }: Props) {
-  // Sort all quotes across all providers by price ascending (lowest first)
+  // Sort by effective comparable cost (FX-aware), never raw cross-currency numbers
   const sortedQuotes = useMemo(() => {
     if (loading) return [];
     const valid = quotes.filter((q) => q.available && Number.isFinite(q.price));
-    return [...valid].sort((a, b) => a.price - b.price);
+    return annotateQuotesForUi(valid, getClientFxSnapshot());
   }, [quotes, loading]);
-
-  const minPrice = sortedQuotes.length > 0 ? sortedQuotes[0].price : null;
 
   return (
     <div className="space-y-4">
@@ -130,7 +129,7 @@ export function ShippingCarrierCards({
                     selectedCarrierId === quote.carrierId &&
                     sortedQuotes.filter((q) => q.carrierId === selectedCarrierId).length === 1,
                 );
-            const isCheapest = minPrice != null && quote.price === minPrice;
+            const isCheapest = Boolean(quote.isRecommended || quote.isCheapest);
             const eta = etaLabel(quote);
             const isBranch = quote.deliveryType === 'hub';
 

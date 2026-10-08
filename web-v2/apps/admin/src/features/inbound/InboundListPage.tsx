@@ -71,7 +71,7 @@ export function InboundListPage() {
   const { user } = useAuth()
   const isAdmin = canAccessInternalTransfer(user?.role)
 
-  const { warehouseId: defaultWid, warehouses } = useDefaultWarehouseId()
+  const { warehouseId: defaultWid } = useDefaultWarehouseId()
   const [searchParams] = useSearchParams()
 
   const [toCancel, setToCancel] = useState<InboundOrder | null>(null)
@@ -101,16 +101,6 @@ export function InboundListPage() {
   const clientOptions = useMemo(
     () => companyFilterComboboxOptions(companiesQuery.data, t('All clients', 'كل العملاء')),
     [companiesQuery.data, isArabic], // eslint-disable-line react-hooks/exhaustive-deps
-  )
-
-  const warehouseOptions = useMemo(
-    () => [
-      { value: '', label: t('All warehouses', 'كل المستودعات') },
-      ...warehouses
-        .filter((w) => w.status === 'active')
-        .map((w) => ({ value: w.id, label: `${w.name} (${w.code})` })),
-    ],
-    [warehouses, isArabic], // eslint-disable-line react-hooks/exhaustive-deps
   )
 
   const listParams = useMemo(
@@ -310,12 +300,11 @@ export function InboundListPage() {
   )
 
   const hasActiveFilters = Boolean(
-    appliedFilters.orderSearch.trim() ||
-      appliedFilters.status.trim() ||
-      appliedFilters.createdFrom.trim() ||
-      appliedFilters.createdTo.trim() ||
-      appliedFilters.companyId.trim() ||
-      appliedFilters.warehouseId.trim(),
+    appliedFilters.orderSearch?.trim() ||
+      appliedFilters.status?.trim() ||
+      appliedFilters.createdFrom?.trim() ||
+      appliedFilters.createdTo?.trim() ||
+      appliedFilters.companyId?.trim(),
   )
 
   const field = (label: string, node: React.ReactNode, id?: string) => (
@@ -445,17 +434,6 @@ export function InboundListPage() {
                 emptyLabel={t('No results', 'لا نتائج')}
               />,
               'inbound-f-client',
-            )}
-            {field(
-              t('Warehouse', 'المستودع'),
-              <Combobox
-                id="inbound-f-wh"
-                value={draftFilters.warehouseId}
-                onChange={(v) => setDraft({ warehouseId: v })}
-                options={warehouseOptions}
-                placeholder={t('Default warehouse', 'المستودع الافتراضي')}
-              />,
-              'inbound-f-wh',
             )}
             {field(
               t('Created from', 'تاريخ الإنشاء من'),

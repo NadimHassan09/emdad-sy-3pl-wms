@@ -26,6 +26,17 @@ import { OutboundLocationCombobox } from './OutboundLocationCombobox'
 
 const NOTES_MAX = 500
 
+/** White field surface (matches product picker / avoids light-green select fill). */
+const FIELD_SURFACE = 'bg-white hover:bg-white dark:bg-white dark:text-foreground dark:hover:bg-white'
+
+/** Soft-danger icon button (delete). */
+const DANGER_ICON_BTN =
+  'border border-tone-danger-border bg-tone-danger-bg text-tone-danger-fg hover:bg-tone-danger-bg hover:text-tone-danger-fg'
+
+/** Soft-danger text button (Cancel). */
+const DANGER_TEXT_BTN =
+  'border border-tone-danger-border bg-tone-danger-bg text-tone-danger-fg hover:bg-tone-danger-bg hover:text-tone-danger-fg'
+
 type DraftLine = { key: string; productId: string; requestedQuantity: string }
 
 function ModeOption({
@@ -267,7 +278,7 @@ export function OutboundOrderFormPage() {
 
       <PageHeader
         title={isEdit ? t('Edit outbound plan', 'تعديل خطة الصادر') : t('New outbound order', 'طلب صادر جديد')}
-        description={t('Plan lines, packing, and execution before warehouse work.', 'خطّط البنود والتغليف والتنفيذ قبل عمل المستودع.')}
+        description={t('Plan products, packing, and dispatch for the warehouse.', 'خطّط المنتجات والتغليف والإرسال للمستودع.')}
       />
 
       <form className="space-y-6" onSubmit={(e: FormEvent) => { e.preventDefault(); saveMut.mutate() }}>
@@ -311,6 +322,9 @@ export function OutboundOrderFormPage() {
                 onChange={setCompanyId}
                 options={(companies.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
                 disabled={isEdit}
+                placeholder={t('Select client…', 'اختر العميل…')}
+                searchPlaceholder={t('Search clients…', 'ابحث عن عميل…')}
+                className={FIELD_SURFACE}
               />
             </div>
             <div className="space-y-1.5">
@@ -329,17 +343,8 @@ export function OutboundOrderFormPage() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader>
             <CardTitle>{t('Products', 'المنتجات')}</CardTitle>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setLines((prev) => [...prev, { key: `n-${Date.now()}`, productId: '', requestedQuantity: '' }])}
-            >
-              <Plus className="size-4" aria-hidden />
-              {t('Add line', 'إضافة بند')}
-            </Button>
           </CardHeader>
           <CardContent className="space-y-3">
             {lines.map((line) => {
@@ -349,27 +354,59 @@ export function OutboundOrderFormPage() {
                 .filter((pr) => pr.id === line.productId || !usedProductIds.has(pr.id))
                 .map((pr) => ({ value: pr.id, label: `${pr.sku} — ${pr.name}` }))
               return (
-                <div key={line.key} className="grid gap-2 sm:grid-cols-[1fr_140px_auto]">
-                  <Combobox value={line.productId} onChange={(id) => setLines((prev) => prev.map((l) => (l.key === line.key ? { ...l, productId: id } : l)))} options={options} disabled={!companyId} />
+                <div key={line.key} className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[minmax(0,1fr)_140px_40px]">
+                  <div className="min-w-0 space-y-1">
+                    <Combobox
+                      value={line.productId}
+                      onChange={(id) => setLines((prev) => prev.map((l) => (l.key === line.key ? { ...l, productId: id } : l)))}
+                      options={options}
+                      disabled={!companyId}
+                      placeholder={t('Search and select a product…', 'ابحث واختر منتجاً…')}
+                      searchPlaceholder={t('Search products…', 'ابحث عن منتج…')}
+                      emptyLabel={t('All products are already on this order.', 'كل المنتجات مضافة مسبقاً.')}
+                      className={FIELD_SURFACE}
+                    />
+                    {p && avail !== undefined ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t('Available', 'المتاح')}: <span className="font-mono font-semibold">{avail.toLocaleString()}</span> {p.uom}
+                      </p>
+                    ) : null}
+                  </div>
                   <Input
                     type="number"
                     min={0}
                     step={1}
+                    aria-label={t('Quantity', 'الكمية')}
                     value={line.requestedQuantity}
                     onChange={(e) => setLines((prev) => prev.map((l) => (l.key === line.key ? { ...l, requestedQuantity: e.target.value } : l)))}
                     disabled={!line.productId}
+                    placeholder={line.productId ? t('Enter qty', 'أدخل الكمية') : t('Select product first', 'اختر منتجاً أولاً')}
                   />
-                  <Button type="button" variant="ghost" size="icon" disabled={lines.length <= 1} onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={lines.length <= 1}
+                    aria-label={t('Remove line', 'إزالة البند')}
+                    className={DANGER_ICON_BTN}
+                    onClick={() => setLines((prev) => prev.filter((l) => l.key !== line.key))}
+                  >
                     <Trash2 className="size-4" aria-hidden />
                   </Button>
-                  {p && avail !== undefined ? (
-                    <p className="text-xs text-muted-foreground sm:col-span-3">
-                      {t('Available', 'المتاح')}: <span className="font-mono font-semibold">{avail.toLocaleString()}</span> {p.uom}
-                    </p>
-                  ) : null}
                 </div>
               )
             })}
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setLines((prev) => [...prev, { key: `n-${Date.now()}`, productId: '', requestedQuantity: '' }])}
+              >
+                <Plus className="size-4" aria-hidden />
+                {t('Add line', 'إضافة بند')}
+              </Button>
+            </div>
             {shortages.length > 0 ? (
               <Alert className="border-tone-danger-border bg-tone-danger-bg">
                 <AlertTitle>{t('Insufficient stock', 'مخزون غير كافٍ')}</AlertTitle>
@@ -393,7 +430,17 @@ export function OutboundOrderFormPage() {
                 {warehouses.length > 1 ? (
                   <div className="space-y-1.5">
                     <Label>{t('Warehouse', 'المستودع')}</Label>
-                    <Combobox value={effectiveWarehouseId} onChange={(id) => { setSelectedWarehouseId(id); setPackingLocationId(''); setDispatchDockId('') }} options={warehouseOptions} />
+                    <Combobox
+                      value={effectiveWarehouseId}
+                      onChange={(id) => {
+                        setSelectedWarehouseId(id)
+                        setPackingLocationId('')
+                        setDispatchDockId('')
+                      }}
+                      options={warehouseOptions}
+                      placeholder={t('Select warehouse', 'اختر المستودع')}
+                      className={FIELD_SURFACE}
+                    />
                   </div>
                 ) : null}
                 {effectiveWarehouseId ? (
@@ -406,6 +453,9 @@ export function OutboundOrderFormPage() {
                         label={t('Packing location', 'موقع التغليف')}
                         locationType="packing"
                         required
+                        placeholder={t('Search and select a packing location…', 'ابحث واختر موقع تغليف…')}
+                        searchPlaceholder={t('Search by name or ID…', 'ابحث بالاسم أو المعرف…')}
+                        emptyLabel={t('No packing locations found.', 'لا توجد مواقع تغليف.')}
                       />
                     ) : null}
                     <OutboundLocationCombobox
@@ -415,6 +465,9 @@ export function OutboundOrderFormPage() {
                       label={t('Dispatch dock', 'رصيف الإرسال')}
                       locationType="output"
                       required
+                      placeholder={t('Search and select a dispatch dock…', 'ابحث واختر رصيف إرسال…')}
+                      searchPlaceholder={t('Search by name or ID…', 'ابحث بالاسم أو المعرف…')}
+                      emptyLabel={t('No dispatch docks found.', 'لا توجد أرصفة إرسال.')}
                     />
                   </>
                 ) : (
@@ -427,8 +480,14 @@ export function OutboundOrderFormPage() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => navigate(isEdit ? `/orders/outbound/${editId}` : '/orders/outbound')}>
+        <div className="flex flex-wrap justify-end gap-2 border-t pt-6">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={saveMut.isPending}
+            className={DANGER_TEXT_BTN}
+            onClick={() => navigate(isEdit ? `/orders/outbound/${editId}` : '/orders/outbound')}
+          >
             {t('Cancel', 'إلغاء')}
           </Button>
           <Button type="submit" disabled={saveMut.isPending || shortages.length > 0}>

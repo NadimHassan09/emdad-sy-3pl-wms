@@ -18,13 +18,19 @@ const ALL_ROLES: InternalRole[] = ['super_admin', 'wh_manager', 'wh_operator', '
 /** Matches backend `InternalAdminGuard` — inventory internal-transfer, management mutations. */
 export const INTERNAL_TRANSFER_ROLES: InternalRole[] = ['super_admin', 'wh_manager'];
 
+/** Operational floor access — Worker + managers (+ finance where already granted). */
+const OPS_ROLES: InternalRole[] = ['super_admin', 'wh_manager', 'wh_operator', 'finance'];
+const OPS_NO_FINANCE: InternalRole[] = ['super_admin', 'wh_manager', 'wh_operator'];
+/** High-privilege admin surfaces — not for workers. */
+const ADMIN_ROLES: InternalRole[] = ['super_admin', 'wh_manager'];
+
 const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
   {
     labelKey: 'Dashboard',
     iconKey: 'Dashboard',
     to: '/dashboard/overview',
     match: (p) => p === '/dashboard' || p.startsWith('/dashboard/'),
-    roles: ['super_admin', 'wh_manager', 'finance'],
+    roles: OPS_ROLES,
   },
   // ── WMS group ──
   {
@@ -33,7 +39,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/orders/inbound',
     match: (p) => p.startsWith('/orders/inbound'),
     group: 'wms',
-    roles: ['super_admin', 'wh_manager', 'finance'],
+    roles: OPS_ROLES,
   },
   {
     labelKey: 'Outbound',
@@ -41,7 +47,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/orders/outbound',
     match: (p) => p.startsWith('/orders/outbound'),
     group: 'wms',
-    roles: ['super_admin', 'wh_manager', 'finance'],
+    roles: OPS_ROLES,
   },
   {
     labelKey: 'Inventory',
@@ -49,7 +55,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/inventory/stock',
     match: (p) => p.startsWith('/inventory') || p === '/adjustments',
     group: 'wms',
-    roles: ['super_admin', 'wh_manager', 'finance'],
+    roles: OPS_ROLES,
   },
   {
     labelKey: 'Tasks',
@@ -57,7 +63,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/tasks',
     match: (p) => p.startsWith('/tasks') || p === '/internal',
     group: 'wms',
-    roles: ['super_admin', 'wh_manager', 'wh_operator'],
+    roles: OPS_NO_FINANCE,
   },
   {
     labelKey: 'Cycle count',
@@ -65,7 +71,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/cycle-count',
     match: (p) => p.startsWith('/cycle-count'),
     group: 'wms',
-    roles: ['super_admin', 'wh_manager', 'wh_operator'],
+    roles: OPS_NO_FINANCE,
   },
   {
     labelKey: 'Returns',
@@ -73,7 +79,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/returns',
     match: (p) => p.startsWith('/returns'),
     group: 'wms',
-    roles: ['super_admin', 'wh_manager', 'wh_operator'],
+    roles: OPS_NO_FINANCE,
   },
   {
     labelKey: 'Products',
@@ -81,7 +87,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/products',
     match: (p) => p.startsWith('/products'),
     group: 'wms',
-    roles: ['super_admin', 'wh_manager'],
+    roles: OPS_NO_FINANCE,
   },
   {
     labelKey: 'Locations',
@@ -89,7 +95,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/locations',
     match: (p) => p.startsWith('/locations'),
     group: 'wms',
-    roles: ['super_admin', 'wh_manager'],
+    roles: OPS_NO_FINANCE,
   },
   {
     labelKey: 'Warehouses',
@@ -97,7 +103,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/warehouses',
     match: (p) => p.startsWith('/warehouses'),
     group: 'wms',
-    roles: ['super_admin', 'wh_manager'],
+    roles: OPS_NO_FINANCE,
   },
   // ── OMS group ──
   {
@@ -106,7 +112,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/oms/dashboard',
     match: (p) => p === '/oms/dashboard' || p === '/oms',
     group: 'oms',
-    roles: ['super_admin', 'wh_manager', 'finance'],
+    roles: OPS_ROLES,
   },
   {
     labelKey: 'OMS Orders',
@@ -114,7 +120,15 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/orders/oms',
     match: (p) => p.startsWith('/orders/oms') || p.startsWith('/oms/orders'),
     group: 'oms',
-    roles: ['super_admin', 'wh_manager', 'finance'],
+    roles: OPS_ROLES,
+  },
+  {
+    labelKey: 'Batches',
+    iconKey: 'Orders',
+    to: '/oms/batches',
+    match: (p) => p === '/oms/batches' || p.startsWith('/oms/batches/'),
+    group: 'oms',
+    roles: OPS_ROLES,
   },
   {
     labelKey: 'COD',
@@ -122,7 +136,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/oms/cod',
     match: (p) => p === '/oms/cod' || p.startsWith('/oms/cod/'),
     group: 'oms',
-    roles: ['super_admin', 'wh_manager', 'finance'],
+    roles: OPS_ROLES,
   },
   {
     labelKey: 'OMS Returns',
@@ -130,35 +144,35 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     to: '/oms/returns',
     match: (p) => p === '/oms/returns' || p.startsWith('/oms/returns/'),
     group: 'oms',
-    roles: ['super_admin', 'wh_manager', 'finance'],
+    roles: OPS_ROLES,
   },
   {
     labelKey: 'Contracts',
     iconKey: 'Forms',
     to: '/contracts/grn',
     match: (p) => p.startsWith('/contracts'),
-    roles: ['super_admin', 'wh_manager', 'wh_operator', 'finance'],
+    roles: ALL_ROLES,
   },
   {
     labelKey: 'Reports',
     iconKey: 'Reports',
     to: '/reports',
     match: (p) => p.startsWith('/reports') && !p.startsWith('/reports/oms'),
-    roles: ['super_admin', 'wh_manager', 'finance'],
+    roles: OPS_ROLES,
   },
   {
     labelKey: 'Clients',
     iconKey: 'Customers',
     to: '/clients',
     match: (p) => p.startsWith('/clients'),
-    roles: ['super_admin', 'wh_manager'],
+    roles: ADMIN_ROLES,
   },
   {
     labelKey: 'Forms',
     iconKey: 'Forms',
     to: '/forms',
     match: (p) => p.startsWith('/forms'),
-    roles: ['super_admin', 'wh_manager'],
+    roles: ADMIN_ROLES,
   },
   {
     labelKey: 'Billing',
@@ -172,7 +186,7 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     iconKey: 'Users',
     to: '/users/warehouse_users',
     match: (p) => p.startsWith('/users'),
-    roles: ['super_admin', 'wh_manager'],
+    roles: ADMIN_ROLES,
   },
   {
     labelKey: 'Audit logs',
@@ -193,14 +207,14 @@ const NAV_CATALOG: Array<NavItemDef & { roles: InternalRole[] }> = [
     iconKey: 'Backups',
     to: '/backups',
     match: (p) => p.startsWith('/backups') || p.startsWith('/settings'),
-    roles: ['super_admin', 'wh_manager'],
+    roles: ADMIN_ROLES,
   },
   {
     labelKey: 'Shipping Companies',
     iconKey: 'Shipping',
     to: '/shipping/companies',
     match: (p) => p.startsWith('/shipping'),
-    roles: ['super_admin', 'wh_manager'],
+    roles: ADMIN_ROLES,
   },
 ];
 
@@ -233,28 +247,28 @@ function routeGroup(pathname: string): string {
 }
 
 const ROUTE_GROUP_ROLES: Record<string, InternalRole[]> = {
-  dashboard: ['super_admin', 'wh_manager', 'finance'],
-  oms: ['super_admin', 'wh_manager', 'finance'],
-  reports: ['super_admin', 'wh_manager', 'finance'],
-  orders: ['super_admin', 'wh_manager', 'finance'],
-  contracts: ['super_admin', 'wh_manager', 'wh_operator', 'finance'],
-  inventory: ['super_admin', 'wh_manager', 'finance'],
-  tasks: ['super_admin', 'wh_manager', 'wh_operator'],
-  'cycle-count': ['super_admin', 'wh_manager', 'wh_operator'],
-  returns: ['super_admin', 'wh_manager', 'wh_operator'],
+  dashboard: OPS_ROLES,
+  oms: OPS_ROLES,
+  reports: OPS_ROLES,
+  orders: OPS_ROLES,
+  contracts: ALL_ROLES,
+  inventory: OPS_ROLES,
+  tasks: OPS_NO_FINANCE,
+  'cycle-count': OPS_NO_FINANCE,
+  returns: OPS_NO_FINANCE,
   internal: INTERNAL_TRANSFER_ROLES,
-  products: ['super_admin', 'wh_manager'],
-  locations: ['super_admin', 'wh_manager'],
-  warehouses: ['super_admin', 'wh_manager'],
-  clients: ['super_admin', 'wh_manager'],
-  forms: ['super_admin', 'wh_manager'],
+  products: OPS_NO_FINANCE,
+  locations: OPS_NO_FINANCE,
+  warehouses: OPS_NO_FINANCE,
+  clients: ADMIN_ROLES,
+  forms: ADMIN_ROLES,
   billing: ['super_admin', 'wh_manager', 'finance'],
-  users: ['super_admin', 'wh_manager'],
+  users: ADMIN_ROLES,
   'audit-logs': ['super_admin', 'wh_manager', 'finance'],
   notifications: ALL_ROLES,
-  settings: ['super_admin', 'wh_manager'],
-  backups: ['super_admin', 'wh_manager'],
-  shipping: ['super_admin', 'wh_manager'],
+  settings: ADMIN_ROLES,
+  backups: ADMIN_ROLES,
+  shipping: ADMIN_ROLES,
   profile: ALL_ROLES,
   other: ALL_ROLES,
 };
@@ -324,4 +338,58 @@ export function canExecuteCycleCount(user: { workerId?: string | null } | null |
 export function canRecordFinalOmsShippingFee(role: string | undefined): boolean {
   const r = normalizeInternalRole(role);
   return r === 'super_admin' || r === 'wh_manager' || r === 'finance';
+}
+
+/** Mirrors backend `ROLE_RANK` — higher = more privileged. */
+const ROLE_RANK: Record<string, number> = {
+  super_admin: 100,
+  wh_manager: 80,
+  finance: 60,
+  wh_operator: 40,
+  client_admin: 30,
+  client_staff: 20,
+};
+
+export function roleRank(role: string | undefined): number {
+  if (!role) return 0;
+  return ROLE_RANK[role] ?? 0;
+}
+
+/** Actor may suspend / delete / edit existing accounts only for strictly lower ranks. */
+export function canManageTargetRole(
+  actorRole: string | undefined,
+  targetRole: string | undefined,
+): boolean {
+  return roleRank(actorRole) > roleRank(targetRole);
+}
+
+/** Create rules: strictly lower ranks; super_admin may also create another super_admin. */
+export function canCreateTargetRole(
+  actorRole: string | undefined,
+  targetRole: string | undefined,
+): boolean {
+  if (actorRole === 'super_admin' && targetRole === 'super_admin') return true;
+  return canManageTargetRole(actorRole, targetRole);
+}
+
+/** Only super_admin may open the edit-user form for existing accounts. */
+export function canEditExistingUsers(role: string | undefined): boolean {
+  return normalizeInternalRole(role) === 'super_admin';
+}
+
+/** Only super_admin may reset passwords on other accounts. */
+export function canSetOtherUserPassword(role: string | undefined): boolean {
+  return normalizeInternalRole(role) === 'super_admin';
+}
+
+export type SystemRoleUi = 'super_admin' | 'admin' | 'worker';
+
+/** System roles the actor is allowed to create. */
+export function creatableSystemRoles(actorRole: string | undefined): SystemRoleUi[] {
+  const mapped: Array<{ ui: SystemRoleUi; role: string }> = [
+    { ui: 'super_admin', role: 'super_admin' },
+    { ui: 'admin', role: 'wh_manager' },
+    { ui: 'worker', role: 'wh_operator' },
+  ];
+  return mapped.filter((m) => canCreateTargetRole(actorRole, m.role)).map((m) => m.ui);
 }

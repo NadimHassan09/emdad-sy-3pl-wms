@@ -93,6 +93,7 @@ import {
 } from './quick-directed-outbound.helper';
 import {
   assertOutboundAdminStageAction,
+  manualShippingConfirmNeedsMethodStep,
   nextOutboundAdminAction,
   outboundRequiresPacking,
 } from './outbound-admin-stages';
@@ -174,6 +175,54 @@ const ORDER_INCLUDE = {
     },
   },
 } satisfies Prisma.OutboundOrderInclude;
+
+/** Lighter include for admin stage transitions (no product/reservation graphs). */
+const ADMIN_STAGE_INCLUDE = {
+  lines: {
+    orderBy: { lineNumber: 'asc' as const },
+    select: {
+      id: true,
+      productId: true,
+      requestedQuantity: true,
+      pickedQuantity: true,
+    },
+  },
+  carrierShipments: {
+    orderBy: { createdAt: 'desc' as const },
+    take: 5,
+    select: { id: true, status: true, externalAwb: true },
+  },
+  omsOrder: { select: { id: true, orderNumber: true } },
+} satisfies Prisma.OutboundOrderInclude;
+
+/** Prefetched outbound row for bulk continue-to-packing. */
+export type OutboundAdminPickingPrefetch = {
+  id: string;
+  orderNumber: string;
+  status: OutboundOrderStatus;
+  companyId: string;
+  executionMode: string | null;
+  executionPlan: Prisma.JsonValue;
+  requiresPacking: boolean;
+};
+
+/** Options for admin stage methods when invoked from bulk (safe performance path). */
+export type OutboundAdminStageOptions = {
+  /**
+   * Bulk path: lighter reads + skip per-order realtime/dashboard thrash.
+   * Single-order HTTP endpoints must leave this unset.
+   */
+  bulkQuiet?: boolean;
+  /** Prefetched open pick task id (bulk picking) — skips per-order task poll. */
+  pickTaskId?: string;
+  /** Prefetched order row (bulk picking) — skips per-order find. */
+  prefetchedOrder?: OutboundAdminPickingPrefetch;
+  /**
+   * Bulk picking: complete pick TX only; caller spawns pack/shipping_details
+   * afterward via ensureOutboundFollowupTasksAfterPicks.
+   */
+  deferOrchestration?: boolean;
+};
 
 function shippingPackagesPrisma(
   packages: unknown[] | null | undefined,
@@ -850,6 +899,52 @@ export class OutboundService {
     });
   }
 
+  /** Stage-gate load: enough for admin transitions, much cheaper than ORDER_INCLUDE. */
+  private async findByIdForAdminStage(id: string, user: AuthPrincipal) {
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const order = await tx.outboundOrder.findUnique({
+        where: { id },
+        include: ADMIN_STAGE_INCLUDE,
+      });
+      if (!order) throw new NotFoundException('Outbound order not found.');
+      this.companyAccess.validateResourceOwnership(user, order);
+      return order;
+    });
+  }
+
+  /** Minimal fields for bulk continue-to-packing (no lines / carrier graph). */
+  private async findByIdForAdminPicking(id: string, user: AuthPrincipal) {
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const order = await tx.outboundOrder.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          companyId: true,
+          executionMode: true,
+          executionPlan: true,
+          requiresPacking: true,
+        },
+      });
+      if (!order) throw new NotFoundException('Outbound order not found.');
+      this.companyAccess.validateResourceOwnership(user, order);
+      return order;
+    });
+  }
+
+  private async loadOutboundStatusSummary(id: string, user: AuthPrincipal) {
+    return withTenantRls(this.prisma, user, async (tx) => {
+      const order = await tx.outboundOrder.findUnique({
+        where: { id },
+        select: { id: true, orderNumber: true, status: true, companyId: true },
+      });
+      if (!order) throw new NotFoundException('Outbound order not found.');
+      this.companyAccess.validateResourceOwnership(user, order);
+      return order;
+    });
+  }
+
   async updatePlan(user: AuthPrincipal, id: string, dto: UpdateOutboundPlanDto) {
     const order = await this.findById(id, user);
     const shippingOnly =
@@ -1169,15 +1264,35 @@ export class OutboundService {
     return this.confirmAndDeduct(user, orderId, { warehouseId: plan.warehouseId });
   }
 
-  async completePickingAdmin(user: AuthPrincipal, orderId: string) {
-    let order = await this.findById(orderId, user);
+  /** Bulk picking follow-up: spawn pack / shipping_details after deferred quiet picks. */
+  async ensurePickingFollowups(user: AuthPrincipal, outboundOrderIds: string[]) {
+    await this.tasks.ensureOutboundFollowupTasksAfterPicks(user, outboundOrderIds);
+  }
+
+  async completePickingAdmin(
+    user: AuthPrincipal,
+    orderId: string,
+    opts?: OutboundAdminStageOptions,
+  ) {
+    const quiet = opts?.bulkQuiet === true;
+    let order =
+      quiet && opts?.prefetchedOrder?.id === orderId
+        ? opts.prefetchedOrder
+        : quiet
+          ? await this.findByIdForAdminPicking(orderId, user)
+          : await this.findById(orderId, user);
+    if (quiet && opts?.prefetchedOrder?.id === orderId) {
+      this.companyAccess.validateResourceOwnership(user, order);
+    }
     if (
       isOutboundConfirmable(order.status) ||
       order.status === OutboundOrderStatus.confirmed ||
       order.status === OutboundOrderStatus.pending_stock
     ) {
       await this.approveAdmin(user, orderId);
-      order = await this.findById(orderId, user);
+      order = quiet
+        ? await this.findByIdForAdminPicking(orderId, user)
+        : await this.findById(orderId, user);
     }
     if (normalizeExecutionMode(order.executionMode) !== 'admin') {
       throw new BadRequestException('complete-picking requires executionMode=admin.');
@@ -1189,41 +1304,82 @@ export class OutboundService {
     });
     assertOutboundAdminStageAction(order.status, 'complete_picking', requiresPacking);
 
-    const pick = await waitForOpenWarehouseTask(
-      this.prisma,
-      'outbound_order',
-      orderId,
-      WarehouseTaskType.pick,
-    );
-    try {
-      await this.tasks.start(pick.id, user);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new BadRequestException(`Picking start failed: ${msg}`);
+    let pickId = quiet ? opts?.pickTaskId?.trim() || null : null;
+    if (!pickId) {
+      // Task already exists when order is in picking; avoid poll delay in bulk.
+      const pickWaitOpts = quiet
+        ? order.status === OutboundOrderStatus.picking
+          ? { maxAttempts: 1, baseDelayMs: 0 }
+          : { maxAttempts: 3, baseDelayMs: 20 }
+        : undefined;
+      const pick = await waitForOpenWarehouseTask(
+        this.prisma,
+        'outbound_order',
+        orderId,
+        WarehouseTaskType.pick,
+        pickWaitOpts,
+      );
+      pickId = pick.id;
+      if (!quiet) {
+        try {
+          let executionState: Prisma.JsonValue | null = pick.executionState ?? null;
+          const started = await this.tasks.start(pick.id, user);
+          const fromStart = (started as { executionState?: Prisma.JsonValue } | null)?.executionState;
+          if (fromStart != null) executionState = fromStart;
+          if (executionState == null) {
+            const pickDetail = await this.prisma.warehouseTask.findUnique({
+              where: { id: pick.id },
+              select: { id: true, executionState: true },
+            });
+            if (!pickDetail) throw new NotFoundException('Pick task missing after start.');
+            executionState = pickDetail.executionState;
+          }
+          await this.tasks.complete(pick.id, user, buildAdminPickCompleteBody(executionState));
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          throw new BadRequestException(`Picking failed: ${msg}`);
+        }
+        const updated = await this.findById(orderId, user);
+        this.realtime.emitOutboundOrderUpdated(updated.companyId, {
+          orderId: updated.id,
+          status: updated.status,
+          reason: 'admin_complete_picking',
+          listItem: adminOutboundListItem(updated),
+        });
+        return updated;
+      }
     }
 
-    const pickDetail = await this.prisma.warehouseTask.findUnique({ where: { id: pick.id } });
-    if (!pickDetail) throw new NotFoundException('Pick task missing after start.');
-
     try {
-      await this.tasks.complete(pick.id, user, buildAdminPickCompleteBody(pickDetail.executionState));
+      // One transaction: reserve + apply pick + complete (avoids second lock/commit cycle).
+      await this.tasks.adminQuietStartAndCompletePick(pickId, user, {
+        deferOrchestration: opts?.deferOrchestration === true,
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      throw new BadRequestException(`Picking complete failed: ${msg}`);
+      throw new BadRequestException(`Picking failed: ${msg}`);
     }
 
-    const updated = await this.findById(orderId, user);
-    this.realtime.emitOutboundOrderUpdated(updated.companyId, {
-      orderId: updated.id,
-      status: updated.status,
-      reason: 'admin_complete_picking',
-      listItem: adminOutboundListItem(updated),
-    });
-    return updated;
+    // Avoid another full read: pick → packing (or shipping-method) is deterministic here.
+    return {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: requiresPacking
+        ? OutboundOrderStatus.packing
+        : OutboundOrderStatus.waiting_for_shipping_method,
+      companyId: order.companyId,
+    };
   }
 
-  async completePackingAdmin(user: AuthPrincipal, orderId: string) {
-    const order = await this.findById(orderId, user);
+  async completePackingAdmin(
+    user: AuthPrincipal,
+    orderId: string,
+    opts?: OutboundAdminStageOptions,
+  ) {
+    const quiet = opts?.bulkQuiet === true;
+    const order = quiet
+      ? await this.findByIdForAdminStage(orderId, user)
+      : await this.findById(orderId, user);
     if (normalizeExecutionMode(order.executionMode) !== 'admin') {
       throw new BadRequestException('complete-packing requires executionMode=admin.');
     }
@@ -1239,20 +1395,29 @@ export class OutboundService {
       'outbound_order',
       orderId,
       WarehouseTaskType.pack,
+      quiet ? { maxAttempts: 4, baseDelayMs: 25 } : undefined,
     );
     try {
-      await this.tasks.adminConfirm(pack.id, user, {
-        task_type: 'pack',
-        lines: order.lines.map((l) => ({
-          outbound_order_line_id: l.id,
-          packed_qty: String(l.pickedQuantity ?? l.requestedQuantity),
-        })),
-      });
+      await this.tasks.adminConfirm(
+        pack.id,
+        user,
+        {
+          task_type: 'pack',
+          lines: order.lines.map((l) => ({
+            outbound_order_line_id: l.id,
+            packed_qty: String(l.pickedQuantity ?? l.requestedQuantity),
+          })),
+        },
+        quiet ? { quiet: true } : undefined,
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new BadRequestException(`Packing complete failed: ${msg}`);
     }
 
+    if (quiet) {
+      return this.loadOutboundStatusSummary(orderId, user);
+    }
     const updated = await this.findById(orderId, user);
     this.realtime.emitOutboundOrderUpdated(updated.companyId, {
       orderId: updated.id,
@@ -1417,9 +1582,18 @@ export class OutboundService {
       (s) => s.status === CarrierShipmentStatus.created,
     );
     if (createdShipment) {
-      throw new BadRequestException(
-        'Shipping details are locked after the carrier shipment was sent. Complete the stage or contact support.',
-      );
+      const nextMethod = dto.shippingMethod ?? order.shippingMethod;
+      const nextProvider = (dto.shippingProviderCode ?? order.shippingProviderCode)?.trim() || null;
+      const currentProvider = order.shippingProviderCode?.trim() || null;
+      const changingCarrier =
+        nextMethod !== order.shippingMethod ||
+        (nextMethod === ShippingMethod.carrier && nextProvider !== currentProvider);
+      if (!changingCarrier) {
+        throw new BadRequestException(
+          'This shipment stays with the current carrier until you choose another company or Manual Shipping. Confirm Shipping locks the assignment.',
+        );
+      }
+      await this.supersedeUnconfirmedShipments(user, orderId);
     }
 
     const updated = await withTenantRls(this.prisma, user, async (tx) => {
@@ -1534,6 +1708,19 @@ export class OutboundService {
           ...(dto.shippingPackages !== undefined
             ? { shippingPackages: shippingPackagesPrisma(dto.shippingPackages) }
             : {}),
+          ...(dto.shippingQuotedPrice !== undefined
+            ? {
+                shippingQuotedPrice:
+                  dto.shippingQuotedPrice != null && Number.isFinite(Number(dto.shippingQuotedPrice))
+                    ? new Prisma.Decimal(dto.shippingQuotedPrice)
+                    : null,
+              }
+            : {}),
+          ...(dto.shippingQuotedCurrency !== undefined
+            ? {
+                shippingQuotedCurrency: dto.shippingQuotedCurrency?.trim().toUpperCase() || null,
+              }
+            : {}),
         },
         include: ORDER_INCLUDE,
       });
@@ -1567,9 +1754,81 @@ export class OutboundService {
   }
 
   /**
+   * Before Confirm Shipping, a created carrier shipment can be replaced.
+   * None of the provider adapters expose a cancellation API, so the previous
+   * AWB is kept on a shipment event and the live shipment is retired.
+   */
+  private async supersedeUnconfirmedShipments(user: AuthPrincipal, orderId: string): Promise<void> {
+    await withTenantRls(this.prisma, user, async (tx) => {
+      const shipments = await tx.carrierShipment.findMany({
+        where: { outboundOrderId: orderId, status: CarrierShipmentStatus.created },
+      });
+      for (const shipment of shipments) {
+        await tx.carrierShipmentEvent.create({
+          data: {
+            carrierShipmentId: shipment.id,
+            providerCode: shipment.providerCode,
+            awb: shipment.externalAwb,
+            eventType: 'shipment.superseded_before_confirm',
+            normalizedStatus: 'cancelled',
+            status: 'processed',
+            payloadHash: `${shipment.id}:${shipment.updatedAt.toISOString()}`,
+            payload: {
+              providerCode: shipment.providerCode,
+              externalAwb: shipment.externalAwb,
+              trackingNumber: shipment.trackingNumber,
+              reason:
+                'Replaced before shipping confirmation. The carrier adapter does not support cancellation, so the previous AWB is retained here.',
+            },
+            processedAt: new Date(),
+          },
+        });
+        await tx.carrierShipment.update({
+          where: { id: shipment.id },
+          data: {
+            status: CarrierShipmentStatus.failed,
+            lastErrorSafe:
+              'Superseded before confirmation. Previous AWB is kept in shipment events. Provider cancellation is not available.',
+            nextPollAt: null,
+          },
+        });
+      }
+      const outbound = await tx.outboundOrder.update({
+        where: { id: orderId },
+        data: { trackingNumber: null },
+        select: { omsOrder: { select: { id: true } } },
+      });
+      if (outbound.omsOrder) {
+        await tx.omsOrder.update({
+          where: { id: outbound.omsOrder.id },
+          data: { trackingNumber: null, carrier: null },
+        });
+      }
+    });
+  }
+
+  /**
    * Explicit Send Shipment — calls carrier adapter. Status stays waiting_for_shipping_details.
    */
-  async sendShippingDetails(user: AuthPrincipal, orderId: string) {
+  async sendShippingDetails(
+    user: AuthPrincipal,
+    orderId: string,
+    body?: {
+      quoteFingerprint?: {
+        providerCode: string;
+        serviceId: string;
+        currency: string;
+        amount: number;
+        deliveryType: string;
+        packageType: string;
+        weightKg: number;
+        destinationKey: string;
+        partsKey?: string;
+        quotedAt: string;
+        expiresAt: string;
+      } | null;
+    },
+  ) {
     const order = await this.findById(orderId, user);
     if (order.status !== OutboundOrderStatus.waiting_for_shipping_details) {
       throw new BadRequestException(
@@ -1652,8 +1911,19 @@ export class OutboundService {
       city: order.district,
       neighborhood: order.addressLine1,
       requireQuote: true,
+      quoteFingerprint: body?.quoteFingerprint
+        ? {
+            ...body.quoteFingerprint,
+            partsKey: body.quoteFingerprint.partsKey ?? '',
+          }
+        : null,
+      shippingServiceId: order.shippingServiceId,
+      quotedAmount: body?.quoteFingerprint?.amount ?? null,
+      quotedCurrency: body?.quoteFingerprint?.currency ?? null,
+      partsKey: body?.quoteFingerprint?.partsKey ?? null,
     });
 
+    // Idempotent: ensureShipmentForOutbound claims pending / skips if already created.
     await this.shipping.ensureShipmentForOutbound(orderId);
 
     const updated = await this.findById(orderId, user);
@@ -1679,8 +1949,23 @@ export class OutboundService {
   /**
    * Mark Shipping Details Complete → ready_to_ship (Waiting for Dispatch) + enqueue dispatch.
    */
-  async completeShippingDetailsAdmin(user: AuthPrincipal, orderId: string) {
-    const order = await this.findById(orderId, user);
+  async completeShippingDetailsAdmin(
+    user: AuthPrincipal,
+    orderId: string,
+    opts?: OutboundAdminStageOptions,
+  ) {
+    const quiet = opts?.bulkQuiet === true;
+    let order = quiet
+      ? await this.findByIdForAdminStage(orderId, user)
+      : await this.findById(orderId, user);
+    if (manualShippingConfirmNeedsMethodStep(order.status, order.shippingMethod)) {
+      await this.selectShippingMethodAdmin(user, orderId, {
+        shippingMethod: ShippingMethod.manual,
+      });
+      order = quiet
+        ? await this.findByIdForAdminStage(orderId, user)
+        : await this.findById(orderId, user);
+    }
     const plan = parseOutboundExecutionPlan(order.executionPlan);
     const requiresPacking = outboundRequiresPacking({
       requiresPacking: order.requiresPacking,
@@ -1703,7 +1988,11 @@ export class OutboundService {
       const row = await tx.outboundOrder.update({
         where: { id: orderId },
         data: { status: OutboundOrderStatus.ready_to_ship },
-        include: ORDER_INCLUDE,
+        include: quiet
+          ? {
+              omsOrder: { select: { id: true } },
+            }
+          : ORDER_INCLUDE,
       });
 
       await this.omsSync?.syncFromOutbound(tx, orderId, user.id);
@@ -1765,18 +2054,33 @@ export class OutboundService {
       return row;
     });
 
-    const fresh = await this.findById(orderId, user);
-    this.realtime.emitOutboundOrderUpdated(fresh.companyId, {
-      orderId: fresh.id,
-      status: fresh.status,
+    if (quiet) {
+      return {
+        id: updated.id,
+        orderNumber: updated.orderNumber,
+        status: updated.status,
+        companyId: updated.companyId,
+      };
+    }
+
+    this.realtime.emitOutboundOrderUpdated(updated.companyId, {
+      orderId: updated.id,
+      status: updated.status,
       reason: 'admin_complete_shipping_details',
-      listItem: adminOutboundListItem(fresh),
+      listItem: adminOutboundListItem(updated),
     });
-    return fresh;
+    return updated;
   }
 
-  async completeDispatchAdmin(user: AuthPrincipal, orderId: string) {
-    const order = await this.findById(orderId, user);
+  async completeDispatchAdmin(
+    user: AuthPrincipal,
+    orderId: string,
+    opts?: OutboundAdminStageOptions,
+  ) {
+    const quiet = opts?.bulkQuiet === true;
+    const order = quiet
+      ? await this.findByIdForAdminStage(orderId, user)
+      : await this.findById(orderId, user);
     if (normalizeExecutionMode(order.executionMode) !== 'admin') {
       throw new BadRequestException('complete-dispatch requires executionMode=admin.');
     }
@@ -1792,20 +2096,29 @@ export class OutboundService {
       'outbound_order',
       orderId,
       WarehouseTaskType.dispatch,
+      quiet ? { maxAttempts: 4, baseDelayMs: 25 } : undefined,
     );
     try {
-      await this.tasks.adminConfirm(dispatch.id, user, {
-        task_type: 'dispatch',
-        lines: order.lines.map((l) => ({
-          outbound_order_line_id: l.id,
-          ship_qty: String(l.pickedQuantity ?? l.requestedQuantity),
-        })),
-      });
+      await this.tasks.adminConfirm(
+        dispatch.id,
+        user,
+        {
+          task_type: 'dispatch',
+          lines: order.lines.map((l) => ({
+            outbound_order_line_id: l.id,
+            ship_qty: String(l.pickedQuantity ?? l.requestedQuantity),
+          })),
+        },
+        quiet ? { quiet: true } : undefined,
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new BadRequestException(`Dispatch complete failed: ${msg}`);
     }
 
+    if (quiet) {
+      return this.loadOutboundStatusSummary(orderId, user);
+    }
     const updated = await this.findById(orderId, user);
     this.realtime.emitOutboundOrderUpdated(updated.companyId, {
       orderId: updated.id,

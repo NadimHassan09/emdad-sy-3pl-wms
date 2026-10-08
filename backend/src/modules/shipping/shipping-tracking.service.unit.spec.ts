@@ -18,6 +18,7 @@ describe('ShippingTrackingService', () => {
       carrierShipment: {
         findFirst: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       omsOrder: {
         findFirst: jest.fn(),
@@ -29,6 +30,9 @@ describe('ShippingTrackingService', () => {
       omsOrderEvent: {
         create: jest.fn(),
       },
+      omsBatchOrder: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
     };
 
     registryMock = {
@@ -39,6 +43,7 @@ describe('ShippingTrackingService', () => {
       processAutomatedReturn: jest.fn(),
       processCarrierReturnEvent: jest.fn(),
       handleCarrierDeliveredEvent: jest.fn().mockResolvedValue({ actionTaken: 'order_delivered' }),
+      cancelUnconfirmedDraftReturns: jest.fn().mockResolvedValue({ cancelledIds: [] }),
     };
 
     realtimeMock = {
@@ -259,6 +264,157 @@ describe('ShippingTrackingService', () => {
         omsOrderId: 'oms-3',
         awb: 'AWB-DELIV',
       }),
+    );
+  });
+
+  it('pre-OFD cancel unlocks shipping, undoes confirm, and flags batch issueNote', async () => {
+    prismaMock.carrierShipmentEvent.findFirst.mockResolvedValueOnce(null);
+    prismaMock.carrierShipment.findFirst.mockResolvedValueOnce({
+      id: 'ship-pre',
+      outboundOrder: {
+        id: 'out-pre',
+        orderNumber: 'OUT-PRE',
+        companyId: 'comp-1',
+        status: 'ready_to_ship',
+        carrier: 'Babel Express',
+        omsOrder: {
+          id: 'oms-pre',
+          orderNumber: 'ORD-PRE',
+          companyId: 'comp-1',
+          status: 'ready_to_ship',
+          carrier: 'Babel Express',
+          createdBy: 'user-1',
+        },
+      },
+    });
+
+    const event: NormalizedTrackingEvent = {
+      providerCode: 'BABEL_EXPRESS',
+      awb: 'AWB-CANCEL-PRE',
+      eventType: 'Cancelled',
+      normalizedStatus: 'cancelled',
+      notes: 'Cancelled by carrier',
+      returnReason: 'Cancelled by carrier',
+      rawPayload: { awb: 'AWB-CANCEL-PRE' },
+    };
+
+    const res = await service.processTrackingEvent(event);
+    expect(res.success).toBe(true);
+    expect(res.action).toBe('pre_dispatch_carrier_failure_unlocked');
+    expect(prismaMock.carrierShipment.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'failed' }),
+      }),
+    );
+    expect(prismaMock.outboundOrder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'waiting_for_shipping_details',
+          trackingNumber: null,
+        }),
+      }),
+    );
+    expect(prismaMock.omsBatchOrder.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          issueNote: expect.stringContaining('Provider cancelled'),
+        }),
+      }),
+    );
+    expect(autoReturnMock.processCarrierReturnEvent).not.toHaveBeenCalled();
+    expect(prismaMock.omsOrder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ trackingNumber: null }),
+      }),
+    );
+    // Must NOT commercially cancel the OMS order
+    expect(prismaMock.omsOrder.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'cancelled' }),
+      }),
+    );
+  });
+
+  it('post-OFD cancel maps to failed_delivery without a return draft', async () => {
+    prismaMock.carrierShipmentEvent.findFirst.mockResolvedValueOnce(null);
+    prismaMock.carrierShipment.findFirst.mockResolvedValueOnce({
+      id: 'ship-post',
+      outboundOrder: {
+        id: 'out-post',
+        orderNumber: 'OUT-POST',
+        companyId: 'comp-1',
+        status: 'out_for_delivery',
+        omsOrder: {
+          id: 'oms-post',
+          orderNumber: 'ORD-POST',
+          companyId: 'comp-1',
+          status: 'out_for_delivery',
+          createdBy: 'user-1',
+        },
+      },
+    });
+    autoReturnMock.processCarrierReturnEvent.mockResolvedValueOnce({
+      success: true,
+      returnId: 'ret-post',
+      stage: 'return_created',
+    });
+
+    const event: NormalizedTrackingEvent = {
+      providerCode: 'SILA_SY',
+      awb: 'AWB-CANCEL-POST',
+      eventType: 'cancelled',
+      normalizedStatus: 'cancelled',
+      notes: 'Lost package',
+      rawPayload: { awb: 'AWB-CANCEL-POST' },
+    };
+
+    const res = await service.processTrackingEvent(event);
+    expect(res.success).toBe(true);
+    expect(res.action).toBe('order_carrier_cancelled_failed_delivery');
+    expect(prismaMock.omsOrder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'failed_delivery' }),
+      }),
+    );
+    expect(autoReturnMock.processCarrierReturnEvent).not.toHaveBeenCalled();
+    expect(prismaMock.omsBatchOrder.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('OFD after failed_delivery cancels unconfirmed draft returns', async () => {
+    prismaMock.carrierShipmentEvent.findFirst.mockResolvedValueOnce(null);
+    prismaMock.carrierShipment.findFirst.mockResolvedValueOnce({
+      id: 'ship-ofd',
+      outboundOrder: {
+        id: 'out-ofd',
+        orderNumber: 'OUT-OFD',
+        companyId: 'comp-1',
+        status: 'out_for_delivery',
+        omsOrder: {
+          id: 'oms-ofd',
+          orderNumber: 'ORD-OFD',
+          companyId: 'comp-1',
+          status: 'failed_delivery',
+          createdBy: 'user-1',
+        },
+      },
+    });
+    autoReturnMock.cancelUnconfirmedDraftReturns.mockResolvedValueOnce({
+      cancelledIds: ['ret-1'],
+    });
+
+    const event: NormalizedTrackingEvent = {
+      providerCode: 'BABEL_EXPRESS',
+      awb: 'AWB-OFD',
+      eventType: 'OutForDelivery',
+      normalizedStatus: 'out_for_delivery',
+      rawPayload: { awb: 'AWB-OFD' },
+    };
+
+    const res = await service.processTrackingEvent(event);
+    expect(res.success).toBe(true);
+    expect(res.action).toBe('order_out_for_delivery_draft_return_cancelled');
+    expect(autoReturnMock.cancelUnconfirmedDraftReturns).toHaveBeenCalledWith(
+      expect.objectContaining({ omsOrderId: 'oms-ofd' }),
     );
   });
 });

@@ -61,6 +61,11 @@ const PLAN_RATE_SELECT = {
 @Injectable()
 export class BillingInvoiceCalculationService {
   private readonly log = new Logger(BillingInvoiceCalculationService.name);
+  /** Coalesce burst recalcs (bulk pack/pick) into one job per company. */
+  private readonly pendingRecalc = new Map<
+    string,
+    { timer: NodeJS.Timeout; trigger: BillingRecalcTrigger; waiters: Array<(v: BillingRecalcResult | null) => void> }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -71,15 +76,40 @@ export class BillingInvoiceCalculationService {
     companyId: string,
     trigger: BillingRecalcTrigger,
   ): Promise<BillingRecalcResult | null> {
+    // Bulk stage transitions fire this per order; coalesce to one recalc shortly after the burst.
+    return new Promise((resolve) => {
+      const existing = this.pendingRecalc.get(companyId);
+      if (existing) {
+        existing.trigger = trigger;
+        existing.waiters.push(resolve);
+        clearTimeout(existing.timer);
+        existing.timer = setTimeout(() => void this.flushRecalc(companyId), 400);
+        return;
+      }
+      const entry = {
+        trigger,
+        waiters: [resolve],
+        timer: setTimeout(() => void this.flushRecalc(companyId), 400),
+      };
+      this.pendingRecalc.set(companyId, entry);
+    });
+  }
+
+  private async flushRecalc(companyId: string): Promise<void> {
+    const entry = this.pendingRecalc.get(companyId);
+    if (!entry) return;
+    this.pendingRecalc.delete(companyId);
+    let result: BillingRecalcResult | null = null;
     try {
-      return await this.recalculateForCompanyInternal(companyId, trigger);
+      result = await this.recalculateForCompanyInternal(companyId, entry.trigger);
     } catch (err) {
       this.log.error(
-        `Invoice recalculation failed company=${companyId} trigger=${trigger}`,
+        `Invoice recalculation failed company=${companyId} trigger=${entry.trigger}`,
         err instanceof Error ? err.stack : String(err),
       );
-      return null;
+      result = null;
     }
+    for (const w of entry.waiters) w(result);
   }
 
   async finalizeCycleInvoice(

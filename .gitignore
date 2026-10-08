@@ -11,6 +11,9 @@ node_modules/
 !.env.example
 **/.env
 **/.env.*
+.cursor/mcp.json
+.vscode/mcp.json
+**/.better-design/
 
 # Build artifacts
 dist/

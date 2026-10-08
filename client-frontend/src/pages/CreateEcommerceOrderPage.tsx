@@ -74,7 +74,8 @@ function label(text: string, isArabic: boolean): string {
     'Exceeds available stock': 'يتجاوز المخزون المتاح',
     Available: 'المتاح',
     'Requested across lines': 'المطلوب عبر البنود',
-    'Order cannot be created — insufficient stock:': 'لا يمكن إنشاء الطلب — مخزون غير كافٍ:',
+    'Insufficient stock. This order can be created, but it cannot be approved until sufficient stock is available.':
+      'مخزون غير كافٍ. يمكن إنشاء الطلب، لكن لا يمكن اعتماده حتى تتوفر الكمية الكافية.',
     requested: 'مطلوب',
     available: 'متاح',
     'Insufficient stock for one or more products.': 'مخزون غير كافٍ لمنتج واحد أو أكثر.',
@@ -210,10 +211,8 @@ export function CreateEcommerceOrderPage(): ReactElement {
       setError(t('Required ship date cannot be before today.'));
       return;
     }
-    if (shortages.length > 0) {
-      setError(t('Insufficient stock for one or more products.'));
-      return;
-    }
+    // Stock shortages are informational only — Approve is the stock gate.
+
     // Map pin is optional — hierarchy address is enough for OMS create.
     // Babel neighbourhood id is resolved later when a pin is present or at shipping time.
 
@@ -534,8 +533,15 @@ export function CreateEcommerceOrderPage(): ReactElement {
         </section>
 
         {shortages.length > 0 ? (
-          <div className="rounded-md border border-status-danger-border bg-status-danger-bg p-3 text-xs text-status-danger-fg">
-            <strong className="block">{t('Order cannot be created — insufficient stock:')}</strong>
+          <div
+            className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-100"
+            role="status"
+          >
+            <strong className="block">
+              {t(
+                'Insufficient stock. This order can be created, but it cannot be approved until sufficient stock is available.',
+              )}
+            </strong>
             <ul className="mt-1 list-disc pl-4">
               {shortages.map((s) => {
                 const p = products.data?.items.find((x) => x.id === s.productId);
@@ -562,7 +568,7 @@ export function CreateEcommerceOrderPage(): ReactElement {
           <button
             type="submit"
             form="create-client-oms"
-            disabled={fieldsDisabled || shortages.length > 0}
+            disabled={fieldsDisabled}
             className={FILTER_PRIMARY_BUTTON_CLASS}
           >
             {loading ? (

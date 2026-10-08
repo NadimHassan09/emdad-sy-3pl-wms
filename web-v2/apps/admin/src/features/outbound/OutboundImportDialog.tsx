@@ -17,6 +17,13 @@ import { CompaniesApi } from '@/api/companies'
 import { OutboundApi } from '@/api/outbound'
 import { QK } from '@/constants/query-keys'
 
+/** White field surface (avoids muted / light-green select fill). */
+const FIELD_SURFACE = 'bg-white hover:bg-white dark:bg-white dark:text-foreground dark:hover:bg-white'
+
+/** Soft-danger text button (Close). */
+const DANGER_TEXT_BTN =
+  'border border-tone-danger-border bg-tone-danger-bg text-tone-danger-fg hover:bg-tone-danger-bg hover:text-tone-danger-fg'
+
 type ImportErrors = Array<{ rowNumber: number; externalReference?: string | null; orderNumber?: string | null; reason?: string; error?: string }>
 
 function errorsToCsv(errors: ImportErrors): string {
@@ -112,10 +119,23 @@ export function OutboundImportDialog({
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label>{t('Client', 'العميل')}</Label>
-            <Combobox value={companyId} onChange={setCompanyId} options={options} placeholder={t('Select client', 'اختر العميل')} />
+            <Combobox
+              value={companyId}
+              onChange={setCompanyId}
+              options={options}
+              placeholder={t('Select client', 'اختر العميل')}
+              searchPlaceholder={t('Search…', 'بحث…')}
+              emptyLabel={t('No results', 'لا نتائج')}
+              disabled={busy}
+              className={FIELD_SURFACE}
+            />
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => void OutboundApi.downloadImportTemplate()}>
+            <Button
+              type="button"
+              disabled={busy}
+              onClick={() => void OutboundApi.downloadImportTemplate().catch((e: Error) => toast.error(e.message))}
+            >
               <Download className="size-4" aria-hidden />
               {t('Download template', 'تنزيل القالب')}
             </Button>
@@ -128,7 +148,7 @@ export function OutboundImportDialog({
               type="file"
               accept=".csv,text/csv"
               disabled={busy}
-              className="block w-full text-sm file:me-4 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-medium file:text-primary-foreground"
+              className="block w-full cursor-pointer rounded-lg border border-input bg-white text-sm file:me-4 file:h-10 file:cursor-pointer file:rounded-md file:border-0 file:bg-primary file:px-4 file:font-medium file:text-primary-foreground hover:file:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
               onChange={onFile}
             />
           </div>
@@ -149,7 +169,7 @@ export function OutboundImportDialog({
           ) : null}
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" disabled={busy} onClick={close}>
+          <Button type="button" variant="ghost" disabled={busy} className={DANGER_TEXT_BTN} onClick={close}>
             {t('Close', 'إغلاق')}
           </Button>
           <Button

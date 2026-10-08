@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { CompanyStatus, UserRole, UserStatus } from '@prisma/client';
@@ -12,7 +17,9 @@ import { getClientIp } from '../../../common/security/request-ip.util';
 import { ImageProcessingService } from '../../media/image-processing.service';
 import { MediaStorageService } from '../../media/media-storage.service';
 import { toAvatarPublicUrl } from '../../media/avatar-url';
+import { ClientChangePasswordDto } from './dto/client-change-password.dto';
 import { ClientLoginDto } from './dto/client-login.dto';
+import { ClientUpdateProfileDto } from './dto/client-update-profile.dto';
 import type { JwtClientAccessPayload } from './strategies/jwt-client.strategy';
 
 const CLIENT_ROLES: UserRole[] = [UserRole.client_admin, UserRole.client_staff];
@@ -210,6 +217,79 @@ export class ClientAuthService {
       where: { id: user.id },
       data: { avatarPath: null },
     });
+  }
+
+  /** Self-service profile update (display name only). */
+  async updateProfile(user: ClientPrincipal, dto: ClientUpdateProfileDto) {
+    const fullName = dto.fullName.trim();
+    if (!fullName) {
+      throw new BadRequestException('Full name is required.');
+    }
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { fullName },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        companyId: true,
+        avatarPath: true,
+        company: { select: { name: true } },
+      },
+    });
+    if (!updated.companyId || !CLIENT_ROLES.includes(updated.role)) {
+      throw new UnauthorizedException('Session is no longer valid.');
+    }
+    return {
+      id: updated.id,
+      email: updated.email,
+      fullName: updated.fullName,
+      role: updated.role as ClientPrincipal['role'],
+      companyId: updated.companyId,
+      companyName: updated.company?.name ?? '',
+      avatarUrl: toAvatarPublicUrl(updated.avatarPath),
+    };
+  }
+
+  /**
+   * Self-service password change for client portal users.
+   * Uses 400 (not 401) for wrong current password so the client API interceptor
+   * does not clear the session.
+   */
+  async changePassword(user: ClientPrincipal, dto: ClientChangePasswordDto) {
+    const row = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        passwordHash: true,
+        status: true,
+        companyId: true,
+        role: true,
+      },
+    });
+    if (!row || row.status !== UserStatus.active) {
+      throw new UnauthorizedException('Session is no longer valid.');
+    }
+    if (row.companyId === null || !CLIENT_ROLES.includes(row.role)) {
+      throw new ForbiddenException('This portal is only for client users.');
+    }
+
+    const valid = await this.password.verify(dto.currentPassword, row.passwordHash);
+    if (!valid) {
+      throw new BadRequestException('Current password is incorrect.');
+    }
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException('New password must be different from the current password.');
+    }
+
+    const passwordHash = await this.password.hash(dto.newPassword);
+    await this.prisma.user.update({
+      where: { id: row.id },
+      data: { passwordHash },
+    });
+
+    return { changed: true as const };
   }
 
   private expiresInToMs(expiresIn: string): number {

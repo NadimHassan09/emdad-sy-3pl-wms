@@ -793,7 +793,14 @@ export class WarehouseTasksService {
     return this.loadTaskEnvelope(taskId, user);
   }
 
-  async start(taskId: string, user: AuthPrincipal, workerId?: string) {
+  async start(
+    taskId: string,
+    user: AuthPrincipal,
+    workerId?: string,
+    opts?: { quiet?: boolean },
+  ) {
+    const quiet = opts?.quiet === true;
+    let quietPickExecutionState: { reservations: unknown } | null = null;
     await this.prisma.$transaction(async (tx) => {
       await this.lockTask(tx, taskId);
       const task = await tx.warehouseTask.findUnique({
@@ -893,6 +900,7 @@ export class WarehouseTasksService {
           lines,
           parsed.outbound_order_id,
         );
+        quietPickExecutionState = { reservations };
         await tx.warehouseTask.update({
           where: { id: taskId },
           data: {
@@ -909,32 +917,46 @@ export class WarehouseTasksService {
           ? { performedByKind: 'admin', performedByUserId: user.id }
           : { workerId: activeWorker },
       );
-      const started = await tx.warehouseTask.findUniqueOrThrow({
-        where: { id: taskId },
-        include: { workflowInstance: true },
-      });
-      await this.audit.logTx(
-        tx,
-        this.audit.fromPrincipal(user, {
-          action: 'TASK_STARTED',
-          resourceType: 'warehouse_task',
-          resourceId: taskId,
-          companyId: started.workflowInstance.companyId,
-          previousState: { status: task.status },
-          newState: {
-            status: WarehouseTaskStatus.in_progress,
-            taskType: task.taskType,
-            ...(activeWorker ? { workerId: activeWorker } : { performedByKind: 'admin' }),
-          },
-        }),
-      );
+      if (!quiet) {
+        const started = await tx.warehouseTask.findUniqueOrThrow({
+          where: { id: taskId },
+          include: { workflowInstance: true },
+        });
+        await this.audit.logTx(
+          tx,
+          this.audit.fromPrincipal(user, {
+            action: 'TASK_STARTED',
+            resourceType: 'warehouse_task',
+            resourceId: taskId,
+            companyId: started.workflowInstance.companyId,
+            previousState: { status: task.status },
+            newState: {
+              status: WarehouseTaskStatus.in_progress,
+              taskType: task.taskType,
+              ...(activeWorker ? { workerId: activeWorker } : { performedByKind: 'admin' }),
+            },
+          }),
+        );
+      }
     });
-    await this.cacheInv.afterTaskAndStockMutation();
-    void this.realtime.emitTaskUpdatedByTaskId(taskId);
-    return this.loadTaskEnvelope(taskId, user);
+    if (!quiet) {
+      await this.cacheInv.afterTaskAndStockMutation();
+      void this.realtime.emitTaskUpdatedByTaskId(taskId);
+      return this.loadTaskEnvelope(taskId, user);
+    }
+    return {
+      id: taskId,
+      executionState: quietPickExecutionState,
+    } as unknown as Awaited<ReturnType<WarehouseTasksService['loadTaskEnvelope']>>;
   }
 
-  async complete(taskId: string, user: AuthPrincipal, bodyRaw: unknown) {
+  async complete(
+    taskId: string,
+    user: AuthPrincipal,
+    bodyRaw: unknown,
+    opts?: { quiet?: boolean },
+  ) {
+    const quiet = opts?.quiet === true;
     const parsed = safeParseTaskComplete(bodyRaw);
     if (!parsed.success) {
       throw new BadRequestException({
@@ -1222,7 +1244,10 @@ export class WarehouseTasksService {
           }),
         );
       }
-      if (['pick', 'putaway', 'putaway_quarantine', 'dispatch'].includes(body.task_type)) {
+      if (
+        !quiet &&
+        ['pick', 'putaway', 'putaway_quarantine', 'dispatch'].includes(body.task_type)
+      ) {
         await this.audit.logTx(
           tx,
           this.audit.fromPrincipal(user, {
@@ -1238,11 +1263,14 @@ export class WarehouseTasksService {
         );
       }
 
-      await this.refreshWorkflowInstanceHealth(tx, finalized.workflowInstanceId);
+      // Bulk admin stage transitions skip health refresh (UI list refresh covers it).
+      if (!quiet) {
+        await this.refreshWorkflowInstanceHealth(tx, finalized.workflowInstanceId);
+      }
     });
 
     if (!idempotentPickNoop && !idempotentDispatchNoop) {
-      if (inboundCompleted) {
+      if (!quiet && inboundCompleted) {
         await this.notifications.notifyClientOrderCompleted({
           companyId: inboundCompleted.companyId,
           orderType: 'inbound',
@@ -1250,7 +1278,7 @@ export class WarehouseTasksService {
           orderNumber: inboundCompleted.orderNumber,
         });
       }
-      if (outboundCompleted) {
+      if (!quiet && outboundCompleted) {
         await this.notifications.notifyClientOrderCompleted({
           companyId: outboundCompleted.companyId,
           orderType: 'outbound',
@@ -1259,8 +1287,10 @@ export class WarehouseTasksService {
         });
       }
 
-      await this.cacheInv.afterTaskAndStockMutation();
-      void this.realtime.emitTaskUpdatedByTaskId(taskId, { inventorySource: 'task_complete' });
+      if (!quiet) {
+        await this.cacheInv.afterTaskAndStockMutation();
+        void this.realtime.emitTaskUpdatedByTaskId(taskId, { inventorySource: 'task_complete' });
+      }
 
       if (billingCompanyId && billingTaskType) {
         const trigger = billingTriggerForWarehouseTask({
@@ -1275,13 +1305,20 @@ export class WarehouseTasksService {
 
       // Immutable document generation (post-commit, error-safe, idempotent):
       // GRN right after a Receiving task; Delivery Note once Dispatch is shipped.
-      if (billingTaskType === WarehouseTaskType.receiving) {
-        void this.documentGeneration.generateGrnForReceiving(taskId);
-      } else if (billingTaskType === WarehouseTaskType.dispatch && outboundCompleted) {
-        void this.documentGeneration.generateDnForDispatch(taskId);
+      if (!quiet) {
+        if (billingTaskType === WarehouseTaskType.receiving) {
+          void this.documentGeneration.generateGrnForReceiving(taskId);
+        } else if (billingTaskType === WarehouseTaskType.dispatch && outboundCompleted) {
+          void this.documentGeneration.generateDnForDispatch(taskId);
+        }
       }
     }
 
+    if (quiet) {
+      return { id: taskId } as unknown as Awaited<
+        ReturnType<WarehouseTasksService['loadTaskEnvelope']>
+      >;
+    }
     return this.loadTaskEnvelope(taskId, user);
   }
 
@@ -1577,13 +1614,256 @@ export class WarehouseTasksService {
     return this.loadTaskEnvelope(taskId, user);
   }
 
-  /** Admin shortcut: start without worker then complete in one HTTP call. */
-  async adminConfirm(taskId: string, user: AuthPrincipal, body: unknown) {
+  /**
+   * Bulk admin pick: reserve + apply pick + complete in ONE transaction.
+   * Same inventory effects as start()+complete(), without a second commit/lock cycle.
+   */
+  async adminQuietStartAndCompletePick(
+    taskId: string,
+    user: AuthPrincipal,
+    opts?: { deferOrchestration?: boolean },
+  ): Promise<{ id: string }> {
     if (!this.isAdminActor(user)) {
       throw new ForbiddenException('Only warehouse managers may admin-confirm tasks.');
     }
-    await this.start(taskId, user);
-    return this.complete(taskId, user, body);
+    const deferOrchestration = opts?.deferOrchestration === true;
+
+    type PostCommit = {
+      finalized: Prisma.WarehouseTaskGetPayload<{ include: { workflowInstance: true } }>;
+      body: Extract<TaskCompleteBody, { task_type: 'pick' }>;
+    };
+    let postCommit: PostCommit | null = null;
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockTask(tx, taskId);
+      const task = await tx.warehouseTask.findUnique({
+        where: { id: taskId },
+        include: {
+          assignments: { where: { unassignedAt: null }, take: 1 },
+          workflowInstance: true,
+        },
+      });
+      if (!task) throw new NotFoundException('Task not found.');
+      this.assertTaskWorkflowTenant(user, task.workflowInstance.companyId);
+
+      if (task.taskType !== WarehouseTaskType.pick) {
+        throw new BadRequestException('adminQuietStartAndCompletePick requires a pick task.');
+      }
+      if (task.status === WarehouseTaskStatus.completed) {
+        return;
+      }
+
+      const adminWithoutWorker = this.isAdminActor(user) && !task.assignments[0]?.workerId;
+      if (!adminWithoutWorker) {
+        throw new BadRequestException(
+          'adminQuietStartAndCompletePick requires admin without worker assignment.',
+        );
+      }
+
+      if (
+        task.status !== WarehouseTaskStatus.pending &&
+        task.status !== WarehouseTaskStatus.assigned &&
+        task.status !== WarehouseTaskStatus.in_progress
+      ) {
+        throw new BadRequestException(`Cannot complete pick from status ${task.status}.`);
+      }
+
+      // Bulk quiet path: order-stage gate already validated complete_picking.
+      // Task row lock + optimistic lockVersion serialize double-submit; skip
+      // workflow-wide pick locks / frontier scan (major latency under concurrency).
+      const existingExec = this.parseExecState(task.executionState);
+      if (existingExec.reservations.length > 0) {
+        await this.releaseTaskHeldReservations(tx, taskId, task.executionState);
+      }
+
+      const parsed = parsePickPayload(task.payload as unknown);
+      await this.lockOutboundOrder(tx, parsed.outbound_order_id);
+
+      // Prefer soft-hold rows from ALLOCATE_ON_ORDER_CREATE (no FEFO re-scan / re-reserve).
+      let reservations = await this.effects.loadActivePickReservations(
+        tx,
+        parsed.outbound_order_id,
+      );
+      if (reservations.length === 0) {
+        // Fallback needs workflow locks when we might touch shared stock buckets.
+        await this.lockWorkflowInstance(tx, task.workflowInstanceId);
+        await this.lockWorkflowPickTasks(tx, task.workflowInstanceId);
+        await this.assertExclusiveActivePickInWorkflow(tx, task.workflowInstanceId, taskId);
+        const linesDb = await tx.outboundOrderLine.findMany({
+          where: {
+            outboundOrderId: parsed.outbound_order_id,
+            id: { in: parsed.lines.map((l) => l.outbound_order_line_id) },
+          },
+        });
+        const lines = parsed.lines.map((l) => {
+          const ol = linesDb.find((x) => x.id === l.outbound_order_line_id);
+          if (!ol) throw new BadRequestException(`Missing outbound line ${l.outbound_order_line_id}`);
+          return {
+            outboundOrderLineId: l.outbound_order_line_id,
+            productId: ol.productId,
+            requestedQty: new Prisma.Decimal(l.requested_qty),
+            specificLotId: ol.specificLotId,
+          };
+        });
+        reservations = await this.effects.buildPickReservations(
+          tx,
+          task.workflowInstance.companyId,
+          task.workflowInstance.warehouseId,
+          lines,
+          parsed.outbound_order_id,
+        );
+      }
+      if (reservations.length === 0) {
+        throw new BadRequestException(
+          'No FEFO reservations on pick task (stock may be insufficient).',
+        );
+      }
+
+      const body = this.buildPickCompleteBodyFromReservations(reservations);
+      await this.effects.applyPickRecordQuiet(tx, parsed.outbound_order_id, reservations, body);
+
+      // Single status write: open → completed (admin bulk does not need a visible in_progress).
+      const now = new Date();
+      const res = await tx.warehouseTask.updateMany({
+        where: { id: taskId, lockVersion: task.lockVersion },
+        data: {
+          status: WarehouseTaskStatus.completed,
+          startedAt: task.startedAt ?? now,
+          completedAt: now,
+          completedById: user.id,
+          lockVersion: { increment: 1 },
+          executionState: { reservations } as object as Prisma.InputJsonValue,
+        },
+      });
+      if (res.count === 0) {
+        throw new ConflictException('Task was modified concurrently; retry.');
+      }
+      await this.appendEvent(tx, taskId, 'completed', user.id, {
+        task_type: 'pick',
+        performedByKind: 'admin',
+        performedByUserId: user.id,
+      });
+
+      const finalized = {
+        ...task,
+        status: WarehouseTaskStatus.completed,
+        startedAt: task.startedAt ?? now,
+        completedAt: now,
+        completedById: user.id,
+        lockVersion: task.lockVersion + 1,
+        executionState: { reservations } as object as Prisma.JsonValue,
+      };
+      if (deferOrchestration) {
+        postCommit = { finalized, body };
+      } else {
+        await this.orchestration.onTaskCompleted(tx, finalized, body, user.id);
+      }
+      // Bulk quiet: skip TASK_COMPLETED audit row (same policy as skipped TASK_STARTED /
+      // INVENTORY_MUTATION_APPLIED on quiet complete). Event + order status remain authoritative.
+    });
+
+    if (postCommit && deferOrchestration) {
+      await this.prisma.$transaction(async (tx) => {
+        await this.orchestration.onTaskCompleted(
+          tx,
+          postCommit!.finalized,
+          postCommit!.body,
+          user.id,
+        );
+      });
+    }
+
+    return { id: taskId };
+  }
+
+  /**
+   * After deferred quiet picks: ensure pack / shipping_details tasks exist for
+   * orders now in packing / waiting_for_shipping_method.
+   */
+  async ensureOutboundFollowupTasksAfterPicks(
+    user: AuthPrincipal,
+    outboundOrderIds: string[],
+  ): Promise<void> {
+    if (!this.isAdminActor(user) || outboundOrderIds.length === 0) return;
+    const unique = [...new Set(outboundOrderIds)];
+    const picks = await this.prisma.warehouseTask.findMany({
+      where: {
+        taskType: WarehouseTaskType.pick,
+        status: WarehouseTaskStatus.completed,
+        workflowInstance: {
+          referenceType: 'outbound_order',
+          referenceId: { in: unique },
+        },
+      },
+      include: { workflowInstance: true },
+      orderBy: { completedAt: 'desc' },
+    });
+    const latestByOrder = new Map<string, (typeof picks)[number]>();
+    for (const pick of picks) {
+      const orderId = pick.workflowInstance.referenceId;
+      if (!latestByOrder.has(orderId)) latestByOrder.set(orderId, pick);
+    }
+    const items = [...latestByOrder.values()];
+    const concurrency = Math.min(20, Math.max(1, items.length));
+    let cursor = 0;
+    await Promise.all(
+      Array.from({ length: concurrency }, async () => {
+        while (cursor < items.length) {
+          const pick = items[cursor++];
+          this.assertTaskWorkflowTenant(user, pick.workflowInstance.companyId);
+          const exec = this.parseExecState(pick.executionState);
+          if (exec.reservations.length === 0) continue;
+          const body = this.buildPickCompleteBodyFromReservations(exec.reservations);
+          await this.prisma.$transaction(async (tx) => {
+            await this.orchestration.onTaskCompleted(tx, pick, body, user.id);
+          });
+        }
+      }),
+    );
+  }
+
+  private buildPickCompleteBodyFromReservations(
+    reservations: ReservationSnapshot[],
+  ): Extract<TaskCompleteBody, { task_type: 'pick' }> {
+    const pickGroups = new Map<
+      string,
+      Array<{ location_id: string; lot_id?: string | null; quantity: string }>
+    >();
+    for (const r of reservations) {
+      const g = pickGroups.get(r.outboundOrderLineId) ?? [];
+      g.push({
+        location_id: r.locationId,
+        lot_id: r.lotId,
+        quantity: r.quantity,
+      });
+      pickGroups.set(r.outboundOrderLineId, g);
+    }
+    if (pickGroups.size === 0) {
+      throw new BadRequestException(
+        'Could not build pick completion payload from reservations.',
+      );
+    }
+    return {
+      task_type: 'pick',
+      picks: [...pickGroups.entries()].map(([outbound_order_line_id, lines]) => ({
+        outbound_order_line_id,
+        lines,
+      })),
+    };
+  }
+
+  /** Admin shortcut: start without worker then complete in one HTTP call. */
+  async adminConfirm(
+    taskId: string,
+    user: AuthPrincipal,
+    body: unknown,
+    opts?: { quiet?: boolean },
+  ) {
+    if (!this.isAdminActor(user)) {
+      throw new ForbiddenException('Only warehouse managers may admin-confirm tasks.');
+    }
+    await this.start(taskId, user, undefined, opts);
+    return this.complete(taskId, user, body, opts);
   }
 
   async leaseAcquire(taskId: string, user: AuthPrincipal, minutesRaw?: number) {

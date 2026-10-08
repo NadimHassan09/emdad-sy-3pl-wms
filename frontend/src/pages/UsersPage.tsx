@@ -27,8 +27,17 @@ import { useDefaultWarehouseId } from '../hooks/useDefaultWarehouse';
 import { useFilters } from '../hooks/useFilters';
 import { useServerPagination } from '../hooks/useServerPagination';
 import { WorkerProfilePanel } from '../components/users/WorkerProfilePanel';
+import { useAuth } from '../auth/AuthContext';
 import { adminMediaSrc } from '../lib/admin-media';
 import { MODAL_CANCEL_BUTTON_CLASS } from '../lib/modal-button-styles';
+import {
+  canCreateTargetRole,
+  canEditExistingUsers,
+  canManageTargetRole,
+  canSetOtherUserPassword,
+  creatableSystemRoles,
+  type SystemRoleUi,
+} from '../lib/rbac';
 import { useDebounced } from '../lib/useDebounced';
 import { workerProfileStatusText } from '../lib/worker-profile';
 
@@ -42,13 +51,13 @@ function variantToApiKind(variant: UsersPageVariant): 'system' | 'client' {
   return variant === 'warehouse' ? 'system' : 'client';
 }
 
-const SYSTEM_ROLE_OPTIONS = [
+const SYSTEM_ROLE_OPTION_ALL: Array<{ value: SystemRoleUi; label: string }> = [
   { value: 'super_admin', label: 'Super admin' },
   { value: 'admin', label: 'Admin' },
   { value: 'worker', label: 'Worker' },
 ];
 
-const SYSTEM_ROLE_EDIT = [
+const SYSTEM_ROLE_EDIT_ALL = [
   { value: 'super_admin', label: 'Super admin' },
   { value: 'wh_manager', label: 'Admin' },
   { value: 'wh_operator', label: 'Worker' },
@@ -148,6 +157,15 @@ function statusPill(status: string) {
 
 function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
   const navigate = useNavigate();
+  const { user: actor } = useAuth();
+  const actorRole = actor?.role;
+  const canEditUsers = canEditExistingUsers(actorRole);
+  const canResetPassword = canSetOtherUserPassword(actorRole);
+  const createSystemRoleOptions = useMemo(
+    () =>
+      SYSTEM_ROLE_OPTION_ALL.filter((opt) => creatableSystemRoles(actorRole).includes(opt.value)),
+    [actorRole],
+  );
   const apiKind = variantToApiKind(variant);
   const { warehouseId: defaultWarehouseId } = useDefaultWarehouseId();
   const isArabic =
@@ -163,7 +181,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [systemRole, setSystemRole] = useState<'super_admin' | 'admin' | 'worker'>('worker');
+  const [systemRole, setSystemRole] = useState<SystemRoleUi>('worker');
   const [clientRole, setClientRole] = useState<'client_admin' | 'client_staff'>('client_staff');
   const [companyId, setCompanyId] = useState('');
 
@@ -253,21 +271,34 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     setFullName('');
     setPhone('');
     setPassword('');
-    setSystemRole('worker');
+    const allowed = creatableSystemRoles(actorRole);
+    setSystemRole(allowed.includes('worker') ? 'worker' : (allowed[0] ?? 'worker'));
     setClientRole('client_staff');
     setCompanyId('');
-  }, [apiKind]);
+  }, [apiKind, actorRole]);
 
-  const openEdit = useCallback((u: UserListRow) => {
-    setEditUser(u);
-    setEditEmail(u.email);
-    setEditFullName(u.fullName);
-    setEditPhone(u.phone ?? '');
-    setEditPassword('');
-    setEditRole(u.role);
-    setEditStatus(u.status);
-    setEditCompanyId(u.companyId ?? '');
-  }, []);
+  const openEdit = useCallback(
+    (u: UserListRow) => {
+      if (!canEditUsers || !canManageTargetRole(actorRole, u.role)) {
+        toast.error(
+          t(
+            'You cannot edit this account.',
+            'لا يمكنك تعديل هذا الحساب.',
+          ),
+        );
+        return;
+      }
+      setEditUser(u);
+      setEditEmail(u.email);
+      setEditFullName(u.fullName);
+      setEditPhone(u.phone ?? '');
+      setEditPassword('');
+      setEditRole(u.role);
+      setEditStatus(u.status);
+      setEditCompanyId(u.companyId ?? '');
+    },
+    [actorRole, canEditUsers, t, toast],
+  );
 
   const closeEdit = useCallback(() => {
     setEditUser(null);
@@ -401,6 +432,13 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
         header: t('Actions', 'الإجراءات'),
         className: 'min-w-[120px] text-right',
         accessor: (u) => {
+          const manageable = canManageTargetRole(actorRole, u.role);
+          const showEdit = canEditUsers && manageable;
+          const showSuspend = manageable && u.status === 'active';
+          const showDelete = manageable;
+          if (!showEdit && !showSuspend && !showDelete) {
+            return <span className="text-text-faint">—</span>;
+          }
           return (
             <div className="inline-flex" onClick={(e) => e.stopPropagation()}>
               <AnchoredDropdown
@@ -424,18 +462,20 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
                   </button>
                 }
               >
-                <button
-                  type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-card-muted"
-                  data-user-action-menu-button="true"
-                  onClick={() => {
-                    setOpenActionId(null);
-                    openEdit(u);
-                  }}
-                >
-                  Edit
-                </button>
-                {u.status === 'active' ? (
+                {showEdit ? (
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-card-muted"
+                    data-user-action-menu-button="true"
+                    onClick={() => {
+                      setOpenActionId(null);
+                      openEdit(u);
+                    }}
+                  >
+                    Edit
+                  </button>
+                ) : null}
+                {showSuspend ? (
                   <button
                     type="button"
                     className="block w-full px-3 py-2 text-left text-sm text-text-body transition hover:bg-surface-card-muted"
@@ -453,22 +493,24 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
                     Suspend
                   </button>
                 ) : null}
-                <button
-                  type="button"
-                  className="block w-full px-3 py-2 text-left text-sm text-status-error-fg transition hover:bg-status-error-bg"
-                  data-user-action-menu-button="true"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Permanently delete "${u.email}"? This fails if the user still has related orders, ledger rows, or task history.`,
-                      )
-                    ) {
-                      removeMut.mutate(u.id);
-                    }
-                  }}
-                >
-                  Delete
-                </button>
+                {showDelete ? (
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-sm text-status-error-fg transition hover:bg-status-error-bg"
+                    data-user-action-menu-button="true"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Permanently delete "${u.email}"? This fails if the user still has related orders, ledger rows, or task history.`,
+                        )
+                      ) {
+                        removeMut.mutate(u.id);
+                      }
+                    }}
+                  >
+                    Delete
+                  </button>
+                ) : null}
               </AnchoredDropdown>
             </div>
           );
@@ -479,7 +521,17 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
       systemColumns: [...lead, ...tail],
       clientColumns: [...lead, companyCol, ...tail],
     };
-  }, [busy, openEdit, suspendMut.isPending, removeMut.isPending, openActionId, isArabic, onlineUserIds]);
+  }, [
+    actorRole,
+    busy,
+    canEditUsers,
+    openEdit,
+    suspendMut.isPending,
+    removeMut.isPending,
+    openActionId,
+    isArabic,
+    onlineUserIds,
+  ]);
 
   const closeCreate = () => {
     if (!createMut.isPending) {
@@ -542,7 +594,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
     };
     const ph = editPhone.trim();
     if (ph) body.phone = ph;
-    if (editPassword.trim()) {
+    if (canResetPassword && editPassword.trim()) {
       body.password = editPassword;
     }
     if (editUser.kind === 'client' && editCompanyId) {
@@ -680,7 +732,7 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
                 name="systemRole"
                 value={systemRole}
                 onChange={(e) => setSystemRole(e.target.value as typeof systemRole)}
-                options={SYSTEM_ROLE_OPTIONS}
+                options={createSystemRoleOptions}
               />
             </>
           ) : (
@@ -773,7 +825,17 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
               name="edit-role"
               value={editRole}
               onChange={(e) => setEditRole(e.target.value as UserRole)}
-              options={editUser.kind === 'system' ? SYSTEM_ROLE_EDIT : CLIENT_ROLE_OPTIONS}
+              options={
+                editUser.kind === 'system'
+                  ? SYSTEM_ROLE_EDIT_ALL.filter(
+                      (opt) =>
+                        opt.value === editUser.role || canCreateTargetRole(actorRole, opt.value),
+                    )
+                  : CLIENT_ROLE_OPTIONS.filter(
+                      (opt) =>
+                        opt.value === editUser.role || canCreateTargetRole(actorRole, opt.value),
+                    )
+              }
             />
             {editUser.kind === 'client' ? (
               <Combobox
@@ -791,15 +853,17 @@ function UsersPageContent({ variant }: { variant: UsersPageVariant }) {
                 emptyMessage={t('No companies match.', 'لا توجد شركات مطابقة.')}
               />
             ) : null}
-            <TextField
-              label={t('New password (optional)', 'كلمة مرور جديدة (اختياري)')}
-              type="password"
-              name="edit-password"
-              autoComplete="new-password"
-              value={editPassword}
-              onChange={(e) => setEditPassword(e.target.value)}
-              hint={t('Leave blank to keep the current password.', 'اتركه فارغا للاحتفاظ بكلمة المرور الحالية.')}
-            />
+            {canResetPassword ? (
+              <TextField
+                label={t('New password (optional)', 'كلمة مرور جديدة (اختياري)')}
+                type="password"
+                name="edit-password"
+                autoComplete="new-password"
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                hint={t('Leave blank to keep the current password.', 'اتركه فارغا للاحتفاظ بكلمة المرور الحالية.')}
+              />
+            ) : null}
             {editUser.kind === 'system' && editRole === 'wh_operator' ? (
               <div className="border-t border-border-subtle pt-2">
                 <WorkerProfilePanel

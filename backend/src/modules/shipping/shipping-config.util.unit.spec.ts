@@ -96,7 +96,7 @@ describe('shipping-config.util', () => {
         shippingContents: 'Goods',
         shippingDeliveryType: 'address',
         shippingPickupType: 'address',
-        shippingPayer: 'reseller',
+        shippingPayer: 'sender',
         shippingWeightKg: 1.5,
       }),
     ).not.toThrow();
@@ -114,6 +114,21 @@ describe('shipping-config.util', () => {
         shippingWeightKg: 1.5,
       }),
     ).not.toThrow();
+
+    expect(() =>
+      assertCarrierShippingReady({
+        shippingMethod: ShippingMethod.carrier,
+        shippingProviderCode: 'BABEL_EXPRESS',
+        shippingReceiverLat: 33.5,
+        shippingReceiverLng: 36.3,
+        shippingPackageType: 'box',
+        shippingContents: 'Goods',
+        shippingDeliveryType: 'address',
+        shippingPickupType: 'address',
+        shippingPayer: 'receiver',
+        shippingWeightKg: 1.5,
+      }),
+    ).toThrow(/must be sender/i);
   });
 
   it('rejects absurd Babel box weights (common COD/amount mix-up)', () => {
@@ -127,7 +142,7 @@ describe('shipping-config.util', () => {
         shippingContents: 'Goods',
         shippingDeliveryType: 'address',
         shippingPickupType: 'address',
-        shippingPayer: 'reseller',
+        shippingPayer: 'sender',
         shippingWeightKg: 1000,
       }),
     ).toThrow(/too high|200/i);
@@ -144,7 +159,7 @@ describe('shipping-config.util', () => {
         shippingContents: 'Goods',
         shippingDeliveryType: 'address',
         shippingPickupType: 'address',
-        shippingPayer: 'reseller',
+        shippingPayer: 'sender',
         shippingWeightKg: 2,
         shippingPhoneCountry: '10000',
       }),

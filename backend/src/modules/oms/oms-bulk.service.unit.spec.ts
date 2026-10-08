@@ -40,7 +40,29 @@ describe('OmsBulkService', () => {
         } as any),
       ),
     };
-    bulkService = new OmsBulkService(mockOrdersService as OmsOrdersService);
+    const mockPrisma = {
+      omsOrder: {
+        findMany: jest.fn().mockResolvedValue([]),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      omsOrderEvent: {
+        createMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn({
+          omsOrder: {
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+          },
+          omsOrderEvent: {
+            createMany: jest.fn().mockResolvedValue({ count: 0 }),
+          },
+        }),
+      ),
+    };
+    bulkService = new OmsBulkService(
+      mockOrdersService as OmsOrdersService,
+      mockPrisma as any,
+    );
   });
 
   describe('confirmBulk', () => {

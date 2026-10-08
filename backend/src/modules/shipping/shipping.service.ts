@@ -24,6 +24,11 @@ import { resolveShippingCarrierName } from './shipping-carrier-resolver';
 import { assertCarrierShippingReady, type ShippingConfigFields } from './shipping-config.util';
 import type { QuoteShippingRatesDto } from './dto/quote-shipping-rates.dto';
 import { ShippingGeoService, type AreaBoundary } from './shipping-geo.service';
+import type {
+  ShippingParty,
+  ShippingProvider,
+  ShippingQuoteResult,
+} from './shipping-provider.interface';
 import {
   annotateRateQuotes,
   type ShippingRateError,
@@ -35,6 +40,11 @@ import {
   toBabelWeightParts,
 } from './shipment-parts.util';
 import { parseShippingCartons } from './shipping-cartons.types';
+import {
+  buildDestinationKey,
+  isQuoteFingerprintFresh,
+  type QuoteFingerprint,
+} from './quote-freshness';
 
 export type ShippingProviderAdminView = {
   code: string;
@@ -114,10 +124,120 @@ export class ShippingService {
     private readonly addressResolve: AddressResolveService,
   ) {}
 
+  private static readonly ORIGIN_ADDRESS_ID = 'default';
+
+  async getOriginAddress() {
+    const row = await this.prisma.shippingOriginAddress.findUnique({
+      where: { id: ShippingService.ORIGIN_ADDRESS_ID },
+    });
+    if (!row) return null;
+    return {
+      contactName: row.contactName,
+      phone: row.phone,
+      city: row.city,
+      district: row.district,
+      street: row.street,
+      lat: row.lat != null ? Number(row.lat) : null,
+      lng: row.lng != null ? Number(row.lng) : null,
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  async saveOriginAddress(
+    input: {
+      contactName: string;
+      phone: string;
+      city: string;
+      district?: string;
+      street: string;
+      lat?: number;
+      lng?: number;
+    },
+    userId: string,
+  ) {
+    const lat = Number.isFinite(input.lat) ? input.lat : null;
+    const lng = Number.isFinite(input.lng) ? input.lng : null;
+    await this.prisma.shippingOriginAddress.upsert({
+      where: { id: ShippingService.ORIGIN_ADDRESS_ID },
+      create: {
+        id: ShippingService.ORIGIN_ADDRESS_ID,
+        contactName: input.contactName.trim(),
+        phone: input.phone.trim(),
+        city: input.city.trim(),
+        district: input.district?.trim() || null,
+        street: input.street.trim(),
+        lat,
+        lng,
+        updatedByUserId: userId,
+      },
+      update: {
+        contactName: input.contactName.trim(),
+        phone: input.phone.trim(),
+        city: input.city.trim(),
+        district: input.district?.trim() || null,
+        street: input.street.trim(),
+        lat,
+        lng,
+        updatedByUserId: userId,
+      },
+    });
+    return this.getOriginAddress();
+  }
+
+  /**
+   * Pickup party shared by every carrier. Comes only from the Shipping Companies
+   * origin address — never from the order, warehouse, or customer delivery address.
+   */
+  async getConfiguredPickupParty(): Promise<ShippingParty | undefined> {
+    const row = await this.prisma.shippingOriginAddress.findUnique({
+      where: { id: ShippingService.ORIGIN_ADDRESS_ID },
+    });
+    if (!row) return undefined;
+    const phone = parsePhoneForBabel(row.phone);
+    const street = row.street.trim();
+    const city = row.city.trim();
+    const district = row.district?.trim() || '';
+    if (!row.contactName.trim() || !street || !city || !phone) return undefined;
+    const lat = row.lat != null ? Number(row.lat) : undefined;
+    const lng = row.lng != null ? Number(row.lng) : undefined;
+    const neighbourhoodId = await this.babelAddress.resolveNeighbourhoodId({
+      governorate: city,
+      cityRegion: district || city,
+      townNeighborhood: district || street,
+    });
+    return {
+      name: row.contactName.trim(),
+      phoneCountry: phone.country,
+      phoneLocal: phone.phone,
+      address: [street, district, city].filter(Boolean).join('، '),
+      governorate: city,
+      city,
+      neighborhood: district || street,
+      ...(Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : {}),
+      ...(neighbourhoodId != null ? { neighbourhoodId } : {}),
+    };
+  }
+
   private readonly rateCache = new Map<
     string,
     { at: number; value: QuoteDestinationRatesResult }
   >();
+  /** Coalesce identical in-flight rate requests (bulk stampede protection). */
+  private readonly rateInflight = new Map<string, Promise<QuoteDestinationRatesResult>>();
+  private providersQuoteCache:
+    | {
+        at: number;
+        rows: Array<{
+          code: string;
+          name: string;
+          connection: {
+            status: ShippingProviderConnectionStatus;
+            encryptedUsername: string | null;
+            encryptedPassword: string | null;
+          } | null;
+        }>;
+      }
+    | null = null;
 
   async lookupAreaBoundary(params: {
     governorate?: string | null;
@@ -142,13 +262,15 @@ export class ShippingService {
    * Quote every connected adapter independently. One carrier failure does not fail the rest.
    */
   async quoteDestinationRates(dto: QuoteShippingRatesDto): Promise<QuoteDestinationRatesResult> {
+    const includeAll = dto.includeAllDeliveryTypes === true;
     const cacheKey = JSON.stringify({
       lat: dto.receiverLat != null ? roundCoord(dto.receiverLat) : null,
       lng: dto.receiverLng != null ? roundCoord(dto.receiverLng) : null,
       neighbourhoodId: dto.neighbourhoodId ?? null,
       packageType: dto.packageType,
       weightKg: dto.weightKg,
-      deliveryType: dto.deliveryType,
+      // When returning both modes, deliveryType must not split the cache.
+      deliveryType: includeAll ? 'all' : dto.deliveryType,
       pickupType: dto.pickupType ?? null,
       volumeCbm: dto.volumeCbm ?? null,
       codAmount: dto.codAmount ?? null,
@@ -156,15 +278,52 @@ export class ShippingService {
       gov: dto.governorate?.trim() || '',
       city: dto.city?.trim() || '',
       hood: dto.neighborhood?.trim() || '',
+      currency: dto.currency?.trim() || '',
+      providerCode: dto.providerCode?.trim().toUpperCase() || '',
     });
     const cached = this.rateCache.get(cacheKey);
     if (cached && Date.now() - cached.at < 60_000) {
       return cached.value;
     }
 
-    const hasAddressNames = Boolean(
-      dto.governorate?.trim() && dto.city?.trim(),
-    );
+    const inflight = this.rateInflight.get(cacheKey);
+    if (inflight) return inflight;
+
+    const pending = this.quoteDestinationRatesUncached(dto, includeAll)
+      .then((value) => {
+        this.rateCache.set(cacheKey, { at: Date.now(), value });
+        if (this.rateCache.size > 120) {
+          const first = this.rateCache.keys().next().value;
+          if (first) this.rateCache.delete(first);
+        }
+        return value;
+      })
+      .finally(() => {
+        this.rateInflight.delete(cacheKey);
+      });
+    this.rateInflight.set(cacheKey, pending);
+    return pending;
+  }
+
+  private async listEnabledProvidersForQuote() {
+    const now = Date.now();
+    if (this.providersQuoteCache && now - this.providersQuoteCache.at < 30_000) {
+      return this.providersQuoteCache.rows;
+    }
+    const rows = await this.prisma.shippingProvider.findMany({
+      where: { enabled: true },
+      include: { connection: true },
+      orderBy: { name: 'asc' },
+    });
+    this.providersQuoteCache = { at: now, rows };
+    return rows;
+  }
+
+  private async quoteDestinationRatesUncached(
+    dto: QuoteShippingRatesDto,
+    includeAll: boolean,
+  ): Promise<QuoteDestinationRatesResult> {
+    const hasAddressNames = Boolean(dto.governorate?.trim() && dto.city?.trim());
 
     let receiverLat: number | null = null;
     let receiverLng: number | null = null;
@@ -208,14 +367,15 @@ export class ShippingService {
       });
     }
 
-    const providers = await this.prisma.shippingProvider.findMany({
-      where: { enabled: true },
-      include: { connection: true },
-      orderBy: { name: 'asc' },
-    });
+    const providerFilter = dto.providerCode?.trim().toUpperCase() || '';
+    const providers = (await this.listEnabledProvidersForQuote()).filter((row) =>
+      providerFilter ? row.code.toUpperCase() === providerFilter : true,
+    );
 
     const quotes: ShippingRateQuote[] = [];
     const errors: ShippingRateError[] = [];
+    const pickup =
+      (dto.pickupType ?? 'address') === 'hub' ? undefined : await this.getConfiguredPickupParty();
 
     await Promise.all(
       providers.map(async (row) => {
@@ -232,14 +392,15 @@ export class ShippingService {
             username: this.encryption.decrypt(row.connection!.encryptedUsername!),
             password: this.encryption.decrypt(row.connection!.encryptedPassword!),
           };
-          const quoteInput = {
+          const baseInput = {
             receiverLat: hasCoords ? receiverLat! : 0,
             receiverLng: hasCoords ? receiverLng! : 0,
             neighbourhoodId: neighbourhoodId ?? undefined,
             packageType: dto.packageType,
             weightKg: dto.packageType === 'envelope' ? 1 : dto.weightKg,
             deliveryType: dto.deliveryType,
-            pickupType: dto.pickupType ?? 'hub',
+            pickupType: dto.pickupType ?? 'address',
+            pickup,
             volumeCbm: dto.volumeCbm ?? undefined,
             governorate: dto.governorate,
             city: dto.city,
@@ -255,9 +416,11 @@ export class ShippingService {
               : {}),
           };
 
-          const rawResults = adapter.getServiceOptions
-            ? await adapter.getServiceOptions(credentials, quoteInput)
-            : [await adapter.getQuote(credentials, quoteInput)];
+          const rawResults = includeAll
+            ? await this.collectProviderOptionsAllDeliveryTypes(adapter, credentials, baseInput)
+            : adapter.getServiceOptions
+              ? await adapter.getServiceOptions(credentials, baseInput)
+              : [await adapter.getQuote(credentials, baseInput)];
 
           if (rawResults.length === 0) {
             errors.push({
@@ -304,17 +467,67 @@ export class ShippingService {
       }),
     );
 
-    const result: QuoteDestinationRatesResult = {
+    return {
       inSelectedArea: hasCoords ? true : null,
       quotes: annotateRateQuotes(quotes),
       errors,
     };
-    this.rateCache.set(cacheKey, { at: Date.now(), value: result });
-    if (this.rateCache.size > 80) {
-      const first = this.rateCache.keys().next().value;
-      if (first) this.rateCache.delete(first);
+  }
+
+  /**
+   * One HTTP /shipping/rates request → address + hub options.
+   * Babel getServiceOptions already returns both; Sila needs a second call for hub.
+   */
+  private async collectProviderOptionsAllDeliveryTypes(
+    adapter: {
+      getServiceOptions?: (
+        credentials: { username: string; password: string },
+        input: Parameters<NonNullable<ShippingProvider['getServiceOptions']>>[1],
+      ) => Promise<ShippingQuoteResult[]>;
+      getQuote: (
+        credentials: { username: string; password: string },
+        input: Parameters<ShippingProvider['getQuote']>[1],
+      ) => Promise<ShippingQuoteResult>;
+      code?: string;
+    },
+    credentials: { username: string; password: string },
+    baseInput: Parameters<ShippingProvider['getQuote']>[1],
+  ): Promise<ShippingQuoteResult[]> {
+    const quoteKey = (r: ShippingQuoteResult) =>
+      `${r.serviceId ?? ''}::${r.effectiveDeliveryType ?? 'address'}::${r.price}::${r.currency}`;
+
+    if (adapter.getServiceOptions) {
+      // Babel already returns address+hub in one getServiceOptions call.
+      // Sila is deliveryType-sensitive — call hub only when missing.
+      const primary = await adapter.getServiceOptions(credentials, {
+        ...baseInput,
+        deliveryType: 'address',
+      });
+      const types = new Set(primary.map((r) => r.effectiveDeliveryType ?? 'address'));
+      if (types.has('hub')) {
+        return primary;
+      }
+      const hubOpts = await adapter.getServiceOptions(credentials, {
+        ...baseInput,
+        deliveryType: 'hub',
+      });
+      const merged = [...primary];
+      const seen = new Set(primary.map(quoteKey));
+      for (const r of hubOpts) {
+        const k = quoteKey(r);
+        if (!seen.has(k)) {
+          seen.add(k);
+          merged.push(r);
+        }
+      }
+      return merged;
     }
-    return result;
+
+    const [addressQuote, hubQuote] = await Promise.all([
+      adapter.getQuote(credentials, { ...baseInput, deliveryType: 'address' }).catch(() => null),
+      adapter.getQuote(credentials, { ...baseInput, deliveryType: 'hub' }).catch(() => null),
+    ]);
+    return [addressQuote, hubQuote].filter((q): q is ShippingQuoteResult => q != null);
   }
 
   /**
@@ -342,7 +555,7 @@ export class ShippingService {
 
   /**
    * Backend re-check before OMS create/update or Send Shipment.
-   * Does not trust the frontend rate cards.
+   * Does not trust the frontend rate cards unless a fresh matching quote fingerprint is provided.
    */
   async assertLiveCarrierSelection(params: {
     fields: ShippingConfigFields;
@@ -350,6 +563,12 @@ export class ShippingService {
     city?: string | null;
     neighborhood?: string | null;
     requireQuote?: boolean;
+    /** When present and fresh+matching, skip the live getQuote call. */
+    quoteFingerprint?: QuoteFingerprint | null;
+    shippingServiceId?: string | null;
+    quotedAmount?: number | null;
+    quotedCurrency?: string | null;
+    partsKey?: string | null;
   }): Promise<void> {
     if ((params.fields.shippingMethod ?? ShippingMethod.manual) !== ShippingMethod.carrier) {
       return;
@@ -401,6 +620,51 @@ export class ShippingService {
           'Shipping address (Governorate / City / Town), package type, weight, and delivery type are required to confirm the shipping company.',
         );
       }
+      return;
+    }
+
+    const destinationKey = buildDestinationKey({
+      neighbourhoodId,
+      governorate: params.governorate,
+      city: params.city,
+      neighborhood: params.neighborhood,
+      lat: hasCoords ? lat : null,
+      lng: hasCoords ? lng : null,
+    });
+    const serviceId =
+      params.shippingServiceId?.trim() ||
+      params.quoteFingerprint?.serviceId?.trim() ||
+      '';
+    const amount =
+      params.quotedAmount != null
+        ? Number(params.quotedAmount)
+        : params.quoteFingerprint?.amount != null
+          ? Number(params.quoteFingerprint.amount)
+          : NaN;
+    const currency =
+      params.quotedCurrency?.trim() ||
+      params.quoteFingerprint?.currency?.trim() ||
+      'USD';
+
+    if (
+      params.quoteFingerprint &&
+      serviceId &&
+      Number.isFinite(amount) &&
+      isQuoteFingerprintFresh(params.quoteFingerprint, {
+        providerCode: code,
+        serviceId,
+        currency,
+        amount,
+        deliveryType: String(params.fields.shippingDeliveryType),
+        packageType: String(params.fields.shippingPackageType),
+        weightKg: params.fields.shippingPackageType === 'envelope' ? 1 : weight,
+        destinationKey,
+        partsKey: params.partsKey ?? params.quoteFingerprint.partsKey ?? '',
+      })
+    ) {
+      this.logger.debug(
+        `Skipping live re-quote for ${code} — fresh fingerprint matches destination/service.`,
+      );
       return;
     }
 
@@ -835,13 +1099,32 @@ export class ShippingService {
       );
       return;
     }
-    if (isCod && codCurrency === 'SYP' && codAmount < 1000) {
+    // Babel-only: reject SYP COD below Babel's floor before calling the API.
+    // Do NOT apply this to Sila/Masarat. Prefer business currency USD for COD.
+    if (
+      isCod &&
+      providerCode === 'BABEL_EXPRESS' &&
+      codCurrency === 'SYP' &&
+      codAmount < 1000
+    ) {
       await this.failClaim(
         claimId,
         outboundOrderId,
         order.companyId,
         order.status,
-        `COD amount ${codAmount} SYP is below Babel Express minimum (1,000 SYP).`,
+        'مبلغ التحصيل (COD) بالليرة السورية يجب أن يكون 1000 ل.س على الأقل لدى بابيل، أو استخدم عملة الأوردر بالدولار (USD) بدون تحويل صامت للمبلغ.',
+      );
+      return;
+    }
+
+    const pickup = await this.getConfiguredPickupParty();
+    if (!pickup) {
+      await this.failClaim(
+        claimId,
+        outboundOrderId,
+        order.companyId,
+        order.status,
+        'Pickup address is not set. A super admin must save it once on Shipping Companies.',
       );
       return;
     }
@@ -944,7 +1227,8 @@ export class ShippingService {
           parts: babelParts,
           contents: order.shippingContents!.trim(),
           deliveryType: order.shippingDeliveryType!,
-          pickupType: order.shippingPickupType!,
+          pickupType: 'address',
+          pickup,
           payer: order.shippingPayer!,
           // Non-COD: amount 0 disables COD per Babel OpenAPI. COD: business amount + currency.
           codAmount: isCod && Number.isFinite(codAmount) ? codAmount : 0,
@@ -967,14 +1251,22 @@ export class ShippingService {
           return;
         }
 
+        const courierTracking = result.trackingNumber?.trim() || '';
+        if (provider.code === 'SILA_SY' && !courierTracking) {
+          throw new Error('Sila shipment is missing the courier tracking number.');
+        }
+        const storedTracking = courierTracking || result.awb.trim();
         await tx.carrierShipment.update({
           where: { id: claimId },
           data: {
             externalAwb: result.awb,
-            trackingNumber: result.awb,
+            trackingNumber: storedTracking,
             status: CarrierShipmentStatus.created,
             lastErrorSafe: null,
-            rawResultMeta: (result.raw ?? { awb: result.awb }) as Prisma.InputJsonValue,
+            rawResultMeta: (result.raw ?? {
+              awb: result.awb,
+              trackingNumber: courierTracking,
+            }) as Prisma.InputJsonValue,
           },
         });
 
@@ -998,7 +1290,8 @@ export class ShippingService {
           where: { id: outboundOrderId },
           data: {
             carrier: resolvedCarrierName,
-            trackingNumber: result.awb,
+            trackingNumber: courierTracking,
+            shippingPickupType: 'address',
           },
         });
 
@@ -1007,7 +1300,7 @@ export class ShippingService {
             where: { id: order.omsOrder.id },
             data: {
               carrier: resolvedCarrierName,
-              trackingNumber: result.awb,
+              trackingNumber: courierTracking,
             },
           });
         }

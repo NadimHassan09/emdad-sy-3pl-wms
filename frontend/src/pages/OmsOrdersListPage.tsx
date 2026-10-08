@@ -15,6 +15,8 @@ import { OmsOrdersExportModal } from '../components/oms/OmsOrdersExportModal';
 import { OmsWaybillModal } from '../components/oms/OmsWaybillModal';
 import { OmsBulkExecutionPlanModal } from '../components/oms/OmsBulkExecutionPlanModal';
 import { OmsBulkShippingDetailsModal } from '../components/oms/OmsBulkShippingDetailsModal';
+import { OmsCreateBatchModal } from '../components/oms/OmsCreateBatchModal';
+import { OmsAddToBatchModal } from '../components/oms/OmsAddToBatchModal';
 import { OmsOrderScanSearchModal } from '../components/oms/OmsOrderScanSearchModal';
 import { OmsSingleShippingModal } from '../components/oms/OmsSingleShippingModal';
 import { BulkActionResultModal } from '../components/oms/BulkActionResultModal';
@@ -31,20 +33,26 @@ import {
 import { RowActionsMenu } from '../components/RowActionsMenu';
 import { OmsStatusBadge } from '../components/oms/OmsStatusBadge';
 import { OmsStageBadge } from '../components/oms/OmsStageBadge';
+import { OmsOrdersStatusNav } from '../components/oms/OmsOrdersStatusNav';
 import { useToast } from '../components/ToastProvider';
 import { QK } from '../constants/query-keys';
 import {
-  CHUNK_SIZE_STANDARD,
+  normalizeWaybillScan,
+  orderMatchesWaybillScan,
+  waybillScanAttempts,
+} from '../lib/oms-waybill-scan';
+import {
   useChunkedServerPagination,
 } from '../hooks/useChunkedServerPagination';
 import { useFilters } from '../hooks/useFilters';
 import { companyFilterComboboxOptions } from '../lib/company-filter-options';
-import {
-  OMS_COMMERCIAL_STATUS_COLORS,
-  omsCommercialStatusLabel,
-} from '../lib/oms-commercial-status';
 import { isOmsOrderDeletable } from '../lib/oms-order-delete';
 import { isOmsAdminCancellableStatus } from '../lib/oms-order-cancel';
+import { mapOmsCommercialDisplayStatus } from '../lib/oms-commercial-status';
+import {
+  orderOperationalStage,
+  shouldShowOmsStageColumn,
+} from '../lib/oms-operational-stage';
 import {
   buildOmsAppliedFilterSummary,
   buildOmsOrdersListParams,
@@ -64,25 +72,6 @@ import type {
   OmsBulkStatusTransitionResponse,
 } from '../api/oms';
 import type { BulkIdsResponse } from '../api/outbound';
-
-const STATUS_ROW_1: Array<{ value: string; label: string }> = [
-  { value: '', label: 'All statuses' },
-  { value: 'waiting_for_confirmation', label: 'Waiting for Confirmation' },
-  {
-    value: 'confirmed_waiting_for_admin_approval',
-    label: 'Confirmed — Waiting for Admin Approval',
-  },
-  { value: 'processing', label: 'Processing' },
-  { value: 'ready_to_ship', label: 'Ready for Shipping' },
-  { value: 'shipped', label: 'Out for Delivery' },
-];
-
-const STATUS_ROW_2: Array<{ value: string; label: string }> = [
-  { value: 'delivered', label: 'Delivered' },
-  { value: 'failed_delivery', label: 'Failed Delivery' },
-  { value: 'returned', label: 'Returned' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
 
 interface CarrierConfig {
   displayName: string;
@@ -281,11 +270,6 @@ function canOrderHaveWaybill(row: OmsOrderListItem): boolean {
   return Boolean(hasCarrierOrTracking);
 }
 
-function getStatusOptionLabel(value: string, isArabic: boolean): string {
-  if (!value) return isArabic ? 'جميع الحالات' : 'All statuses';
-  return omsCommercialStatusLabel(value, isArabic);
-}
-
 function FilterFieldLabel({ children }: { children: string }) {
   return (
     <label className={`${FILTER_FIELD_LABEL_CLASS} ${FILTER_FIELD_LABEL_GAP_CLASS}`}>
@@ -294,12 +278,69 @@ function FilterFieldLabel({ children }: { children: string }) {
   );
 }
 
+type OmsQrStatusAction = 'confirm' | 'approve' | 'handover' | 'delivered' | 'failed';
+
+const MAX_PAGE_SIZE = 1000;
+const PAGE_SIZE_PRESETS = ['50', '100', '200', '500', '1000'] as const;
+
+/** Bulk stage buttons are hidden in the selection toolbar (batch workflow); handlers are kept. */
+const SHOW_LEGACY_BULK_STAGE_ACTIONS = true;
+
+/** Backend fetch size: 200 when it divides evenly, otherwise one UI page per chunk. */
+function resolveChunkSize(pageSize: number): number {
+  if (pageSize <= 200) return 200 % pageSize === 0 ? 200 : pageSize;
+  return pageSize;
+}
+
 type BulkResult =
   | OmsBulkApproveResponse
   | OmsBulkConfirmResponse
   | OmsBulkCancelResponse
   | OmsBulkStatusTransitionResponse
   | BulkIdsResponse;
+
+function statusScanCopy(
+  action: OmsQrStatusAction | null,
+  isArabic: boolean,
+): { title: string; hint: string } {
+  switch (action) {
+    case 'confirm':
+      return {
+        title: isArabic ? 'تأكيد الطلب بالـ QR' : 'Confirm order by QR',
+        hint: isArabic
+          ? 'وجّه الكاميرا إلى QR البوليصة لتأكيد الطلب (بانتظار التأكيد فقط)، ثم امسح الطلب التالي.'
+          : 'Point the camera at the waybill QR to confirm the order (waiting-for-confirmation only), then scan the next one.',
+      };
+    case 'approve':
+      return {
+        title: isArabic ? 'اعتماد الطلب بالـ QR' : 'Approve order by QR',
+        hint: isArabic
+          ? 'وجّه الكاميرا إلى QR البوليصة لاعتماد الطلب (بانتظار الاعتماد فقط)، ثم امسح الطلب التالي.'
+          : 'Point the camera at the waybill QR to approve the order (waiting-for-approval only), then scan the next one.',
+      };
+    case 'handover':
+      return {
+        title: isArabic ? 'تسليم لشركة الشحن بالـ QR' : 'Handover to carrier by QR',
+        hint: isArabic
+          ? 'وجّه الكاميرا إلى QR البوليصة. الطلب الجاهز للشحن يصبح خارجًا للتسليم فورًا، ويمكنك مسح الطلب التالي.'
+          : 'Point the camera at the waybill QR. A ready-to-ship order is marked out for delivery immediately, then scan the next one.',
+      };
+    case 'delivered':
+      return {
+        title: isArabic ? 'تسجيل التسليم بالـ QR' : 'Mark delivered by QR',
+        hint: isArabic
+          ? 'وجّه الكاميرا إلى QR البوليصة لتسجيل أن الطلب تم تسليمه، ثم امسح الطلب التالي.'
+          : 'Point the camera at the waybill QR to mark the order delivered, then scan the next one.',
+      };
+    default:
+      return {
+        title: isArabic ? 'تسجيل تعذر التسليم بالـ QR' : 'Mark failed delivery by QR',
+        hint: isArabic
+          ? 'وجّه الكاميرا إلى QR البوليصة لتسجيل تعذر التسليم، ثم امسح الطلب التالي.'
+          : 'Point the camera at the waybill QR to mark failed delivery, then scan the next one.',
+      };
+  }
+}
 
 export function OmsOrdersListPage() {
   const navigate = useNavigate();
@@ -317,9 +358,11 @@ export function OmsOrdersListPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [scanSearchOpen, setScanSearchOpen] = useState(false);
+  const [statusScan, setStatusScan] = useState<null | OmsQrStatusAction>(null);
   const [exporting, setExporting] = useState(false);
   const [waybillOrderId, setWaybillOrderId] = useState<string | null>(null);
   const [exportingWaybills, setExportingWaybills] = useState(false);
+  const [downloadingInstructions, setDownloadingInstructions] = useState<'pdf' | 'zip' | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [exportColumns, setExportColumns] = useState<Array<{ id: string; labelEn: string; labelAr: string }>>([]);
   const [advancedOpen, setAdvancedOpen] = useCachedState(
@@ -331,6 +374,10 @@ export function OmsOrdersListPage() {
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [processModalOpen, setProcessModalOpen] = useState(false);
   const [shippingDetailsModalOpen, setShippingDetailsModalOpen] = useState(false);
+  const [createBatchOpen, setCreateBatchOpen] = useState(false);
+  const [addToBatchOpen, setAddToBatchOpen] = useState(false);
+  const [pageSizeChoice, setPageSizeChoice] = useCachedState<string>('oms-orders:page-size-choice', '50');
+  const [customPageSize, setCustomPageSize] = useCachedState<string>('oms-orders:page-size-custom', '');
   const [shipModalOpen, setShipModalOpen] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ title: string; result: BulkResult } | null>(null);
 
@@ -393,13 +440,50 @@ export function OmsOrdersListPage() {
     [appliedFilters],
   );
 
+  const navCountParams = useMemo(() => {
+    const { status: _status, operationalStage: _stage, ...rest } = listParams;
+    return rest;
+  }, [listParams]);
+
+  const navCountsQuery = useQuery({
+    queryKey: [...QK.omsOrders, 'nav-counts', navCountParams],
+    queryFn: () => OmsApi.statusNavCounts(navCountParams),
+  });
+
+  const pageSize = useMemo(() => {
+    if (pageSizeChoice === 'custom') {
+      const n = Math.floor(Number(customPageSize));
+      return Number.isFinite(n) && n >= 1 && n <= MAX_PAGE_SIZE ? n : 50;
+    }
+    const n = Number(pageSizeChoice);
+    return (PAGE_SIZE_PRESETS as readonly string[]).includes(pageSizeChoice) ? n : 50;
+  }, [pageSizeChoice, customPageSize]);
+  const chunkSize = resolveChunkSize(pageSize);
+
   const pagination = useChunkedServerPagination<OmsOrderListItem>({
-    chunkSize: CHUNK_SIZE_STANDARD,
+    chunkSize,
+    pageSize,
     filterKey: listParams,
     fetchChunk: (offset, limit) => OmsApi.list({ ...listParams, offset, limit }),
     rtQueryKeyPrefix: QK.omsOrders,
     chunkQueryKeyPrefix: 'oms-orders-chunk',
   });
+
+  const changePageSize = (choice: string) => {
+    setPageSizeChoice(choice);
+    pagination.resetPage();
+  };
+
+  const onCustomPageSizeChange = (raw: string) => {
+    const digits = raw.replace(/[^0-9]/g, '');
+    if (!digits) {
+      setCustomPageSize('');
+      return;
+    }
+    const clamped = Math.min(MAX_PAGE_SIZE, Math.max(1, Number(digits)));
+    setCustomPageSize(String(clamped));
+    pagination.resetPage();
+  };
 
   const advancedActiveCount = countAppliedOmsAdvancedFilters({
     ...appliedFilters,
@@ -601,6 +685,14 @@ export function OmsOrdersListPage() {
 
   const waybillEligibleOrders = useMemo(
     () => selectedOrders.filter((o) => canOrderHaveWaybill(o)),
+    [selectedOrders],
+  );
+
+  const instructionEligibleOrders = useMemo(
+    () =>
+      selectedOrders.filter(
+        (o) => mapOmsCommercialDisplayStatus(o.status) === 'processing',
+      ),
     [selectedOrders],
   );
 
@@ -913,6 +1005,126 @@ export function OmsOrdersListPage() {
     }
   };
 
+  const handleWaybillStatusScan = async (raw: string) => {
+    const kind = statusScan;
+    if (!kind) return { ok: false, message: '' };
+    const code = normalizeWaybillScan(raw);
+    if (!code) {
+      return {
+        ok: false,
+        message: isArabic ? 'الرمز فارغ.' : 'The scanned code is empty.',
+      };
+    }
+
+    let order: OmsOrderListItem | undefined;
+    for (const attempt of waybillScanAttempts(code)) {
+      const page = await OmsApi.list({ orderSearch: attempt, limit: 25 });
+      const exact = page.items.filter(
+        (item) => orderMatchesWaybillScan(item, code) || orderMatchesWaybillScan(item, attempt),
+      );
+      if (exact.length > 1) {
+        return {
+          ok: false,
+          message: isArabic
+            ? `الرمز ${code} يطابق أكثر من طلب.`
+            : `${code} matches more than one order.`,
+        };
+      }
+      if (exact.length === 1) {
+        order = exact[0];
+        break;
+      }
+    }
+    if (!order) {
+      return {
+        ok: false,
+        message: isArabic ? `لا يوجد طلب للرمز ${code}.` : `No order found for ${code}.`,
+      };
+    }
+
+    const outForDelivery = order.status === 'shipped' || order.status === 'out_for_delivery';
+    const label = order.orderNumber;
+    const wrongState = (en: string, ar: string) => ({
+      ok: false,
+      message: isArabic ? `${label} ${ar}` : `${label} ${en}`,
+    });
+    try {
+      if (kind === 'confirm') {
+        if (order.status !== 'waiting_for_confirmation') {
+          return wrongState('is not waiting for confirmation.', 'ليس بانتظار التأكيد.');
+        }
+        await OmsApi.confirm(order.id);
+        void qc.invalidateQueries({ queryKey: QK.omsOrders });
+        return {
+          ok: true,
+          message: isArabic ? `${label} — تم التأكيد` : `${label} — confirmed`,
+        };
+      }
+
+      if (kind === 'approve') {
+        const approvable =
+          order.status === 'confirmed_waiting_for_admin_approval' ||
+          order.status === 'pending_approval' ||
+          order.status === 'pending';
+        if (!approvable) {
+          return wrongState('is not waiting for approval.', 'ليس بانتظار الاعتماد.');
+        }
+        await OmsApi.approve(order.id);
+        void qc.invalidateQueries({ queryKey: QK.omsOrders });
+        return {
+          ok: true,
+          message: isArabic ? `${label} — تم الاعتماد` : `${label} — approved`,
+        };
+      }
+
+      if (kind === 'handover') {
+        if (order.status !== 'ready_to_ship') {
+          return wrongState('is not ready to ship.', 'ليس جاهزًا للشحن.');
+        }
+        const outboundId = order.outboundOrderId ?? order.linkedOutboundOrder?.id;
+        if (!outboundId) {
+          return wrongState('has no warehouse order.', 'غير مرتبط بطلب مستودع.');
+        }
+        await OutboundApi.completeDispatch(outboundId, order.companyId);
+        void qc.invalidateQueries({ queryKey: QK.omsOrders });
+        return {
+          ok: true,
+          message: isArabic ? `${label} — خرج للتسليم` : `${label} — out for delivery`,
+        };
+      }
+
+      if (!outForDelivery) {
+        return wrongState('is not out for delivery.', 'ليس خارجًا للتسليم.');
+      }
+      if (kind === 'delivered') {
+        await OmsApi.delivered(order.id);
+        void qc.invalidateQueries({ queryKey: QK.omsOrders });
+        return {
+          ok: true,
+          message: isArabic ? `${label} — تم التسليم` : `${label} — delivered`,
+        };
+      }
+      await OmsApi.failedDelivery(order.id);
+      void qc.invalidateQueries({ queryKey: QK.omsOrders });
+      void qc.invalidateQueries({ queryKey: ['oms-returns'] });
+      return {
+        ok: true,
+        message: isArabic ? `${label} — تعذر التسليم` : `${label} — failed delivery`,
+      };
+    } catch (error) {
+      // Backend assertOmsTransition errors surface here verbatim.
+      return {
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : isArabic
+              ? `تعذر تحديث ${label}.`
+              : `Could not update ${label}.`,
+      };
+    }
+  };
+
   const handleBulkReturned = async () => {
     const ids = returnEligibleOrders.map((o) => o.id);
     if (!ids.length) return;
@@ -971,38 +1183,74 @@ export function OmsOrdersListPage() {
     }
   };
 
-  const handleExportWaybillsExcel = async () => {
+  const handleWaybillsPdf = async (mode: 'download' | 'print') => {
     if (exportingWaybills || selectedIds.size === 0) return;
     setExportingWaybills(true);
     try {
-      await OmsApi.exportWaybillsExcel(Array.from(selectedIds));
-      toast.success(
-        isArabic
-          ? 'تم تصدير بوالص الشحن بنجاح (Excel).'
-          : 'Waybills exported successfully to Excel.',
-      );
+      await OmsApi.downloadWaybillsPdf(Array.from(selectedIds), mode);
     } catch (e) {
       toast.error(
         e instanceof Error
           ? e.message
-          : (isArabic ? 'فشل تصدير بوالص الشحن' : 'Failed to export waybills'),
+          : (isArabic ? 'فشل تجهيز بوالص الشحن' : 'Failed to prepare waybills'),
       );
     } finally {
       setExportingWaybills(false);
     }
   };
 
+  const handleDownloadInstructions = async (order: OmsOrderListItem) => {
+    try {
+      await OmsApi.downloadInstructionPdf(order.id, order.orderNumber);
+    } catch (e) {
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : isArabic
+            ? 'تعذر تنزيل تعليمات التنفيذ.'
+            : 'Could not download the instructions PDF.',
+      );
+    }
+  };
+
+  const handleDownloadInstructionBulk = async (mode: 'pdf' | 'zip') => {
+    if (downloadingInstructions || instructionEligibleOrders.length === 0) return;
+    const skipped = selectedOrders.length - instructionEligibleOrders.length;
+    setDownloadingInstructions(mode);
+    try {
+      const ids = instructionEligibleOrders.map((order) => order.id);
+      if (mode === 'pdf') await OmsApi.downloadInstructionsPdf(ids);
+      else await OmsApi.downloadInstructionsZip(ids);
+      const skippedNote =
+        skipped > 0
+          ? isArabic
+            ? ` تم تجاهل ${skipped} طلب لأنها ليست قيد المعالجة.`
+            : ` Skipped ${skipped} order(s) that are not in processing.`
+          : '';
+      toast.success(
+        (isArabic
+          ? mode === 'pdf'
+            ? 'تم تنزيل ملف التعليمات.'
+            : 'تم تنزيل ملف التعليمات المضغوط.'
+          : mode === 'pdf'
+            ? 'Instructions PDF downloaded.'
+            : 'Instructions ZIP downloaded.') + skippedNote,
+      );
+    } catch (e) {
+      toast.error(
+        e instanceof Error
+          ? e.message
+          : isArabic
+            ? 'تعذر تنزيل تعليمات التنفيذ.'
+            : 'Could not download instructions.',
+      );
+    } finally {
+      setDownloadingInstructions(null);
+    }
+  };
+
   const navActions = (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <Button
-        variant="secondary"
-        size="md"
-        onClick={() => setScanSearchOpen(true)}
-        className="border-brand-500/40 text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-950/40"
-      >
-        <i className="fa-solid fa-qrcode mr-1.5 text-brand-600 dark:text-brand-400" aria-hidden />
-        {isArabic ? 'بحث بالـ QR' : 'Search by QR'}
-      </Button>
       <Button variant="secondary" size="md" onClick={() => setImportOpen(true)}>
         {isArabic ? 'استيراد' : 'Import'}
       </Button>
@@ -1055,7 +1303,18 @@ export function OmsOrdersListPage() {
     },
     {
       header: isArabic ? 'رقم الطلب' : 'Order #',
-      accessor: (row) => <span className="font-medium text-text-strong">{row.orderNumber}</span>,
+      accessor: (row) => (
+        <div className="flex flex-col gap-0.5">
+          <span className="font-medium text-text-strong">{row.orderNumber}</span>
+          <time
+            className="text-xs tabular-nums text-text-muted"
+            dateTime={row.createdAt}
+          >
+            {isArabic ? 'تاريخ الإنشاء: ' : 'Created: '}
+            {new Date(row.createdAt).toLocaleString()}
+          </time>
+        </div>
+      ),
     },
     {
       header: isArabic ? 'العميل' : 'Client',
@@ -1096,12 +1355,18 @@ export function OmsOrdersListPage() {
         <OmsStatusBadge status={row.status} isArabic={isArabic} needsInformation={row.needsInformation} />
       ),
     },
-    {
-      header: isArabic ? 'المرحلة' : 'Stage',
-      accessor: (row) => (
-        <OmsStageBadge order={row} isArabic={isArabic} />
-      ),
-    },
+    ...(shouldShowOmsStageColumn(appliedFilters.status)
+      ? [
+          {
+            header: isArabic ? 'المرحلة' : 'Stage',
+            accessor: (row: OmsOrderListItem) => {
+              const stage = orderOperationalStage(row);
+              if (!stage) return <span className="text-text-muted">—</span>;
+              return <OmsStageBadge order={row} isArabic={isArabic} />;
+            },
+          },
+        ]
+      : []),
     {
       header: isArabic ? 'الإجراءات' : 'Actions',
       accessor: (row) => {
@@ -1153,7 +1418,15 @@ export function OmsOrdersListPage() {
           });
         }
 
-        // 3. Processing stage: Outbound stage progression
+        // 3. Processing: print worker instructions, then stage actions
+        if (mapOmsCommercialDisplayStatus(row.status) === 'processing') {
+          actionItems.push({
+            key: 'instructionsPdf',
+            label: isArabic ? 'تعليمات التنفيذ PDF' : 'Instructions PDF',
+            onClick: () => void handleDownloadInstructions(row),
+          });
+        }
+
         if (row.status === 'processing' && outboundId) {
           if (
             outboundStatus === 'picking' ||
@@ -1414,6 +1687,24 @@ export function OmsOrdersListPage() {
           />
         </div>
         <div className="min-w-0">
+          <FilterFieldLabel>{isArabic ? 'تاريخ الإنشاء من' : 'Created from'}</FilterFieldLabel>
+          <input
+            type="date"
+            value={draftFilters.createdFrom}
+            onChange={(e) => setDraft({ createdFrom: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <FilterFieldLabel>{isArabic ? 'تاريخ الإنشاء إلى' : 'Created to'}</FilterFieldLabel>
+          <input
+            type="date"
+            value={draftFilters.createdTo}
+            onChange={(e) => setDraft({ createdTo: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
           <Combobox
             label={isArabic ? 'شركة الشحن' : 'Carrier'}
             value={draftFilters.carrier}
@@ -1452,96 +1743,72 @@ export function OmsOrdersListPage() {
         </div>
       </AdvancedFilterSection>
 
-      {/* ─── Status Navigation Bar (matching top section sub-nav) ───────────── */}
-      <nav
-        aria-label={isArabic ? 'تصفية حسب الحالة' : 'Filter by status'}
-        className="flex flex-col gap-2 rounded-xl bg-surface-sunken p-2.5 border border-border-subtle/50 shadow-xs"
-      >
-        {/* Row 1: Full width edge-to-edge */}
-        <div className="flex w-full flex-wrap xl:flex-nowrap items-center gap-1.5" role="list">
-          {STATUS_ROW_1.map((opt) => {
-            const isActive = (appliedFilters.status || '') === opt.value;
-            const label = getStatusOptionLabel(opt.value, isArabic);
-            const dotColor = opt.value
-              ? OMS_COMMERCIAL_STATUS_COLORS[opt.value] ?? '#94a3b8'
-              : undefined;
+      <OmsOrdersStatusNav
+        isArabic={isArabic}
+        status={appliedFilters.status}
+        operationalStage={appliedFilters.operationalStage}
+        counts={navCountsQuery.data}
+        onStatusChange={(status) => applyPatch({ status, operationalStage: '' })}
+        onStageChange={(operationalStage) => applyPatch({ operationalStage })}
+      />
 
-            return (
-              <button
-                key={opt.value || 'all'}
-                type="button"
-                role="listitem"
-                onClick={() => applyPatch({ status: opt.value })}
-                aria-current={isActive ? 'page' : undefined}
-                className={[
-                  'flex-1 min-w-fit inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2.5 text-sm font-medium transition-all',
-                  'focus-visible:outline-none focus-visible:shadow-focus',
-                  isActive
-                    ? 'bg-white font-semibold text-text-strong shadow-sm dark:bg-surface-panel'
-                    : 'text-text-muted hover:bg-white/60 hover:text-text-strong dark:hover:bg-surface-hover/60',
-                ].join(' ')}
-              >
-                {dotColor ? (
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: dotColor }}
-                  />
-                ) : (
-                  <i
-                    className={`fa-solid fa-layer-group text-xs ${
-                      isActive ? 'text-text-strong' : 'text-text-muted'
-                    }`}
-                    aria-hidden
-                  />
-                )}
-                <span>{label}</span>
-              </button>
-            );
-          })}
-        </div>
-        {/* Row 2: Left-aligned with comfortable natural spacing, room for future statuses */}
-        <div className="flex flex-wrap items-center gap-1.5" role="list">
-          {STATUS_ROW_2.map((opt) => {
-            const isActive = (appliedFilters.status || '') === opt.value;
-            const label = getStatusOptionLabel(opt.value, isArabic);
-            const dotColor = opt.value
-              ? OMS_COMMERCIAL_STATUS_COLORS[opt.value] ?? '#94a3b8'
-              : undefined;
-
-            return (
-              <button
-                key={opt.value || 'all'}
-                type="button"
-                role="listitem"
-                onClick={() => applyPatch({ status: opt.value })}
-                aria-current={isActive ? 'page' : undefined}
-                className={[
-                  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg px-5 py-2.5 text-sm font-medium transition-all',
-                  'focus-visible:outline-none focus-visible:shadow-focus',
-                  isActive
-                    ? 'bg-white font-semibold text-text-strong shadow-sm dark:bg-surface-panel'
-                    : 'text-text-muted hover:bg-white/60 hover:text-text-strong dark:hover:bg-surface-hover/60',
-                ].join(' ')}
-              >
-                {dotColor ? (
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: dotColor }}
-                  />
-                ) : (
-                  <i
-                    className={`fa-solid fa-layer-group text-xs ${
-                      isActive ? 'text-text-strong' : 'text-text-muted'
-                    }`}
-                    aria-hidden
-                  />
-                )}
-                <span>{label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border-subtle bg-surface px-3 py-2">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => setStatusScan('confirm')}
+          className="gap-1.5"
+        >
+          <i className="fa-solid fa-qrcode text-xs" aria-hidden="true" />
+          <span>{isArabic ? 'تأكيد بالـ QR' : 'Confirm by QR'}</span>
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => setStatusScan('approve')}
+          className="gap-1.5"
+        >
+          <i className="fa-solid fa-qrcode text-xs" aria-hidden="true" />
+          <span>{isArabic ? 'اعتماد بالـ QR' : 'Approve by QR'}</span>
+        </Button>
+        <Button
+          type="button"
+          variant="primary"
+          size="sm"
+          onClick={() => setStatusScan('handover')}
+          className="gap-1.5"
+        >
+          <i className="fa-solid fa-qrcode text-xs" aria-hidden="true" />
+          <span>{isArabic ? 'تسليم بالـ QR' : 'Handover by QR'}</span>
+        </Button>
+        <Button
+          type="button"
+          variant="primary"
+          size="sm"
+          onClick={() => setStatusScan('delivered')}
+          className="gap-1.5"
+        >
+          <i className="fa-solid fa-qrcode text-xs" aria-hidden="true" />
+          <span>{isArabic ? 'تم التسليم بالـ QR' : 'Delivered by QR'}</span>
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => setStatusScan('failed')}
+          className="gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-950/40"
+        >
+          <i className="fa-solid fa-qrcode text-xs" aria-hidden="true" />
+          <span>{isArabic ? 'تعذر التسليم بالـ QR' : 'Failed delivery by QR'}</span>
+        </Button>
+        <span className="text-xs text-text-muted">
+          {isArabic
+            ? 'اختر الإجراء ثم امسح بوليصة الطلب. يُسمح فقط بالانتقال التالي الصحيح للحالة الحالية.'
+            : 'Choose an action, then scan the order waybill. Only the next valid transition for the current status is allowed.'}
+        </span>
+      </div>
 
       {/* ─── Selected Orders Bulk Quick Actions Toolbar (under status navbar) ─── */}
       {selectedIds.size > 0 && (
@@ -1557,6 +1824,44 @@ export function OmsOrdersListPage() {
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedIds.size > 1000) {
+                  toast.error(
+                    isArabic
+                      ? 'يمكن إنشاء مجموعة من حتى 1000 طلب في المرة الواحدة.'
+                      : 'You can create a batch with up to 1000 orders at once.',
+                  );
+                  return;
+                }
+                setCreateBatchOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-700 bg-white px-3.5 py-1.5 text-xs font-semibold text-emerald-800 shadow-xs"
+            >
+              <i className="fa-solid fa-layer-group text-[11px]" aria-hidden="true" />
+              <span>{isArabic ? 'إنشاء مجموعة' : 'Create batch'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedIds.size > 1000) {
+                  toast.error(
+                    isArabic
+                      ? 'يمكن إضافة حتى 1000 طلب إلى مجموعة في المرة الواحدة.'
+                      : 'You can add up to 1000 orders to a batch at once.',
+                  );
+                  return;
+                }
+                setAddToBatchOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-emerald-700 bg-white px-3.5 py-1.5 text-xs font-semibold text-emerald-800 shadow-xs"
+            >
+              <i className="fa-solid fa-folder-plus text-[11px]" aria-hidden="true" />
+              <span>{isArabic ? 'إضافة إلى مجموعة موجودة' : 'Add to existing batch'}</span>
+            </button>
+            {SHOW_LEGACY_BULK_STAGE_ACTIONS && (
+              <>
             {waitingConfirmOrders.length > 0 && (
               <button
                 type="button"
@@ -1732,20 +2037,65 @@ export function OmsOrdersListPage() {
               </button>
             )}
 
+            {instructionEligibleOrders.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  disabled={!!downloadingInstructions}
+                  onClick={() => void handleDownloadInstructionBulk('pdf')}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all shadow-xs bg-slate-800 hover:bg-slate-900 text-white disabled:opacity-50"
+                >
+                  <i className="fa-solid fa-file-pdf text-[11px]" aria-hidden="true" />
+                  <span>
+                    {isArabic
+                      ? `تنزيل تعليمات PDF (${instructionEligibleOrders.length})`
+                      : `Download instructions PDF (${instructionEligibleOrders.length})`}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  disabled={!!downloadingInstructions}
+                  onClick={() => void handleDownloadInstructionBulk('zip')}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all shadow-xs border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 disabled:opacity-50"
+                >
+                  <i className="fa-solid fa-file-zipper text-[11px]" aria-hidden="true" />
+                  <span>
+                    {isArabic
+                      ? `تنزيل التعليمات ZIP (${instructionEligibleOrders.length})`
+                      : `Download instructions ZIP (${instructionEligibleOrders.length})`}
+                  </span>
+                </button>
+              </>
+            )}
+
             {waybillEligibleOrders.length > 0 && (
-              <button
-                type="button"
-                disabled={exportingWaybills}
-                onClick={() => void handleExportWaybillsExcel()}
-                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all shadow-xs bg-emerald-700 hover:bg-emerald-800 text-white disabled:opacity-50"
-              >
-                <i className="fa-solid fa-file-excel text-[11px]" aria-hidden="true" />
-                <span>
-                  {isArabic
-                    ? `تصدير بوالص الشحن (${waybillEligibleOrders.length})`
-                    : `Export Waybills (${waybillEligibleOrders.length})`}
-                </span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={exportingWaybills}
+                  onClick={() => void handleWaybillsPdf('download')}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all shadow-xs bg-emerald-700 hover:bg-emerald-800 text-white disabled:opacity-50"
+                >
+                  <i className="fa-solid fa-file-pdf text-[11px]" aria-hidden="true" />
+                  <span>
+                    {isArabic
+                      ? `تحميل البوالص (${waybillEligibleOrders.length})`
+                      : `Download waybills (${waybillEligibleOrders.length})`}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  disabled={exportingWaybills}
+                  onClick={() => void handleWaybillsPdf('print')}
+                  className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all shadow-xs border border-emerald-700 bg-white text-emerald-800 disabled:opacity-50"
+                >
+                  <i className="fa-solid fa-print text-[11px]" aria-hidden="true" />
+                  <span>{isArabic ? 'طباعة البوالص' : 'Print waybills'}</span>
+                </button>
+              </>
+            )}
+
+              </>
             )}
 
             <button
@@ -1768,6 +2118,38 @@ export function OmsOrdersListPage() {
           </p>
         </Card>
       ) : null}
+
+      <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-text-muted">
+        <label htmlFor="oms-orders-page-size" className="font-semibold">
+          {isArabic ? 'عدد الصفوف في الصفحة' : 'Rows per page'}
+        </label>
+        <select
+          id="oms-orders-page-size"
+          value={pageSizeChoice}
+          onChange={(e) => changePageSize(e.target.value)}
+          className="h-8 rounded-lg border border-border-subtle bg-surface px-2 text-xs font-medium text-text-strong"
+        >
+          {PAGE_SIZE_PRESETS.map((size) => (
+            <option key={size} value={size}>
+              {size}
+            </option>
+          ))}
+          <option value="custom">{isArabic ? 'مخصص' : 'Custom'}</option>
+        </select>
+        {pageSizeChoice === 'custom' ? (
+          <input
+            type="number"
+            min={1}
+            max={MAX_PAGE_SIZE}
+            inputMode="numeric"
+            value={customPageSize}
+            onChange={(e) => onCustomPageSizeChange(e.target.value)}
+            placeholder={`1-${MAX_PAGE_SIZE}`}
+            aria-label={isArabic ? 'عدد صفوف مخصص (1-1000)' : 'Custom rows per page (1-1000)'}
+            className="h-8 w-24 rounded-lg border border-border-subtle bg-surface px-2 text-xs"
+          />
+        ) : null}
+      </div>
 
       <DataTable
         columns={columns}
@@ -1842,6 +2224,19 @@ export function OmsOrdersListPage() {
       />
 
       {/* ─── Bulk Shipping Details Modal ─────────────────────────────────────── */}
+      <OmsCreateBatchModal
+        open={createBatchOpen}
+        selectedIds={Array.from(selectedIds)}
+        loadedOrders={pagination.rows}
+        isArabic={isArabic}
+        onClose={() => setCreateBatchOpen(false)}
+      />
+      <OmsAddToBatchModal
+        open={addToBatchOpen}
+        selectedIds={Array.from(selectedIds)}
+        isArabic={isArabic}
+        onClose={() => setAddToBatchOpen(false)}
+      />
       <OmsBulkShippingDetailsModal
         open={shippingDetailsModalOpen}
         selectedOrders={shippingDetailsEligibleOrders}
@@ -1948,6 +2343,16 @@ export function OmsOrdersListPage() {
               : `Filtered orders for: ${code}`,
           );
         }}
+      />
+      <OmsOrderScanSearchModal
+        open={statusScan != null}
+        keepOpen
+        isArabic={isArabic}
+        title={statusScanCopy(statusScan, isArabic).title}
+        hint={statusScanCopy(statusScan, isArabic).hint}
+        submitLabel={isArabic ? 'تسجيل' : 'Record'}
+        onClose={() => setStatusScan(null)}
+        onScan={handleWaybillStatusScan}
       />
     </AdminListPageShell>
   );

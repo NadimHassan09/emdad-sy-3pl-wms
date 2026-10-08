@@ -17,6 +17,7 @@ export type OmsTransitionAction =
   | 'mark_delivered'
   | 'delivery_revert'
   | 'failed_delivery'
+  | 'resume_shipping'
   | 'mark_returned';
 
 /** Primary commercial statuses written by the new state machine. */
@@ -107,6 +108,11 @@ const ALLOWED: Partial<Record<TransitionKey, OmsOrderStatus>> = {
   [`${OmsOrderStatus.shipped}|mark_delivered|admin`]: OmsOrderStatus.delivered,
   [`${OmsOrderStatus.out_for_delivery}|mark_delivered|admin`]:
     OmsOrderStatus.delivered,
+  // Recover from failed delivery when carrier/admin confirms customer received package
+  [`${OmsOrderStatus.failed_delivery}|mark_delivered|admin`]:
+    OmsOrderStatus.delivered,
+  [`${OmsOrderStatus.failed_delivery}|mark_delivered|system`]:
+    OmsOrderStatus.delivered,
 
   // Delivery revert (dedicated action + reason required at call site)
   [`${OmsOrderStatus.delivered}|delivery_revert|admin`]: OmsOrderStatus.shipped,
@@ -118,6 +124,12 @@ const ALLOWED: Partial<Record<TransitionKey, OmsOrderStatus>> = {
     OmsOrderStatus.failed_delivery,
   [`${OmsOrderStatus.ready_to_ship}|failed_delivery|admin`]:
     OmsOrderStatus.failed_delivery,
+
+  // Resume shipping after failed_delivery (carrier recovered / re-attempt)
+  [`${OmsOrderStatus.failed_delivery}|resume_shipping|admin`]:
+    OmsOrderStatus.out_for_delivery,
+  [`${OmsOrderStatus.failed_delivery}|resume_shipping|system`]:
+    OmsOrderStatus.out_for_delivery,
 
   // Full return after warehouse receive/complete
   [`${OmsOrderStatus.delivered}|mark_returned|system`]: OmsOrderStatus.returned,

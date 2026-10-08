@@ -1,0 +1,31 @@
+---
+description: Emdad WMS frontend stack — React/Vite, Tailwind, tables, charts, icons
+globs: frontend/**/*.{tsx,ts,css},client-frontend/**/*.{tsx,ts,css},shared/design-system*/**/*
+alwaysApply: false
+---
+
+# Emdad frontend UI stack
+
+## Current stack (prefer these)
+
+- React 18 + Vite + TypeScript + React Router
+- Tailwind CSS v3 (already in repo — do not jump to v4 unless explicitly requested)
+- Shared design system via `@ds` / `shared/design-system*` — preserve tokens, components, and brand
+- `lucide-react` for icons
+- `recharts` for charts / KPI visuals
+- `@tanstack/react-query` for server state
+- Playwright for e2e and visual checks (staging only)
+
+## When redesigning admin / client portals
+
+- Prefer shadcn/ui + Radix patterns as reference for blocks (dashboards, sidebars, dialogs), adapted to `@ds` — do not rip out the existing design system without an explicit ask
+- Prefer TanStack Table for dense WMS data grids (sorting, filtering, column visibility, virtualization)
+- Use shadcn Blocks / Creative Tim blocks as layout reference for admin chrome, not as a brand swap
+- Keep RTL / Arabic support intact; do not hard-code LTR-only layouts
+
+## Quality bar
+
+- WCAG AA contrast for body/secondary text; tap targets ≥ 44px on mobile
+- One clear primary CTA per toolbar; destructive actions must not look like primary CTAs
+- Tables are the product: prioritize density, scanability, sticky headers, and filter clarity over marketing layouts
+- Smoke-test on staging only: `staging-admin.emdadsy.com`, `staging-client.emdadsy.com`, port `3001`

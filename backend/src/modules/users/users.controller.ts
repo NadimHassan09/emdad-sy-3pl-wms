@@ -26,6 +26,7 @@ export class UsersController {
   constructor(private readonly users: UsersService) {}
 
   @Get()
+  @UseGuards(InternalAdminGuard)
   list(@CurrentUser() user: AuthPrincipal, @Query() query: ListUsersQueryDto) {
     return this.users.list(user, query);
   }
@@ -47,6 +48,7 @@ export class UsersController {
   }
 
   @Get(':id')
+  @UseGuards(InternalAdminGuard)
   findOne(@CurrentUser() user: AuthPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.users.findById(id, user);
   }

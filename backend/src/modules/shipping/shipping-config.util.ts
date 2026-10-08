@@ -107,6 +107,11 @@ export function assertCarrierShippingReady(fields: ShippingConfigFields): void {
   if (!fields.shippingPayer) {
     throw new BadRequestException('shippingPayer is required when shipping via a carrier.');
   }
+  if (fields.shippingPayer !== 'sender') {
+    throw new BadRequestException(
+      'shippingPayer must be sender. Receiver/reseller payers are not allowed.',
+    );
+  }
   const weight = Number(fields.shippingWeightKg);
   if (fields.shippingWeightKg == null || !Number.isFinite(weight) || weight <= 0) {
     throw new BadRequestException(

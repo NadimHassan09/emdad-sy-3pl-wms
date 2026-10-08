@@ -1,0 +1,31 @@
+---
+description: When to use frontend design skills and Better Design MCP for UI work
+globs: frontend/**/*.{tsx,ts,css},client-frontend/**/*.{tsx,ts,css},shared/design-system*/**/*,web-v2/**/*.{tsx,ts,css},ui-audit/**
+alwaysApply: false
+---
+
+# Frontend design skills (Emdad staging)
+
+## Skills to prefer
+
+1. `frontend-design` — avoid generic AI aesthetics; pick clear typography/composition
+2. `ui` / `ui-design` — audits (`/ui audit`), DESIGN.md, systemic component work
+3. `better-design` — design tokens, accessibility/review via Better Design MCP when connected
+4. `react` + `tailwind` + `shadcn` / `shadcn-ui` — React patterns and component references
+5. `react-vite-dashboard` — admin/dashboard layouts on Vite
+6. `extract-design-md` / `design-md` — capture or create DESIGN.md from existing UI
+7. `aidesigner-frontend` — when AIDesigner MCP is available for generate/refine
+8. `playwright` — screenshot and verify staging UI after visual changes
+
+## Better Design MCP
+
+- Use for principles, review rules, spacing inspection, and catalog inspiration
+- **Do not** replace Emdad brand/tokens with a catalog system unless the user asks
+- If MCP tools are missing, say so and continue with local skills + the app's own tokens
+
+## Workflow
+
+1. Inspect existing tokens/components: legacy `@ds` for `frontend/`/`client-frontend/`; `web-v2/packages/ui/src/styles/tokens.css` and `web-v2/DESIGN.md` for `web-v2/`
+2. For redesigns: load skill guidance → implement in-repo → review contrast/spacing
+3. Capture staging screenshots with Playwright MCP when validating admin/client UI
+4. Stay on staging tree only (`/var/www/emdad-sy-3pl-wms-staging`)

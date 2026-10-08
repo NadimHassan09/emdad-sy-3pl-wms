@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { SectionContainer } from '@ds';
 
 import {
   ShippingApi,
+  type ShippingOriginAddress,
   type ShippingProviderAdminView,
 } from '../../api/shipping';
 import { useAuth } from '../../auth/AuthContext';
@@ -248,11 +249,144 @@ function ProviderCard({
   );
 }
 
+function PickupAddressCard({ canEdit }: { canEdit: boolean }) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const { t } = useWmsTranslation();
+  const [contactName, setContactName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [city, setCity] = useState('');
+  const [district, setDistrict] = useState('');
+  const [street, setStreet] = useState('');
+  const [lat, setLat] = useState('');
+  const [lng, setLng] = useState('');
+
+  const query = useQuery({
+    queryKey: QK.shipping.originAddress,
+    queryFn: () => ShippingApi.getOriginAddress(),
+  });
+
+  const saved = query.data;
+  useEffect(() => {
+    if (!saved) return;
+    setContactName(saved.contactName);
+    setPhone(saved.phone);
+    setCity(saved.city);
+    setDistrict(saved.district ?? '');
+    setStreet(saved.street);
+    setLat(saved.lat != null ? String(saved.lat) : '');
+    setLng(saved.lng != null ? String(saved.lng) : '');
+  }, [saved]);
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      ShippingApi.saveOriginAddress({
+        contactName: contactName.trim(),
+        phone: phone.trim(),
+        city: city.trim(),
+        district: district.trim() || undefined,
+        street: street.trim(),
+        ...(lat.trim() ? { lat: Number(lat) } : {}),
+        ...(lng.trim() ? { lng: Number(lng) } : {}),
+      }),
+    onSuccess: (row: ShippingOriginAddress) => {
+      toast.success(t(['Pickup address saved.', 'تم حفظ عنوان الاستلام.']));
+      queryClient.setQueryData(QK.shipping.originAddress, row);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const onSave = (e: FormEvent) => {
+    e.preventDefault();
+    if (!contactName.trim() || !phone.trim() || !city.trim() || !street.trim()) {
+      toast.error(t(['Name, phone, city, and street are required.', 'الاسم والهاتف والمدينة والشارع مطلوبة.']));
+      return;
+    }
+    saveMutation.mutate();
+  };
+
+  return (
+    <SectionContainer
+      title={t(['Pickup address', 'عنوان الاستلام'])}
+      description={t([
+        'Set once by a super admin. Every shipping company collects the parcel from this address. The customer delivery address stays on the order.',
+        'يحدده مدير النظام مرة واحدة. تستلم كل شركات الشحن الشحنة من هذا العنوان. عنوان توصيل العميل يبقى على الطلب.',
+      ])}
+    >
+      {query.isLoading ? (
+        <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+      ) : (
+        <form onSubmit={onSave} className="grid gap-3 md:grid-cols-2">
+          <TextField
+            label={t(['Contact name', 'اسم جهة الاتصال'])}
+            value={contactName}
+            disabled={!canEdit}
+            onChange={(e) => setContactName(e.target.value)}
+          />
+          <TextField
+            label={t(['Phone', 'الهاتف'])}
+            value={phone}
+            disabled={!canEdit}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+          <TextField
+            label={t(['City', 'المدينة'])}
+            value={city}
+            disabled={!canEdit}
+            onChange={(e) => setCity(e.target.value)}
+          />
+          <TextField
+            label={t(['District', 'الحي'])}
+            value={district}
+            disabled={!canEdit}
+            onChange={(e) => setDistrict(e.target.value)}
+          />
+          <div className="md:col-span-2">
+            <TextField
+              label={t(['Street', 'الشارع'])}
+              value={street}
+              disabled={!canEdit}
+              onChange={(e) => setStreet(e.target.value)}
+            />
+          </div>
+          <TextField
+            label={t(['Latitude', 'خط العرض'])}
+            value={lat}
+            disabled={!canEdit}
+            onChange={(e) => setLat(e.target.value)}
+          />
+          <TextField
+            label={t(['Longitude', 'خط الطول'])}
+            value={lng}
+            disabled={!canEdit}
+            onChange={(e) => setLng(e.target.value)}
+          />
+          {canEdit ? (
+            <div className="md:col-span-2">
+              <Button type="submit" variant="brand" loading={saveMutation.isPending}>
+                {t(['Save pickup address', 'حفظ عنوان الاستلام'])}
+              </Button>
+            </div>
+          ) : (
+            <p className="md:col-span-2 text-sm text-text-muted">
+              {t([
+                'Only a super admin can change this address.',
+                'مدير النظام فقط يمكنه تغيير هذا العنوان.',
+              ])}
+            </p>
+          )}
+        </form>
+      )}
+    </SectionContainer>
+  );
+}
+
 export function ShippingCompaniesPage() {
   const { user } = useAuth();
   const { t } = useWmsTranslation();
   const canAccess = canAccessShippingAdmin(user?.role);
   const canMutate = canAccess;
+  const canEditPickup = user?.role === 'super_admin';
 
   const providersQuery = useQuery({
     queryKey: QK.shipping.providers,
@@ -290,6 +424,8 @@ export function ShippingCompaniesPage() {
           </p>
         )}
       </SectionContainer>
+
+      <PickupAddressCard canEdit={canEditPickup} />
 
       {(providersQuery.data ?? []).map((provider) => (
         <ProviderCard key={provider.code} provider={provider} canMutate={canMutate} />

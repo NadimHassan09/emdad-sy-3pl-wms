@@ -1,5 +1,12 @@
 import { BadRequestException, Inject, Injectable, Optional, forwardRef } from '@nestjs/common';
-import { InboundQcStatus, MovementType, Prisma, ProductTrackingType, StockStatus } from '@prisma/client';
+import {
+  InboundQcStatus,
+  MovementType,
+  Prisma,
+  ProductTrackingType,
+  ProductUom,
+  StockStatus,
+} from '@prisma/client';
 
 import { isQuarantineStorageLocationType } from '../../common/constants/storage-location-types';
 import {
@@ -68,6 +75,27 @@ export class TaskInventoryEffectsService {
     // no-op: carrier API is only called via POST .../shipping-details/send
   }
 
+  /** Soft-hold rows already allocated to an outbound order (ALLOCATE_ON_ORDER_CREATE). */
+  async loadActivePickReservations(
+    tx: Prisma.TransactionClient,
+    outboundOrderId: string,
+  ): Promise<ReservationSnapshot[]> {
+    const existing = await tx.stockReservation.findMany({
+      where: { outboundOrderId, status: 'active' },
+      include: { location: { select: { warehouseId: true } } },
+    });
+    if (existing.length === 0) return [];
+    return existing.map((r) => ({
+      outboundOrderLineId: r.outboundOrderLineId ?? '',
+      companyId: r.companyId,
+      productId: r.productId,
+      locationId: r.locationId,
+      warehouseId: r.location.warehouseId,
+      lotId: r.lotId,
+      quantity: r.quantity.toString(),
+    }));
+  }
+
   async buildPickReservations(
     tx: Prisma.TransactionClient,
     companyId: string,
@@ -81,20 +109,9 @@ export class TaskInventoryEffectsService {
     outboundOrderId?: string,
   ): Promise<ReservationSnapshot[]> {
     if (outboundOrderId) {
-      const existing = await tx.stockReservation.findMany({
-        where: { outboundOrderId, status: 'active' },
-        include: { location: { select: { warehouseId: true } } },
-      });
+      const existing = await this.loadActivePickReservations(tx, outboundOrderId);
       if (existing.length > 0) {
-        return existing.map((r) => ({
-          outboundOrderLineId: r.outboundOrderLineId ?? '',
-          companyId: r.companyId,
-          productId: r.productId,
-          locationId: r.locationId,
-          warehouseId: r.location.warehouseId,
-          lotId: r.lotId,
-          quantity: r.quantity.toString(),
-        }));
+        return existing;
       }
     }
 
@@ -420,32 +437,53 @@ export class TaskInventoryEffectsService {
     body: Extract<TaskCompleteBody, { task_type: 'pick' }>,
   ): Promise<void> {
     await this.lockOutboundOrderRow(tx, orderId);
+    await this.applyPickRecordCore(tx, orderId, reservations, body, { validateUom: true });
+  }
+
+  /**
+   * Bulk quiet pick: caller already holds the outbound order row lock and built
+   * `body` from reservation snapshots (allocation / FEFO) — skip re-lock + UOM join.
+   */
+  async applyPickRecordQuiet(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    reservations: ReservationSnapshot[],
+    body: Extract<TaskCompleteBody, { task_type: 'pick' }>,
+  ): Promise<void> {
+    await this.applyPickRecordCore(tx, orderId, reservations, body, { validateUom: false });
+  }
+
+  private async applyPickRecordCore(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    reservations: ReservationSnapshot[],
+    body: Extract<TaskCompleteBody, { task_type: 'pick' }>,
+    opts: { validateUom: boolean },
+  ): Promise<void> {
     this.assertPickCompletionMatchesReservations(reservations, body);
 
-    const lineUoms = await tx.outboundOrderLine.findMany({
-      where: { outboundOrderId: orderId },
-      select: { id: true, product: { select: { uom: true } } },
-    });
-    const uomByLineId = new Map(lineUoms.map((row) => [row.id, row.product.uom]));
-
-    const byLineId = new Map<string, ReservationSnapshot[]>();
-    for (const r of reservations) {
-      const cur = byLineId.get(r.outboundOrderLineId) ?? [];
-      cur.push(r);
-      byLineId.set(r.outboundOrderLineId, cur);
+    let uomByLineId: Map<string, ProductUom> | null = null;
+    if (opts.validateUom) {
+      const lineUoms = await tx.outboundOrderLine.findMany({
+        where: { outboundOrderId: orderId },
+        select: { id: true, product: { select: { uom: true } } },
+      });
+      uomByLineId = new Map(lineUoms.map((row) => [row.id, row.product.uom]));
     }
 
     for (const grp of body.picks) {
-      const uom = uomByLineId.get(grp.outbound_order_line_id);
-      if (!uom) {
-        throw new BadRequestException(`Unknown outbound line ${grp.outbound_order_line_id}.`);
-      }
-      for (const pl of grp.lines) {
-        assertDiscreteUomPositiveIntegerDecimal(
-          uom,
-          new Prisma.Decimal(String(pl.quantity)),
-          'Pick quantity',
-        );
+      if (uomByLineId) {
+        const uom = uomByLineId.get(grp.outbound_order_line_id);
+        if (!uom) {
+          throw new BadRequestException(`Unknown outbound line ${grp.outbound_order_line_id}.`);
+        }
+        for (const pl of grp.lines) {
+          assertDiscreteUomPositiveIntegerDecimal(
+            uom,
+            new Prisma.Decimal(String(pl.quantity)),
+            'Pick quantity',
+          );
+        }
       }
       const pickedTotal = grp.lines.reduce(
         (acc, p) => acc.plus(new Prisma.Decimal(String(p.quantity))),

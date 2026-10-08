@@ -1,5 +1,11 @@
 import { CarrierShipmentStatus, OutboundOrderStatus } from '@prisma/client';
 
+import {
+  comparableValueUsd,
+  getFxRateSnapshot,
+  toComparableUsd,
+  type FxRateSnapshot,
+} from './currency-conversion';
 import { MANUAL_SHIPPING_CODE } from './shipping.constants';
 
 /** Order shape used for bulk shipping eligibility checks (pure / unit-testable). */
@@ -33,36 +39,37 @@ export type ProviderQuoteCandidate = {
   providerCode: string;
   price: number;
   currency: string;
+  prices?: Array<{ price: number; currency: string }>;
+  preferredCurrency?: string | null;
 };
 
+/** @deprecated Use getFxRateSnapshot().usdToSypRate — kept for existing call sites. */
 export const DEFAULT_USD_TO_SYP_RATE = 14500;
 
+/** @deprecated Prefer getFxRateSnapshot() for source+timestamp metadata. */
 export function getUsdToSypRate(): number {
-  const envVal = process.env.USD_TO_SYP_RATE;
-  if (envVal) {
-    const parsed = Number(envVal);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return DEFAULT_USD_TO_SYP_RATE;
+  return getFxRateSnapshot().usdToSypRate;
 }
 
-export function normalizePriceForComparison(price: number, currency?: string): number {
-  if (!Number.isFinite(price)) return Infinity;
-  const curr = (currency ?? 'USD').toUpperCase().trim();
-  const rate = getUsdToSypRate();
-  if (curr === 'SYP') {
-    return price / rate;
-  }
-  return price;
+/**
+ * Normalize price to USD for comparison. Prefer passing an explicit FxRateSnapshot
+ * so recommendations record which rate was used.
+ */
+export function normalizePriceForComparison(
+  price: number,
+  currency?: string,
+  snapshot: FxRateSnapshot = getFxRateSnapshot(),
+): number {
+  return toComparableUsd(price, currency, snapshot);
 }
 
 /**
  * Recommend cheapest provider among valid quotes only.
- * Normalizes currencies (e.g. USD vs SYP) so 200 SYP is not treated as more expensive than 2 USD.
- * Returns null when no reliable quote is available (do not invent prices).
+ * Uses effectiveComparableCost + FX snapshot (never raw cross-currency numbers).
  */
 export function recommendCheapestProvider(
   quotes: ProviderQuoteCandidate[],
+  snapshot: FxRateSnapshot = getFxRateSnapshot(),
 ): ProviderQuoteCandidate | null {
   const valid = quotes.filter(
     (q) =>
@@ -73,8 +80,8 @@ export function recommendCheapestProvider(
   );
   if (valid.length === 0) return null;
   return valid.reduce((best, cur) => {
-    const bestNorm = normalizePriceForComparison(best.price, best.currency);
-    const curNorm = normalizePriceForComparison(cur.price, cur.currency);
+    const bestNorm = comparableValueUsd(best, snapshot);
+    const curNorm = comparableValueUsd(cur, snapshot);
     return curNorm < bestNorm ? cur : best;
   });
 }

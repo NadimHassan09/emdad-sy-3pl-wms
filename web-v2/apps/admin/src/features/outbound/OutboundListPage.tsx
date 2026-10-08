@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ColumnDef } from '@tanstack/react-table'
 import { useSearchParams } from 'react-router'
 import { toast } from 'sonner'
-import { Download, Loader2, MoreHorizontal, Plus, SlidersHorizontal, Upload, Zap } from 'lucide-react'
+import { Download, Loader2, MoreHorizontal, Plus, SlidersHorizontal, Upload } from 'lucide-react'
 import { formatDate, useUiPreferences } from '@emdad/core'
 import {
   ConfirmDialog,
@@ -15,8 +15,10 @@ import {
   useNavigate,
 } from '@emdad/ui'
 import { Alert, AlertDescription, AlertTitle } from '@emdad/ui/ui/alert'
+import { Badge } from '@emdad/ui/ui/badge'
 import { Button } from '@emdad/ui/ui/button'
 import { Checkbox } from '@emdad/ui/ui/checkbox'
+import { Combobox } from '@emdad/ui/ui/combobox'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +30,7 @@ import { Input } from '@emdad/ui/ui/input'
 import { Label } from '@emdad/ui/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@emdad/ui/ui/select'
 import { CompaniesApi } from '@/api/companies'
-import { OutboundApi, type OutboundOrder, type QuickDirectedOutboundResult } from '@/api/outbound'
+import { OutboundApi, type OutboundOrder } from '@/api/outbound'
 import { useAuth } from '@/auth/AuthContext'
 import { QK } from '@/constants/query-keys'
 import { useCachedState } from '@/hooks/useCachedState'
@@ -39,11 +41,11 @@ import { companyFilterComboboxOptions } from '@/lib/company-filter-options'
 import { invalidateWorkflowTasksInventory } from '@/lib/invalidate-wms-queries'
 import {
   buildOutboundListParams,
+  countAppliedOutboundAdvancedFilters,
   OUTBOUND_LIST_FILTER_DEFAULTS,
   type OutboundListFilterState,
 } from '@/lib/outbound-list-params'
 import { canAccessInternalTransfer } from '@/lib/rbac'
-import { CreateQuickDirectedOutboundModal } from './CreateQuickDirectedOutboundModal'
 import { OutboundBulkShippingDialog } from './OutboundBulkShippingDialog'
 import { OutboundExportDialog, type OutboundExportColumnOption } from './OutboundExportDialog'
 import { OutboundImportDialog } from './OutboundImportDialog'
@@ -56,15 +58,6 @@ function isBulkShippingCandidate(o: OutboundOrder): boolean {
   if (o.trackingNumber?.trim()) return false
   const created = (o.carrierShipments ?? []).some((s) => s.status === 'created')
   return !created
-}
-
-function countAdvanced(f: OutboundListFilterState): number {
-  let n = 0
-  if (f.status.trim()) n++
-  if (f.createdFrom.trim()) n++
-  if (f.createdTo.trim()) n++
-  if (f.companyId.trim()) n++
-  return n
 }
 
 export function OutboundListPage() {
@@ -83,8 +76,6 @@ export function OutboundListPage() {
   const [bulkOpen, setBulkOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
-  const [quickOpen, setQuickOpen] = useState(false)
-  const [quickSuccess, setQuickSuccess] = useState<QuickDirectedOutboundResult | null>(null)
   const [exportColumns, setExportColumns] = useState<OutboundExportColumnOption[]>([])
   const [exporting, setExporting] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useCachedState('outbound-orders:advanced-open', false)
@@ -110,6 +101,7 @@ export function OutboundListPage() {
 
   const listParams = useMemo(() => buildOutboundListParams(appliedFilters, defaultWid), [appliedFilters, defaultWid])
   const effectiveWid = listParams.warehouseId
+  const advancedActive = countAppliedOutboundAdvancedFilters(appliedFilters)
 
   const pagination = useChunkedServerPagination<OutboundOrder>({
     chunkSize: CHUNK_SIZE_STANDARD,
@@ -124,15 +116,18 @@ export function OutboundListPage() {
     setSelectedIds(new Set())
   }, [listParams])
 
-  const pageEligibleIds = useMemo(
-    () => pagination.rows.filter(isBulkShippingCandidate).map((o) => o.id),
-    [pagination.rows],
+  const pageIds = useMemo(() => pagination.rows.map((o) => o.id), [pagination.rows])
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id))
+  const selectedEligibleIds = useMemo(
+    () =>
+      [...selectedIds].filter((id) => {
+        const order = pagination.rows.find((o) => o.id === id)
+        return order ? isBulkShippingCandidate(order) : false
+      }),
+    [selectedIds, pagination.rows],
   )
-  const allPageEligibleSelected =
-    pageEligibleIds.length > 0 && pageEligibleIds.every((id) => selectedIds.has(id))
 
-  const toggleOne = (id: string, eligible: boolean) => {
-    if (!eligible) return
+  const toggleOne = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -158,21 +153,6 @@ export function OutboundListPage() {
       toast.success(t('Order deleted.', 'تم حذف الطلب.'))
       setToDelete(null)
       void qc.invalidateQueries({ queryKey: QK.outboundOrders })
-    },
-    onError: (err: Error) => toast.error(err.message),
-  })
-
-  const quickMut = useMutation({
-    mutationFn: (input: { productCode: string; quantity: number; reasonCode: QuickDirectedOutboundResult['reasonCode'] }) => {
-      if (!defaultWid) throw new Error(t('Warehouse is required.', 'المستودع مطلوب.'))
-      return OutboundApi.quickDirected({ warehouseId: defaultWid, ...input })
-    },
-    onSuccess: (result) => {
-      invalidateWorkflowTasksInventory(qc, { referenceId: result.orderId, referenceType: 'outbound_order' })
-      void qc.invalidateQueries({ queryKey: QK.outboundOrders })
-      setQuickOpen(false)
-      setQuickSuccess(result)
-      toast.success(isArabic ? result.messageAr : result.messageEn)
     },
     onError: (err: Error) => toast.error(err.message),
   })
@@ -233,32 +213,33 @@ export function OutboundListPage() {
             {
               id: 'select',
               header: () => (
-                <Checkbox
-                  checked={allPageEligibleSelected}
-                  disabled={pageEligibleIds.length === 0}
-                  aria-label={t('Select eligible on page', 'تحديد المؤهل في الصفحة')}
-                  onCheckedChange={() => {
-                    setSelectedIds((prev) => {
-                      const next = new Set(prev)
-                      if (allPageEligibleSelected) pageEligibleIds.forEach((id) => next.delete(id))
-                      else pageEligibleIds.forEach((id) => next.add(id))
-                      return next
-                    })
-                  }}
-                />
+                <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={allPageSelected || (pageIds.some((id) => selectedIds.has(id)) && 'indeterminate')}
+                    disabled={pageIds.length === 0}
+                    aria-label={t('Select all on page', 'تحديد الكل في الصفحة')}
+                    onCheckedChange={() => {
+                      setSelectedIds((prev) => {
+                        const next = new Set(prev)
+                        if (allPageSelected) pageIds.forEach((id) => next.delete(id))
+                        else pageIds.forEach((id) => next.add(id))
+                        return next
+                      })
+                    }}
+                  />
+                </div>
               ),
-              cell: ({ row }) => {
-                const eligible = isBulkShippingCandidate(row.original)
-                return (
+              cell: ({ row }) => (
+                <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                   <Checkbox
                     checked={selectedIds.has(row.original.id)}
-                    disabled={!eligible}
                     aria-label={t(`Select ${row.original.orderNumber}`, `تحديد ${row.original.orderNumber}`)}
-                    onCheckedChange={() => toggleOne(row.original.id, eligible)}
+                    onClick={(e) => e.stopPropagation()}
+                    onCheckedChange={() => toggleOne(row.original.id)}
                   />
-                )
-              },
-              meta: { priority: 1, className: 'w-10' },
+                </div>
+              ),
+              meta: { priority: 1, className: 'w-10', hideInCard: true },
             } satisfies ColumnDef<OutboundOrder>,
           ]
         : []),
@@ -335,12 +316,7 @@ export function OutboundListPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isArabic, locale, isAdmin, selectedIds, allPageEligibleSelected, pageEligibleIds],
-  )
-
-  const advancedActive = countAdvanced(appliedFilters)
-  const hasActiveFilters = Boolean(
-    appliedFilters.orderSearch.trim() || advancedActive > 0,
+    [isArabic, locale, isAdmin, selectedIds, allPageSelected, pageIds],
   )
 
   const field = (label: string, node: React.ReactNode, id?: string) => (
@@ -361,17 +337,13 @@ export function OutboundListPage() {
               <Button
                 type="button"
                 variant="outline"
-                disabled={selectedIds.size === 0}
+                disabled={selectedEligibleIds.length === 0}
                 onClick={() => setBulkOpen(true)}
               >
                 {t('Bulk shipping', 'شحن جماعي')}
-                {selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
+                {selectedEligibleIds.length > 0 ? ` (${selectedEligibleIds.length})` : ''}
               </Button>
             ) : null}
-            <Button type="button" variant="outline" onClick={() => setQuickOpen(true)}>
-              <Zap className="size-4" aria-hidden />
-              {t('Quick outbound', 'إخراج سريع')}
-            </Button>
             <Button type="button" variant="outline" onClick={() => setImportOpen(true)}>
               <Upload className="size-4" aria-hidden />
               {t('Import', 'استيراد')}
@@ -400,34 +372,23 @@ export function OutboundListPage() {
         </Alert>
       ) : null}
 
-      {quickSuccess ? (
-        <Alert>
-          <AlertTitle>{t('Quick outbound created', 'تم الإخراج السريع')}</AlertTitle>
-          <AlertDescription className="flex flex-wrap items-center gap-2">
-            <span>{quickSuccess.orderNumber}</span>
-            <Button type="button" variant="link" className="h-auto p-0" onClick={() => navigate(`/orders/outbound/${quickSuccess.orderId}`)}>
-              {t('Open order', 'فتح الطلب')}
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setQuickSuccess(null)}>
-              {t('Dismiss', 'إغلاق')}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      <div className="space-y-3 rounded-xl border bg-card p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
-          <div className="min-w-0 flex-1 sm:max-w-md">
-            <SearchInput
-              value={draftFilters.orderSearch}
-              onChange={(v) => setDraft({ orderSearch: v })}
-              placeholder={t('Search order # or client…', 'ابحث برقم الطلب أو العميل…')}
-              aria-label={t('Search', 'بحث')}
-            />
-          </div>
+      <section aria-label={t('Filters', 'التصفية')} className="space-y-3 rounded-xl border bg-card p-3">
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            applyFilters()
+          }}
+        >
+          <SearchInput
+            value={draftFilters.orderSearch}
+            onChange={(v) => setDraft({ orderSearch: v })}
+            placeholder={t('Search order # or client…', 'ابحث برقم الطلب أو العميل…')}
+            clearLabel={t('Clear search', 'مسح البحث')}
+          />
           <Select value={draftFilters.status || '__all'} onValueChange={(v) => setDraft({ status: v === '__all' ? '' : v })}>
-            <SelectTrigger className="w-full sm:w-52">
-              <SelectValue placeholder={t('Status', 'الحالة')} />
+            <SelectTrigger className="w-44" aria-label={t('Status', 'الحالة')}>
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {OUTBOUND_STATUS_FILTER_OPTIONS.map((opt) => (
@@ -437,45 +398,69 @@ export function OutboundListPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button type="button" onClick={() => applyFilters()}>
-            {t('Apply', 'تطبيق')}
+          <Button
+            type="button"
+            variant={advancedOpen ? 'secondary' : 'outline'}
+            aria-expanded={advancedOpen}
+            onClick={() => setAdvancedOpen(!advancedOpen)}
+          >
+            <SlidersHorizontal aria-hidden />
+            {t('Advanced filters', 'تصفية متقدمة')}
+            {advancedActive > 0 ? <Badge className="ms-1">{advancedActive}</Badge> : null}
           </Button>
-          <Button type="button" variant="outline" onClick={() => setAdvancedOpen((o) => !o)}>
-            <SlidersHorizontal className="size-4" aria-hidden />
-            {t('Advanced', 'متقدم')}
-            {advancedActive > 0 ? ` (${advancedActive})` : ''}
-          </Button>
-          {hasActiveFilters ? <ResetFiltersButton label={t('Reset', 'إعادة تعيين')} onClick={() => resetFilters()} /> : null}
-        </div>
+          <div className="ms-auto flex items-center gap-2">
+            <ResetFiltersButton
+              label={t('Reset', 'إعادة تعيين')}
+              onClick={() => {
+                resetFilters()
+                setAdvancedOpen(false)
+              }}
+            />
+            <Button type="submit" disabled={pagination.isFetching}>
+              {pagination.isFetching ? <Loader2 className="animate-spin" aria-hidden /> : null}
+              {t('Apply', 'تطبيق')}
+            </Button>
+          </div>
+        </form>
 
         {advancedOpen ? (
-          <div className="grid gap-4 border-t pt-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 border-t pt-3 sm:grid-cols-2 lg:grid-cols-3">
             {field(
               t('Client', 'العميل'),
-              <Select value={draftFilters.companyId || '__all'} onValueChange={(v) => setDraft({ companyId: v === '__all' ? '' : v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientOptions.map((o) => (
-                    <SelectItem key={o.value || 'all'} value={o.value || '__all'}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>,
+              <Combobox
+                id="outbound-f-client"
+                value={draftFilters.companyId}
+                onChange={(v) => setDraft({ companyId: v })}
+                options={clientOptions}
+                placeholder={t('All clients', 'كل العملاء')}
+                searchPlaceholder={t('Search…', 'بحث…')}
+                emptyLabel={t('No results', 'لا نتائج')}
+              />,
+              'outbound-f-client',
             )}
             {field(
               t('Created from', 'تاريخ الإنشاء من'),
-              <Input type="date" value={draftFilters.createdFrom} onChange={(e) => setDraft({ createdFrom: e.target.value })} />,
+              <Input
+                id="outbound-f-from"
+                type="date"
+                value={draftFilters.createdFrom}
+                onChange={(e) => setDraft({ createdFrom: e.target.value })}
+              />,
+              'outbound-f-from',
             )}
             {field(
               t('Created to', 'تاريخ الإنشاء إلى'),
-              <Input type="date" value={draftFilters.createdTo} onChange={(e) => setDraft({ createdTo: e.target.value })} />,
+              <Input
+                id="outbound-f-to"
+                type="date"
+                value={draftFilters.createdTo}
+                onChange={(e) => setDraft({ createdTo: e.target.value })}
+              />,
+              'outbound-f-to',
             )}
           </div>
         ) : null}
-      </div>
+      </section>
 
       <DataTable<OutboundOrder>
         columns={columns}
@@ -543,11 +528,10 @@ export function OutboundListPage() {
 
       <OutboundImportDialog open={importOpen} onClose={() => setImportOpen(false)} onImported={() => void qc.invalidateQueries({ queryKey: QK.outboundOrders })} isArabic={isArabic} />
       <OutboundExportDialog open={exportOpen} onClose={() => !exporting && setExportOpen(false)} columns={exportColumns} exporting={exporting} onExport={(p) => void onExportSubmit(p)} isArabic={isArabic} />
-      <CreateQuickDirectedOutboundModal open={quickOpen} loading={quickMut.isPending} isArabic={isArabic} onClose={() => setQuickOpen(false)} onSubmit={(input) => quickMut.mutate(input)} />
       {isAdmin ? (
         <OutboundBulkShippingDialog
           open={bulkOpen}
-          outboundOrderIds={[...selectedIds]}
+          outboundOrderIds={selectedEligibleIds}
           isArabic={isArabic}
           onClose={() => {
             setBulkOpen(false)

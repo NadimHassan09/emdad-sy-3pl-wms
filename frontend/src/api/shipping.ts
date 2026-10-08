@@ -25,6 +25,27 @@ export type ConnectShippingProviderInput = {
   password: string;
 };
 
+export type ShippingOriginAddress = {
+  contactName: string;
+  phone: string;
+  city: string;
+  district: string | null;
+  street: string;
+  lat: number | null;
+  lng: number | null;
+  updatedAt: string;
+};
+
+export type ShippingOriginAddressInput = {
+  contactName: string;
+  phone: string;
+  city: string;
+  district?: string;
+  street: string;
+  lat?: number;
+  lng?: number;
+};
+
 export type ShippingProviderTestResult = {
   ok: boolean;
   message?: string;
@@ -104,6 +125,10 @@ export type QuoteShippingRatesInput = {
   neighborhood?: string;
   /** One entry per carton — Babel part weight (kg). */
   parts?: Array<{ weight: number }>;
+  /** Bulk shipping-details: address + hub in one response. */
+  includeAllDeliveryTypes?: boolean;
+  /** Quote a single provider (progress / isolation). */
+  providerCode?: string;
 };
 
 export type QuoteShippingRatesResult = {
@@ -384,6 +409,14 @@ export function isShippingConfigLocked(outboundStatus: string | null | undefined
 }
 
 export const ShippingApi = {
+  getOriginAddress(): Promise<ShippingOriginAddress | null> {
+    return api.get<ShippingOriginAddress | null>('/shipping/origin-address').then((r) => r.data);
+  },
+
+  saveOriginAddress(body: ShippingOriginAddressInput): Promise<ShippingOriginAddress> {
+    return api.put<ShippingOriginAddress>('/shipping/origin-address', body).then((r) => r.data);
+  },
+
   listProviders(): Promise<ShippingProviderAdminView[]> {
     return api.get<ShippingProviderAdminView[]>('/shipping/providers').then((r) => r.data);
   },

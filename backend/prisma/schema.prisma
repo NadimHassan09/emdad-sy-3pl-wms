@@ -1036,12 +1036,14 @@ model User {
   omsOrdersCancelled         OmsOrder[]               @relation("OmsOrderCancelledBy")
   omsOrdersApproved          OmsOrder[]               @relation("OmsOrderApprovedBy")
   omsOrdersRejected          OmsOrder[]               @relation("OmsOrderRejectedBy")
+  omsBatchesCreated          OmsBatch[]               @relation("OmsBatchCreatedBy")
   codRecordsCreated          CodRecord[]              @relation("CodRecordCreatedBy")
   codAdjustmentsCreated      CodAdjustment[]          @relation("CodAdjustmentCreatedBy")
   omsReturnsOwned            OmsReturn[]              @relation("OmsReturnCreatedBy")
   omsReturnsApproved         OmsReturn[]              @relation("OmsReturnApprovedBy")
   omsReturnsRejected         OmsReturn[]              @relation("OmsReturnRejectedBy")
   shippingProviderConnections ShippingProviderConnection[] @relation("ShippingProviderConnectedBy")
+  shippingOriginAddressUpdated ShippingOriginAddress[] @relation("ShippingOriginAddressUpdatedBy")
   bulkShippingJobsTriggered   BulkShippingJob[]            @relation("BulkShippingTriggeredBy")
   apiCredentialsCreated       ApiCredential[]              @relation("ApiCredentialCreatedBy")
   apiCredentialsRevoked       ApiCredential[]              @relation("ApiCredentialRevokedBy")
@@ -1697,6 +1699,9 @@ model OutboundOrder {
   shippingPhoneCountry String?             @map("shipping_phone_country")
   /// Opaque sub-carrier routing token from quote (e.g. "SILA_SY:{courier_id}"). Null for Babel orders.
   shippingServiceId    String?             @map("shipping_service_id")
+  /// Soft-assigned quote amount from Shipping Details (not COD). Used for batch cost analysis.
+  shippingQuotedPrice  Decimal?            @map("shipping_quoted_price") @db.Decimal(15, 4)
+  shippingQuotedCurrency String?           @map("shipping_quoted_currency") @db.VarChar(8)
   /// Babel Express neighbourhood id (source of truth for quote/create). Snapshot tables hold city/area.
   babelNeighbourhoodId Int?                @map("babel_neighbourhood_id")
   createdBy            String              @map("created_by") @db.Uuid
@@ -1825,12 +1830,45 @@ model OmsOrder {
   omsEvents     OmsOrderEvent[]
   codRecord     CodRecord?
   omsReturns    OmsReturn[]
+  batchMemberships OmsBatchOrder[]
 
   @@index([companyId, createdAt(sort: Desc)], map: "idx_oms_orders_created")
   @@index([companyId, status], map: "idx_oms_orders_status")
   @@index([importBatchId], map: "idx_oms_orders_import_batch")
   @@index([babelNeighbourhoodId], map: "idx_oms_orders_babel_neighbourhood")
   @@map("oms_orders")
+}
+
+/// Persistent operational group of OMS orders. Does not replace order status.
+model OmsBatch {
+  id          String   @id @default(uuid()) @db.Uuid
+  batchNumber String   @unique @map("batch_number")
+  name        String?
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  creator User            @relation("OmsBatchCreatedBy", fields: [createdBy], references: [id])
+  orders  OmsBatchOrder[]
+
+  @@index([createdAt(sort: Desc)], map: "idx_oms_batches_created")
+  @@map("oms_batches")
+}
+
+model OmsBatchOrder {
+  id         String    @id @default(uuid()) @db.Uuid
+  batchId    String    @map("batch_id") @db.Uuid
+  omsOrderId String    @map("oms_order_id") @db.Uuid
+  issueNote  String?   @map("issue_note")
+  removedAt  DateTime? @map("removed_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  batch OmsBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  order OmsOrder @relation(fields: [omsOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, omsOrderId], map: "uq_oms_batch_order")
+  @@index([omsOrderId], map: "idx_oms_batch_orders_order")
+  @@map("oms_batch_orders")
 }
 
 model OmsOrderLine {
@@ -2438,6 +2476,25 @@ model ShippingProviderConnection {
   connectedBy User?            @relation("ShippingProviderConnectedBy", fields: [connectedByUserId], references: [id], onDelete: SetNull)
 
   @@map("shipping_provider_connections")
+}
+
+/// Single pickup address used by every carrier. Set once by a super admin.
+model ShippingOriginAddress {
+  id              String   @id @default("default")
+  contactName     String   @map("contact_name")
+  phone           String
+  city            String
+  district        String?
+  street          String
+  lat             Decimal? @db.Decimal(10, 7)
+  lng             Decimal? @db.Decimal(10, 7)
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  updatedBy User? @relation("ShippingOriginAddressUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("shipping_origin_address")
 }
 
 /// Idempotent carrier shipment records for outbound orders.

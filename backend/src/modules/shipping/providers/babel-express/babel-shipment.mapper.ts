@@ -1,5 +1,6 @@
 import type {
   ShippingCreateShipmentInput,
+  ShippingParty,
   ShippingQuoteInput,
 } from '../../shipping-provider.interface';
 import { normalizeShippingPhoneCountry } from '../../shipping-config.util';
@@ -12,21 +13,20 @@ export {
 } from './babel-quote.util';
 
 export function resolveBabelPickupType(
-  pickupType: ShippingCreateShipmentInput['pickupType'],
-): ShippingCreateShipmentInput['pickupType'] {
-  // Warehouse/reseller handoff: no sender block → courier address pickup is invalid.
-  return pickupType === 'address' ? 'hub' : pickupType;
+  pickupType: ShippingCreateShipmentInput['pickupType'] | undefined,
+): 'address' | 'hub' {
+  // Explicit hub stays hub. Address (and any unset value) stays address — never coerce address → hub.
+  return pickupType === 'hub' ? 'hub' : 'address';
 }
 
 /**
- * Babel currently rejects `payer: sender`
- * ("Payer as sender is not available right now, please choose receiver or reseller").
- * EMDAD shipping fee is collected from the receiver — never billed as sender.
+ * Pass payer through without silent remapping.
+ * Business rule: shipping payer is sender. If Babel rejects sender, surface the API error.
  */
 export function resolveBabelPayer(
   payer: ShippingCreateShipmentInput['payer'],
-): Exclude<ShippingCreateShipmentInput['payer'], 'sender'> {
-  return payer === 'reseller' ? 'reseller' : 'receiver';
+): ShippingCreateShipmentInput['payer'] {
+  return payer === 'reseller' || payer === 'receiver' ? payer : 'sender';
 }
 
 /**
@@ -55,6 +55,28 @@ function resolveParts(
   }
   const w = Number(input.weightKg);
   return [{ weight: Number.isFinite(w) && w > 0 ? w : 0.1 }];
+}
+
+function mapBabelSender(party: ShippingParty) {
+  const hasId = party.neighbourhoodId != null && Number.isFinite(Number(party.neighbourhoodId));
+  const hasCoords = Number.isFinite(party.lat) && Number.isFinite(party.lng);
+  return {
+    name: party.name,
+    phone: {
+      country: party.phoneCountry,
+      phone: party.phoneLocal,
+    },
+    address: party.address,
+    ...(hasId || hasCoords
+      ? {
+          neighbourhood: resolveNeighbourhood({
+            neighbourhoodId: party.neighbourhoodId,
+            lat: party.lat,
+            lng: party.lng,
+          }),
+        }
+      : {}),
+  };
 }
 
 function resolveNeighbourhood(input: {
@@ -88,6 +110,7 @@ export function mapCreateShipmentPayload(input: ShippingCreateShipmentInput) {
 
   return {
     shipment: {
+      ...(input.pickup ? { sender: mapBabelSender(input.pickup) } : {}),
       receiver: {
         name: input.receiver.name,
         phone: {
@@ -129,14 +152,27 @@ export function mapCalculatePricePayload(input: ShippingQuoteInput) {
 
   return {
     delivery: {
+      ...(input.pickup &&
+      ((input.pickup.neighbourhoodId != null &&
+        Number.isFinite(Number(input.pickup.neighbourhoodId))) ||
+        (Number.isFinite(input.pickup.lat) && Number.isFinite(input.pickup.lng)))
+        ? {
+            sender: {
+              neighbourhood: resolveNeighbourhood({
+                neighbourhoodId: input.pickup.neighbourhoodId,
+                lat: input.pickup.lat,
+                lng: input.pickup.lng,
+              }),
+            },
+          }
+        : {}),
       receiver: {
         neighbourhood,
       },
       type: input.packageType,
       parts: input.packageType === 'envelope' ? [{ weight: 1 }] : parts,
       deliveryType: input.deliveryType,
-      // Reseller warehouse: always hub pickup for quote/create consistency.
-      pickupType: resolveBabelPickupType(input.pickupType ?? 'hub'),
+      pickupType: resolveBabelPickupType(input.pickupType),
     },
   };
 }

@@ -863,13 +863,15 @@ export class BulkShippingService {
       if (!order.shippingPackageType || !order.shippingDeliveryType) return null;
 
       const creds = await this.shipping.getDecryptedCredentials(providerCode);
+      const pickup = await this.shipping.getConfiguredPickupParty();
       const result = await adapter.getQuote(creds, {
         receiverLat: lat,
         receiverLng: lng,
         packageType: order.shippingPackageType as 'box' | 'envelope',
         weightKg: order.shippingPackageType === 'envelope' ? 1 : weightKg,
         deliveryType: order.shippingDeliveryType as 'address' | 'hub',
-        pickupType: (order.shippingPickupType as 'address' | 'hub' | undefined) ?? undefined,
+        pickupType: 'address',
+        pickup,
       });
 
       if (!Number.isFinite(result.price)) return null;

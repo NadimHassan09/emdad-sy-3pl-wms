@@ -33,9 +33,9 @@ const FIELD_SURFACE = 'bg-white hover:bg-white dark:bg-white dark:text-foregroun
 const DANGER_ICON_BTN =
   'border border-tone-danger-border bg-tone-danger-bg text-tone-danger-fg hover:bg-tone-danger-bg hover:text-tone-danger-fg'
 
-/** Soft-danger text button (Cancel). */
+/** Soft-danger text button (Cancel) — matches outbound form. */
 const DANGER_TEXT_BTN =
-  'border border-transparent text-tone-danger-fg hover:border-tone-danger-border hover:bg-tone-danger-bg hover:text-tone-danger-fg'
+  'border border-tone-danger-border bg-tone-danger-bg text-tone-danger-fg hover:bg-tone-danger-bg hover:text-tone-danger-fg'
 
 type PutawayRow = { key: string; locationId: string; qty: string }
 type DraftLine = {

@@ -1,0 +1,17 @@
+---
+description: Rules for the new Emdad frontend in web-v2/ (admin + client)
+globs: web-v2/**
+alwaysApply: false
+---
+
+# web-v2 (new frontend)
+
+- Stack: Vite 7, React 19, TypeScript strict, Tailwind v4, unified `radix-ui`, shadcn/ui (Radix), TanStack Table + Query, Recharts, lucide-react.
+- **Independence**: never import from `frontend/`, `client-frontend/`, `shared/design-system*` or `@ds`. Copy assets/logic instead. Run `npm run check` in `web-v2/`.
+- **Brand = Emdad green** (see `web-v2/DESIGN.md`). This overrides the Creative-Tim "orange" rule. No purple/violet.
+- Red is for danger only; Reset/Clear is `ghost`. Status colours come only from `packages/ui/src/status/tones.ts`.
+- RTL: logical utilities only (`ms/me/ps/pe/start/end`), never `ml/mr/pl/pr/left/right`.
+- Minimum text size 14px for readable content; tap targets >= 40px; no arbitrary pixel font sizes.
+- Tables use `DataTable` with a full `meta` column contract. Pages follow the recipe: PageHeader → filters → KPI → widgets.
+- Every route lives in `apps/*/src/routes.manifest.json` (`native | redirect | notMigrated`); `npm run check:routes` must pass.
+- Staging only: dev/proxy against port 3001 and staging domains; never touch production or reload nginx without explicit confirmation.

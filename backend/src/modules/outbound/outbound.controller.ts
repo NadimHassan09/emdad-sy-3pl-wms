@@ -30,6 +30,7 @@ import { ListOutboundQueryDto } from './dto/list-outbound-query.dto';
 import { OutboundOrdersExportDto } from './dto/outbound-orders-export.dto';
 import { UpdateOutboundPlanDto } from './dto/update-outbound-plan.dto';
 import { UpdateShippingDetailsDto } from './dto/update-shipping-details.dto';
+import { SendShippingDetailsDto } from './dto/send-shipping-details.dto';
 import {
   BulkOutboundIdsDto,
   BulkProcessOutboundDto,
@@ -191,6 +192,15 @@ export class OutboundController {
     return this.bulkOutbound.completeDispatchBulk(user, dto.ids);
   }
 
+  @Post('bulk/complete-shipping-details')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  bulkCompleteShippingDetails(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: BulkOutboundIdsDto,
+  ) {
+    return this.bulkOutbound.completeShippingDetailsBulk(user, dto.ids);
+  }
+
   /** Per-order prefill + readiness for the Complete Shipping Details bulk modal. */
   @Post('bulk/shipping-details/preview')
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
@@ -267,8 +277,9 @@ export class OutboundController {
   sendShippingDetails(
     @CurrentUser() user: AuthPrincipal,
     @Param('id', ParseUuidLoosePipe) id: string,
+    @Body() body: SendShippingDetailsDto,
   ) {
-    return this.outbound.sendShippingDetails(user, id);
+    return this.outbound.sendShippingDetails(user, id, body);
   }
 
   @Post(':id/complete-shipping-details')

@@ -1,10 +1,13 @@
 import type { OmsOrderStatus } from '../api/oms';
+import { isOmsOperationalStage, omsOperationalStageLabel } from './oms-operational-stage';
 
 export type OmsTotalOperator = 'eq' | 'gt' | 'gte' | 'lt' | 'lte' | '';
 
 export type OmsOrdersListFilters = {
   orderSearch: string;
   status: string;
+  /** Warehouse stage inside Processing. Empty means every stage. */
+  operationalStage: string;
   orderId: string;
   startOrderNo: string;
   endOrderNo: string;
@@ -13,6 +16,8 @@ export type OmsOrdersListFilters = {
   phone: string;
   city: string;
   carrier: string;
+  createdFrom: string;
+  createdTo: string;
   totalOp: OmsTotalOperator;
   totalValue: string;
 };
@@ -20,6 +25,7 @@ export type OmsOrdersListFilters = {
 export const OMS_ORDERS_FILTER_DEFAULTS: OmsOrdersListFilters = {
   orderSearch: '',
   status: '',
+  operationalStage: '',
   orderId: '',
   startOrderNo: '',
   endOrderNo: '',
@@ -28,6 +34,8 @@ export const OMS_ORDERS_FILTER_DEFAULTS: OmsOrdersListFilters = {
   phone: '',
   city: '',
   carrier: '',
+  createdFrom: '',
+  createdTo: '',
   totalOp: 'gte',
   totalValue: '',
 };
@@ -53,9 +61,12 @@ export type OmsOrdersListQueryParams = {
   phone?: string;
   city?: string;
   carrier?: string;
+  createdFrom?: string;
+  createdTo?: string;
   totalOp?: Exclude<OmsTotalOperator, ''>;
   totalValue?: string;
   status?: OmsOrderStatus;
+  operationalStage?: 'picking' | 'packing' | 'shipping_details' | 'shipping_confirmation';
 };
 
 function text(value: unknown): string {
@@ -188,9 +199,11 @@ export function normalizeOmsOrdersListFilters(
       ? totalOpRaw
       : OMS_ORDERS_FILTER_DEFAULTS.totalOp;
 
+  const stage = text(src.operationalStage);
   return {
     orderSearch: text(src.orderSearch),
     status: text(src.status),
+    operationalStage: isOmsOperationalStage(stage) ? stage : '',
     orderId: text(src.orderId),
     startOrderNo: text(src.startOrderNo),
     endOrderNo: text(src.endOrderNo),
@@ -199,6 +212,8 @@ export function normalizeOmsOrdersListFilters(
     phone: text(src.phone),
     city: text(src.city),
     carrier: text(src.carrier),
+    createdFrom: text(src.createdFrom),
+    createdTo: text(src.createdTo),
     totalOp,
     totalValue: text(src.totalValue),
   };
@@ -224,6 +239,8 @@ export function buildOmsOrdersListParams(
       applied.endOrderNo.trim()
     : undefined;
 
+  const status = applied.status.trim();
+  const stage = applied.operationalStage.trim();
   return {
     orderSearch: applied.orderSearch.trim() || undefined,
     orderId: applied.orderId.trim() || undefined,
@@ -234,9 +251,13 @@ export function buildOmsOrdersListParams(
     phone: applied.phone.trim() || undefined,
     city: applied.city.trim() || undefined,
     carrier: applied.carrier.trim() || undefined,
+    createdFrom: applied.createdFrom.trim() || undefined,
+    createdTo: applied.createdTo.trim() || undefined,
     totalOp,
     totalValue: totalOp ? totalValue : undefined,
-    status: (applied.status.trim() || undefined) as OmsOrderStatus | undefined,
+    status: (status || undefined) as OmsOrderStatus | undefined,
+    operationalStage:
+      status === 'processing' && isOmsOperationalStage(stage) ? stage : undefined,
   };
 }
 
@@ -254,6 +275,8 @@ export function countAppliedOmsAdvancedFilters(
   if (applied.phone.trim()) n += 1;
   if (applied.city.trim()) n += 1;
   if (applied.carrier.trim()) n += 1;
+  if (applied.createdFrom.trim()) n += 1;
+  if (applied.createdTo.trim()) n += 1;
   if (applied.totalValue.trim() && applied.totalOp) n += 1;
   if (applied.status.trim()) n += 1;
   return n;
@@ -340,6 +363,13 @@ export function buildOmsAppliedFilterSummary(
   if (applied.status.trim() && opts.statusLabel?.trim()) {
     const label = opts.statusLabel.trim();
     parts.push(opts.isArabic ? `الحالة: ${label}` : `Status: ${label}`);
+  }
+  if (
+    applied.status.trim() === 'processing' &&
+    isOmsOperationalStage(applied.operationalStage.trim())
+  ) {
+    const stageLabel = omsOperationalStageLabel(applied.operationalStage.trim(), opts.isArabic);
+    parts.push(opts.isArabic ? `المرحلة: ${stageLabel}` : `Stage: ${stageLabel}`);
   }
   if (applied.orderSearch.trim()) {
     parts.push(

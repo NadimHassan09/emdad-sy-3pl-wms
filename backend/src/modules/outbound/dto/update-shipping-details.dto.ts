@@ -197,6 +197,20 @@ export class UpdateShippingDetailsDto {
   @MaxLength(8)
   currency?: string | null;
 
+  /** Soft-assigned quote for batch cost analysis (not COD). */
+  @EmptyToUndefined()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  shippingQuotedPrice?: number | null;
+
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  shippingQuotedCurrency?: string | null;
+
   /** Physical cartons for carrier handoff (one Babel part per carton). */
   @EmptyToUndefined()
   @IsOptional()
