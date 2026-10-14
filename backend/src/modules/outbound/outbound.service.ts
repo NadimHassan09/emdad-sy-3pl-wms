@@ -84,6 +84,7 @@ import {
   calculateOrderVolume,
   shippingPrismaData,
 } from '../shipping/shipping-config.util';
+import { shippingFailureFields, type ShippingFailure } from '../shipping/shipping-error';
 import { ShippingService } from '../shipping/shipping.service';
 import { toAvatarPublicUrl } from '../media/avatar-url';
 import {
@@ -168,6 +169,8 @@ const ORDER_INCLUDE = {
     select: {
       id: true,
       orderNumber: true,
+      currency: true,
+      codAmount: true,
       babelNeighbourhoodId: true,
       city: true,
       district: true,
@@ -1540,6 +1543,19 @@ export class OutboundService {
           status: OutboundOrderStatus.waiting_for_shipping_details,
         },
       });
+      if (order.omsOrder?.id && (body.currency !== undefined || body.shippingPayer)) {
+        await tx.omsOrder.update({
+          where: { id: order.omsOrder.id },
+          data: {
+            ...(body.currency !== undefined
+              ? {
+                  currency: body.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+                }
+              : {}),
+            ...(body.shippingPayer ? { shippingPayer: body.shippingPayer } : {}),
+          },
+        });
+      }
       await this.omsSync?.syncFromOutbound(tx, orderId);
     });
 
@@ -1705,6 +1721,9 @@ export class OutboundService {
                 currency: dto.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
               }
             : {}),
+          ...(dto.codAmount !== undefined && dto.codAmount != null
+            ? { codAmount: new Prisma.Decimal(dto.codAmount) }
+            : {}),
           ...(dto.shippingPackages !== undefined
             ? { shippingPackages: shippingPackagesPrisma(dto.shippingPackages) }
             : {}),
@@ -1728,9 +1747,40 @@ export class OutboundService {
       // Clear stale carrier-send failures once shipping details are corrected/saved.
       // This prevents the UI from continuing to show an old "phone missing" error
       // when the admin has already fixed recipient data.
-      await tx.carrierShipment.deleteMany({
+      if (
+        order.omsOrder?.id &&
+        (dto.currency !== undefined || dto.shippingPayer || dto.codAmount !== undefined)
+      ) {
+        await tx.omsOrder.update({
+          where: { id: order.omsOrder.id },
+          data: {
+            ...(dto.currency !== undefined
+              ? {
+                  currency: dto.currency?.trim().toUpperCase() === 'SYP' ? 'SYP' : 'USD',
+                }
+              : {}),
+            ...(dto.shippingPayer ? { shippingPayer: dto.shippingPayer } : {}),
+            ...(dto.codAmount !== undefined && dto.codAmount != null
+              ? { codAmount: new Prisma.Decimal(dto.codAmount) }
+              : {}),
+          },
+        });
+      }
+
+      const failedRows = await tx.carrierShipment.findMany({
         where: { outboundOrderId: orderId, status: CarrierShipmentStatus.failed },
+        select: { id: true, rawResultMeta: true },
       });
+      const clearableIds = failedRows
+        .filter((row) => {
+          const category = (row.rawResultMeta as { shippingError?: { category?: string } } | null)
+            ?.shippingError?.category;
+          return category !== 'ambiguous';
+        })
+        .map((row) => row.id);
+      if (clearableIds.length > 0) {
+        await tx.carrierShipment.deleteMany({ where: { id: { in: clearableIds } } });
+      }
 
       if (this.omsEvents && order.omsOrder) {
         await this.omsEvents.record(tx, {
@@ -1743,6 +1793,12 @@ export class OutboundService {
       }
       return row;
     });
+
+    if (dto.codCollectionCurrency === null && this.shipping) {
+      await this.shipping.clearCodCollection(orderId);
+    } else if (dto.codCollectionCurrency && this.shipping) {
+      await this.shipping.saveCodCollection(orderId, dto.codCollectionCurrency);
+    }
 
     this.realtime.emitOutboundOrderUpdated(updated.companyId, {
       orderId: updated.id,
@@ -1827,6 +1883,7 @@ export class OutboundService {
         quotedAt: string;
         expiresAt: string;
       } | null;
+      acknowledgeNoExternalShipment?: boolean;
     },
   ) {
     const order = await this.findById(orderId, user);
@@ -1903,10 +1960,16 @@ export class OutboundService {
         shippingPackageType: order.shippingPackageType,
         shippingDeliveryType: order.shippingDeliveryType,
         shippingPickupType: order.shippingPickupType,
+        shippingPayer: order.shippingPayer,
         shippingWeightKg: order.shippingWeightKg?.toString() ?? null,
         shippingVolumeCbm: order.shippingVolumeCbm?.toString() ?? null,
         babelNeighbourhoodId,
       },
+      codAmount: Number(order.omsOrder?.codAmount ?? order.codAmount ?? 0),
+      collectionCurrency:
+        order.codCollectionCurrency ??
+        order.currency ??
+        order.omsOrder?.currency,
       governorate: order.city,
       city: order.district,
       neighborhood: order.addressLine1,
@@ -1919,16 +1982,28 @@ export class OutboundService {
         : null,
       shippingServiceId: order.shippingServiceId,
       quotedAmount: body?.quoteFingerprint?.amount ?? null,
-      quotedCurrency: body?.quoteFingerprint?.currency ?? null,
+      quotedCurrency: body?.quoteFingerprint?.currency ?? order.shippingQuotedCurrency ?? null,
       partsKey: body?.quoteFingerprint?.partsKey ?? null,
     });
 
     // Idempotent: ensureShipmentForOutbound claims pending / skips if already created.
-    await this.shipping.ensureShipmentForOutbound(orderId);
+    await this.shipping.ensureShipmentForOutbound(orderId, {
+      acknowledgeNoExternalShipment: body?.acknowledgeNoExternalShipment === true,
+    });
 
     const updated = await this.findById(orderId, user);
     const latest = updated.carrierShipments?.[0];
     if (latest?.status === CarrierShipmentStatus.failed) {
+      const shippingError = (
+        latest.rawResultMeta as { shippingError?: ShippingFailure } | null
+      )?.shippingError;
+      if (shippingError?.code) {
+        throw new BadRequestException({
+          message: shippingError.message || latest.lastErrorSafe?.trim() || 'Carrier shipment submission failed.',
+          code: shippingError.code,
+          fields: shippingFailureFields(shippingError),
+        });
+      }
       throw new BadRequestException(
         latest.lastErrorSafe?.trim() || 'Carrier shipment submission failed.',
       );

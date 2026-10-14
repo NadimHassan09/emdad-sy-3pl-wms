@@ -12,6 +12,10 @@ import { ConfirmModal } from '../ConfirmModal';
 import { Modal } from '../Modal';
 import { useToast } from '../ToastProvider';
 import { QK } from '../../constants/query-keys';
+import {
+  parsePackedShipmentError,
+  ShipmentErrorActions,
+} from './ShipmentErrorActions';
 
 type Step = 'review' | 'confirm' | 'progress' | 'results';
 
@@ -32,6 +36,7 @@ export function BulkShippingProcessingModal({ open, outboundOrderIds, onClose }:
   const toast = useToast();
   const qc = useQueryClient();
   const [step, setStep] = useState<Step>('review');
+  const [collectionFilter, setCollectionFilter] = useState<'all' | 'USD' | 'SYP'>('all');
   const [selections, setSelections] = useState<Record<string, string>>({});
   const [jobId, setJobId] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -107,8 +112,13 @@ export function BulkShippingProcessingModal({ open, outboundOrderIds, onClose }:
   });
 
   const retryMut = useMutation({
-    mutationFn: (outboundOrderId: string) =>
-      ShippingApi.bulkRetryItem(jobId!, outboundOrderId),
+    mutationFn: (input: {
+      outboundOrderId: string;
+      acknowledgeNoExternalShipment?: boolean;
+    }) =>
+      ShippingApi.bulkRetryItem(jobId!, input.outboundOrderId, {
+        acknowledgeNoExternalShipment: input.acknowledgeNoExternalShipment,
+      }),
     onSuccess: () => {
       toast.success('Retry started.');
       setStep('progress');
@@ -179,6 +189,9 @@ export function BulkShippingProcessingModal({ open, outboundOrderIds, onClose }:
           quote?.currency ??
           (code === line.recommendedProviderCode ? line.recommendedCurrency : null),
         recommendedProviderCode: line.recommendedProviderCode,
+        serviceId: quote?.serviceId ?? null,
+        deliveryType: quote?.deliveryType ?? null,
+        ...(collectionFilter !== 'all' ? { codCollectionCurrency: collectionFilter } : {}),
       };
     });
   };
@@ -253,6 +266,8 @@ export function BulkShippingProcessingModal({ open, outboundOrderIds, onClose }:
               setSelections((prev) => ({ ...prev, [orderId]: code }))
             }
             onRetryPreview={() => void previewQuery.refetch()}
+            collectionFilter={collectionFilter}
+            onCollectionFilter={setCollectionFilter}
           />
         )}
 
@@ -280,7 +295,12 @@ export function BulkShippingProcessingModal({ open, outboundOrderIds, onClose }:
             filter={resultFilter}
             items={filteredItems}
             onFilter={setResultFilter}
-            onRetry={(id) => retryMut.mutate(id)}
+            onRetry={(id, opts) =>
+              retryMut.mutate({
+                outboundOrderId: id,
+                acknowledgeNoExternalShipment: opts?.acknowledgeNoExternalShipment,
+              })
+            }
             retrying={retryMut.isPending}
           />
         )}
@@ -320,9 +340,20 @@ function ReviewStep(props: {
   estimated: { total: number | null; currency: string | null };
   onChangeProvider: (orderId: string, code: string) => void;
   onRetryPreview: () => void;
+  collectionFilter: 'all' | 'USD' | 'SYP';
+  onCollectionFilter: (value: 'all' | 'USD' | 'SYP') => void;
 }) {
-  const { loading, error, preview, selections, estimated, onChangeProvider, onRetryPreview } =
-    props;
+  const {
+    loading,
+    error,
+    preview,
+    selections,
+    estimated,
+    onChangeProvider,
+    onRetryPreview,
+    collectionFilter,
+    onCollectionFilter,
+  } = props;
 
   if (loading) {
     return <p className="text-sm text-text-muted">Fetching quotes (no shipments are created)…</p>;
@@ -347,6 +378,23 @@ function ReviewStep(props: {
         description="Opening this screen and fetching quotes does not create carrier shipments. Confirm Bulk Processing is required to send."
       />
 
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-text-body">COD / Collection currency</span>
+        {(['all', 'USD', 'SYP'] as const).map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onCollectionFilter(value)}
+            className={`rounded-lg border px-3 py-1 text-sm ${
+              collectionFilter === value
+                ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                : 'border-border-subtle text-text-muted'
+            }`}
+          >
+            {value === 'all' ? 'All' : value}
+          </button>
+        ))}
+      </div>
       <div className="max-h-[28rem] overflow-auto rounded-lg border border-border-subtle">
         <table className="min-w-full text-left text-sm">
           <thead className="sticky top-0 bg-surface-sunken text-text-muted">
@@ -365,6 +413,7 @@ function ReviewStep(props: {
                 line={line}
                 providers={preview.selectableProviders}
                 selected={selections[line.outboundOrderId] ?? line.selectedProviderCode}
+                collectionFilter={collectionFilter}
                 onChange={(code) => onChangeProvider(line.outboundOrderId, code)}
               />
             ))}
@@ -384,9 +433,11 @@ function ReviewRow(props: {
   line: BulkShippingPreviewLine;
   providers: BulkShippingPreviewResult['selectableProviders'];
   selected: string;
+  collectionFilter: 'all' | 'USD' | 'SYP';
   onChange: (code: string) => void;
 }) {
-  const { line, providers, selected, onChange } = props;
+  const { line, providers, selected, collectionFilter, onChange } = props;
+  const visibleProviders = providers;
   const quote = line.quotes.find((q) => q.providerCode === selected);
   const price =
     quote?.price ??
@@ -412,7 +463,7 @@ function ReviewRow(props: {
           onChange={(e) => onChange(e.target.value)}
           aria-label={`Carrier for ${line.orderNumber}`}
         >
-          {providers.map((p) => (
+          {visibleProviders.map((p) => (
             <option key={p.code} value={p.code} disabled={p.code !== 'MANUAL' && !p.connected}>
               {p.name}
               {p.code === line.recommendedProviderCode ? ' (recommended)' : ''}
@@ -420,6 +471,12 @@ function ReviewRow(props: {
             </option>
           ))}
         </select>
+        {line.codAmount != null ? (
+          <div className="mt-1 text-xs text-text-faint">
+            Order COD {line.codAmount} {line.codCurrency ?? ''}
+            {collectionFilter !== 'all' ? ` · send ${collectionFilter}` : ''}
+          </div>
+        ) : null}
         {line.recommendationNote && !line.recommendedProviderCode ? (
           <div className="mt-1 text-xs text-text-faint">{line.recommendationNote}</div>
         ) : null}
@@ -434,7 +491,10 @@ function ResultsStep(props: {
   filter: 'all' | 'succeeded' | 'failed';
   items: BulkShippingJobView['items'];
   onFilter: (f: 'all' | 'succeeded' | 'failed') => void;
-  onRetry: (outboundOrderId: string) => void;
+  onRetry: (
+    outboundOrderId: string,
+    opts?: { acknowledgeNoExternalShipment?: boolean },
+  ) => void;
   retrying: boolean;
 }) {
   const { job, filter, items, onFilter, onRetry, retrying } = props;
@@ -489,7 +549,24 @@ function ResultsStep(props: {
                 <td className="px-3 py-2">
                   <div>{item.status}</div>
                   {item.lastErrorSafe ? (
-                    <div className="text-xs text-danger">{item.lastErrorSafe}</div>
+                    <ShipmentErrorActions
+                      outboundOrderId={item.outboundOrderId}
+                      error={
+                        parsePackedShipmentError(item.lastErrorSafe) ?? {
+                          message: item.lastErrorSafe,
+                          messageAr: item.lastErrorSafe,
+                          field: '',
+                          currentValue: '',
+                          requiredAction: '',
+                          requiredActionAr: '',
+                          recoverable: false,
+                          retrySafe: true,
+                          category: 'provider',
+                        }
+                      }
+                      busy={retrying}
+                      onRetry={(opts) => onRetry(item.outboundOrderId, opts)}
+                    />
                   ) : null}
                   {item.labelCapability === 'api' && item.externalAwb ? (
                     <div className="text-xs text-text-faint">Shipping label: Available to print</div>
@@ -499,20 +576,7 @@ function ResultsStep(props: {
                     </div>
                   ) : null}
                 </td>
-                <td className="px-3 py-2">
-                  {item.status === 'failed' ? (
-                    <DsButton
-                      size="sm"
-                      variant="secondary"
-                      disabled={retrying}
-                      onClick={() => onRetry(item.outboundOrderId)}
-                    >
-                      Retry
-                    </DsButton>
-                  ) : (
-                    '—'
-                  )}
-                </td>
+                <td className="px-3 py-2">{item.status === 'failed' ? '' : '—'}</td>
               </tr>
             ))}
           </tbody>

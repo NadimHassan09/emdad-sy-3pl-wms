@@ -26,6 +26,7 @@ import {
   MANUAL_SHIPPING_CODE,
 } from './shipping.constants';
 import { ShippingProviderRegistry } from './shipping-provider.registry';
+import { bulkSelectionPatch } from './bulk-shipping.selection';
 import { ShippingService } from './shipping.service';
 import type { BulkShippingConfirmItemDto } from './dto/bulk-shipping.dto';
 
@@ -34,6 +35,10 @@ type PreviewQuote = {
   providerName: string;
   price: number;
   currency: string;
+  serviceId: string | null;
+  serviceName: string | null;
+  deliveryType: string | null;
+  supportedCodCurrencies: string[];
 };
 
 type PreviewLine = {
@@ -53,12 +58,25 @@ type PreviewLine = {
   selectedProviderCode: string;
   recommendationNote: string | null;
   labelDeliveryHint: string;
+  codAmount: number | null;
+  codCurrency: string | null;
+  supportedCodCurrencies: string[];
 };
 
 @Injectable()
 export class BulkShippingService {
   private readonly logger = new Logger(BulkShippingService.name);
   private readonly runningJobs = new Set<string>();
+  private readonly acknowledgedAmbiguous = new Set<string>();
+  private readonly pendingSelections = new Map<
+    string,
+    {
+      serviceId: string | null;
+      deliveryType: string | null;
+      payer: string | null;
+      quotedCurrency: string | null;
+    }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -204,6 +222,15 @@ export class BulkShippingService {
               : selectedProviderCode === MANUAL_SHIPPING_CODE
                 ? 'Manual — no carrier label'
                 : 'No shipping label available from carrier API',
+        codAmount:
+          order.omsOrder?.codAmount != null
+            ? Number(order.omsOrder.codAmount)
+            : order.codAmount != null
+              ? Number(order.codAmount)
+              : null,
+        codCurrency: order.omsOrder?.currency ?? order.currency ?? null,
+        supportedCodCurrencies:
+          quotes.find((q) => q.providerCode === selectedProviderCode)?.supportedCodCurrencies ?? [],
       });
     }
 
@@ -261,6 +288,28 @@ export class BulkShippingService {
       }
       if (!byId.has(item.outboundOrderId)) {
         throw new BadRequestException(`Order not found: ${item.outboundOrderId}`);
+      }
+    }
+
+    for (const item of items) {
+      const code = item.providerCode.trim().toUpperCase();
+      const order = byId.get(item.outboundOrderId);
+      const serviceId = item.serviceId?.trim() || order?.shippingServiceId || null;
+      const deliveryType = item.deliveryType?.trim() || order?.shippingDeliveryType || null;
+      const payer = item.payer?.trim() || order?.shippingPayer || null;
+      if (code !== MANUAL_SHIPPING_CODE) {
+        this.pendingSelections.set(item.outboundOrderId, {
+          serviceId,
+          deliveryType,
+          payer,
+          quotedCurrency: item.quotedCurrency ?? null,
+        });
+        const collection = item.codCollectionCurrency?.trim().toUpperCase();
+        if (collection === 'USD' || collection === 'SYP') {
+          await this.shipping.saveCodCollection(item.outboundOrderId, collection);
+        } else {
+          await this.shipping.clearCodCollection(item.outboundOrderId);
+        }
       }
     }
 
@@ -329,7 +378,11 @@ export class BulkShippingService {
     return this.toJobView(job);
   }
 
-  async retryItem(jobId: string, outboundOrderId: string) {
+  async retryItem(
+    jobId: string,
+    outboundOrderId: string,
+    opts?: { acknowledgeNoExternalShipment?: boolean },
+  ) {
     const item = await this.prisma.bulkShippingJobItem.findFirst({
       where: { jobId, outboundOrderId },
     });
@@ -363,6 +416,9 @@ export class BulkShippingService {
       throw new BadRequestException('Order is no longer eligible for bulk shipping retry.');
     }
 
+    if (opts?.acknowledgeNoExternalShipment) {
+      this.acknowledgedAmbiguous.add(outboundOrderId);
+    }
     await this.prisma.bulkShippingJobItem.update({
       where: { id: item.id },
       data: {
@@ -601,16 +657,62 @@ export class BulkShippingService {
         return;
       }
 
-      // Apply selected carrier intent, then reuse canonical create path (idempotent).
+      const pending = this.pendingSelections.get(item.outboundOrderId);
+      const existing = await this.prisma.outboundOrder.findUnique({
+        where: { id: item.outboundOrderId },
+        select: {
+          shippingServiceId: true,
+          shippingDeliveryType: true,
+          shippingPayer: true,
+          city: true,
+          district: true,
+          addressLine1: true,
+          shippingReceiverLat: true,
+          shippingReceiverLng: true,
+        },
+      });
+      const patch = bulkSelectionPatch({
+        providerCode,
+        serviceId: pending?.serviceId ?? existing?.shippingServiceId,
+        deliveryType: pending?.deliveryType ?? existing?.shippingDeliveryType,
+        payer: pending?.payer ?? existing?.shippingPayer,
+        quotedCurrency: item.quotedCurrency ?? pending?.quotedCurrency,
+      });
+      const resolvedCoords =
+        existing?.shippingReceiverLat == null || existing?.shippingReceiverLng == null
+          ? this.shipping.resolveReceiverCoordinatesFromAddress({
+              governorate: existing?.city,
+              cityRegion: existing?.district,
+              townNeighborhood: existing?.addressLine1,
+            })
+          : null;
       await this.prisma.outboundOrder.update({
         where: { id: item.outboundOrderId },
         data: {
-          shippingMethod: ShippingMethod.carrier,
-          shippingProviderCode: providerCode,
+          shippingMethod: patch.shippingMethod,
+          shippingProviderCode: patch.shippingProviderCode,
+          shippingServiceId: patch.shippingServiceId,
+          ...(patch.shippingDeliveryType
+            ? { shippingDeliveryType: patch.shippingDeliveryType }
+            : {}),
+          ...(patch.shippingPayer ? { shippingPayer: patch.shippingPayer } : {}),
+          ...(patch.shippingQuotedCurrency
+            ? { shippingQuotedCurrency: patch.shippingQuotedCurrency }
+            : {}),
+          ...(resolvedCoords
+            ? {
+                shippingReceiverLat: resolvedCoords.lat,
+                shippingReceiverLng: resolvedCoords.lng,
+              }
+            : {}),
         },
       });
+      this.pendingSelections.delete(item.outboundOrderId);
 
-      await this.shipping.ensureShipmentForOutbound(item.outboundOrderId);
+      await this.shipping.ensureShipmentForOutbound(item.outboundOrderId, {
+        acknowledgeNoExternalShipment: this.acknowledgedAmbiguous.has(item.outboundOrderId),
+      });
+      this.acknowledgedAmbiguous.delete(item.outboundOrderId);
 
       const created = await this.prisma.carrierShipment.findFirst({
         where: {
@@ -768,7 +870,15 @@ export class BulkShippingService {
       where: { id: { in: ids } },
       include: {
         company: { select: { name: true } },
-        omsOrder: { select: { id: true, orderNumber: true, trackingNumber: true } },
+        omsOrder: {
+          select: {
+            id: true,
+            orderNumber: true,
+            trackingNumber: true,
+            codAmount: true,
+            currency: true,
+          },
+        },
         carrierShipments: { select: { status: true, externalAwb: true } },
       },
     });
@@ -881,11 +991,16 @@ export class BulkShippingService {
         select: { name: true },
       });
 
+      const deliveryType = result.effectiveDeliveryType ?? order.shippingDeliveryType;
       return {
         providerCode,
         providerName: provider?.name ?? providerCode,
         price: result.price,
         currency: result.currency || 'USD',
+        serviceId: result.serviceId ?? null,
+        serviceName: result.serviceName ?? null,
+        deliveryType,
+        supportedCodCurrencies: [],
       };
     } catch (err) {
       this.logger.debug(

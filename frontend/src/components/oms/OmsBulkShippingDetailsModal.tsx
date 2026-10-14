@@ -11,11 +11,16 @@ import {
   carrierFormToSavePayload,
   toBabelPartsFromCartons,
   totalCartonsWeightKg,
-  currencyAfterCarrierSelect,
 } from '../shipping/carrier-shipping-form';
 import { QK } from '../../constants/query-keys';
 import {
+  parseShipmentError,
+  ShipmentErrorActions,
+  type ShipmentFieldError,
+} from '../shipping/ShipmentErrorActions';
+import {
   annotateQuotesForUi,
+  applyQuoteCurrency,
   buildClientDestinationKey,
   BULK_RATES_FETCH_CONCURRENCY,
   createClientQuoteFingerprint,
@@ -30,6 +35,7 @@ import {
   type ClientQuoteFingerprint,
   type DeliveryFilter,
   type ProviderCompanyFilter,
+  type RateCurrencyFilter,
 } from '../../lib/shipping-compare';
 
 function formatMoney(price: number, currency: string): string {
@@ -74,6 +80,9 @@ export type BulkCarrierQuote = {
   isRecommended: boolean;
   logoUrl?: string;
   comparableValueUsd?: number;
+  available?: boolean;
+  unavailableReason?: string;
+  supportedCodCurrencies?: string[];
 };
 
 type BulkShippingRow = {
@@ -103,8 +112,10 @@ type BulkShippingRow = {
   status: 'pending' | 'sending' | 'success' | 'failed' | 'completed' | 'blocked' | 'skipped';
   awb?: string | null;
   errorMessage?: string | null;
+  shippingError?: ShipmentFieldError | null;
   sentProviderCode: string;
   sentServiceId: string;
+  selectedPayer: 'sender' | 'receiver' | 'reseller';
   quoteFingerprint?: ClientQuoteFingerprint | null;
   packageType?: string;
   weightKg?: number;
@@ -118,16 +129,20 @@ function applyFiltersAndRecommend(
   allQuotes: BulkCarrierQuote[],
   deliveryFilter: DeliveryFilter,
   companyFilter: ProviderCompanyFilter,
+  currencyFilter: RateCurrencyFilter = 'all',
   preferredCurrency?: string | null,
+  collectionFilter: RateCurrencyFilter = 'all',
 ): BulkCarrierQuote[] {
-  const byDelivery = filterQuotesByDeliveryType(allQuotes, deliveryFilter).map((q) => ({
+  const offered = allQuotes.filter((q) => q.available !== false);
+  const byCurrency = applyQuoteCurrency(offered, currencyFilter);
+  const byDelivery = filterQuotesByDeliveryType(byCurrency, deliveryFilter).map((q) => ({
     ...q,
     deliveryType: normalizeDeliveryType(q.deliveryType),
     preferredCurrency: preferredCurrency ?? q.preferredCurrency ?? null,
   }));
   const byCompany = filterQuotesByCompany(byDelivery, companyFilter);
   return annotateQuotesForUi(
-    byCompany.map((q) => ({ ...q, available: true })),
+    byCompany,
     getClientFxSnapshot(),
   ).map((q) => ({
     ...q,
@@ -150,6 +165,9 @@ function mapQuote(q: ShippingRateQuote): BulkCarrierQuote {
     isCheapest: Boolean(q.isCheapest),
     isRecommended: Boolean(q.isRecommended ?? q.isCheapest),
     logoUrl: q.logoUrl,
+    available: q.available,
+    unavailableReason: q.unavailableReason,
+    supportedCodCurrencies: q.supportedCodCurrencies,
   };
 }
 
@@ -167,6 +185,9 @@ export function OmsBulkShippingDetailsModal({
   const [isCompleting, setIsCompleting] = useState(false);
   const [deliveryFilter, setDeliveryFilter] = useState<DeliveryFilter>('mixed');
   const [companyFilter, setCompanyFilter] = useState<ProviderCompanyFilter>('auto');
+  const [currencyFilter, setCurrencyFilter] = useState<RateCurrencyFilter>('all');
+  const [collectionFilter, setCollectionFilter] = useState<RateCurrencyFilter>('all');
+  const [payerFilter, setPayerFilter] = useState<'keep' | 'sender' | 'receiver' | 'reseller'>('keep');
   const [ratesProgress, setRatesProgress] = useState<{
     total: number;
     done: number;
@@ -177,6 +198,9 @@ export function OmsBulkShippingDetailsModal({
   const quotesAbortRef = useRef<AbortController | null>(null);
   const deliveryFilterRef = useRef<DeliveryFilter>('mixed');
   const companyFilterRef = useRef<ProviderCompanyFilter>('auto');
+  const currencyFilterRef = useRef<RateCurrencyFilter>('all');
+  const collectionFilterRef = useRef<RateCurrencyFilter>('all');
+  const payerFilterRef = useRef<'keep' | 'sender' | 'receiver' | 'reseller'>('keep');
   const activeProvidersRef = useRef<ShippingProviderAdminView[]>([]);
 
   const providersQuery = useQuery({
@@ -288,12 +312,16 @@ export function OmsBulkShippingDetailsModal({
 
       if (keepUserPick && r.assignmentState === 'USER_MODIFIED') {
         const stillVisible = annotated.some(
-          (q) => q.serviceId === r.selectedServiceId && q.carrierId === r.selectedProviderCode,
+          (q) =>
+            q.available !== false &&
+            q.serviceId === r.selectedServiceId &&
+            q.carrierId === r.selectedProviderCode,
         );
         if (stillVisible) return { ...r, quotes: annotated, status: 'pending', errorMessage: null };
       }
 
-      const cheapest = annotated.find((q) => q.isRecommended) || annotated[0];
+      const selectable = annotated.filter((q) => q.available !== false);
+      const cheapest = selectable.find((q) => q.isRecommended) || selectable[0];
       if (!cheapest) {
         return {
           ...r,
@@ -338,9 +366,16 @@ export function OmsBulkShippingDetailsModal({
   );
 
   const reapplyFilters = useCallback(
-    (delivery: DeliveryFilter, company: ProviderCompanyFilter) => {
+    (
+      delivery: DeliveryFilter,
+      company: ProviderCompanyFilter,
+      currency: RateCurrencyFilter,
+      collection: RateCurrencyFilter = collectionFilterRef.current,
+    ) => {
       deliveryFilterRef.current = delivery;
       companyFilterRef.current = company;
+      currencyFilterRef.current = currency;
+      collectionFilterRef.current = collection;
       setRows((prev) =>
         prev.map((r) => {
           if (isLockedAssignmentState(r.assignmentState)) return r;
@@ -350,7 +385,9 @@ export function OmsBulkShippingDetailsModal({
             r.allQuotes,
             delivery,
             company,
+            currency,
             null,
+            collection,
           );
           return applyAssignmentFromQuotes(
             { ...r, explicitManual: false },
@@ -415,6 +452,10 @@ export function OmsBulkShippingDetailsModal({
         awb: existingAwb,
         sentProviderCode: hasAwb ? priorCarrier : '',
         sentServiceId: '',
+        selectedPayer:
+          order.shippingPayer === 'receiver' || order.shippingPayer === 'reseller'
+            ? order.shippingPayer
+            : 'sender',
         errorMessage: null,
         explicitManual: false,
       };
@@ -496,6 +537,19 @@ export function OmsBulkShippingDetailsModal({
           addressError = isArabic ? 'العنوان غير مكتمل' : 'Incomplete address';
         } else {
           try {
+            const payer =
+              payerFilterRef.current === 'keep'
+                ? form.shippingPayer === 'receiver' || form.shippingPayer === 'reseller'
+                  ? form.shippingPayer
+                  : 'sender'
+                : payerFilterRef.current;
+            const collectionCurrency =
+              collectionFilterRef.current !== 'all'
+                ? collectionFilterRef.current
+                : form.currency;
+            const collectionMode = collectionFilterRef.current === 'all' ? 'all' : 'explicit';
+            const rateCurrency =
+              currencyFilterRef.current === 'all' ? undefined : currencyFilterRef.current;
             const rateKey = JSON.stringify({
               packageType: form.packageType,
               weightKg: Math.max(weightKg, 0.1),
@@ -505,6 +559,10 @@ export function OmsBulkShippingDetailsModal({
               governorate,
               city: city || governorate,
               neighborhood: neighborhood || city,
+              payer,
+              collectionCurrency,
+              collectionMode,
+              rateCurrency: rateCurrency ?? null,
             });
             let pending = quoteInflight.get(rateKey);
             if (!pending) {
@@ -522,13 +580,17 @@ export function OmsBulkShippingDetailsModal({
                   neighbourhoodId: outbound.babelNeighbourhoodId ?? undefined,
                   deliveryType: 'address' as const,
                   includeAllDeliveryTypes: true,
+                  payer,
+                  currency: collectionCurrency,
+                  collectionMode,
+                  rateCurrency,
                 };
                 const providers = activeProvidersRef.current;
                 // Per-provider calls so the UI can show which carrier is slow.
                 if (providers.length === 0) {
                   const res = await ShippingApi.quoteRates(basePayload, abortController.signal);
                   return (res.quotes ?? [])
-                    .filter((q: ShippingRateQuote) => q.available && Number.isFinite(q.price))
+                    .filter((q: ShippingRateQuote) => Number.isFinite(q.price))
                     .map((q) =>
                       mapQuote({
                         ...q,
@@ -546,7 +608,7 @@ export function OmsBulkShippingDetailsModal({
                         abortController.signal,
                       );
                       return (res.quotes ?? [])
-                        .filter((q: ShippingRateQuote) => q.available && Number.isFinite(q.price))
+                        .filter((q: ShippingRateQuote) => Number.isFinite(q.price))
                         .map((q) =>
                           mapQuote({
                             ...q,
@@ -590,6 +652,12 @@ export function OmsBulkShippingDetailsModal({
             const base: BulkShippingRow = {
               ...r,
               outboundOrder: outbound,
+              selectedPayer:
+                payerFilterRef.current === 'keep'
+                  ? form.shippingPayer === 'receiver' || form.shippingPayer === 'reseller'
+                    ? form.shippingPayer
+                    : 'sender'
+                  : payerFilterRef.current,
               city: governorate || r.city,
               district: city,
               destinationAddress:
@@ -610,6 +678,9 @@ export function OmsBulkShippingDetailsModal({
                   allQuotes,
                   deliveryFilterRef.current,
                   companyFilterRef.current,
+                  currencyFilterRef.current,
+                  null,
+                  collectionFilterRef.current,
                 ),
               };
             }
@@ -617,6 +688,9 @@ export function OmsBulkShippingDetailsModal({
               allQuotes,
               deliveryFilterRef.current,
               companyFilterRef.current,
+              currencyFilterRef.current,
+              null,
+              collectionFilterRef.current,
             );
             return applyAssignmentFromQuotes(base, annotated, companyFilterRef.current, false);
           }),
@@ -670,22 +744,21 @@ export function OmsBulkShippingDetailsModal({
       form.shippingServiceId = row.selectedServiceId;
       const picked = row.quotes.find((q) => q.serviceId === row.selectedServiceId);
       if (picked?.deliveryType) form.deliveryType = picked.deliveryType;
-      form.currency =
-        row.selectedCurrency === 'SYP'
-          ? 'SYP'
-          : row.selectedCurrency === 'USD'
-            ? 'USD'
-            : currencyAfterCarrierSelect(row.selectedProviderCode);
+      form.shippingPayer = row.selectedPayer || 'sender';
+      const payload = carrierFormToSavePayload(form);
+      delete payload.currency;
 
       await OutboundApi.saveShippingDetails(
         row.outboundOrderId,
         {
-          ...carrierFormToSavePayload(form),
+          ...payload,
           shippingMethod: 'carrier',
           shippingProviderCode: row.selectedProviderCode,
           shippingServiceId: row.selectedServiceId || null,
           shippingQuotedPrice: row.selectedPrice ?? null,
           shippingQuotedCurrency: row.selectedCurrency ?? null,
+          codCollectionCurrency:
+            collectionFilterRef.current === 'all' ? null : collectionFilterRef.current,
         } as Parameters<typeof OutboundApi.saveShippingDetails>[1],
         outbound.companyId,
       );
@@ -696,15 +769,37 @@ export function OmsBulkShippingDetailsModal({
 
   const handleDeliveryFilterChange = (filter: DeliveryFilter) => {
     setDeliveryFilter(filter);
-    reapplyFilters(filter, companyFilter);
+    reapplyFilters(filter, companyFilter, currencyFilter);
   };
 
   const handleCompanyFilterChange = (filter: ProviderCompanyFilter) => {
     setCompanyFilter(filter);
-    reapplyFilters(deliveryFilter, filter);
+    reapplyFilters(deliveryFilter, filter, currencyFilter);
+  };
+
+  const handleCurrencyFilterChange = (filter: RateCurrencyFilter) => {
+    setCurrencyFilter(filter);
+    reapplyFilters(deliveryFilter, companyFilter, filter, collectionFilter);
+  };
+
+  const handleCollectionFilterChange = (filter: RateCurrencyFilter) => {
+    setCollectionFilter(filter);
+    reapplyFilters(deliveryFilter, companyFilter, currencyFilter, filter);
+  };
+
+  const handlePayerFilterChange = (filter: 'keep' | 'sender' | 'receiver' | 'reseller') => {
+    payerFilterRef.current = filter;
+    setPayerFilter(filter);
+    if (filter === 'keep') return;
+    setRows((prev) =>
+      prev.map((r) =>
+        isLockedAssignmentState(r.assignmentState) ? r : { ...r, selectedPayer: filter },
+      ),
+    );
   };
 
   const handleSelectQuote = (orderId: string, quote: BulkCarrierQuote) => {
+    if (quote.available === false) return;
     setRows((prev) =>
       prev.map((r) => {
         if (r.orderId !== orderId || isLockedAssignmentState(r.assignmentState)) return r;
@@ -764,7 +859,9 @@ export function OmsBulkShippingDetailsModal({
           updatedAll,
           deliveryFilter,
           companyFilter,
+          currencyFilter,
           currency,
+          collectionFilterRef.current,
         );
         const selected = annotated.find((q) => q.serviceId === quote.serviceId) || quote;
         const next: BulkShippingRow = {
@@ -840,7 +937,11 @@ export function OmsBulkShippingDetailsModal({
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const sendOneRow = async (updatedRows: BulkShippingRow[], rowIndex: number) => {
+  const sendOneRow = async (
+    updatedRows: BulkShippingRow[],
+    rowIndex: number,
+    opts?: { acknowledgeNoExternalShipment?: boolean },
+  ) => {
     const target = updatedRows[rowIndex];
     if (
       target.assignmentState === 'BLOCKED' ||
@@ -886,19 +987,16 @@ export function OmsBulkShippingDetailsModal({
         const form = buildCarrierShippingFormFromOrder(outbound);
         form.shippingProviderCode = target.selectedProviderCode;
         form.shippingServiceId = target.selectedServiceId;
-        form.currency =
-          target.selectedCurrency === 'SYP'
-            ? 'SYP'
-            : target.selectedCurrency === 'USD'
-              ? 'USD'
-              : currencyAfterCarrierSelect(target.selectedProviderCode);
         const selectedQuote = target.quotes.find((q) => q.serviceId === target.selectedServiceId);
         if (selectedQuote?.deliveryType) form.deliveryType = selectedQuote.deliveryType;
+        form.shippingPayer = target.selectedPayer || 'sender';
 
+        const payload = carrierFormToSavePayload(form);
+        delete payload.currency;
         await OutboundApi.saveShippingDetails(
           target.outboundOrderId,
           {
-            ...carrierFormToSavePayload(form),
+            ...payload,
             shippingMethod:
               target.selectedProviderCode === 'manual' ? ('manual' as const) : ('carrier' as const),
             shippingProviderCode:
@@ -907,6 +1005,8 @@ export function OmsBulkShippingDetailsModal({
               target.selectedProviderCode === 'manual' ? null : target.selectedServiceId || null,
             shippingQuotedPrice: target.selectedPrice ?? null,
             shippingQuotedCurrency: target.selectedCurrency ?? null,
+            codCollectionCurrency:
+              collectionFilterRef.current === 'all' ? null : collectionFilterRef.current,
           } as Parameters<typeof OutboundApi.saveShippingDetails>[1],
           outbound.companyId,
         );
@@ -945,7 +1045,12 @@ export function OmsBulkShippingDetailsModal({
         const sentOrder = await OutboundApi.sendShippingDetails(
           target.outboundOrderId,
           outbound.companyId,
-          fingerprint ? { quoteFingerprint: fingerprint } : undefined,
+          {
+            ...(fingerprint ? { quoteFingerprint: fingerprint } : {}),
+            ...(opts?.acknowledgeNoExternalShipment
+              ? { acknowledgeNoExternalShipment: true }
+              : {}),
+          },
         );
         const createdShipment = (sentOrder.carrierShipments ?? []).find(
           (s) => s.status === 'created' || Boolean(s.externalAwb),
@@ -962,7 +1067,10 @@ export function OmsBulkShippingDetailsModal({
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : isArabic ? 'فشل إرسال الشحنة' : 'Send failed';
-        const transient = /rate limit|timeout|temporar|429|503|ECONNRESET|network/i.test(message);
+        const shippingError = parseShipmentError(err, message);
+        const transient =
+          shippingError.retrySafe &&
+          /rate limit|timeout|temporar|429|503|ECONNRESET|network/i.test(message);
         if (transient && attempt < maxAttempts - 1) {
           await sleep(400 * Math.pow(2, attempt));
           try {
@@ -986,6 +1094,7 @@ export function OmsBulkShippingDetailsModal({
         }
         target.status = 'failed';
         target.errorMessage = message;
+        target.shippingError = shippingError;
         setRows([...updatedRows]);
         return;
       }
@@ -1138,6 +1247,85 @@ export function OmsBulkShippingDetailsModal({
               </option>
             ))}
           </select>
+          <span className="text-xs font-semibold text-text-strong ms-2">
+            {isArabic ? 'عملة السعر' : 'Rate currency'}
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                { value: 'all', labelAr: 'الكل', labelEn: 'All' },
+                { value: 'USD', labelAr: 'USD', labelEn: 'USD' },
+                { value: 'SYP', labelAr: 'ل.س', labelEn: 'SYP' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                disabled={isSending || isCompleting}
+                onClick={() => handleCurrencyFilterChange(opt.value)}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  currencyFilter === opt.value
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+                    : 'border-border-subtle bg-surface-card text-text-muted hover:bg-surface-hover'
+                }`}
+              >
+                {isArabic ? opt.labelAr : opt.labelEn}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs font-semibold text-text-strong ms-2">
+            {isArabic ? 'عملة التحصيل' : 'COD / Collection currency'}
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                { value: 'all', labelAr: 'الكل', labelEn: 'All' },
+                { value: 'USD', labelAr: 'USD', labelEn: 'USD' },
+                { value: 'SYP', labelAr: 'ل.س', labelEn: 'SYP' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={`cod-${opt.value}`}
+                type="button"
+                disabled={isSending || isCompleting}
+                onClick={() => handleCollectionFilterChange(opt.value)}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  collectionFilter === opt.value
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+                    : 'border-border-subtle bg-surface-card text-text-muted hover:bg-surface-hover'
+                }`}
+              >
+                {isArabic ? opt.labelAr : opt.labelEn}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs font-semibold text-text-strong ms-2">
+            {isArabic ? 'دافع الشحن' : 'Payer'}
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {(
+              [
+                { value: 'keep', labelAr: 'لكل طلب', labelEn: 'Per order' },
+                { value: 'sender', labelAr: 'المرسل', labelEn: 'Sender' },
+                { value: 'receiver', labelAr: 'المستلم', labelEn: 'Receiver' },
+                { value: 'reseller', labelAr: 'الوسيط', labelEn: 'Reseller' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                disabled={isSending || isCompleting}
+                onClick={() => handlePayerFilterChange(opt.value)}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  payerFilter === opt.value
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200'
+                    : 'border-border-subtle bg-surface-card text-text-muted hover:bg-surface-hover'
+                }`}
+              >
+                {isArabic ? opt.labelAr : opt.labelEn}
+              </button>
+            ))}
+          </div>
           <span className="text-[11px] text-text-muted">
             {isArabic
               ? 'التوصية بعد الفلتر · بدون تأكيد تلقائي · Manual يدوي فقط'
@@ -1293,6 +1481,26 @@ export function OmsBulkShippingDetailsModal({
                         </div>
                       ) : (
                         <div className="flex flex-wrap gap-2 items-start">
+                          <label className="flex w-full items-center gap-2 text-[11px] text-text-muted">
+                            <span className="font-semibold">{isArabic ? 'الدافع' : 'Payer'}</span>
+                            <select
+                              className="rounded-md border border-border-subtle bg-surface-card px-2 py-1 text-xs font-semibold text-text-strong"
+                              value={row.selectedPayer}
+                              disabled={locked || isSending || isCompleting}
+                              onChange={(e) => {
+                                const selectedPayer = e.target.value as BulkShippingRow['selectedPayer'];
+                                setRows((prev) =>
+                                  prev.map((r) =>
+                                    r.orderId === row.orderId ? { ...r, selectedPayer } : r,
+                                  ),
+                                );
+                              }}
+                            >
+                              <option value="sender">{isArabic ? 'المرسل' : 'Sender'}</option>
+                              <option value="receiver">{isArabic ? 'المستلم' : 'Receiver'}</option>
+                              <option value="reseller">{isArabic ? 'الوسيط' : 'Reseller'}</option>
+                            </select>
+                          </label>
                           {row.quotes.length === 0 && (
                             <div className="w-full text-[11px] text-amber-800 flex items-center gap-1.5 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20 mb-0.5">
                               <i className="fa-solid fa-triangle-exclamation text-[10px]" />
@@ -1324,7 +1532,7 @@ export function OmsBulkShippingDetailsModal({
                               >
                                 <button
                                   type="button"
-                                  disabled={isSending || locked}
+                                  disabled={isSending || locked || q.available === false}
                                   onClick={() => handleSelectQuote(row.orderId, q)}
                                   className="text-start disabled:cursor-not-allowed"
                                 >
@@ -1355,6 +1563,11 @@ export function OmsBulkShippingDetailsModal({
                                           : 'Home'}
                                     </span>
                                   </div>
+                                  {q.available === false && q.unavailableReason && (
+                                    <span className="mt-1 block text-[10px] text-amber-800">
+                                      {q.unavailableReason}
+                                    </span>
+                                  )}
                                 </button>
                                 {dual && !locked && (
                                   <div className="mt-1.5 flex gap-1">
@@ -1481,11 +1694,27 @@ export function OmsBulkShippingDetailsModal({
                             <i className="fa-solid fa-circle-xmark text-[11px]" />
                             {isArabic ? 'فشل' : 'Failed'}
                           </span>
-                          {row.errorMessage && (
+                          {row.shippingError ? (
+                            <ShipmentErrorActions
+                              outboundOrderId={row.outboundOrderId}
+                              companyId={row.companyId}
+                              error={row.shippingError}
+                              isArabic={isArabic}
+                              busy={isSending}
+                              onRetry={(opts) => {
+                                const updated = [...rows];
+                                const index = updated.findIndex((r) => r.orderId === row.orderId);
+                                if (index < 0) return;
+                                updated[index] = { ...updated[index], status: 'sending', errorMessage: null };
+                                setRows(updated);
+                                void sendOneRow(updated, index, opts);
+                              }}
+                            />
+                          ) : row.errorMessage ? (
                             <span className="text-[10px] text-rose-600 mt-0.5 max-w-[200px] truncate" title={row.errorMessage}>
                               {row.errorMessage}
                             </span>
-                          )}
+                          ) : null}
                         </div>
                       )}
                     </td>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyQuoteCurrency,
   filterQuotesByCompany,
   filterQuotesByDeliveryType,
   isLockedAssignmentState,
@@ -78,5 +79,48 @@ describe('shipping-compare assignment + filters', () => {
     expect(recommended).toHaveLength(1);
     // 80 SYP ≈ 0.0055 USD vs 5 USD vs 100 SYP — Babel Hub wins
     expect(recommended[0].serviceId).toBe('babel-hub');
+  });
+
+  it('currency filter keeps only quotes in that currency', () => {
+    const filtered = applyQuoteCurrency(
+      [
+        {
+          price: 150,
+          currency: 'SYP',
+          prices: [
+            { price: 150, currency: 'SYP' },
+            { price: 2, currency: 'USD' },
+          ],
+        },
+        { price: 80, currency: 'SYP' },
+      ],
+      'USD',
+    );
+    expect(filtered).toEqual([
+      {
+        price: 2,
+        currency: 'USD',
+        preferredCurrency: 'USD',
+        prices: [
+          { price: 150, currency: 'SYP' },
+          { price: 2, currency: 'USD' },
+        ],
+      },
+    ]);
+  });
+});
+
+describe('rate currency filter', () => {
+  it('filters the shipping fee and does not read a COD whitelist', () => {
+    const filtered = applyQuoteCurrency(
+      [{ price: 3, currency: 'SYP', supportedCodCurrencies: [] }],
+      'USD',
+    );
+    expect(filtered).toEqual([]);
+    const kept = applyQuoteCurrency(
+      [{ price: 3, currency: 'SYP', supportedCodCurrencies: [] }],
+      'all',
+    );
+    expect(kept).toHaveLength(1);
   });
 });

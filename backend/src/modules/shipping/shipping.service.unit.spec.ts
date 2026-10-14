@@ -9,7 +9,8 @@ describe('ShippingService.ensureShipmentForOutbound', () => {
     createShipment?: jest.Mock;
   }) {
     const createShipment =
-      overrides.createShipment ?? jest.fn().mockResolvedValue({ awb: 'AWB-1', raw: {} });
+      overrides.createShipment ??
+      jest.fn().mockResolvedValue({ awb: 'AWB-1', trackingNumber: 'AWB-1', raw: {} });
 
     const prisma: any = {
       outboundOrder: {
@@ -83,6 +84,17 @@ describe('ShippingService.ensureShipmentForOutbound', () => {
       omsOrder: {
         update: jest.fn().mockResolvedValue({}),
       },
+      shippingOriginAddress: {
+        findUnique: jest.fn().mockResolvedValue({
+          contactName: 'Warehouse',
+          phone: '+963944000111',
+          city: 'Aleppo',
+          district: 'Sheikh Najjar',
+          street: 'Warehouse street',
+          lat: 36.2,
+          lng: 37.1,
+        }),
+      },
       $transaction: jest.fn(async (fn: (tx: any) => Promise<unknown>) => fn(prisma)),
     };
 
@@ -110,6 +122,7 @@ describe('ShippingService.ensureShipmentForOutbound', () => {
         resolveFromAddress: jest.fn(() => ({ found: false })),
         resolveBabelNeighbourhoodId: jest.fn(async () => null),
       } as any,
+      { usableRate: jest.fn(async () => null) } as any,
     );
 
     return { service, prisma, createShipment, registry };

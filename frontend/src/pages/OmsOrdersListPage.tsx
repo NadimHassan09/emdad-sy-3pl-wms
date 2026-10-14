@@ -1687,6 +1687,23 @@ export function OmsOrdersListPage() {
           />
         </div>
         <div className="min-w-0">
+          <FilterFieldLabel>{isArabic ? 'دافع الشحن' : 'Shipping payer'}</FilterFieldLabel>
+          <select
+            value={draftFilters.shippingPayer}
+            onChange={(e) =>
+              setDraft({
+                shippingPayer: e.target.value as typeof draftFilters.shippingPayer,
+              })
+            }
+            className={FILTER_FIELD_CONTROL_CLASS}
+          >
+            <option value="">{isArabic ? 'الكل' : 'All'}</option>
+            <option value="sender">{isArabic ? 'المرسل' : 'Sender'}</option>
+            <option value="receiver">{isArabic ? 'المستلم' : 'Receiver'}</option>
+            <option value="reseller">{isArabic ? 'الوسيط' : 'Reseller'}</option>
+          </select>
+        </div>
+        <div className="min-w-0">
           <FilterFieldLabel>{isArabic ? 'تاريخ الإنشاء من' : 'Created from'}</FilterFieldLabel>
           <input
             type="date"

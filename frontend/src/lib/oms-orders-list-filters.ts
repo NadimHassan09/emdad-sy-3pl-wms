@@ -16,6 +16,7 @@ export type OmsOrdersListFilters = {
   phone: string;
   city: string;
   carrier: string;
+  shippingPayer: '' | 'sender' | 'receiver' | 'reseller';
   createdFrom: string;
   createdTo: string;
   totalOp: OmsTotalOperator;
@@ -34,6 +35,7 @@ export const OMS_ORDERS_FILTER_DEFAULTS: OmsOrdersListFilters = {
   phone: '',
   city: '',
   carrier: '',
+  shippingPayer: '',
   createdFrom: '',
   createdTo: '',
   totalOp: 'gte',
@@ -61,6 +63,7 @@ export type OmsOrdersListQueryParams = {
   phone?: string;
   city?: string;
   carrier?: string;
+  shippingPayer?: 'sender' | 'receiver' | 'reseller';
   createdFrom?: string;
   createdTo?: string;
   totalOp?: Exclude<OmsTotalOperator, ''>;
@@ -212,6 +215,10 @@ export function normalizeOmsOrdersListFilters(
     phone: text(src.phone),
     city: text(src.city),
     carrier: text(src.carrier),
+    shippingPayer: ((): OmsOrdersListFilters['shippingPayer'] => {
+      const payer = text(src.shippingPayer);
+      return payer === 'sender' || payer === 'receiver' || payer === 'reseller' ? payer : '';
+    })(),
     createdFrom: text(src.createdFrom),
     createdTo: text(src.createdTo),
     totalOp,
@@ -251,6 +258,7 @@ export function buildOmsOrdersListParams(
     phone: applied.phone.trim() || undefined,
     city: applied.city.trim() || undefined,
     carrier: applied.carrier.trim() || undefined,
+    shippingPayer: applied.shippingPayer || undefined,
     createdFrom: applied.createdFrom.trim() || undefined,
     createdTo: applied.createdTo.trim() || undefined,
     totalOp,
@@ -275,6 +283,7 @@ export function countAppliedOmsAdvancedFilters(
   if (applied.phone.trim()) n += 1;
   if (applied.city.trim()) n += 1;
   if (applied.carrier.trim()) n += 1;
+  if (applied.shippingPayer) n += 1;
   if (applied.createdFrom.trim()) n += 1;
   if (applied.createdTo.trim()) n += 1;
   if (applied.totalValue.trim() && applied.totalOp) n += 1;
@@ -342,6 +351,21 @@ export function buildOmsAppliedFilterSummary(
     parts.push(
       opts.isArabic ? `المدينة: ${applied.city.trim()}` : `City: ${applied.city.trim()}`,
     );
+  }
+  if (applied.shippingPayer) {
+    const payerLabel =
+      applied.shippingPayer === 'receiver'
+        ? opts.isArabic
+          ? 'المستلم'
+          : 'Receiver'
+        : applied.shippingPayer === 'reseller'
+          ? opts.isArabic
+            ? 'الوسيط'
+            : 'Reseller'
+          : opts.isArabic
+            ? 'المرسل'
+            : 'Sender';
+    parts.push(opts.isArabic ? `دافع الشحن: ${payerLabel}` : `Payer: ${payerLabel}`);
   }
   if (applied.carrier.trim()) {
     parts.push(

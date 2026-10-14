@@ -117,12 +117,38 @@ describe('SilaSyAdapter', () => {
         ],
       });
 
-      const options = await adapter.getServiceOptions(credentials, {
+      const hiddenOnHome = await adapter.getServiceOptions(credentials, {
         receiverLat: 0,
         receiverLng: 0,
         packageType: 'box',
         weightKg: 1,
         deliveryType: 'address',
+        governorate: 'Aleppo',
+        city: 'Abraj',
+      });
+      expect(hiddenOnHome).toHaveLength(0);
+
+      mockHttp.post.mockResolvedValueOnce({
+        area_id: '456',
+        couriers: [
+          {
+            courier_id: 'masarat_id',
+            name: 'Masarat Express',
+            delivery_fee: 150,
+            currency: 'SYP',
+            coverage_note: 'priced',
+            supports_home_delivery: false,
+            supports_pickup_at_branch: true,
+          },
+        ],
+      });
+
+      const options = await adapter.getServiceOptions(credentials, {
+        receiverLat: 0,
+        receiverLng: 0,
+        packageType: 'box',
+        weightKg: 1,
+        deliveryType: 'hub',
         governorate: 'Aleppo',
         city: 'Abraj',
       });
@@ -175,6 +201,7 @@ describe('SilaSyAdapter', () => {
     });
 
     it('rejects a Sila barcode when the courier tracking number is missing', async () => {
+      mockHttp.post.mockResolvedValueOnce({ couriers: [] });
       mockHttp.post.mockResolvedValueOnce({ barcode: 'SILA-ONLY' });
       await expect(
         adapter.createShipment(credentials, {
@@ -192,6 +219,7 @@ describe('SilaSyAdapter', () => {
     });
 
     it('posts cargo payload with parsed courier_id and returns awb', async () => {
+      mockHttp.post.mockResolvedValueOnce({ couriers: [] });
       mockHttp.post.mockResolvedValueOnce({
         id: 'sila_cargo_99',
         barcode: 'SILA-998877',
@@ -213,7 +241,7 @@ describe('SilaSyAdapter', () => {
         currency: 'USD',
       });
 
-      expect(res.awb).toBe('SILA-998877');
+      expect(res.awb).toBe('sila_cargo_99');
       expect(res.trackingNumber).toBe('COURIER-998877');
       expect(mockHttp.post).toHaveBeenCalledWith(
         'cargos',
@@ -223,7 +251,7 @@ describe('SilaSyAdapter', () => {
           reference: 'ORD-1001',
           recipient: expect.objectContaining({ full_name: 'Omar', area_id: 'area_456' }),
           pay_on_delivery: { amount: 15, currency: 'USD' },
-          shipping_paid_by: 'sender',
+          shipping_paid_by: 'merchant',
           merchant_pays_shipping: true,
         }),
       );
@@ -231,6 +259,7 @@ describe('SilaSyAdapter', () => {
     });
 
     it('sends pickup address as sender and does not use branch pickup for home delivery', async () => {
+      mockHttp.post.mockResolvedValueOnce({ couriers: [] });
       mockHttp.post.mockResolvedValueOnce({
         barcode: 'SILA-1',
         tracking_number: 'COURIER-1',
@@ -266,7 +295,8 @@ describe('SilaSyAdapter', () => {
         codAmount: 0,
       });
 
-      const body = mockHttp.post.mock.calls[0][2] as {
+      const cargoCall = mockHttp.post.mock.calls.find((call) => call[0] === 'cargos');
+      const body = cargoCall?.[2] as {
         sender?: { address_line: string; province?: string };
         recipient: { address_line: string };
         service_type?: string;
@@ -280,7 +310,7 @@ describe('SilaSyAdapter', () => {
         }),
       );
       expect(body.recipient.address_line).toBe('Customer street');
-      expect(body.service_type).toBeUndefined();
+      expect(body.service_type).toBe('home_delivery');
     });
   });
 

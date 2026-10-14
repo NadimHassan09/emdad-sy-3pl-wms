@@ -1044,6 +1044,7 @@ model User {
   omsReturnsRejected         OmsReturn[]              @relation("OmsReturnRejectedBy")
   shippingProviderConnections ShippingProviderConnection[] @relation("ShippingProviderConnectedBy")
   shippingOriginAddressUpdated ShippingOriginAddress[] @relation("ShippingOriginAddressUpdatedBy")
+  shippingFxSettingsUpdated    ShippingFxSettings[]    @relation("ShippingFxSettingsUpdatedBy")
   bulkShippingJobsTriggered   BulkShippingJob[]            @relation("BulkShippingTriggeredBy")
   apiCredentialsCreated       ApiCredential[]              @relation("ApiCredentialCreatedBy")
   apiCredentialsRevoked       ApiCredential[]              @relation("ApiCredentialRevokedBy")
@@ -1663,6 +1664,12 @@ model OutboundOrder {
   shippingFee          Decimal?            @map("shipping_fee") @db.Decimal(15, 4)
   codAmount            Decimal?            @map("cod_amount") @db.Decimal(15, 4)
   currency             String?             @default("USD")
+  /// Collection currency sent to the carrier. Null means the order currency. Never overwrites codAmount.
+  codCollectionCurrency String?            @map("cod_collection_currency") @db.VarChar(8)
+  codCollectionAmount  Decimal?            @map("cod_collection_amount") @db.Decimal(15, 4)
+  codFxRate            Decimal?            @map("cod_fx_rate") @db.Decimal(18, 6)
+  codFxSource          String?             @map("cod_fx_source") @db.VarChar(64)
+  codFxAt              DateTime?           @map("cod_fx_at") @db.Timestamptz(6)
   codCollectedAt       DateTime?           @map("cod_collected_at") @db.Timestamptz(6)
   codRemittedAt        DateTime?           @map("cod_remitted_at") @db.Timestamptz(6)
   codStatus            OmsCodStatus?       @map("cod_status")
@@ -1771,6 +1778,12 @@ model OmsOrder {
   shippingFee          Decimal?            @map("shipping_fee") @db.Decimal(15, 4)
   codAmount            Decimal?            @map("cod_amount") @db.Decimal(15, 4)
   currency             String?             @default("USD")
+  /// Collection currency sent to the carrier. Null means the order currency. Never overwrites codAmount.
+  codCollectionCurrency String?            @map("cod_collection_currency") @db.VarChar(8)
+  codCollectionAmount  Decimal?            @map("cod_collection_amount") @db.Decimal(15, 4)
+  codFxRate            Decimal?            @map("cod_fx_rate") @db.Decimal(18, 6)
+  codFxSource          String?             @map("cod_fx_source") @db.VarChar(64)
+  codFxAt              DateTime?           @map("cod_fx_at") @db.Timestamptz(6)
   codCollectedAt       DateTime?           @map("cod_collected_at") @db.Timestamptz(6)
   codRemittedAt        DateTime?           @map("cod_remitted_at") @db.Timestamptz(6)
   codStatus            OmsCodStatus?       @map("cod_status")
@@ -2495,6 +2508,24 @@ model ShippingOriginAddress {
   updatedBy User? @relation("ShippingOriginAddressUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
   @@map("shipping_origin_address")
+}
+
+/// Single USD→SYP rate used for COD collection. Manual until an automatic source succeeds.
+model ShippingFxSettings {
+  id              String   @id @default("default")
+  mode            String   @default("manual") @db.VarChar(16)
+  manualRate      Decimal? @map("manual_rate") @db.Decimal(18, 6)
+  autoSource      String?  @map("auto_source") @db.VarChar(64)
+  lastAutoRate    Decimal? @map("last_auto_rate") @db.Decimal(18, 6)
+  lastAutoAt      DateTime? @map("last_auto_at") @db.Timestamptz(6)
+  lastError       String?  @map("last_error")
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  updatedBy User? @relation("ShippingFxSettingsUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("shipping_fx_settings")
 }
 
 /// Idempotent carrier shipment records for outbound orders.

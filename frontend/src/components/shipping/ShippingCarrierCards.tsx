@@ -71,6 +71,11 @@ export function ShippingCarrierCards({
     return annotateQuotesForUi(valid, getClientFxSnapshot());
   }, [quotes, loading]);
 
+  const unavailableQuotes = useMemo(() => {
+    if (loading) return [];
+    return quotes.filter((q) => !q.available);
+  }, [quotes, loading]);
+
   return (
     <div className="space-y-4">
       {/* Header with Title and Subtitle */}
@@ -242,8 +247,30 @@ export function ShippingCarrierCards({
         </div>
       ) : null}
 
-      {/* When no quotes are returned but errors occurred from providers */}
-      {!loading && sortedQuotes.length === 0 && !emptyHint && errors.length > 0 ? (
+      {!loading && unavailableQuotes.length > 0 ? (
+        <div className="space-y-2">
+          <div className="text-xs font-semibold text-text-muted">Unavailable</div>
+          <ul className="space-y-2">
+            {unavailableQuotes.map((quote) => (
+              <li
+                key={quote.serviceId}
+                className="rounded-xl border border-border-subtle bg-surface-sunken px-4 py-3 text-sm text-text-body"
+              >
+                <span className="font-semibold text-text-strong">
+                  {quote.providerName || quote.carrierName}
+                  {quote.serviceName ? ` · ${quote.serviceName}` : ''}
+                </span>
+                <span className="mt-1 block text-text-muted">
+                  {quote.unavailableReason || quote.restrictions?.[0] || 'Not available for this shipment.'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {/* Provider errors stay visible beside any available option. */}
+      {!loading && !emptyHint && errors.length > 0 ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
           <div className="font-semibold mb-1">Carrier Availability:</div>
           <ul className="list-disc list-inside space-y-1">

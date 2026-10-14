@@ -58,6 +58,12 @@ export class ListOmsOrdersQueryDto extends PaginationDto {
   @MaxLength(80)
   carrier?: string;
 
+  /** Who pays shipping: sender, receiver, or reseller. */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(['sender', 'receiver', 'reseller'])
+  shippingPayer?: 'sender' | 'receiver' | 'reseller';
+
   /** Range filter start order number (e.g. OMS-2026-03700). */
   @EmptyToUndefined()
   @IsOptional()

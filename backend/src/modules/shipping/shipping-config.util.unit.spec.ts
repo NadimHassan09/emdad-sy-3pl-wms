@@ -78,13 +78,26 @@ describe('shipping-config.util', () => {
     expect(copied.shippingProviderCode).toBeNull();
   });
 
-  it('requires Babel readiness fields when method=carrier', () => {
+  it('requires generic carrier fields and does not require Babel coordinates for every provider', () => {
     expect(() =>
       assertCarrierShippingReady({
         shippingMethod: ShippingMethod.carrier,
-        shippingProviderCode: 'BABEL_EXPRESS',
+        shippingProviderCode: 'SILA_SY',
       }),
-    ).toThrow(/lat\/lng/i);
+    ).toThrow(/shippingPackageType/i);
+
+    expect(() =>
+      assertCarrierShippingReady({
+        shippingMethod: ShippingMethod.carrier,
+        shippingProviderCode: 'SILA_SY',
+        shippingPackageType: 'box',
+        shippingContents: 'Goods',
+        shippingDeliveryType: 'address',
+        shippingPickupType: 'address',
+        shippingPayer: 'sender',
+        shippingWeightKg: 1.5,
+      }),
+    ).not.toThrow();
 
     expect(() =>
       assertCarrierShippingReady({
@@ -128,16 +141,14 @@ describe('shipping-config.util', () => {
         shippingPayer: 'receiver',
         shippingWeightKg: 1.5,
       }),
-    ).toThrow(/must be sender/i);
+    ).not.toThrow();
   });
 
-  it('rejects absurd Babel box weights (common COD/amount mix-up)', () => {
+  it('does not apply Babel weight limits to every carrier', () => {
     expect(() =>
       assertCarrierShippingReady({
         shippingMethod: ShippingMethod.carrier,
-        shippingProviderCode: 'BABEL_EXPRESS',
-        shippingReceiverLat: 33.5,
-        shippingReceiverLng: 36.3,
+        shippingProviderCode: 'SILA_SY',
         shippingPackageType: 'box',
         shippingContents: 'Goods',
         shippingDeliveryType: 'address',
@@ -145,7 +156,7 @@ describe('shipping-config.util', () => {
         shippingPayer: 'sender',
         shippingWeightKg: 1000,
       }),
-    ).toThrow(/too high|200/i);
+    ).not.toThrow();
   });
 
   it('rejects invalid phone dial codes mistaken for amounts', () => {

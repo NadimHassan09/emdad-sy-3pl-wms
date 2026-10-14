@@ -89,7 +89,7 @@ export interface OutboundOrder {
   executionMode?: OrderExecutionMode | null;
   executionPlan?: OutboundExecutionPlan | null;
   /** Present when this outbound is the warehouse execution for an OMS order. */
-  omsOrder?: { id: string; orderNumber: string } | null;
+  omsOrder?: { id: string; orderNumber: string; currency?: string | null } | null;
   shippingMethod?: ShippingMethod | null;
   shippingProviderCode?: string | null;
   shippingReceiverLat?: string | number | null;
@@ -486,6 +486,10 @@ export const OutboundApi = {
       addressLine1?: string | null;
       addressLine2?: string | null;
       currency?: string | null;
+      codCollectionCurrency?: string | null;
+      codAmount?: number | null;
+      recipientName?: string | null;
+      recipientPhone?: string | null;
       shippingPackages?: Array<{
         lines: Array<{ productId: string; quantity: number }>;
         lengthCm: number;
@@ -519,6 +523,7 @@ export const OutboundApi = {
         quotedAt: string;
         expiresAt: string;
       } | null;
+      acknowledgeNoExternalShipment?: boolean;
     },
   ): Promise<OutboundOrder> {
     const { data } = await api.post<OutboundOrder>(

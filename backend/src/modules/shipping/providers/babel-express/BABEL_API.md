@@ -54,4 +54,4 @@ Required: receiver (with neighbourhood id or coordinates), `type` box|envelope, 
 ## COD
 
 `cod.amount = 0` disables COD. Currency should match EMDAD business currency (USD) when COD is USD — do not force SYP.
-Babel rejects SYP COD below **1000 SYP**. Staging blocks that case before `createShipment` with a clear Arabic error; do not silently convert USD amounts into SYP.
+The checked-in notes say Babel rejects SYP COD below 1000 SYP. That floor is not applied locally until a current Babel response for the same request confirms it. A USD order is converted to the collection currency with the managed rate; the original amount is not relabeled as SYP.

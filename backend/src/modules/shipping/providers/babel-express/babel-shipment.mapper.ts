@@ -20,8 +20,8 @@ export function resolveBabelPickupType(
 }
 
 /**
- * Pass payer through without silent remapping.
- * Business rule: shipping payer is sender. If Babel rejects sender, surface the API error.
+ * Verified (Babel OpenAPI): shipment.payer is sender | receiver | reseller.
+ * Pass through. Do not remap sender to receiver.
  */
 export function resolveBabelPayer(
   payer: ShippingCreateShipmentInput['payer'],
@@ -101,6 +101,10 @@ function resolveNeighbourhood(input: {
   };
 }
 
+/**
+ * Babel create payload. Verified fields: payer pass-through, COD currency pass-through,
+ * sender neighbourhood id or coordinates, receiver neighbourhood or coordinates.
+ */
 export function mapCreateShipmentPayload(input: ShippingCreateShipmentInput) {
   const neighbourhood = resolveNeighbourhood({
     neighbourhoodId: input.receiver.neighbourhoodId,

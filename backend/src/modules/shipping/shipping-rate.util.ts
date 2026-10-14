@@ -11,6 +11,8 @@ export type ShippingRateQuote = {
   serviceId: string;
   serviceName: string;
   available: boolean;
+  /** Set when available is false. Shown on the card; the option is not selectable. */
+  unavailableReason?: string;
   price: number;
   currency: string;
   /** When the provider returns multiple currencies; UI shows USD then SYP. */
@@ -26,6 +28,8 @@ export type ShippingRateQuote = {
   providerName?: string;
   /** Carrier logo URL from provider response. Only set when API returns it. Never invent. */
   logoUrl?: string;
+  /** Verified COD currencies for this service and delivery type. Empty means unknown. */
+  supportedCodCurrencies?: string[];
   /** Payable amount used for recommendation (may differ from display if prices[]). */
   effectiveCostAmount?: number;
   effectiveCostCurrency?: string;

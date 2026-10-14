@@ -243,6 +243,15 @@ export interface ShippingProvider {
   ): Promise<ShipmentTrackingResult | null>;
 
   /**
+   * Lookup an existing shipment by our reference. Implement only when the carrier
+   * already exposes it. Do not invent an endpoint.
+   */
+  findShipmentByReference?(
+    credentials: ShippingCredentials,
+    reference: string,
+  ): Promise<{ awb: string; trackingNumber?: string } | null>;
+
+  /**
    * Register or update webhook endpoint with the carrier API if supported.
    */
   registerWebhook?(

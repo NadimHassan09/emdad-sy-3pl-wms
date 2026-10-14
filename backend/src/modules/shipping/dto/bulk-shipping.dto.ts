@@ -37,6 +37,26 @@ export class BulkShippingConfirmItemDto {
   @IsString()
   @MaxLength(64)
   recommendedProviderCode?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  codCollectionCurrency?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  serviceId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  deliveryType?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  payer?: string | null;
 }
 
 export class BulkShippingConfirmDto {

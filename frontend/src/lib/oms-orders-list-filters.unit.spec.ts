@@ -48,6 +48,7 @@ describe('buildOmsOrdersListParams', () => {
       phone: undefined,
       city: undefined,
       carrier: undefined,
+      shippingPayer: undefined,
       totalOp: undefined,
       totalValue: undefined,
       status: 'processing',

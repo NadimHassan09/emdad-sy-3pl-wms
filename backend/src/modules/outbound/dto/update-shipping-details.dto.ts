@@ -197,6 +197,21 @@ export class UpdateShippingDetailsDto {
   @MaxLength(8)
   currency?: string | null;
 
+  /** Carrier collection currency. Does not overwrite the order currency or COD amount. */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  codCollectionCurrency?: string | null;
+
+  /** Collectible COD on the shipment draft and the linked OMS order. Not the customer master. */
+  @EmptyToUndefined()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  codAmount?: number | null;
+
   /** Soft-assigned quote for batch cost analysis (not COD). */
   @EmptyToUndefined()
   @IsOptional()

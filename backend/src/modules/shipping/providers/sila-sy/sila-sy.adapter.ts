@@ -17,6 +17,14 @@ import type {
 } from '../../shipping-provider.interface';
 import { SILA_SY_CODE } from '../../shipping.constants';
 import { registerCourierName } from '../../shipping-carrier-resolver';
+import {
+  pickSilaChildArea,
+  walkSilaAreaHierarchy,
+  type SilaAreaHints,
+  type SilaAreaRow,
+} from './sila-area.util';
+import { pickNearestSilaBranch } from './sila-branch.util';
+import { logSanitizedProviderRequest, sanitizeSilaCargoBody } from '../../provider-request-log';
 import { SilaSyApiError, SilaSyHttpClient } from './sila-sy.http-client';
 
 /** Sila-SY courier as returned by POST /cargos/quote */
@@ -30,6 +38,8 @@ type SilaCourier = {
   coverage_note?: string | null;
   supports_home_delivery?: boolean | null;
   supports_pickup_at_branch?: boolean | null;
+  requires_branch?: boolean | null;
+  branches?: Array<{ id?: string; name?: string }>;
 };
 
 /** Sila-SY POST /cargos/quote response */
@@ -55,6 +65,10 @@ type SilaCargo = SilaCargoItem;
 type SilaCargoListData = {
   data?: SilaCargoItem[];
 };
+
+function isSilaProvinceAreaError(message: string): boolean {
+  return /whole province|parent_id|محافظة كاملة/i.test(message);
+}
 
 /** Extract the API key from credentials. Sila uses only username (= api key). */
 function apiKey(credentials: ShippingCredentials): string {
@@ -404,7 +418,9 @@ export class SilaSyAdapter implements ShippingProvider {
     const rawHood = (input.neighborhood ?? '').trim();
 
     const province = rawGov || rawCity || rawHood;
-    const district = rawHood || rawCity || province;
+    // Sila areas are city/region rows (e.g. مدينة حمص). The neighbourhood
+    // (الأرمن) is an address detail and is rejected as "does not serve this area".
+    const district = rawCity || rawHood || province;
 
     if (!province) {
       // Cannot quote without at least a province or city name
@@ -485,6 +501,15 @@ export class SilaSyAdapter implements ShippingProvider {
       return [];
     }
 
+    if (resolvedAreaId) {
+      resolvedAreaId = await this.narrowProvinceArea(credentials, resolvedAreaId, {
+        province,
+        city: rawCity,
+        district,
+        neighborhood: rawHood,
+      });
+    }
+
     const results: ShippingQuoteResult[] = [];
     for (const courier of couriers) {
       // Skip couriers that are unpriced or not serviced
@@ -500,6 +525,14 @@ export class SilaSyAdapter implements ShippingProvider {
       }
       const courierId = courier.courier_id?.trim();
       if (!courierId) continue;
+      if (input.deliveryType === 'address' && courier.supports_home_delivery === false) continue;
+      if (
+        input.deliveryType === 'hub' &&
+        courier.supports_pickup_at_branch === false &&
+        courier.requires_branch !== true
+      ) {
+        continue;
+      }
       if (courier.name) registerCourierName(courierId, courier.name);
 
       const effectiveDeliveryType: 'address' | 'hub' =
@@ -554,6 +587,87 @@ export class SilaSyAdapter implements ShippingProvider {
     );
   }
 
+  /**
+   * Quote area ids are often the province. Couriers require a city or neighbourhood
+   * from GET /regions/areas?parent_id=<province>.
+   */
+  private async narrowProvinceArea(
+    credentials: ShippingCredentials,
+    areaId: string,
+    hints: SilaAreaHints,
+    strict = false,
+  ): Promise<string> {
+    const key = apiKey(credentials);
+    let level = '';
+    try {
+      const area = await this.http.get<SilaAreaRow>(
+        `regions/areas/${encodeURIComponent(areaId)}`,
+        key,
+      );
+      level = typeof area?.level === 'string' ? area.level : '';
+    } catch {
+      level = '';
+    }
+    const fetchChildren = (parentId: string) => this.listChildAreas(credentials, parentId);
+    let walked = await walkSilaAreaHierarchy(areaId, level || null, hints, fetchChildren);
+    if (!('areaId' in walked) && level.toLowerCase() === 'province') {
+      const pool = await this.searchHintAreas(credentials, hints);
+      const picked = pickSilaChildArea(pool, hints);
+      if (picked?.id) {
+        const deeper = await walkSilaAreaHierarchy(
+          picked.id,
+          picked.level ?? null,
+          hints,
+          fetchChildren,
+          picked.name_ar || picked.name_en,
+        );
+        walked = 'areaId' in deeper ? deeper : { areaId: picked.id };
+      }
+    }
+    if ('areaId' in walked) return walked.areaId;
+    if (!strict || level.toLowerCase() !== 'province') return areaId;
+    throw new BadRequestException(
+      `Sila area is a whole province. Missing ${walked.missingLevel}. Set the receiver ${walked.missingLevel} so a child area can be selected.`,
+    );
+  }
+
+  private async listChildAreas(
+    credentials: ShippingCredentials,
+    areaId: string,
+  ): Promise<SilaAreaRow[]> {
+    const raw = await this.http.get<SilaAreaRow[] | { data?: SilaAreaRow[] }>(
+      `regions/areas?parent_id=${encodeURIComponent(areaId)}`,
+      apiKey(credentials),
+    );
+    return Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+  }
+
+  /** Province rows on Sila often have no parent_id children. Search finds the city. */
+  private async searchHintAreas(
+    credentials: ShippingCredentials,
+    hints: SilaAreaHints,
+  ): Promise<SilaAreaRow[]> {
+    const terms = [hints.neighborhood, hints.city, hints.district]
+      .flatMap((value) => (value ? value.split(/\s*[-–—]\s*/) : []))
+      .map((value) => value.trim())
+      .filter((value) => value.length >= 2);
+    const unique = [...new Set(terms)];
+    const pool: SilaAreaRow[] = [];
+    for (const term of unique.slice(0, 6)) {
+      try {
+        const raw = await this.http.get<SilaAreaRow[] | { data?: SilaAreaRow[] }>(
+          `regions/areas?search=${encodeURIComponent(term)}`,
+          apiKey(credentials),
+        );
+        const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+        pool.push(...list);
+      } catch {
+        /* search is best-effort; the caller still stops if nothing matches */
+      }
+    }
+    return pool;
+  }
+
   // ─── resolveAreaId ──────────────────────────────────────────────────────────
 
   /**
@@ -583,6 +697,10 @@ export class SilaSyAdapter implements ShippingProvider {
         );
         const list: any[] = res?.data ?? res ?? [];
         if (Array.isArray(list) && list.length > 0) {
+          const specific = list.filter((a) => a?.level !== 'province');
+          const pool = specific.length > 0 ? specific : [];
+          if (pool.length === 0) continue;
+          list.splice(0, list.length, ...pool);
           // Priority 1: Exact name match within the same province
           const exactProvMatch = list.find(
             (a) =>
@@ -660,8 +778,8 @@ export class SilaSyAdapter implements ShippingProvider {
       (input.receiver.city ?? '').trim() ||
       'دمشق';
     const district =
-      (input.receiver.neighborhood ?? '').trim() ||
       (input.receiver.city ?? '').trim() ||
+      (input.receiver.neighborhood ?? '').trim() ||
       province;
 
     const addressLine =
@@ -676,6 +794,15 @@ export class SilaSyAdapter implements ShippingProvider {
         input.receiver.neighborhood,
       )) ?? undefined;
     }
+    const areaHints: SilaAreaHints = {
+      province,
+      city: input.receiver.city,
+      district,
+      neighborhood: input.receiver.neighborhood,
+    };
+    if (areaId) {
+      areaId = await this.narrowProvinceArea(credentials, areaId, areaHints, true);
+    }
 
     const pickup = input.pickup;
     const pickupPhone =
@@ -685,9 +812,39 @@ export class SilaSyAdapter implements ShippingProvider {
     const pickupProvince =
       (pickup?.governorate ?? '').trim() || (pickup?.city ?? '').trim() || '';
     const pickupDistrict =
-      (pickup?.neighborhood ?? '').trim() || (pickup?.city ?? '').trim() || pickupProvince;
+      (pickup?.city ?? '').trim() || (pickup?.neighborhood ?? '').trim() || pickupProvince;
     const pickupAddress = pickup?.address?.trim() || '';
 
+    const quotedCourier = await this.lookupQuotedCourier(
+      credentials,
+      courierId,
+      province,
+      district,
+      (input.currency ?? 'USD').trim().toUpperCase(),
+    );
+    const branchId = pickNearestSilaBranch(
+      (quotedCourier?.branches ?? [])
+        .map((branch) => ({
+          id: branch.id?.trim() || '',
+          name: branch.name?.trim() || '',
+        }))
+        .filter((branch) => branch.id && branch.name),
+      {
+      governorate: input.receiver.governorate || province,
+      neighborhood: input.receiver.neighborhood || district,
+      lat: input.receiver.lat,
+      lng: input.receiver.lng,
+    })?.id ?? null;
+
+    const codCurrency = (input.currency ?? 'USD').trim().toUpperCase();
+    const quoteCurrency = (quotedCourier?.currency ?? '').trim().toUpperCase();
+
+    // Sila payload fields are observed (no checked-in OpenAPI). Do not change them from a guess.
+    // shipping_paid_by accepts merchant | receiver only, so reseller cannot be encoded.
+    // Receiver + COD is not blocked here; Sila's create response is the decision.
+    // Province area_id is narrowed with Sila's own area API.
+    // Fee currency and COD currency are independent. Do not block when they differ.
+    // District prefers city over neighbourhood. Branch-only couriers stay hidden for home delivery.
     const body: Record<string, unknown> = {
       recipient: {
         full_name: input.receiver.name,
@@ -717,15 +874,34 @@ export class SilaSyAdapter implements ShippingProvider {
         description: input.contents || 'Goods',
       },
       courier_id: courierId,
+      ...(branchId ? { branch_id: branchId } : {}),
+      // Branch-only couriers (Masarat) reject a home-delivery create with
+      // "does not serve this area (or this service type)".
+      service_type: branchId || input.deliveryType === 'hub' ? 'pickup_at_branch' : 'home_delivery',
       pay_on_delivery: {
         amount: Math.max(1, input.codAmount > 0 ? input.codAmount : 1),
         currency: (input.currency ?? 'USD').toUpperCase(),
       },
-      // Who pays shipping: sender (merchant) vs receiver. Sila cargo field is shipping_paid_by.
-      shipping_paid_by: input.payer === 'receiver' ? 'receiver' : 'sender',
+      // Sila accepts only merchant | receiver. Sender is the merchant. Reseller has no Sila value.
+      shipping_paid_by: (() => {
+        if (input.payer === 'reseller') {
+          throw new BadRequestException(
+            'Sila-SY does not support Reseller as the shipping payer. Choose Sender or Receiver and send again.',
+          );
+        }
+        return input.payer === 'receiver' ? 'receiver' : 'merchant';
+      })(),
       merchant_pays_shipping: input.payer !== 'receiver',
       ...(input.reference ? { reference: input.reference } : {}),
     };
+
+    logSanitizedProviderRequest(
+      this.logger,
+      sanitizeSilaCargoBody(body, {
+        serviceId: input.serviceId ?? courierId,
+        quoteCurrency: quoteCurrency || null,
+      }),
+    );
 
     let raw: any;
     try {
@@ -736,6 +912,15 @@ export class SilaSyAdapter implements ShippingProvider {
         this.logger.warn(`Sila reference "${input.reference}" already used. Retrying with unique timestamp suffix.`);
         body.reference = `${input.reference}-${Date.now().toString().slice(-6)}`;
         raw = await this.http.post<any>('cargos', apiKey(credentials), body);
+      } else if (isSilaProvinceAreaError(msg) && areaId) {
+        const narrowed = await this.narrowProvinceArea(credentials, areaId, areaHints, true);
+        if (narrowed === areaId) {
+          throw new BadRequestException(
+            'Sila area is a whole province. Missing city. Set the receiver city or neighbourhood so a child area can be selected, then send again.',
+          );
+        }
+        (body.recipient as Record<string, unknown>).area_id = narrowed;
+        raw = await this.http.post<any>('cargos', apiKey(credentials), body);
       } else {
         throw err;
       }
@@ -743,32 +928,60 @@ export class SilaSyAdapter implements ShippingProvider {
 
     const rawData = raw?.data ?? raw;
     // Platform/provider id (Sila barcode) — used for label/API lookups.
-    const barcode =
+    const providerId =
+      (typeof rawData?.id === 'string' && rawData.id.trim()) ||
       (typeof rawData?.barcode === 'string' && rawData.barcode.trim()) ||
       (typeof rawData?.awb_number === 'string' && rawData.awb_number.trim()) ||
       (typeof rawData?.code === 'string' && rawData.code.trim()) ||
-      (typeof rawData?.id === 'string' && rawData.id.trim()) ||
-      (typeof raw?.barcode === 'string' && raw.barcode.trim()) ||
       '';
-    // Courier-facing tracking when Sila returns a distinct token/number.
-    const courierTracking =
-      (typeof rawData?.tracking_token === 'string' && rawData.tracking_token.trim()) ||
-      (typeof rawData?.tracking_number === 'string' && rawData.tracking_number.trim()) ||
-      (typeof rawData?.courier_tracking === 'string' && rawData.courier_tracking.trim()) ||
-      (typeof rawData?.courier_barcode === 'string' && rawData.courier_barcode.trim()) ||
-      '';
-    if (!barcode) {
+    if (!providerId) {
       throw new SilaSyApiError('Sila-SY createShipment succeeded without a provider reference.', undefined, raw);
     }
-    if (!courierTracking || courierTracking === barcode) {
+    const loaded = await this.fetchCargo(credentials, providerId);
+    const cargo = loaded ?? rawData;
+    const courierTracking =
+      (typeof cargo?.courier_barcode === 'string' && cargo.courier_barcode.trim()) ||
+      (typeof cargo?.tracking_number === 'string' && cargo.tracking_number.trim()) ||
+      (typeof cargo?.courier_tracking === 'string' && cargo.courier_tracking.trim()) ||
+      (typeof cargo?.tracking_token === 'string' && cargo.tracking_token.trim()) ||
+      '';
+    if (!courierTracking) {
       throw new SilaSyApiError(
         'Sila-SY did not return the actual courier tracking number. The Sila reference is not a tracking number.',
         undefined,
-        raw,
+        cargo,
       );
     }
 
-    return { awb: barcode, trackingNumber: courierTracking, raw };
+    return { awb: providerId, trackingNumber: courierTracking, raw: cargo };
+  }
+
+  /**
+   * Branch couriers (Masarat) reject create unless branch_id is one of their hubs.
+   * Choose the hub closest to the customer delivery address.
+   */
+  private async lookupQuotedCourier(
+    credentials: ShippingCredentials,
+    courierId: string,
+    province: string,
+    district: string,
+    currency: string,
+  ): Promise<SilaCourier | null> {
+    try {
+      const quoteRes = await this.http.post<any>('cargos/quote', apiKey(credentials), {
+        province,
+        district,
+        weight_kg: 1,
+        currency,
+      });
+      const quoteData = quoteRes?.data ?? quoteRes;
+      const couriers: SilaCourier[] = Array.isArray(quoteData?.couriers) ? quoteData.couriers : [];
+      return couriers.find((courier) => courier.courier_id?.trim() === courierId) ?? null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Sila courier lookup failed for ${courierId}: ${msg}`);
+      return null;
+    }
   }
 
   // ─── getLabel ──────────────────────────────────────────────────────────────

@@ -80,6 +80,51 @@ export function comparableValueUsd(
 
 export type DeliveryFilter = 'mixed' | 'address' | 'hub';
 
+/** Rate-card currency. Does not change the order COD currency. */
+export type RateCurrencyFilter = 'all' | 'USD' | 'SYP';
+
+/**
+ * COD filter uses verified collection currencies only.
+ * A SYP shipping fee does not make USD COD unsupported, and the reverse is also ignored.
+ */
+export function quoteSupportsCollectionCurrency(
+  quote: { supportedCodCurrencies?: string[] | null; currency?: string | null },
+  currency: 'USD' | 'SYP',
+): boolean {
+  const list = (quote.supportedCodCurrencies ?? []).map((item) => item.trim().toUpperCase());
+  return list.includes(currency);
+}
+
+export function applyQuoteCurrency<
+  T extends {
+    price: number;
+    currency: string;
+    prices?: Array<{ price: number; currency: string }>;
+    preferredCurrency?: string | null;
+  },
+>(quotes: T[], filter: RateCurrencyFilter): T[] {
+  if (filter === 'all') return quotes;
+  const next: T[] = [];
+  for (const quote of quotes) {
+    const match = quote.prices?.find(
+      (price) => price.currency?.toUpperCase() === filter && Number.isFinite(price.price),
+    );
+    if (match) {
+      next.push({
+        ...quote,
+        price: match.price,
+        currency: match.currency.toUpperCase(),
+        preferredCurrency: filter,
+      });
+      continue;
+    }
+    if ((quote.currency || '').toUpperCase() === filter) {
+      next.push({ ...quote, preferredCurrency: filter });
+    }
+  }
+  return next;
+}
+
 /** Auto = cheapest among eligible; otherwise force a platform/courier family. */
 export type ProviderCompanyFilter = 'auto' | string;
 

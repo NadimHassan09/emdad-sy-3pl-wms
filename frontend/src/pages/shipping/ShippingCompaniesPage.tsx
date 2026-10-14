@@ -17,6 +17,105 @@ import { QK } from '../../constants/query-keys';
 import { defaultHomePath } from '../../lib/rbac';
 import { useWmsTranslation } from '../../lib/ui-i18n';
 
+function FxRateCard({ canEdit }: { canEdit: boolean }) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const { t } = useWmsTranslation();
+  const [rate, setRate] = useState('');
+  const query = useQuery({
+    queryKey: ['shipping', 'fx'],
+    queryFn: () => ShippingApi.getFx(),
+  });
+  useEffect(() => {
+    if (query.data?.manualRate != null) setRate(String(query.data.manualRate));
+  }, [query.data?.manualRate]);
+  const saveManual = useMutation({
+    mutationFn: () => ShippingApi.saveFx({ mode: 'manual', manualRate: Number(rate) }),
+    onSuccess: () => {
+      toast.success(t(['Exchange rate saved.', 'تم حفظ سعر الصرف.']));
+      void queryClient.invalidateQueries({ queryKey: ['shipping', 'fx'] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+  const saveAuto = useMutation({
+    mutationFn: () => ShippingApi.saveFx({ mode: 'automatic' }),
+    onSuccess: () => {
+      toast.success(t(['Automatic rate updated.', 'تم تحديث السعر التلقائي.']));
+      void queryClient.invalidateQueries({ queryKey: ['shipping', 'fx'] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+  const testSource = useMutation({
+    mutationFn: () => ShippingApi.testFxSource(),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.error || t(['Source check failed.', 'فشل فحص المصدر.']));
+        return;
+      }
+      toast.success(`${result.source}: 1 USD = ${result.rate} SYP`);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+  const fx = query.data;
+  return (
+    <SectionContainer
+      title={t(['USD / SYP exchange rate', 'سعر صرف الدولار / الليرة'])}
+      description={t([
+        'Direction is fixed: 1 USD = R SYP. This converts COD collection only. The order amount stays unchanged.',
+        'الاتجاه ثابت: 1 دولار = س ليرة. يحوّل مبلغ التحصيل فقط. مبلغ الطلب يبقى كما هو.',
+      ])}
+    >
+      {query.isLoading ? (
+        <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-text-body">
+            {t(['Active rate', 'السعر الحالي'])}:{' '}
+            <strong>{fx?.activeRate != null ? `1 USD = ${fx.activeRate} SYP` : '—'}</strong>
+            {' · '}
+            {fx?.mode === 'automatic'
+              ? t(['Automatic', 'تلقائي'])
+              : t(['Manual', 'يدوي'])}
+            {fx?.stale ? ` · ${t(['Stale', 'قديم'])}` : ''}
+            {fx?.usable ? '' : ` · ${t(['Not usable for conversion', 'غير صالح للتحويل'])}`}
+          </p>
+          <p className="text-sm text-text-muted">
+            {t(['Source', 'المصدر'])}: {fx?.activeSource || '—'}
+            {' · '}
+            {t(['Last success', 'آخر نجاح'])}: {formatTimestamp(fx?.lastSuccessfulAt)}
+          </p>
+          {fx?.lastError ? <p className="text-sm text-status-danger-fg">{fx.lastError}</p> : null}
+          {canEdit ? (
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={(event: FormEvent) => {
+                event.preventDefault();
+                saveManual.mutate();
+              }}
+            >
+              <TextField
+                label={t(['Manual rate (SYP per 1 USD)', 'سعر يدوي (ليرة لكل دولار)'])}
+                value={rate}
+                onChange={(e) => setRate(e.target.value)}
+                inputMode="decimal"
+              />
+              <Button type="submit" disabled={saveManual.isPending}>
+                {t(['Save manual rate', 'حفظ السعر اليدوي'])}
+              </Button>
+              <Button type="button" disabled={saveAuto.isPending} onClick={() => saveAuto.mutate()}>
+                {t(['Use automatic source', 'استخدام المصدر التلقائي'])}
+              </Button>
+              <Button type="button" disabled={testSource.isPending} onClick={() => testSource.mutate()}>
+                {t(['Test source', 'فحص المصدر'])}
+              </Button>
+            </form>
+          ) : null}
+        </div>
+      )}
+    </SectionContainer>
+  );
+}
+
 function canAccessShippingAdmin(role: string | undefined): boolean {
   return role === 'super_admin' || role === 'wh_manager';
 }
@@ -424,6 +523,8 @@ export function ShippingCompaniesPage() {
           </p>
         )}
       </SectionContainer>
+
+      <FxRateCard canEdit={canEditPickup} />
 
       <PickupAddressCard canEdit={canEditPickup} />
 

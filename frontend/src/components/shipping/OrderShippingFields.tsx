@@ -200,6 +200,7 @@ export function OrderShippingFields({
     city: destKey.city,
     neighborhood: destKey.neighborhood,
     codAmount,
+    payer: value.shippingPayer || 'sender',
   };
   const debouncedRates = useDebounced(rateParams, 600);
 
@@ -233,6 +234,7 @@ export function OrderShippingFields({
         ...(debouncedRates.codAmount != null && Number.isFinite(debouncedRates.codAmount)
           ? { codAmount: debouncedRates.codAmount }
           : {}),
+        payer: (debouncedRates.payer || 'sender') as 'sender' | 'receiver' | 'reseller',
       }),
     enabled: Boolean(
       ratesReady &&

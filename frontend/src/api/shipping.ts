@@ -86,6 +86,7 @@ export type ShippingRateQuote = {
   serviceId: string;
   serviceName: string;
   available: boolean;
+  unavailableReason?: string;
   price: number;
   currency: string;
   /**
@@ -99,6 +100,8 @@ export type ShippingRateQuote = {
   restrictions?: string[];
   providerName?: string;
   logoUrl?: string;
+  /** Verified COD currencies for this service. Empty means unknown, not both. */
+  supportedCodCurrencies?: string[];
   isCheapest?: boolean;
   isFastest?: boolean;
   isRecommended?: boolean;
@@ -129,6 +132,14 @@ export type QuoteShippingRatesInput = {
   includeAllDeliveryTypes?: boolean;
   /** Quote a single provider (progress / isolation). */
   providerCode?: string;
+  /** Collection currency used for availability. Separate from the shipping-fee currency. */
+  currency?: string;
+  /** Shipping-fee currency preference. Does not change COD capability. */
+  rateCurrency?: string;
+  /** all preserves the order currency when supported. explicit never substitutes. */
+  collectionMode?: 'all' | 'explicit';
+  /** Shipping-fee payer. Changing it must refetch availability. */
+  payer?: ShippingPayer;
 };
 
 export type QuoteShippingRatesResult = {
@@ -408,7 +419,35 @@ export function isShippingConfigLocked(outboundStatus: string | null | undefined
   return SHIPPING_LOCKED_OUTBOUND_STATUSES.has(outboundStatus);
 }
 
+export type ShippingFxSettings = {
+  mode: 'manual' | 'automatic';
+  direction: string;
+  manualRate: number | null;
+  autoSource: string | null;
+  activeRate: number | null;
+  activeSource: string | null;
+  lastSuccessfulAt: string | null;
+  stale: boolean;
+  usable: boolean;
+  lastError: string | null;
+  updatedAt: string | null;
+};
+
 export const ShippingApi = {
+  getFx(): Promise<ShippingFxSettings> {
+    return api.get<ShippingFxSettings>('/shipping/fx').then((r) => r.data);
+  },
+
+  saveFx(body: { mode: 'manual' | 'automatic'; manualRate?: number }): Promise<ShippingFxSettings> {
+    return api.put<ShippingFxSettings>('/shipping/fx', body).then((r) => r.data);
+  },
+
+  testFxSource(): Promise<{ ok: boolean; rate?: number; source?: string; error?: string }> {
+    return api
+      .post<{ ok: boolean; rate?: number; source?: string; error?: string }>('/shipping/fx/test-source')
+      .then((r) => r.data);
+  },
+
   getOriginAddress(): Promise<ShippingOriginAddress | null> {
     return api.get<ShippingOriginAddress | null>('/shipping/origin-address').then((r) => r.data);
   },
@@ -444,10 +483,14 @@ export const ShippingApi = {
       .then((r) => r.data);
   },
 
-  retryShipment(outboundOrderId: string): Promise<{ ok: boolean }> {
+  retryShipment(
+    outboundOrderId: string,
+    body?: { acknowledgeNoExternalShipment?: boolean },
+  ): Promise<{ ok: boolean }> {
     return api
       .post<{ ok: boolean }>(
         `/shipping/shipments/${encodeURIComponent(outboundOrderId)}/retry`,
+        body ?? {},
       )
       .then((r) => r.data);
   },
@@ -553,10 +596,15 @@ export const ShippingApi = {
       .then((r) => r.data);
   },
 
-  bulkRetryItem(jobId: string, outboundOrderId: string): Promise<BulkShippingJobView> {
+  bulkRetryItem(
+    jobId: string,
+    outboundOrderId: string,
+    body?: { acknowledgeNoExternalShipment?: boolean },
+  ): Promise<BulkShippingJobView> {
     return api
       .post<BulkShippingJobView>(
         `/shipping/bulk/jobs/${encodeURIComponent(jobId)}/items/${encodeURIComponent(outboundOrderId)}/retry`,
+        body ?? {},
       )
       .then((r) => r.data);
   },
@@ -585,6 +633,10 @@ export type BulkShippingPreviewLine = {
     providerName: string;
     price: number;
     currency: string;
+    serviceId?: string | null;
+    serviceName?: string | null;
+    deliveryType?: string | null;
+    supportedCodCurrencies?: string[];
   }>;
   recommendedProviderCode: string | null;
   recommendedPrice: number | null;
@@ -592,6 +644,9 @@ export type BulkShippingPreviewLine = {
   selectedProviderCode: string;
   recommendationNote: string | null;
   labelDeliveryHint: string;
+  codAmount?: number | null;
+  codCurrency?: string | null;
+  supportedCodCurrencies?: string[];
 };
 
 export type BulkShippingSelectableProvider = {

@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ShippingApi, type ShippingPayer } from '../../api/shipping';
 import { QK } from '../../constants/query-keys';
+import { applyQuoteCurrency, type RateCurrencyFilter } from '../../lib/shipping-compare';
 import { useDebounced } from '../../lib/useDebounced';
 import { CascadingAddressSelector } from '../CascadingAddressSelector';
 import { TextField } from '../TextField';
 import {
-  currencyAfterCarrierSelect,
   hasOverPacking,
   packingSummary,
   providerSupportedCurrencies,
@@ -53,6 +53,8 @@ type ShippingQuoteSnapshot = {
   deliveryType: CarrierShippingFormValue['deliveryType'];
   pickupType: 'address';
   currency: ShippingCurrency;
+  collectionCurrency: ShippingCurrency;
+  payer: ShippingPayer;
   codAmount: number | null;
   parts: Array<{ weight: number }>;
   packingInvalid: boolean;
@@ -128,6 +130,7 @@ export function CarrierShippingDetailsForm({
   onSelectedCarrierAvailableChange,
 }: Props) {
   const readOnly = locked || disabled;
+  const [rateCurrency, setRateCurrency] = useState<RateCurrencyFilter>('all');
   /** Monotonic id — late responses from superseded requests are discarded. */
   const quoteGenerationRef = useRef(0);
 
@@ -168,6 +171,8 @@ export function CarrierShippingDetailsForm({
       deliveryType: value.deliveryType,
       pickupType: 'address',
       currency: value.currency,
+      collectionCurrency: value.collectionCurrency || value.currency,
+      payer: value.shippingPayer,
       codAmount,
       parts: babelParts,
       packingInvalid,
@@ -179,6 +184,8 @@ export function CarrierShippingDetailsForm({
       value.packageType,
       value.deliveryType,
       value.currency,
+      value.collectionCurrency,
+      value.shippingPayer,
       quoteWeight,
       volumeCbm,
       codAmount,
@@ -288,6 +295,8 @@ export function CarrierShippingDetailsForm({
           Number.isFinite(settledQuoteRequest.codAmount)
             ? { codAmount: settledQuoteRequest.codAmount }
             : {}),
+          currency: settledQuoteRequest.collectionCurrency,
+          payer: settledQuoteRequest.payer,
         },
         signal,
       );
@@ -321,14 +330,21 @@ export function CarrierShippingDetailsForm({
       isResolvingLocation ||
       (inputsReady && (ratesQuery.isFetching || ratesQuery.isPending)));
 
-  const quotes =
-    isRefreshingCarrierQuotes || !ratesQuery.isSuccess ? [] : (ratesQuery.data?.quotes ?? []);
+  const quotes = applyQuoteCurrency(
+    isRefreshingCarrierQuotes || !ratesQuery.isSuccess ? [] : (ratesQuery.data?.quotes ?? []),
+    rateCurrency,
+  );
   const rateErrors =
     isRefreshingCarrierQuotes || !ratesQuery.isSuccess ? [] : (ratesQuery.data?.errors ?? []);
 
   const selectedAvailable = Boolean(
     value.shippingProviderCode &&
-      quotes.some((q) => q.carrierId === value.shippingProviderCode),
+      quotes.some(
+        (q) =>
+          q.available &&
+          q.carrierId === value.shippingProviderCode &&
+          (!value.shippingServiceId || q.serviceId === value.shippingServiceId),
+      ),
   );
 
   useEffect(() => {
@@ -351,12 +367,10 @@ export function CarrierShippingDetailsForm({
 
   const handleSelectCarrier = (carrierId: string, serviceId?: string) => {
     if (isRefreshingCarrierQuotes) return;
-    const nextCurrency = currencyAfterCarrierSelect(carrierId);
     onChange(
       patch(value, {
         shippingProviderCode: carrierId,
         shippingServiceId: serviceId ?? '',
-        currency: nextCurrency,
       }),
     );
   };
@@ -503,18 +517,20 @@ export function CarrierShippingDetailsForm({
         )}
 
         <div>
-          <div className="mb-1.5 text-xs font-medium text-text-muted">Currency</div>
+          <div className="mb-1.5 text-xs font-medium text-text-muted">
+            COD currency / عملة التحصيل
+          </div>
           <PillToggle<ShippingCurrency>
             disabled={readOnly}
-            value={value.currency}
-            onChange={(currency) => onChange(patch(value, { currency }))}
+            value={value.collectionCurrency || value.currency}
+            onChange={(collectionCurrency) => onChange(patch(value, { collectionCurrency }))}
             options={[
               { value: 'USD', label: 'USD' },
               { value: 'SYP', label: 'ل.س' },
             ]}
           />
           <p className="mt-1 text-[11px] text-text-faint">
-            Default USD. Selecting a SYP-only carrier switches currency automatically.
+            Collection currency for the carrier. Changing it converts the amount with the USD/SYP rate and leaves the original order value unchanged.
           </p>
         </div>
 
@@ -542,23 +558,47 @@ export function CarrierShippingDetailsForm({
         <div>
           <div className="mb-1.5 text-xs font-medium text-text-muted">Shipping Payer (دافع الشحن)</div>
           <PillToggle<ShippingPayer>
-            disabled
-            value="sender"
-            onChange={() => onChange(patch(value, { shippingPayer: 'sender' }))}
+            disabled={readOnly}
+            value={value.shippingPayer}
+            onChange={(shippingPayer) => onChange(patch(value, { shippingPayer }))}
             options={[
-              {
-                value: 'sender',
-                label: 'Sender (المرسل / التاجر)',
-              },
+              { value: 'sender', label: 'Sender (المرسل)' },
+              { value: 'receiver', label: 'Receiver (المستلم)' },
+              { value: 'reseller', label: 'Reseller (الوسيط)' },
             ]}
           />
           <p className="mt-1 text-[11px] text-text-faint">
-            Locked to Sender (المرسل). Receiver/reseller payers are not allowed.
+            Default is Sender. If the carrier rejects Sender, switch to Receiver or Reseller and send again.
           </p>
         </div>
       </section>
 
       {!hideCarrierSelect ? (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-text-muted">Rate currency / عملة السعر</span>
+            {(
+              [
+                { value: 'all', label: 'All' },
+                { value: 'USD', label: 'USD' },
+                { value: 'SYP', label: 'ل.س' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                disabled={readOnly}
+                onClick={() => setRateCurrency(opt.value)}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${
+                  rateCurrency === opt.value
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                    : 'border-border-subtle text-text-muted'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         <ShippingCarrierCards
           providers={listedProviders}
           quotes={quotes}
@@ -573,6 +613,7 @@ export function CarrierShippingDetailsForm({
           preferredCurrency={value.currency}
           getSupportedCurrencies={providerSupportedCurrencies}
         />
+        </div>
       ) : null}
     </div>
   );
