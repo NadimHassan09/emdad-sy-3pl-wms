@@ -81,17 +81,6 @@ export function assertCarrierShippingReady(fields: ShippingConfigFields): void {
     return;
   }
   assertShippingIntentReady(fields);
-  const babelHood =
-    fields.babelNeighbourhoodId != null ? Number(fields.babelNeighbourhoodId) : null;
-  const hasBabelHood = babelHood != null && Number.isFinite(babelHood) && babelHood > 0;
-  const lat = fields.shippingReceiverLat != null ? Number(fields.shippingReceiverLat) : NaN;
-  const lng = fields.shippingReceiverLng != null ? Number(fields.shippingReceiverLng) : NaN;
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
-  if (!hasBabelHood && !hasCoords) {
-    throw new BadRequestException(
-      'Babel neighbourhood id (resolved from Governorate / City / Town) or receiver lat/lng is required when shipping via a carrier.',
-    );
-  }
   if (!fields.shippingPackageType) {
     throw new BadRequestException('shippingPackageType is required when shipping via a carrier.');
   }
@@ -107,18 +96,13 @@ export function assertCarrierShippingReady(fields: ShippingConfigFields): void {
   if (!fields.shippingPayer) {
     throw new BadRequestException('shippingPayer is required when shipping via a carrier.');
   }
+  if (!['sender', 'receiver', 'reseller'].includes(fields.shippingPayer)) {
+    throw new BadRequestException('shippingPayer must be sender, receiver, or reseller.');
+  }
   const weight = Number(fields.shippingWeightKg);
   if (fields.shippingWeightKg == null || !Number.isFinite(weight) || weight <= 0) {
     throw new BadRequestException(
       'shippingWeightKg must be a positive number when shipping via a carrier.',
-    );
-  }
-  if (fields.shippingPackageType === ShippingPackageType.envelope && weight !== 1) {
-    throw new BadRequestException('Envelope shipments must weigh exactly 1 kg (Babel Express rule).');
-  }
-  if (fields.shippingPackageType === ShippingPackageType.box && weight > BABEL_MAX_BOX_WEIGHT_KG) {
-    throw new BadRequestException(
-      `Shipment weight ${weight} kg is too high for Babel Express (max ${BABEL_MAX_BOX_WEIGHT_KG} kg for a box). Enter the actual package weight in kilograms — not COD amount or currency.`,
     );
   }
   if (fields.shippingPhoneCountry != null && fields.shippingPhoneCountry.trim() !== '') {

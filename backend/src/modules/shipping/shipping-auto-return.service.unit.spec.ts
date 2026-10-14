@@ -64,12 +64,23 @@ describe('ShippingAutoReturnService', () => {
       generateForDeliveredOrder: jest.fn(),
     };
 
+    const expectedReturnHoldMock = {
+      activateHold: jest.fn().mockResolvedValue({
+        activated: true,
+        state: 'active',
+        totalQuantity: '2',
+      }),
+      assertConvertible: jest.fn().mockResolvedValue({ ok: true, state: 'active' }),
+      assertReleasable: jest.fn().mockResolvedValue({ ok: true, state: 'active' }),
+    };
+
     service = new ShippingAutoReturnService(
       prismaMock,
       realtimeMock,
       stockHelpersMock,
       ledgerMock,
       codRecordsMock,
+      expectedReturnHoldMock as never,
     );
   });
 

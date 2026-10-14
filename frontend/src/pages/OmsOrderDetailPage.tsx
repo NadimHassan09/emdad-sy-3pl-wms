@@ -14,6 +14,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { Modal } from '../components/Modal';
 import { TextField } from '../components/TextField';
 import { useToast } from '../components/ToastProvider';
+import { useAuth } from '../auth/AuthContext';
 import { QK } from '../constants/query-keys';
 import {
   mapOmsCommercialDisplayStatus,
@@ -43,6 +44,7 @@ export function OmsOrderDetailPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
+  const { user } = useAuth();
 
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -172,7 +174,17 @@ export function OmsOrderDetailPage() {
   const returnedMut = useMutation({
     mutationFn: () => OmsApi.returned(id),
     onSuccess: () => {
-      toast.success('Return request created (awaiting confirmation in Returns).');
+      toast.success('Return coordinated. Stock is unchanged until the warehouse confirms receipt.');
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ['oms-returns'] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const undoReturnMut = useMutation({
+    mutationFn: () => OmsApi.undoConfirmedReturn(id),
+    onSuccess: () => {
+      toast.success('Confirmed return undone. Order is ready to ship.');
       invalidate();
       void qc.invalidateQueries({ queryKey: ['oms-returns'] });
     },
@@ -275,6 +287,7 @@ export function OmsOrderDetailPage() {
   const canMarkFailedDelivery =
     commercial === 'shipped' || order.status === 'out_for_delivery';
   const canMarkReturned = order.status === 'failed_delivery';
+  const canUndoConfirmedReturn = user?.role === 'super_admin' && order.status === 'returned';
   const canRevertDelivery = commercial === 'delivered';
   const canUndoCancel = Boolean(order.canRevertCancel);
   const canCancel = isOmsAdminCancellableStatus(order.status);
@@ -347,7 +360,16 @@ export function OmsOrderDetailPage() {
                 loading={returnedMut.isPending}
                 onClick={() => returnedMut.mutate()}
               >
-                Mark as return
+                Coordinate return
+              </Button>
+            ) : null}
+            {canUndoConfirmedReturn ? (
+              <Button
+                variant="secondary"
+                loading={undoReturnMut.isPending}
+                onClick={() => undoReturnMut.mutate()}
+              >
+                Undo confirmed return
               </Button>
             ) : null}
             {canRevertDelivery ? (
@@ -601,6 +623,15 @@ export function OmsOrderDetailPage() {
                 <Field
                   label="Shipping fee"
                   value={fmtMoney(order.shippingFee, order.currency)}
+                />
+                <Field
+                  label="Shipping cost"
+                  value={fmtMoney(
+                    order.linkedOutboundOrder?.shippingCost != null
+                      ? String(order.linkedOutboundOrder.shippingCost)
+                      : null,
+                    order.linkedOutboundOrder?.shippingCostCurrency ?? order.currency,
+                  )}
                 />
                 <Field
                   label="Subtotal"

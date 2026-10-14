@@ -19,6 +19,9 @@ import { OmsSalesChannelService } from './sales-channels/oms-sales-channel.servi
 import { OmsWebhooksController } from './sales-channels/oms-webhooks.controller';
 import { OrderAllocationService } from './order-allocation.service';
 import { OmsWaybillService } from './oms-waybill.service';
+import { OmsInstructionPdfService } from './oms-instruction-pdf.service';
+import { OmsBatchController } from './oms-batch.controller';
+import { OmsBatchService } from './oms-batch.service';
 
 @Module({
   imports: [
@@ -31,7 +34,7 @@ import { OmsWaybillService } from './oms-waybill.service';
     forwardRef(() => ShippingModule),
     forwardRef(() => ClientPortalModule),
   ],
-  controllers: [OmsController, OmsWebhooksController],
+  controllers: [OmsController, OmsBatchController, OmsWebhooksController],
   providers: [
     OrderAllocationService,
     OmsOrderEventsService,
@@ -42,6 +45,8 @@ import { OmsWaybillService } from './oms-waybill.service';
     OmsDashboardService,
     OmsSalesChannelService,
     OmsWaybillService,
+    OmsInstructionPdfService,
+    OmsBatchService,
   ],
   exports: [
     OrderAllocationService,

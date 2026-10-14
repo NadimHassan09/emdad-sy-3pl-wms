@@ -6,7 +6,8 @@ describe('ShippingProviderRegistry', () => {
   it('registers Babel Express by code', () => {
     const adapter = new BabelExpressAdapter(new BabelExpressHttpClient());
     const silaMock = { code: 'SILA_SY' } as any;
-    const registry = new ShippingProviderRegistry(adapter, silaMock);
+    const mockCarrier = { code: 'MOCK_CARRIER' } as any;
+    const registry = new ShippingProviderRegistry(adapter, silaMock, mockCarrier);
     expect(registry.has(BABEL_EXPRESS_CODE)).toBe(true);
     expect(registry.get(BABEL_EXPRESS_CODE).code).toBe(BABEL_EXPRESS_CODE);
     expect(() => registry.get('UNKNOWN')).toThrow(/not registered/i);

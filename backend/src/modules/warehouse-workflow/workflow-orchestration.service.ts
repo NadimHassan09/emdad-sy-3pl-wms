@@ -359,7 +359,9 @@ export class WorkflowOrchestrationService {
           if (order?.requiresPacking === false) {
             await this.spawnShippingDetailsIfNeeded(tx, wf.id, orderId);
           } else {
-            await this.spawnPackIfNeeded(tx, wf.id, orderId);
+            const lineIds = body.picks.map((p) => p.outbound_order_line_id);
+            // Caller already verified requiresPacking; pass line ids to skip reloading order lines.
+            await this.spawnPackIfNeeded(tx, wf.id, orderId, lineIds, true);
           }
         }
         break;
@@ -384,13 +386,20 @@ export class WorkflowOrchestrationService {
     }
   }
 
-  private async spawnPackIfNeeded(tx: Prisma.TransactionClient, instanceId: string, orderId: string) {
+  private async spawnPackIfNeeded(
+    tx: Prisma.TransactionClient,
+    instanceId: string,
+    orderId: string,
+    knownLineIds?: string[],
+    packingAlreadyRequired = false,
+  ) {
     const existing = await tx.warehouseTask.findFirst({
       where: {
         workflowInstanceId: instanceId,
         taskType: WarehouseTaskType.pack,
       },
       orderBy: { createdAt: 'desc' },
+      select: { id: true, status: true },
     });
     if (
       existing &&
@@ -404,12 +413,27 @@ export class WorkflowOrchestrationService {
       return;
     }
 
-    const order = await tx.outboundOrder.findUnique({
-      where: { id: orderId },
-      include: { lines: { orderBy: { lineNumber: 'asc' } } },
-    });
-    if (!order) throw new BadRequestException('Outbound order missing for pack spawn.');
-    if (order.requiresPacking === false) return;
+    let lineIds =
+      knownLineIds?.filter((id) => typeof id === 'string' && id.length > 0) ?? [];
+    if (lineIds.length === 0) {
+      const order = await tx.outboundOrder.findUnique({
+        where: { id: orderId },
+        select: {
+          requiresPacking: true,
+          lines: { orderBy: { lineNumber: 'asc' }, select: { id: true } },
+        },
+      });
+      if (!order) throw new BadRequestException('Outbound order missing for pack spawn.');
+      if (order.requiresPacking === false) return;
+      lineIds = order.lines.map((l) => l.id);
+    } else if (!packingAlreadyRequired) {
+      const order = await tx.outboundOrder.findUnique({
+        where: { id: orderId },
+        select: { requiresPacking: true },
+      });
+      if (!order) throw new BadRequestException('Outbound order missing for pack spawn.');
+      if (order.requiresPacking === false) return;
+    }
 
     const seq = await this.nextNodeSequence(tx, instanceId);
     const node = await tx.workflowNode.create({
@@ -430,7 +454,7 @@ export class WorkflowOrchestrationService {
         slaMinutes: defaultSlaMinutesForTaskType(WarehouseTaskType.pack),
         payload: {
           outbound_order_id: orderId,
-          outbound_order_line_ids: order.lines.map((l) => l.id),
+          outbound_order_line_ids: lineIds,
         } as object as Prisma.InputJsonValue,
       },
     });

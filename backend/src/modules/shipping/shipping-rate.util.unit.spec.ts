@@ -69,4 +69,39 @@ describe('annotateRateQuotes', () => {
     expect(out[0].isFastest).toBe(false);
     expect(out[0].isCheapest).toBe(true);
   });
+
+  it('recommends cheaper SYP over smaller USD raw number using FX', () => {
+    const out = annotateRateQuotes(
+      [
+        {
+          carrierId: 'USD_EXPENSIVE',
+          carrierName: 'USD',
+          serviceId: 'a',
+          serviceName: 'A',
+          available: true,
+          price: 2,
+          currency: 'USD',
+        },
+        {
+          carrierId: 'SYP_CHEAP',
+          carrierName: 'SYP',
+          serviceId: 'b',
+          serviceName: 'B',
+          available: true,
+          price: 100,
+          currency: 'SYP',
+        },
+      ],
+      {
+        snapshot: {
+          usdToSypRate: 14500,
+          source: 'test',
+          timestamp: '2026-10-03T00:00:00.000Z',
+        },
+      },
+    );
+    expect(out[0].carrierId).toBe('SYP_CHEAP');
+    expect(out.find((q) => q.carrierId === 'SYP_CHEAP')?.isRecommended).toBe(true);
+    expect(out.find((q) => q.carrierId === 'USD_EXPENSIVE')?.isRecommended).toBe(false);
+  });
 });

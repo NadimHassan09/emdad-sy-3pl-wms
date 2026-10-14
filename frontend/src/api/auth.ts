@@ -96,4 +96,18 @@ export const AuthApi = {
   async deleteAvatar(): Promise<void> {
     await api.delete('/auth/avatar');
   },
+
+  async updateProfile(body: { fullName: string }): Promise<MeResponse> {
+    const { data } = await api.patch<MeResponse>('/auth/profile', body);
+    return data;
+  },
+
+  async changePassword(body: {
+    currentPassword: string;
+    newPassword: string;
+    rememberMe?: boolean;
+  }): Promise<LoginResponse> {
+    const { data } = await api.post<LoginResponse>('/auth/change-password', body);
+    return data;
+  },
 };

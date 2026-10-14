@@ -58,7 +58,9 @@ describe('oms client import validation', () => {
 
   it('requires M/DD/YYYY ship dates with English digits', () => {
     expect(parseImportShipDateMdY('9/01/2026')).toEqual({ ok: true, ymd: '2026-09-01' });
+    expect(parseImportShipDateMdY('09/29/2026')).toEqual({ ok: true, ymd: '2026-09-29' });
     expect(parseImportShipDateMdY('2026-09-01').ok).toBe(false);
+    expect(parseImportShipDateMdY('29/10/2026').ok).toBe(false);
     expect(parseImportShipDateMdY('٠١/٠٩/٢٠٢٦').ok).toBe(false);
   });
 

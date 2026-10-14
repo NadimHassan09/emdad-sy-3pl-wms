@@ -63,6 +63,7 @@ function sidebarLabel(label: string, isArabic: boolean): string {
     Outbound: 'الصادر',
     'OMS Dashboard': 'لوحة OMS',
     'OMS Orders': 'طلبات OMS',
+    Batches: 'المجموعات',
     COD: 'COD',
     'OMS Returns': 'مرتجعات OMS',
     Inventory: 'المخزون',

@@ -50,6 +50,15 @@ export class ClientOmsOrdersController {
     return this.oms.list(client, query);
   }
 
+  /** Must be registered before `orders/:id` so "nav-counts" is not parsed as an id. */
+  @Get('orders/nav-counts')
+  statusNavCounts(
+    @ClientUser() client: ClientPrincipal,
+    @Query() query: ListClientOmsOrdersQueryDto,
+  ) {
+    return this.oms.statusNavCounts(client, query);
+  }
+
   /** Must be registered before `orders/:id` so "status-summary" is not parsed as an id. */
   @Get('orders/status-summary')
   statusSummary(
@@ -153,6 +162,15 @@ export class ClientOmsOrdersController {
   @Get('orders/:id/timeline')
   timeline(@ClientUser() client: ClientPrincipal, @Param('id', ParseUuidLoosePipe) id: string) {
     return this.oms.timeline(client, id);
+  }
+
+  /** Full carrier tracking history (not OMS milestones). Provider name omitted. */
+  @Get('orders/:id/shipping-movement')
+  shippingMovement(
+    @ClientUser() client: ClientPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.oms.getShippingMovement(client, id);
   }
 
   @Get('cod-report')

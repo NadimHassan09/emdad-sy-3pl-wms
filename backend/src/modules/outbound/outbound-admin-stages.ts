@@ -34,6 +34,23 @@ export function outboundRequiresPacking(flags: {
   return flags.requiresPacking !== false && flags.planRequiresPacking !== false;
 }
 
+/**
+ * Manual shipping can be confirmed while the order is still on the method step.
+ * The stored method is already manual; confirm must record that choice and then
+ * mark shipping details complete. Carrier orders stay on the method step until
+ * a shipment is sent.
+ */
+export function manualShippingConfirmNeedsMethodStep(
+  status: OutboundOrderStatus | string,
+  shippingMethod: string | null | undefined,
+): boolean {
+  return (
+    shippingMethod === 'manual' &&
+    (status === OutboundOrderStatus.waiting_for_shipping_method ||
+      status === 'waiting_for_shipping_method')
+  );
+}
+
 /** Expected next Admin CTA for the current outbound status. */
 export function nextOutboundAdminAction(
   status: OutboundOrderStatus | string,

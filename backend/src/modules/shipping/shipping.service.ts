@@ -17,13 +17,30 @@ import { RealtimeService } from '../realtime/realtime.service';
 import { composeDestinationAddress } from '../oms/oms-order.mapper';
 import { BabelAddressAdapter } from './providers/babel-express/babel-address.adapter';
 import { AddressResolveService } from './address-resolve.service';
+import { convertCodCollection } from './cod-collection';
+import { ShippingFxService } from './shipping-fx.service';
 import { BabelApiError } from './providers/babel-express/babel-express.http-client';
 import { parsePhoneForBabel, resolveBabelCodCurrency } from './providers/babel-express/babel-shipment.mapper';
 import { BABEL_EXPRESS_CODE, ShippingProviderRegistry } from './shipping-provider.registry';
 import { resolveShippingCarrierName } from './shipping-carrier-resolver';
 import { assertCarrierShippingReady, type ShippingConfigFields } from './shipping-config.util';
+import {
+  classifyShippingError,
+  mayCreateShipment,
+  packShippingError,
+  phoneTail,
+  shippingFailureFields,
+  type ShippingFailure,
+} from './shipping-error';
+import { preflightCarrierShipment } from './shipping-preflight';
 import type { QuoteShippingRatesDto } from './dto/quote-shipping-rates.dto';
 import { ShippingGeoService, type AreaBoundary } from './shipping-geo.service';
+import type {
+  ShippingParty,
+  ShippingProvider,
+  ShippingQuoteResult,
+} from './shipping-provider.interface';
+import { resolveCollectionForService } from './provider-cod';
 import {
   annotateRateQuotes,
   type ShippingRateError,
@@ -35,6 +52,11 @@ import {
   toBabelWeightParts,
 } from './shipment-parts.util';
 import { parseShippingCartons } from './shipping-cartons.types';
+import {
+  buildDestinationKey,
+  isQuoteFingerprintFresh,
+  type QuoteFingerprint,
+} from './quote-freshness';
 
 export type ShippingProviderAdminView = {
   code: string;
@@ -112,12 +134,207 @@ export class ShippingService {
     private readonly geo: ShippingGeoService,
     private readonly babelAddress: BabelAddressAdapter,
     private readonly addressResolve: AddressResolveService,
+    private readonly fx: ShippingFxService,
   ) {}
+
+  private static readonly ORIGIN_ADDRESS_ID = 'default';
+
+  async getOriginAddress() {
+    const row = await this.prisma.shippingOriginAddress.findUnique({
+      where: { id: ShippingService.ORIGIN_ADDRESS_ID },
+    });
+    if (!row) return null;
+    return {
+      contactName: row.contactName,
+      phone: row.phone,
+      city: row.city,
+      district: row.district,
+      street: row.street,
+      lat: row.lat != null ? Number(row.lat) : null,
+      lng: row.lng != null ? Number(row.lng) : null,
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  async saveOriginAddress(
+    input: {
+      contactName: string;
+      phone: string;
+      city: string;
+      district?: string;
+      street: string;
+      lat?: number;
+      lng?: number;
+    },
+    userId: string,
+  ) {
+    const lat = Number.isFinite(input.lat) ? input.lat : null;
+    const lng = Number.isFinite(input.lng) ? input.lng : null;
+    await this.prisma.shippingOriginAddress.upsert({
+      where: { id: ShippingService.ORIGIN_ADDRESS_ID },
+      create: {
+        id: ShippingService.ORIGIN_ADDRESS_ID,
+        contactName: input.contactName.trim(),
+        phone: input.phone.trim(),
+        city: input.city.trim(),
+        district: input.district?.trim() || null,
+        street: input.street.trim(),
+        lat,
+        lng,
+        updatedByUserId: userId,
+      },
+      update: {
+        contactName: input.contactName.trim(),
+        phone: input.phone.trim(),
+        city: input.city.trim(),
+        district: input.district?.trim() || null,
+        street: input.street.trim(),
+        lat,
+        lng,
+        updatedByUserId: userId,
+      },
+    });
+    return this.getOriginAddress();
+  }
+
+  /**
+   * Store the collection currency and the converted amount. The original
+   * codAmount and currency stay as the order values.
+   */
+  async saveCodCollection(outboundOrderId: string, collectionCurrency: string) {
+    const order = await this.prisma.outboundOrder.findUnique({
+      where: { id: outboundOrderId },
+      include: {
+        omsOrder: { select: { id: true, codAmount: true, currency: true } },
+      },
+    });
+    if (!order) throw new NotFoundException('Outbound order not found');
+    const originalAmount = Number(order.omsOrder?.codAmount ?? order.codAmount ?? 0);
+    const originalCurrency = order.omsOrder?.currency?.trim() || order.currency || 'USD';
+    const rate = await this.fx.usableRate();
+    const converted = convertCodCollection({
+      orderAmount: originalAmount,
+      orderCurrency: originalCurrency,
+      collectionCurrency,
+      usdToSypRate: rate?.rate ?? null,
+      rateSource: rate?.source ?? null,
+      rateAt: rate?.at ?? null,
+    });
+    if ('error' in converted) {
+      throw new BadRequestException({
+        message:
+          converted.error === 'missing_rate'
+            ? 'No USD/SYP exchange rate is available. Set one on Shipping Companies before converting COD.'
+            : 'COD amount is not a valid number.',
+        code: 'SHIPMENT_CURRENCY',
+        fields: { currency: 'missing_rate' },
+      });
+    }
+    const data = {
+      codCollectionCurrency: converted.currency,
+      codCollectionAmount: new Prisma.Decimal(converted.amount),
+      codFxRate: converted.rate != null ? new Prisma.Decimal(converted.rate) : null,
+      codFxSource: converted.source,
+      codFxAt: converted.rateAt ? new Date(converted.rateAt) : null,
+    };
+    await this.prisma.outboundOrder.update({ where: { id: order.id }, data });
+    if (order.omsOrder?.id) {
+      await this.prisma.omsOrder.update({ where: { id: order.omsOrder.id }, data });
+    }
+    return {
+      originalAmount,
+      originalCurrency,
+      ...converted,
+    };
+  }
+
+  /** Drop a previously chosen collection so All uses the original order currency. */
+  async clearCodCollection(outboundOrderId: string) {
+    const order = await this.prisma.outboundOrder.findUnique({
+      where: { id: outboundOrderId },
+      select: { id: true, omsOrder: { select: { id: true } } },
+    });
+    if (!order) throw new NotFoundException('Outbound order not found');
+    const data = {
+      codCollectionCurrency: null,
+      codCollectionAmount: null,
+      codFxRate: null,
+      codFxSource: null,
+      codFxAt: null,
+    };
+    await this.prisma.outboundOrder.update({ where: { id: order.id }, data });
+    if (order.omsOrder?.id) {
+      await this.prisma.omsOrder.update({ where: { id: order.omsOrder.id }, data });
+    }
+  }
+
+  /**
+   * Pickup party shared by every carrier. Comes only from the Shipping Companies
+   * origin address — never from the order, warehouse, or customer delivery address.
+   */
+  async getConfiguredPickupParty(): Promise<ShippingParty | undefined> {
+    const row = await this.prisma.shippingOriginAddress.findUnique({
+      where: { id: ShippingService.ORIGIN_ADDRESS_ID },
+    });
+    if (!row) return undefined;
+    const phone = parsePhoneForBabel(row.phone);
+    const street = row.street.trim();
+    const city = row.city.trim();
+    const district = row.district?.trim() || '';
+    if (!row.contactName.trim() || !street || !city || !phone) return undefined;
+    let lat = row.lat != null ? Number(row.lat) : undefined;
+    let lng = row.lng != null ? Number(row.lng) : undefined;
+    const cityRegion = district || city;
+    const townNeighborhood = district || street;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      const resolved = this.resolveReceiverCoordinatesFromAddress({
+        governorate: city,
+        cityRegion,
+        townNeighborhood,
+      });
+      if (resolved) {
+        lat = resolved.lat;
+        lng = resolved.lng;
+      }
+    }
+    const neighbourhoodId = await this.babelAddress.resolveNeighbourhoodId({
+      governorate: city,
+      cityRegion,
+      townNeighborhood,
+    });
+    return {
+      name: row.contactName.trim(),
+      phoneCountry: phone.country,
+      phoneLocal: phone.phone,
+      address: [street, district, city].filter(Boolean).join('، '),
+      governorate: city,
+      city,
+      neighborhood: district || street,
+      ...(Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : {}),
+      ...(neighbourhoodId != null ? { neighbourhoodId } : {}),
+    };
+  }
 
   private readonly rateCache = new Map<
     string,
     { at: number; value: QuoteDestinationRatesResult }
   >();
+  /** Coalesce identical in-flight rate requests (bulk stampede protection). */
+  private readonly rateInflight = new Map<string, Promise<QuoteDestinationRatesResult>>();
+  private providersQuoteCache:
+    | {
+        at: number;
+        rows: Array<{
+          code: string;
+          name: string;
+          connection: {
+            status: ShippingProviderConnectionStatus;
+            encryptedUsername: string | null;
+            encryptedPassword: string | null;
+          } | null;
+        }>;
+      }
+    | null = null;
 
   async lookupAreaBoundary(params: {
     governorate?: string | null;
@@ -142,13 +359,15 @@ export class ShippingService {
    * Quote every connected adapter independently. One carrier failure does not fail the rest.
    */
   async quoteDestinationRates(dto: QuoteShippingRatesDto): Promise<QuoteDestinationRatesResult> {
+    const includeAll = dto.includeAllDeliveryTypes === true;
     const cacheKey = JSON.stringify({
       lat: dto.receiverLat != null ? roundCoord(dto.receiverLat) : null,
       lng: dto.receiverLng != null ? roundCoord(dto.receiverLng) : null,
       neighbourhoodId: dto.neighbourhoodId ?? null,
       packageType: dto.packageType,
       weightKg: dto.weightKg,
-      deliveryType: dto.deliveryType,
+      // When returning both modes, deliveryType must not split the cache.
+      deliveryType: includeAll ? 'all' : dto.deliveryType,
       pickupType: dto.pickupType ?? null,
       volumeCbm: dto.volumeCbm ?? null,
       codAmount: dto.codAmount ?? null,
@@ -156,15 +375,55 @@ export class ShippingService {
       gov: dto.governorate?.trim() || '',
       city: dto.city?.trim() || '',
       hood: dto.neighborhood?.trim() || '',
+      currency: dto.currency?.trim() || '',
+      rateCurrency: dto.rateCurrency?.trim() || '',
+      collectionMode: dto.collectionMode ?? 'explicit',
+      payer: dto.payer ?? '',
+      providerCode: dto.providerCode?.trim().toUpperCase() || '',
     });
     const cached = this.rateCache.get(cacheKey);
     if (cached && Date.now() - cached.at < 60_000) {
       return cached.value;
     }
 
-    const hasAddressNames = Boolean(
-      dto.governorate?.trim() && dto.city?.trim(),
-    );
+    const inflight = this.rateInflight.get(cacheKey);
+    if (inflight) return inflight;
+
+    const pending = this.quoteDestinationRatesUncached(dto, includeAll)
+      .then((value) => {
+        this.rateCache.set(cacheKey, { at: Date.now(), value });
+        if (this.rateCache.size > 120) {
+          const first = this.rateCache.keys().next().value;
+          if (first) this.rateCache.delete(first);
+        }
+        return value;
+      })
+      .finally(() => {
+        this.rateInflight.delete(cacheKey);
+      });
+    this.rateInflight.set(cacheKey, pending);
+    return pending;
+  }
+
+  private async listEnabledProvidersForQuote() {
+    const now = Date.now();
+    if (this.providersQuoteCache && now - this.providersQuoteCache.at < 30_000) {
+      return this.providersQuoteCache.rows;
+    }
+    const rows = await this.prisma.shippingProvider.findMany({
+      where: { enabled: true },
+      include: { connection: true },
+      orderBy: { name: 'asc' },
+    });
+    this.providersQuoteCache = { at: now, rows };
+    return rows;
+  }
+
+  private async quoteDestinationRatesUncached(
+    dto: QuoteShippingRatesDto,
+    includeAll: boolean,
+  ): Promise<QuoteDestinationRatesResult> {
+    const hasAddressNames = Boolean(dto.governorate?.trim() && dto.city?.trim());
 
     let receiverLat: number | null = null;
     let receiverLng: number | null = null;
@@ -208,14 +467,15 @@ export class ShippingService {
       });
     }
 
-    const providers = await this.prisma.shippingProvider.findMany({
-      where: { enabled: true },
-      include: { connection: true },
-      orderBy: { name: 'asc' },
-    });
+    const providerFilter = dto.providerCode?.trim().toUpperCase() || '';
+    const providers = (await this.listEnabledProvidersForQuote()).filter((row) =>
+      providerFilter ? row.code.toUpperCase() === providerFilter : true,
+    );
 
     const quotes: ShippingRateQuote[] = [];
     const errors: ShippingRateError[] = [];
+    const pickup =
+      (dto.pickupType ?? 'address') === 'hub' ? undefined : await this.getConfiguredPickupParty();
 
     await Promise.all(
       providers.map(async (row) => {
@@ -232,20 +492,21 @@ export class ShippingService {
             username: this.encryption.decrypt(row.connection!.encryptedUsername!),
             password: this.encryption.decrypt(row.connection!.encryptedPassword!),
           };
-          const quoteInput = {
+          const baseInput = {
             receiverLat: hasCoords ? receiverLat! : 0,
             receiverLng: hasCoords ? receiverLng! : 0,
             neighbourhoodId: neighbourhoodId ?? undefined,
             packageType: dto.packageType,
             weightKg: dto.packageType === 'envelope' ? 1 : dto.weightKg,
             deliveryType: dto.deliveryType,
-            pickupType: dto.pickupType ?? 'hub',
+            pickupType: dto.pickupType ?? 'address',
+            pickup,
             volumeCbm: dto.volumeCbm ?? undefined,
             governorate: dto.governorate,
             city: dto.city,
             neighborhood: dto.neighborhood,
             codAmount: dto.codAmount ?? undefined,
-            currency: dto.currency ?? undefined,
+            currency: dto.rateCurrency ?? undefined,
             ...(dto.parts && dto.parts.length > 0
               ? {
                   parts: dto.parts.map((p) => ({
@@ -255,22 +516,24 @@ export class ShippingService {
               : {}),
           };
 
-          const rawResults = adapter.getServiceOptions
-            ? await adapter.getServiceOptions(credentials, quoteInput)
-            : [await adapter.getQuote(credentials, quoteInput)];
+          const rawResults = includeAll
+            ? await this.collectProviderOptionsAllDeliveryTypes(adapter, credentials, baseInput)
+            : adapter.getServiceOptions
+              ? await adapter.getServiceOptions(credentials, baseInput)
+              : [await adapter.getQuote(credentials, baseInput)];
 
           if (rawResults.length === 0) {
             errors.push({
               carrierId: row.code,
               carrierName: row.name,
-              message: 'Not available for this destination / shipment configuration.',
+              message: 'Provider quote returned no eligible service.',
             });
             return;
           }
 
           for (const res of rawResults) {
-            const quotedDeliveryType = res.effectiveDeliveryType ?? dto.deliveryType;
             if (res.shippable === false) continue;
+            const quotedDeliveryType = res.effectiveDeliveryType ?? dto.deliveryType;
             quotes.push({
               carrierId: row.code,
               carrierName: row.name,
@@ -304,17 +567,67 @@ export class ShippingService {
       }),
     );
 
-    const result: QuoteDestinationRatesResult = {
+    return {
       inSelectedArea: hasCoords ? true : null,
       quotes: annotateRateQuotes(quotes),
       errors,
     };
-    this.rateCache.set(cacheKey, { at: Date.now(), value: result });
-    if (this.rateCache.size > 80) {
-      const first = this.rateCache.keys().next().value;
-      if (first) this.rateCache.delete(first);
+  }
+
+  /**
+   * One HTTP /shipping/rates request → address + hub options.
+   * Babel getServiceOptions already returns both; Sila needs a second call for hub.
+   */
+  private async collectProviderOptionsAllDeliveryTypes(
+    adapter: {
+      getServiceOptions?: (
+        credentials: { username: string; password: string },
+        input: Parameters<NonNullable<ShippingProvider['getServiceOptions']>>[1],
+      ) => Promise<ShippingQuoteResult[]>;
+      getQuote: (
+        credentials: { username: string; password: string },
+        input: Parameters<ShippingProvider['getQuote']>[1],
+      ) => Promise<ShippingQuoteResult>;
+      code?: string;
+    },
+    credentials: { username: string; password: string },
+    baseInput: Parameters<ShippingProvider['getQuote']>[1],
+  ): Promise<ShippingQuoteResult[]> {
+    const quoteKey = (r: ShippingQuoteResult) =>
+      `${r.serviceId ?? ''}::${r.effectiveDeliveryType ?? 'address'}::${r.price}::${r.currency}`;
+
+    if (adapter.getServiceOptions) {
+      // Babel already returns address+hub in one getServiceOptions call.
+      // Sila is deliveryType-sensitive — call hub only when missing.
+      const primary = await adapter.getServiceOptions(credentials, {
+        ...baseInput,
+        deliveryType: 'address',
+      });
+      const types = new Set(primary.map((r) => r.effectiveDeliveryType ?? 'address'));
+      if (types.has('hub')) {
+        return primary;
+      }
+      const hubOpts = await adapter.getServiceOptions(credentials, {
+        ...baseInput,
+        deliveryType: 'hub',
+      });
+      const merged = [...primary];
+      const seen = new Set(primary.map(quoteKey));
+      for (const r of hubOpts) {
+        const k = quoteKey(r);
+        if (!seen.has(k)) {
+          seen.add(k);
+          merged.push(r);
+        }
+      }
+      return merged;
     }
-    return result;
+
+    const [addressQuote, hubQuote] = await Promise.all([
+      adapter.getQuote(credentials, { ...baseInput, deliveryType: 'address' }).catch(() => null),
+      adapter.getQuote(credentials, { ...baseInput, deliveryType: 'hub' }).catch(() => null),
+    ]);
+    return [addressQuote, hubQuote].filter((q): q is ShippingQuoteResult => q != null);
   }
 
   /**
@@ -342,7 +655,7 @@ export class ShippingService {
 
   /**
    * Backend re-check before OMS create/update or Send Shipment.
-   * Does not trust the frontend rate cards.
+   * Does not trust the frontend rate cards unless a fresh matching quote fingerprint is provided.
    */
   async assertLiveCarrierSelection(params: {
     fields: ShippingConfigFields;
@@ -350,6 +663,14 @@ export class ShippingService {
     city?: string | null;
     neighborhood?: string | null;
     requireQuote?: boolean;
+    /** When present and fresh+matching, skip the live getQuote call. */
+    quoteFingerprint?: QuoteFingerprint | null;
+    shippingServiceId?: string | null;
+    quotedAmount?: number | null;
+    quotedCurrency?: string | null;
+    partsKey?: string | null;
+    codAmount?: number | null;
+    collectionCurrency?: string | null;
   }): Promise<void> {
     if ((params.fields.shippingMethod ?? ShippingMethod.manual) !== ShippingMethod.carrier) {
       return;
@@ -401,6 +722,51 @@ export class ShippingService {
           'Shipping address (Governorate / City / Town), package type, weight, and delivery type are required to confirm the shipping company.',
         );
       }
+      return;
+    }
+
+    const destinationKey = buildDestinationKey({
+      neighbourhoodId,
+      governorate: params.governorate,
+      city: params.city,
+      neighborhood: params.neighborhood,
+      lat: hasCoords ? lat : null,
+      lng: hasCoords ? lng : null,
+    });
+    const serviceId =
+      params.shippingServiceId?.trim() ||
+      params.quoteFingerprint?.serviceId?.trim() ||
+      '';
+    const amount =
+      params.quotedAmount != null
+        ? Number(params.quotedAmount)
+        : params.quoteFingerprint?.amount != null
+          ? Number(params.quoteFingerprint.amount)
+          : NaN;
+    const currency =
+      params.quotedCurrency?.trim() ||
+      params.quoteFingerprint?.currency?.trim() ||
+      'USD';
+
+    if (
+      params.quoteFingerprint &&
+      serviceId &&
+      Number.isFinite(amount) &&
+      isQuoteFingerprintFresh(params.quoteFingerprint, {
+        providerCode: code,
+        serviceId,
+        currency,
+        amount,
+        deliveryType: String(params.fields.shippingDeliveryType),
+        packageType: String(params.fields.shippingPackageType),
+        weightKg: params.fields.shippingPackageType === 'envelope' ? 1 : weight,
+        destinationKey,
+        partsKey: params.partsKey ?? params.quoteFingerprint.partsKey ?? '',
+      })
+    ) {
+      this.logger.debug(
+        `Skipping live re-quote for ${code} — fresh fingerprint matches destination/service.`,
+      );
       return;
     }
 
@@ -540,7 +906,10 @@ export class ShippingService {
    * Concurrency: claim a `pending` carrier_shipments row (partial unique index) before
    * calling the provider; reuse existing AWB/tracking when already present.
    */
-  async ensureShipmentForOutbound(outboundOrderId: string): Promise<void> {
+  async ensureShipmentForOutbound(
+    outboundOrderId: string,
+    opts?: { acknowledgeNoExternalShipment?: boolean },
+  ): Promise<void> {
     const order = await this.prisma.outboundOrder.findUnique({
       where: { id: outboundOrderId },
       include: {
@@ -567,6 +936,7 @@ export class ShippingService {
             paymentMethod: true,
             codAmount: true,
             currency: true,
+            codCollectionCurrency: true,
             babelNeighbourhoodId: true,
             city: true,
             district: true,
@@ -626,6 +996,35 @@ export class ShippingService {
       },
     });
     if (existingCreated) {
+      return;
+    }
+
+    const ambiguousRow = await this.prisma.carrierShipment.findFirst({
+      where: { outboundOrderId, status: CarrierShipmentStatus.failed },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, rawResultMeta: true, lastErrorSafe: true },
+    });
+    const ambiguousMeta = ambiguousRow?.rawResultMeta as
+      | { shippingError?: { category?: string } }
+      | null
+      | undefined;
+    const gate = mayCreateShipment({
+      hasCreated: false,
+      ambiguousOutstanding: ambiguousMeta?.shippingError?.category === 'ambiguous',
+      acknowledged: opts?.acknowledgeNoExternalShipment === true,
+    });
+    if (!gate.allow && gate.reason === 'ambiguous') {
+      this.logger.warn(
+        JSON.stringify({
+          msg: 'carrier_create_blocked',
+          outboundOrderId,
+          orderNumber: order.orderNumber,
+          claimId: ambiguousRow?.id ?? null,
+          category: 'ambiguous',
+          field: null,
+          outcome: 'blocked',
+        }),
+      );
       return;
     }
 
@@ -817,15 +1216,15 @@ export class ShippingService {
 
     const oms = order.omsOrder;
     const paymentMethod = order.paymentMethod ?? oms?.paymentMethod ?? null;
-    const rawCodAmount = order.codAmount ?? oms?.codAmount ?? null;
-    const orderCurrency = order.currency ?? oms?.currency ?? null;
-
+    const rawCodAmount = oms?.codAmount != null ? oms.codAmount : order.codAmount;
+    const orderCurrency = oms?.currency?.trim() ? oms.currency : order.currency;
     const isCod = paymentMethod === 'COD';
-    const codAmount =
-      isCod && rawCodAmount != null ? Number(rawCodAmount) : 0;
-    const codCurrency = resolveBabelCodCurrency(orderCurrency);
+    const originalAmount = isCod && rawCodAmount != null ? Number(rawCodAmount) : 0;
+    const explicitCollection =
+      oms?.codCollectionCurrency?.trim() || order.codCollectionCurrency?.trim() || '';
+    const collectionMode = explicitCollection ? 'explicit' : 'all';
 
-    if (isCod && (!Number.isFinite(codAmount) || codAmount <= 0)) {
+    if (isCod && (!Number.isFinite(originalAmount) || originalAmount <= 0)) {
       await this.failClaim(
         claimId,
         outboundOrderId,
@@ -835,13 +1234,62 @@ export class ShippingService {
       );
       return;
     }
-    if (isCod && codCurrency === 'SYP' && codAmount < 1000) {
+
+    let codAmount = originalAmount;
+    let codCurrency = resolveBabelCodCurrency(orderCurrency);
+    let fxRate: number | null = null;
+    let fxSource: string | null = null;
+    let fxAt: string | null = null;
+    if (isCod) {
+      const rate = await this.fx.usableRate();
+      const converted = resolveCollectionForService({
+        providerCode,
+        serviceId: order.shippingServiceId ?? order.omsOrder?.shippingServiceId,
+        deliveryType: order.shippingDeliveryType,
+        orderAmount: originalAmount,
+        orderCurrency,
+        requestedCurrency: explicitCollection || orderCurrency,
+        mode: collectionMode,
+        usdToSypRate: rate?.rate ?? null,
+        rateSource: rate?.source ?? null,
+        rateAt: rate?.at ?? null,
+      });
+      if (!converted.ok) {
+        const codFailure = classifyShippingError(converted.reason, {
+          providerCode,
+          correlationId: order.omsOrder?.orderNumber ?? order.orderNumber,
+          codAmount: originalAmount,
+          codCurrency: orderCurrency,
+          originalAmount,
+          originalCurrency: orderCurrency,
+          quoteCurrency: order.shippingQuotedCurrency,
+          payer: order.shippingPayer,
+        });
+        await this.failClaim(
+          claimId,
+          outboundOrderId,
+          order.companyId,
+          order.status,
+          codFailure.message,
+          codFailure,
+        );
+        return;
+      }
+      codAmount = converted.amount;
+      codCurrency = converted.currency;
+      fxRate = converted.rate;
+      fxSource = converted.source;
+      fxAt = converted.rateAt;
+    }
+
+    const pickup = await this.getConfiguredPickupParty();
+    if (!pickup) {
       await this.failClaim(
         claimId,
         outboundOrderId,
         order.companyId,
         order.status,
-        `COD amount ${codAmount} SYP is below Babel Express minimum (1,000 SYP).`,
+        'Pickup address is not set. A super admin must save it once on Shipping Companies.',
       );
       return;
     }
@@ -850,13 +1298,25 @@ export class ShippingService {
     const reference =
       order.omsOrder?.orderNumber ?? order.orderNumber ?? order.clientReference ?? undefined;
 
+    const located = this.addressResolve.resolveFromAddress({
+      governorate: order.city ?? order.omsOrder?.city,
+      cityRegion: order.district ?? order.omsOrder?.district,
+      townNeighborhood: order.addressLine1 ?? order.omsOrder?.addressLine1,
+    });
+    const receiverGovernorate = order.city ?? order.omsOrder?.city;
+    const receiverCity = located.found && located.cityRegion
+      ? located.cityRegion
+      : order.district ?? order.omsOrder?.district;
+    const receiverNeighborhood = located.found && located.townNeighborhood
+      ? located.townNeighborhood
+      : order.addressLine1 ?? order.omsOrder?.addressLine1;
     const babelNeighbourhoodId =
       order.babelNeighbourhoodId ??
       order.omsOrder?.babelNeighbourhoodId ??
       (await this.resolveBabelNeighbourhoodId({
-        governorate: order.city ?? order.omsOrder?.city,
-        cityRegion: order.district ?? order.omsOrder?.district,
-        townNeighborhood: order.addressLine1 ?? order.omsOrder?.addressLine1,
+        governorate: located.found && located.governorate ? located.governorate : receiverGovernorate,
+        cityRegion: receiverCity,
+        townNeighborhood: receiverNeighborhood,
       }));
 
     const physicalParts = buildPhysicalShipmentParts(
@@ -903,19 +1363,62 @@ export class ShippingService {
       }),
     );
 
-    const resolvedShipmentCoords = this.resolveReceiverCoordinatesFromAddress({
-      governorate: order.city ?? order.omsOrder?.city,
-      cityRegion: order.district ?? order.omsOrder?.district,
-      townNeighborhood: order.addressLine1 ?? order.omsOrder?.addressLine1,
-    });
     const shipmentReceiverLat =
-      resolvedShipmentCoords?.lat ??
-      (Number(order.shippingReceiverLat) || 0);
+      located.found && located.source === 'neighborhood'
+        ? located.lat
+        : Number(order.shippingReceiverLat) || (located.found ? located.lat : 0);
     const shipmentReceiverLng =
-      resolvedShipmentCoords?.lng ??
-      (Number(order.shippingReceiverLng) || 0);
+      located.found && located.source === 'neighborhood'
+        ? located.lng
+        : Number(order.shippingReceiverLng) || (located.found ? located.lng : 0);
 
     try {
+      const preflight = preflightCarrierShipment({
+        providerCode: provider.code,
+        reference,
+        payer: order.shippingPayer,
+        codAmount: isCod && Number.isFinite(codAmount) ? codAmount : 0,
+        codCurrency,
+        quoteCurrency: order.shippingQuotedCurrency,
+        receiverName: order.recipientName,
+        receiverPhone: phoneTail(order.recipientPhone),
+        receiverCity,
+        receiverNeighborhood,
+        senderName: pickup.name,
+        senderPhone: phoneTail(pickup.phoneLocal),
+        senderNeighborhood: pickup.neighborhood ?? pickup.address,
+        senderNeighborhoodId: pickup.neighbourhoodId,
+        senderLat: pickup.lat,
+        senderLng: pickup.lng,
+        pickupType: 'address',
+        deliveryType: order.shippingDeliveryType,
+        serviceId: order.shippingServiceId ?? order.omsOrder?.shippingServiceId,
+        weightKg,
+      });
+      if (!preflight.ok) {
+        this.logger.warn(
+          JSON.stringify({
+            msg: 'carrier_preflight_stop',
+            outboundOrderId,
+            orderNumber: order.omsOrder?.orderNumber ?? order.orderNumber,
+            provider: provider.code,
+            claimId,
+            category: preflight.failure.category,
+            field: preflight.failure.field,
+            outcome: 'preflight',
+          }),
+        );
+        await this.failClaim(
+          claimId,
+          outboundOrderId,
+          order.companyId,
+          order.status,
+          preflight.failure.message,
+          preflight.failure,
+        );
+        return;
+      }
+
       const serviceId =
         order.shippingServiceId ??
         order.omsOrder?.shippingServiceId ??
@@ -934,9 +1437,9 @@ export class ShippingService {
             lng: shipmentReceiverLng,
             neighbourhoodId:
               babelNeighbourhoodId != null ? Number(babelNeighbourhoodId) : undefined,
-            governorate: order.city ?? order.omsOrder?.city ?? undefined,
-            city: order.district ?? order.omsOrder?.district ?? undefined,
-            neighborhood: order.addressLine1 ?? order.omsOrder?.addressLine1 ?? undefined,
+            governorate: receiverGovernorate ?? undefined,
+            city: receiverCity ?? undefined,
+            neighborhood: receiverNeighborhood ?? undefined,
           },
           packageType: order.shippingPackageType!,
           weightKg:
@@ -944,7 +1447,8 @@ export class ShippingService {
           parts: babelParts,
           contents: order.shippingContents!.trim(),
           deliveryType: order.shippingDeliveryType!,
-          pickupType: order.shippingPickupType!,
+          pickupType: 'address',
+          pickup,
           payer: order.shippingPayer!,
           // Non-COD: amount 0 disables COD per Babel OpenAPI. COD: business amount + currency.
           codAmount: isCod && Number.isFinite(codAmount) ? codAmount : 0,
@@ -967,14 +1471,30 @@ export class ShippingService {
           return;
         }
 
+        const courierTracking = result.trackingNumber?.trim() || '';
+        if (provider.code === 'SILA_SY' && !courierTracking) {
+          throw new Error('Sila shipment is missing the courier tracking number.');
+        }
+        const storedTracking = courierTracking || result.awb.trim();
         await tx.carrierShipment.update({
           where: { id: claimId },
           data: {
             externalAwb: result.awb,
-            trackingNumber: result.awb,
+            trackingNumber: storedTracking,
             status: CarrierShipmentStatus.created,
             lastErrorSafe: null,
-            rawResultMeta: (result.raw ?? { awb: result.awb }) as Prisma.InputJsonValue,
+            rawResultMeta: {
+              ...(result.raw && typeof result.raw === 'object' ? (result.raw as object) : { awb: result.awb }),
+              codCollection: {
+                originalAmount,
+                originalCurrency: orderCurrency ?? null,
+                amount: codAmount,
+                currency: codCurrency,
+                rate: fxRate,
+                source: fxSource,
+                rateAt: fxAt,
+              },
+            } as Prisma.InputJsonValue,
           },
         });
 
@@ -998,7 +1518,8 @@ export class ShippingService {
           where: { id: outboundOrderId },
           data: {
             carrier: resolvedCarrierName,
-            trackingNumber: result.awb,
+            trackingNumber: courierTracking,
+            shippingPickupType: 'address',
           },
         });
 
@@ -1007,7 +1528,7 @@ export class ShippingService {
             where: { id: order.omsOrder.id },
             data: {
               carrier: resolvedCarrierName,
-              trackingNumber: result.awb,
+              trackingNumber: courierTracking,
             },
           });
         }
@@ -1015,17 +1536,74 @@ export class ShippingService {
 
       this.emitOutboundShippingUpdate(order.companyId, outboundOrderId, order.status);
     } catch (err) {
-      this.logger.warn(
-        `Carrier createShipment failed for outbound ${outboundOrderId}: ${safeErrorMessage(err)}`,
-      );
-      await this.prisma.carrierShipment.update({
-        where: { id: claimId },
-        data: {
-          status: CarrierShipmentStatus.failed,
-          lastErrorSafe: safeErrorMessage(err),
-        },
+      const raw = safeErrorMessage(err);
+      const failure = classifyShippingError(raw, {
+        providerCode: provider.code,
+        correlationId: reference,
+        payer: order.shippingPayer,
+        codAmount,
+        codCurrency,
+        originalAmount,
+        originalCurrency: orderCurrency,
+        fxRate,
+        quoteCurrency: order.shippingQuotedCurrency,
+        receiverNeighborhood: order.addressLine1 ?? order.omsOrder?.addressLine1,
+        senderNeighborhood: pickup.neighborhood ?? pickup.address,
       });
-      this.emitOutboundShippingUpdate(order.companyId, outboundOrderId, order.status);
+      if (failure.category === 'ambiguous' && adapter.findShipmentByReference && reference) {
+        try {
+          const found = await adapter.findShipmentByReference({ username, password }, reference);
+          if (found?.awb) {
+            await this.prisma.carrierShipment.update({
+              where: { id: claimId },
+              data: {
+                status: CarrierShipmentStatus.created,
+                externalAwb: found.awb,
+                trackingNumber: found.trackingNumber ?? found.awb,
+                lastErrorSafe: null,
+              },
+            });
+            this.logger.warn(
+              JSON.stringify({
+                msg: 'carrier_ambiguous_reconciled',
+                outboundOrderId,
+                orderNumber: order.omsOrder?.orderNumber ?? order.orderNumber,
+                provider: provider.code,
+                claimId,
+                category: 'ambiguous',
+                field: null,
+                outcome: 'created',
+                awb: found.awb,
+              }),
+            );
+            this.emitOutboundShippingUpdate(order.companyId, outboundOrderId, order.status);
+            return;
+          }
+        } catch {
+          /* lookup unsupported or empty — stay ambiguous */
+        }
+      }
+      this.logger.warn(
+        JSON.stringify({
+          msg: 'carrier_create_failed',
+          outboundOrderId,
+          orderNumber: order.omsOrder?.orderNumber ?? order.orderNumber,
+          provider: provider.code,
+          claimId,
+          category: failure.category,
+          field: failure.field,
+          outcome: 'failed',
+          receiverPhoneTail: phoneTail(order.recipientPhone),
+        }),
+      );
+      await this.failClaim(
+        claimId,
+        outboundOrderId,
+        order.companyId,
+        order.status,
+        failure.message,
+        failure,
+      );
     }
   }
 
@@ -1038,12 +1616,16 @@ export class ShippingService {
     companyId: string,
     orderStatus: string,
     message: string,
+    failure?: ShippingFailure,
   ) {
     await this.prisma.carrierShipment.update({
       where: { id: claimId },
       data: {
         status: CarrierShipmentStatus.failed,
-        lastErrorSafe: message,
+        lastErrorSafe: (failure ? packShippingError(failure) : message).slice(0, 2000),
+        ...(failure
+          ? { rawResultMeta: { shippingError: failure } as Prisma.InputJsonValue }
+          : {}),
       },
     });
     this.emitOutboundShippingUpdate(companyId, outboundOrderId, orderStatus);
@@ -1159,7 +1741,10 @@ export class ShippingService {
     this.emitOutboundShippingUpdate(params.companyId, params.outboundOrderId, params.status);
   }
 
-  async retryShipment(outboundOrderId: string): Promise<{ ok: boolean }> {
+  async retryShipment(
+    outboundOrderId: string,
+    opts?: { acknowledgeNoExternalShipment?: boolean },
+  ): Promise<{ ok: boolean }> {
     const created = await this.prisma.carrierShipment.findFirst({
       where: { outboundOrderId, status: CarrierShipmentStatus.created },
     });
@@ -1167,6 +1752,25 @@ export class ShippingService {
       throw new BadRequestException(
         'A successful carrier shipment already exists for this outbound order.',
       );
+    }
+    const latestFailed = await this.prisma.carrierShipment.findFirst({
+      where: { outboundOrderId, status: CarrierShipmentStatus.failed },
+      orderBy: { createdAt: 'desc' },
+      select: { rawResultMeta: true, lastErrorSafe: true },
+    });
+    const latestError = (latestFailed?.rawResultMeta as { shippingError?: ShippingFailure } | null)
+      ?.shippingError;
+    const retryGate = mayCreateShipment({
+      hasCreated: false,
+      ambiguousOutstanding: latestError?.category === 'ambiguous',
+      acknowledged: opts?.acknowledgeNoExternalShipment === true,
+    });
+    if (!retryGate.allow && retryGate.reason === 'ambiguous' && latestError) {
+      throw new BadRequestException({
+        message: latestFailed?.lastErrorSafe || latestError.message,
+        code: latestError.code,
+        fields: shippingFailureFields(latestError),
+      });
     }
     const order = await this.prisma.outboundOrder.findUnique({
       where: { id: outboundOrderId },
@@ -1191,7 +1795,7 @@ export class ShippingService {
       },
     });
 
-    await this.ensureShipmentForOutbound(outboundOrderId);
+    await this.ensureShipmentForOutbound(outboundOrderId, opts);
     return { ok: true };
   }
 

@@ -75,7 +75,12 @@ export class SilaSyHttpClient {
         (typeof errorObj?.message === 'string' && errorObj.message.trim()) ||
         (typeof errorObj?.code === 'string' && `Sila-SY error: ${errorObj.code}`) ||
         'Sila-SY request failed.';
-      throw new SilaSyApiError(message, res.status, json);
+      const fieldDetail = formatSilaFieldErrors(errorObj);
+      throw new SilaSyApiError(
+        fieldDetail ? `${message} ${fieldDetail}` : message,
+        res.status,
+        json,
+      );
     }
 
     if (!res.ok) {
@@ -96,4 +101,17 @@ export class SilaSyHttpClient {
     }
     return json as T;
   }
+}
+
+function formatSilaFieldErrors(errorObj: Record<string, unknown> | null): string {
+  const details = errorObj?.details;
+  if (!details || typeof details !== 'object') return '';
+  const fields = (details as Record<string, unknown>).fields;
+  if (!fields || typeof fields !== 'object') return '';
+  const parts: string[] = [];
+  for (const [field, messages] of Object.entries(fields as Record<string, unknown>)) {
+    const text = Array.isArray(messages) ? messages.map(String).join(', ') : String(messages ?? '');
+    if (text.trim()) parts.push(`${field}: ${text.trim()}`);
+  }
+  return parts.length ? `(${parts.join('; ')})` : '';
 }

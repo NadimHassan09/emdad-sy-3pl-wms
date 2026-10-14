@@ -89,7 +89,7 @@ export interface OutboundOrder {
   executionMode?: OrderExecutionMode | null;
   executionPlan?: OutboundExecutionPlan | null;
   /** Present when this outbound is the warehouse execution for an OMS order. */
-  omsOrder?: { id: string; orderNumber: string } | null;
+  omsOrder?: { id: string; orderNumber: string; currency?: string | null } | null;
   shippingMethod?: ShippingMethod | null;
   shippingProviderCode?: string | null;
   shippingReceiverLat?: string | number | null;
@@ -101,6 +101,9 @@ export interface OutboundOrder {
   shippingPayer?: ShippingPayer | null;
   shippingWeightKg?: string | number | null;
   shippingVolumeCbm?: string | number | null;
+  shippingQuotedPrice?: string | number | null;
+  shippingQuotedCurrency?: string | null;
+  shippingServiceId?: string | null;
   shippingPackages?: Array<{
     lines: Array<{ productId: string; quantity: number }>;
     lengthCm: number;
@@ -483,6 +486,10 @@ export const OutboundApi = {
       addressLine1?: string | null;
       addressLine2?: string | null;
       currency?: string | null;
+      codCollectionCurrency?: string | null;
+      codAmount?: number | null;
+      recipientName?: string | null;
+      recipientPhone?: string | null;
       shippingPackages?: Array<{
         lines: Array<{ productId: string; quantity: number }>;
         lengthCm: number;
@@ -499,10 +506,29 @@ export const OutboundApi = {
     );
     return data;
   },
-  async sendShippingDetails(id: string, companyIdOverride?: string): Promise<OutboundOrder> {
+  async sendShippingDetails(
+    id: string,
+    companyIdOverride?: string,
+    body?: {
+      quoteFingerprint?: {
+        providerCode: string;
+        serviceId: string;
+        currency: string;
+        amount: number;
+        deliveryType: string;
+        packageType: string;
+        weightKg: number;
+        destinationKey: string;
+        partsKey?: string;
+        quotedAt: string;
+        expiresAt: string;
+      } | null;
+      acknowledgeNoExternalShipment?: boolean;
+    },
+  ): Promise<OutboundOrder> {
     const { data } = await api.post<OutboundOrder>(
       `/outbound-orders/${id}/shipping-details/send`,
-      {},
+      body ?? {},
       { headers: companyIdOverride ? { 'X-Company-Id': companyIdOverride } : undefined },
     );
     return data;
@@ -582,6 +608,14 @@ export const OutboundApi = {
 
   async bulkCompleteDispatch(ids: string[]): Promise<BulkIdsResponse> {
     const { data } = await api.post<BulkIdsResponse>('/outbound-orders/bulk/complete-dispatch', { ids });
+    return data;
+  },
+
+  async bulkCompleteShippingDetails(ids: string[]): Promise<BulkIdsResponse> {
+    const { data } = await api.post<BulkIdsResponse>(
+      '/outbound-orders/bulk/complete-shipping-details',
+      { ids },
+    );
     return data;
   },
 };

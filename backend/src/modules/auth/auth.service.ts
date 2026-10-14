@@ -1,10 +1,15 @@
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { UserRole, UserStatus } from '@prisma/client';
 import type { Request, Response } from 'express';
 
-import { AuthGroup, userRoleToAuthGroup } from '../../common/auth/auth-groups';
+import { userRoleToAuthGroup } from '../../common/auth/auth-groups';
 import { AuditLogService } from '../../common/audit/audit-log.service';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { PasswordService } from '../../common/crypto/password.service';
@@ -15,7 +20,9 @@ import { ImageProcessingService } from '../media/image-processing.service';
 import { MediaStorageService } from '../media/media-storage.service';
 import { toAvatarPublicUrl } from '../media/avatar-url';
 import { RealtimeService } from '../realtime/realtime.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { RefreshSessionService } from './refresh-session.service';
 import type { JwtAccessPayload } from './strategies/jwt.strategy';
 
@@ -470,6 +477,113 @@ export class AuthService {
       where: { id: user.id },
       data: { avatarPath: null },
     });
+  }
+
+  /** Self-service profile update (display name only). */
+  async updateProfile(user: AuthPrincipal, dto: UpdateProfileDto) {
+    const fullName = dto.fullName.trim();
+    if (!fullName) {
+      throw new BadRequestException('Full name is required.');
+    }
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { fullName },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        companyId: true,
+        avatarPath: true,
+        googleSub: true,
+        googleEmail: true,
+        googleLinkedAt: true,
+      },
+    });
+    const worker = await this.prisma.worker.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+    return {
+      id: updated.id,
+      email: updated.email,
+      fullName: updated.fullName,
+      role: updated.role,
+      authGroup: userRoleToAuthGroup(updated.role),
+      tenantCompanyId: updated.companyId,
+      workerId: worker?.id ?? null,
+      avatarUrl: toAvatarPublicUrl(updated.avatarPath),
+      googleLinked: Boolean(updated.googleSub),
+      googleEmail: updated.googleEmail ?? null,
+      googleLinkedAt: updated.googleLinkedAt?.toISOString() ?? null,
+    };
+  }
+
+  /**
+   * Self-service password change. Verifies the current password, rotates the
+   * hash, invalidates other sessions via tokenVersion, then re-issues cookies
+   * so the current browser stays signed in.
+   */
+  async changePassword(
+    user: AuthPrincipal,
+    dto: ChangePasswordDto,
+    req?: Request,
+    res?: Response,
+  ) {
+    const row = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        companyId: true,
+        passwordHash: true,
+        status: true,
+      },
+    });
+    if (!row || row.status !== UserStatus.active) {
+      throw new UnauthorizedException('Session is no longer valid.');
+    }
+    if (row.companyId !== null || CLIENT_ROLES.includes(row.role)) {
+      throw new ForbiddenException('Client accounts cannot access this system.');
+    }
+
+    const valid = await this.password.verify(dto.currentPassword, row.passwordHash);
+    if (!valid) {
+      // 400 (not 401) so the API client does not treat this as a session wipe.
+      throw new BadRequestException('Current password is incorrect.');
+    }
+    if (dto.currentPassword === dto.newPassword) {
+      throw new BadRequestException('New password must be different from the current password.');
+    }
+
+    const passwordHash = await this.password.hash(dto.newPassword);
+    await this.prisma.user.update({
+      where: { id: row.id },
+      data: { passwordHash },
+    });
+
+    const nextVersion = await this.refreshSessions.invalidateUserSessions(row.id);
+
+    return this.issueInternalSession(
+      {
+        id: row.id,
+        email: row.email,
+        fullName: row.fullName,
+        role: row.role,
+        companyId: row.companyId,
+        tokenVersion: nextVersion,
+      },
+      {
+        rememberMe: Boolean(dto.rememberMe),
+        req,
+        res,
+        auditAction: 'AUTH_PASSWORD_CHANGED',
+        skipLastLoginUpdate: true,
+        auditNewState: { passwordChanged: true },
+      },
+    );
   }
 
   /** Parses values like `3600`, `3600s`, `15m`, `8h`, `7d` (fallback 8h). */

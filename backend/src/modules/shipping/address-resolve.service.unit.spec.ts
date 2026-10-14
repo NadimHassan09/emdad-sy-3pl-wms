@@ -32,17 +32,13 @@ describe('AddressResolveService.resolveFromAddress', () => {
     }
   });
 
-  it('falls back to governorate when city is unknown', () => {
+  it('does not fall back to the governorate when the city and town are unknown', () => {
     const result = service.resolveFromAddress({
       governorate: 'حلب',
       cityRegion: 'مدينة غير موجودة',
       townNeighborhood: 'حي غير موجود',
     });
-    expect(result.found).toBe(true);
-    if (result.found) {
-      expect(result.source).toBe('governorate');
-      expect(result.resolvedLabel).toBe('حلب');
-    }
+    expect(result.found).toBe(false);
   });
 
   it('resolves city when town is omitted', () => {

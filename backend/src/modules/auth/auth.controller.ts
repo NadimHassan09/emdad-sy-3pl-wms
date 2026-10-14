@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  Patch,
   Post,
   Query,
   Req,
@@ -22,7 +23,9 @@ import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { AuthPrincipal } from '../../common/auth/current-user.types';
 import { Public } from '../../common/auth/public.decorator';
 import { AuthService } from './auth.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { GoogleOAuthService } from './google-oauth.service';
 
 class LogoutDto {
@@ -170,5 +173,21 @@ export class AuthController {
   @HttpCode(204)
   deleteAvatar(@CurrentUser() user: AuthPrincipal) {
     return this.auth.deleteAvatar(user);
+  }
+
+  @Patch('profile')
+  updateProfile(@CurrentUser() user: AuthPrincipal, @Body() dto: UpdateProfileDto) {
+    return this.auth.updateProfile(user, dto);
+  }
+
+  @Post('change-password')
+  @HttpCode(200)
+  changePassword(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: ChangePasswordDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.auth.changePassword(user, dto, req, res);
   }
 }

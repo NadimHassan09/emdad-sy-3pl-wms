@@ -135,6 +135,20 @@ export class CodRecordsService {
     if (companyId) where.companyId = companyId;
     if (query.status) where.status = query.status;
     if (query.omsOrderId) where.omsOrderId = query.omsOrderId;
+    if (query.createdFrom || query.createdTo) {
+      where.createdAt = {};
+      if (query.createdFrom) where.createdAt.gte = new Date(query.createdFrom);
+      if (query.createdTo) {
+        const end = new Date(query.createdTo);
+        if (query.createdTo.length <= 10) end.setUTCHours(23, 59, 59, 999);
+        where.createdAt.lte = end;
+      }
+    }
+    if (query.amountMin != null || query.amountMax != null) {
+      where.originalAmount = {};
+      if (query.amountMin != null) where.originalAmount.gte = query.amountMin;
+      if (query.amountMax != null) where.originalAmount.lte = query.amountMax;
+    }
     const search = query.search?.trim();
     if (search) {
       where.OR = [
@@ -162,6 +176,24 @@ export class CodRecordsService {
         offset: query.offset,
       };
     });
+  }
+
+  async exportCsv(user: AuthPrincipal, query: ListCodRecordsQueryDto): Promise<string> {
+    const page = await this.list(user, { ...query, limit: 1000, offset: 0 });
+    const lines = ['order,client,recipient,status,currentAmount,currency,createdAt'];
+    for (const row of page.items) {
+      const cells = [
+        row.omsOrder?.orderNumber ?? '',
+        row.company?.name ?? '',
+        row.omsOrder?.recipientName ?? '',
+        row.status,
+        row.currentAmount,
+        row.currency,
+        row.createdAt,
+      ].map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`);
+      lines.push(cells.join(','));
+    }
+    return lines.join('\n');
   }
 
   async findById(id: string, user: AuthPrincipal) {
@@ -347,6 +379,183 @@ export class CodRecordsService {
       status: 'voided',
     });
     return { voided: true as const, previousCodRecordId: existing.id };
+  }
+
+  /**
+   * Resolve a waybill QR / tracking / order number to a COD record and set its status.
+   * When the record is already in the target status, returns without writing.
+   */
+  async setStatusByScan(
+    user: AuthPrincipal,
+    rawCode: string,
+    status: CodRecordStatus,
+  ): Promise<{
+    ok: boolean;
+    action: 'updated' | 'unchanged';
+    codRecordId: string;
+    orderNumber: string;
+    clientName: string;
+    previousStatus: CodRecordStatus;
+    status: CodRecordStatus;
+    message: string;
+  }> {
+    const trimmed = (rawCode || '').trim();
+    if (!trimmed) {
+      throw new BadRequestException('Please scan or enter a valid code.');
+    }
+
+    let cleanCode = trimmed;
+    try {
+      if (cleanCode.startsWith('http://') || cleanCode.startsWith('https://')) {
+        const url = new URL(cleanCode);
+        const segments = url.pathname.split('/').filter(Boolean);
+        if (segments.length > 0) {
+          cleanCode = decodeURIComponent(segments[segments.length - 1]);
+        }
+      }
+    } catch {
+      // keep the raw code
+    }
+
+    const strippedEmd = cleanCode.replace(/^emd-/i, '');
+    const candidates = Array.from(
+      new Set([cleanCode, trimmed, strippedEmd].filter(Boolean)),
+    );
+
+    const uuidRe =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    let matchedOrder: {
+      id: string;
+      companyId: string;
+      orderNumber: string;
+      company?: { name: string } | null;
+    } | null = null;
+
+    for (const candidate of candidates) {
+      const isUuid = uuidRe.test(candidate);
+      const order = await this.prisma.omsOrder.findFirst({
+        where: {
+          OR: [
+            ...(isUuid ? [{ id: candidate }] : []),
+            { orderNumber: { equals: candidate, mode: 'insensitive' } },
+            { clientReference: { equals: candidate, mode: 'insensitive' } },
+            { trackingNumber: { equals: candidate, mode: 'insensitive' } },
+          ],
+        },
+        select: {
+          id: true,
+          companyId: true,
+          orderNumber: true,
+          company: { select: { name: true } },
+        },
+      });
+      if (order) {
+        matchedOrder = order;
+        break;
+      }
+    }
+
+    if (!matchedOrder) {
+      for (const candidate of candidates) {
+        const outbound = await this.prisma.outboundOrder.findFirst({
+          where: {
+            OR: [
+              { trackingNumber: { equals: candidate, mode: 'insensitive' } },
+              { orderNumber: { equals: candidate, mode: 'insensitive' } },
+            ],
+          },
+          select: {
+            omsOrder: {
+              select: {
+                id: true,
+                companyId: true,
+                orderNumber: true,
+                company: { select: { name: true } },
+              },
+            },
+          },
+        });
+        if (outbound?.omsOrder) {
+          matchedOrder = outbound.omsOrder;
+          break;
+        }
+
+        const carrierShipment = await this.prisma.carrierShipment.findFirst({
+          where: {
+            OR: [
+              { trackingNumber: { equals: candidate, mode: 'insensitive' } },
+              { externalAwb: { equals: candidate, mode: 'insensitive' } },
+            ],
+          },
+          select: {
+            outboundOrder: {
+              select: {
+                omsOrder: {
+                  select: {
+                    id: true,
+                    companyId: true,
+                    orderNumber: true,
+                    company: { select: { name: true } },
+                  },
+                },
+              },
+            },
+          },
+        });
+        if (carrierShipment?.outboundOrder?.omsOrder) {
+          matchedOrder = carrierShipment.outboundOrder.omsOrder;
+          break;
+        }
+      }
+    }
+
+    if (!matchedOrder) {
+      throw new NotFoundException(
+        `No order found for code (${cleanCode}). Scan the correct waybill QR.`,
+      );
+    }
+
+    this.companyAccess.validateResourceOwnership(user, matchedOrder);
+
+    const record = await this.prisma.codRecord.findUnique({
+      where: { omsOrderId: matchedOrder.id },
+      select: { id: true, status: true, companyId: true },
+    });
+    if (!record) {
+      throw new NotFoundException(
+        `Order ${matchedOrder.orderNumber} has no COD record.`,
+      );
+    }
+    this.companyAccess.validateResourceOwnership(user, record);
+
+    const orderNumber = matchedOrder.orderNumber;
+    const clientName = matchedOrder.company?.name ?? '—';
+
+    if (record.status === status) {
+      return {
+        ok: true,
+        action: 'unchanged',
+        codRecordId: record.id,
+        orderNumber,
+        clientName,
+        previousStatus: record.status,
+        status,
+        message: `${orderNumber} is already ${status}; no change.`,
+      };
+    }
+
+    await this.setStatus(record.id, user, status);
+    return {
+      ok: true,
+      action: 'updated',
+      codRecordId: record.id,
+      orderNumber,
+      clientName,
+      previousStatus: record.status,
+      status,
+      message: `${orderNumber} COD status set to ${status}.`,
+    };
   }
 
   async setStatus(id: string, user: AuthPrincipal, status: CodRecordStatus) {

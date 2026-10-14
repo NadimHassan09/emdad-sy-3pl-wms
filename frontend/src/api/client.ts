@@ -30,7 +30,12 @@ export interface ApiSuccess<T> {
 
 export interface ApiError {
   success: false;
-  error: { code: string; message: string; details?: unknown };
+  error: {
+    code: string;
+    message: string;
+    details?: unknown;
+    fields?: Record<string, string>;
+  };
 }
 
 type RetriableConfig = InternalAxiosRequestConfig & { _retry?: boolean };
@@ -117,6 +122,7 @@ api.interceptors.response.use(
       throw Object.assign(new Error(env.error.message), {
         code: env.error.code,
         details: env.error.details,
+        fields: env.error.fields,
       });
     }
     return resp;
@@ -154,6 +160,7 @@ api.interceptors.response.use(
       const wrapped = Object.assign(new Error(data.error.message), {
         code: data.error.code,
         details: data.error.details,
+        fields: data.error.fields,
         status,
       });
       return Promise.reject(wrapped);

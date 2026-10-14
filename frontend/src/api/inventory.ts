@@ -75,6 +75,8 @@ export interface AvailabilityResult {
   reserved: string;
   /** Usable qty; when outboundOrderId is passed, includes that order's own soft-holds. */
   available: string;
+  /** Expected return qty from open OMS returns — not part of available/onHand. */
+  expectedReturn?: string;
   reservedByThisOrder?: string;
   availableForOrder?: string;
 }

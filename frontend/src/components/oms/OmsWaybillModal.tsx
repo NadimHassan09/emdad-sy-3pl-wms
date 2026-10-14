@@ -46,10 +46,18 @@ export function OmsWaybillModal({ open, orderId, onClose, isArabic = false }: Pr
     window.open(`/orders/oms/${orderId}/waybill`, '_blank');
   };
 
-  const handlePrint = () => {
-    if (!orderId) return;
-    // Open the dedicated waybill view in a new tab where user can print or download without forced popups
-    window.open(`/orders/oms/${orderId}/waybill`, '_blank');
+  const handlePrint = async () => {
+    if (!orderId || !waybill) return;
+    try {
+      setIsDownloading(true);
+      const blob = await OmsApi.waybillPdfBlob(orderId);
+      const { printPdfBlob } = await import('../../lib/print-pdf-blob');
+      printPdfBlob(blob);
+    } catch {
+      alert(isArabic ? 'تعذر تجهيز البوليصة للطباعة' : 'Could not prepare the label for printing');
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (

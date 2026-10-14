@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { Type } from 'class-transformer';
 import { IsNumber } from 'class-validator';
 import { ShippingProviderConnectionStatus } from '@prisma/client';
@@ -18,12 +29,15 @@ import {
   BulkShippingPreviewDto,
 } from './dto/bulk-shipping.dto';
 import { ConnectShippingProviderDto } from './dto/connect-shipping-provider.dto';
+import { UpsertShippingFxDto } from './dto/upsert-shipping-fx.dto';
+import { UpsertShippingOriginAddressDto } from './dto/upsert-shipping-origin-address.dto';
 import { QuoteShippingRatesDto } from './dto/quote-shipping-rates.dto';
 import { ResolveAddressFromPinDto } from './dto/resolve-address-from-pin.dto';
 import { ResolveAddressFromNamesDto } from './dto/resolve-address-from-names.dto';
 import { BabelExpressAdapter } from './providers/babel-express/babel-express.adapter';
 import { BabelGeoSyncService } from './providers/babel-express/babel-geo-sync.service';
 import { BABEL_EXPRESS_CODE } from './shipping.constants';
+import { ShippingFxService } from './shipping-fx.service';
 import { ShippingService } from './shipping.service';
 import { ShippingTrackingService } from './shipping-tracking.service';
 import { ShippingProviderRegistry } from './shipping-provider.registry';
@@ -44,6 +58,7 @@ class ResolveBabelNeighbourhoodDto {
 export class ShippingController {
   constructor(
     private readonly shipping: ShippingService,
+    private readonly fx: ShippingFxService,
     private readonly bulkShipping: BulkShippingService,
     private readonly babelGeo: BabelGeoSyncService,
     private readonly babelAdapter: BabelExpressAdapter,
@@ -57,6 +72,47 @@ export class ShippingController {
   @Get('providers')
   listProviders() {
     return this.shipping.listProviders();
+  }
+
+  @Get('fx')
+  getFx() {
+    return this.fx.getSettings();
+  }
+
+  @Put('fx')
+  saveFx(@Body() body: UpsertShippingFxDto, @CurrentUser() user: AuthPrincipal) {
+    if (user.role !== 'super_admin') {
+      throw new ForbiddenException('Only a super admin can set the USD/SYP rate.');
+    }
+    if (body.mode === 'automatic') return this.fx.saveAutomatic(user);
+    if (body.manualRate == null) {
+      throw new BadRequestException('Enter the manual USD to SYP rate.');
+    }
+    return this.fx.saveManual(body.manualRate, user);
+  }
+
+  @Post('fx/test-source')
+  testFxSource(@CurrentUser() user: AuthPrincipal) {
+    if (user.role !== 'super_admin') {
+      throw new ForbiddenException('Only a super admin can test the exchange-rate source.');
+    }
+    return this.fx.testSource();
+  }
+
+  @Get('origin-address')
+  getOriginAddress() {
+    return this.shipping.getOriginAddress();
+  }
+
+  @Put('origin-address')
+  saveOriginAddress(
+    @Body() body: UpsertShippingOriginAddressDto,
+    @CurrentUser() user: AuthPrincipal,
+  ) {
+    if (user.role !== 'super_admin') {
+      throw new ForbiddenException('Only a super admin can set the pickup address.');
+    }
+    return this.shipping.saveOriginAddress(body, user.id);
   }
 
   @Post('providers/:code/connect')
@@ -166,8 +222,13 @@ export class ShippingController {
   }
 
   @Post('shipments/:outboundOrderId/retry')
-  retry(@Param('outboundOrderId') outboundOrderId: string) {
-    return this.shipping.retryShipment(outboundOrderId);
+  retry(
+    @Param('outboundOrderId') outboundOrderId: string,
+    @Body() body?: { acknowledgeNoExternalShipment?: boolean },
+  ) {
+    return this.shipping.retryShipment(outboundOrderId, {
+      acknowledgeNoExternalShipment: body?.acknowledgeNoExternalShipment === true,
+    });
   }
 
   @Post('shipments/:outboundOrderId/sync-tracking')
@@ -245,8 +306,11 @@ export class ShippingController {
   retryItem(
     @Param('id') id: string,
     @Param('outboundOrderId') outboundOrderId: string,
+    @Body() body?: { acknowledgeNoExternalShipment?: boolean },
   ) {
-    return this.bulkShipping.retryItem(id, outboundOrderId);
+    return this.bulkShipping.retryItem(id, outboundOrderId, {
+      acknowledgeNoExternalShipment: body?.acknowledgeNoExternalShipment === true,
+    });
   }
 
   @Get('bulk/jobs/:id/labels')

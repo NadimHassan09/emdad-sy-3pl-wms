@@ -32,19 +32,35 @@ export class ShippingSyncScheduler {
         where: {
           status: 'created',
           externalAwb: { not: null },
-          OR: [
-            { lastTrackingStatus: null },
+          AND: [
             {
-              lastTrackingStatus: {
-                notIn: ['delivered', 'returned', 'cancelled'],
-              },
+              OR: [
+                { lastTrackingStatus: null },
+                {
+                  lastTrackingStatus: {
+                    notIn: ['delivered', 'returned', 'cancelled'],
+                  },
+                },
+              ],
+            },
+            {
+              OR: [
+                {
+                  outboundOrder: {
+                    status: {
+                      in: ['ready_to_ship', 'shipped', 'out_for_delivery'],
+                    },
+                  },
+                },
+                // OMS failed_delivery (outbound often stays shipped/OFD) — poll for recovery.
+                {
+                  outboundOrder: {
+                    omsOrder: { status: 'failed_delivery' },
+                  },
+                },
+              ],
             },
           ],
-          outboundOrder: {
-            status: {
-              in: ['ready_to_ship', 'shipped', 'out_for_delivery'],
-            },
-          },
         },
         select: {
           id: true,

@@ -147,7 +147,7 @@ export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
     trackingNumber:
       order.trackingNumber ??
       order.outboundOrder?.trackingNumber ??
-      (order.outboundOrder as any)?.carrierShipments?.[0]?.externalAwb ??
+      (order.outboundOrder as any)?.carrierShipments?.find((s: { status?: string; trackingNumber?: string | null }) => s.status === 'created' && s.trackingNumber)?.trackingNumber ??
       null,
     needsInformation: order.needsInformation,
     importBatchId: order.importBatchId ?? null,
@@ -163,6 +163,20 @@ export function serializeOmsOrderListItem(order: OmsOrderWithRelations) {
             (order.outboundOrder as any).carrierShipments?.some(
               (s: any) => s.status === 'created' || Boolean(s.externalAwb),
             ) ?? Boolean(order.outboundOrder.trackingNumber || order.trackingNumber),
+          shippingMethod: (order.outboundOrder as any).shippingMethod ?? null,
+          shippingProviderCode: (order.outboundOrder as any).shippingProviderCode ?? null,
+          shippingServiceId: (order.outboundOrder as any).shippingServiceId ?? null,
+          shippingQuotedPrice: dec((order.outboundOrder as any).shippingQuotedPrice),
+          shippingQuotedCurrency: (order.outboundOrder as any).shippingQuotedCurrency ?? null,
+          shippingCost: dec(
+            (order.outboundOrder as any).carrierShipments?.find(
+              (s: { status?: string }) => s.status === 'created',
+            )?.shippingCost,
+          ),
+          shippingCostCurrency:
+            (order.outboundOrder as any).carrierShipments?.find(
+              (s: { status?: string }) => s.status === 'created',
+            )?.currency ?? null,
         }
       : null,
     createdAt: order.createdAt,
@@ -217,6 +231,20 @@ export function serializeOmsOrder(order: OmsOrderWithRelations) {
             (order.outboundOrder as any).carrierShipments?.some(
               (s: any) => s.status === 'created' || Boolean(s.externalAwb),
             ) ?? Boolean(order.outboundOrder.trackingNumber || order.trackingNumber),
+          shippingMethod: (order.outboundOrder as any).shippingMethod ?? null,
+          shippingProviderCode: (order.outboundOrder as any).shippingProviderCode ?? null,
+          shippingServiceId: (order.outboundOrder as any).shippingServiceId ?? null,
+          shippingQuotedPrice: dec((order.outboundOrder as any).shippingQuotedPrice),
+          shippingQuotedCurrency: (order.outboundOrder as any).shippingQuotedCurrency ?? null,
+          shippingCost: dec(
+            (order.outboundOrder as any).carrierShipments?.find(
+              (s: { status?: string }) => s.status === 'created',
+            )?.shippingCost,
+          ),
+          shippingCostCurrency:
+            (order.outboundOrder as any).carrierShipments?.find(
+              (s: { status?: string }) => s.status === 'created',
+            )?.currency ?? null,
         }
       : null,
     warehouseStatus: order.outboundOrder?.status ?? null,

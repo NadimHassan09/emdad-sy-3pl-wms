@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { SectionContainer } from '@ds';
 
 import {
   ShippingApi,
+  type ShippingOriginAddress,
   type ShippingProviderAdminView,
 } from '../../api/shipping';
 import { useAuth } from '../../auth/AuthContext';
@@ -15,6 +16,105 @@ import { useToast } from '../../components/ToastProvider';
 import { QK } from '../../constants/query-keys';
 import { defaultHomePath } from '../../lib/rbac';
 import { useWmsTranslation } from '../../lib/ui-i18n';
+
+function FxRateCard({ canEdit }: { canEdit: boolean }) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const { t } = useWmsTranslation();
+  const [rate, setRate] = useState('');
+  const query = useQuery({
+    queryKey: ['shipping', 'fx'],
+    queryFn: () => ShippingApi.getFx(),
+  });
+  useEffect(() => {
+    if (query.data?.manualRate != null) setRate(String(query.data.manualRate));
+  }, [query.data?.manualRate]);
+  const saveManual = useMutation({
+    mutationFn: () => ShippingApi.saveFx({ mode: 'manual', manualRate: Number(rate) }),
+    onSuccess: () => {
+      toast.success(t(['Exchange rate saved.', 'تم حفظ سعر الصرف.']));
+      void queryClient.invalidateQueries({ queryKey: ['shipping', 'fx'] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+  const saveAuto = useMutation({
+    mutationFn: () => ShippingApi.saveFx({ mode: 'automatic' }),
+    onSuccess: () => {
+      toast.success(t(['Automatic rate updated.', 'تم تحديث السعر التلقائي.']));
+      void queryClient.invalidateQueries({ queryKey: ['shipping', 'fx'] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+  const testSource = useMutation({
+    mutationFn: () => ShippingApi.testFxSource(),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        toast.error(result.error || t(['Source check failed.', 'فشل فحص المصدر.']));
+        return;
+      }
+      toast.success(`${result.source}: 1 USD = ${result.rate} SYP`);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+  const fx = query.data;
+  return (
+    <SectionContainer
+      title={t(['USD / SYP exchange rate', 'سعر صرف الدولار / الليرة'])}
+      description={t([
+        'Direction is fixed: 1 USD = R SYP. This converts COD collection only. The order amount stays unchanged.',
+        'الاتجاه ثابت: 1 دولار = س ليرة. يحوّل مبلغ التحصيل فقط. مبلغ الطلب يبقى كما هو.',
+      ])}
+    >
+      {query.isLoading ? (
+        <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-text-body">
+            {t(['Active rate', 'السعر الحالي'])}:{' '}
+            <strong>{fx?.activeRate != null ? `1 USD = ${fx.activeRate} SYP` : '—'}</strong>
+            {' · '}
+            {fx?.mode === 'automatic'
+              ? t(['Automatic', 'تلقائي'])
+              : t(['Manual', 'يدوي'])}
+            {fx?.stale ? ` · ${t(['Stale', 'قديم'])}` : ''}
+            {fx?.usable ? '' : ` · ${t(['Not usable for conversion', 'غير صالح للتحويل'])}`}
+          </p>
+          <p className="text-sm text-text-muted">
+            {t(['Source', 'المصدر'])}: {fx?.activeSource || '—'}
+            {' · '}
+            {t(['Last success', 'آخر نجاح'])}: {formatTimestamp(fx?.lastSuccessfulAt)}
+          </p>
+          {fx?.lastError ? <p className="text-sm text-status-danger-fg">{fx.lastError}</p> : null}
+          {canEdit ? (
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={(event: FormEvent) => {
+                event.preventDefault();
+                saveManual.mutate();
+              }}
+            >
+              <TextField
+                label={t(['Manual rate (SYP per 1 USD)', 'سعر يدوي (ليرة لكل دولار)'])}
+                value={rate}
+                onChange={(e) => setRate(e.target.value)}
+                inputMode="decimal"
+              />
+              <Button type="submit" disabled={saveManual.isPending}>
+                {t(['Save manual rate', 'حفظ السعر اليدوي'])}
+              </Button>
+              <Button type="button" disabled={saveAuto.isPending} onClick={() => saveAuto.mutate()}>
+                {t(['Use automatic source', 'استخدام المصدر التلقائي'])}
+              </Button>
+              <Button type="button" disabled={testSource.isPending} onClick={() => testSource.mutate()}>
+                {t(['Test source', 'فحص المصدر'])}
+              </Button>
+            </form>
+          ) : null}
+        </div>
+      )}
+    </SectionContainer>
+  );
+}
 
 function canAccessShippingAdmin(role: string | undefined): boolean {
   return role === 'super_admin' || role === 'wh_manager';
@@ -248,11 +348,144 @@ function ProviderCard({
   );
 }
 
+function PickupAddressCard({ canEdit }: { canEdit: boolean }) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const { t } = useWmsTranslation();
+  const [contactName, setContactName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [city, setCity] = useState('');
+  const [district, setDistrict] = useState('');
+  const [street, setStreet] = useState('');
+  const [lat, setLat] = useState('');
+  const [lng, setLng] = useState('');
+
+  const query = useQuery({
+    queryKey: QK.shipping.originAddress,
+    queryFn: () => ShippingApi.getOriginAddress(),
+  });
+
+  const saved = query.data;
+  useEffect(() => {
+    if (!saved) return;
+    setContactName(saved.contactName);
+    setPhone(saved.phone);
+    setCity(saved.city);
+    setDistrict(saved.district ?? '');
+    setStreet(saved.street);
+    setLat(saved.lat != null ? String(saved.lat) : '');
+    setLng(saved.lng != null ? String(saved.lng) : '');
+  }, [saved]);
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      ShippingApi.saveOriginAddress({
+        contactName: contactName.trim(),
+        phone: phone.trim(),
+        city: city.trim(),
+        district: district.trim() || undefined,
+        street: street.trim(),
+        ...(lat.trim() ? { lat: Number(lat) } : {}),
+        ...(lng.trim() ? { lng: Number(lng) } : {}),
+      }),
+    onSuccess: (row: ShippingOriginAddress) => {
+      toast.success(t(['Pickup address saved.', 'تم حفظ عنوان الاستلام.']));
+      queryClient.setQueryData(QK.shipping.originAddress, row);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const onSave = (e: FormEvent) => {
+    e.preventDefault();
+    if (!contactName.trim() || !phone.trim() || !city.trim() || !street.trim()) {
+      toast.error(t(['Name, phone, city, and street are required.', 'الاسم والهاتف والمدينة والشارع مطلوبة.']));
+      return;
+    }
+    saveMutation.mutate();
+  };
+
+  return (
+    <SectionContainer
+      title={t(['Pickup address', 'عنوان الاستلام'])}
+      description={t([
+        'Set once by a super admin. Every shipping company collects the parcel from this address. The customer delivery address stays on the order.',
+        'يحدده مدير النظام مرة واحدة. تستلم كل شركات الشحن الشحنة من هذا العنوان. عنوان توصيل العميل يبقى على الطلب.',
+      ])}
+    >
+      {query.isLoading ? (
+        <p className="text-sm text-text-muted">{t(['Loading…', 'جارٍ التحميل…'])}</p>
+      ) : (
+        <form onSubmit={onSave} className="grid gap-3 md:grid-cols-2">
+          <TextField
+            label={t(['Contact name', 'اسم جهة الاتصال'])}
+            value={contactName}
+            disabled={!canEdit}
+            onChange={(e) => setContactName(e.target.value)}
+          />
+          <TextField
+            label={t(['Phone', 'الهاتف'])}
+            value={phone}
+            disabled={!canEdit}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+          <TextField
+            label={t(['City', 'المدينة'])}
+            value={city}
+            disabled={!canEdit}
+            onChange={(e) => setCity(e.target.value)}
+          />
+          <TextField
+            label={t(['District', 'الحي'])}
+            value={district}
+            disabled={!canEdit}
+            onChange={(e) => setDistrict(e.target.value)}
+          />
+          <div className="md:col-span-2">
+            <TextField
+              label={t(['Street', 'الشارع'])}
+              value={street}
+              disabled={!canEdit}
+              onChange={(e) => setStreet(e.target.value)}
+            />
+          </div>
+          <TextField
+            label={t(['Latitude', 'خط العرض'])}
+            value={lat}
+            disabled={!canEdit}
+            onChange={(e) => setLat(e.target.value)}
+          />
+          <TextField
+            label={t(['Longitude', 'خط الطول'])}
+            value={lng}
+            disabled={!canEdit}
+            onChange={(e) => setLng(e.target.value)}
+          />
+          {canEdit ? (
+            <div className="md:col-span-2">
+              <Button type="submit" variant="brand" loading={saveMutation.isPending}>
+                {t(['Save pickup address', 'حفظ عنوان الاستلام'])}
+              </Button>
+            </div>
+          ) : (
+            <p className="md:col-span-2 text-sm text-text-muted">
+              {t([
+                'Only a super admin can change this address.',
+                'مدير النظام فقط يمكنه تغيير هذا العنوان.',
+              ])}
+            </p>
+          )}
+        </form>
+      )}
+    </SectionContainer>
+  );
+}
+
 export function ShippingCompaniesPage() {
   const { user } = useAuth();
   const { t } = useWmsTranslation();
   const canAccess = canAccessShippingAdmin(user?.role);
   const canMutate = canAccess;
+  const canEditPickup = user?.role === 'super_admin';
 
   const providersQuery = useQuery({
     queryKey: QK.shipping.providers,
@@ -290,6 +523,10 @@ export function ShippingCompaniesPage() {
           </p>
         )}
       </SectionContainer>
+
+      <FxRateCard canEdit={canEditPickup} />
+
+      <PickupAddressCard canEdit={canEditPickup} />
 
       {(providersQuery.data ?? []).map((provider) => (
         <ProviderCard key={provider.code} provider={provider} canMutate={canMutate} />

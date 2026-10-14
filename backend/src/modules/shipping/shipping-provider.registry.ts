@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { BabelExpressAdapter } from './providers/babel-express/babel-express.adapter';
+import { MockCarrierAdapter } from './providers/mock-carrier/mock-carrier.adapter';
 import { SilaSyAdapter } from './providers/sila-sy/sila-sy.adapter';
-import { BABEL_EXPRESS_CODE, SILA_SY_CODE } from './shipping.constants';
+import { MOCK_CARRIER_CODE } from './shipping.constants';
 import type { ShippingProvider } from './shipping-provider.interface';
 
 export { BABEL_EXPRESS_CODE, SILA_SY_CODE } from './shipping.constants';
@@ -11,9 +12,12 @@ export { BABEL_EXPRESS_CODE, SILA_SY_CODE } from './shipping.constants';
 export class ShippingProviderRegistry {
   private readonly byCode = new Map<string, ShippingProvider>();
 
-  constructor(babel: BabelExpressAdapter, sila: SilaSyAdapter) {
+  constructor(babel: BabelExpressAdapter, sila: SilaSyAdapter, mock: MockCarrierAdapter) {
     this.byCode.set(babel.code, babel);
     this.byCode.set(sila.code, sila);
+    if (process.env.SHIPPING_MOCK_ENABLED === 'true') {
+      this.byCode.set(MOCK_CARRIER_CODE, mock);
+    }
   }
 
   get(code: string): ShippingProvider {

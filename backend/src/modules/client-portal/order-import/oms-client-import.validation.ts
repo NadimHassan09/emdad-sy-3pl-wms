@@ -13,8 +13,16 @@ import {
 
 const ORDER_NUMBER_PATTERN = /^[A-Za-z0-9-]+$/;
 const ASCII_DIGITS_ONLY = /^[0-9]+$/;
-/** Strict M/D/YYYY or M/DD/YYYY with English digits and `/` only. */
+/** Three slash-separated ASCII digit groups (leading zeros allowed; normalized later). */
+const SHIP_DATE_MDY_RAW_PARTS = /^(\d+)\/(\d+)\/(\d+)$/;
+/** Strict M/D/YYYY or M/DD/YYYY with English digits and `/` only (after leading-zero strip). */
 const SHIP_DATE_MDY = /^([1-9]|1[0-2])\/([0-9]{1,2})\/(\d{4})$/;
+
+/** Strip leading zeros from a digit group; all-zeros becomes `"0"`. */
+export function stripLeadingZeros(part: string): string {
+  const stripped = part.replace(/^0+(?=\d)/, '');
+  return stripped === '' ? '0' : stripped;
+}
 
 export function isAsciiDigitsOnly(raw: string): boolean {
   return ASCII_DIGITS_ONLY.test(raw.trim());
@@ -39,6 +47,8 @@ export function validateImportOrderNumber(
 
 /**
  * Date fields must be M/DD/YYYY (English digits). Returns YYYY-MM-DD for storage.
+ * Leading zeros on month/day/year parts are normalized away before existing checks
+ * (e.g. `09/29/2026` → `9/29/2026`). Invalid values like `0000/00/0000` still fail.
  */
 export function parseImportMdYDate(
   raw: string,
@@ -54,7 +64,19 @@ export function parseImportMdYDate(
       message: `${fieldLabel} must use English digits only in M/DD/YYYY format.`,
     };
   }
-  const m = SHIP_DATE_MDY.exec(t);
+  const rawParts = SHIP_DATE_MDY_RAW_PARTS.exec(t);
+  if (!rawParts) {
+    return {
+      ok: false,
+      message: `${fieldLabel} must be M/DD/YYYY (example: 9/01/2026).`,
+    };
+  }
+  const normalized = [
+    stripLeadingZeros(rawParts[1]!),
+    stripLeadingZeros(rawParts[2]!),
+    stripLeadingZeros(rawParts[3]!),
+  ].join('/');
+  const m = SHIP_DATE_MDY.exec(normalized);
   if (!m) {
     return {
       ok: false,

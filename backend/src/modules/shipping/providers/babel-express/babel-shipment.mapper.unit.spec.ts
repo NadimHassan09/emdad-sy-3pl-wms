@@ -15,13 +15,14 @@ describe('babel-shipment.mapper', () => {
     );
   });
 
-  it('normalizes warehouse pickup to hub', () => {
-    expect(resolveBabelPickupType('address')).toBe('hub');
+  it('keeps address pickup and does not coerce it to hub', () => {
+    expect(resolveBabelPickupType('address')).toBe('address');
+    expect(resolveBabelPickupType(undefined)).toBe('address');
     expect(resolveBabelPickupType('hub')).toBe('hub');
   });
 
-  it('coerces sender payer to receiver; keeps reseller', () => {
-    expect(resolveBabelPayer('sender')).toBe('receiver');
+  it('keeps sender payer; does not coerce to receiver', () => {
+    expect(resolveBabelPayer('sender')).toBe('sender');
     expect(resolveBabelPayer('receiver')).toBe('receiver');
     expect(resolveBabelPayer('reseller')).toBe('reseller');
   });
@@ -49,12 +50,51 @@ describe('babel-shipment.mapper', () => {
     });
 
     expect(payload.shipment.receiver.neighbourhood).toEqual({ id: 4278 });
-    expect(payload.shipment.pickupType).toBe('hub');
+    expect(payload.shipment.pickupType).toBe('address');
     expect(payload.shipment.cod).toEqual({ amount: 0, currency: 'USD' });
     expect(payload.shipment.payer).toBe('reseller');
+    expect(payload.shipment.sender).toBeUndefined();
   });
 
-  it('sends receiver to Babel when stored payer is sender', () => {
+  it('sends the pickup party as shipment.sender when pickup is address', () => {
+    const payload = mapCreateShipmentPayload({
+      receiver: {
+        name: 'Ali',
+        phoneCountry: '963',
+        phoneLocal: '999000111',
+        address: 'Customer street',
+        lat: 33.5,
+        lng: 36.3,
+        neighbourhoodId: 1,
+      },
+      pickup: {
+        name: 'Emdad Aleppo',
+        phoneCountry: '963',
+        phoneLocal: '944111222',
+        address: 'Warehouse street, Aleppo',
+        neighbourhoodId: 88,
+      },
+      packageType: 'box',
+      weightKg: 1,
+      contents: 'Goods',
+      deliveryType: 'address',
+      pickupType: 'address',
+      payer: 'sender',
+      codAmount: 0,
+      currency: 'USD',
+    });
+    expect(payload.shipment.pickupType).toBe('address');
+    expect(payload.shipment.deliveryType).toBe('address');
+    expect(payload.shipment.sender).toEqual({
+      name: 'Emdad Aleppo',
+      phone: { country: '963', phone: '944111222' },
+      address: 'Warehouse street, Aleppo',
+      neighbourhood: { id: 88 },
+    });
+    expect(payload.shipment.receiver.address).toBe('Customer street');
+  });
+
+  it('sends sender to Babel when stored payer is sender', () => {
     const payload = mapCreateShipmentPayload({
       receiver: {
         name: 'Ali',
@@ -74,7 +114,7 @@ describe('babel-shipment.mapper', () => {
       codAmount: 0,
       currency: 'USD',
     });
-    expect(payload.shipment.payer).toBe('receiver');
+    expect(payload.shipment.payer).toBe('sender');
   });
 
   it('keeps USD COD currency for non-zero COD (does not force SYP)', () => {

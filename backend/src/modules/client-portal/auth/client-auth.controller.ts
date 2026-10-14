@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  Patch,
   Post,
   Req,
   Res,
@@ -21,7 +22,9 @@ import { Public } from '../../../common/auth/public.decorator';
 import { ClientPrincipal } from '../../../common/auth/client-principal.types';
 import { ClientUser } from './client-user.decorator';
 import { ClientAuthService } from './client-auth.service';
+import { ClientChangePasswordDto } from './dto/client-change-password.dto';
 import { ClientLoginDto } from './dto/client-login.dto';
+import { ClientUpdateProfileDto } from './dto/client-update-profile.dto';
 import { JwtClientAuthGuard } from './jwt-client-auth.guard';
 
 const MAX_AVATAR_BYTES = 8 * 1024 * 1024;
@@ -99,5 +102,20 @@ export class ClientAuthController {
   @UseGuards(JwtClientAuthGuard)
   deleteAvatar(@ClientUser() user: ClientPrincipal) {
     return this.auth.deleteAvatar(user);
+  }
+
+  @Public()
+  @Patch('profile')
+  @UseGuards(JwtClientAuthGuard)
+  updateProfile(@ClientUser() user: ClientPrincipal, @Body() dto: ClientUpdateProfileDto) {
+    return this.auth.updateProfile(user, dto);
+  }
+
+  @Public()
+  @Post('change-password')
+  @HttpCode(200)
+  @UseGuards(JwtClientAuthGuard)
+  changePassword(@ClientUser() user: ClientPrincipal, @Body() dto: ClientChangePasswordDto) {
+    return this.auth.changePassword(user, dto);
   }
 }

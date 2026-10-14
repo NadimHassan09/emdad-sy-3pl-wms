@@ -56,3 +56,16 @@ export async function uploadClientAvatar(file: File): Promise<ClientUser> {
 export async function deleteClientAvatar(): Promise<void> {
   await apiClient.delete('/auth/avatar');
 }
+
+export async function updateClientProfile(body: { fullName: string }): Promise<ClientUser> {
+  const { data } = await apiClient.patch<ClientUser>('/auth/profile', body);
+  return mapUser(data);
+}
+
+export async function changeClientPassword(body: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ changed: boolean }> {
+  const { data } = await apiClient.post<{ changed: boolean }>('/auth/change-password', body);
+  return data;
+}

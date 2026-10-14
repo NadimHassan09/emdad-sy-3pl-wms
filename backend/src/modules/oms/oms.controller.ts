@@ -39,6 +39,7 @@ import { OmsDashboardOrderSummaryQueryDto } from './dto/oms-dashboard-order-summ
 import { OmsOrdersExportDto } from './dto/oms-orders-export.dto';
 import { ExportWaybillsDto } from './dto/export-waybills.dto';
 import { OmsWaybillService } from './oms-waybill.service';
+import { OmsInstructionPdfService } from './oms-instruction-pdf.service';
 import { OmsClientImportService } from '../client-portal/order-import/oms-client-import.service';
 
 @Controller('oms')
@@ -50,6 +51,7 @@ export class OmsController {
     private readonly csv: OmsOrdersCsvService,
     private readonly clientImport: OmsClientImportService,
     private readonly waybillService: OmsWaybillService,
+    private readonly instructionPdf: OmsInstructionPdfService,
   ) {}
 
   @Get('dashboard')
@@ -72,6 +74,15 @@ export class OmsController {
   @Get('orders')
   list(@CurrentUser() user: AuthPrincipal, @Query() query: ListOmsOrdersQueryDto) {
     return this.orders.list(user, query);
+  }
+
+  /** Status-card and operational-stage counts. Must stay ahead of orders/:id. */
+  @Get('orders/nav-counts')
+  statusNavCounts(
+    @CurrentUser() user: AuthPrincipal,
+    @Query() query: ListOmsOrdersQueryDto,
+  ) {
+    return this.orders.statusNavCounts(user, query);
   }
 
   /** Filtered CSV export — same filters as GET /oms/orders (must be before :id). */
@@ -242,6 +253,46 @@ export class OmsController {
     res.end(result.buffer);
   }
 
+  @Post('orders/waybills/pdf')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Header('Cache-Control', 'no-store')
+  async downloadWaybillsPdf(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: ExportWaybillsDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const result = await this.waybillService.generateCombinedWaybillPdf(dto.orderIds, user);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.setHeader('Content-Length', result.buffer.byteLength.toString());
+    res.setHeader('X-Label-Count', String(result.count));
+    res.end(result.buffer);
+  }
+
+  @Post('orders/instructions/pdf')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Header('Cache-Control', 'no-store')
+  async downloadInstructionsPdf(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: BulkApproveOmsOrdersDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { buffer, filename } = await this.instructionPdf.downloadCombined(user, dto.ids);
+    this.sendDownload(res, buffer, filename, 'application/pdf');
+  }
+
+  @Post('orders/instructions/zip')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Header('Cache-Control', 'no-store')
+  async downloadInstructionsZip(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: BulkApproveOmsOrdersDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { buffer, filename } = await this.instructionPdf.downloadZip(user, dto.ids);
+    this.sendDownload(res, buffer, filename, 'application/zip');
+  }
+
   @Get('orders/:id')
   findOne(
     @CurrentUser() user: AuthPrincipal,
@@ -385,6 +436,14 @@ export class OmsController {
     return this.orders.confirmReturnReceipt(id, user);
   }
 
+  @Post('orders/:id/undo-confirmed-return')
+  undoConfirmedReturn(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+  ) {
+    return this.orders.undoConfirmedReturn(id, user);
+  }
+
   @Post('orders/:id/returned')
   returned(
     @CurrentUser() user: AuthPrincipal,
@@ -425,6 +484,17 @@ export class OmsController {
     return this.orders.getShippingMovement(id, user);
   }
 
+  @Get('orders/:id/instructions/pdf')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async downloadOrderInstructionsPdf(
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id', ParseUuidLoosePipe) id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const { buffer, filename } = await this.instructionPdf.downloadOne(user, id);
+    this.sendDownload(res, buffer, filename, 'application/pdf');
+  }
+
   @Get('orders/:id/waybill')
   getWaybill(
     @CurrentUser() user: AuthPrincipal,
@@ -441,6 +511,13 @@ export class OmsController {
   ): Promise<void> {
     const { buffer, filename } = await this.waybillService.generateWaybillPdf(id, user);
     res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.byteLength.toString());
+    res.end(buffer);
+  }
+
+  private sendDownload(res: Response, buffer: Buffer, filename: string, contentType: string): void {
+    res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', buffer.byteLength.toString());
     res.end(buffer);

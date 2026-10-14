@@ -4,6 +4,7 @@ import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator'
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 import { EmptyToUndefined } from '../../../common/transformers/query-transform';
 import { IsUuidLoose } from '../../../common/validators/is-uuid-loose';
+import { OMS_OPERATIONAL_STAGE_VALUES } from '../oms-operational-stage';
 
 const ORDER_STATUSES = Object.values(OmsOrderStatus);
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -57,6 +58,12 @@ export class ListOmsOrdersQueryDto extends PaginationDto {
   @MaxLength(80)
   carrier?: string;
 
+  /** Who pays shipping: sender, receiver, or reseller. */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(['sender', 'receiver', 'reseller'])
+  shippingPayer?: 'sender' | 'receiver' | 'reseller';
+
   /** Range filter start order number (e.g. OMS-2026-03700). */
   @EmptyToUndefined()
   @IsOptional()
@@ -103,6 +110,15 @@ export class ListOmsOrdersQueryDto extends PaginationDto {
   @IsOptional()
   @IsIn(ORDER_STATUSES)
   status?: OmsOrderStatus;
+
+  /**
+   * Warehouse stage inside commercial Processing.
+   * Ignored by callers that also send a non-processing status.
+   */
+  @EmptyToUndefined()
+  @IsOptional()
+  @IsIn(OMS_OPERATIONAL_STAGE_VALUES)
+  operationalStage?: (typeof OMS_OPERATIONAL_STAGE_VALUES)[number];
 
   @EmptyToUndefined()
   @IsOptional()

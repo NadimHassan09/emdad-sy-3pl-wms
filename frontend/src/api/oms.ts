@@ -254,6 +254,13 @@ export interface LinkedOutboundSummary {
   status: string;
   trackingNumber?: string | null;
   hasCarrierShipment?: boolean;
+  shippingMethod?: string | null;
+  shippingProviderCode?: string | null;
+  shippingServiceId?: string | null;
+  shippingQuotedPrice?: string | number | null;
+  shippingQuotedCurrency?: string | null;
+  shippingCost?: string | number | null;
+  shippingCostCurrency?: string | null;
 }
 
 export interface OmsOrderListItem {
@@ -279,6 +286,36 @@ export interface OmsOrderListItem {
   linkedOutboundOrder?: LinkedOutboundSummary | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface OmsBatchSummary {
+  id: string;
+  batchNumber: string;
+  name: string | null;
+  createdAt: string;
+  createdByName: string;
+  orderCount: number;
+  completedCount: number;
+  issueCount: number;
+  pendingCount: number;
+  stageKey: string | null;
+  stageKind: 'operational' | 'status' | 'mixed' | 'empty';
+  selectedCount?: number;
+  pickedCount?: number;
+  packedCount?: number;
+  readyToShipCount?: number;
+  shippedCount?: number;
+  deliveredCount?: number;
+}
+
+export interface OmsBatchOrderRow {
+  membershipId: string;
+  issueNote: string | null;
+  order: OmsOrderListItem;
+}
+
+export interface OmsBatchDetail extends OmsBatchSummary {
+  orders: OmsBatchOrderRow[];
 }
 
 export interface OmsOrderDetail extends OmsOrderListItem {
@@ -513,6 +550,17 @@ export interface UpdateOmsOrderInput extends ShippingConfigPayload {
   externalReference?: string;
 }
 
+export type OmsOrdersNavCounts = {
+  total: number;
+  byStatus: Record<string, number>;
+  stages: {
+    picking: number;
+    packing: number;
+    shipping_details: number;
+    shipping_confirmation: number;
+  };
+};
+
 export type OmsOrderStatusSummary = {
   total: number;
   byStatus: Record<string, number>;
@@ -573,6 +621,23 @@ export type OmsBulkConfirmReturnsResponse = {
   failures: Array<{ id: string; error: string }>;
 };
 
+function filenameFromDisposition(disposition: unknown, fallback: string): string {
+  const header = typeof disposition === 'string' ? disposition : '';
+  const match = header.match(/filename="?([^";]+)"?/i);
+  return match?.[1] || fallback;
+}
+
+function saveOmsBlob(data: Blob, filename: string): void {
+  const url = URL.createObjectURL(data);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const OmsApi = {
   dashboard(companyId?: string) {
     return api
@@ -590,6 +655,28 @@ export const OmsApi = {
       .then((r) => r.data);
   },
 
+  statusNavCounts(params: {
+    companyId?: string;
+    orderSearch?: string;
+    orderId?: string;
+    startOrderNo?: string;
+    endOrderNo?: string;
+    customer?: string;
+    phone?: string;
+    city?: string;
+    carrier?: string;
+    totalOp?: 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
+    totalValue?: string;
+    createdFrom?: string;
+    createdTo?: string;
+    storeChannel?: string;
+    linkStatus?: 'linked' | 'unlinked';
+  } = {}): Promise<OmsOrdersNavCounts> {
+    return api
+      .get<OmsOrdersNavCounts>('/oms/orders/nav-counts', { params })
+      .then((r) => r.data);
+  },
+
   list(params: {
     companyId?: string;
     orderSearch?: string;
@@ -603,6 +690,7 @@ export const OmsApi = {
     totalOp?: 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
     totalValue?: string;
     status?: OmsOrderStatus;
+    operationalStage?: 'picking' | 'packing' | 'shipping_details' | 'shipping_confirmation';
     storeChannel?: string;
     linkStatus?: 'linked' | 'unlinked';
     createdFrom?: string;
@@ -627,6 +715,7 @@ export const OmsApi = {
     totalOp?: 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
     totalValue?: string;
     status?: OmsOrderStatus;
+    operationalStage?: 'picking' | 'packing' | 'shipping_details' | 'shipping_confirmation';
     storeChannel?: string;
     linkStatus?: 'linked' | 'unlinked';
     createdFrom?: string;
@@ -669,6 +758,7 @@ export const OmsApi = {
     totalOp?: 'eq' | 'gt' | 'gte' | 'lt' | 'lte';
     totalValue?: string;
     status?: OmsOrderStatus;
+    operationalStage?: 'picking' | 'packing' | 'shipping_details' | 'shipping_confirmation';
     storeChannel?: string;
     linkStatus?: 'linked' | 'unlinked';
     createdFrom?: string;
@@ -731,6 +821,11 @@ export const OmsApi = {
     return api.get<OmsWaybillData>(`/oms/orders/${id}/waybill`).then((r) => r.data);
   },
 
+  async waybillPdfBlob(id: string): Promise<Blob> {
+    const response = await api.get<Blob>(`/oms/orders/${id}/waybill/pdf`, { responseType: 'blob' });
+    return response.data;
+  },
+
   async downloadWaybillPdf(id: string, orderNumber?: string): Promise<void> {
     const response = await api.get<Blob>(`/oms/orders/${id}/waybill/pdf`, {
       responseType: 'blob',
@@ -744,6 +839,60 @@ export const OmsApi = {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
+  },
+
+  async downloadInstructionPdf(id: string, orderNumber?: string): Promise<void> {
+    const response = await api.get<Blob>(`/oms/orders/${id}/instructions/pdf`, {
+      responseType: 'blob',
+    });
+    saveOmsBlob(
+      response.data,
+      filenameFromDisposition(
+        response.headers['content-disposition'],
+        `instructions-${orderNumber || id}.pdf`,
+      ),
+    );
+  },
+
+  async downloadInstructionsPdf(ids: string[]): Promise<void> {
+    const response = await api.post<Blob>(
+      '/oms/orders/instructions/pdf',
+      { ids },
+      { responseType: 'blob' },
+    );
+    saveOmsBlob(
+      response.data,
+      filenameFromDisposition(response.headers['content-disposition'], 'instructions.pdf'),
+    );
+  },
+
+  async downloadInstructionsZip(ids: string[]): Promise<void> {
+    const response = await api.post<Blob>(
+      '/oms/orders/instructions/zip',
+      { ids },
+      { responseType: 'blob' },
+    );
+    saveOmsBlob(
+      response.data,
+      filenameFromDisposition(response.headers['content-disposition'], 'instructions.zip'),
+    );
+  },
+
+  async downloadWaybillsPdf(orderIds: string[], mode: 'download' | 'print' = 'download'): Promise<void> {
+    const { printPdfBlob } = await import('../lib/print-pdf-blob');
+    const response = await api.post<Blob>(
+      '/oms/orders/waybills/pdf',
+      { orderIds },
+      { responseType: 'blob' },
+    );
+    if (mode === 'print') {
+      printPdfBlob(response.data);
+      return;
+    }
+    saveOmsBlob(
+      response.data,
+      filenameFromDisposition(response.headers['content-disposition'], 'shipping-labels.pdf'),
+    );
   },
 
   async exportWaybillsExcel(orderIds: string[]): Promise<void> {
@@ -837,6 +986,10 @@ export const OmsApi = {
     return api.post<OmsOrderDetail>(`/oms/orders/${id}/confirm-return-receipt`).then((r) => r.data);
   },
 
+  undoConfirmedReturn(id: string) {
+    return api.post<OmsOrderDetail>(`/oms/orders/${id}/undo-confirmed-return`).then((r) => r.data);
+  },
+
   failedDelivery(id: string) {
     return api.post<OmsOrderDetail>(`/oms/orders/${id}/failed-delivery`).then((r) => r.data);
   },
@@ -898,14 +1051,108 @@ export const OmsApi = {
       .post<OmsBulkStatusTransitionResponse>('/oms/orders/returned-bulk', { ids })
       .then((r) => r.data);
   },
+
+  createBatch(ids: string[], name?: string): Promise<{ id: string; batchNumber: string }> {
+    return api
+      .post<{ id: string; batchNumber: string }>('/oms/batches', { ids, name: name || undefined })
+      .then((r) => r.data);
+  },
+
+  listBatches(search?: string): Promise<OmsBatchSummary[]> {
+    return api
+      .get<OmsBatchSummary[]>('/oms/batches', { params: search ? { search } : {} })
+      .then((r) => r.data);
+  },
+
+  getBatch(id: string): Promise<OmsBatchDetail> {
+    return api.get<OmsBatchDetail>(`/oms/batches/${id}`).then((r) => r.data);
+  },
+
+  async downloadBatchLabels(id: string, ids: string[], mode: 'download' | 'print'): Promise<void> {
+    const { printPdfBlob } = await import('../lib/print-pdf-blob');
+    const response = await api.post<Blob>(`/oms/batches/${id}/labels/pdf`, { ids }, { responseType: 'blob' });
+    if (mode === 'print') {
+      printPdfBlob(response.data);
+      return;
+    }
+    saveOmsBlob(
+      response.data,
+      filenameFromDisposition(response.headers['content-disposition'], `shipping-labels-${ids.length}.pdf`),
+    );
+  },
+
+  async downloadBatchInstructionsPdf(id: string, kind: 'full' | 'picking' | 'packing' = 'full'): Promise<void> {
+    const response = await api.get<Blob>(`/oms/batches/${id}/instructions/pdf`, {
+      params: { kind },
+      responseType: 'blob',
+    });
+    saveOmsBlob(
+      response.data,
+      filenameFromDisposition(
+        response.headers['content-disposition'],
+        kind === 'full' ? `batch-instructions-${id}.pdf` : `batch-${kind}-list-${id}.pdf`,
+      ),
+    );
+  },
+
+  addBatchOrders(id: string, ids: string[]): Promise<{ updated?: number; added?: number; [key: string]: unknown }> {
+    return api
+      .post<{ updated?: number; added?: number; [key: string]: unknown }>(`/oms/batches/${id}/orders`, { ids })
+      .then((r) => r.data);
+  },
+
+  removeBatchOrders(id: string, ids: string[]): Promise<{ updated: number }> {
+    return api.post<{ updated: number }>(`/oms/batches/${id}/remove-orders`, { ids }).then((r) => r.data);
+  },
+
+  flagBatchOrders(id: string, ids: string[], note: string): Promise<{ updated: number }> {
+    return api
+      .post<{ updated: number }>(`/oms/batches/${id}/flag-orders`, { ids, note })
+      .then((r) => r.data);
+  },
+
+  clearBatchFlags(id: string, ids: string[]): Promise<{ updated: number }> {
+    return api.post<{ updated: number }>(`/oms/batches/${id}/clear-flags`, { ids }).then((r) => r.data);
+  },
+};
+
+export type CodSetStatusByScanResponse = {
+  ok: boolean;
+  action: 'updated' | 'unchanged';
+  codRecordId: string;
+  orderNumber: string;
+  clientName: string;
+  previousStatus: CodRecordStatus;
+  status: CodRecordStatus;
+  message: string;
 };
 
 export const CodApi = {
+  async exportCsv(params: {
+    companyId?: string;
+    status?: CodRecordStatus;
+    search?: string;
+    createdFrom?: string;
+    createdTo?: string;
+    amountMin?: number;
+    amountMax?: number;
+  } = {}): Promise<void> {
+    const response = await api.get<Blob>('/cod/records/export', {
+      params,
+      responseType: 'blob',
+    });
+    saveOmsBlob(response.data, 'cod-records.csv');
+  },
+
   list(params: {
     companyId?: string;
     status?: CodRecordStatus;
     omsOrderId?: string;
     search?: string;
+    createdFrom?: string;
+    createdTo?: string;
+    amountMin?: number;
+    amountMax?: number;
     limit?: number;
     offset?: number;
   } = {}): Promise<PageResult<CodRecord>> {
@@ -922,6 +1169,12 @@ export const CodApi = {
 
   setStatus(id: string, status: CodRecordStatus) {
     return api.patch<CodRecord>(`/cod/records/${id}/status`, { status }).then((r) => r.data);
+  },
+
+  setStatusByScan(code: string, status: CodRecordStatus) {
+    return api
+      .post<CodSetStatusByScanResponse>('/cod/status-by-scan', { code, status })
+      .then((r) => r.data);
   },
 
   addAdjustment(id: string, input: { amount: number; reason?: string }) {

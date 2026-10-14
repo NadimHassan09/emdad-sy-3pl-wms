@@ -1,6 +1,10 @@
 import * as crypto from 'crypto';
 import { Injectable, Logger } from '@nestjs/common';
-import { OmsOrderStatus, OutboundOrderStatus } from '@prisma/client';
+import {
+  CarrierShipmentStatus,
+  OmsOrderStatus,
+  OutboundOrderStatus,
+} from '@prisma/client';
 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RealtimeService } from '../realtime/realtime.service';
@@ -22,6 +26,7 @@ const STATUS_PROGRESS_RANK: Record<string, number> = {
   picking: 1,
   packing: 1,
   ready_to_ship: 1,
+  waiting_for_shipping_details: 1,
   shipped: 2,
   out_for_delivery: 3,
   failed_delivery: 3,
@@ -29,6 +34,33 @@ const STATUS_PROGRESS_RANK: Record<string, number> = {
   returned: 4,
   cancelled: 4,
 };
+
+function extractActualShippingPrice(
+  raw: unknown,
+): { amount: number; currency: string } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const b = raw as Record<string, unknown>;
+  const details = b.details && typeof b.details === 'object' ? (b.details as Record<string, unknown>) : {};
+  const amountRaw =
+    b.shipping_cost ?? b.shippingCost ?? b.price ?? b.delivery_fee ?? details.price ?? details.shipping_cost;
+  const amount = typeof amountRaw === 'number' ? amountRaw : Number(amountRaw);
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  const currencyRaw = b.currency ?? details.currency;
+  const currency = typeof currencyRaw === 'string' && currencyRaw.trim() ? currencyRaw.trim().toUpperCase() : 'USD';
+  return { amount, currency };
+}
+
+const LEFT_WAREHOUSE_STATUSES = new Set<string>([
+  OmsOrderStatus.shipped,
+  OmsOrderStatus.out_for_delivery,
+  OmsOrderStatus.failed_delivery,
+  OmsOrderStatus.delivered,
+  OmsOrderStatus.returned,
+  OutboundOrderStatus.shipped,
+  OutboundOrderStatus.out_for_delivery,
+  OutboundOrderStatus.delivered,
+  OutboundOrderStatus.returned,
+]);
 
 @Injectable()
 export class ShippingTrackingService {
@@ -97,7 +129,6 @@ export class ShippingTrackingService {
     let companyId = outbound?.companyId || omsOrder?.companyId;
 
     if (!carrierShipment) {
-      // Direct OMS Order fallback lookup
       const directOmsOrder = await this.prisma.omsOrder.findFirst({
         where: {
           OR: [
@@ -140,126 +171,157 @@ export class ShippingTrackingService {
       this.logger.warn(`Shipment ${carrierShipment.id} is not linked to an OMS order.`);
     }
 
+    const preOfd = this.isPreOfd(omsOrder?.status, outbound?.status);
+    const problemStatuses: NormalizedTrackingStatus[] = [
+      'cancelled',
+      'delivery_failed',
+      'return_created',
+      'returning_to_sender',
+      'returned_to_sender',
+      'returned',
+    ];
+    const isCarrierProblem = problemStatuses.includes(event.normalizedStatus);
+
     // 3. Monotonic Status Progression Check
     const currentOmsStatus = omsOrder?.status || 'ready_to_ship';
     const currentRank = STATUS_PROGRESS_RANK[currentOmsStatus] ?? 0;
-    const incomingRank = STATUS_PROGRESS_RANK[this.targetOmsStatus(event.normalizedStatus)] ?? 0;
+    const effectiveTarget = this.targetOmsStatus(event.normalizedStatus, preOfd);
+    const incomingRank = STATUS_PROGRESS_RANK[effectiveTarget] ?? 0;
 
     let shouldUpdateStatus = true;
-    if (incomingRank < currentRank && (currentRank >= 4 || currentOmsStatus === 'delivered' || currentOmsStatus === 'returned')) {
-      this.logger.warn(
-        `Prevented status regression for order ${omsOrder?.orderNumber}: current=${currentOmsStatus} (rank ${currentRank}), incoming=${event.normalizedStatus} (rank ${incomingRank})`,
-      );
-      shouldUpdateStatus = false;
+    // Pre-OFD carrier problems unlock shipping — never blocked as "regression".
+    if (!(preOfd && isCarrierProblem)) {
+      if (
+        incomingRank < currentRank &&
+        (currentRank >= 4 || currentOmsStatus === 'delivered' || currentOmsStatus === 'returned')
+      ) {
+        this.logger.warn(
+          `Prevented status regression for order ${omsOrder?.orderNumber}: current=${currentOmsStatus} (rank ${currentRank}), incoming=${event.normalizedStatus} (rank ${incomingRank})`,
+        );
+        shouldUpdateStatus = false;
+      }
     }
 
     // 4. State Transitions & Business Operations
     let actionTaken = `tracking_recorded:${event.normalizedStatus}`;
     if (shouldUpdateStatus && omsOrder) {
-      switch (event.normalizedStatus) {
-        case 'in_transit': {
-          if (omsOrder.status === OmsOrderStatus.ready_to_ship || omsOrder.status === OmsOrderStatus.processing) {
+      if (preOfd && isCarrierProblem) {
+        actionTaken = await this.handlePreDispatchCarrierFailure({
+          event,
+          omsOrder,
+          outbound,
+          carrierShipment,
+          trimmedAwb,
+        });
+      } else {
+        switch (event.normalizedStatus) {
+          case 'in_transit': {
+            if (
+              omsOrder.status === OmsOrderStatus.ready_to_ship ||
+              omsOrder.status === OmsOrderStatus.processing
+            ) {
+              await this.prisma.omsOrder.update({
+                where: { id: omsOrder.id },
+                data: { status: OmsOrderStatus.shipped },
+              });
+              if (outbound) {
+                await this.prisma.outboundOrder.update({
+                  where: { id: outbound.id },
+                  data: { status: OutboundOrderStatus.shipped, shippedAt: new Date() },
+                });
+              }
+              actionTaken = 'order_shipped';
+            }
+            break;
+          }
+
+          case 'out_for_delivery': {
+            const wasFailed = omsOrder.status === OmsOrderStatus.failed_delivery;
             await this.prisma.omsOrder.update({
               where: { id: omsOrder.id },
-              data: { status: OmsOrderStatus.shipped },
+              data: {
+                status: OmsOrderStatus.out_for_delivery,
+                outForDeliveryAt: omsOrder.outForDeliveryAt || new Date(),
+              },
             });
             if (outbound) {
               await this.prisma.outboundOrder.update({
                 where: { id: outbound.id },
-                data: { status: OutboundOrderStatus.shipped, shippedAt: new Date() },
+                data: {
+                  status: OutboundOrderStatus.out_for_delivery,
+                  outForDeliveryAt: outbound.outForDeliveryAt || new Date(),
+                },
               });
             }
-            actionTaken = 'order_shipped';
-          }
-          break;
-        }
-
-        case 'out_for_delivery': {
-          await this.prisma.omsOrder.update({
-            where: { id: omsOrder.id },
-            data: { status: OmsOrderStatus.out_for_delivery, outForDeliveryAt: new Date() },
-          });
-          if (outbound) {
-            await this.prisma.outboundOrder.update({
-              where: { id: outbound.id },
-              data: { status: OutboundOrderStatus.out_for_delivery, outForDeliveryAt: new Date() },
-            });
-          }
-          actionTaken = 'order_out_for_delivery';
-          break;
-        }
-
-        case 'delivery_failed': {
-          await this.prisma.omsOrder.update({
-            where: { id: omsOrder.id },
-            data: {
-              status: OmsOrderStatus.failed_delivery,
-              deliveryFailedAt: omsOrder.deliveryFailedAt || new Date(),
-            },
-          });
-          const res = await this.autoReturn.processCarrierReturnEvent({
-            omsOrderId: omsOrder.id,
-            awb: trimmedAwb,
-            stage: 'return_created',
-            reason: event.returnReason || event.notes,
-            originalStatus: event.originalCarrierStatus || event.eventType,
-            timestamp: event.timestamp || new Date(),
-          });
-          actionTaken = res.success ? 'order_delivery_failed_return_initiated' : 'order_delivery_failed';
-          break;
-        }
-
-        case 'delivered': {
-          const res = await this.autoReturn.handleCarrierDeliveredEvent({
-            omsOrderId: omsOrder.id,
-            awb: trimmedAwb,
-            timestamp: event.timestamp || new Date(),
-            notes: event.notes,
-          });
-          actionTaken = res.actionTaken;
-          break;
-        }
-
-        case 'return_created':
-        case 'returning_to_sender':
-        case 'returned_to_sender':
-        case 'returned': {
-          let stage: 'return_created' | 'returning_to_sender' | 'returned_to_sender' = 'returned_to_sender';
-          if (event.carrierReturnStage) {
-            stage = event.carrierReturnStage;
-          } else if (event.normalizedStatus === 'return_created') {
-            stage = 'return_created';
-          } else if (event.normalizedStatus === 'returning_to_sender') {
-            stage = 'returning_to_sender';
+            if (wasFailed) {
+              await this.autoReturn.cancelUnconfirmedDraftReturns({
+                omsOrderId: omsOrder.id,
+                companyId,
+                reason: `Auto-cancelled: carrier resumed out-for-delivery for AWB ${trimmedAwb}.`,
+              });
+              actionTaken = 'order_out_for_delivery_draft_return_cancelled';
+            } else {
+              actionTaken = 'order_out_for_delivery';
+            }
+            break;
           }
 
-          const res = await this.autoReturn.processCarrierReturnEvent({
-            omsOrderId: omsOrder.id,
-            awb: trimmedAwb,
-            stage,
-            reason: event.returnReason || event.notes,
-            originalStatus: event.originalCarrierStatus || event.eventType,
-            timestamp: event.timestamp || new Date(),
-          });
-          actionTaken = res.success ? `carrier_return_${stage}` : 'carrier_return_failed';
-          break;
-        }
-
-        case 'cancelled': {
-          if (omsOrder.status !== OmsOrderStatus.delivered && omsOrder.status !== OmsOrderStatus.returned) {
+          case 'delivery_failed':
+          case 'cancelled': {
+            // Failed delivery is a status only. A return draft is an admin decision.
             await this.prisma.omsOrder.update({
               where: { id: omsOrder.id },
-              data: { status: OmsOrderStatus.cancelled, cancelledAt: new Date() },
+              data: {
+                status: OmsOrderStatus.failed_delivery,
+                deliveryFailedAt: omsOrder.deliveryFailedAt || new Date(),
+              },
             });
-            if (outbound) {
-              await this.prisma.outboundOrder.update({
-                where: { id: outbound.id },
-                data: { status: OutboundOrderStatus.cancelled, cancelledAt: new Date() },
-              });
-            }
-            actionTaken = 'order_cancelled';
+            actionTaken =
+              event.normalizedStatus === 'cancelled'
+                ? 'order_carrier_cancelled_failed_delivery'
+                : 'order_delivery_failed';
+            break;
           }
-          break;
+
+          case 'delivered': {
+            const res = await this.autoReturn.handleCarrierDeliveredEvent({
+              omsOrderId: omsOrder.id,
+              awb: trimmedAwb,
+              timestamp: event.timestamp || new Date(),
+              notes: event.notes,
+            });
+            actionTaken = res.actionTaken;
+            break;
+          }
+
+          case 'return_created':
+          case 'returning_to_sender':
+          case 'returned_to_sender':
+          case 'returned': {
+            let stage: 'return_created' | 'returning_to_sender' | 'returned_to_sender' =
+              'returned_to_sender';
+            if (event.carrierReturnStage) {
+              stage = event.carrierReturnStage;
+            } else if (event.normalizedStatus === 'return_created') {
+              stage = 'return_created';
+            } else if (event.normalizedStatus === 'returning_to_sender') {
+              stage = 'returning_to_sender';
+            }
+
+            const res = await this.autoReturn.processCarrierReturnEvent({
+              omsOrderId: omsOrder.id,
+              awb: trimmedAwb,
+              stage,
+              reason: event.returnReason || event.notes,
+              originalStatus: event.originalCarrierStatus || event.eventType,
+              timestamp: event.timestamp || new Date(),
+            });
+            actionTaken = res.success ? `carrier_return_${stage}` : 'carrier_return_failed';
+            break;
+          }
+
+          default:
+            break;
         }
       }
     }
@@ -280,13 +342,17 @@ export class ShippingTrackingService {
       },
     });
 
-    // 6. Update Shipment Metadata if linked
-    if (carrierShipment) {
+    // 6. Update Shipment Metadata if linked (skip if pre-dispatch already marked failed)
+    if (carrierShipment && !(preOfd && isCarrierProblem)) {
+      const actualPrice = extractActualShippingPrice(event.rawPayload);
       await this.prisma.carrierShipment.update({
         where: { id: carrierShipment.id },
         data: {
           lastTrackingStatus: event.normalizedStatus,
           lastTrackingAt: new Date(),
+          ...(actualPrice
+            ? { shippingCost: actualPrice.amount, currency: actualPrice.currency }
+            : {}),
         },
       });
     }
@@ -306,11 +372,11 @@ export class ShippingTrackingService {
             actionTaken,
             notes: event.notes,
             location: event.locationText,
+            preOfd,
           },
         },
       });
 
-      // Realtime Notification
       this.realtime.emitOmsOrderEvent(companyId, {
         orderId: omsOrder.id,
         status: omsOrder.status,
@@ -327,6 +393,103 @@ export class ShippingTrackingService {
       action: actionTaken,
       orderId: omsOrder?.id,
     };
+  }
+
+  /**
+   * True while goods are still in warehouse (not yet shipped / OFD / failed / delivered).
+   */
+  isPreOfd(omsStatus?: string | null, outboundStatus?: string | null): boolean {
+    if (omsStatus && LEFT_WAREHOUSE_STATUSES.has(omsStatus)) return false;
+    if (outboundStatus && LEFT_WAREHOUSE_STATUSES.has(outboundStatus)) return false;
+    return true;
+  }
+
+  /**
+   * Carrier cancelled/failed before goods left the warehouse:
+   * supersede shipment, undo confirm, unlock shipping, flag batch row red.
+   */
+  private async handlePreDispatchCarrierFailure(params: {
+    event: NormalizedTrackingEvent;
+    omsOrder: any;
+    outbound: any;
+    carrierShipment: any;
+    trimmedAwb: string;
+  }): Promise<string> {
+    const { event, omsOrder, outbound, carrierShipment, trimmedAwb } = params;
+    const reason =
+      (event.returnReason || event.notes || event.originalCarrierStatus || event.eventType || 'cancelled')
+        .toString()
+        .trim()
+        .slice(0, 400);
+    const carrierLabel =
+      (omsOrder.carrier || outbound?.carrier || event.providerCode || 'Carrier').toString().trim();
+    const issueNote =
+      `Provider cancelled: ${reason} | Carrier: ${carrierLabel} | AWB: ${trimmedAwb}`.slice(0, 500);
+
+    if (carrierShipment) {
+      await this.prisma.carrierShipment.update({
+        where: { id: carrierShipment.id },
+        data: {
+          status: CarrierShipmentStatus.failed,
+          lastTrackingStatus: event.normalizedStatus,
+          lastTrackingAt: new Date(),
+          lastErrorSafe: issueNote,
+          nextPollAt: null,
+        },
+      });
+    }
+
+    // Mark any other created shipments on this outbound as failed too.
+    if (outbound?.id) {
+      await this.prisma.carrierShipment.updateMany({
+        where: {
+          outboundOrderId: outbound.id,
+          status: CarrierShipmentStatus.created,
+          ...(carrierShipment ? { id: { not: carrierShipment.id } } : {}),
+        },
+        data: {
+          status: CarrierShipmentStatus.failed,
+          lastErrorSafe: issueNote,
+          nextPollAt: null,
+        },
+      });
+    }
+
+    if (outbound?.id) {
+      const outboundData: Record<string, unknown> = {
+        trackingNumber: null,
+      };
+      if (outbound.status === OutboundOrderStatus.ready_to_ship) {
+        outboundData.status = OutboundOrderStatus.waiting_for_shipping_details;
+      }
+      await this.prisma.outboundOrder.update({
+        where: { id: outbound.id },
+        data: outboundData,
+      });
+    }
+
+    await this.prisma.omsOrder.update({
+      where: { id: omsOrder.id },
+      data: {
+        trackingNumber: null,
+        // Keep commercial OMS status; unlock happens via outbound waiting_for_shipping_details.
+      },
+    });
+
+    // Auto-flag every active batch membership for this order (red row).
+    await this.prisma.omsBatchOrder.updateMany({
+      where: {
+        omsOrderId: omsOrder.id,
+        removedAt: null,
+      },
+      data: { issueNote },
+    });
+
+    this.logger.warn(
+      `Pre-dispatch carrier failure for order=${omsOrder.orderNumber} awb=${trimmedAwb}: unlocked shipping + batch issueNote`,
+    );
+
+    return 'pre_dispatch_carrier_failure_unlocked';
   }
 
   /**
@@ -403,19 +566,23 @@ export class ShippingTrackingService {
       };
     }
 
-    // Resolve provider code
     let code = (params.providerCode || '').toUpperCase().trim();
     const carrierName = (params.carrierName || '').toLowerCase().trim();
 
     if (!code) {
       if (carrierName.includes('babel')) {
         code = 'BABEL_EXPRESS';
-      } else if (carrierName.includes('sila')) {
+      } else if (
+        carrierName.includes('sila') ||
+        carrierName.includes('مسارات') ||
+        carrierName.includes('ترابط') ||
+        carrierName.includes('ديليفرو') ||
+        carrierName.includes('masarat')
+      ) {
         code = 'SILA_SY';
       }
     }
 
-    // Try finding associated carrier shipment in database if code is still missing
     if (!code) {
       const shipment = await this.prisma.carrierShipment.findFirst({
         where: {
@@ -506,8 +673,9 @@ export class ShippingTrackingService {
 
   /**
    * Helper mapping normalized tracking status to target OMS status.
+   * Post-OFD cancel maps to failed_delivery (not commercial cancelled).
    */
-  private targetOmsStatus(normalized: NormalizedTrackingStatus): string {
+  private targetOmsStatus(normalized: NormalizedTrackingStatus, preOfd = false): string {
     switch (normalized) {
       case 'in_transit':
         return 'shipped';
@@ -517,13 +685,13 @@ export class ShippingTrackingService {
       case 'return_created':
       case 'returning_to_sender':
       case 'returned_to_sender':
-        return 'failed_delivery';
+      case 'cancelled':
+        // Pre-OFD unlock keeps stage roughly at ready_to_ship / waiting; post → failed_delivery.
+        return preOfd ? 'ready_to_ship' : 'failed_delivery';
       case 'delivered':
         return 'delivered';
       case 'returned':
-        return 'returned';
-      case 'cancelled':
-        return 'cancelled';
+        return preOfd ? 'ready_to_ship' : 'failed_delivery';
       default:
         return 'ready_to_ship';
     }

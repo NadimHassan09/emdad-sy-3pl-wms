@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
 import {
@@ -12,7 +12,6 @@ import {
   StatusBadge,
   countNonEmptyFilters,
   FILTER_COMPACT_SEARCH_CLASS,
-  FILTER_COMPACT_SELECT_CLASS,
   FILTER_FIELD_CONTROL_CLASS,
 } from '@ds';
 import {
@@ -27,9 +26,9 @@ import { StorePillTabs } from '../design-v2/StorePillTabs';
 import { TableFooterPagination } from '../design-v2/TableFooterPagination';
 import { ClientOrderImportModal } from '../components/ClientOrderImportModal';
 import { ClientOmsOrdersExportModal } from '../components/ClientOmsOrdersExportModal';
+import { ClientOmsOrdersStatusNav } from '../components/ClientOmsOrdersStatusNav';
 import { useClientOperationalAccess } from '../hooks/useClientOperationalAccess';
 import {
-  CLIENT_OMS_COMMERCIAL_FILTER_OPTIONS,
   clientOmsCommercialStatusBadgeKey,
   clientOmsCommercialStatusLabel,
   mapClientOmsCommercialDisplayStatus,
@@ -39,19 +38,17 @@ import { isProductionClientPortal } from '../lib/production-client-portal';
 import {
   cancelClientOmsOrdersBulk,
   confirmClientOmsOrdersBulk,
+  fetchClientOmsNavCounts,
   fetchClientOmsOrders,
+  type ClientOmsOperationalStage,
   type ClientOmsOrderListItem,
   type ClientOmsOrderStatus,
+  type ClientOmsTotalOp,
 } from '../services/clientOmsOrdersService';
 import {
   CLIENT_OMS_EXPORT_COLUMNS,
   downloadClientOrdersExport,
 } from '../services/clientOrdersExport';
-
-const STATUS_OPTIONS = CLIENT_OMS_COMMERCIAL_FILTER_OPTIONS.map((o) => ({
-  value: o.value,
-  label: o.label,
-}));
 
 function labelText(label: string, isArabic: boolean): string {
   if (!isArabic) return label;
@@ -91,6 +88,32 @@ function labelText(label: string, isArabic: boolean): string {
     'Some orders could not be cancelled.': 'تعذر إلغاء بعض الطلبات.',
     'Select all on this page': 'تحديد الكل في هذه الصفحة',
     selected: 'محدد',
+    Customer: 'الزبون',
+    'Customer name…': 'اسم الزبون…',
+    Phone: 'الهاتف',
+    'Phone number…': 'رقم الهاتف…',
+    Carrier: 'شركة الشحن',
+    'Carrier name…': 'اسم شركة الشحن…',
+    'City…': 'المدينة…',
+    'Start Order No.': 'رقم طلب البداية',
+    'End Order No.': 'رقم طلب النهاية',
+    'Total operator': 'مقارنة الإجمالي',
+    'Total value': 'قيمة الإجمالي',
+    'Operational stage': 'المرحلة التشغيلية',
+    'All stages': 'كل المراحل',
+    Picking: 'الالتقاط',
+    Packing: 'التعبئة',
+    'Shipping details': 'تفاصيل الشحن',
+    'Shipping confirmation': 'تأكيد الشحن',
+    'Created from': 'تاريخ الإنشاء من',
+    'Created to': 'تاريخ الإنشاء إلى',
+    'Equals (=)': 'يساوي (=)',
+    'Greater than (>)': 'أكبر من (>)',
+    'At least (≥)': 'على الأقل (≥)',
+    'Less than (<)': 'أقل من (<)',
+    'At most (≤)': 'على الأكثر (≤)',
+    'Start order number must not be after the end order number.':
+      'رقم طلب البداية يجب ألا يكون بعد رقم النهاية.',
   };
   return ar[label] ?? label;
 }
@@ -106,12 +129,75 @@ function isCancellableOrder(row: ClientOmsOrderListItem): boolean {
   return row.status === 'waiting_for_confirmation' || commercial === 'waiting_for_confirmation';
 }
 
-const ECOMMERCE_LIST_FILTERS = { search: '', status: '' };
+type EcommerceListFilters = {
+  search: string;
+  status: string;
+  customer: string;
+  phone: string;
+  city: string;
+  startOrderNo: string;
+  endOrderNo: string;
+  totalOp: string;
+  totalValue: string;
+  operationalStage: string;
+  createdFrom: string;
+  createdTo: string;
+};
+
+const ECOMMERCE_LIST_FILTERS: EcommerceListFilters = {
+  search: '',
+  status: '',
+  customer: '',
+  phone: '',
+  city: '',
+  startOrderNo: '',
+  endOrderNo: '',
+  totalOp: 'eq',
+  totalValue: '',
+  operationalStage: '',
+  createdFrom: '',
+  createdTo: '',
+};
+
+const TOTAL_OP_OPTIONS: Array<{ value: ClientOmsTotalOp; label: string }> = [
+  { value: 'eq', label: 'Equals (=)' },
+  { value: 'gt', label: 'Greater than (>)' },
+  { value: 'gte', label: 'At least (≥)' },
+  { value: 'lt', label: 'Less than (<)' },
+  { value: 'lte', label: 'At most (≤)' },
+];
+
+const STAGE_OPTIONS: Array<{ value: ClientOmsOperationalStage; label: string }> = [
+  { value: 'picking', label: 'Picking' },
+  { value: 'packing', label: 'Packing' },
+  { value: 'shipping_details', label: 'Shipping details' },
+  { value: 'shipping_confirmation', label: 'Shipping confirmation' },
+];
+
+function trimmed(value: string | undefined): string | undefined {
+  const v = (value ?? '').trim();
+  return v || undefined;
+}
 
 export function EcommerceOrdersPage(): ReactElement {
   const navigate = useNavigate();
-  const { draftFilters, appliedFilters, setDraft, applyFilters, resetFilters } =
-    useFilters(ECOMMERCE_LIST_FILTERS);
+  const {
+    draftFilters: draftFiltersRaw,
+    appliedFilters: appliedFiltersRaw,
+    setDraft,
+    applyFilters,
+    applyPatch,
+    resetFilters,
+  } = useFilters<EcommerceListFilters>(ECOMMERCE_LIST_FILTERS);
+  // Older cached filter entries only had search/status — fill missing keys.
+  const draftFilters = useMemo<EcommerceListFilters>(
+    () => ({ ...ECOMMERCE_LIST_FILTERS, ...draftFiltersRaw }),
+    [draftFiltersRaw],
+  );
+  const appliedFilters = useMemo<EcommerceListFilters>(
+    () => ({ ...ECOMMERCE_LIST_FILTERS, ...appliedFiltersRaw }),
+    [appliedFiltersRaw],
+  );
   const [advancedOpen, setAdvancedOpen] = useCachedState('advanced-filters-open', false);
   const isArabic = isClientArabic();
   const t = (label: string) => labelText(label, isArabic);
@@ -127,13 +213,46 @@ export function EcommerceOrdersPage(): ReactElement {
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
 
-  const filterKey = useMemo(
-    () => ({
-      orderSearch: appliedFilters.search.trim() || undefined,
+  const draftRangeError = useMemo(() => {
+    const start = draftFilters.startOrderNo.trim();
+    const end = draftFilters.endOrderNo.trim();
+    if (start && end && start.localeCompare(end, undefined, { numeric: true }) > 0) {
+      return t('Start order number must not be after the end order number.');
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftFilters.startOrderNo, draftFilters.endOrderNo, isArabic]);
+
+  const filterKey = useMemo(() => {
+    const totalValue = trimmed(appliedFilters.totalValue);
+    return {
+      orderSearch: trimmed(appliedFilters.search),
       status: (appliedFilters.status || undefined) as ClientOmsOrderStatus | undefined,
-    }),
-    [appliedFilters],
-  );
+      customer: trimmed(appliedFilters.customer),
+      phone: trimmed(appliedFilters.phone),
+      city: trimmed(appliedFilters.city),
+      startOrderNo: trimmed(appliedFilters.startOrderNo),
+      endOrderNo: trimmed(appliedFilters.endOrderNo),
+      totalOp: totalValue ? ((appliedFilters.totalOp || 'eq') as ClientOmsTotalOp) : undefined,
+      totalValue,
+      operationalStage: (appliedFilters.operationalStage || undefined) as
+        | ClientOmsOperationalStage
+        | undefined,
+      createdFrom: trimmed(appliedFilters.createdFrom),
+      createdTo: trimmed(appliedFilters.createdTo),
+    };
+  }, [appliedFilters]);
+
+  /** Nav counts ignore status/stage so cards stay stable while switching status. */
+  const navCountParams = useMemo(() => {
+    const { status: _status, operationalStage: _stage, ...rest } = filterKey;
+    return rest;
+  }, [filterKey]);
+
+  const navCountsQuery = useQuery({
+    queryKey: ['client', 'ecommerce-orders', 'nav-counts', navCountParams],
+    queryFn: () => fetchClientOmsNavCounts(navCountParams),
+  });
 
   const pagination = useChunkedServerPagination<ClientOmsOrderListItem>({
     chunkSize: CHUNK_SIZE_STANDARD,
@@ -150,7 +269,7 @@ export function EcommerceOrdersPage(): ReactElement {
     setSelectedIds(new Set());
     setBulkMessage(null);
     setBulkError(null);
-  }, [filterKey.orderSearch, filterKey.status, pagination.page]);
+  }, [JSON.stringify(filterKey), pagination.page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedConfirmableIds = useMemo(
     () =>
@@ -195,6 +314,7 @@ export function EcommerceOrdersPage(): ReactElement {
     onSuccess: (result) => {
       setSelectedIds(new Set());
       void pagination.refetch();
+      void navCountsQuery.refetch();
       if (result.failed > 0) {
         const first = result.failures[0];
         setBulkError(
@@ -227,6 +347,7 @@ export function EcommerceOrdersPage(): ReactElement {
     onSuccess: (result) => {
       setSelectedIds(new Set());
       void pagination.refetch();
+      void navCountsQuery.refetch();
       if (result.failed > 0) {
         const first = result.failures[0];
         setBulkError(
@@ -276,7 +397,19 @@ export function EcommerceOrdersPage(): ReactElement {
     }
   };
 
-  const hasActiveFilters = Boolean(appliedFilters.search.trim() || appliedFilters.status);
+  const hasActiveFilters = countNonEmptyFilters(appliedFilters, [
+    'search',
+    'status',
+    'customer',
+    'phone',
+    'city',
+    'startOrderNo',
+    'endOrderNo',
+    'totalValue',
+    'operationalStage',
+    'createdFrom',
+    'createdTo',
+  ]) > 0;
 
   const createButton = (
     <div className="flex flex-wrap items-center gap-2">
@@ -371,7 +504,18 @@ export function EcommerceOrdersPage(): ReactElement {
         onAdvancedOpenChange={setAdvancedOpen}
         isArabic={isArabic}
         loading={pagination.isFetching}
-        activeCount={countNonEmptyFilters(appliedFilters, ['status'])}
+        activeCount={countNonEmptyFilters(appliedFilters, [
+          'customer',
+          'phone',
+          'city',
+          'startOrderNo',
+          'endOrderNo',
+          'totalValue',
+          'operationalStage',
+          'createdFrom',
+          'createdTo',
+        ])}
+        applyDisabled={Boolean(draftRangeError)}
         onApply={applyFilters}
         onReset={() => {
           resetFilters();
@@ -388,17 +532,6 @@ export function EcommerceOrdersPage(): ReactElement {
                 className={FILTER_COMPACT_SEARCH_CLASS}
               />
             </div>
-            <select
-              value={draftFilters.status}
-              onChange={(e) => setDraft({ status: e.target.value })}
-              className={FILTER_COMPACT_SELECT_CLASS}
-            >
-              {STATUS_OPTIONS.map((o) => (
-                <option key={o.value || 'all'} value={o.value}>
-                  {o.value === '' ? t('All statuses') : o.label}
-                </option>
-              ))}
-            </select>
           </div>
         }
       >
@@ -412,20 +545,123 @@ export function EcommerceOrdersPage(): ReactElement {
           />
         </div>
         <div className="min-w-0">
-          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Status')}</label>
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Start Order No.')}</label>
+          <input
+            value={draftFilters.startOrderNo}
+            onChange={(e) => setDraft({ startOrderNo: e.target.value })}
+            placeholder="OMS-2026-03700"
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('End Order No.')}</label>
+          <input
+            value={draftFilters.endOrderNo}
+            onChange={(e) => setDraft({ endOrderNo: e.target.value })}
+            placeholder="OMS-2026-03800"
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+          {draftRangeError ? (
+            <p className="mt-1 text-xs text-status-error-fg">{draftRangeError}</p>
+          ) : null}
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Customer')}</label>
+          <input
+            value={draftFilters.customer}
+            onChange={(e) => setDraft({ customer: e.target.value })}
+            placeholder={t('Customer name…')}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Phone')}</label>
+          <input
+            value={draftFilters.phone}
+            onChange={(e) => setDraft({ phone: e.target.value })}
+            placeholder={t('Phone number…')}
+            inputMode="tel"
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('City')}</label>
+          <input
+            value={draftFilters.city}
+            onChange={(e) => setDraft({ city: e.target.value })}
+            placeholder={t('City…')}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Total value')}</label>
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+            <select
+              value={draftFilters.totalOp}
+              onChange={(e) => setDraft({ totalOp: e.target.value })}
+              aria-label={t('Total operator')}
+              className={FILTER_FIELD_CONTROL_CLASS}
+            >
+              {TOTAL_OP_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {t(opt.label)}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              inputMode="decimal"
+              value={draftFilters.totalValue}
+              onChange={(e) => setDraft({ totalValue: e.target.value })}
+              placeholder="0"
+              aria-label={t('Total value')}
+              className={FILTER_FIELD_CONTROL_CLASS}
+            />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Operational stage')}</label>
           <select
-            value={draftFilters.status}
-            onChange={(e) => setDraft({ status: e.target.value })}
+            value={draftFilters.operationalStage}
+            onChange={(e) => setDraft({ operationalStage: e.target.value })}
             className={FILTER_FIELD_CONTROL_CLASS}
           >
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value || 'all'} value={o.value}>
-                {o.value === '' ? t('All statuses') : o.label}
+            <option value="">{t('All stages')}</option>
+            {STAGE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {t(opt.label)}
               </option>
             ))}
           </select>
         </div>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Created from')}</label>
+          <input
+            type="date"
+            value={draftFilters.createdFrom}
+            onChange={(e) => setDraft({ createdFrom: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-text-muted">{t('Created to')}</label>
+          <input
+            type="date"
+            value={draftFilters.createdTo}
+            onChange={(e) => setDraft({ createdTo: e.target.value })}
+            className={FILTER_FIELD_CONTROL_CLASS}
+          />
+        </div>
       </AdvancedFilterSection>
+
+      <ClientOmsOrdersStatusNav
+        isArabic={isArabic}
+        status={appliedFilters.status}
+        counts={navCountsQuery.data}
+        onStatusChange={(status) => applyPatch({ status })}
+      />
 
       <Card className="overflow-hidden">
         {pagination.isInitialLoading ? (
@@ -576,7 +812,6 @@ export function EcommerceOrdersPage(): ReactElement {
                     <th className="px-5 py-3 text-left">{t('Recipient')}</th>
                     <th className="px-5 py-3 text-left">{t('City')}</th>
                     <th className="px-5 py-3 text-left">{t('Total')}</th>
-                    <th className="px-5 py-3 text-right">{t('Created')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
@@ -605,7 +840,12 @@ export function EcommerceOrdersPage(): ReactElement {
                           </td>
                         ) : null}
                         <td className="px-5 py-3.5 font-semibold text-text-strong font-mono">
-                          {row.orderNumber || '—'}
+                          <div className="flex flex-col gap-0.5">
+                            <span>{row.orderNumber || '—'}</span>
+                            <time className="text-xs font-normal text-text-muted" dateTime={row.createdAt}>
+                              {new Date(row.createdAt).toLocaleString()}
+                            </time>
+                          </div>
                         </td>
                         <td className="px-5 py-3.5">
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -628,9 +868,6 @@ export function EcommerceOrdersPage(): ReactElement {
                           {row.total == null
                             ? '—'
                             : `${row.total}${row.currency ? ` ${row.currency}` : ''}`}
-                        </td>
-                        <td className="px-5 py-3.5 text-right text-text-muted text-xs">
-                          {new Date(row.createdAt).toLocaleString()}
                         </td>
                       </tr>
                     );

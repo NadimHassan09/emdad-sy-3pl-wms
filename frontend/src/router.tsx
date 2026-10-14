@@ -67,6 +67,8 @@ const OmsOrderCreatePage      = lazyPage(() => import('./pages/OmsOrderCreatePag
 const OmsOrderDetailPage      = lazyPage(() => import('./pages/OmsOrderDetailPage'),      'OmsOrderDetailPage');
 const OmsWaybillPage          = lazyPage(() => import('./pages/OmsWaybillPage'),          'OmsWaybillPage');
 const OmsDashboardPage        = lazyPage(() => import('./pages/OmsDashboardPage'),        'OmsDashboardPage');
+const OmsBatchesPage          = lazyPage(() => import('./pages/OmsBatchesPage'),          'OmsBatchesPage');
+const OmsBatchDetailPage      = lazyPage(() => import('./pages/OmsBatchDetailPage'),      'OmsBatchDetailPage');
 const OutboundDetailPage      = lazyPage(() => import('./pages/OutboundDetailPage'),      'OutboundDetailPage');
 const TasksListPage           = lazyPage(() => import('./pages/TasksListPage'),           'TasksListPage');
 const TaskDetailPage          = lazyPage(() => import('./pages/TaskDetailPage'),          'TaskDetailPage');
@@ -180,6 +182,8 @@ export const router = createBrowserRouter([
       { path: 'orders/oms/:id/waybill', element: <OmsWaybillPage /> },
       { path: 'oms', element: <Navigate to="/oms/dashboard" replace /> },
       { path: 'oms/dashboard', element: <OmsDashboardPage /> },
+      { path: 'oms/batches', element: <OmsBatchesPage /> },
+      { path: 'oms/batches/:id', element: <OmsBatchDetailPage /> },
       { path: 'oms/cod', element: omsCodReturnsElement(<OmsCodPage />) },
       { path: 'oms/cod/:id', element: omsCodReturnsElement(<OmsCodDetailPage />) },
       { path: 'oms/returns', element: omsCodReturnsElement(<OmsReturnsPage />) },

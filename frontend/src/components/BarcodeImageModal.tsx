@@ -1,4 +1,5 @@
 import JsBarcode from 'jsbarcode';
+import QRCode from 'qrcode';
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 import { Button } from './Button';
@@ -25,6 +26,7 @@ export function BarcodeImageModal({ open, onClose, value, productName, contextLa
   const titleSuffix = (contextLabel ?? productName ?? '').trim() || '—';
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [format, setFormat] = useState<'barcode' | 'qr'>('barcode');
 
   const paintBarcode = useCallback(
     (canvas: HTMLCanvasElement) => {
@@ -35,6 +37,14 @@ export function BarcodeImageModal({ open, onClose, value, productName, contextLa
       }
       setError(null);
       try {
+        if (format === 'qr') {
+          void QRCode.toCanvas(canvas, trimmed, {
+            width: 280,
+            margin: 2,
+            color: { dark: '#0f172a', light: '#ffffff' },
+          });
+          return;
+        }
         JsBarcode(canvas, trimmed, {
           format: 'CODE128',
           width: 2,
@@ -46,10 +56,10 @@ export function BarcodeImageModal({ open, onClose, value, productName, contextLa
           fontSize: 16,
         });
       } catch {
-        setError('Could not generate a barcode image for this value.');
+        setError('Could not generate an image for this value.');
       }
     },
-    [value],
+    [format, value],
   );
 
   const onCanvasRef = useCallback(
@@ -67,7 +77,7 @@ export function BarcodeImageModal({ open, onClose, value, productName, contextLa
     }
     const canvas = canvasRef.current;
     if (canvas) paintBarcode(canvas);
-  }, [open, value, paintBarcode]);
+  }, [open, value, format, paintBarcode]);
 
   const downloadPng = () => {
     const canvas = canvasRef.current;
@@ -100,6 +110,23 @@ export function BarcodeImageModal({ open, onClose, value, productName, contextLa
           <Button type="button" variant="danger" onClick={onClose}>
             Close
           </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!!error}
+            onClick={() => {
+              const canvas = canvasRef.current;
+              if (!canvas) return;
+              const win = window.open('', '_blank', 'noopener,noreferrer,width=480,height=640');
+              if (!win) return;
+              win.document.write(`<img src="${canvas.toDataURL('image/png')}" alt="" style="width:280px;height:auto" />`);
+              win.document.close();
+              win.focus();
+              win.print();
+            }}
+          >
+            Print
+          </Button>
           <Button type="button" onClick={downloadPng} disabled={!!error}>
             Download PNG
           </Button>
@@ -107,6 +134,14 @@ export function BarcodeImageModal({ open, onClose, value, productName, contextLa
       }
     >
       <div className="flex flex-col items-center gap-4 py-2">
+        <div className="flex gap-2">
+          <Button type="button" variant={format === 'barcode' ? 'brand' : 'secondary'} onClick={() => setFormat('barcode')}>
+            Barcode
+          </Button>
+          <Button type="button" variant={format === 'qr' ? 'brand' : 'secondary'} onClick={() => setFormat('qr')}>
+            QR Code
+          </Button>
+        </div>
         {error ? (
           <p className="text-center text-sm text-status-danger-fg">{error}</p>
         ) : (

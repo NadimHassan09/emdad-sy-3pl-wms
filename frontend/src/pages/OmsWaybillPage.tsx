@@ -37,8 +37,18 @@ export function OmsWaybillPage() {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    if (!id || !waybill) return;
+    try {
+      setIsDownloading(true);
+      const blob = await OmsApi.waybillPdfBlob(id);
+      const { printPdfBlob } = await import('../lib/print-pdf-blob');
+      printPdfBlob(blob);
+    } catch {
+      alert(isArabic ? 'تعذر تجهيز البوليصة للطباعة' : 'Could not prepare the label for printing');
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -187,8 +197,9 @@ export function OmsWaybillPage() {
           .waybill-paper {
             width: 96mm !important;
             max-width: 96mm !important;
-            height: 146mm !important;
-            max-height: 146mm !important;
+            min-height: 146mm !important;
+            height: auto !important;
+            max-height: none !important;
             border: 1.5px solid #000000 !important;
             box-shadow: none !important;
             padding: 3mm !important;
@@ -196,10 +207,9 @@ export function OmsWaybillPage() {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             box-sizing: border-box !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             display: flex !important;
             flex-direction: column !important;
-            justify-content: space-between !important;
           }
         }
       `}</style>

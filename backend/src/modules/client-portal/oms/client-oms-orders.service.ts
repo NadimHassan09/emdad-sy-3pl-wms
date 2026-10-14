@@ -45,6 +45,20 @@ export class ClientOmsOrdersService {
     return this.omsOrders.list(user, scoped);
   }
 
+  /**
+   * Status-card counts for the Online orders list.
+   * Same filters as the list except status, so cards stay stable while switching status.
+   */
+  async statusNavCounts(client: ClientPrincipal, query: ListClientOmsOrdersQueryDto) {
+    const user = clientAuthPrincipal(client);
+    return this.omsOrders.statusNavCounts(user, {
+      ...query,
+      companyId: client.companyId,
+      status: undefined,
+      operationalStage: undefined,
+    });
+  }
+
   async listForExport(
     client: ClientPrincipal,
     query: Omit<ListOmsOrdersQueryDto, 'companyId' | 'limit' | 'offset'>,
@@ -373,7 +387,66 @@ export class ClientOmsOrdersService {
 
   async findOne(client: ClientPrincipal, id: string) {
     const user = clientAuthPrincipal(client);
-    return this.omsOrders.findById(id, user);
+    const order = await this.omsOrders.findById(id, user);
+    return {
+      ...order,
+      trackingNumber: null,
+      carrier: null,
+      linkedOutboundOrder: order.linkedOutboundOrder
+        ? {
+            ...order.linkedOutboundOrder,
+            trackingNumber: null,
+            shippingProviderCode: null,
+            shippingServiceId: null,
+          }
+        : order.linkedOutboundOrder,
+    };
+  }
+
+  /**
+   * Full carrier shipment movement history for the client portal.
+   * Omits provider/company display name by design.
+   */
+  async getShippingMovement(client: ClientPrincipal, id: string) {
+    const user = clientAuthPrincipal(client);
+    const result = await this.omsOrders.getShippingMovement(id, user);
+    const { providerName: _providerName, providerCode: _providerCode, ...rest } = result as {
+      providerName?: string | null;
+      providerCode?: string | null;
+      awb?: string | null;
+      isDelivered?: boolean;
+      statusLabel?: string;
+      statusColor?: string;
+      events?: Array<{ title?: string; notes?: string | null; [key: string]: unknown }>;
+      message?: string;
+      error?: string;
+    };
+
+    // Strip known carrier brand strings from client-visible titles/notes.
+    const brandPattern =
+      /\b(sila(?:-sy)?(?:\.com)?|babel(?:\s*express)?|masarat|مسارات|بابيل|بابل|صلة|ترابط|logestechs|deliveroo(?:\s*joud)?|ديليفرو)\b/gi;
+    const scrub = (value: unknown): string | null | undefined => {
+      if (typeof value !== 'string') return value as null | undefined;
+      const cleaned = value.replace(brandPattern, '').replace(/\s{2,}/g, ' ').trim();
+      return cleaned || value;
+    };
+
+    const events = Array.isArray(rest.events)
+      ? rest.events.map((event) => ({
+          ...event,
+          title: scrub(event.title) ?? event.title,
+          notes: scrub(event.notes) ?? event.notes,
+        }))
+      : rest.events;
+
+    return {
+      ...rest,
+      events,
+      statusLabel: scrub(rest.statusLabel) ?? rest.statusLabel,
+      awb: null,
+      providerName: null,
+      providerCode: null,
+    };
   }
 
   async timeline(client: ClientPrincipal, id: string) {

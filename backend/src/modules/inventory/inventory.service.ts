@@ -26,6 +26,7 @@ import { LedgerEntryQueryDto } from './dto/ledger-entry-query.dto';
 import { LedgerQueryDto, StockQueryDto } from './dto/stock-query.dto';
 import { ledgerSignedQuantity, toLedgerDisplayMovement } from './ledger-mapper';
 import { StockHelpers } from './stock.helpers';
+import { ExpectedReturnHoldService } from './expected-return-hold.service';
 import {
   buildStockByProductSqlContext,
   stockByProductCountSql,
@@ -49,6 +50,11 @@ export interface AvailabilityResult {
   reserved: string;
   /** Global free stock (on_hand - reserved). */
   available: string;
+  /**
+   * Expected return qty from open OMS returns (requested|approved).
+   * Not part of on_hand or available — physical only after warehouse receipt.
+   */
+  expectedReturn: string;
   /**
    * When outboundOrderId was provided: this order's active soft-hold for the product.
    * Usable qty for the order = available + reservedByThisOrder.
@@ -108,6 +114,7 @@ export class InventoryService {
     private readonly companyAccess: CompanyAccessService,
     private readonly audit: AuditLogService,
     private readonly realtime: RealtimeService,
+    private readonly expectedReturnHold: ExpectedReturnHoldService,
   ) {}
 
   /**
@@ -888,6 +895,10 @@ export class InventoryService {
     const onHand = agg._sum.quantityOnHand ?? new Prisma.Decimal(0);
     const reserved = agg._sum.quantityReserved ?? new Prisma.Decimal(0);
     const available = agg._sum.quantityAvailable ?? new Prisma.Decimal(0);
+    const expectedReturn = await this.expectedReturnHold.expectedQuantityForProduct(
+      companyId,
+      productId,
+    );
 
     const base: AvailabilityResult = {
       productId,
@@ -895,6 +906,7 @@ export class InventoryService {
       onHand: onHand.toString(),
       reserved: reserved.toString(),
       available: available.toString(),
+      expectedReturn: expectedReturn.toString(),
     };
 
     if (!outboundOrderId) return base;

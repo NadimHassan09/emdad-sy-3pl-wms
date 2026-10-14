@@ -37,6 +37,7 @@ export function appendOmsOrderFieldFilters(
     | 'phone'
     | 'city'
     | 'carrier'
+    | 'shippingPayer'
     | 'startOrderNo'
     | 'endOrderNo'
     | 'totalOp'
@@ -124,6 +125,17 @@ export function appendOmsOrderFieldFilters(
 
   if (query.carrier?.trim()) {
     andParts.push(buildCarrierFilterPrismaCondition(query.carrier.trim()));
+  }
+
+  if (
+    query.shippingPayer === 'sender' ||
+    query.shippingPayer === 'receiver' ||
+    query.shippingPayer === 'reseller'
+  ) {
+    const payer = query.shippingPayer;
+    andParts.push({
+      OR: [{ shippingPayer: payer }, { outboundOrder: { shippingPayer: payer } }],
+    });
   }
 
   const totalValue = parseOmsTotalFilterValue(query.totalValue);

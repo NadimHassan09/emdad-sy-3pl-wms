@@ -41,13 +41,18 @@ describe('buildOmsOrdersListParams', () => {
     expect(buildOmsOrdersListParams(applied)).toEqual({
       orderSearch: 'OMS',
       orderId: undefined,
+      startOrderNo: undefined,
+      endOrderNo: undefined,
       companyId: undefined,
       customer: 'Ahmed',
       phone: undefined,
       city: undefined,
+      carrier: undefined,
+      shippingPayer: undefined,
       totalOp: undefined,
       totalValue: undefined,
       status: 'processing',
+      operationalStage: undefined,
     });
   });
 
@@ -64,6 +69,24 @@ describe('buildOmsOrdersListParams', () => {
         customer: undefined,
       }),
     );
+  });
+
+  it('sends an operational stage only while processing is selected', () => {
+    expect(
+      buildOmsOrdersListParams({
+        ...OMS_ORDERS_FILTER_DEFAULTS,
+        status: 'processing',
+        operationalStage: 'picking',
+      }).operationalStage,
+    ).toBe('picking');
+
+    expect(
+      buildOmsOrdersListParams({
+        ...OMS_ORDERS_FILTER_DEFAULTS,
+        status: 'shipped',
+        operationalStage: 'packing',
+      }).operationalStage,
+    ).toBeUndefined();
   });
 
   it('includes totalOp + totalValue together', () => {

@@ -80,6 +80,7 @@ export function OmsWaybillView({ waybill, isArabic: _isArabic = true }: Props) {
 
   return (
     <div
+      className="waybill-paper"
       dir="rtl"
       style={{
         background: '#fff', color: '#0f172a', fontSize: '12px', lineHeight: '1.4',
@@ -171,61 +172,58 @@ export function OmsWaybillView({ waybill, isArabic: _isArabic = true }: Props) {
       <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
         {/* ── TRACKING CODES ── */}
-        <div style={{ display: 'flex', gap: '6px' }}>
-
-          {/* Internal waybill */}
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'stretch' }}>
           <div style={{
-            flex: 1, border: `1.5px solid ${G_DARK}`, borderRadius: '6px',
+            flex: waybill.carrierTrackingNumber && carrierQr ? 1 : 1,
+            minWidth: 0,
+            border: `1.5px solid ${G_DARK}`, borderRadius: '6px',
             padding: '7px', background: '#fff',
             textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center',
           }}>
-            <div style={{ fontSize: '10px', fontWeight: 800, color: G_DARK, marginBottom: '4px', width: '100%' }}>
+            <div style={{ fontSize: '10px', fontWeight: 800, color: G_DARK, marginBottom: '4px', width: '100%', minHeight: waybill.carrierTrackingNumber && carrierQr ? '34px' : undefined }}>
               رقم بوليصة إمداد الداخلي
-            </div>
-            <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '12px', color: '#0f172a', marginBottom: '5px', wordBreak: 'break-all' }}>
-              {waybill.internalWaybillNumber}
+              <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '12px', color: '#0f172a', marginTop: '4px', wordBreak: 'break-all' }}>
+                {waybill.internalWaybillNumber}
+              </div>
             </div>
             {internalQr
-              ? <img src={internalQr} alt="QR" style={{ width: '100%', height: 'auto', display: 'block' }} />
+              ? <img src={internalQr} alt="QR" style={{ width: waybill.carrierTrackingNumber && carrierQr ? 110 : 140, height: waybill.carrierTrackingNumber && carrierQr ? 110 : 140, maxWidth: 140, maxHeight: 140, objectFit: 'contain', display: 'block', marginTop: 6 }} />
               : <div style={{ width: '100%', aspectRatio: '1', background: G_LIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>QR</div>
             }
           </div>
 
-          {/* Carrier AWB */}
           {waybill.carrierTrackingNumber && carrierQr ? (
             <div style={{
-              flex: 1, border: `1.5px solid ${G_DARK}`, borderRadius: '6px',
+              flex: 1, minWidth: 0, border: `1.5px solid ${G_DARK}`, borderRadius: '6px',
               padding: '7px', background: '#fff',
               textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center',
             }}>
-              <div style={{ fontSize: '10px', fontWeight: 800, color: '#0f172a', marginBottom: '3px', width: '100%' }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: '#0f172a', marginBottom: '3px', width: '100%', minHeight: '34px' }}>
                 رقم التتبع لدى الناقل (AWB)
-              </div>
-              {waybill.isCarrierAwbFromApi && (
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '4px',
-                  background: G_LIGHT, color: G_DARK,
-                  border: `1px solid #86efac`, borderRadius: '4px',
-                  padding: '2px 7px', fontSize: '9px', fontWeight: 800, marginBottom: '3px',
-                }}>
-                  <i className="fa-solid fa-circle-check" style={{ fontSize: '9px' }} aria-hidden="true" />
-                  معتمد من {waybill.carrier}
+                {waybill.isCarrierAwbFromApi && (
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                    background: G_LIGHT, color: G_DARK,
+                    border: `1px solid #86efac`, borderRadius: '4px',
+                    padding: '2px 7px', fontSize: '9px', fontWeight: 800, marginTop: '3px',
+                  }}>
+                    <i className="fa-solid fa-circle-check" style={{ fontSize: '9px' }} aria-hidden="true" />
+                    معتمد من {waybill.carrier}
+                  </div>
+                )}
+                <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '10px', color: '#0f172a', marginTop: '4px', wordBreak: 'break-all' }}>
+                  {waybill.carrierTrackingNumber}
                 </div>
-              )}
-              <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '10px', color: '#0f172a', marginBottom: '5px', wordBreak: 'break-all' }}>
-                {waybill.carrierTrackingNumber}
               </div>
-              <img src={carrierQr} alt="QR" style={{ width: '100%', height: 'auto', display: 'block' }} />
+              <img src={carrierQr} alt="QR" style={{ width: 110, height: 110, objectFit: 'contain', display: 'block', marginTop: 6 }} />
             </div>
           ) : (
             <div style={{
-              flex: 1, border: `1px dashed #bbf7d0`, borderRadius: '6px',
-              padding: '7px', background: G_LIGHT,
-              textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '5px',
+              flex: '0 0 72px', width: '72px', border: `1px dashed #bbf7d0`, borderRadius: '6px',
+              padding: '6px', background: G_LIGHT,
+              textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <i className="fa-solid fa-clock-rotate-left" style={{ color: G_DARK, fontSize: '20px' }} aria-hidden="true" />
-              <div style={{ fontSize: '10px', fontWeight: 800, color: G_DARK }}>رقم التتبع لدى الناقل (AWB)</div>
-              <div style={{ fontSize: '10px', fontWeight: 700, color: G_MID }}>
+              <div style={{ fontSize: '10px', fontWeight: 800, color: G_DARK }}>
                 {waybill.shippingMethod === 'carrier' ? 'بانتظار الإصدار' : 'شحن يدوي'}
               </div>
             </div>

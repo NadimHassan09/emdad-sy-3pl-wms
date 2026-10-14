@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   canAccessInternalTransfer,
   canAccessPath,
+  canEditExistingUsers,
+  canManageTargetRole,
+  canSetOtherUserPassword,
+  creatableSystemRoles,
   defaultHomePath,
   INTERNAL_TRANSFER_ROLES,
   navItemsForRole,
@@ -61,11 +65,20 @@ describe('OMS sub-nav', () => {
 });
 
 describe('sidebar nav', () => {
-  it('includes Tasks but not Inventory for wh_operator', () => {
+  it('gives wh_operator operational pages but not admin surfaces', () => {
     const labels = navItemsForRole('wh_operator').map((item) => item.labelKey);
     expect(labels).toContain('Tasks');
-    expect(labels).not.toContain('Inventory');
-    expect(labels).not.toContain('Dashboard');
+    expect(labels).toContain('Inventory');
+    expect(labels).toContain('Dashboard');
+    expect(labels).toContain('Products');
+    expect(labels).toContain('OMS Dashboard');
+    expect(labels).toContain('Reports');
+    expect(labels).not.toContain('Users');
+    expect(labels).not.toContain('Clients');
+    expect(labels).not.toContain('Forms');
+    expect(labels).not.toContain('Backups');
+    expect(labels).not.toContain('Shipping Companies');
+    expect(labels).not.toContain('Audit logs');
   });
 
   it('hides OMS COD and OMS Returns while UI flag is disabled (default)', () => {
@@ -73,5 +86,27 @@ describe('sidebar nav', () => {
     expect(labels).not.toContain('COD');
     expect(labels).not.toContain('OMS Returns');
     expect(labels).toContain('OMS Dashboard');
+  });
+});
+
+describe('user hierarchy helpers', () => {
+  it('blocks lower roles from managing higher roles', () => {
+    expect(canManageTargetRole('wh_operator', 'wh_manager')).toBe(false);
+    expect(canManageTargetRole('wh_manager', 'super_admin')).toBe(false);
+    expect(canManageTargetRole('super_admin', 'wh_manager')).toBe(true);
+    expect(canManageTargetRole('wh_manager', 'wh_operator')).toBe(true);
+  });
+
+  it('allows only super_admin to edit existing users / reset passwords', () => {
+    expect(canEditExistingUsers('super_admin')).toBe(true);
+    expect(canEditExistingUsers('wh_manager')).toBe(false);
+    expect(canSetOtherUserPassword('super_admin')).toBe(true);
+    expect(canSetOtherUserPassword('wh_manager')).toBe(false);
+  });
+
+  it('limits creatable system roles by actor rank', () => {
+    expect(creatableSystemRoles('super_admin')).toEqual(['super_admin', 'admin', 'worker']);
+    expect(creatableSystemRoles('wh_manager')).toEqual(['worker']);
+    expect(creatableSystemRoles('wh_operator')).toEqual([]);
   });
 });

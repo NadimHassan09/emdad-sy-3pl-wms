@@ -17,6 +17,14 @@ import type {
 } from '../../shipping-provider.interface';
 import { SILA_SY_CODE } from '../../shipping.constants';
 import { registerCourierName } from '../../shipping-carrier-resolver';
+import {
+  pickSilaChildArea,
+  walkSilaAreaHierarchy,
+  type SilaAreaHints,
+  type SilaAreaRow,
+} from './sila-area.util';
+import { pickNearestSilaBranch } from './sila-branch.util';
+import { logSanitizedProviderRequest, sanitizeSilaCargoBody } from '../../provider-request-log';
 import { SilaSyApiError, SilaSyHttpClient } from './sila-sy.http-client';
 
 /** Sila-SY courier as returned by POST /cargos/quote */
@@ -30,6 +38,8 @@ type SilaCourier = {
   coverage_note?: string | null;
   supports_home_delivery?: boolean | null;
   supports_pickup_at_branch?: boolean | null;
+  requires_branch?: boolean | null;
+  branches?: Array<{ id?: string; name?: string }>;
 };
 
 /** Sila-SY POST /cargos/quote response */
@@ -55,6 +65,10 @@ type SilaCargo = SilaCargoItem;
 type SilaCargoListData = {
   data?: SilaCargoItem[];
 };
+
+function isSilaProvinceAreaError(message: string): boolean {
+  return /whole province|parent_id|محافظة كاملة/i.test(message);
+}
 
 /** Extract the API key from credentials. Sila uses only username (= api key). */
 function apiKey(credentials: ShippingCredentials): string {
@@ -97,6 +111,259 @@ export function parseSilaServiceInfo(
 /** Extract courier_id from a Sila serviceId token. Returns null if format invalid. */
 export function parseSilaServiceId(serviceId: string): string | null {
   return parseSilaServiceInfo(serviceId)?.courierId ?? null;
+}
+
+type SilaStatusMapping = {
+  normalized: NormalizedTrackingStatus;
+  labelAr: string;
+  color: NonNullable<UnifiedShipmentMovementEvent['color']>;
+  carrierReturnStage?: 'return_created' | 'returning_to_sender' | 'returned_to_sender';
+};
+
+/**
+ * Map Sila cargo/shipment status strings to our normalized tracking model.
+ * Kept provider-local so Babel Express mapping is untouched.
+ */
+function mapSilaStatus(raw: string | null | undefined): SilaStatusMapping {
+  const status = (raw || '').toLowerCase().trim();
+  switch (status) {
+    case 'delivered':
+    case 'completed':
+      return { normalized: 'delivered', labelAr: 'تم تسليم الشحنة', color: 'success' };
+    case 'out_for_delivery':
+    case 'delivering':
+      return { normalized: 'out_for_delivery', labelAr: 'الشحنة خرجت للتوصيل', color: 'info' };
+    case 'return_created':
+    case 'return_initiated':
+    case 'return_requested':
+      return {
+        normalized: 'return_created',
+        labelAr: 'تم إنشاء طلب إرجاع',
+        color: 'warning',
+        carrierReturnStage: 'return_created',
+      };
+    case 'returning':
+    case 'returning_to_sender':
+    case 'in_return':
+      return {
+        normalized: 'returning_to_sender',
+        labelAr: 'الشحنة في طريق الإرجاع',
+        color: 'warning',
+        carrierReturnStage: 'returning_to_sender',
+      };
+    case 'returned':
+    case 'returned_to_sender':
+      return {
+        normalized: 'returned_to_sender',
+        labelAr: 'تم إرجاع الشحنة',
+        color: 'warning',
+        carrierReturnStage: 'returned_to_sender',
+      };
+    case 'failed':
+    case 'undelivered':
+    case 'delivery_failed':
+    case 'rejected':
+      return { normalized: 'delivery_failed', labelAr: 'فشل تسليم الشحنة', color: 'error' };
+    case 'cancelled':
+    case 'canceled':
+      return { normalized: 'cancelled', labelAr: 'تم إلغاء الشحنة', color: 'error' };
+    case 'processing':
+    case 'pending':
+    case 'created':
+    case 'confirmed':
+      return { normalized: 'in_transit', labelAr: 'تم تكوين الشحنة', color: 'default' };
+    case 'in_transit':
+    case 'received':
+    case 'picked_up':
+    case 'at_hub':
+      return { normalized: 'in_transit', labelAr: 'الشحنة في الطريق', color: 'info' };
+    default:
+      return {
+        normalized: 'unknown',
+        labelAr: status ? `تحديث حالة الشحنة: ${status}` : 'تحديث حالة الشحنة',
+        color: 'default',
+      };
+  }
+}
+
+function firstNonEmptyString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
+function toIsoOrNull(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/**
+ * Sila list query `cargos?barcode=` does NOT filter — it returns the latest page.
+ * The reliable lookup is `GET /cargos/{tracking_token|id}`.
+ */
+function cargoMatchesToken(cargo: Record<string, any> | null | undefined, token: string): boolean {
+  if (!cargo || !token) return false;
+  const candidates = [cargo.tracking_token, cargo.barcode, cargo.awb_number, cargo.id, cargo.code];
+  return candidates.some((c) => typeof c === 'string' && c.trim() === token);
+}
+
+function extractDeliveryRoute(cargo: Record<string, any>): any[] {
+  const shipment = Array.isArray(cargo.shipments) ? cargo.shipments[0] : null;
+  const remote =
+    shipment?.remote_last_status && typeof shipment.remote_last_status === 'object'
+      ? shipment.remote_last_status
+      : null;
+  const route = remote?.deliveryRoute;
+  return Array.isArray(route) ? route : [];
+}
+
+function buildSilaTimelineEvents(cargo: Record<string, any>): UnifiedShipmentMovementEvent[] {
+  const events: UnifiedShipmentMovementEvent[] = [];
+  const route = extractDeliveryRoute(cargo);
+
+  for (const step of route) {
+    if (!step || typeof step !== 'object') continue;
+    const title = firstNonEmptyString(step.arabicName, step.name);
+    const timestamp = toIsoOrNull(step.deliveryDate);
+    if (!title || !timestamp) continue;
+    const arrived = step.isArrived !== false;
+    events.push({
+      timestamp,
+      title,
+      location: null,
+      color: arrived ? 'info' : 'default',
+      code: typeof step.typeKey === 'string' ? step.typeKey : null,
+    });
+  }
+
+  if (events.length > 0) {
+    // Enrich with terminal cargo timestamps when route lacks them.
+    const extras: Array<{ at: unknown; title: string; color: UnifiedShipmentMovementEvent['color']; code: string }> = [
+      { at: cargo.pod_delivered_at, title: 'تم تسليم الشحنة', color: 'success', code: 'delivered' },
+      { at: cargo.rejected_at, title: 'رفض استلام الشحنة', color: 'error', code: 'rejected' },
+      {
+        at: cargo.return_arrived_at_branch_at,
+        title: 'وصلت الشحنة المرتجعة إلى الفرع',
+        color: 'warning',
+        code: 'return_arrived',
+      },
+      {
+        at: cargo.return_picked_up_at,
+        title: 'تم استلام الشحنة المرتجعة',
+        color: 'warning',
+        code: 'return_picked_up',
+      },
+      {
+        at: cargo.merchant_collected_at,
+        title: 'تم استلام المرتجع من التاجر',
+        color: 'warning',
+        code: 'merchant_collected',
+      },
+    ];
+    for (const extra of extras) {
+      const ts = toIsoOrNull(extra.at);
+      if (!ts) continue;
+      if (events.some((e) => e.timestamp === ts && e.code === extra.code)) continue;
+      events.push({
+        timestamp: ts,
+        title: extra.title,
+        location: typeof cargo.city === 'string' ? cargo.city : null,
+        color: extra.color,
+        code: extra.code,
+      });
+    }
+  } else {
+    // Fallback when courier does not expose deliveryRoute: synthesize from cargo timestamps.
+    const fallbackSteps: Array<{
+      at: unknown;
+      title: string;
+      color: UnifiedShipmentMovementEvent['color'];
+      code: string;
+    }> = [
+      { at: cargo.created_at, title: 'تم تكوين الشحنة', color: 'default', code: 'created' },
+      {
+        at: cargo.forwarded_to_courier_at,
+        title: 'تم إرسال الشحنة لشركة النقل',
+        color: 'info',
+        code: 'forwarded',
+      },
+      { at: cargo.confirmed_at, title: 'تم تأكيد الشحنة', color: 'info', code: 'confirmed' },
+      { at: cargo.scanned_at, title: 'تم مسح الشحنة', color: 'info', code: 'scanned' },
+      { at: cargo.pod_delivered_at, title: 'تم تسليم الشحنة', color: 'success', code: 'delivered' },
+      { at: cargo.rejected_at, title: 'رفض استلام الشحنة', color: 'error', code: 'rejected' },
+      {
+        at: cargo.return_arrived_at_branch_at,
+        title: 'وصلت الشحنة المرتجعة إلى الفرع',
+        color: 'warning',
+        code: 'return_arrived',
+      },
+      {
+        at: cargo.return_picked_up_at,
+        title: 'تم استلام الشحنة المرتجعة',
+        color: 'warning',
+        code: 'return_picked_up',
+      },
+      {
+        at: cargo.merchant_collected_at,
+        title: 'تم استلام المرتجع من التاجر',
+        color: 'warning',
+        code: 'merchant_collected',
+      },
+      { at: cargo.updated_at, title: mapSilaStatus(cargo.status).labelAr, color: mapSilaStatus(cargo.status).color, code: String(cargo.status || 'status') },
+    ];
+
+    const seen = new Set<string>();
+    for (const step of fallbackSteps) {
+      const ts = toIsoOrNull(step.at);
+      if (!ts) continue;
+      const key = `${ts}:${step.code}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      events.push({
+        timestamp: ts,
+        title: step.title,
+        location: typeof cargo.city === 'string' ? cargo.city : null,
+        color: step.color,
+        code: step.code,
+      });
+    }
+  }
+
+  events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return events;
+}
+
+function resolveCargoStatus(cargo: Record<string, any>): string {
+  const shipment = Array.isArray(cargo.shipments) ? cargo.shipments[0] : null;
+  const cargoStatus = typeof cargo.status === 'string' ? cargo.status.trim() : '';
+  const shipmentStatus = typeof shipment?.status === 'string' ? shipment.status.trim() : '';
+  const remoteRaw =
+    typeof shipment?.remote_status_raw === 'string' ? shipment.remote_status_raw.trim() : '';
+
+  // Prefer concrete cargo/shipment status over vague "processing" when nested data is richer.
+  if (cargoStatus && cargoStatus.toLowerCase() !== 'processing') return cargoStatus;
+  if (shipmentStatus && shipmentStatus.toLowerCase() !== 'pending') return shipmentStatus;
+  if (remoteRaw) {
+    const upper = remoteRaw.toUpperCase();
+    if (upper.includes('DELIVERED') && !upper.includes('UNDELIVERED')) return 'delivered';
+    if (upper.includes('RETURN')) return 'returned';
+    if (upper.includes('CANCEL')) return 'cancelled';
+    if (upper.includes('FAIL') || upper.includes('REJECT')) return 'delivery_failed';
+    if (
+      upper.includes('OUT_FOR_DELIVERY') ||
+      upper.includes('IN_CAR') ||
+      upper.includes('SCANNED_BY_DRIVER') ||
+      upper.includes('WITH_DRIVER')
+    ) {
+      return 'out_for_delivery';
+    }
+    if (upper.includes('TRANSIT') || upper.includes('HUB') || upper.includes('PICK')) {
+      return 'in_transit';
+    }
+  }
+  return cargoStatus || shipmentStatus || remoteRaw || 'processing';
 }
 
 @Injectable()
@@ -151,7 +418,9 @@ export class SilaSyAdapter implements ShippingProvider {
     const rawHood = (input.neighborhood ?? '').trim();
 
     const province = rawGov || rawCity || rawHood;
-    const district = rawHood || rawCity || province;
+    // Sila areas are city/region rows (e.g. مدينة حمص). The neighbourhood
+    // (الأرمن) is an address detail and is rejected as "does not serve this area".
+    const district = rawCity || rawHood || province;
 
     if (!province) {
       // Cannot quote without at least a province or city name
@@ -232,6 +501,15 @@ export class SilaSyAdapter implements ShippingProvider {
       return [];
     }
 
+    if (resolvedAreaId) {
+      resolvedAreaId = await this.narrowProvinceArea(credentials, resolvedAreaId, {
+        province,
+        city: rawCity,
+        district,
+        neighborhood: rawHood,
+      });
+    }
+
     const results: ShippingQuoteResult[] = [];
     for (const courier of couriers) {
       // Skip couriers that are unpriced or not serviced
@@ -247,6 +525,14 @@ export class SilaSyAdapter implements ShippingProvider {
       }
       const courierId = courier.courier_id?.trim();
       if (!courierId) continue;
+      if (input.deliveryType === 'address' && courier.supports_home_delivery === false) continue;
+      if (
+        input.deliveryType === 'hub' &&
+        courier.supports_pickup_at_branch === false &&
+        courier.requires_branch !== true
+      ) {
+        continue;
+      }
       if (courier.name) registerCourierName(courierId, courier.name);
 
       const effectiveDeliveryType: 'address' | 'hub' =
@@ -301,6 +587,87 @@ export class SilaSyAdapter implements ShippingProvider {
     );
   }
 
+  /**
+   * Quote area ids are often the province. Couriers require a city or neighbourhood
+   * from GET /regions/areas?parent_id=<province>.
+   */
+  private async narrowProvinceArea(
+    credentials: ShippingCredentials,
+    areaId: string,
+    hints: SilaAreaHints,
+    strict = false,
+  ): Promise<string> {
+    const key = apiKey(credentials);
+    let level = '';
+    try {
+      const area = await this.http.get<SilaAreaRow>(
+        `regions/areas/${encodeURIComponent(areaId)}`,
+        key,
+      );
+      level = typeof area?.level === 'string' ? area.level : '';
+    } catch {
+      level = '';
+    }
+    const fetchChildren = (parentId: string) => this.listChildAreas(credentials, parentId);
+    let walked = await walkSilaAreaHierarchy(areaId, level || null, hints, fetchChildren);
+    if (!('areaId' in walked) && level.toLowerCase() === 'province') {
+      const pool = await this.searchHintAreas(credentials, hints);
+      const picked = pickSilaChildArea(pool, hints);
+      if (picked?.id) {
+        const deeper = await walkSilaAreaHierarchy(
+          picked.id,
+          picked.level ?? null,
+          hints,
+          fetchChildren,
+          picked.name_ar || picked.name_en,
+        );
+        walked = 'areaId' in deeper ? deeper : { areaId: picked.id };
+      }
+    }
+    if ('areaId' in walked) return walked.areaId;
+    if (!strict || level.toLowerCase() !== 'province') return areaId;
+    throw new BadRequestException(
+      `Sila area is a whole province. Missing ${walked.missingLevel}. Set the receiver ${walked.missingLevel} so a child area can be selected.`,
+    );
+  }
+
+  private async listChildAreas(
+    credentials: ShippingCredentials,
+    areaId: string,
+  ): Promise<SilaAreaRow[]> {
+    const raw = await this.http.get<SilaAreaRow[] | { data?: SilaAreaRow[] }>(
+      `regions/areas?parent_id=${encodeURIComponent(areaId)}`,
+      apiKey(credentials),
+    );
+    return Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+  }
+
+  /** Province rows on Sila often have no parent_id children. Search finds the city. */
+  private async searchHintAreas(
+    credentials: ShippingCredentials,
+    hints: SilaAreaHints,
+  ): Promise<SilaAreaRow[]> {
+    const terms = [hints.neighborhood, hints.city, hints.district]
+      .flatMap((value) => (value ? value.split(/\s*[-–—]\s*/) : []))
+      .map((value) => value.trim())
+      .filter((value) => value.length >= 2);
+    const unique = [...new Set(terms)];
+    const pool: SilaAreaRow[] = [];
+    for (const term of unique.slice(0, 6)) {
+      try {
+        const raw = await this.http.get<SilaAreaRow[] | { data?: SilaAreaRow[] }>(
+          `regions/areas?search=${encodeURIComponent(term)}`,
+          apiKey(credentials),
+        );
+        const list = Array.isArray(raw) ? raw : Array.isArray(raw?.data) ? raw.data : [];
+        pool.push(...list);
+      } catch {
+        /* search is best-effort; the caller still stops if nothing matches */
+      }
+    }
+    return pool;
+  }
+
   // ─── resolveAreaId ──────────────────────────────────────────────────────────
 
   /**
@@ -330,6 +697,10 @@ export class SilaSyAdapter implements ShippingProvider {
         );
         const list: any[] = res?.data ?? res ?? [];
         if (Array.isArray(list) && list.length > 0) {
+          const specific = list.filter((a) => a?.level !== 'province');
+          const pool = specific.length > 0 ? specific : [];
+          if (pool.length === 0) continue;
+          list.splice(0, list.length, ...pool);
           // Priority 1: Exact name match within the same province
           const exactProvMatch = list.find(
             (a) =>
@@ -407,8 +778,8 @@ export class SilaSyAdapter implements ShippingProvider {
       (input.receiver.city ?? '').trim() ||
       'دمشق';
     const district =
-      (input.receiver.neighborhood ?? '').trim() ||
       (input.receiver.city ?? '').trim() ||
+      (input.receiver.neighborhood ?? '').trim() ||
       province;
 
     const addressLine =
@@ -423,7 +794,57 @@ export class SilaSyAdapter implements ShippingProvider {
         input.receiver.neighborhood,
       )) ?? undefined;
     }
+    const areaHints: SilaAreaHints = {
+      province,
+      city: input.receiver.city,
+      district,
+      neighborhood: input.receiver.neighborhood,
+    };
+    if (areaId) {
+      areaId = await this.narrowProvinceArea(credentials, areaId, areaHints, true);
+    }
 
+    const pickup = input.pickup;
+    const pickupPhone =
+      pickup?.phoneCountry && pickup.phoneLocal
+        ? `+${pickup.phoneCountry.replace(/^\+/, '')}${pickup.phoneLocal}`
+        : pickup?.phoneLocal;
+    const pickupProvince =
+      (pickup?.governorate ?? '').trim() || (pickup?.city ?? '').trim() || '';
+    const pickupDistrict =
+      (pickup?.city ?? '').trim() || (pickup?.neighborhood ?? '').trim() || pickupProvince;
+    const pickupAddress = pickup?.address?.trim() || '';
+
+    const quotedCourier = await this.lookupQuotedCourier(
+      credentials,
+      courierId,
+      province,
+      district,
+      (input.currency ?? 'USD').trim().toUpperCase(),
+    );
+    const branchId = pickNearestSilaBranch(
+      (quotedCourier?.branches ?? [])
+        .map((branch) => ({
+          id: branch.id?.trim() || '',
+          name: branch.name?.trim() || '',
+        }))
+        .filter((branch) => branch.id && branch.name),
+      {
+      governorate: input.receiver.governorate || province,
+      neighborhood: input.receiver.neighborhood || district,
+      lat: input.receiver.lat,
+      lng: input.receiver.lng,
+    })?.id ?? null;
+
+    const codCurrency = (input.currency ?? 'USD').trim().toUpperCase();
+    const quoteCurrency = (quotedCourier?.currency ?? '').trim().toUpperCase();
+
+    // Sila payload fields are observed (no checked-in OpenAPI). Do not change them from a guess.
+    // shipping_paid_by accepts merchant | receiver only, so reseller cannot be encoded.
+    // Receiver + COD is not blocked here; Sila's create response is the decision.
+    // Province area_id is narrowed with Sila's own area API.
+    // Fee currency and COD currency are independent. Do not block when they differ.
+    // District prefers city over neighbourhood. Branch-only couriers stay hidden for home delivery.
     const body: Record<string, unknown> = {
       recipient: {
         full_name: input.receiver.name,
@@ -433,6 +854,17 @@ export class SilaSyAdapter implements ShippingProvider {
         address_line: addressLine,
         ...(areaId ? { area_id: areaId } : {}),
       },
+      ...(input.pickupType !== 'hub' && pickup && pickupAddress
+        ? {
+            sender: {
+              full_name: pickup.name,
+              ...(pickupPhone ? { phone: pickupPhone } : {}),
+              ...(pickupProvince ? { province: pickupProvince } : {}),
+              ...(pickupDistrict ? { district: pickupDistrict } : {}),
+              address_line: pickupAddress,
+            },
+          }
+        : {}),
       parcel: {
         weight_kg: input.weightKg > 0 ? input.weightKg : 1,
         pieces_count: input.parts?.length ?? 1,
@@ -442,12 +874,34 @@ export class SilaSyAdapter implements ShippingProvider {
         description: input.contents || 'Goods',
       },
       courier_id: courierId,
+      ...(branchId ? { branch_id: branchId } : {}),
+      // Branch-only couriers (Masarat) reject a home-delivery create with
+      // "does not serve this area (or this service type)".
+      service_type: branchId || input.deliveryType === 'hub' ? 'pickup_at_branch' : 'home_delivery',
       pay_on_delivery: {
         amount: Math.max(1, input.codAmount > 0 ? input.codAmount : 1),
         currency: (input.currency ?? 'USD').toUpperCase(),
       },
+      // Sila accepts only merchant | receiver. Sender is the merchant. Reseller has no Sila value.
+      shipping_paid_by: (() => {
+        if (input.payer === 'reseller') {
+          throw new BadRequestException(
+            'Sila-SY does not support Reseller as the shipping payer. Choose Sender or Receiver and send again.',
+          );
+        }
+        return input.payer === 'receiver' ? 'receiver' : 'merchant';
+      })(),
+      merchant_pays_shipping: input.payer !== 'receiver',
       ...(input.reference ? { reference: input.reference } : {}),
     };
+
+    logSanitizedProviderRequest(
+      this.logger,
+      sanitizeSilaCargoBody(body, {
+        serviceId: input.serviceId ?? courierId,
+        quoteCurrency: quoteCurrency || null,
+      }),
+    );
 
     let raw: any;
     try {
@@ -458,32 +912,84 @@ export class SilaSyAdapter implements ShippingProvider {
         this.logger.warn(`Sila reference "${input.reference}" already used. Retrying with unique timestamp suffix.`);
         body.reference = `${input.reference}-${Date.now().toString().slice(-6)}`;
         raw = await this.http.post<any>('cargos', apiKey(credentials), body);
+      } else if (isSilaProvinceAreaError(msg) && areaId) {
+        const narrowed = await this.narrowProvinceArea(credentials, areaId, areaHints, true);
+        if (narrowed === areaId) {
+          throw new BadRequestException(
+            'Sila area is a whole province. Missing city. Set the receiver city or neighbourhood so a child area can be selected, then send again.',
+          );
+        }
+        (body.recipient as Record<string, unknown>).area_id = narrowed;
+        raw = await this.http.post<any>('cargos', apiKey(credentials), body);
       } else {
         throw err;
       }
     }
 
     const rawData = raw?.data ?? raw;
-    const barcode =
+    // Platform/provider id (Sila barcode) — used for label/API lookups.
+    const providerId =
+      (typeof rawData?.id === 'string' && rawData.id.trim()) ||
       (typeof rawData?.barcode === 'string' && rawData.barcode.trim()) ||
       (typeof rawData?.awb_number === 'string' && rawData.awb_number.trim()) ||
       (typeof rawData?.code === 'string' && rawData.code.trim()) ||
-      (typeof rawData?.tracking_token === 'string' && rawData.tracking_token.trim()) ||
-      (typeof rawData?.id === 'string' && rawData.id.trim()) ||
-      (typeof raw?.barcode === 'string' && raw.barcode.trim()) ||
       '';
-    if (!barcode) {
-      throw new SilaSyApiError('Sila-SY createShipment succeeded without barcode.', undefined, raw);
+    if (!providerId) {
+      throw new SilaSyApiError('Sila-SY createShipment succeeded without a provider reference.', undefined, raw);
+    }
+    const loaded = await this.fetchCargo(credentials, providerId);
+    const cargo = loaded ?? rawData;
+    const courierTracking =
+      (typeof cargo?.courier_barcode === 'string' && cargo.courier_barcode.trim()) ||
+      (typeof cargo?.tracking_number === 'string' && cargo.tracking_number.trim()) ||
+      (typeof cargo?.courier_tracking === 'string' && cargo.courier_tracking.trim()) ||
+      (typeof cargo?.tracking_token === 'string' && cargo.tracking_token.trim()) ||
+      '';
+    if (!courierTracking) {
+      throw new SilaSyApiError(
+        'Sila-SY did not return the actual courier tracking number. The Sila reference is not a tracking number.',
+        undefined,
+        cargo,
+      );
     }
 
-    return { awb: barcode, raw };
+    return { awb: providerId, trackingNumber: courierTracking, raw: cargo };
+  }
+
+  /**
+   * Branch couriers (Masarat) reject create unless branch_id is one of their hubs.
+   * Choose the hub closest to the customer delivery address.
+   */
+  private async lookupQuotedCourier(
+    credentials: ShippingCredentials,
+    courierId: string,
+    province: string,
+    district: string,
+    currency: string,
+  ): Promise<SilaCourier | null> {
+    try {
+      const quoteRes = await this.http.post<any>('cargos/quote', apiKey(credentials), {
+        province,
+        district,
+        weight_kg: 1,
+        currency,
+      });
+      const quoteData = quoteRes?.data ?? quoteRes;
+      const couriers: SilaCourier[] = Array.isArray(quoteData?.couriers) ? quoteData.couriers : [];
+      return couriers.find((courier) => courier.courier_id?.trim() === courierId) ?? null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Sila courier lookup failed for ${courierId}: ${msg}`);
+      return null;
+    }
   }
 
   // ─── getLabel ──────────────────────────────────────────────────────────────
 
   /**
-   * Retrieves the label URL for a shipment by barcode.
-   * Sila returns label_url directly in the shipment data.
+   * Retrieves the label URL for a shipment by tracking token / cargo id.
+   * IMPORTANT: Do not use `cargos?barcode=` — Sila ignores that filter and returns
+   * the latest cargo page, which caused cross-shipment mix-ups.
    */
   async getLabel(
     credentials: ShippingCredentials,
@@ -493,18 +999,8 @@ export class SilaSyAdapter implements ShippingProvider {
     if (!trimmed) return null;
 
     try {
-      // GET /cargos?barcode={awb} returns a paginated list — pick first match
-      const listData = await this.http.get<any>(
-        `cargos?barcode=${encodeURIComponent(trimmed)}`,
-        apiKey(credentials),
-      );
-      const items = Array.isArray(listData?.data)
-        ? listData.data
-        : Array.isArray(listData)
-          ? listData
-          : [];
-      const cargo = items[0];
-      const labelUrl = typeof cargo?.label_url === 'string' ? cargo.label_url.trim() : null;
+      const cargo = await this.fetchCargo(credentials, trimmed);
+      const labelUrl = firstNonEmptyString(cargo?.label_url, cargo?.labelUrl);
       if (labelUrl) {
         return { url: labelUrl };
       }
@@ -515,6 +1011,28 @@ export class SilaSyAdapter implements ShippingProvider {
   }
 
   // ─── Tracking & Webhooks ───────────────────────────────────────────────────
+
+  /**
+   * Fetch a single Sila cargo by tracking_token or id.
+   * Uses GET /cargos/{token} — the only reliable lookup we validated against live API.
+   */
+  private async fetchCargo(
+    credentials: ShippingCredentials,
+    token: string,
+  ): Promise<Record<string, any> | null> {
+    const trimmed = token.trim();
+    if (!trimmed) return null;
+
+    const data = await this.http.get<any>(
+      `cargos/${encodeURIComponent(trimmed)}`,
+      apiKey(credentials),
+    );
+    const cargo = data && typeof data === 'object' && !Array.isArray(data) ? data : null;
+    if (!cargo || !cargoMatchesToken(cargo, trimmed)) {
+      return null;
+    }
+    return cargo;
+  }
 
   verifyWebhook(
     headers: Record<string, string | string[] | undefined>,
@@ -535,75 +1053,37 @@ export class SilaSyAdapter implements ShippingProvider {
   ): NormalizedTrackingEvent | null {
     if (!body || typeof body !== 'object') return null;
     const b = body as Record<string, any>;
-    const awb =
-      (typeof b.barcode === 'string' && b.barcode.trim()) ||
-      (typeof b.awb === 'string' && b.awb.trim()) ||
-      (typeof b.tracking_number === 'string' && b.tracking_number.trim()) ||
-      '';
+    // Sila webhooks commonly send tracking_token (not barcode/awb).
+    const awb = firstNonEmptyString(
+      b.tracking_token,
+      b.barcode,
+      b.awb,
+      b.tracking_number,
+      b.id,
+    );
     const rawStatus = typeof b.status === 'string' ? b.status.trim().toLowerCase() : '';
     if (!awb && !rawStatus) return null;
 
-    let normalizedStatus: NormalizedTrackingStatus = 'unknown';
-    let carrierReturnStage: 'return_created' | 'returning_to_sender' | 'returned_to_sender' | undefined;
-
-    switch (rawStatus) {
-      case 'delivered':
-      case 'completed':
-        normalizedStatus = 'delivered';
-        break;
-      case 'out_for_delivery':
-      case 'delivering':
-        normalizedStatus = 'out_for_delivery';
-        break;
-      case 'return_created':
-      case 'return_initiated':
-      case 'return_requested':
-        normalizedStatus = 'return_created';
-        carrierReturnStage = 'return_created';
-        break;
-      case 'returning':
-      case 'returning_to_sender':
-      case 'in_return':
-        normalizedStatus = 'returning_to_sender';
-        carrierReturnStage = 'returning_to_sender';
-        break;
-      case 'returned':
-      case 'returned_to_sender':
-        normalizedStatus = 'returned_to_sender';
-        carrierReturnStage = 'returned_to_sender';
-        break;
-      case 'failed':
-      case 'undelivered':
-      case 'delivery_failed':
-        normalizedStatus = 'delivery_failed';
-        break;
-      case 'processing':
-      case 'in_transit':
-      case 'received':
-        normalizedStatus = 'in_transit';
-        break;
-      case 'cancelled':
-        normalizedStatus = 'cancelled';
-        break;
-    }
-
+    const mapped = mapSilaStatus(rawStatus);
     const returnReason =
-      (typeof b.return_reason === 'string' && b.return_reason.trim()) ||
-      (typeof b.failed_reason === 'string' && b.failed_reason.trim()) ||
-      (typeof b.reason === 'string' && b.reason.trim()) ||
-      (typeof b.note === 'string' && b.note.trim()) ||
-      (typeof b.notes === 'string' && b.notes.trim()) ||
-      undefined;
+      firstNonEmptyString(
+        b.return_reason,
+        b.rejection_reason,
+        b.failed_reason,
+        b.reason,
+        b.note,
+        b.notes,
+      ) || undefined;
 
     return {
       providerCode: this.code,
       externalEventId: `${awb}:${rawStatus}:${b.updated_at || Date.now()}`,
       awb,
       eventType: rawStatus || 'WEBHOOK',
-      normalizedStatus,
+      normalizedStatus: mapped.normalized,
       returnReason,
       originalCarrierStatus: String(b.status || rawStatus || 'WEBHOOK'),
-      carrierReturnStage,
+      carrierReturnStage: mapped.carrierReturnStage,
       timestamp: b.updated_at ? new Date(b.updated_at) : new Date(),
       rawPayload: b,
     };
@@ -617,82 +1097,32 @@ export class SilaSyAdapter implements ShippingProvider {
     if (!trimmed) return null;
 
     try {
-      const listData = await this.http.get<any>(
-        `cargos?barcode=${encodeURIComponent(trimmed)}`,
-        apiKey(credentials),
-      );
-      const items = Array.isArray(listData?.data)
-        ? listData.data
-        : Array.isArray(listData)
-          ? listData
-          : [];
-      const cargo = items[0];
+      const cargo = await this.fetchCargo(credentials, trimmed);
       if (!cargo) return null;
 
-      const rawStatus = (cargo.status || '').toLowerCase().trim();
-      let normalizedStatus: NormalizedTrackingStatus = 'unknown';
-      let carrierReturnStage: 'return_created' | 'returning_to_sender' | 'returned_to_sender' | undefined;
-
-      switch (rawStatus) {
-        case 'delivered':
-        case 'completed':
-          normalizedStatus = 'delivered';
-          break;
-        case 'out_for_delivery':
-        case 'delivering':
-          normalizedStatus = 'out_for_delivery';
-          break;
-        case 'return_created':
-        case 'return_initiated':
-        case 'return_requested':
-          normalizedStatus = 'return_created';
-          carrierReturnStage = 'return_created';
-          break;
-        case 'returning':
-        case 'returning_to_sender':
-        case 'in_return':
-          normalizedStatus = 'returning_to_sender';
-          carrierReturnStage = 'returning_to_sender';
-          break;
-        case 'returned':
-        case 'returned_to_sender':
-          normalizedStatus = 'returned_to_sender';
-          carrierReturnStage = 'returned_to_sender';
-          break;
-        case 'failed':
-        case 'undelivered':
-        case 'delivery_failed':
-          normalizedStatus = 'delivery_failed';
-          break;
-        case 'processing':
-        case 'in_transit':
-        case 'received':
-        case 'created':
-          normalizedStatus = 'in_transit';
-          break;
-        case 'cancelled':
-          normalizedStatus = 'cancelled';
-          break;
-      }
-
+      const rawStatus = resolveCargoStatus(cargo);
+      const mapped = mapSilaStatus(rawStatus);
       const returnReason =
-        (typeof cargo.return_reason === 'string' && cargo.return_reason.trim()) ||
-        (typeof cargo.failed_reason === 'string' && cargo.failed_reason.trim()) ||
-        (typeof cargo.reason === 'string' && cargo.reason.trim()) ||
-        (typeof cargo.note === 'string' && cargo.note.trim()) ||
-        undefined;
+        firstNonEmptyString(
+          cargo.return_reason,
+          cargo.rejection_reason,
+          cargo.failed_reason,
+          cargo.reason,
+          cargo.note,
+        ) || undefined;
 
       const updatedAt = cargo.updated_at ? new Date(cargo.updated_at) : new Date();
+      const cargoToken = firstNonEmptyString(cargo.tracking_token, cargo.barcode, cargo.id) || trimmed;
 
       return {
         providerCode: this.code,
-        externalEventId: `${trimmed}:${rawStatus}:${cargo.updated_at || Date.now()}`,
-        awb: trimmed,
+        externalEventId: `${cargoToken}:${rawStatus}:${cargo.updated_at || Date.now()}`,
+        awb: cargoToken,
         eventType: rawStatus || 'CARGO_STATUS',
-        normalizedStatus,
+        normalizedStatus: mapped.normalized,
         returnReason,
         originalCarrierStatus: String(cargo.status || rawStatus || 'CARGO_STATUS'),
-        carrierReturnStage,
+        carrierReturnStage: mapped.carrierReturnStage,
         timestamp: updatedAt,
         rawPayload: cargo,
       };
@@ -709,50 +1139,29 @@ export class SilaSyAdapter implements ShippingProvider {
     if (!trimmed) return null;
 
     try {
-      const listData = await this.http.get<any>(
-        `cargos?barcode=${encodeURIComponent(trimmed)}`,
-        apiKey(credentials),
-      );
-      const items = Array.isArray(listData?.data)
-        ? listData.data
-        : Array.isArray(listData)
-          ? listData
-          : [];
-      const cargo = items[0];
+      const cargo = await this.fetchCargo(credentials, trimmed);
       if (!cargo) {
         return {
           providerCode: this.code,
           providerName: 'Sila-SY',
           awb: trimmed,
           events: [],
-          message: 'No tracking information found for this shipment.',
+          message: 'لا توجد بيانات لحركة الشحنة من شركة الشحن.',
         };
       }
 
-      const events: UnifiedShipmentMovementEvent[] = [];
-      const rawStatus = (cargo.status || '').toLowerCase().trim();
-      const updatedAt = cargo.updated_at ? new Date(cargo.updated_at).toISOString() : new Date().toISOString();
-
-      let color: 'default' | 'info' | 'success' | 'error' | 'warning' = 'default';
-      if (rawStatus === 'delivered' || rawStatus === 'completed') color = 'success';
-      else if (rawStatus === 'out_for_delivery' || rawStatus === 'delivering') color = 'info';
-      else if (rawStatus === 'failed' || rawStatus === 'undelivered' || rawStatus === 'cancelled') color = 'error';
-      else if (rawStatus === 'returned' || rawStatus === 'returned_to_sender') color = 'warning';
-
-      events.push({
-        timestamp: updatedAt,
-        title: cargo.status_label || cargo.status || 'Status update',
-        location: cargo.destination_city || cargo.city || null,
-        color,
-        code: rawStatus,
-      });
+      const rawStatus = resolveCargoStatus(cargo);
+      const mapped = mapSilaStatus(rawStatus);
+      const events = buildSilaTimelineEvents(cargo);
+      const cargoToken = firstNonEmptyString(cargo.tracking_token, cargo.barcode, cargo.id) || trimmed;
 
       return {
         providerCode: this.code,
         providerName: 'Sila-SY',
-        awb: trimmed,
-        isDelivered: rawStatus === 'delivered' || rawStatus === 'completed',
-        statusLabel: cargo.status_label || cargo.status || undefined,
+        awb: cargoToken,
+        isDelivered: mapped.normalized === 'delivered',
+        statusLabel: mapped.labelAr,
+        statusColor: mapped.color,
         events,
       };
     } catch (err: any) {

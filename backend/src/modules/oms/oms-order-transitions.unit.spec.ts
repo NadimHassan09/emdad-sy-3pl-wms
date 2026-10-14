@@ -87,6 +87,15 @@ describe('oms-order-transitions', () => {
     ).toBe(OmsOrderStatus.returned);
   });
 
+  it('allows recover from failed_delivery to delivered or out_for_delivery', () => {
+    expect(
+      assertOmsTransition(OmsOrderStatus.failed_delivery, 'mark_delivered', 'admin'),
+    ).toBe(OmsOrderStatus.delivered);
+    expect(
+      assertOmsTransition(OmsOrderStatus.failed_delivery, 'resume_shipping', 'admin'),
+    ).toBe(OmsOrderStatus.out_for_delivery);
+  });
+
   it('moves waiting_for_confirmation to confirmed_waiting_for_admin_approval on admin_confirm and client_confirm', () => {
     expect(
       assertOmsTransition(OmsOrderStatus.waiting_for_confirmation, 'admin_confirm', 'admin'),

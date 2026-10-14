@@ -1,5 +1,14 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import { ShippingDeliveryType, ShippingPackageType, ShippingPickupType } from '@prisma/client';
 
 export class QuoteShippingRatesDto {
@@ -66,4 +75,32 @@ export class QuoteShippingRatesDto {
   @IsOptional()
   @IsString()
   currency?: string;
+
+  /** Shipping-fee currency preference. Independent of COD collection currency. */
+  @IsOptional()
+  @IsString()
+  rateCurrency?: string;
+
+  /** all preserves or converts by capability. explicit never substitutes another currency. */
+  @IsOptional()
+  @IsIn(['all', 'explicit'])
+  collectionMode?: 'all' | 'explicit';
+
+  /** Current shipping-fee payer. Availability is recalculated when this changes. */
+  @IsOptional()
+  @IsIn(['sender', 'receiver', 'reseller'])
+  payer?: 'sender' | 'receiver' | 'reseller';
+
+  /**
+   * Bulk shipping-details: return address + hub options in one response so the
+   * client does not need two /shipping/rates calls per order.
+   */
+  @IsOptional()
+  @IsBoolean()
+  includeAllDeliveryTypes?: boolean;
+
+  /** Optional: quote a single connected provider (for progress UX / isolation). */
+  @IsOptional()
+  @IsString()
+  providerCode?: string;
 }

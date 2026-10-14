@@ -47,6 +47,8 @@ export type CarrierShippingFormValue = {
   cartons: ShippingCartonValue[];
   catalog: OrderProductCatalog[];
   currency: ShippingCurrency;
+  /** Carrier collection currency. Separate from the order currency. */
+  collectionCurrency?: ShippingCurrency;
   deliveryType: ShippingDeliveryType;
   shippingPayer: ShippingPayer;
   shippingProviderCode: string;
@@ -177,7 +179,7 @@ export function buildCarrierShippingFormFromOrder(order: OutboundOrder): Carrier
   const savedPkg = order.shippingPackageType;
   const savedDelivery = order.shippingDeliveryType;
   const savedPayer = order.shippingPayer;
-  const savedCurrency = (order.currency ?? 'USD').trim().toUpperCase();
+  const savedCurrency = (order.omsOrder?.currency ?? order.currency ?? 'USD').trim().toUpperCase();
   const shippingPayer: ShippingPayer =
     savedPayer === 'receiver' || savedPayer === 'reseller' || savedPayer === 'sender'
       ? savedPayer
@@ -353,6 +355,7 @@ export type CarrierShippingSavePayload = ShippingConfigPayload & {
   addressLine1?: string | null;
   addressLine2?: string | null;
   currency?: string | null;
+  codCollectionCurrency?: string | null;
   shippingPackages?: StoredShippingCarton[] | null;
 };
 
@@ -372,7 +375,7 @@ export function carrierFormToSavePayload(
     shippingPackageType: form.packageType || 'box',
     shippingContents: contentsFromCartons(form.cartons, form.catalog) || null,
     shippingDeliveryType: form.deliveryType || 'address',
-    shippingPickupType: 'hub',
+    shippingPickupType: 'address',
     shippingPayer: form.shippingPayer || 'sender',
     shippingWeightKg: weight > 0 ? weight : null,
     shippingVolumeCbm: volume >= 0 ? volume : 0,
@@ -381,7 +384,7 @@ export function carrierFormToSavePayload(
     district: form.district.trim() || null,
     addressLine1: form.addressLine1.trim() || null,
     addressLine2: form.addressLine2.trim() || null,
-    currency: form.currency || 'USD',
+    codCollectionCurrency: form.collectionCurrency || form.currency || 'USD',
   };
 }
 

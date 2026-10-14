@@ -214,34 +214,13 @@ export function OmsOrderCreatePage(): ReactElement {
     return out;
   }, [availabilityByProduct, requestedByProduct]);
 
-  const clampQtyToAvailable = (productId: string, raw: string): string => {
-    if (!productId || raw === '') return raw;
+  const clampNonNegativeQty = (raw: string): string => {
+    if (raw === '') return raw;
     const n = Number(raw);
     if (!Number.isFinite(n)) return raw;
-    const avail = availabilityByProduct.get(productId);
-    if (avail !== undefined && n > avail) return String(avail);
     if (n < 0) return '0';
     return raw;
   };
-
-  // Cap quantities once availability arrives (e.g. user typed before the query resolved).
-  useEffect(() => {
-    if (availabilityByProduct.size === 0) return;
-    setLines((prev) => {
-      let changed = false;
-      const next = prev.map((l) => {
-        if (!l.productId || !l.requestedQuantity) return l;
-        const clamped = clampQtyToAvailable(l.productId, l.requestedQuantity);
-        if (clamped !== l.requestedQuantity) {
-          changed = true;
-          return { ...l, requestedQuantity: clamped };
-        }
-        return l;
-      });
-      return changed ? next : prev;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- clamp when availability map updates
-  }, [availabilityByProduct]);
 
   const linesSum = useMemo(() => {
     return lines.reduce((sum, l) => {
@@ -345,10 +324,8 @@ export function OmsOrderCreatePage(): ReactElement {
       setError('Required ship date cannot be before today.');
       return;
     }
-    if (shortages.length > 0) {
-      setError('Quantity cannot exceed available stock for one or more products.');
-      return;
-    }
+    // Stock shortages are informational only — Approve is the stock gate.
+
     // Map pin is optional — cascading address is sufficient for OMS create.
 
     const payloadLines: CreateOmsOrderInput['lines'] = [];
@@ -359,11 +336,6 @@ export function OmsOrderCreatePage(): ReactElement {
       if (!(qty > 0)) continue;
       if (Number.isNaN(unitPrice) || unitPrice < 0) {
         setError('Each product line needs a valid price.');
-        return;
-      }
-      const avail = availabilityByProduct.get(l.productId);
-      if (avail !== undefined && qty > avail) {
-        setError('Quantity cannot exceed available stock.');
         return;
       }
       payloadLines.push({
@@ -603,10 +575,7 @@ export function OmsOrderCreatePage(): ReactElement {
                               ? {
                                   ...l,
                                   productId: id,
-                                  requestedQuantity: clampQtyToAvailable(
-                                    id,
-                                    l.requestedQuantity,
-                                  ),
+                                  requestedQuantity: clampNonNegativeQty(l.requestedQuantity),
                                 }
                               : l,
                           ),
@@ -625,7 +594,7 @@ export function OmsOrderCreatePage(): ReactElement {
                         <span
                           className={[
                             'font-mono font-semibold',
-                            isShort ? 'text-status-error-fg' : 'text-text-strong',
+                            isShort ? 'text-status-warning-fg' : 'text-text-strong',
                           ].join(' ')}
                         >
                           {formatAvailable(avail)}
@@ -634,20 +603,20 @@ export function OmsOrderCreatePage(): ReactElement {
                       </p>
                     ) : null}
                     {isShort ? (
-                      <p className="mt-1 text-[11px] font-medium text-status-error-fg">
-                        Exceeds available stock
+                      <p className="mt-1 text-[11px] font-medium text-status-warning-fg">
+                        Insufficient stock — order can be created, but cannot be approved until
+                        stock is available.
                       </p>
                     ) : null}
                   </div>
                   <TextField
                     type="number"
                     min={0}
-                    max={avail !== undefined ? avail : undefined}
                     step="1"
                     aria-label="Quantity"
                     value={line.requestedQuantity}
                     onChange={(e) => {
-                      const next = clampQtyToAvailable(line.productId, e.target.value);
+                      const next = clampNonNegativeQty(e.target.value);
                       setLines((prev) =>
                         prev.map((l) =>
                           l.key === line.key ? { ...l, requestedQuantity: next } : l,
@@ -718,6 +687,16 @@ export function OmsOrderCreatePage(): ReactElement {
                 {linesSum.toLocaleString(undefined, { maximumFractionDigits: 2 })} USD
               </span>
             </p>
+
+            {shortages.length > 0 ? (
+              <div
+                className="rounded-md border border-status-warning-border bg-status-warning-bg p-3 text-xs text-status-warning-fg"
+                role="status"
+              >
+                Insufficient stock. This order can be created, but it cannot be approved until
+                sufficient stock is available.
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -733,7 +712,7 @@ export function OmsOrderCreatePage(): ReactElement {
           <button
             type="submit"
             form="create-admin-oms"
-            disabled={loading || shortages.length > 0}
+            disabled={loading}
             className={FILTER_PRIMARY_BUTTON_CLASS}
           >
             {loading ? (

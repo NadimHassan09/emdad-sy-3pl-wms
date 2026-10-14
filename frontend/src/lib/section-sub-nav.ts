@@ -94,6 +94,11 @@ export const SECTION_SUB_NAV_CONFIGS: SectionSubNavConfig[] = [
         match: (p) => p === '/orders/oms' || p.startsWith('/orders/oms/') || p.startsWith('/oms/orders'),
       },
       {
+        labelKey: 'Batches',
+        to: '/oms/batches',
+        match: (p) => p === '/oms/batches' || p.startsWith('/oms/batches/'),
+      },
+      {
         labelKey: 'COD',
         to: '/oms/cod',
         match: (p) => p === '/oms/cod' || p.startsWith('/oms/cod/'),
@@ -296,6 +301,7 @@ export function sectionSubNavLabel(label: string, isArabic: boolean): string {
     'OMS navigation': 'تنقل OMS',
     'OMS Dashboard': 'لوحة OMS',
     'OMS Orders': 'طلبات OMS',
+    Batches: 'المجموعات',
     COD: 'COD',
     'OMS Returns': 'مرتجعات OMS',
     'Contracts navigation': 'تنقل العقود',

@@ -1,5 +1,5 @@
 import * as crypto from 'crypto';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import type {
   NormalizedTrackingEvent,
@@ -15,6 +15,7 @@ import type {
   ShippingQuoteResult,
   UnifiedShipmentMovementEvent,
 } from '../../shipping-provider.interface';
+import { logSanitizedProviderRequest, sanitizeBabelCreatePayload } from '../../provider-request-log';
 import { BABEL_EXPRESS_CODE } from '../../shipping.constants';
 import { BabelApiError, BabelExpressHttpClient } from './babel-express.http-client';
 import {
@@ -31,6 +32,7 @@ function deliveryTypeLabel(type: 'address' | 'hub'): string {
 
 @Injectable()
 export class BabelExpressAdapter implements ShippingProvider {
+  private readonly logger = new Logger(BabelExpressAdapter.name);
   readonly code = BABEL_EXPRESS_CODE;
   readonly capabilities: ShippingProviderCapabilities = {
     supportsQuote: true,
@@ -79,7 +81,8 @@ export class BabelExpressAdapter implements ShippingProvider {
         weightKg: input.weightKg,
         parts: input.parts,
         deliveryType: 'address',
-        pickupType: 'hub',
+        pickupType: resolveBabelPickupType(input.pickupType),
+        pickup: input.pickup,
       });
       const probeRaw = await this.http.post<{
         status?: string;
@@ -100,7 +103,8 @@ export class BabelExpressAdapter implements ShippingProvider {
       weightKg: input.weightKg,
       parts: input.parts,
       deliveryType,
-      pickupType: 'hub',
+      pickupType: resolveBabelPickupType(input.pickupType),
+      pickup: input.pickup,
     });
     const preflight = await this.http.post<{
       status?: string;
@@ -125,6 +129,7 @@ export class BabelExpressAdapter implements ShippingProvider {
         neighbourhoodId,
       },
     });
+    logSanitizedProviderRequest(this.logger, sanitizeBabelCreatePayload(payload));
     const raw = await this.http.post<{ status?: string; awb?: string }>(
       'createShipment',
       credentials,
@@ -142,12 +147,16 @@ export class BabelExpressAdapter implements ShippingProvider {
     input: ShippingQuoteInput,
   ): Promise<ShippingQuoteResult> {
     let neighbourhoodId = input.neighbourhoodId;
-    if (neighbourhoodId == null) {
-      neighbourhoodId = await this.lookupNeighbourhoodId(
-        credentials,
-        input.receiverLat,
-        input.receiverLng,
+    const lat = Number(input.receiverLat);
+    const lng = Number(input.receiverLng);
+    const hasPin = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) > 0 && Math.abs(lng) > 0;
+    if (neighbourhoodId == null && !hasPin) {
+      throw new BabelApiError(
+        'Babel calculatePrice was not sent: the request has no neighbourhood id and no coordinates.',
       );
+    }
+    if (neighbourhoodId == null) {
+      neighbourhoodId = await this.lookupNeighbourhoodId(credentials, lat, lng);
     }
 
     const requestQuote = async (deliveryType: 'address' | 'hub') => {
@@ -155,7 +164,8 @@ export class BabelExpressAdapter implements ShippingProvider {
         ...input,
         neighbourhoodId,
         deliveryType,
-        pickupType: 'hub',
+        pickupType: resolveBabelPickupType(input.pickupType),
+        pickup: input.pickup,
       });
       return this.http.post<{
         status?: string;
@@ -165,25 +175,13 @@ export class BabelExpressAdapter implements ShippingProvider {
       }>('calculatePrice', credentials, payload);
     };
 
-    let raw = await requestQuote(input.deliveryType);
-    let effectiveDeliveryType = input.deliveryType;
-    let restrictions: string[] | undefined;
-
-    if (
-      input.deliveryType === 'address' &&
-      !isBabelCalculatePriceShippable(raw, 'address')
-    ) {
-      raw = await requestQuote('hub');
-      effectiveDeliveryType = 'hub';
-      restrictions = [
-        'Door delivery is not available at this pin. Hub delivery applies (customer collects from a Babel hub).',
-      ];
-    }
+    const raw = await requestQuote(input.deliveryType);
+    const effectiveDeliveryType = input.deliveryType;
 
     const shippable = isBabelCalculatePriceShippable(raw, effectiveDeliveryType);
     if (!shippable) {
       throw new BabelApiError(
-        'Not available for this destination / shipment configuration (Babel returned a non-shippable quote).',
+        `Babel calculatePrice did not offer ${input.deliveryType}: ${JSON.stringify(raw)}`,
         undefined,
         raw,
       );
@@ -200,39 +198,52 @@ export class BabelExpressAdapter implements ShippingProvider {
       details: raw?.details,
       effectiveDeliveryType,
       serviceName: deliveryTypeLabel(effectiveDeliveryType),
-      restrictions,
       shippable: true,
       neighbourhoodId,
     };
   }
 
   /**
-   * Quote Babel Express option for the user-selected deliveryType.
-   * Delivery type (Home delivery vs Branch delivery) is chosen by the user in the form.
-   * Does NOT produce dual Address and Hub cards.
+   * Quote Babel Express for address and hub so Mixed delivery filters can recommend
+   * across both modes. Unshippable options are omitted.
    */
   async getServiceOptions(
     credentials: ShippingCredentials,
     input: ShippingQuoteInput,
   ): Promise<ShippingQuoteResult[]> {
-    try {
-      const quote = await this.getQuote(credentials, input);
-      if (!quote || !quote.shippable) return [];
-
-      const effectiveType = quote.effectiveDeliveryType ?? input.deliveryType ?? 'address';
-      return [
-        {
+    const types: Array<'address' | 'hub'> = ['address', 'hub'];
+    const results: ShippingQuoteResult[] = [];
+    const omitted: string[] = [];
+    for (const deliveryType of types) {
+      try {
+        const quote = await this.getQuote(credentials, { ...input, deliveryType });
+        const effectiveType = quote.effectiveDeliveryType ?? deliveryType;
+        // Avoid duplicate when address falls back to hub
+        if (results.some((r) => (r.effectiveDeliveryType ?? r.serviceId) === effectiveType || r.serviceId === `${BABEL_EXPRESS_CODE}:${effectiveType}`)) {
+          continue;
+        }
+        results.push({
           ...quote,
+          effectiveDeliveryType: effectiveType,
           serviceId: `${BABEL_EXPRESS_CODE}:${effectiveType}`,
-          serviceName: 'بابل إكسبريس (Babel Express)',
+          serviceName:
+            effectiveType === 'hub'
+              ? 'بابل إكسبريس — فرع (Babel Hub)'
+              : 'بابل إكسبريس — منزلي (Babel Home)',
           providerName: 'Babel Express',
           estimatedDeliveryMin: 2,
           estimatedDeliveryMax: 3,
-        },
-      ];
-    } catch {
-      return [];
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        omitted.push(message);
+        this.logger.warn(`Babel ${deliveryType} quote omitted: ${message}`);
+      }
     }
+    if (results.length === 0 && omitted.length > 0) {
+      throw new BabelApiError(omitted[0]);
+    }
+    return results;
   }
 
   async lookupNeighbourhoodId(

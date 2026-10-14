@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Patch, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { CodRecordStatus } from '@prisma/client';
 
 import { CurrentUser } from '../../common/auth/current-user.decorator';
@@ -8,6 +9,7 @@ import { CodRecordsService } from './cod-records.service';
 import {
   CreateCodAdjustmentDto,
   ListCodRecordsQueryDto,
+  SetCodStatusByScanDto,
   UpdateCodStatusDto,
 } from './dto/cod.dto';
 
@@ -18,6 +20,27 @@ export class CodController {
   @Get('records')
   list(@CurrentUser() user: AuthPrincipal, @Query() query: ListCodRecordsQueryDto) {
     return this.cod.list(user, query);
+  }
+
+  @Post('status-by-scan')
+  setStatusByScan(
+    @CurrentUser() user: AuthPrincipal,
+    @Body() dto: SetCodStatusByScanDto,
+  ) {
+    return this.cod.setStatusByScan(user, dto.code, dto.status as CodRecordStatus);
+  }
+
+  @Get('records/export')
+  @Header('Cache-Control', 'no-store')
+  async exportRecords(
+    @CurrentUser() user: AuthPrincipal,
+    @Query() query: ListCodRecordsQueryDto,
+    @Res() res: Response,
+  ) {
+    const csv = await this.cod.exportCsv(user, query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="cod-records.csv"');
+    res.send(csv);
   }
 
   @Get('records/:id')

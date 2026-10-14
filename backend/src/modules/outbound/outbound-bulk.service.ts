@@ -3,9 +3,13 @@ import {
   CarrierShipmentStatus,
   OutboundOrderStatus,
   ShippingMethod,
+  WarehouseTaskStatus,
+  WarehouseTaskType,
 } from '@prisma/client';
 
 import { AuthPrincipal } from '../../common/auth/current-user.types';
+import { PrismaService } from '../../common/prisma/prisma.service';
+import { runPool } from '../../common/utils/async-pool';
 import {
   calculateOrderVolume,
   calculateOrderWeight,
@@ -53,7 +57,22 @@ const SHIPPING_DETAILS_ELIGIBLE: readonly string[] = [
  */
 @Injectable()
 export class OutboundBulkService {
-  constructor(private readonly outbound: OutboundService) {}
+  /** Internal stage transitions (picking/packing/dispatch/shipping-complete). */
+  private static readonly BULK_STAGE_CONCURRENCY = 20;
+  /**
+   * Continue-to-packing: single-tx quiet pick + soft-hold reuse — can run hotter
+   * than generic stage concurrency (no cross-order stock re-reserve under ALLOCATE_ON).
+   */
+  private static readonly BULK_PICKING_CONCURRENCY = 20;
+  /** Heavier start-execution path (plan + approve/confirm). */
+  private static readonly BULK_PROCESS_CONCURRENCY = 15;
+  /** Shipping details may call carrier APIs — keep moderate. */
+  private static readonly BULK_SHIPPING_DETAILS_CONCURRENCY = 8;
+
+  constructor(
+    private readonly outbound: OutboundService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   /**
    * Apply the admin-reviewed execution configuration to each selected order and
@@ -67,82 +86,177 @@ export class OutboundBulkService {
     items: BulkProcessOutboundItemDto[],
   ): Promise<BulkIdsResponse> {
     this.assertNoDuplicateItems(items);
-    const processedOrders: BulkItemResult[] = [];
-    const failures: BulkItemFailure[] = [];
+    const { successes, failures } = await runPool<
+      BulkProcessOutboundItemDto,
+      BulkItemResult,
+      BulkItemFailure
+    >(items, OutboundBulkService.BULK_PROCESS_CONCURRENCY, async (item) => {
+        try {
+          const order = await this.outbound.findById(item.outboundOrderId, user);
+          const plan = {
+            warehouseId: item.warehouseId.trim(),
+            ...(item.requiresPacking && item.packingLocationId?.trim()
+              ? { packingLocationId: item.packingLocationId.trim() }
+              : {}),
+            dispatchDockId: item.dispatchDockId.trim(),
+            requiresPacking: item.requiresPacking,
+            lines: order.lines.map((l) => ({
+              productId: l.productId,
+              expectedQty: Number(l.requestedQuantity),
+            })),
+          };
 
-    for (const item of items) {
-      const orderNumber = await this.lookupOrderNumber(user, item.outboundOrderId);
-      try {
-        const order = await this.outbound.findById(item.outboundOrderId, user);
-        const plan = {
-          warehouseId: item.warehouseId.trim(),
-          ...(item.requiresPacking && item.packingLocationId?.trim()
-            ? { packingLocationId: item.packingLocationId.trim() }
-            : {}),
-          dispatchDockId: item.dispatchDockId.trim(),
-          requiresPacking: item.requiresPacking,
-          lines: order.lines.map((l) => ({
-            productId: l.productId,
-            expectedQty: Number(l.requestedQuantity),
-          })),
-        };
-
-        await this.outbound.updatePlan(user, order.id, {
-          executionMode: item.executionMode,
-          executionPlan: plan as unknown as Record<string, unknown>,
-          requiresPacking: item.requiresPacking,
-        });
-
-        if (item.executionMode === 'admin') {
-          await this.outbound.approveAdmin(user, order.id);
-        } else {
-          await this.outbound.confirmAndDeduct(user, order.id, {
-            warehouseId: plan.warehouseId,
+          await this.outbound.updatePlan(user, order.id, {
+            executionMode: item.executionMode,
+            executionPlan: plan as unknown as Record<string, unknown>,
+            requiresPacking: item.requiresPacking,
           });
-        }
 
-        const fresh = await this.outbound.findById(order.id, user);
-        processedOrders.push({
-          outboundOrderId: order.id,
-          orderNumber: order.orderNumber,
-          status: fresh.status,
-        });
-      } catch (err) {
-        failures.push({
-          outboundOrderId: item.outboundOrderId,
-          orderNumber,
-          error: err instanceof Error ? err.message : 'Processing failed.',
-        });
-      }
-    }
+          if (item.executionMode === 'admin') {
+            await this.outbound.approveAdmin(user, order.id);
+          } else {
+            await this.outbound.confirmAndDeduct(user, order.id, {
+              warehouseId: plan.warehouseId,
+            });
+          }
+
+          const fresh = await this.outbound.findById(order.id, user);
+          return {
+            ok: true as const,
+            value: {
+              outboundOrderId: order.id,
+              orderNumber: order.orderNumber,
+              status: fresh.status,
+            },
+          };
+        } catch (err) {
+          return {
+            ok: false as const,
+            value: {
+              outboundOrderId: item.outboundOrderId,
+              orderNumber: await this.lookupOrderNumber(user, item.outboundOrderId),
+              error: err instanceof Error ? err.message : 'Processing failed.',
+            },
+          };
+        }
+      },
+    );
 
     return {
       requested: items.length,
-      completed: processedOrders.length,
+      completed: successes.length,
       failed: failures.length,
-      completedOrders: processedOrders,
+      completedOrders: successes,
       failures,
     };
   }
 
   /** Bulk "Mark Picking as Complete" — existing picking stage validation applies per order. */
   async completePickingBulk(user: AuthPrincipal, ids: string[]): Promise<BulkIdsResponse> {
-    return this.runIdsAction(user, ids, (orderId) =>
-      this.outbound.completePickingAdmin(user, orderId),
+    const uniqueIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
+    const [pickTasks, orders] = uniqueIds.length
+      ? await Promise.all([
+          this.prisma.warehouseTask.findMany({
+            where: {
+              taskType: WarehouseTaskType.pick,
+              status: {
+                in: [
+                  WarehouseTaskStatus.pending,
+                  WarehouseTaskStatus.assigned,
+                  WarehouseTaskStatus.in_progress,
+                ],
+              },
+              workflowInstance: {
+                referenceType: 'outbound_order',
+                referenceId: { in: uniqueIds },
+              },
+            },
+            select: {
+              id: true,
+              createdAt: true,
+              workflowInstance: { select: { referenceId: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+          }),
+          this.prisma.outboundOrder.findMany({
+            where: { id: { in: uniqueIds } },
+            select: {
+              id: true,
+              orderNumber: true,
+              status: true,
+              companyId: true,
+              executionMode: true,
+              executionPlan: true,
+              requiresPacking: true,
+            },
+          }),
+        ])
+      : [[], []];
+    const pickByOrder = new Map<string, string>();
+    for (const t of pickTasks) {
+      const oid = t.workflowInstance.referenceId;
+      if (!pickByOrder.has(oid)) pickByOrder.set(oid, t.id);
+    }
+    const orderById = new Map(orders.map((o) => [o.id, o]));
+
+    const { successes, failures } = await runPool<string, BulkItemResult, BulkItemFailure>(
+      uniqueIds,
+      OutboundBulkService.BULK_PICKING_CONCURRENCY,
+      async (id) => {
+        try {
+          const order = await this.outbound.completePickingAdmin(user, id, {
+            bulkQuiet: true,
+            pickTaskId: pickByOrder.get(id),
+            prefetchedOrder: orderById.get(id),
+          });
+          return {
+            ok: true as const,
+            value: {
+              outboundOrderId: order.id,
+              orderNumber: order.orderNumber,
+              status: order.status,
+            },
+          };
+        } catch (err) {
+          return {
+            ok: false as const,
+            value: {
+              outboundOrderId: id,
+              orderNumber: orderById.get(id)?.orderNumber ?? (await this.lookupOrderNumber(user, id)),
+              error: err instanceof Error ? err.message : 'Action failed.',
+            },
+          };
+        }
+      },
     );
+
+    return {
+      requested: uniqueIds.length,
+      completed: successes.length,
+      failed: failures.length,
+      completedOrders: successes,
+      failures,
+    };
   }
 
   /** Bulk "Mark Packing as Complete" — requires packing stage + requiresPacking per order. */
   async completePackingBulk(user: AuthPrincipal, ids: string[]): Promise<BulkIdsResponse> {
     return this.runIdsAction(user, ids, (orderId) =>
-      this.outbound.completePackingAdmin(user, orderId),
+      this.outbound.completePackingAdmin(user, orderId, { bulkQuiet: true }),
     );
   }
 
   /** Bulk "Mark Dispatch as Complete" — transitions ready_to_ship to shipped / out_for_delivery. */
   async completeDispatchBulk(user: AuthPrincipal, ids: string[]): Promise<BulkIdsResponse> {
     return this.runIdsAction(user, ids, (orderId) =>
-      this.outbound.completeDispatchAdmin(user, orderId),
+      this.outbound.completeDispatchAdmin(user, orderId, { bulkQuiet: true }),
+    );
+  }
+
+  /** Bulk confirm shipping complete (AWB already present) → ready_to_ship. */
+  async completeShippingDetailsBulk(user: AuthPrincipal, ids: string[]): Promise<BulkIdsResponse> {
+    return this.runIdsAction(user, ids, (orderId) =>
+      this.outbound.completeShippingDetailsAdmin(user, orderId, { bulkQuiet: true }),
     );
   }
 
@@ -153,24 +267,29 @@ export class OutboundBulkService {
    */
   async shippingDetailsPreview(user: AuthPrincipal, ids: string[]) {
     const uniqueIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
-    const orders: Array<Record<string, unknown>> = [];
+    const { successes } = await runPool<string, Record<string, unknown>, never>(
+      uniqueIds,
+      OutboundBulkService.BULK_STAGE_CONCURRENCY,
+      async (id) => {
+        try {
+          const order = await this.outbound.findById(id, user);
+          return { ok: true as const, value: this.previewOrder(order) };
+        } catch (err) {
+          return {
+            ok: true as const,
+            value: {
+              outboundOrderId: id,
+              orderNumber: null,
+              status: null,
+              ready: false,
+              issues: [err instanceof Error ? err.message : 'Order not found.'],
+            },
+          };
+        }
+      },
+    );
 
-    for (const id of uniqueIds) {
-      try {
-        const order = await this.outbound.findById(id, user);
-        orders.push(this.previewOrder(order));
-      } catch (err) {
-        orders.push({
-          outboundOrderId: id,
-          orderNumber: null,
-          status: null,
-          ready: false,
-          issues: [err instanceof Error ? err.message : 'Order not found.'],
-        });
-      }
-    }
-
-    return { orders };
+    return { orders: successes };
   }
 
   /**
@@ -184,28 +303,31 @@ export class OutboundBulkService {
     items: BulkShippingDetailsItemDto[],
   ): Promise<BulkIdsResponse> {
     this.assertNoDuplicateItems(items);
-    const processedOrders: BulkItemResult[] = [];
-    const failures: BulkItemFailure[] = [];
-
-    for (const item of items) {
-      const orderNumber = await this.lookupOrderNumber(user, item.outboundOrderId);
+    const { successes, failures } = await runPool<
+      BulkShippingDetailsItemDto,
+      BulkItemResult,
+      BulkItemFailure
+    >(items, OutboundBulkService.BULK_SHIPPING_DETAILS_CONCURRENCY, async (item) => {
       try {
         const result = await this.processShippingDetailsItem(user, item);
-        processedOrders.push(result);
+        return { ok: true as const, value: result };
       } catch (err) {
-        failures.push({
-          outboundOrderId: item.outboundOrderId,
-          orderNumber,
-          error: err instanceof Error ? err.message : 'Shipping details failed.',
-        });
+        return {
+          ok: false as const,
+          value: {
+            outboundOrderId: item.outboundOrderId,
+            orderNumber: await this.lookupOrderNumber(user, item.outboundOrderId),
+            error: err instanceof Error ? err.message : 'Shipping details failed.',
+          },
+        };
       }
-    }
+    });
 
     return {
       requested: items.length,
-      completed: processedOrders.length,
+      completed: successes.length,
       failed: failures.length,
-      completedOrders: processedOrders,
+      completedOrders: successes,
       failures,
     };
   }
@@ -297,32 +419,38 @@ export class OutboundBulkService {
     action: (orderId: string) => Promise<{ id: string; orderNumber: string; status: string }>,
   ): Promise<BulkIdsResponse> {
     const uniqueIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)));
-    const completedOrders: BulkItemResult[] = [];
-    const failures: BulkItemFailure[] = [];
-
-    for (const id of uniqueIds) {
-      const orderNumber = await this.lookupOrderNumber(user, id);
-      try {
-        const order = await action(id);
-        completedOrders.push({
-          outboundOrderId: order.id,
-          orderNumber: order.orderNumber,
-          status: order.status,
-        });
-      } catch (err) {
-        failures.push({
-          outboundOrderId: id,
-          orderNumber,
-          error: err instanceof Error ? err.message : 'Action failed.',
-        });
-      }
-    }
+    const { successes, failures } = await runPool<string, BulkItemResult, BulkItemFailure>(
+      uniqueIds,
+      OutboundBulkService.BULK_STAGE_CONCURRENCY,
+      async (id) => {
+        try {
+          const order = await action(id);
+          return {
+            ok: true as const,
+            value: {
+              outboundOrderId: order.id,
+              orderNumber: order.orderNumber,
+              status: order.status,
+            },
+          };
+        } catch (err) {
+          return {
+            ok: false as const,
+            value: {
+              outboundOrderId: id,
+              orderNumber: await this.lookupOrderNumber(user, id),
+              error: err instanceof Error ? err.message : 'Action failed.',
+            },
+          };
+        }
+      },
+    );
 
     return {
       requested: uniqueIds.length,
-      completed: completedOrders.length,
+      completed: successes.length,
       failed: failures.length,
-      completedOrders,
+      completedOrders: successes,
       failures,
     };
   }
