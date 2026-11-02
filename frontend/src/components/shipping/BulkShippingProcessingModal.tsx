@@ -463,13 +463,24 @@ function ReviewRow(props: {
           onChange={(e) => onChange(e.target.value)}
           aria-label={`Carrier for ${line.orderNumber}`}
         >
-          {visibleProviders.map((p) => (
-            <option key={p.code} value={p.code} disabled={p.code !== 'MANUAL' && !p.connected}>
-              {p.name}
-              {p.code === line.recommendedProviderCode ? ' (recommended)' : ''}
-              {p.code !== 'MANUAL' && !p.connected ? ' — not connected' : ''}
-            </option>
-          ))}
+          {visibleProviders.map((p) => {
+            // A carrier that returned no quote for this order cannot serve its address
+            // (e.g. Babel has no coverage for Raqqa); never offer it for sending.
+            const noQuote =
+              p.code !== 'MANUAL' && p.connected && !line.quotes.some((q) => q.providerCode === p.code);
+            return (
+              <option
+                key={p.code}
+                value={p.code}
+                disabled={p.code !== 'MANUAL' && (!p.connected || noQuote)}
+              >
+                {p.name}
+                {p.code === line.recommendedProviderCode ? ' (recommended)' : ''}
+                {p.code !== 'MANUAL' && !p.connected ? ' — not connected' : ''}
+                {noQuote ? ' — not available for this address' : ''}
+              </option>
+            );
+          })}
         </select>
         {line.codAmount != null ? (
           <div className="mt-1 text-xs text-text-faint">
