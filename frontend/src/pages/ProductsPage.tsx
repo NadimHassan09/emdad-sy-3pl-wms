@@ -661,9 +661,11 @@ function CreateProductModal({
     enabled: open,
   });
 
+  // Pre-select only when there is no ambiguity; otherwise the user must pick the client
+  // explicitly (never fall back to the first tenant after the field is cleared).
   useEffect(() => {
     if (!open) return;
-    if (!companyId && companies.data?.length) {
+    if (!companyId && companies.data?.length === 1) {
       setCompanyId(companies.data[0].id);
     }
   }, [open, companyId, companies.data]);

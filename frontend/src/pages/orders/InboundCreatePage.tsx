@@ -280,10 +280,12 @@ export function InboundCreatePage() {
   });
 
   useEffect(() => {
+    // Pre-select only when unambiguous: the configured default, or the only client.
     if (!companyId && companies.data?.length) {
       const fallback =
-        companies.data.find((c) => c.id === DEFAULT_COMPANY_ID) ?? companies.data[0];
-      setCompanyId(fallback.id);
+        companies.data.find((c) => c.id === DEFAULT_COMPANY_ID) ??
+        (companies.data.length === 1 ? companies.data[0] : undefined);
+      if (fallback) setCompanyId(fallback.id);
     }
   }, [companyId, companies.data]);
 
